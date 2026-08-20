@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "A speaking-first Spanish learning experience.",
     start_url: "/",
     display: "standalone",
-    background_color: "#fff8ee",
-    theme_color: "#fff8ee",
+    background_color: "#f4f7fb",
+    theme_color: "#1769e0",
     lang: "zh-CN",
   };
 }

@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-20
 - 当前里程碑：个人 Alpha 阶段 1——Web/PWA 与 Flutter 客户端基础骨架
-- 总体状态：多平台架构已批准；Next.js/PWA 基础完成，准备同步建立 Web 与 Flutter 产品壳层
+- 总体状态：Web 与 Flutter 四栏产品壳层已完成实现和验证，等待分支复核与合并
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -24,8 +24,8 @@
 
 ### ALPHA-002：建立 Web 与 Flutter 四栏产品壳层
 
-- 状态：`ready`
-- 负责人：未分配
+- 状态：`review`
+- 负责人：Codex
 - 目标分支：`feat/alpha-002-cross-platform-shell`
 - 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 1.2：建立 Web 与 Flutter 产品壳层”
 - 前置依赖：ALPHA-001，已完成
@@ -49,11 +49,20 @@
 - `pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm build`、`flutter analyze` 和 `flutter test` 通过。
 - 明确记录 iOS 尚未在 Mac/Xcode 编译或真机验证，不能把公共 Flutter 测试等同于 iOS 验收。
 
+实现结果：
+
+- Web 已建立学习、探索、对话、我的四个响应式页面，手机使用底栏，桌面使用侧栏。
+- Flutter 已建立相同信息架构，手机使用 `NavigationBar`，宽屏使用 `NavigationRail`。
+- 两端学习首页只有“继续学习”一个主要动作，并提供加载、空、失败和离线状态表现。
+- Flutter 固定为 3.47.1 / Dart 3.13.1，生成 iOS、Android、Windows、macOS 平台目录，并建立平台能力接口和 fake。
+- 验证通过：Web lint、typecheck、6 个单元测试、6 个 Playwright E2E、生产构建；Flutter analyze 与 10 个测试。
+- 限制：当前仅在 Windows 验证 Flutter 公共代码；未执行 Xcode iOS 编译、签名或 iPhone 真机验收。
+
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-002 | ready | `feat/alpha-002-cross-platform-shell` | 未分配 | Web/Flutter 四栏壳层与静态学习首页 | ALPHA-001、ADR-0001 |
+| ALPHA-002 | review | `feat/alpha-002-cross-platform-shell` | Codex | Web/Flutter 四栏壳层与静态学习首页 | ALPHA-001、ADR-0001 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 

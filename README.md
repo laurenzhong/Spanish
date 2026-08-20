@@ -71,13 +71,13 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 
 实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
 
-基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。Flutter 客户端尚未创建，是架构确认后的下一项基础任务。当前业务页面仍是工程验证页，不代表最终产品视觉。
+基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。Web 与 Flutter 都已建立“学习、探索、对话、我的”四栏产品壳层和静态学习首页；当前视觉是 Alpha 基线，后续会在真实体验中继续打磨。
 
 本地环境要求：
 
 - Node.js 24.x，仓库通过 `.nvmrc` 和 `engines` 固定大版本。
 - pnpm 11.x，精确版本记录在 `package.json`。
-- Flutter/Dart 版本将在客户端脚手架任务中锁定。
+- Flutter 客户端固定使用 Flutter 3.47.1 / Dart 3.13.1，版本文件位于 `apps/mobile/`。
 - 执行 E2E 时需要本机安装 Google Chrome。
 - iOS/macOS 编译、签名和真机调试需要 Mac 与 Xcode；Windows 只能完成 Flutter 公共代码和非 iOS 测试。
 
@@ -96,6 +96,14 @@ pnpm typecheck
 pnpm test --run
 pnpm test:e2e
 pnpm build
+```
+
+Flutter 公共代码检查：
+
+```powershell
+cd apps/mobile
+flutter analyze
+flutter test
 ```
 
 完整路线以实施计划为准，实时任务以 `PROJECT_STATUS.md` 为准。
