@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-20
 - 当前里程碑：个人 Alpha 阶段 2——认证、数据库与内容导入
-- 总体状态：Supabase/Drizzle 数据库基础已合并；正在实现跨端认证、可靠会话与 RLS 隔离
+- 总体状态：跨端认证、可靠会话与 RLS 隔离已合并；正在实现版本化内容 Schema、跨端 DTO 与幂等导入器
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -22,42 +22,42 @@
 
 ## 当前任务
 
-### ALPHA-004：实现 Web/Flutter 会话与 RLS 隔离测试
+### ALPHA-005：定义内容 Schema、Dart DTO 与幂等导入器
 
 - 状态：`in_progress`
 - 负责人：Codex
-- 目标分支：`feat/alpha-004-auth-rls`
-- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 2.2：认证与 RLS”
-- 前置依赖：ALPHA-003，已完成（`b3b32e0`）
+- 目标分支：`feat/alpha-005-content-importer`
+- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 2.3：内容 Schema 与导入器”
+- 前置依赖：ALPHA-004，已完成（`d3171bb`）
 
 目标：
 
-- Web 与 Flutter 使用同一 Supabase Auth 项目，以邮箱 OTP 为普通用户主入口。
-- Web 使用 SSR Cookie 会话；Flutter 使用安全存储、单一会话来源和可测试的 Token Gate。
-- Flutter 后端请求在发送前取得有效短期令牌；刷新并发合并，切换身份后废弃旧结果。
-- Next.js 服务端向 Supabase 验证用户身份，不信任客户端自行解析的 JWT。
-- 为用户私有表和公开内容建立最小权限 RLS，并用两个用户验证隔离。
+- 定义版本化 Content Bundle v1 与严格 Zod Schema。
+- 校验必填字段、枚举、跨实体引用、评分标签权值、审核与版权状态。
+- 为 Flutter 提供严格 DTO 解析，并通过共同 fixtures 验证跨端语义一致。
+- 导入前完成整包验证，再在单个事务内写入全部内容。
+- 使用稳定外部 ID 和版本号实现可重复执行的幂等导入。
 
 验收条件：
 
-- 未登录用户只能访问介绍页和登录流程，不能进入私人产品页面。
-- 用户 A 不能读取或修改用户 B 的证据、训练、画像、关系和消息。
-- `anon` / `authenticated` 不能直接写证据、技能快照、关系记忆和供应商调用。
-- 未发布或未审核表达不能通过公开角色查询。
-- Token 过期、并发刷新、切换账号、取消和单次安全重试都有自动测试。
-- Web 和 Flutter 相关检查、数据库迁移测试、E2E 与生产构建通过。
+- 有效内容包可由 TypeScript 和 Dart 解析为相同核心 DTO。
+- 无效引用、错误权值、缺失版权或审核信息会在写库前整体拒绝。
+- 同一稳定 ID＋版本＋相同内容重复导入不产生重复行。
+- 同一稳定 ID＋版本但内容不同会报告冲突，不能静默覆盖。
+- 新版本可以并存，导入器不会自动替换已发布版本。
+- 事务中任一写入失败时不留下部分内容。
 
 边界：
 
-- 不实现社交登录、公开注册选择页、找回密码或完整账号管理。
-- 邮箱密码仅作为预建测试账号的备用能力，不与 OTP 并列堆在普通入口。
-- 不提交 service role key、访问令牌、真实账号或生产连接信息。
+- 不在本任务整理 8–12 条正式 Alpha 核心表达；正式内容属于 ALPHA-006。
+- 不实现完整内容管理后台、在线协作审核或自动发布。
+- 不允许导入器绕过版本、审核、版权或事务规则。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-004 | in_progress | `feat/alpha-004-auth-rls` | Codex | 邮箱 OTP、Web/Flutter 会话、Token Gate 与 RLS 隔离 | ALPHA-003 |
+| ALPHA-005 | in_progress | `feat/alpha-005-content-importer` | Codex | Content Bundle v1、跨端 DTO、严格校验与幂等事务导入 | ALPHA-004 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -65,9 +65,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-005 | 定义内容 Schema、Dart DTO 与幂等导入器 | ALPHA-004 完成 |
-| 2 | ALPHA-006 | 导入 8–12 条最小核心表达用于开发 | ALPHA-005 完成 |
-| 3 | ALPHA-007 | 实现 TypeScript/Dart 训练编排器及共同样本测试 | ALPHA-006 完成 |
+| 1 | ALPHA-006 | 导入 8–12 条最小核心表达用于开发 | ALPHA-005 完成 |
+| 2 | ALPHA-007 | 实现 TypeScript/Dart 训练编排器及共同样本测试 | ALPHA-006 完成 |
+| 3 | ALPHA-008 | 用 fake 评估器接通首个 Web/Flutter 训练微循环 | ALPHA-007 完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -116,6 +116,7 @@
 | 2026-08-20 | 完成 Web 与 Flutter 四栏产品壳层、平台 fake 和跨端测试基线 | `8420974` | 可以开始 ALPHA-002B |
 | 2026-08-20 | 完成版本化 API 契约、稳定错误码和 TypeScript/Dart 共同 fixtures | `8342334` | 可以开始 ALPHA-003 |
 | 2026-08-20 | 完成 31 张首批表、Drizzle Schema、空库迁移测试和数据库文档 | `b3b32e0` | 可以开始 ALPHA-004 |
+| 2026-08-20 | 完成 Web/Flutter 邮箱 OTP、可靠 Token Gate、服务端鉴权和 RLS 隔离 | `d3171bb` | 可以开始 ALPHA-005 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
