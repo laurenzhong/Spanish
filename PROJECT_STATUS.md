@@ -24,8 +24,9 @@
 
 ### ALPHA-001：创建 Next.js/PWA 工程骨架
 
-- 状态：`ready`
-- 负责人：未分配
+- 状态：`in_progress`
+- 负责人：Codex
+- 开始日期：2026-08-20
 - 目标分支：`feat/alpha-001-nextjs-pwa-scaffold`
 - 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 1.1：创建 Next.js 工程”
 - 前置依赖：阶段 0 文档与仓库约束，已完成
@@ -52,7 +53,7 @@
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-001 | ready | `feat/alpha-001-nextjs-pwa-scaffold` | 未分配 | Next.js/PWA 脚手架与质量脚本 | 无 |
+| ALPHA-001 | in_progress | `feat/alpha-001-nextjs-pwa-scaffold` | Codex | Next.js/PWA 脚手架与质量脚本 | 无 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
