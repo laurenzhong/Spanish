@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-20
 - 当前里程碑：个人 Alpha 阶段 2——认证、数据库与内容导入
-- 总体状态：跨客户端 API 契约已合并；正在建立 Supabase、Drizzle 与第一版数据库迁移
+- 总体状态：Supabase/Drizzle 数据库基础已合并；正在实现跨端认证、可靠会话与 RLS 隔离
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -22,39 +22,42 @@
 
 ## 当前任务
 
-### ALPHA-003：配置 Supabase、Drizzle 和第一版数据库迁移
+### ALPHA-004：实现 Web/Flutter 会话与 RLS 隔离测试
 
 - 状态：`in_progress`
 - 负责人：Codex
-- 目标分支：`feat/alpha-003-database-foundation`
-- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 2.1：Supabase 与 Drizzle 基础”
-- 前置依赖：ALPHA-002B，已完成（`8342334`）
+- 目标分支：`feat/alpha-004-auth-rls`
+- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 2.2：认证与 RLS”
+- 前置依赖：ALPHA-003，已完成（`b3b32e0`）
 
 目标：
 
-- 配置 Drizzle PostgreSQL 工具链和只读取服务端环境变量的数据库客户端。
-- 用模块化 Schema 定义计划中的首批用户、内容、训练、证据、画像、角色、对话和基础设施表。
-- 生成可从空 PostgreSQL 数据库向前执行的第一版版本化迁移。
-- 建立必要的约束、外键和高价值索引，不提前实现认证、RLS 业务策略或真实用户数据。
+- Web 与 Flutter 使用同一 Supabase Auth 项目，以邮箱 OTP 为普通用户主入口。
+- Web 使用 SSR Cookie 会话；Flutter 使用安全存储、单一会话来源和可测试的 Token Gate。
+- Flutter 后端请求在发送前取得有效短期令牌；刷新并发合并，切换身份后废弃旧结果。
+- Next.js 服务端向 Supabase 验证用户身份，不信任客户端自行解析的 JWT。
+- 为用户私有表和公开内容建立最小权限 RLS，并用两个用户验证隔离。
 
 验收条件：
 
-- `.env.example` 只包含无密钥占位说明，实际 `.env` 继续被 Git 忽略。
-- Drizzle Schema 可以通过类型检查，并能稳定生成无漂移的首版 SQL 迁移。
-- 迁移包含计划中的首批表、约束、外键和必要索引，并能从空库执行。
-- `evidence_events` 在数据库层保持只追加语义；RLS 细则留给 ALPHA-004。
-- `pnpm lint`、`pnpm typecheck`、`pnpm test --run` 和 `pnpm build` 通过。
+- 未登录用户只能访问介绍页和登录流程，不能进入私人产品页面。
+- 用户 A 不能读取或修改用户 B 的证据、训练、画像、关系和消息。
+- `anon` / `authenticated` 不能直接写证据、技能快照、关系记忆和供应商调用。
+- 未发布或未审核表达不能通过公开角色查询。
+- Token 过期、并发刷新、切换账号、取消和单次安全重试都有自动测试。
+- Web 和 Flutter 相关检查、数据库迁移测试、E2E 与生产构建通过。
 
 边界：
 
-- 本任务不接入邮箱认证、客户端会话、业务 Route Handler 或生产 Supabase 项目。
-- 本任务不提交任何数据库密码、Supabase 密钥、真实用户数据或生产连接信息。
+- 不实现社交登录、公开注册选择页、找回密码或完整账号管理。
+- 邮箱密码仅作为预建测试账号的备用能力，不与 OTP 并列堆在普通入口。
+- 不提交 service role key、访问令牌、真实账号或生产连接信息。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-003 | in_progress | `feat/alpha-003-database-foundation` | Codex | Supabase/Drizzle 基础、首批 Schema 与版本化迁移 | ALPHA-002B |
+| ALPHA-004 | in_progress | `feat/alpha-004-auth-rls` | Codex | 邮箱 OTP、Web/Flutter 会话、Token Gate 与 RLS 隔离 | ALPHA-003 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -62,9 +65,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-004 | 实现 Web/Flutter 会话与 RLS 隔离测试 | ALPHA-003 完成 |
-| 2 | ALPHA-005 | 定义内容 Schema、Dart DTO 与幂等导入器 | ALPHA-004 完成 |
-| 3 | ALPHA-006 | 导入 8–12 条最小核心表达用于开发 | ALPHA-005 完成 |
+| 1 | ALPHA-005 | 定义内容 Schema、Dart DTO 与幂等导入器 | ALPHA-004 完成 |
+| 2 | ALPHA-006 | 导入 8–12 条最小核心表达用于开发 | ALPHA-005 完成 |
+| 3 | ALPHA-007 | 实现 TypeScript/Dart 训练编排器及共同样本测试 | ALPHA-006 完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -112,6 +115,7 @@
 | 2026-08-20 | 完成 Next.js/PWA 脚手架、测试基线和响应式验证页 | `dba8bfb` | 可以开始 ALPHA-002 |
 | 2026-08-20 | 完成 Web 与 Flutter 四栏产品壳层、平台 fake 和跨端测试基线 | `8420974` | 可以开始 ALPHA-002B |
 | 2026-08-20 | 完成版本化 API 契约、稳定错误码和 TypeScript/Dart 共同 fixtures | `8342334` | 可以开始 ALPHA-003 |
+| 2026-08-20 | 完成 31 张首批表、Drizzle Schema、空库迁移测试和数据库文档 | `b3b32e0` | 可以开始 ALPHA-004 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
