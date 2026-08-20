@@ -55,6 +55,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
 - [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](docs/architecture.md)
+- [数据库与迁移](docs/database.md)
 - [跨客户端 API 契约](contracts/README.md)
 - [ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
 - [内容制作与审核规范](docs/content-authoring.md)
@@ -96,9 +97,12 @@ pnpm lint
 pnpm typecheck
 pnpm test --run
 pnpm test:contracts
+pnpm db:check
 pnpm test:e2e
 pnpm build
 ```
+
+数据库 Schema 变更使用 `pnpm db:generate` 生成向前迁移；只有在明确配置本地或测试 PostgreSQL 连接后才运行 `pnpm db:migrate`。真实连接信息只放在未提交的本地 `.env` 中。
 
 Flutter 公共代码检查：
 

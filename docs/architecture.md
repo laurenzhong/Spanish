@@ -278,6 +278,9 @@ API 错误使用稳定代码，不让前端解析供应商原始错误文本。
 
 ## 11. 数据库与 RLS
 
+- PostgreSQL Schema、连接和迁移的当前实现约定见 `docs/database.md`。
+- Drizzle Schema 按 `users`、`content`、`training`、`evidence`、`characters` 和 `infrastructure` 分组；业务模块不得直接写其他模块拥有的表。
+- 数据库结构只通过 `drizzle/` 中的版本化向前迁移改变，迁移生成后必须通过空库执行和漂移检查。
 - 所有用户私有表都包含 `user_id`。
 - RLS 默认拒绝，按最小操作开放。
 - Web 和 Flutter 客户端都不能直接写 `evidence_events`、`user_skill_states`、`relationship_memories` 和 `provider_calls`。
