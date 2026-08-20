@@ -4,22 +4,21 @@
 
 ## 1. 当前边界
 
-ALPHA-003 只建立 Supabase PostgreSQL / Drizzle 基础：
+ALPHA-003 建立 Supabase PostgreSQL / Drizzle 基础；ALPHA-004 在第二版迁移中补齐 Auth 生命周期和 RLS：
 
 - 模块化 Drizzle Schema。
 - 首版向前迁移和迁移元数据。
 - 服务端惰性数据库连接。
 - 空 PostgreSQL 数据库迁移测试。
 - `evidence_events` 的应用角色只追加权限基线。
-
-以下内容由 ALPHA-004 完成：
-
 - Supabase Auth 邮箱会话。
 - `profiles.id` 与 `auth.users.id` 的生命周期绑定。
 - 全部用户私有表的 RLS 策略和跨用户隔离测试。
 - Web 与 Flutter 的访问令牌传递。
 
-因此，当前迁移可在普通空 PostgreSQL 中验证，但还不能被描述为完整认证或生产安全配置。
+新 Auth 用户由数据库触发器自动建立 `profiles` 和 `user_preferences`。私有表默认拒绝跨用户访问，客户端没有证据、画像、关系记忆、供应商调用和幂等记录的直接写权限。公开内容也只有在已发布且审核通过时可见。
+
+迁移和 RLS 可在隔离的 PostgreSQL/PGlite 测试环境中验证；托管 Supabase 上线前仍需在目标项目执行迁移、检查 Auth 邮件模板/限流，并进行一次真实项目的策略验收。
 
 ## 2. 文件与所有权
 
@@ -41,12 +40,15 @@ ALPHA-003 只建立 Supabase PostgreSQL / Drizzle 基础：
 ```text
 DATABASE_URL=postgresql://...
 DIRECT_DATABASE_URL=postgresql://...
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
 - `DATABASE_URL` 用于应用运行时；托管 Supabase 环境优先使用 transaction pooler。
 - `DIRECT_DATABASE_URL` 用于迁移；应使用直接 PostgreSQL 连接。
 - Drizzle 命令在没有环境变量时只回退到 Supabase CLI 的本机默认端口 `127.0.0.1:54322`，不会回退到任何远程环境。
 - 浏览器和 Flutter 代码不得读取这两个变量；它们不能使用 `NEXT_PUBLIC_` 前缀。
+- `NEXT_PUBLIC_SUPABASE_*` 只包含公开项目标识和 publishable key；service role key 永远不能使用公开前缀或进入客户端构建。
 
 ## 4. 迁移工作流
 
@@ -55,7 +57,7 @@ DIRECT_DATABASE_URL=postgresql://...
 ```powershell
 pnpm db:generate
 pnpm db:check
-pnpm test --run tests/database/schema.test.ts
+pnpm test --run tests/database
 ```
 
 检查生成 SQL 和快照后，才可对明确指定的本地或测试数据库执行：
@@ -70,7 +72,7 @@ pnpm db:migrate
 - 不手工修改远程数据库来绕过迁移。
 - 不把生产 URL、数据库密码、Supabase service role key 或真实数据写入仓库。
 - `drizzle-kit generate` 必须在同一 Schema 上得到“无变化”，避免代码与迁移漂移。
-- 跨版本升级和 RLS 测试在拥有第二版迁移后补充；首版当前验证从空库执行。
+- 第二版迁移同时从上一版本顺序执行；RLS 测试创建模拟 `anon` / `authenticated` 身份验证最小权限。
 
 ## 5. 数据不变量
 
@@ -81,4 +83,13 @@ pnpm db:migrate
 - 内容和人物设定保存版本；已经产生学习证据的版本不得静默覆盖。
 - 普通录音使用 `audio_assets.retention_policy` 表达生命周期，真正的存储删除流程在语音任务中实现。
 
-RLS 是下一任务的强制安全边界。在其完成前，不建立允许客户端直连私有表的产品流程。
+## 6. RLS 策略摘要
+
+- 用户可以读取自己的训练、证据、画像、关系、对话、消息和音频记录，但不能读取其他用户的数据。
+- 用户只可有限更新自己的资料和偏好。
+- `evidence_events`、技能/场景快照、关系记忆、`provider_calls` 和 `idempotency_keys` 没有客户端写策略；写入必须经过服务端 application 层。
+- 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
+- 变体、任务和内容片段通过可见的父内容继承读取权限。
+- 敏感人物固定事实不通过公开客户端角色暴露。
+
+RLS 是纵深防御而不是唯一授权层。Route Handler 仍需验证用户，并对资源执行服务端所有权和业务权限检查。

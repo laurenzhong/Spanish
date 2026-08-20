@@ -28,6 +28,12 @@
       "valid": true
     },
     {
+      "file": "success-auth-session.json",
+      "kind": "success",
+      "schemaId": "https://spanish.local/contracts/v1/auth-session-response.schema.json",
+      "valid": true
+    },
+    {
       "file": "invalid-error-code.json",
       "kind": "error",
       "schemaId": "https://spanish.local/contracts/v1/error-response.schema.json",

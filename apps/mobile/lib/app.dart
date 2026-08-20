@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/core/auth/auth_repository.dart';
+import 'package:spanish_mobile/core/auth/auth_session.dart';
+import 'package:spanish_mobile/features/auth/login_page.dart';
 import 'package:spanish_mobile/shared/widgets/product_shell.dart';
 
 class SpanishApp extends StatelessWidget {
-  const SpanishApp({super.key});
+  const SpanishApp({this.authSessionSource, this.authRepository, super.key});
+
+  final AuthSessionSource? authSessionSource;
+  final AuthRepository? authRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +57,39 @@ class SpanishApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const ProductShell(),
+      home: _AuthGate(
+        authSessionSource: authSessionSource,
+        authRepository: authRepository,
+      ),
+    );
+  }
+}
+
+class _AuthGate extends StatelessWidget {
+  const _AuthGate({
+    required this.authSessionSource,
+    required this.authRepository,
+  });
+
+  final AuthSessionSource? authSessionSource;
+  final AuthRepository? authRepository;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = authSessionSource;
+    if (source == null) {
+      return LoginPage(repository: authRepository);
+    }
+
+    return StreamBuilder<AuthSessionSnapshot?>(
+      initialData: source.currentSession,
+      stream: source.sessions,
+      builder: (context, snapshot) {
+        if (snapshot.data == null) {
+          return LoginPage(repository: authRepository);
+        }
+        return const ProductShell();
+      },
     );
   }
 }

@@ -22,6 +22,18 @@ contracts/
 - 未知字段默认拒绝，避免供应商字段或含义未确认的数据静默扩散。
 - 不兼容的 `apiVersion` 返回或映射为 `PROTOCOL_VERSION_UNSUPPORTED`，不能静默按旧语义处理。
 
+## 当前认证端点
+
+`GET /api/v1/auth/session` 接受 Supabase access token：
+
+```text
+Authorization: Bearer <access-token>
+```
+
+服务端通过 Supabase Auth 验证令牌后返回 `userId` 和可空 `email`。缺少、过期或无法验证的令牌返回 HTTP 401 与稳定错误码 `AUTH_REQUIRED`。TypeScript 和 Dart 都从 `success-auth-session.json` 验证并解析相同身份 DTO。
+
+该端点不接受客户端自行解析 JWT 后提交的用户 ID，也不向响应写入刷新令牌。
+
 ## 修改流程
 
 1. 先修改 Schema 和注册表。

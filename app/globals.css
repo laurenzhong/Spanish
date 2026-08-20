@@ -716,3 +716,126 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+.public-home,
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  padding: 32px 20px;
+  place-items: center;
+}
+
+.public-home__content,
+.auth-card {
+  width: min(100%, 620px);
+  padding: clamp(28px, 6vw, 56px);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: rgb(255 255 255 / 86%);
+  box-shadow: var(--shadow-lg);
+}
+
+.public-home h1,
+.auth-card h1 {
+  margin: 10px 0 14px;
+  font-size: clamp(2rem, 7vw, 3.8rem);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.auth-card h1 {
+  font-size: clamp(1.8rem, 6vw, 2.7rem);
+}
+
+.public-home p,
+.auth-card > p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent) !important;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.primary-link,
+.auth-form button:not(.text-button) {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 15px;
+  color: white;
+  background: var(--accent);
+  font: inherit;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary-link {
+  margin-top: 18px;
+}
+
+.auth-back {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.auth-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.auth-form label {
+  margin-top: 8px;
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  color: var(--ink);
+  background: white;
+  font: inherit;
+}
+
+.auth-form button {
+  margin-top: 8px;
+}
+
+.auth-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.auth-form .text-button {
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.auth-error {
+  margin: 4px 0 0;
+  color: #9f2d20;
+}
+
+.auth-message {
+  padding: 14px;
+  border-radius: 14px;
+  color: var(--muted);
+  background: var(--surface-muted);
+}

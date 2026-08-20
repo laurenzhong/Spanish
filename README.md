@@ -56,6 +56,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](docs/architecture.md)
 - [数据库与迁移](docs/database.md)
+- [认证与会话](docs/authentication.md)
 - [跨客户端 API 契约](contracts/README.md)
 - [ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
 - [内容制作与审核规范](docs/content-authoring.md)
@@ -89,6 +90,16 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 pnpm install
 pnpm dev
 ```
+
+Web 登录需要在本地 `.env` 中配置公开的 Supabase 项目 URL 和 publishable key。Flutter 使用同一项目，但通过 `--dart-define` 注入，不读取 Web 的 `.env`：
+
+```powershell
+flutter run `
+  --dart-define=SUPABASE_URL=https://your-project.supabase.co `
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
+
+普通用户入口是邮箱六位 OTP；密码登录只保留给预建测试账号，不在普通入口并列展示。完整配置、安全边界和本地测试说明见 [认证与会话](docs/authentication.md)。
 
 质量检查：
 

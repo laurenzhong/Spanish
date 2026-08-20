@@ -39,6 +39,11 @@ export type SuccessResponse<T = unknown> = Readonly<{
   page?: PageInfo;
 }>;
 
+export type AuthSessionIdentity = Readonly<{
+  userId: string;
+  email: string | null;
+}>;
+
 const retryableByDefault: Readonly<Record<ApiErrorCode, boolean>> = {
   VALIDATION_FAILED: false,
   AUTH_REQUIRED: false,
@@ -163,6 +168,35 @@ export function parseSuccessResponse<T = unknown>(
     data: response.data as T,
     ...(response.page === undefined ? {} : { page: parsePageInfo(response.page) }),
   };
+}
+
+export function parseAuthSessionResponse(input: unknown): AuthSessionIdentity {
+  const response = parseSuccessResponse(input);
+  const data = requireRecord(
+    response.data,
+    "Auth session response must include a data object.",
+  );
+  requireAllowedKeys(data, ["userId", "email"]);
+
+  if (
+    typeof data.userId !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+      data.userId,
+    )
+  ) {
+    throw new ContractParseError(
+      "VALIDATION_FAILED",
+      "Auth session userId must be a UUID.",
+    );
+  }
+  if (data.email !== null && typeof data.email !== "string") {
+    throw new ContractParseError(
+      "VALIDATION_FAILED",
+      "Auth session email must be a string or null.",
+    );
+  }
+
+  return { userId: data.userId, email: data.email };
 }
 
 function parsePageInfo(input: unknown): PageInfo {

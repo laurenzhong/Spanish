@@ -75,4 +75,14 @@ void main() {
       }
     }
   });
+
+  test('parses the shared authenticated session identity', () {
+    final fixture = readJson(
+      File('${fixturesDirectory.path}/success-auth-session.json'),
+    );
+    final identity = AuthSessionIdentity.fromResponse(fixture);
+
+    expect(identity.userId, '00000000-0000-4000-8000-000000000001');
+    expect(identity.email, 'learner@example.test');
+  });
 }

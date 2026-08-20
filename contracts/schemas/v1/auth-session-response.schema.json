@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/auth-session-response.schema.json",
+  "title": "Authenticated session response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["userId", "email"],
+      "properties": {
+        "userId": { "type": "string", "format": "uuid" },
+        "email": {
+          "oneOf": [
+            { "type": "string", "format": "email", "maxLength": 320 },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}

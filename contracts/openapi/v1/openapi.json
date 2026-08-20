@@ -11,8 +11,42 @@
       "description": "Version 1 modular monolith API"
     }
   ],
-  "paths": {},
+  "paths": {
+    "/auth/session": {
+      "get": {
+        "summary": "Verify the current authenticated session",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Authenticated identity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../schemas/v1/auth-session-response.schema.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
     "schemas": {
       "ApiError": {
         "$ref": "../../schemas/v1/api-error.schema.json"
@@ -25,6 +59,9 @@
       },
       "SuccessResponse": {
         "$ref": "../../schemas/v1/success-response.schema.json"
+      },
+      "AuthSessionResponse": {
+        "$ref": "../../schemas/v1/auth-session-response.schema.json"
       }
     }
   }

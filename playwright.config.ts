@@ -6,6 +6,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: "html",
+  workers: 2,
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
@@ -22,7 +23,11 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm dev",
+    env: {
+      ...process.env,
+      AUTH_E2E_ENABLED: "1",
+    },
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 });

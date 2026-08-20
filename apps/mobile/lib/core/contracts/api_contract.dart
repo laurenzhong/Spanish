@@ -190,6 +190,43 @@ class SuccessResponse {
   final PageInfo? page;
 }
 
+class AuthSessionIdentity {
+  const AuthSessionIdentity({required this.userId, required this.email});
+
+  factory AuthSessionIdentity.fromResponse(Object? input) {
+    final response = SuccessResponse.fromJson(input);
+    final data = _requireMap(
+      response.data,
+      'Auth session response must include a data object.',
+    );
+    _requireAllowedKeys(data, const <String>{'userId', 'email'});
+    final userId = data['userId'];
+    final email = data['email'];
+    final uuid = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    );
+
+    if (userId is! String || !uuid.hasMatch(userId)) {
+      throw ContractFormatException(
+        ApiErrorCode.validationFailed,
+        'Auth session userId must be a UUID.',
+      );
+    }
+    if (email != null && email is! String) {
+      throw ContractFormatException(
+        ApiErrorCode.validationFailed,
+        'Auth session email must be a string or null.',
+      );
+    }
+
+    return AuthSessionIdentity(userId: userId, email: email as String?);
+  }
+
+  final String userId;
+  final String? email;
+}
+
 class ContractFormatException extends FormatException {
   ContractFormatException(this.code, super.message);
 

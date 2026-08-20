@@ -10,6 +10,7 @@ import {
   API_VERSION,
   ContractParseError,
   defaultRetryable,
+  parseAuthSessionResponse,
   parseErrorResponse,
   parseSuccessResponse,
   type ApiErrorCode,
@@ -157,5 +158,16 @@ describe("v1 API contracts", () => {
         true,
       );
     }
+  });
+
+  it("parses the shared authenticated session identity", () => {
+    const fixture = readJson<unknown>(
+      path.join(fixturesDirectory, "success-auth-session.json"),
+    );
+
+    expect(parseAuthSessionResponse(fixture)).toEqual({
+      userId: "00000000-0000-4000-8000-000000000001",
+      email: "learner@example.test",
+    });
   });
 });
