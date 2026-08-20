@@ -1,4 +1,5 @@
 .superpowers/
+.references/
 node_modules/
 .next/
 out/
