@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-20
 - 当前里程碑：个人 Alpha 阶段 1——PWA 基础骨架
-- 总体状态：设计与实施文档完成，应用代码尚未创建
+- 总体状态：Next.js/PWA 基础工程完成，准备建立产品壳层
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -22,38 +22,36 @@
 
 ## 当前任务
 
-### ALPHA-001：创建 Next.js/PWA 工程骨架
+### ALPHA-002：建立四栏产品壳层和“继续学习”静态首页
 
-- 状态：`in_progress`
-- 负责人：Codex
-- 开始日期：2026-08-20
-- 目标分支：`feat/alpha-001-nextjs-pwa-scaffold`
-- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 1.1：创建 Next.js 工程”
-- 前置依赖：阶段 0 文档与仓库约束，已完成
+- 状态：`ready`
+- 负责人：未分配
+- 目标分支：`feat/alpha-002-product-shell`
+- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 1.2：建立产品壳层”
+- 前置依赖：ALPHA-001，已完成
 
 目标：
 
-- 创建 Next.js App Router、React、TypeScript 严格模式和 Tailwind CSS 工程。
-- 固定 pnpm 与 Node.js 大版本。
-- 建立 `dev`、`lint`、`typecheck`、`test`、`test:e2e` 和 `build` 脚本。
-- 建立最小测试配置，但不提前实现业务页面。
-- 保留当前文档和 Git 历史。
+- 建立“学习、探索、对话、我的”四个手机优先页面。
+- 创建共享 App Shell 和底部导航，页面只负责组装。
+- 学习首页只提供一个主要入口“继续学习”。
+- 为页面建立最小加载、空和失败状态表现。
+- 保持静态数据，不提前接入认证、数据库或 AI。
 
 验收条件：
 
-- `pnpm install` 成功。
-- `pnpm lint` 成功。
-- `pnpm typecheck` 成功。
-- `pnpm test --run` 成功。
-- `pnpm build` 成功。
-- 首页能在手机和桌面浏览器打开。
-- 没有加入支付、AI 对话、数据库等后续阶段能力。
+- 四个页面可以通过底部导航到达。
+- 当前导航项具有可访问的选中状态。
+- 学习首页只有“继续学习”作为主要动作，不出现时间或模式选择器。
+- 手机和桌面视口都能正常使用。
+- 组件测试和关键导航 E2E 通过。
+- `pnpm lint`、`pnpm typecheck`、`pnpm test --run` 和 `pnpm build` 通过。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-001 | in_progress | `feat/alpha-001-nextjs-pwa-scaffold` | Codex | Next.js/PWA 脚手架与质量脚本 | 无 |
+| ALPHA-002 | ready | `feat/alpha-002-product-shell` | 未分配 | 四栏产品壳层与静态学习首页 | ALPHA-001 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -61,9 +59,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-002 | 建立四栏产品壳层和“继续学习”静态首页 | ALPHA-001 合并并通过构建 |
-| 2 | ALPHA-003 | 配置 Supabase、Drizzle 和第一版数据库迁移 | ALPHA-001 合并 |
-| 3 | ALPHA-004 | 实现邮箱认证与 RLS 隔离测试 | ALPHA-003 完成 |
+| 1 | ALPHA-003 | 配置 Supabase、Drizzle 和第一版数据库迁移 | ALPHA-001 合并 |
+| 2 | ALPHA-004 | 实现邮箱认证与 RLS 隔离测试 | ALPHA-003 完成 |
+| 3 | ALPHA-005 | 定义内容 Zod Schema 和幂等导入器 | ALPHA-003 完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -103,6 +101,7 @@
 |---|---|---|---|
 | 2026-08-20 | 完成并批准七节产品设计 | `6564952` | 可以编写个人 Alpha 实施文档 |
 | 2026-08-20 | 完成实施计划、AGENTS、架构、内容、测试和 Echo-Loop 评审 | `494f270` | 可以开始 ALPHA-001 |
+| 2026-08-20 | 完成 Next.js/PWA 脚手架、测试基线和响应式验证页 | `dba8bfb` | 可以开始 ALPHA-002 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
