@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/success-response.schema.json",
+  "title": "Success response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": {
+      "const": "v1"
+    },
+    "data": {
+      "description": "Endpoint-specific response data. Each endpoint will narrow this schema."
+    },
+    "page": {
+      "$ref": "https://spanish.local/contracts/v1/page-info.schema.json"
+    }
+  }
+}

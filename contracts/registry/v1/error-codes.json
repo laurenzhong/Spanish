@@ -1,0 +1,12 @@
+[
+  { "code": "VALIDATION_FAILED", "defaultRetryable": false },
+  { "code": "AUTH_REQUIRED", "defaultRetryable": false },
+  { "code": "FORBIDDEN", "defaultRetryable": false },
+  { "code": "RESOURCE_NOT_FOUND", "defaultRetryable": false },
+  { "code": "CONFLICT", "defaultRetryable": false },
+  { "code": "RATE_LIMITED", "defaultRetryable": true },
+  { "code": "PROTOCOL_VERSION_UNSUPPORTED", "defaultRetryable": false },
+  { "code": "PROVIDER_TIMEOUT", "defaultRetryable": true },
+  { "code": "PROVIDER_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "INTERNAL_ERROR", "defaultRetryable": true }
+]

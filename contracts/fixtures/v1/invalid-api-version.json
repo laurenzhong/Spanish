@@ -1,0 +1,8 @@
+{
+  "apiVersion": "v2",
+  "error": {
+    "code": "PROVIDER_TIMEOUT",
+    "message": "This response belongs to a newer protocol.",
+    "retryable": true
+  }
+}

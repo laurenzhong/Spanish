@@ -10,6 +10,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
+    "test:contracts": "vitest run tests/contracts",
     "test:e2e": "playwright test"
   },
   "engines": {
@@ -32,6 +33,8 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.1.0",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.1",
     "jsdom": "30.0.1",

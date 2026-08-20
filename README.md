@@ -55,6 +55,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
 - [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](docs/architecture.md)
+- [跨客户端 API 契约](contracts/README.md)
 - [ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
 - [内容制作与审核规范](docs/content-authoring.md)
 - [测试与质量策略](docs/testing-strategy.md)
@@ -94,6 +95,7 @@ pnpm dev
 pnpm lint
 pnpm typecheck
 pnpm test --run
+pnpm test:contracts
 pnpm test:e2e
 pnpm build
 ```

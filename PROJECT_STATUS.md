@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-20
 - 当前里程碑：个人 Alpha 阶段 1——Web/PWA 与 Flutter 客户端基础骨架
-- 总体状态：Web 与 Flutter 四栏壳层已合并；正在建立跨客户端 API 契约基线
+- 总体状态：跨客户端 API 契约基线已完成实现和验证，等待分支复核与合并
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -24,7 +24,7 @@
 
 ### ALPHA-002B：建立版本化 API 契约与跨语言一致性样本
 
-- 状态：`in_progress`
+- 状态：`review`
 - 负责人：Codex
 - 目标分支：`feat/alpha-002b-api-contracts`
 - 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“首批可执行任务顺序”第 3 项
@@ -45,11 +45,19 @@
 - TypeScript 与 Dart 对首批错误码、重试语义和协议版本解释一致。
 - `pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm build`、`flutter analyze` 和 `flutter test` 通过。
 
+实现结果：
+
+- 建立 OpenAPI 3.1.1 根文档、v1 Schema、协议注册表和共享 fixtures。
+- 定义统一成功/失败包络、游标分页和 10 个稳定错误码及默认重试语义。
+- TypeScript 与 Dart 都实现严格解析器，拒绝未知错误码、错误版本、未声明字段和无效分页数据。
+- 共享 fixtures 同时覆盖有效响应、协议版本不兼容、供应商字段泄漏和无效游标。
+- 验证通过：Web lint、typecheck、9 个单元/契约测试、6 个 Playwright E2E、生产构建；Flutter analyze 与 12 个测试。
+
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-002B | in_progress | `feat/alpha-002b-api-contracts` | Codex | OpenAPI、JSON Schema、稳定错误码与跨语言 fixtures | ALPHA-002、ADR-0001 |
+| ALPHA-002B | review | `feat/alpha-002b-api-contracts` | Codex | OpenAPI、JSON Schema、稳定错误码与跨语言 fixtures | ALPHA-002、ADR-0001 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 

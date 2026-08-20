@@ -1,0 +1,59 @@
+{
+  "apiVersion": "v1",
+  "cases": [
+    {
+      "file": "error-provider-timeout.json",
+      "kind": "error",
+      "schemaId": "https://spanish.local/contracts/v1/error-response.schema.json",
+      "valid": true,
+      "expected": {
+        "code": "PROVIDER_TIMEOUT",
+        "retryable": true
+      }
+    },
+    {
+      "file": "error-validation-failed.json",
+      "kind": "error",
+      "schemaId": "https://spanish.local/contracts/v1/error-response.schema.json",
+      "valid": true,
+      "expected": {
+        "code": "VALIDATION_FAILED",
+        "retryable": false
+      }
+    },
+    {
+      "file": "success-empty-page.json",
+      "kind": "success",
+      "schemaId": "https://spanish.local/contracts/v1/success-response.schema.json",
+      "valid": true
+    },
+    {
+      "file": "invalid-error-code.json",
+      "kind": "error",
+      "schemaId": "https://spanish.local/contracts/v1/error-response.schema.json",
+      "valid": false,
+      "expectedParseError": "VALIDATION_FAILED"
+    },
+    {
+      "file": "invalid-api-version.json",
+      "kind": "error",
+      "schemaId": "https://spanish.local/contracts/v1/error-response.schema.json",
+      "valid": false,
+      "expectedParseError": "PROTOCOL_VERSION_UNSUPPORTED"
+    },
+    {
+      "file": "invalid-extra-property.json",
+      "kind": "error",
+      "schemaId": "https://spanish.local/contracts/v1/error-response.schema.json",
+      "valid": false,
+      "expectedParseError": "VALIDATION_FAILED"
+    },
+    {
+      "file": "invalid-page-cursor.json",
+      "kind": "success",
+      "schemaId": "https://spanish.local/contracts/v1/success-response.schema.json",
+      "valid": false,
+      "expectedParseError": "VALIDATION_FAILED"
+    }
+  ]
+}

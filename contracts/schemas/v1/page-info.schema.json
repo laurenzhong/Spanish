@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/page-info.schema.json",
+  "title": "Cursor page information",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nextCursor", "hasMore"],
+  "properties": {
+    "nextCursor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hasMore": {
+      "type": "boolean"
+    }
+  }
+}

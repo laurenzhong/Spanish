@@ -1,0 +1,12 @@
+{
+  "apiVersion": "v1",
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "The request payload is invalid.",
+    "retryable": false,
+    "requestId": "req_alpha_0002",
+    "details": {
+      "fields": ["attemptId"]
+    }
+  }
+}

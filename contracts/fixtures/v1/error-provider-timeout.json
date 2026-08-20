@@ -1,0 +1,12 @@
+{
+  "apiVersion": "v1",
+  "error": {
+    "code": "PROVIDER_TIMEOUT",
+    "message": "The speech provider did not respond in time.",
+    "retryable": true,
+    "requestId": "req_alpha_0001",
+    "details": {
+      "operation": "speech.transcribe"
+    }
+  }
+}

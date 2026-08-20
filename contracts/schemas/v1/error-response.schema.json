@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/error-response.schema.json",
+  "title": "Error response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "error"],
+  "properties": {
+    "apiVersion": {
+      "const": "v1"
+    },
+    "error": {
+      "$ref": "https://spanish.local/contracts/v1/api-error.schema.json"
+    }
+  }
+}

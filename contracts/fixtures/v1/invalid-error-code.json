@@ -1,0 +1,8 @@
+{
+  "apiVersion": "v1",
+  "error": {
+    "code": "SOMETHING_WENT_WRONG",
+    "message": "Unknown error code.",
+    "retryable": false
+  }
+}

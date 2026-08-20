@@ -1,0 +1,31 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Spanish speaking platform API",
+    "version": "1.0.0",
+    "description": "Versioned protocol baseline shared by the Next.js Web product and Flutter clients."
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "Version 1 modular monolith API"
+    }
+  ],
+  "paths": {},
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "$ref": "../../schemas/v1/api-error.schema.json"
+      },
+      "ErrorResponse": {
+        "$ref": "../../schemas/v1/error-response.schema.json"
+      },
+      "PageInfo": {
+        "$ref": "../../schemas/v1/page-info.schema.json"
+      },
+      "SuccessResponse": {
+        "$ref": "../../schemas/v1/success-response.schema.json"
+      }
+    }
+  }
+}
