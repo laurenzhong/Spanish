@@ -4,6 +4,11 @@ node_modules/
 .next/
 out/
 coverage/
+playwright-report/
+test-results/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
 .env
 .env.*
 !.env.example

@@ -2,7 +2,7 @@
 
 这是一个面向 A2–B1 西班牙语学习者的口语优先学习产品。它帮助已经认识不少单词、理解一定语法，却在真实交流中反应慢、造句困难或无法自然开口的人，把被动知识转化为可迁移的沟通能力。
 
-当前仓库处于个人 Alpha 的设计与实施准备阶段。产品设计已经逐节确认，下一步按实施计划搭建手机优先的 Web PWA。
+当前仓库已进入个人 Alpha 实施阶段。产品设计已经逐节确认，Next.js/PWA 基础工程已经建立，后续按实施计划逐步加入产品壳层、数据和学习闭环。
 
 ## 核心体验
 
@@ -69,19 +69,24 @@ Alpha 使用模块化单体。训练、证据、画像、推荐、角色、记�
 
 实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
 
-目前尚未创建应用脚手架。实施从以下任务开始：
+基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。当前业务页面仍是工程验证页，不代表最终产品视觉。
 
-1. 创建 Next.js/PWA 工程和质量脚本。
-2. 建立“学习 / 探索 / 对话 / 我的”产品壳层。
-3. 配置 Supabase、Drizzle、认证和 RLS。
-4. 建立内容 Schema 和幂等导入器。
-5. 实现纯 TypeScript 训练状态机。
+本地环境要求：
 
-工程创建后，本地命令将统一为：
+- Node.js 24.x，仓库通过 `.nvmrc` 和 `engines` 固定大版本。
+- pnpm 11.x，精确版本记录在 `package.json`。
+- 执行 E2E 时需要本机安装 Google Chrome。
+
+首次运行：
 
 ```powershell
 pnpm install
 pnpm dev
+```
+
+质量检查：
+
+```powershell
 pnpm lint
 pnpm typecheck
 pnpm test --run
@@ -89,7 +94,7 @@ pnpm test:e2e
 pnpm build
 ```
 
-在脚手架完成前，上述命令不会生效；完整路线以实施计划为准，实时任务以 `PROJECT_STATUS.md` 为准。
+完整路线以实施计划为准，实时任务以 `PROJECT_STATUS.md` 为准。
 
 ## 开发协作
 
