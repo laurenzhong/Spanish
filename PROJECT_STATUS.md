@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-20
 - 当前里程碑：个人 Alpha 阶段 1——Web/PWA 与 Flutter 客户端基础骨架
-- 总体状态：Web 与 Flutter 四栏产品壳层已完成实现和验证，等待分支复核与合并
+- 总体状态：Web 与 Flutter 四栏壳层已合并；正在建立跨客户端 API 契约基线
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -22,47 +22,34 @@
 
 ## 当前任务
 
-### ALPHA-002：建立 Web 与 Flutter 四栏产品壳层
+### ALPHA-002B：建立版本化 API 契约与跨语言一致性样本
 
-- 状态：`review`
+- 状态：`in_progress`
 - 负责人：Codex
-- 目标分支：`feat/alpha-002-cross-platform-shell`
-- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 1.2：建立 Web 与 Flutter 产品壳层”
-- 前置依赖：ALPHA-001，已完成
+- 目标分支：`feat/alpha-002b-api-contracts`
+- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“首批可执行任务顺序”第 3 项
+- 前置依赖：ALPHA-002，已完成
 
 目标：
 
-- 在现有 Next.js Web 中建立“学习、探索、对话、我的”四个手机优先页面。
-- 创建 `apps/mobile` Flutter 工程，并建立相同信息架构的四栏壳层。
-- 两端学习首页都只提供一个主要入口“继续学习”。
-- 两端页面建立最小加载、空、失败和离线状态表现。
-- 锁定 Flutter/Dart 版本并建立静态分析、测试和平台能力 fake 基线。
-- 保持静态数据，不提前接入认证、数据库、真实语音插件或 AI。
+- 建立 `/api/v1/` 对应的 OpenAPI 3.1 根文档和可复用 JSON Schema。
+- 定义统一成功/失败包络、协议版本、分页结构和首批稳定错误码。
+- 建立 `contracts/fixtures/v1/`，让 TypeScript 与 Dart 测试读取同一批有效和无效样本。
+- 两端只建立协议 DTO、解析与错误映射，不接数据库、认证、真实 API 或业务评分。
 
 验收条件：
 
-- Web 与 Flutter 的四个页面都可以通过主导航到达。
-- 当前导航项具有可访问的选中状态。
-- 两端学习首页只有“继续学习”作为主要动作，不出现时间或模式选择器。
-- Web 手机/桌面视口和 Flutter 手机/宽屏布局都能正常使用。
-- Web 组件测试/E2E 与 Flutter Widget 测试通过。
+- OpenAPI 文档引用的本地 Schema 全部存在且可以解析。
+- 有效 fixtures 同时通过 JSON Schema、TypeScript 和 Dart 校验。
+- 无效 fixtures 在两端被拒绝，并得到稳定的协议错误分类。
+- TypeScript 与 Dart 对首批错误码、重试语义和协议版本解释一致。
 - `pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm build`、`flutter analyze` 和 `flutter test` 通过。
-- 明确记录 iOS 尚未在 Mac/Xcode 编译或真机验证，不能把公共 Flutter 测试等同于 iOS 验收。
-
-实现结果：
-
-- Web 已建立学习、探索、对话、我的四个响应式页面，手机使用底栏，桌面使用侧栏。
-- Flutter 已建立相同信息架构，手机使用 `NavigationBar`，宽屏使用 `NavigationRail`。
-- 两端学习首页只有“继续学习”一个主要动作，并提供加载、空、失败和离线状态表现。
-- Flutter 固定为 3.47.1 / Dart 3.13.1，生成 iOS、Android、Windows、macOS 平台目录，并建立平台能力接口和 fake。
-- 验证通过：Web lint、typecheck、6 个单元测试、6 个 Playwright E2E、生产构建；Flutter analyze 与 10 个测试。
-- 限制：当前仅在 Windows 验证 Flutter 公共代码；未执行 Xcode iOS 编译、签名或 iPhone 真机验收。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-002 | review | `feat/alpha-002-cross-platform-shell` | Codex | Web/Flutter 四栏壳层与静态学习首页 | ALPHA-001、ADR-0001 |
+| ALPHA-002B | in_progress | `feat/alpha-002b-api-contracts` | Codex | OpenAPI、JSON Schema、稳定错误码与跨语言 fixtures | ALPHA-002、ADR-0001 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -70,9 +57,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-002B | 建立版本化 API Schema、稳定错误码和 TS/Dart 一致性样本 | ALPHA-002 完成 |
-| 2 | ALPHA-003 | 配置 Supabase、Drizzle 和第一版数据库迁移 | ALPHA-002B 完成 |
-| 3 | ALPHA-004 | 实现 Web/Flutter 会话与 RLS 隔离测试 | ALPHA-003 完成 |
+| 1 | ALPHA-003 | 配置 Supabase、Drizzle 和第一版数据库迁移 | ALPHA-002B 完成 |
+| 2 | ALPHA-004 | 实现 Web/Flutter 会话与 RLS 隔离测试 | ALPHA-003 完成 |
+| 3 | ALPHA-005 | 定义内容 Schema、Dart DTO 与幂等导入器 | ALPHA-004 完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -118,6 +105,7 @@
 | 2026-08-20 | 完成并批准七节产品设计 | `6564952` | 可以编写个人 Alpha 实施文档 |
 | 2026-08-20 | 完成实施计划、AGENTS、架构、内容、测试和 Echo-Loop 评审 | `494f270` | 可以开始 ALPHA-001 |
 | 2026-08-20 | 完成 Next.js/PWA 脚手架、测试基线和响应式验证页 | `dba8bfb` | 可以开始 ALPHA-002 |
+| 2026-08-20 | 完成 Web 与 Flutter 四栏产品壳层、平台 fake 和跨端测试基线 | `8420974` | 可以开始 ALPHA-002B |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
