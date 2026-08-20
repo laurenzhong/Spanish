@@ -50,6 +50,7 @@ Alpha 使用模块化单体。训练、证据、画像、推荐、角色、记�
 
 ## 文档
 
+- [当前任务与项目状态](PROJECT_STATUS.md)
 - [完整产品设计](docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
 - [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](docs/architecture.md)
@@ -65,6 +66,8 @@ Alpha 使用模块化单体。训练、证据、画像、推荐、角色、记�
 本项目与它的产品核心不同：Echo-Loop 围绕一段音频练透，本项目围绕交际目标、自由表达和长期 AI 社交关系建立可迁移口语能力。Echo-Loop 使用 AGPL-3.0；本仓库只参考通用设计原则，不复制其实现代码或资源。
 
 ## 开发状态
+
+实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
 
 目前尚未创建应用脚手架。实施从以下任务开始：
 
@@ -86,8 +89,8 @@ pnpm test:e2e
 pnpm build
 ```
 
-在脚手架完成前，上述命令不会生效；当前工作的权威入口是实施计划。
+在脚手架完成前，上述命令不会生效；完整路线以实施计划为准，实时任务以 `PROJECT_STATUS.md` 为准。
 
 ## 开发协作
 
-开始任何编码任务前先阅读 [AGENTS.md](AGENTS.md)。每次只完成一个可验证切片，保留用户已有改动，并把评分、隐私、角色一致性和失败降级作为核心质量要求。
+开始任何编码任务前先阅读 [AGENTS.md](AGENTS.md) 和 [PROJECT_STATUS.md](PROJECT_STATUS.md)。每次只完成一个任务 ID，保留用户及其他模型已有改动，并把评分、隐私、角色一致性和失败降级作为核心质量要求。

@@ -7,13 +7,25 @@
 按顺序执行：
 
 1. 阅读 `README.md`。
-2. 阅读 `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`。
-3. 阅读 `docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的当前阶段。
-4. 阅读与任务相关的 `docs/architecture.md`、`docs/content-authoring.md` 或 `docs/testing-strategy.md`。
-5. 检查 `git status --short --branch`，保留用户已有改动。
-6. 明确本次只完成一个可验证任务；如果范围跨多个阶段，先拆分。
+2. 阅读 `PROJECT_STATUS.md`，确认当前任务 ID、状态、分支、依赖和验收条件。
+3. 阅读 `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`。
+4. 阅读 `docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的当前任务章节。
+5. 阅读与任务相关的 `docs/architecture.md`、`docs/content-authoring.md` 或 `docs/testing-strategy.md`。
+6. 检查 `git status --short --branch` 和最近提交，保留用户及其他代理已有改动。
+7. 明确本次只完成一个任务 ID；如果范围跨多个阶段，先拆分。
 
 没有现成代码路径时，不凭经验猜测接口；先以设计和实施计划为权威。
+
+### 多模型与分支协调
+
+- `PROJECT_STATUS.md` 是当前阶段、任务分配和下一步的权威入口。
+- 只领取状态为 `ready` 且没有其他负责人或活动分支的任务。
+- 一个分支只处理一个任务 ID，分支名称优先使用状态页指定名称。
+- 不修改其他模型负责的任务状态，不重新排列全局任务队列。
+- 分支内发现超出范围的依赖时停止扩张，将问题作为阻塞交给协调者或用户。
+- 分支完成后提供结构化交接：Commit、修改文件、测试、限制和建议下一步。
+- 合并者负责在 `main` 更新状态页；简单分支不各自维护重复日志。
+- 跨多个会话的复杂任务才创建 `docs/tasks/<TASK-ID>.md`，并从状态页链接。
 
 ## 2. 产品不变量
 
@@ -191,6 +203,7 @@ pnpm build
 4. 没有能力评分污染、越权数据访问或敏感日志。
 5. 文档、Schema 和迁移与实现一致。
 6. `git diff` 只包含预期改动。
+7. 已向协调者提供状态页需要的 Commit、测试和下一步信息。
 
 最终交付说明必须包含：
 
