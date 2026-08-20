@@ -9,10 +9,11 @@
 1. 阅读 `README.md`。
 2. 阅读 `PROJECT_STATUS.md`，确认当前任务 ID、状态、分支、依赖和验收条件。
 3. 阅读 `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`。
-4. 阅读 `docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的当前任务章节。
-5. 阅读与任务相关的 `docs/architecture.md`、`docs/content-authoring.md` 或 `docs/testing-strategy.md`。
-6. 检查 `git status --short --branch` 和最近提交，保留用户及其他代理已有改动。
-7. 明确本次只完成一个任务 ID；如果范围跨多个阶段，先拆分。
+4. 阅读 `docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md` 和 `docs/adr/0001-nextjs-web-flutter-clients.md`。
+5. 阅读 `docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的当前任务章节。
+6. 阅读与任务相关的 `docs/architecture.md`、`docs/content-authoring.md` 或 `docs/testing-strategy.md`。
+7. 检查 `git status --short --branch` 和最近提交，保留用户及其他代理已有改动。
+8. 明确本次只完成一个任务 ID；如果范围跨多个阶段，先拆分。
 
 没有现成代码路径时，不凭经验猜测接口；先以设计和实施计划为权威。
 
@@ -54,16 +55,21 @@
 - 实时双向语音通话。
 - 大规模角色商城或开放角色创建。
 - 独立微服务和复杂消息队列。
-- 原生 iOS。
+- Android、Windows、macOS 的商店发布与完整平台打磨。
+- 用 SwiftUI/UIKit 重写 Flutter 主要页面。
 - 本地离线 ASR 或用户音频媒体库。
 
 这些能力是延后，不是永久取消。需要时先更新设计或 ADR，再进入实施计划。
 
 ## 4. 架构规则
 
-- 使用模块化单体，不随意创建新的服务边界。
+- 使用单仓库和远程模块化单体，不随意创建新的服务边界或新 Git 仓库。
 - 目录优先按业务 feature 组织。
-- `domain` 保持纯 TypeScript，不依赖 React、Next.js、Drizzle、Supabase 或供应商 SDK。
+- 服务端 `domain` 保持纯 TypeScript，不依赖 React、Next.js、Drizzle、Supabase 或供应商 SDK。
+- Flutter 客户端位于 `apps/mobile`，主要页面使用 Dart/Flutter，不通过 Capacitor WebView 承载。
+- Web 与 Flutter 不共享 UI 源码；共享 OpenAPI/JSON Schema、内容源、稳定错误码和 `contracts/fixtures` 一致性样本。
+- 客户端状态不能成为能力事实；评分、证据、画像、记忆权限和角色安全必须由服务端重新校验。
+- Flutter 平台能力通过内部端口隔离；只有成熟插件不足时才增加单一职责的 Swift/Kotlin/Windows 桥接。
 - Route Handler 只负责鉴权、Zod 校验、调用 application 用例和协议转换。
 - React 组件不直接访问数据库，不承载复杂业务流程。
 - Application 层定义事务边界并调用 repository/provider 接口。
@@ -156,6 +162,15 @@ pnpm typecheck
 pnpm test --run
 ```
 
+涉及 Flutter 客户端时还需运行：
+
+```powershell
+flutter analyze
+flutter test
+```
+
+在没有 Mac/Xcode 的环境中，不得把 Flutter 公共测试通过表述为 iOS 编译或真机验证通过。
+
 跨模块、迁移或发布候选还需运行：
 
 ```powershell
@@ -177,8 +192,9 @@ pnpm build
 - 保留用户和其他代理的已有改动，不覆盖无关文件。
 - 不使用 `git reset --hard`、强制 checkout 或未授权清理。
 - 不提交 `.env`、密钥、录音、生产数据或本地参考仓库。
+- 不提交 Apple 签名证书、provisioning profile、私钥或未加密商店凭据。
 - 提交保持单一目的，标题使用清晰英文前缀，例如 `docs:`、`feat:`、`fix:`、`test:`、`refactor:`。
-- 不复制 Echo-Loop 或其他参考项目的 AGPL/受限许可代码和资源；只参考通用原则。任何代码复用先完成许可证审查。
+- 当前仓库未复制 Echo-Loop 源码或资源。用户说明自己曾参与贡献并得到作者允许，后续可以建立专门任务评估复用；实际复制前必须在仓库记录授权人、授权形式、文件/提交范围、商业与闭源许可、署名要求，以及其他贡献者代码是否被覆盖。无法证明额外授权覆盖的部分继续按 AGPL-3.0 处理。
 
 ## 13. 文档与 ADR
 

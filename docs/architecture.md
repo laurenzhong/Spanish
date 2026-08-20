@@ -1,12 +1,14 @@
-# 个人 Alpha 架构边界
+# 个人 Alpha 多客户端架构边界
 
 - 状态：实施基线
 - 适用范围：个人 Alpha
 - 详细产品要求：[设计规范](superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
+- 多平台决策：[Web 与 Flutter 多平台架构设计](superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
+- 决策记录：[ADR-0001](adr/0001-nextjs-web-flutter-clients.md)
 
 ## 1. 架构目标
 
-个人 Alpha 使用一个 Next.js/TypeScript 模块化单体。目标是在不提前拆微服务的前提下，让训练、评分、画像、推荐、角色、记忆和供应商集成保持清晰边界，可以独立测试和替换。
+个人 Alpha 使用单仓库、两条客户端代码线和一个远程 Next.js/TypeScript 模块化单体。Next.js/React 承担完整 Web 产品；Flutter/Dart 从 Alpha 开始承担 iOS，并作为未来 Android、Windows、macOS 的共同客户端代码基础。目标是在不提前拆微服务的前提下，让训练、评分、画像、推荐、角色、记忆、平台能力和供应商集成保持清晰边界，可以独立测试和替换。
 
 架构优先保证：
 
@@ -15,21 +17,25 @@
 - AI 与语音供应商可替换。
 - 角色记忆不会越权共享。
 - 技术故障不会污染能力评分。
-- Web Alpha 的领域逻辑未来可以被 iOS 客户端复用。
+- Web 与 Flutter 使用同一 API、内容版本和业务语义。
+- 四个 Flutter 客户端平台复用主要页面、状态编排和平台接口。
+- iOS 不依赖 Capacitor WebView，也不要求未来整体重写 Swift。
 
 ## 2. 运行时视图
 
 ```text
-手机浏览器 / PWA
-  ├─ React 页面与组件
-  ├─ 浏览器 TTS、录音、权限
-  └─ 会话级短期状态与草稿
-            │ HTTPS / 流式响应
-            ▼
-Next.js 模块化单体
+Next.js Web / PWA                    Flutter 客户端
+  ├─ React 页面与组件               ├─ iOS（Alpha）
+  ├─ 浏览器 TTS、录音、权限         ├─ Android（后续）
+  └─ Web 平台适配器                 ├─ Windows（后续）
+             │                      ├─ macOS（后续）
+             │ HTTPS / NDJSON       └─ 平台能力适配器
+             └─────────┬─────────────────────┘
+                       ▼
+远程 Next.js 模块化单体
   ├─ Route Handlers：鉴权、校验、协议转换
   ├─ Application：用例编排与事务边界
-  ├─ Domain：纯业务规则和状态机
+  ├─ Domain：纯服务端业务规则
   ├─ Repository：数据库访问接口与实现
   └─ Provider Gateways：STT、发音、LLM、TTS、地点
             │
@@ -61,6 +67,11 @@ src/
     validation/           # 通用 Zod 工具
     observability/        # 日志、追踪、调用成本
     ui/                   # 无业务含义的基础组件
+apps/
+  mobile/                 # Flutter 客户端；iOS Alpha，未来四平台共用
+contracts/
+  openapi/                # 版本化 API 规范
+  fixtures/               # TS/Dart 共同读取的一致性样本
 content/                  # 版本化内容源
 drizzle/                  # 数据库迁移
 tests/
@@ -68,6 +79,8 @@ tests/
   contracts/              # 供应商与协议契约测试
   e2e/                    # Playwright
 ```
+
+现有 Next.js 根工程暂不整体搬入 `apps/web`。只有独立部署或工具链冲突证明迁移有价值时，才另写 ADR。
 
 ## 4. 分层规则
 
@@ -81,6 +94,8 @@ schemas/         # 外部输入和持久化边界校验
 ui/              # 模块专用 React 组件
 ```
 
+Flutter 客户端使用相同业务 feature 名称组织 Dart 代码，但不直接导入服务端 TypeScript。跨语言共享依赖版本化契约和 JSON fixtures，而不是复制数据库行类型或手工维持两套 DTO。
+
 依赖方向：
 
 ```text
@@ -92,9 +107,10 @@ UI / Route Handler → Application → Domain
 
 硬性规则：
 
-- `domain` 不导入 React、Next.js、Drizzle、Supabase SDK 或供应商 SDK。
+- 服务端 `domain` 不导入 React、Next.js、Drizzle、Supabase SDK 或供应商 SDK。
 - Route Handler 不直接实现评分、推荐或记忆规则。
 - React 组件不直接写数据库。
+- Flutter Widget 不直接写证据、画像或关系记忆。
 - 模块不能直接更新其他模块拥有的表；必须调用对方 application 接口。
 - `shared` 不能反向依赖任何业务模块。
 - 跨模块共享的数据使用小型显式 DTO，不导出内部数据库行作为公共 API。
@@ -188,7 +204,7 @@ effect 只描述意图，例如：
 - `persistBreakpoint`
 - `recordEvidence`
 
-浏览器或 application 层执行 effect 后，再将结果作为事件送回状态机。
+Web 或 Flutter 平台层执行 effect 后，再将结果作为事件送回各自客户端编排器。两端通过共同 JSON fixtures 验证相同状态语义；所有影响证据和画像的结果仍由服务端重新校验。
 
 每个异步 effect 携带：
 
@@ -209,21 +225,21 @@ Route Handler 的职责只有：
 4. 把领域结果转换为 HTTP/流式协议。
 5. 记录相关 ID、延迟和结构化错误。
 
-推荐的 Alpha API：
+对 Web 与 Flutter 开放的 Alpha API 使用显式版本前缀，例如 `/api/v1/`。推荐端点：
 
-- `POST /api/diagnostics`
-- `GET /api/learning/next-action`
-- `POST /api/practice/sessions`
-- `POST /api/practice/attempts`
-- `POST /api/practice/attempts/:id/audio-upload`
-- `POST /api/practice/attempts/:id/evaluate`
-- `GET /api/profile`
-- `GET /api/content/packs/:id`
-- `GET /api/conversations`
-- `POST /api/conversations/:id/messages`
-- `GET /api/conversations/:id/stream`
-- `POST /api/relationships/:id/share-permission`
-- `DELETE /api/me/data`
+- `POST /api/v1/diagnostics`
+- `GET /api/v1/learning/next-action`
+- `POST /api/v1/practice/sessions`
+- `POST /api/v1/practice/attempts`
+- `POST /api/v1/practice/attempts/:id/audio-upload`
+- `POST /api/v1/practice/attempts/:id/evaluate`
+- `GET /api/v1/profile`
+- `GET /api/v1/content/packs/:id`
+- `GET /api/v1/conversations`
+- `POST /api/v1/conversations/:id/messages`
+- `GET /api/v1/conversations/:id/stream`
+- `POST /api/v1/relationships/:id/share-permission`
+- `DELETE /api/v1/me/data`
 
 API 错误使用稳定代码，不让前端解析供应商原始错误文本。
 
@@ -264,7 +280,7 @@ API 错误使用稳定代码，不让前端解析供应商原始错误文本。
 
 - 所有用户私有表都包含 `user_id`。
 - RLS 默认拒绝，按最小操作开放。
-- 客户端不能直接写 `evidence_events`、`user_skill_states`、`relationship_memories` 和 `provider_calls`。
+- Web 和 Flutter 客户端都不能直接写 `evidence_events`、`user_skill_states`、`relationship_memories` 和 `provider_calls`。
 - 内容公开查询只返回已发布版本。
 - 管理或导入能力使用服务端专用角色，不暴露到浏览器。
 - 删除账号时按明确顺序删除或匿名化用户数据，并记录不可逆操作结果。
@@ -279,6 +295,22 @@ API 错误使用稳定代码，不让前端解析供应商原始错误文本。
 6. 用户明确保存的里程碑录音移动到长期区域。
 
 任何日志都不能包含长期有效的签名 URL。
+
+### 12.1 客户端平台能力
+
+Web 与 Flutter 上层功能只依赖内部端口：
+
+- `AudioRecorder`
+- `AudioPlayer`
+- `TextToSpeech`
+- `SecureStorage`
+- `Notifications`
+- `AppLifecycle`
+- `Connectivity`
+
+Web 使用浏览器适配器。Flutter 优先使用成熟插件；插件不能可靠满足 AVAudioSession、通知、文件生命周期或商店能力时，再增加单一职责的 Swift/Kotlin/Windows 桥接。平台原始异常必须转换为稳定内部错误。
+
+当前没有 Mac/Xcode，因此 Flutter 公共代码、Dart 测试和 Windows/Web 宿主验证不能被表述为 iOS 已验证。iOS 录音、签名、TestFlight 和真机验收必须在可持续使用的 Mac 环境中完成。
 
 ## 13. 供应商抽象
 
@@ -334,6 +366,8 @@ Alpha 不创建：
 - 消息队列集群。
 - 单独推荐数据库。
 - 多仓库前后端。
+- Capacitor iOS 主客户端。
+- 为 Flutter 页面建立等价 SwiftUI/UIKit 页面树。
 
 只有出现可测量的性能、发布隔离或团队所有权问题时，才通过 ADR 评估拆分。
 

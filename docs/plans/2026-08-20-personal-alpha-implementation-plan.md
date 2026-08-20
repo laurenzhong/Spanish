@@ -3,8 +3,9 @@
 - 日期：2026-08-20
 - 依据：[产品设计规范](../superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
 - 参考：[Echo-Loop 参考评审](../references/echo-loop-review.md)
-- 实施对象：手机优先的响应式 Web PWA
-- 技术路线：Next.js、React、TypeScript、Tailwind CSS、Supabase、Drizzle、Zod、Vercel
+- 实施对象：Next.js 完整 Web/PWA + Flutter iOS 客户端同步 Alpha
+- 技术路线：Next.js、React、TypeScript、Flutter、Dart、Tailwind CSS、Supabase、Drizzle、Zod、Vercel
+- 多平台依据：[Web 与 Flutter 多平台架构设计](../superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
 
 ## 1. 实施目标
 
@@ -19,6 +20,8 @@ Alpha 完成时必须能够走通：
 
 > 登录 → 初次诊断 → 继续学习 → 听/说或静默训练 → 反馈 → 画像更新 → Lucía 对话 → 关系记忆 → 再次打开恢复与推荐
 
+这条路径必须在 Next.js Web 和 Flutter 客户端使用同一服务端数据走通；iOS 平台专属录音与生命周期验收在 Mac/Xcode 条件具备后补充为发布门禁。
+
 ## 2. 范围
 
 ### 2.1 必须完成
@@ -27,13 +30,14 @@ Alpha 完成时必须能够走通：
 - 40–60 条审核后的核心口语表达。
 - 8–12 个原创或开放许可的沉浸式内容包。
 - 八类通用沟通能力与八维技能画像。
-- 浏览器 TTS、录音上传、语音转写和基础发音信号。
+- Web 浏览器 TTS/录音与 Flutter 平台语音接口、录音上传、语音转写和基础发音信号。
 - 自主开口、打字替代、三级提示、变式迁移和抽样复核。
 - 追加式学习证据、技能快照、场景状态和推荐器。
 - Lucía 私信、语音优先输入、长期关系记忆和自然反馈入口。
 - 两个可被介绍的新角色及用户同意流程。
 - Codeforces/GitHub 式有效学习热力图和八维能力图。
-- 手机端 PWA、错误降级、隐私设置、基本可观测性和部署。
+- 手机端 PWA 与 Flutter iOS 客户端、错误降级、隐私设置、基本可观测性和部署。
+- 版本化 API 契约与 TypeScript/Dart 共同读取的一致性样本。
 
 ### 2.2 明确延后
 
@@ -41,7 +45,8 @@ Alpha 完成时必须能够走通：
 - 完整可视化内容后台。
 - 实时双向语音通话。
 - 大规模角色网络或角色商城。
-- 原生 iOS。
+- Android、Windows、macOS 的商店发布与完整平台打磨。
+- 用 SwiftUI/UIKit 重写 Flutter 主要页面。
 - 独立微服务、复杂消息队列和离线 ASR。
 - 未经授权的外刊全文导入。
 
@@ -55,6 +60,8 @@ Alpha 完成时必须能够走通：
 6. **自然表达优先**：评估语境成功，不要求复现唯一答案。
 7. **先做可解释规则**：Alpha 不使用难以校准的黑箱总分替代业务规则。
 8. **纵向切片交付**：每个阶段都要形成可以亲自体验的路径，不连续数周只建设底层。
+9. **跨端共享语义而非 UI**：Web 与 Flutter 共享 API、内容和一致性样本，页面分别实现。
+10. **服务端最终校验**：客户端状态、插件结果和本地缓存不能直接成为能力证据或记忆事实。
 
 ## 4. 计划目录结构
 
@@ -82,6 +89,11 @@ src/
     validation/
     observability/
     ui/
+apps/
+  mobile/                 # Flutter 客户端；iOS Alpha，未来四平台共用
+contracts/
+  openapi/                # 版本化 API 规范
+  fixtures/               # TS/Dart 跨语言一致性样本
 drizzle/
 content/
   expressions/
@@ -101,7 +113,7 @@ docs/
 | 阶段 | 结果 | 主要依赖 |
 |---|---|---|
 | 0 | 文档与仓库约束可执行 | 已批准设计 |
-| 1 | 可部署的 PWA 骨架 | 阶段 0 |
+| 1 | 可部署的 Web/PWA 与 Flutter 客户端骨架 | 阶段 0 |
 | 2 | 数据库、认证、RLS 和内容导入 | 阶段 1 |
 | 3 | 可恢复的训练闭环 | 阶段 2 |
 | 4 | 语音、评估、证据和画像 | 阶段 3 |
@@ -140,7 +152,7 @@ docs/
 
 阶段退出条件：开发约束和计划文档已提交，仓库工作区干净。
 
-## 7. 阶段 1：PWA 基础骨架
+## 7. 阶段 1：Web/PWA 与 Flutter 客户端基础骨架
 
 ### 任务 1.1：创建 Next.js 工程
 
@@ -170,7 +182,7 @@ pnpm typecheck
 pnpm build
 ```
 
-### 任务 1.2：建立产品壳层
+### 任务 1.2：建立 Web 与 Flutter 产品壳层
 
 计划文件：
 
@@ -181,22 +193,34 @@ pnpm build
 - `app/(product)/explore/page.tsx`
 - `app/(product)/chat/page.tsx`
 - `app/(product)/me/page.tsx`
+- `apps/mobile/pubspec.yaml`
+- `apps/mobile/lib/app.dart`
+- `apps/mobile/lib/features/learn/learn_page.dart`
+- `apps/mobile/lib/features/explore/explore_page.dart`
+- `apps/mobile/lib/features/chat/chat_page.dart`
+- `apps/mobile/lib/features/profile/profile_page.dart`
+- `apps/mobile/test/`
 
 要求：
 
 - 底部四栏：学习、探索、对话、我的。
 - 学习首页只有一个主动作“继续学习”。
-- 页面必须有加载、空、失败和离线提示状态。
+- Web 与 Flutter 页面都必须有加载、空、失败和离线提示状态。
 - 不提前加入课程模式、学习时长和难度选择器。
+- 锁定 Flutter/Dart 版本，建立 `flutter analyze` 和 `flutter test` 基线。
+- 生成 iOS、Android、Windows、macOS 平台目录，但 Alpha 只验收 Flutter 公共代码和 iOS 路线所需配置。
+- 当前没有 Mac；任务完成不代表 iOS 已编译或真机验证。
 
-### 任务 1.3：PWA 与基础可访问性
+### 任务 1.3：PWA、Flutter 平台接口与基础可访问性
 
 - 添加 manifest、图标占位资产、主题色和安装能力。
 - 对话、录音和继续学习主路径可用键盘操作。
 - 所有交互元素有可访问名称，颜色不是唯一状态信号。
 - 支持 `prefers-reduced-motion`。
+- 建立 Flutter 的 `AudioRecorder`、`TextToSpeech`、`SecureStorage`、`AppLifecycle` 抽象和 fake，不在此任务接真实语音插件。
+- 为手机、平板和桌面宽度建立自适应布局断点，不把手机底栏机械放大成桌面界面。
 
-阶段退出条件：手机浏览器可安装，四个主页面可导航，Vercel 预览部署成功。
+阶段退出条件：手机浏览器可安装；Web 与 Flutter 四个主页面可导航；Vercel 预览部署成功；Flutter 静态分析和测试通过。iOS 编译、签名和真机音频验收等待 Mac/Xcode 环境。
 
 ## 8. 阶段 2：认证、数据库与内容导入
 
@@ -230,10 +254,12 @@ pnpm build
 ### 任务 2.2：认证与 RLS
 
 - 支持邮箱登录；社交登录延后到核心闭环稳定后评估。
+- Web 与 Flutter 使用同一 Supabase Auth 项目；Flutter 通过移动端会话获取短期访问令牌并调用版本化服务端 API。
 - 未登录用户只能访问公开介绍页，不能读写学习数据。
 - 用户只能访问自己的练习、证据、画像、关系和消息。
 - 公开内容只暴露 `published` 且审核通过的版本。
 - 服务端供应商调用使用单独的受限凭据。
+- 移动端不保存服务端密钥，认证令牌使用平台安全存储接口。
 
 测试：
 
@@ -248,6 +274,8 @@ pnpm build
 - `src/modules/content/schemas/*.ts`
 - `src/modules/content/import/import-content.ts`
 - `src/modules/content/import/validate-content.ts`
+- `contracts/openapi/content-api.yaml`
+- `apps/mobile/lib/features/content/data/`
 - `content/expressions/*.json`
 - `content/packs/*.json`
 - `content/characters/lucia.json`
@@ -255,6 +283,7 @@ pnpm build
 要求：
 
 - Zod 校验必填字段、枚举、标签引用、权值和版权状态。
+- Flutter 内容 DTO 从版本化契约生成或通过等价 Schema 校验，不能手写一套逐渐漂移的字段定义。
 - 导入过程先完整验证，再在单个事务中写入。
 - 内容使用稳定外部 ID 和版本号，可重复执行且不产生重复行。
 - 已被学习的内容版本不能静默覆盖；新版本通过显式发布切换。
@@ -279,6 +308,10 @@ pnpm build
 - `src/modules/training/domain/training-state.ts`
 - `src/modules/training/domain/training-event.ts`
 - `src/modules/training/domain/training-engine.ts`
+- `apps/mobile/lib/features/training/domain/training_state.dart`
+- `apps/mobile/lib/features/training/domain/training_event.dart`
+- `apps/mobile/lib/features/training/domain/training_engine.dart`
+- `contracts/fixtures/training/*.json`
 
 状态至少覆盖：
 
@@ -305,10 +338,11 @@ pnpm build
 
 要求：
 
-- 训练引擎是纯函数或纯类，不依赖 React、数据库、浏览器和供应商 SDK。
+- TypeScript 与 Dart 训练编排器都是纯函数或纯类，不依赖 React/Flutter Widget、数据库、浏览器和供应商 SDK。
 - 不合法状态转换明确拒绝并记录诊断信息。
 - 所有异步结果携带 `generationId`，过期结果被忽略。
 - 任务完成与能力掌握分离；完成一次任务不等于掌握。
+- 两种实现读取同一批 JSON 转换样本并产生等价终态和 effect。
 
 ### 任务 3.2：训练计划生成器
 
@@ -316,6 +350,7 @@ pnpm build
 
 - `src/modules/training/domain/build-training-plan.ts`
 - `src/modules/training/domain/task-policy.ts`
+- `contracts/openapi/learning-api.yaml`
 
 规则：
 
@@ -335,10 +370,13 @@ pnpm build
 - `src/modules/training/ui/output-composer.tsx`
 - `src/modules/training/ui/hint-layer.tsx`
 - `src/modules/training/ui/feedback-card.tsx`
+- `apps/mobile/lib/features/training/ui/training_session.dart`
+- `apps/mobile/lib/features/training/ui/output_composer.dart`
+- `apps/mobile/lib/features/training/ui/feedback_card.dart`
 
 要求：
 
-- 页面只显示当前必要信息，不把整个训练计划变成选项卡。
+- Web 与 Flutter 页面只显示当前必要信息，不把整个训练计划变成选项卡。
 - 默认语音输入，打字入口始终可见但次级。
 - 用户说话时不显示纠错或打断提示。
 - 完整表达后只突出一个关键问题；详细解析按需展开。
@@ -359,25 +397,31 @@ pnpm build
 - 刷新页面后从稳定节点恢复。
 - 随时退出不产生“课程失败”。
 
-阶段退出条件：使用固定假评估器可以完整完成 3–5 条表达的微循环并恢复进度。
+阶段退出条件：Web 与 Flutter 使用同一固定假评估器和内容版本，可以完整完成 3–5 条表达的微循环并恢复进度；提交 DTO 通过同一 API Schema 校验。
 
 ## 10. 阶段 4：语音、评估、证据与画像
 
-### 任务 4.1：浏览器语音能力
+### 任务 4.1：Web 与 Flutter 语音能力
 
 计划文件：
 
 - `src/modules/providers/speech/browser-recorder.ts`
 - `src/modules/providers/tts/browser-tts.ts`
 - `src/modules/training/ui/voice-recorder.tsx`
+- `apps/mobile/lib/platform/audio/audio_recorder.dart`
+- `apps/mobile/lib/platform/tts/text_to_speech.dart`
+- `apps/mobile/lib/features/training/ui/voice_recorder.dart`
 
 要求：
 
 - 浏览器 TTS 作为 Alpha 默认朗读，支持语速和西班牙语音色选择。
+- Flutter 使用平台 TTS 和录音插件；iOS 音频会话不能可靠覆盖时再增加小型 Swift 桥接。
 - 录音开始前检查权限和支持格式。
 - 普通录音限制大小和时长，停止后上传。
 - 权限拒绝时立即提供打字入口，不循环弹权限请求。
 - 客户端不保存长期原始录音。
+- Web 与 Flutter 返回相同内部音频元数据和稳定错误码。
+- 当前没有 Mac 时先完成 Dart 契约、fake 和非 iOS 宿主测试；iOS 真机录音验收必须保留为明确未完成项。
 
 ### 任务 4.2：供应商适配器与契约
 
@@ -501,6 +545,8 @@ pnpm build
 - 打字回复或摘要。
 - 方便开口后的复述验证。
 
+Web 与 Flutter 使用同一内容包 API 和活动状态协议，分别实现适合浏览器和移动端的页面。
+
 要求：
 
 - 听说读写共享内容 ID 和标签，不创建四套割裂进度。
@@ -538,10 +584,13 @@ Lucía 初始事实固定为：24 岁、马德里长大并生活、数字传播�
 - `src/modules/conversation/ui/chat-thread.tsx`
 - `src/modules/conversation/ui/voice-composer.tsx`
 - `src/modules/conversation/application/stream-reply.ts`
+- `apps/mobile/lib/features/conversation/ui/chat_thread.dart`
+- `apps/mobile/lib/features/conversation/ui/voice_composer.dart`
+- `apps/mobile/lib/features/conversation/data/conversation_stream.dart`
 
 要求：
 
-- 头像、状态、消息气泡和语音/文字混合，整体接近真实私信体验。
+- Web 与 Flutter 都提供头像、状态、消息气泡和语音/文字混合，整体接近真实私信体验。
 - 默认语音输入，打字可选。
 - 服务端流使用 `meta`、`delta`、`done`、`error` 明确协议。
 - 用户停止、网络断流、重试和重复提交行为可预测。
@@ -597,7 +646,7 @@ Lucía 初始事实固定为：24 岁、马德里长大并生活、数字传播�
 - 普通聊天只在证据可靠时更新场景、语块、策略和迁移。
 - 发音严格评分只在用户选择严格纠音或系统抽样验证时运行。
 
-阶段退出条件：Lucía 能连续自然对话、记住已透露信息、避免冲突，并在不教学化的情况下产生可信学习证据。
+阶段退出条件：Web 与 Flutter 中的 Lucía 都能通过同一服务端协议连续自然对话、记住已透露信息、避免冲突，并在不教学化的情况下产生可信学习证据。
 
 ## 13. 阶段 7：角色扩展、进步展示与 Alpha 完整化
 
@@ -637,7 +686,7 @@ Lucía 初始事实固定为：24 岁、马德里长大并生活、数字传播�
 - 对异常断流、重复证据、记忆冲突和音频清理失败建立告警。
 - 添加数据库备份和恢复演练说明。
 
-### 任务 7.6：完整 E2E
+### 任务 7.6：完整 Web E2E 与 Flutter 集成测试
 
 Playwright 手机视口覆盖：
 
@@ -651,6 +700,8 @@ Playwright 手机视口覆盖：
 8. Lucía 语音/文字聊天。
 9. 好友介绍和授权共享。
 10. 刷新、断网、服务失败和恢复。
+
+Flutter integration test 使用 fake 服务覆盖同一关键路径；真实 iOS 录音、权限、键盘和生命周期需要 Mac/Xcode 与 iPhone 验收。
 
 阶段退出条件：完整 Alpha 路径在预览和生产环境均通过；没有已知的数据隔离或证据污染问题。
 
@@ -706,6 +757,15 @@ pnpm test --run
 
 只运行与改动相关的测试可以用于开发过程，但合并阶段必须覆盖受影响模块。
 
+涉及 Flutter 客户端的任务同时运行：
+
+```powershell
+flutter analyze
+flutter test
+```
+
+在 Windows 上通过以上命令不能替代 iOS 编译、签名和真机测试。
+
 ### 跨模块或发版候选
 
 ```powershell
@@ -735,23 +795,26 @@ pnpm build
 | 真实地点信息幻觉 | 地点适配器、来源字段、无法验证则只给一般建议 |
 | 音频和私密对话泄漏 | 短期签名 URL、最小日志、自动删除、RLS、用户删除入口 |
 | Alpha 规模膨胀 | 每阶段退出条件；延后清单不得因“顺手”进入当前任务 |
-| 参考项目许可证污染 | 只参考原则，不复制 AGPL 源码；复用前单独法律审查 |
+| Web 与 Flutter 语义漂移 | 版本化 API Schema、共同 JSON fixtures、服务端最终校验 |
+| 没有 Mac 导致 iOS 问题延迟发现 | 明确 iOS 未验证状态；尽早准备 Mac/Xcode 或云端构建，音频阶段前完成真机条件 |
+| 参考项目许可证污染 | 默认只参考原则；实际复用前记录作者授权、文件范围、其他贡献者权利和发布义务 |
 
 ## 17. 首批可执行任务顺序
 
 开发开始时按以下顺序领取任务，每次只执行一个可验证切片：
 
-1. 创建 Next.js/PWA 脚手架和质量脚本。
-2. 建立四栏产品壳层与“继续学习”静态首页。
-3. 配置 Supabase、Drizzle 和第一版迁移。
-4. 实现邮箱认证与 RLS 隔离测试。
-5. 定义内容 Zod Schema 和幂等导入器。
-6. 导入 8–12 条最小核心表达用于开发。
-7. 实现纯训练状态机及单元测试。
-8. 用 fake 评估器接通第一个 3–5 条表达微循环。
-9. 添加断点保存和刷新恢复。
-10. 接入浏览器 TTS、录音和打字降级。
-11. 选择并接入首个 STT 供应商适配器。
-12. 写入第一条真实证据并更新技能快照。
+1. 创建 Next.js/PWA 脚手架和质量脚本。已完成。
+2. 创建 Flutter 客户端，并在 Web 与 Flutter 同步建立四栏产品壳层和“继续学习”静态首页。
+3. 建立版本化 API Schema、稳定错误码和首批跨语言 JSON fixtures。
+4. 配置 Supabase、Drizzle 和第一版迁移。
+5. 实现邮箱认证、Flutter 移动会话和 RLS 隔离测试。
+6. 定义内容 Zod Schema、Dart DTO 生成/校验和幂等导入器。
+7. 导入 8–12 条最小核心表达用于开发。
+8. 实现 TypeScript/Dart 训练编排器及共同样本测试。
+9. 用 fake 评估器在 Web 与 Flutter 接通第一个 3–5 条表达微循环。
+10. 添加断点保存和恢复。
+11. 接入浏览器与 Flutter TTS、录音和打字降级。
+12. 选择并接入首个 STT 供应商适配器。
+13. 写入第一条真实证据并更新技能快照。
 
-完成第 12 项后进行第一次产品体验复盘，再决定语音评测供应商和后续优先级。
+完成第 13 项后进行第一次产品体验复盘，再决定语音评测供应商和后续优先级。进入 iOS 录音验收前必须准备 Mac/Xcode 或可持续的云端 macOS 构建与真机调试方案。

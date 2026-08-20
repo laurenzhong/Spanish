@@ -3,8 +3,8 @@
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
 - 最后更新：2026-08-20
-- 当前里程碑：个人 Alpha 阶段 1——PWA 基础骨架
-- 总体状态：Next.js/PWA 基础工程完成，准备建立产品壳层
+- 当前里程碑：个人 Alpha 阶段 1——Web/PWA 与 Flutter 客户端基础骨架
+- 总体状态：多平台架构已批准；Next.js/PWA 基础完成，准备同步建立 Web 与 Flutter 产品壳层
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -22,36 +22,38 @@
 
 ## 当前任务
 
-### ALPHA-002：建立四栏产品壳层和“继续学习”静态首页
+### ALPHA-002：建立 Web 与 Flutter 四栏产品壳层
 
 - 状态：`ready`
 - 负责人：未分配
-- 目标分支：`feat/alpha-002-product-shell`
-- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 1.2：建立产品壳层”
+- 目标分支：`feat/alpha-002-cross-platform-shell`
+- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 1.2：建立 Web 与 Flutter 产品壳层”
 - 前置依赖：ALPHA-001，已完成
 
 目标：
 
-- 建立“学习、探索、对话、我的”四个手机优先页面。
-- 创建共享 App Shell 和底部导航，页面只负责组装。
-- 学习首页只提供一个主要入口“继续学习”。
-- 为页面建立最小加载、空和失败状态表现。
-- 保持静态数据，不提前接入认证、数据库或 AI。
+- 在现有 Next.js Web 中建立“学习、探索、对话、我的”四个手机优先页面。
+- 创建 `apps/mobile` Flutter 工程，并建立相同信息架构的四栏壳层。
+- 两端学习首页都只提供一个主要入口“继续学习”。
+- 两端页面建立最小加载、空、失败和离线状态表现。
+- 锁定 Flutter/Dart 版本并建立静态分析、测试和平台能力 fake 基线。
+- 保持静态数据，不提前接入认证、数据库、真实语音插件或 AI。
 
 验收条件：
 
-- 四个页面可以通过底部导航到达。
+- Web 与 Flutter 的四个页面都可以通过主导航到达。
 - 当前导航项具有可访问的选中状态。
-- 学习首页只有“继续学习”作为主要动作，不出现时间或模式选择器。
-- 手机和桌面视口都能正常使用。
-- 组件测试和关键导航 E2E 通过。
-- `pnpm lint`、`pnpm typecheck`、`pnpm test --run` 和 `pnpm build` 通过。
+- 两端学习首页只有“继续学习”作为主要动作，不出现时间或模式选择器。
+- Web 手机/桌面视口和 Flutter 手机/宽屏布局都能正常使用。
+- Web 组件测试/E2E 与 Flutter Widget 测试通过。
+- `pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm build`、`flutter analyze` 和 `flutter test` 通过。
+- 明确记录 iOS 尚未在 Mac/Xcode 编译或真机验证，不能把公共 Flutter 测试等同于 iOS 验收。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-002 | ready | `feat/alpha-002-product-shell` | 未分配 | 四栏产品壳层与静态学习首页 | ALPHA-001 |
+| ALPHA-002 | ready | `feat/alpha-002-cross-platform-shell` | 未分配 | Web/Flutter 四栏壳层与静态学习首页 | ALPHA-001、ADR-0001 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -59,9 +61,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-003 | 配置 Supabase、Drizzle 和第一版数据库迁移 | ALPHA-001 合并 |
-| 2 | ALPHA-004 | 实现邮箱认证与 RLS 隔离测试 | ALPHA-003 完成 |
-| 3 | ALPHA-005 | 定义内容 Zod Schema 和幂等导入器 | ALPHA-003 完成 |
+| 1 | ALPHA-002B | 建立版本化 API Schema、稳定错误码和 TS/Dart 一致性样本 | ALPHA-002 完成 |
+| 2 | ALPHA-003 | 配置 Supabase、Drizzle 和第一版数据库迁移 | ALPHA-002B 完成 |
+| 3 | ALPHA-004 | 实现 Web/Flutter 会话与 RLS 隔离测试 | ALPHA-003 完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -79,17 +81,22 @@
 ## 当前关键决定
 
 - 目标用户：学过语法和词汇但无法自然开口的 A2–B1 学习者。
-- 首发形态：手机优先的响应式 Web PWA。
-- 技术路线：Next.js、React、TypeScript、Tailwind、Supabase、Drizzle、Zod、Vercel。
-- 架构：模块化单体，不在 Alpha 提前拆微服务。
+- 首发形态：Next.js 完整 Web/PWA + Flutter iOS 同步个人 Alpha。
+- 后续客户端：Flutter 同一代码线扩展 Android、Windows、macOS。
+- 技术路线：Next.js/React/TypeScript Web，Flutter/Dart 客户端，Supabase、Drizzle、Zod、Vercel 远程模块化单体。
+- 架构：单仓库、两条客户端代码线、版本化 API 和共同 JSON fixtures；不在 Alpha 提前拆微服务。
+- iOS 不采用 Capacitor WebView；必要平台能力使用少量 Swift 桥接。
+- 当前有 iPhone、无 Mac；iOS 编译、签名和真机音频验收尚不具备本地条件。
 - 首页：只有一个主要入口“继续学习”。
 - 听说是强核心；读写用于静默环境并需要后续口语验证。
 - AI 社交世界首个主要好友：Lucía Martín，固定生活在马德里。
-- Echo-Loop 只作为流程和可靠性参考，不复制 AGPL-3.0 实现代码。
+- Echo-Loop 当前只作为流程、Flutter 边界和可靠性参考；未来源码复用必须先记录作者授权范围、其他贡献者权利和许可义务。
 
 权威细节见：
 
 - `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`
+- `docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md`
+- `docs/adr/0001-nextjs-web-flutter-clients.md`
 - `docs/plans/2026-08-20-personal-alpha-implementation-plan.md`
 - `docs/architecture.md`
 - `docs/content-authoring.md`

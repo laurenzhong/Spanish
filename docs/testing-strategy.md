@@ -19,8 +19,11 @@
 - Vitest：领域和 application 单元测试。
 - React Testing Library：组件交互和可访问性。
 - Playwright：手机视口端到端测试。
+- Flutter test：Dart 单元、Widget 和状态编排测试。
+- Flutter integration test：移动客户端关键路径。
 - Supabase CLI 或隔离测试数据库：迁移、RLS 和事务测试。
 - 固定 fake adapters：默认测试不调用收费供应商。
+- OpenAPI/JSON Schema 与共同 JSON fixtures：TypeScript/Dart 协议和状态语义一致性。
 
 具体版本在工程脚手架阶段锁定。
 
@@ -39,6 +42,8 @@
 - 推荐候选排序。
 - 人物事实冲突。
 - 记忆分类和共享权限。
+
+Flutter 客户端对本地训练编排、平台错误映射、草稿和生命周期恢复建立对应 Dart 单元测试。服务端评分和权限规则不复制到客户端作为权威实现。
 
 要求：
 
@@ -95,6 +100,8 @@
 - 数据不足的八维图不会绘制虚假分数。
 - 键盘和屏幕阅读器可以完成主流程。
 
+以上交互在 React Testing Library 和 Flutter Widget test 中分别覆盖适用部分，不使用 Web 快照替代 Flutter 行为测试。
+
 ### 3.6 端到端测试
 
 使用手机视口覆盖少量高价值路径：
@@ -109,6 +116,16 @@
 8. 异常断流 → 重试 → 不产生重复记忆或证据。
 9. 好友介绍 → 用户同意 → 最小信息共享。
 10. 用户查看并删除关系记忆或保存录音。
+
+Playwright 覆盖 Web；Flutter integration test 使用 fake/测试服务覆盖同一核心路径。iOS 麦克风、音频会话、键盘、安全区、App 生命周期和通知必须在 Mac/Xcode 与真机环境单独验收。
+
+### 3.7 跨客户端一致性测试
+
+- TypeScript 与 Dart 同时读取 `contracts/fixtures/` 中的训练状态转换、错误映射和提交 DTO 样本。
+- API Schema 变更必须检测两端生成类型或校验器是否过期。
+- 同一内容版本和用户输出在两端产生等价的服务端提交字段。
+- 服务端拒绝客户端伪造的评分、画像和记忆权限字段。
+- 协议版本不兼容时返回稳定错误，不能静默接受含义不一致的数据。
 
 ## 4. 核心不变量测试矩阵
 
@@ -228,6 +245,15 @@ pnpm test:e2e
 pnpm build
 ```
 
+涉及 Flutter 时：
+
+```powershell
+flutter analyze
+flutter test
+```
+
+有 Mac/Xcode 和可用签名条件时，再运行 Flutter iOS integration test、真机录音和发布构建检查。Windows 上的 Dart/Flutter 测试通过不能标记为 iOS 已验证。
+
 开发过程中优先运行相关测试。跨模块、迁移、发布候选或用户明确要求时运行全套。
 
 ## 11. 合并门禁
@@ -253,6 +279,7 @@ pnpm build
 - 训练是否像真实沟通而不是题库。
 - Lucía 是否像持续存在的朋友。
 - 手机端录音、键盘切换和单手操作是否自然。
+- iOS 安全区、系统权限、音频中断、耳机切换和 App 前后台恢复是否自然。
 - 八维图和进步证据是否真的帮助定位问题。
 
 每周将人工发现转化为可复现样本；能自动化的回归必须加入测试集。
