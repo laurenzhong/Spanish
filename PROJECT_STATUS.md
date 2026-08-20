@@ -3,8 +3,8 @@
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
 - 最后更新：2026-08-20
-- 当前里程碑：个人 Alpha 阶段 1——Web/PWA 与 Flutter 客户端基础骨架
-- 总体状态：跨客户端 API 契约基线已完成实现和验证，等待分支复核与合并
+- 当前里程碑：个人 Alpha 阶段 2——认证、数据库与内容导入
+- 总体状态：跨客户端 API 契约已合并；正在建立 Supabase、Drizzle 与第一版数据库迁移
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -22,42 +22,39 @@
 
 ## 当前任务
 
-### ALPHA-002B：建立版本化 API 契约与跨语言一致性样本
+### ALPHA-003：配置 Supabase、Drizzle 和第一版数据库迁移
 
-- 状态：`review`
+- 状态：`in_progress`
 - 负责人：Codex
-- 目标分支：`feat/alpha-002b-api-contracts`
-- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“首批可执行任务顺序”第 3 项
-- 前置依赖：ALPHA-002，已完成
+- 目标分支：`feat/alpha-003-database-foundation`
+- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 2.1：Supabase 与 Drizzle 基础”
+- 前置依赖：ALPHA-002B，已完成（`8342334`）
 
 目标：
 
-- 建立 `/api/v1/` 对应的 OpenAPI 3.1 根文档和可复用 JSON Schema。
-- 定义统一成功/失败包络、协议版本、分页结构和首批稳定错误码。
-- 建立 `contracts/fixtures/v1/`，让 TypeScript 与 Dart 测试读取同一批有效和无效样本。
-- 两端只建立协议 DTO、解析与错误映射，不接数据库、认证、真实 API 或业务评分。
+- 配置 Drizzle PostgreSQL 工具链和只读取服务端环境变量的数据库客户端。
+- 用模块化 Schema 定义计划中的首批用户、内容、训练、证据、画像、角色、对话和基础设施表。
+- 生成可从空 PostgreSQL 数据库向前执行的第一版版本化迁移。
+- 建立必要的约束、外键和高价值索引，不提前实现认证、RLS 业务策略或真实用户数据。
 
 验收条件：
 
-- OpenAPI 文档引用的本地 Schema 全部存在且可以解析。
-- 有效 fixtures 同时通过 JSON Schema、TypeScript 和 Dart 校验。
-- 无效 fixtures 在两端被拒绝，并得到稳定的协议错误分类。
-- TypeScript 与 Dart 对首批错误码、重试语义和协议版本解释一致。
-- `pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm build`、`flutter analyze` 和 `flutter test` 通过。
+- `.env.example` 只包含无密钥占位说明，实际 `.env` 继续被 Git 忽略。
+- Drizzle Schema 可以通过类型检查，并能稳定生成无漂移的首版 SQL 迁移。
+- 迁移包含计划中的首批表、约束、外键和必要索引，并能从空库执行。
+- `evidence_events` 在数据库层保持只追加语义；RLS 细则留给 ALPHA-004。
+- `pnpm lint`、`pnpm typecheck`、`pnpm test --run` 和 `pnpm build` 通过。
 
-实现结果：
+边界：
 
-- 建立 OpenAPI 3.1.1 根文档、v1 Schema、协议注册表和共享 fixtures。
-- 定义统一成功/失败包络、游标分页和 10 个稳定错误码及默认重试语义。
-- TypeScript 与 Dart 都实现严格解析器，拒绝未知错误码、错误版本、未声明字段和无效分页数据。
-- 共享 fixtures 同时覆盖有效响应、协议版本不兼容、供应商字段泄漏和无效游标。
-- 验证通过：Web lint、typecheck、9 个单元/契约测试、6 个 Playwright E2E、生产构建；Flutter analyze 与 12 个测试。
+- 本任务不接入邮箱认证、客户端会话、业务 Route Handler 或生产 Supabase 项目。
+- 本任务不提交任何数据库密码、Supabase 密钥、真实用户数据或生产连接信息。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-002B | review | `feat/alpha-002b-api-contracts` | Codex | OpenAPI、JSON Schema、稳定错误码与跨语言 fixtures | ALPHA-002、ADR-0001 |
+| ALPHA-003 | in_progress | `feat/alpha-003-database-foundation` | Codex | Supabase/Drizzle 基础、首批 Schema 与版本化迁移 | ALPHA-002B |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -65,9 +62,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-003 | 配置 Supabase、Drizzle 和第一版数据库迁移 | ALPHA-002B 完成 |
-| 2 | ALPHA-004 | 实现 Web/Flutter 会话与 RLS 隔离测试 | ALPHA-003 完成 |
-| 3 | ALPHA-005 | 定义内容 Schema、Dart DTO 与幂等导入器 | ALPHA-004 完成 |
+| 1 | ALPHA-004 | 实现 Web/Flutter 会话与 RLS 隔离测试 | ALPHA-003 完成 |
+| 2 | ALPHA-005 | 定义内容 Schema、Dart DTO 与幂等导入器 | ALPHA-004 完成 |
+| 3 | ALPHA-006 | 导入 8–12 条最小核心表达用于开发 | ALPHA-005 完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -114,6 +111,7 @@
 | 2026-08-20 | 完成实施计划、AGENTS、架构、内容、测试和 Echo-Loop 评审 | `494f270` | 可以开始 ALPHA-001 |
 | 2026-08-20 | 完成 Next.js/PWA 脚手架、测试基线和响应式验证页 | `dba8bfb` | 可以开始 ALPHA-002 |
 | 2026-08-20 | 完成 Web 与 Flutter 四栏产品壳层、平台 fake 和跨端测试基线 | `8420974` | 可以开始 ALPHA-002B |
+| 2026-08-20 | 完成版本化 API 契约、稳定错误码和 TypeScript/Dart 共同 fixtures | `8342334` | 可以开始 ALPHA-003 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
