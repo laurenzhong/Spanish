@@ -24,9 +24,9 @@
 
 ### ALPHA-010：接入浏览器与 Flutter TTS、录音和打字降级
 
-- 状态：`ready`
-- 负责人：未分配
-- 目标分支：待分配
+- 状态：`in_progress`
+- 负责人：Codex
+- 目标分支：`feat/alpha-010-speech-fallback`
 - 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“首批可执行任务顺序”第 11 项
 - 前置依赖：ALPHA-009，已完成（`1ef0268`，功能提交 `49b30d9`）
 
@@ -53,7 +53,7 @@
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-010 | ready | 待分配 | 未分配 | 浏览器与 Flutter TTS、录音和打字降级 | ALPHA-009 |
+| ALPHA-010 | in_progress | `feat/alpha-010-speech-fallback` | Codex | 浏览器与 Flutter TTS、录音和打字降级 | ALPHA-009 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
