@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-21
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-014 in_progress，建立发音评测 provider 契约与 fake 测试基线
+- 总体状态：ALPHA-015 ready，接入 Speechace 试用 API 的服务端适配器
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -21,6 +21,35 @@
 如果用户只给出任务 ID，以下表格和对应计划章节就是任务范围。不得自行扩大到后续任务。
 
 ## 当前任务
+
+### ALPHA-014：建立发音评测 provider 契约与 fake 测试基线
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`feat/alpha-014-pronunciation-contract`
+- 计划位置：ALPHA-013 决策后的 provider 契约切片
+- 前置依赖：ALPHA-013，已完成（合并 `e5db83d`）
+- 实现 Commit：`830f930`
+- PR：[#5](https://github.com/zjk159357/Spanish/pull/5)
+- 合并 Commit：`0b972b3`
+
+目标：
+
+- 定义内部 `PronunciationProvider` 输入、结果和稳定错误码。
+- 提供不调用真实供应商的 deterministic fake。
+- 覆盖可用结果、不足音频、输入校验、失败和取消语义。
+
+结果：
+
+- 契约位于 `src/modules/providers/pronunciation/`，支持 `es-ES` 和 `es-MX` locale。
+- 结果只包含发音、流利度、韵律、完整度指标和安全调用元数据，不包含原始转写正文。
+- `quality: "insufficient"` 使用空指标表示待验证，不产生负面分数。
+- 架构与测试策略已补充 provider 隔离、隐私和 fake 契约要求。
+
+验证：
+
+- `pnpm lint`、`pnpm typecheck`、99 个单测、15 个契约测试通过。
+- 未调用真实 Speechace API，未修改数据库、训练 UI 或 Flutter 客户端。
 
 ### ALPHA-013：第一次产品体验复盘并决定语音评测供应商
 
@@ -90,7 +119,8 @@
 | ALPHA-011 | done | `feat/alpha-011-openai-stt`（已合并） | Codex | OpenAI 文件转写 provider、fake 与契约测试 | ALPHA-010 |
 | ALPHA-012 | done | `feat/alpha-012-real-evidence`（已合并） | Codex | 证据评估、幂等写入与技能快照重算 | ALPHA-011 |
 | ALPHA-013 | done | `feat/alpha-013-provider-review`（已合并） | Codex | 第一次产品体验复盘并决定后续语音评测供应商 | ALPHA-012 |
-| ALPHA-014 | in_progress | `feat/alpha-014-pronunciation-contract` | Codex | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 |
+| ALPHA-014 | done | `feat/alpha-014-pronunciation-contract`（已合并） | Codex | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 |
+| ALPHA-015 | ready | — | 未分配 | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -98,8 +128,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-014 | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 完成 |
-| 2 | 待编号 | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 完成 |
+| 1 | ALPHA-015 | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 完成 |
+| 2 | 待编号 | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 完成 |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
@@ -157,6 +187,7 @@
 | 2026-08-21 | 完成 Web/Flutter 训练断点保存与恢复并合并 | `1ef0268`（功能 `49b30d9`） | 可以开始 ALPHA-010 |
 | 2026-08-21 | 完成浏览器与 Flutter TTS、录音和打字降级 | PR `#1`，合并 `98b1104`（功能 `469fc8d`，修复 `47150d7`） | 可以开始首个 STT 供应商适配器 |
 | 2026-08-21 | 完成第一次产品体验复盘并决定发音评测供应商 | PR `#4`，合并 `e5db83d`（决策 `a79b23b`） | 可以开始 ALPHA-014 provider 契约与 fake 测试 |
+| 2026-08-21 | 完成 PronunciationProvider 契约、fake 与契约测试 | PR `#5`，合并 `0b972b3`（功能 `830f930`） | 可以开始 ALPHA-015 Speechace 服务端适配器 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
