@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-21
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-015 in_progress，接入 Speechace 试用 API 的服务端适配器
+- 总体状态：ALPHA-015 done，Speechace 服务端适配器已合并
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -120,7 +120,7 @@
 | ALPHA-012 | done | `feat/alpha-012-real-evidence`（已合并） | Codex | 证据评估、幂等写入与技能快照重算 | ALPHA-011 |
 | ALPHA-013 | done | `feat/alpha-013-provider-review`（已合并） | Codex | 第一次产品体验复盘并决定后续语音评测供应商 | ALPHA-012 |
 | ALPHA-014 | done | `feat/alpha-014-pronunciation-contract`（已合并） | Codex | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 |
-| ALPHA-015 | in_progress | `feat/alpha-015-speechace-adapter` | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
+| ALPHA-015 | done | `feat/alpha-015-speechace-adapter`（已合并） | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -128,8 +128,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-015 | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 完成 |
-| 2 | 待编号 | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 完成 |
+| 1 | 待编号 | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 完成 |
+| 2 | 待编号 | 将 Speechace provider 接入训练 application | 发音回放集初步校准完成 |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
@@ -188,6 +188,7 @@
 | 2026-08-21 | 完成浏览器与 Flutter TTS、录音和打字降级 | PR `#1`，合并 `98b1104`（功能 `469fc8d`，修复 `47150d7`） | 可以开始首个 STT 供应商适配器 |
 | 2026-08-21 | 完成第一次产品体验复盘并决定发音评测供应商 | PR `#4`，合并 `e5db83d`（决策 `a79b23b`） | 可以开始 ALPHA-014 provider 契约与 fake 测试 |
 | 2026-08-21 | 完成 PronunciationProvider 契约、fake 与契约测试 | PR `#5`，合并 `0b972b3`（功能 `830f930`） | 可以开始 ALPHA-015 Speechace 服务端适配器 |
+| 2026-08-22 | 完成 Speechace 服务端适配器、错误边界与隐私测试 | PR `#6`，合并 `1d503aa`（功能 `f60fe9a`） | 可以建立西班牙语发音评测回放集与人工标注 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
