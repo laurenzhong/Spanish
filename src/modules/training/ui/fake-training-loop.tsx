@@ -6,6 +6,7 @@ import {
   useReducer,
   useState,
   type Dispatch,
+  type SetStateAction,
 } from "react";
 
 import contentBundle from "@/content/bundles/alpha-core-v1.json";
@@ -24,6 +25,15 @@ import {
   serializeTrainingCheckpoint,
   type TrainingCheckpointStore,
 } from "@/src/modules/training/checkpoints";
+import {
+  createBrowserAudioRecorder,
+  speechCapabilityErrorCode,
+  type BrowserAudioRecorder,
+} from "@/src/modules/providers/speech";
+import {
+  createBrowserTextToSpeech,
+  type BrowserTextToSpeech,
+} from "@/src/modules/providers/tts";
 
 const practiceExpressions = contentBundle.expressions.slice(0, 4);
 const evaluator = createFakeEvaluator();
@@ -41,6 +51,11 @@ type LoopEvent =
       expressionIndex: number;
       state: TrainingState;
     }>;
+
+export type TrainingAudioCapabilities = Readonly<{
+  recorder: Pick<BrowserAudioRecorder, "start" | "stop" | "cancel">;
+  textToSpeech: Pick<BrowserTextToSpeech, "isSupported" | "speak" | "stop">;
+}>;
 
 function startExpression(expressionIndex: number): LoopState {
   const expression = practiceExpressions[expressionIndex] ?? practiceExpressions[0];
@@ -105,10 +120,14 @@ function useTrainingEffects(
   dispatch: Dispatch<LoopEvent>,
   store: TrainingCheckpointStore | null,
   enabled: boolean,
+  audio: TrainingAudioCapabilities,
+  setCapabilityNotice: Dispatch<SetStateAction<string | null>>,
 ) {
   useEffect(() => {
     if (!enabled) return;
     const cleanups: Array<() => void> = [];
+    let active = true;
+    let recordingStop: Promise<boolean> | null = null;
 
     for (const effect of current.transition.effects) {
       if (effect.type === "save-breakpoint" && store) {
@@ -119,11 +138,64 @@ function useTrainingEffects(
       }
 
       if (effect.type === "play-input") {
-        const timer = window.setTimeout(
-          () => dispatch({ type: "input-playback-completed" }),
-          220,
-        );
-        cleanups.push(() => window.clearTimeout(timer));
+        if (!audio.textToSpeech.isSupported) {
+          setCapabilityNotice(
+            "浏览器暂不支持朗读，已保留文字输入。你可以直接阅读这句内容。",
+          );
+          const timer = window.setTimeout(
+            () => active && dispatch({ type: "input-playback-completed" }),
+            220,
+          );
+          cleanups.push(() => window.clearTimeout(timer));
+        } else {
+          const expressionText =
+            practiceExpressions.find(
+              (expression) =>
+                expression.stableKey === current.transition.state.contentKey,
+            )?.text ?? "";
+          void audio.textToSpeech
+            .speak(expressionText, { languageTag: "es-ES", rate: 0.9 })
+            .then(() => {
+              if (active) dispatch({ type: "input-playback-completed" });
+            })
+            .catch((error: unknown) => {
+              if (active) {
+                dispatch({
+                  type: "input-playback-failed",
+                  errorCode: speechCapabilityErrorCode(error, "tts-failed"),
+                });
+              }
+            });
+          cleanups.push(() => audio.textToSpeech.stop());
+        }
+      }
+
+      if (effect.type === "start-recording") {
+        void audio.recorder.start().catch((error: unknown) => {
+          if (!active) return;
+          setCapabilityNotice("麦克风暂时不可用，已切换为文字回答。");
+          dispatch({
+            type: "recording-start-failed",
+            generationId: effect.generationId,
+            errorCode: speechCapabilityErrorCode(error, "recording-failed"),
+          });
+        });
+      }
+
+      if (effect.type === "stop-recording") {
+        recordingStop = audio.recorder
+          .stop()
+          .then(() => true)
+          .catch((error: unknown) => {
+            if (active && current.transition.state.status === "transcribing") {
+              dispatch({
+                type: "transcription-failed",
+                generationId: effect.generationId,
+                errorCode: speechCapabilityErrorCode(error, "recording-failed"),
+              });
+            }
+            return false;
+          });
       }
 
       if (effect.type === "prepare-variant") {
@@ -140,17 +212,21 @@ function useTrainingEffects(
             (expression) =>
               expression.stableKey === current.transition.state.contentKey,
           )?.text ?? "";
-        const timer = window.setTimeout(
-          () =>
-            dispatch({
-              type: "transcription-succeeded",
-              generationId: effect.generationId,
-              transcript: simulatedTranscript,
-              confidence: 0.96,
-            }),
-          180,
-        );
-        cleanups.push(() => window.clearTimeout(timer));
+        void (recordingStop ?? Promise.resolve(true)).then((success) => {
+          if (!active || !success) return;
+          const timer = window.setTimeout(
+            () =>
+              active &&
+              dispatch({
+                type: "transcription-succeeded",
+                generationId: effect.generationId,
+                transcript: simulatedTranscript,
+                confidence: 0.96,
+              }),
+            180,
+          );
+          cleanups.push(() => window.clearTimeout(timer));
+        });
       }
 
       if (effect.type === "evaluate") {
@@ -180,19 +256,27 @@ function useTrainingEffects(
       }
     }
 
-    return () => cleanups.forEach((cleanup) => cleanup());
-  }, [current, dispatch, enabled, store]);
+    return () => {
+      active = false;
+      cleanups.forEach((cleanup) => cleanup());
+    };
+  }, [audio, current, dispatch, enabled, setCapabilityNotice, store]);
 }
 
 type FakeTrainingLoopProps = Readonly<{
   userId?: string;
+  audio?: TrainingAudioCapabilities;
 }>;
 
-export function FakeTrainingLoop({ userId = "local-user" }: FakeTrainingLoopProps) {
+export function FakeTrainingLoop({
+  userId = "local-user",
+  audio: providedAudio,
+}: FakeTrainingLoopProps) {
   const [current, dispatch] = useReducer(loopReducer, undefined, initialLoopState);
   const [draft, setDraft] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [restored, setRestored] = useState(false);
+  const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
   const state = current.transition.state;
   const checkpointStore = useMemo(
     () =>
@@ -200,6 +284,14 @@ export function FakeTrainingLoop({ userId = "local-user" }: FakeTrainingLoopProp
         ? null
         : createBrowserTrainingCheckpointStore(userId),
     [userId],
+  );
+  const audio = useMemo<TrainingAudioCapabilities>(
+    () =>
+      providedAudio ?? {
+        recorder: createBrowserAudioRecorder(),
+        textToSpeech: createBrowserTextToSpeech(),
+      },
+    [providedAudio],
   );
   const expression = practiceExpressions[current.expressionIndex] ?? practiceExpressions[0];
   const isProcessing =
@@ -234,9 +326,24 @@ export function FakeTrainingLoop({ userId = "local-user" }: FakeTrainingLoopProp
     };
   }, [checkpointStore]);
 
-  useTrainingEffects(current, dispatch, checkpointStore, hydrated);
+  useTrainingEffects(
+    current,
+    dispatch,
+    checkpointStore,
+    hydrated,
+    audio,
+    setCapabilityNotice,
+  );
+
+  useEffect(() => {
+    return () => {
+      void audio.recorder.cancel();
+      audio.textToSpeech.stop();
+    };
+  }, [audio]);
 
   function submitTyping() {
+    setCapabilityNotice(null);
     dispatch({ type: "submit-typing", text: draft });
     setDraft("");
   }
@@ -273,6 +380,12 @@ export function FakeTrainingLoop({ userId = "local-user" }: FakeTrainingLoopProp
         </p>
       ) : null}
 
+      {capabilityNotice ? (
+        <p className="training-loop__capability-notice" role="status">
+          {capabilityNotice}
+        </p>
+      ) : null}
+
       <section className="training-loop__context" aria-labelledby="training-expression">
         <div className="training-loop__status" aria-live="polite">
           <span className="training-loop__status-dot" aria-hidden="true" />
@@ -298,7 +411,10 @@ export function FakeTrainingLoop({ userId = "local-user" }: FakeTrainingLoopProp
           <div className="training-loop__output-choice">
             <button
               className="training-loop__secondary"
-              onClick={() => dispatch({ type: "switch-to-silent" })}
+              onClick={() => {
+                setCapabilityNotice(null);
+                dispatch({ type: "switch-to-silent" });
+              }}
               type="button"
             >
               用文字回答
@@ -308,7 +424,7 @@ export function FakeTrainingLoop({ userId = "local-user" }: FakeTrainingLoopProp
               onClick={() => dispatch({ type: "start-recording" })}
               type="button"
             >
-              开始模拟录音
+              开始录音
             </button>
           </div>
         ) : null}

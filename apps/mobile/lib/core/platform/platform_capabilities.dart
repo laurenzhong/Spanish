@@ -4,11 +4,36 @@ enum ConnectivityStatus { online, offline }
 
 enum LifecyclePhase { active, inactive, paused, detached }
 
+enum PlatformCapabilityErrorCode {
+  microphoneNotSupported('microphone-not-supported'),
+  microphonePermissionDenied('microphone-permission-denied'),
+  microphoneFormatUnsupported('microphone-format-unsupported'),
+  recordingFailed('recording-failed'),
+  recordingNotActive('recording-not-active'),
+  ttsNotSupported('tts-not-supported'),
+  ttsFailed('tts-failed');
+
+  const PlatformCapabilityErrorCode(this.value);
+  final String value;
+}
+
+class PlatformCapabilityException implements Exception {
+  const PlatformCapabilityException(this.code, this.message);
+
+  final PlatformCapabilityErrorCode code;
+  final String message;
+
+  @override
+  String toString() => 'PlatformCapabilityException(${code.value}): $message';
+}
+
 class RecordedAudio {
   const RecordedAudio({required this.bytes, required this.mimeType});
 
   final List<int> bytes;
   final String mimeType;
+
+  int get sizeBytes => bytes.length;
 }
 
 abstract interface class AudioRecorder {

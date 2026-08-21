@@ -334,6 +334,10 @@ Web 与 Flutter 上层功能只依赖内部端口：
 
 Web 使用浏览器适配器。Flutter 优先使用成熟插件；插件不能可靠满足 AVAudioSession、通知、文件生命周期或商店能力时，再增加单一职责的 Swift/Kotlin/Windows 桥接。平台原始异常必须转换为稳定内部错误。
 
+训练 Alpha 的 Web 适配器位于 `src/modules/providers/speech/browser-recorder.ts` 和 `src/modules/providers/tts/browser-tts.ts`。录音适配器只在内存中返回当前尝试的音频 Blob 与 `mimeType`/`sizeBytes` 元数据，不创建长期媒体资产。麦克风权限拒绝、格式不支持、录音失败和 TTS 不可用分别映射为稳定能力错误；麦克风启动失败直接把当前输出方式切换为文字，不产生能力证据。
+
+Flutter 的 `AudioRecorder` 和 `TextToSpeech` 端口继续位于 `apps/mobile/lib/core/platform/`，训练 fake 通过依赖注入验证成功、权限失败和资源释放路径。未安装平台插件或能力不可用时必须返回同一类稳定错误，并降级到文字输入。
+
 当前没有 Mac/Xcode，因此 Flutter 公共代码、Dart 测试和 Windows/Web 宿主验证不能被表述为 iOS 已验证。iOS 录音、签名、TestFlight 和真机验收必须在可持续使用的 Mac 环境中完成。
 
 ## 13. 供应商抽象

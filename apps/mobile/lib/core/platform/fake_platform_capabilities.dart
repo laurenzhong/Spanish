@@ -3,19 +3,28 @@ import 'dart:async';
 import 'platform_capabilities.dart';
 
 class FakeAudioRecorder implements AudioRecorder {
+  FakeAudioRecorder({this.startFailure, this.stopFailure});
+
+  final PlatformCapabilityException? startFailure;
+  final PlatformCapabilityException? stopFailure;
   bool _isRecording = false;
 
   bool get isRecording => _isRecording;
 
   @override
   Future<void> start() async {
+    if (startFailure != null) throw startFailure!;
     _isRecording = true;
   }
 
   @override
   Future<RecordedAudio> stop() async {
+    if (stopFailure != null) throw stopFailure!;
     if (!_isRecording) {
-      throw StateError('Recording has not started.');
+      throw const PlatformCapabilityException(
+        PlatformCapabilityErrorCode.recordingNotActive,
+        'Recording has not started.',
+      );
     }
     _isRecording = false;
     return const RecordedAudio(bytes: <int>[1, 2, 3], mimeType: 'audio/fake');
@@ -42,16 +51,23 @@ class FakeAudioPlayer implements AudioPlayer {
 }
 
 class FakeTextToSpeech implements TextToSpeech {
+  FakeTextToSpeech({this.speakFailure});
+
+  final PlatformCapabilityException? speakFailure;
   String? lastText;
+  String? lastLanguageTag;
 
   @override
   Future<void> speak(String text, {required String languageTag}) async {
+    if (speakFailure != null) throw speakFailure!;
     lastText = text;
+    lastLanguageTag = languageTag;
   }
 
   @override
   Future<void> stop() async {
     lastText = null;
+    lastLanguageTag = null;
   }
 }
 

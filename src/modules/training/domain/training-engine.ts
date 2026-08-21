@@ -153,6 +153,18 @@ export function transition(
       return reject(state, event.type, "The learner is choosing an output.");
 
     case "recording":
+      if (event.type === "recording-start-failed") {
+        if (event.generationId !== state.generationId) return staleResult(state, event);
+        return {
+          state: {
+            ...state,
+            status: "awaiting-output",
+            outputMode: "typing",
+            error: null,
+          },
+          effects: [{ type: "save-breakpoint" }],
+        };
+      }
       if (event.type === "stop-recording") {
         if (event.generationId !== state.generationId) return staleResult(state, event);
         return {

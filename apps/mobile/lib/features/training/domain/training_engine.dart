@@ -151,6 +151,17 @@ TrainingTransition transition(
       }
       return _reject(state, event, 'The learner is choosing an output.');
     case TrainingStatus.recording:
+      if (event.type == 'recording-start-failed') {
+        if (event.integer('generationId') != state.generationId) return _stale(state, event);
+        return TrainingTransition(
+          state: state.copyWith(
+            status: TrainingStatus.awaitingOutput,
+            outputMode: TrainingOutputMode.typing,
+            clearError: true,
+          ),
+          effects: <TrainingEffect>[const TrainingEffect('save-breakpoint')],
+        );
+      }
       if (event.type == 'stop-recording') {
         if (event.integer('generationId') != state.generationId) return _stale(state, event);
         return TrainingTransition(

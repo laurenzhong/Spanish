@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spanish_mobile/core/platform/fake_platform_capabilities.dart';
+import 'package:spanish_mobile/core/platform/platform_capabilities.dart';
 import 'package:spanish_mobile/features/training/checkpoints/training_checkpoint.dart';
 import 'package:spanish_mobile/features/training/fakes/fake_training_loop.dart';
 
@@ -15,12 +16,14 @@ void main() {
     await tester.tap(find.text('用文字回答'));
     await tester.pump();
     await tester.enterText(find.byType(TextField), '¿Qué tal todo?');
-    await tester.tap(find.text('提交文字回答'));
-    await tester.pump(const Duration(milliseconds: 180));
-    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    await tester.ensureVisible(find.text('提交文字回答'));
+    await tester.tap(find.widgetWithText(FilledButton, '提交文字回答'));
+    await tester.pumpAndSettle();
 
     expect(find.text('对方可以接住你的意思'), findsOneWidget);
-    await tester.tap(find.text('完成这句'));
+    await tester.ensureVisible(find.text('完成这句'));
+    await tester.tap(find.widgetWithText(FilledButton, '完成这句'));
     await tester.pump();
     expect(find.text('这句练习完成了'), findsOneWidget);
   });
@@ -37,5 +40,27 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: FakeTrainingLoop(checkpointStore: store)));
     await tester.pump();
     expect(find.text('轮到你了'), findsOneWidget);
+  });
+
+  testWidgets('falls back to typing when microphone permission is denied', (
+    tester,
+  ) async {
+    final recorder = FakeAudioRecorder(
+      startFailure: const PlatformCapabilityException(
+        PlatformCapabilityErrorCode.microphonePermissionDenied,
+        'denied',
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: FakeTrainingLoop(recorder: recorder)),
+    );
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(find.text('轮到你了'), findsOneWidget);
+    await tester.tap(find.text('开始录音'));
+    await tester.pump();
+
+    expect(find.text('麦克风暂时不可用，已切换为文字回答。'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
   });
 }

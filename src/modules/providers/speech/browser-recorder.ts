@@ -1,0 +1,208 @@
+import {
+  SpeechCapabilityError,
+  type RecordedAudioMetadata,
+} from "./speech-capability";
+
+type MediaDevicesLike = Readonly<{
+  getUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream>;
+}>;
+
+type MediaRecorderLike = Pick<MediaRecorder, "start" | "stop" | "state"> & {
+  ondataavailable: ((event: BlobEvent) => void) | null;
+  onerror: ((event: ErrorEvent) => void) | null;
+  onstop: ((event: Event) => void) | null;
+};
+
+type MediaRecorderFactory = (
+  stream: MediaStream,
+  options?: MediaRecorderOptions,
+) => MediaRecorderLike;
+
+export type BrowserRecordedAudio = Readonly<{
+  blob: Blob;
+  metadata: RecordedAudioMetadata;
+}>;
+
+const preferredMimeTypes = [
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/mp4",
+] as const;
+
+export class BrowserAudioRecorder {
+  private stream: MediaStream | null = null;
+  private recorder: MediaRecorderLike | null = null;
+  private chunks: Blob[] = [];
+
+  constructor(
+    private readonly mediaDevices: MediaDevicesLike | null,
+    private readonly recorderFactory: MediaRecorderFactory | null,
+    private readonly isMimeTypeSupported: (mimeType: string) => boolean = (
+      mimeType,
+    ) =>
+      typeof MediaRecorder !== "undefined" &&
+      typeof MediaRecorder.isTypeSupported === "function" &&
+      MediaRecorder.isTypeSupported(mimeType),
+  ) {}
+
+  get isSupported(): boolean {
+    return this.mediaDevices !== null && this.recorderFactory !== null;
+  }
+
+  async start(): Promise<void> {
+    if (this.recorder?.state === "recording") {
+      throw new SpeechCapabilityError(
+        "recording-already-active",
+        "A recording is already active.",
+      );
+    }
+    if (!this.isSupported) {
+      throw new SpeechCapabilityError(
+        "microphone-not-supported",
+        "This browser cannot record audio.",
+      );
+    }
+
+    const mimeType = preferredMimeTypes.find(this.isMimeTypeSupported);
+    if (!mimeType) {
+      throw new SpeechCapabilityError(
+        "microphone-format-unsupported",
+        "No supported recording format is available.",
+      );
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await this.mediaDevices!.getUserMedia({ audio: true });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        throw new SpeechCapabilityError(
+          "microphone-permission-denied",
+          "Microphone permission was denied.",
+        );
+      }
+      if (
+        error instanceof DOMException &&
+        (error.name === "NotFoundError" || error.name === "OverconstrainedError")
+      ) {
+        throw new SpeechCapabilityError(
+          "microphone-not-supported",
+          "No compatible microphone is available.",
+        );
+      }
+      throw new SpeechCapabilityError(
+        "recording-failed",
+        "The microphone could not be opened.",
+      );
+    }
+
+    try {
+      const recorder = this.recorderFactory!(stream, { mimeType });
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) this.chunks.push(event.data);
+      };
+      recorder.onerror = null;
+      recorder.onstop = null;
+      recorder.start();
+      this.stream = stream;
+      this.recorder = recorder;
+    } catch {
+      stopTracks(stream);
+      throw new SpeechCapabilityError(
+        "recording-failed",
+        "The microphone recorder could not start.",
+      );
+    }
+  }
+
+  async stop(): Promise<BrowserRecordedAudio> {
+    const recorder = this.recorder;
+    const stream = this.stream;
+    if (!recorder || !stream || recorder.state !== "recording") {
+      throw new SpeechCapabilityError(
+        "recording-not-active",
+        "There is no active recording.",
+      );
+    }
+
+    return new Promise<BrowserRecordedAudio>((resolve, reject) => {
+      recorder.onstop = () => {
+        const blob = new Blob(this.chunks, { type: this.mimeType() });
+        this.reset(stream);
+        resolve({
+          blob,
+          metadata: { mimeType: blob.type, sizeBytes: blob.size },
+        });
+      };
+      recorder.onerror = () => {
+        this.reset(stream);
+        reject(
+          new SpeechCapabilityError(
+            "recording-failed",
+            "The microphone recorder failed.",
+          ),
+        );
+      };
+      try {
+        recorder.stop();
+      } catch {
+        this.reset(stream);
+        reject(
+          new SpeechCapabilityError(
+            "recording-failed",
+            "The microphone recorder could not stop.",
+          ),
+        );
+      }
+    });
+  }
+
+  async cancel(): Promise<void> {
+    const recorder = this.recorder;
+    const stream = this.stream;
+    if (!recorder || !stream || recorder.state !== "recording") return;
+
+    await new Promise<void>((resolve) => {
+      recorder.onstop = () => {
+        this.reset(stream);
+        resolve();
+      };
+      recorder.onerror = () => {
+        this.reset(stream);
+        resolve();
+      };
+      try {
+        recorder.stop();
+      } catch {
+        this.reset(stream);
+        resolve();
+      }
+    });
+  }
+
+  private mimeType(): string {
+    return preferredMimeTypes.find(this.isMimeTypeSupported) ?? "audio/webm";
+  }
+
+  private reset(stream: MediaStream): void {
+    stopTracks(stream);
+    this.stream = null;
+    this.recorder = null;
+    this.chunks = [];
+  }
+}
+
+export function createBrowserAudioRecorder(): BrowserAudioRecorder {
+  if (typeof navigator === "undefined" || typeof MediaRecorder === "undefined") {
+    return new BrowserAudioRecorder(null, null);
+  }
+
+  return new BrowserAudioRecorder(
+    navigator.mediaDevices ?? null,
+    (stream, options) => new MediaRecorder(stream, options),
+  );
+}
+
+function stopTracks(stream: MediaStream): void {
+  for (const track of stream.getTracks()) track.stop();
+}

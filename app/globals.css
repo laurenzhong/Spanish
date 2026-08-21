@@ -577,6 +577,15 @@ a {
   font-weight: 760;
 }
 
+.training-loop__capability-notice {
+  margin: -8px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid #d88b2d;
+  background: #fff8eb;
+  color: #6d4b1d;
+  font-size: 0.9rem;
+}
+
 .training-loop__header h1 {
   max-width: 18ch;
   font-size: 2.2rem;

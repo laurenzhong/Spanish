@@ -1,3 +1,5 @@
+import 'training_state.dart';
+
 class TrainingEvent {
   const TrainingEvent(this.type, [this.data = const <String, Object?>{}]);
 

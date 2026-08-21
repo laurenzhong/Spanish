@@ -9,6 +9,11 @@ export type TrainingEvent =
   | Readonly<{ type: "input-playback-completed" }>
   | Readonly<{ type: "input-playback-failed"; errorCode: string }>
   | Readonly<{ type: "start-recording" }>
+  | Readonly<{
+      type: "recording-start-failed";
+      generationId: number;
+      errorCode: string;
+    }>
   | Readonly<{ type: "stop-recording"; generationId: number }>
   | Readonly<{ type: "cancel-recording"; generationId: number }>
   | Readonly<{
