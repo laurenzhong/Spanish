@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-21
 - 当前里程碑：个人 Alpha 阶段 2——认证、数据库与内容导入
-- 总体状态：Web/Flutter fake 训练微循环已合并；准备开始断点保存与恢复
+- 总体状态：训练断点保存与恢复已完成 Web 验证，等待分支审阅
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -24,9 +24,9 @@
 
 ### ALPHA-009：添加训练断点保存和恢复
 
-- 状态：`ready`
-- 负责人：未分配
-- 目标分支：待分配
+- 状态：`review`
+- 负责人：Codex
+- 目标分支：`feat/alpha-009-training-checkpoints`
 - 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“首批可执行任务顺序”第 10 项
 - 前置依赖：ALPHA-008，已完成（`7d80a99`）
 

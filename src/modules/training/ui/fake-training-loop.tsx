@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useReducer, useState, type Dispatch } from "react";
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useState,
+  type Dispatch,
+} from "react";
 
 import contentBundle from "@/content/bundles/alpha-core-v1.json";
 import {
@@ -11,6 +17,13 @@ import {
   type TrainingTransition,
 } from "@/src/modules/training/domain";
 import { createFakeEvaluator } from "@/src/modules/training/fakes";
+import {
+  checkpointFromState,
+  createBrowserTrainingCheckpointStore,
+  restoreTrainingCheckpoint,
+  serializeTrainingCheckpoint,
+  type TrainingCheckpointStore,
+} from "@/src/modules/training/checkpoints";
 
 const practiceExpressions = contentBundle.expressions.slice(0, 4);
 const evaluator = createFakeEvaluator();
@@ -22,7 +35,12 @@ type LoopState = Readonly<{
 
 type LoopEvent =
   | TrainingEvent
-  | Readonly<{ type: "load-expression"; expressionIndex: number }>;
+  | Readonly<{ type: "load-expression"; expressionIndex: number }>
+  | Readonly<{
+      type: "restore-checkpoint";
+      expressionIndex: number;
+      state: TrainingState;
+    }>;
 
 function startExpression(expressionIndex: number): LoopState {
   const expression = practiceExpressions[expressionIndex] ?? practiceExpressions[0];
@@ -38,6 +56,13 @@ function startExpression(expressionIndex: number): LoopState {
 function loopReducer(state: LoopState, event: LoopEvent): LoopState {
   if (event.type === "load-expression") {
     return startExpression(event.expressionIndex);
+  }
+
+  if (event.type === "restore-checkpoint") {
+    return {
+      expressionIndex: event.expressionIndex,
+      transition: { state: event.state, effects: [] },
+    };
   }
 
   return {
@@ -78,11 +103,21 @@ function statusLabel(state: TrainingState): string {
 function useTrainingEffects(
   current: LoopState,
   dispatch: Dispatch<LoopEvent>,
+  store: TrainingCheckpointStore | null,
+  enabled: boolean,
 ) {
   useEffect(() => {
+    if (!enabled) return;
     const cleanups: Array<() => void> = [];
 
     for (const effect of current.transition.effects) {
+      if (effect.type === "save-breakpoint" && store) {
+        const checkpoint = checkpointFromState(current.transition.state);
+        if (checkpoint) {
+          void store.write(serializeTrainingCheckpoint(checkpoint));
+        }
+      }
+
       if (effect.type === "play-input") {
         const timer = window.setTimeout(
           () => dispatch({ type: "input-playback-completed" }),
@@ -146,18 +181,60 @@ function useTrainingEffects(
     }
 
     return () => cleanups.forEach((cleanup) => cleanup());
-  }, [current, dispatch]);
+  }, [current, dispatch, enabled, store]);
 }
 
-export function FakeTrainingLoop() {
+type FakeTrainingLoopProps = Readonly<{
+  userId?: string;
+}>;
+
+export function FakeTrainingLoop({ userId = "local-user" }: FakeTrainingLoopProps) {
   const [current, dispatch] = useReducer(loopReducer, undefined, initialLoopState);
   const [draft, setDraft] = useState("");
+  const [hydrated, setHydrated] = useState(false);
+  const [restored, setRestored] = useState(false);
   const state = current.transition.state;
+  const checkpointStore = useMemo(
+    () =>
+      typeof window === "undefined"
+        ? null
+        : createBrowserTrainingCheckpointStore(userId),
+    [userId],
+  );
   const expression = practiceExpressions[current.expressionIndex] ?? practiceExpressions[0];
   const isProcessing =
     state.status === "transcribing" || state.status === "evaluating";
 
-  useTrainingEffects(current, dispatch);
+  useEffect(() => {
+    if (!checkpointStore) return;
+    let active = true;
+    void restoreTrainingCheckpoint(checkpointStore, {
+      contentBundleKey: "alpha.core",
+      contentBundleVersion: 1,
+    }).then((restoredState) => {
+      if (!active) return;
+      if (restoredState) {
+        const expressionIndex = Math.max(
+          0,
+          practiceExpressions.findIndex(
+            (expression) => expression.stableKey === restoredState.contentKey,
+          ),
+        );
+        dispatch({
+          type: "restore-checkpoint",
+          expressionIndex,
+          state: restoredState,
+        });
+        setRestored(true);
+      }
+      setHydrated(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [checkpointStore]);
+
+  useTrainingEffects(current, dispatch, checkpointStore, hydrated);
 
   function submitTyping() {
     dispatch({ type: "submit-typing", text: draft });
@@ -167,11 +244,21 @@ export function FakeTrainingLoop() {
   function moveToNextExpression() {
     const nextIndex = (current.expressionIndex + 1) % practiceExpressions.length;
     setDraft("");
-    dispatch({ type: "load-expression", expressionIndex: nextIndex });
+    async function clearAndLoad() {
+      await checkpointStore?.clear();
+      dispatch({ type: "load-expression", expressionIndex: nextIndex });
+    }
+    void clearAndLoad();
   }
 
   return (
-    <div className="training-loop" data-status={state.status}>
+    <div
+      className="training-loop"
+      data-testid="training-loop"
+      data-status={state.status}
+      data-hydrated={hydrated}
+      data-restored={restored}
+    >
       <header className="page-header page-header--simple training-loop__header">
         <div>
           <p className="eyebrow">表达练习 · {current.expressionIndex + 1}/4</p>
@@ -179,6 +266,12 @@ export function FakeTrainingLoop() {
         </div>
         <span className="quiet-badge">开发微循环</span>
       </header>
+
+      {restored ? (
+        <p className="training-loop__restore-status" role="status">
+          已恢复上次稳定进度
+        </p>
+      ) : null}
 
       <section className="training-loop__context" aria-labelledby="training-expression">
         <div className="training-loop__status" aria-live="polite">

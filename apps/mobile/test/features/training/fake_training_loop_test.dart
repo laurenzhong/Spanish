@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:spanish_mobile/core/platform/fake_platform_capabilities.dart';
+import 'package:spanish_mobile/features/training/checkpoints/training_checkpoint.dart';
 import 'package:spanish_mobile/features/training/fakes/fake_training_loop.dart';
 
 void main() {
@@ -21,5 +23,19 @@ void main() {
     await tester.tap(find.text('完成这句'));
     await tester.pump();
     expect(find.text('这句练习完成了'), findsOneWidget);
+  });
+
+  testWidgets('restores the last stable state without replaying playback', (
+    tester,
+  ) async {
+    final storage = FakeSecureStorage();
+    final store = SecureStorageTrainingCheckpointStore(storage, userId: 'user');
+    await tester.pumpWidget(MaterialApp(home: FakeTrainingLoop(checkpointStore: store)));
+    await tester.pump(const Duration(milliseconds: 220));
+    expect(find.text('轮到你了'), findsOneWidget);
+
+    await tester.pumpWidget(MaterialApp(home: FakeTrainingLoop(checkpointStore: store)));
+    await tester.pump();
+    expect(find.text('轮到你了'), findsOneWidget);
   });
 }

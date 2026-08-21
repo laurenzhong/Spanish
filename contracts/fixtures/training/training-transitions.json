@@ -2,6 +2,17 @@
   "schemaVersion": "1.0",
   "cases": [
     {
+      "id": "awaiting-output-creates-stable-breakpoint",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" }
+      ],
+      "expected": {
+        "state": { "status": "awaiting-output", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "speech", "hintLevel": 0, "generationId": 1, "transcript": null, "evaluation": null, "error": null },
+        "effects": [ { "type": "save-breakpoint" } ]
+      }
+    },
+    {
       "id": "typing-success",
       "events": [
         { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },

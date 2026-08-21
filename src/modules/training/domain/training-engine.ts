@@ -88,7 +88,10 @@ export function transition(
 
     case "presenting-input":
       if (event.type === "input-playback-completed") {
-        return { state: { ...state, status: "awaiting-output" }, effects: [] };
+        return {
+          state: { ...state, status: "awaiting-output" },
+          effects: [{ type: "save-breakpoint" }],
+        };
       }
       if (event.type === "input-playback-failed") {
         return technicalError(state, event.errorCode, "presenting-input");

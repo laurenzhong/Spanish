@@ -137,6 +137,12 @@ UI / Route Handler → Application → Domain
 
 禁止在训练页面完成回调中直接把场景标记为掌握。
 
+### 6.1.1 训练断点的稳定边界
+
+训练断点只保存可安全重建的稳定状态：`awaiting-output`、`showing-feedback`、`completed` 和 `recoverable-error`。播放、录音、转写、评估以及其他带活动副作用的状态不落盘；如果这些状态触发保存 effect，客户端保留上一个稳定断点。恢复只注入状态，不重放旧的播放、录音、转写或评估 effect。
+
+断点包含内容包 key/版本、表达和目标 key、输出方式、提示级别、generation、转写和反馈快照；不包含证据、画像、API 密钥或原始录音。Web 断点按用户 ID 隔离在浏览器本地存储，Flutter 通过平台安全存储抽象隔离。Schema 或内容包版本不兼容、数据损坏时清除断点并从当前微循环起点开始。
+
 ### 6.2 证据事件与技能快照
 
 `evidence_events` 是追加式事实，至少保存：

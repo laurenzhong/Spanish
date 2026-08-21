@@ -5,20 +5,15 @@ import 'package:spanish_mobile/features/learn/learn_page.dart';
 import 'package:spanish_mobile/features/profile/profile_page.dart';
 
 class ProductShell extends StatefulWidget {
-  const ProductShell({super.key});
+  const ProductShell({this.userId = 'local-user', super.key});
+
+  final String userId;
 
   @override
   State<ProductShell> createState() => _ProductShellState();
 }
 
 class _ProductShellState extends State<ProductShell> {
-  static const _pages = <Widget>[
-    LearnPage(),
-    ExplorePage(),
-    ChatPage(),
-    ProfilePage(),
-  ];
-
   static const _destinations = <_ProductDestination>[
     _ProductDestination(
       label: '学习',
@@ -43,6 +38,18 @@ class _ProductShellState extends State<ProductShell> {
   ];
 
   int _selectedIndex = 0;
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = <Widget>[
+      LearnPage(userId: widget.userId),
+      const ExplorePage(),
+      const ChatPage(),
+      const ProfilePage(),
+    ];
+  }
 
   void _select(int index) {
     setState(() => _selectedIndex = index);

@@ -1,10 +1,34 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { FakeTrainingLoop } from "@/src/modules/training/ui/fake-training-loop";
 
 describe("FakeTrainingLoop", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("restores a stable checkpoint without replaying input playback", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<FakeTrainingLoop userId="checkpoint-user" />);
+
+    await screen.findByText("轮到你了");
+    expect(screen.getByTestId("training-loop")).toHaveAttribute(
+      "data-hydrated",
+      "true",
+    );
+    unmount();
+    cleanup();
+    render(<FakeTrainingLoop userId="checkpoint-user" />);
+
+    expect(await screen.findByText("已恢复上次稳定进度")).toBeInTheDocument();
+    expect(screen.getByText("轮到你了")).toBeInTheDocument();
+    expect(screen.queryByText("先听一遍")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "用文字回答" }));
+    expect(screen.getByLabelText("写下你的回应")).toBeInTheDocument();
+  });
+
   it("loads the first expression and reaches output selection", async () => {
     render(<FakeTrainingLoop />);
 

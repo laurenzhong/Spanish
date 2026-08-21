@@ -88,7 +88,7 @@ class _AuthGate extends StatelessWidget {
         if (snapshot.data == null) {
           return LoginPage(repository: authRepository);
         }
-        return const ProductShell();
+        return ProductShell(userId: snapshot.data!.userId);
       },
     );
   }

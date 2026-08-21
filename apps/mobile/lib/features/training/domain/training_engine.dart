@@ -80,7 +80,7 @@ TrainingTransition transition(
       if (event.type == 'input-playback-completed') {
         return TrainingTransition(
           state: state.copyWith(status: TrainingStatus.awaitingOutput),
-          effects: const <TrainingEffect>[],
+          effects: <TrainingEffect>[const TrainingEffect('save-breakpoint')],
         );
       }
       if (event.type == 'input-playback-failed') {
