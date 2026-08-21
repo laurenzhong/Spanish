@@ -22,38 +22,38 @@
 
 ## 当前任务
 
-### ALPHA-006：导入 8–12 条最小核心表达用于开发
+### ALPHA-007：实现 TypeScript/Dart 训练编排器及共同样本测试
 
-- 状态：`review`
-- 负责人：Codex
-- 目标分支：`feat/alpha-006-core-content`
-- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 2.4：整理首批内容”
-- 前置依赖：ALPHA-005，已完成（`bb6979f`）
+- 状态：`ready`
+- 负责人：未分配
+- 目标分支：`feat/alpha-007-training-orchestrator`
+- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 3.1：定义训练领域模型”
+- 前置依赖：ALPHA-006，已完成（`13a6bb1`）
 
 目标：
 
-- 从用户提供的 554 条西班牙语短句中选择 8–12 条可迁移核心表达。
-- 为每条表达补全目标语块、替换槽位、中文教学说明、发音提示、变体、标签权值和独立输出任务。
-- 维持未审核内容的 `draft` 与 `pending` 审核状态，不发布到生产可见内容。
+- 定义 TypeScript 与 Dart 的纯训练状态、事件和编排器。
+- 使用共同 JSON fixtures 验证两端对相同转换产生等价状态和 effect。
+- 覆盖合法、非法、失败、取消和过期 generation 回调，不接入真实供应商。
 
 验收条件：
 
-- `content/bundles/alpha-core-v1.json` 包含 8–12 条版本化草稿表达，覆盖核心沟通能力。
-- 每条表达具有至少两个变体、两个替换示例、评分标签、三级提示和迁移任务。
-- 内容包可通过 `pnpm content:validate`；可在配置测试数据库后由幂等导入器导入。
-- 所有内容明确为未审核开发草稿，不绕过审核、版权或发布规则。
+- TypeScript 与 Dart 训练编排器不依赖 UI、数据库、浏览器或供应商 SDK。
+- 过期 `generationId` 结果不会覆盖当前状态。
+- 语音与打字路径、提示升级、失败恢复和取消都有共同 fixture 覆盖。
+- 完成任务与能力掌握保持分离。
 
 边界：
 
-- 不扩展为 40–60 条正式 Alpha 内容；完整审核内容属于后续整理工作。
-- 不实现完整内容管理后台、在线协作审核、自动发布或探索页读取。
-- 不用本地 HTML 的内容声称已获得母语者或教学审核。
+- 不接入录音、TTS、STT、真实评估器、数据库或 UI 微循环。
+- 不在客户端复制服务端评分与画像规则。
+- 不提前实现断点保存、供应商重试或真实证据写入。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-006 | in_progress | `feat/alpha-006-core-content` | Codex | 8–12 条最小核心表达、草稿内容包与内容验证 | ALPHA-005 |
+| ALPHA-007 | ready | `feat/alpha-007-training-orchestrator` | 未分配 | TypeScript/Dart 训练编排器与共同状态转换样本 | ALPHA-006 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -114,6 +114,7 @@
 | 2026-08-20 | 完成 31 张首批表、Drizzle Schema、空库迁移测试和数据库文档 | `b3b32e0` | 可以开始 ALPHA-004 |
 | 2026-08-20 | 完成 Web/Flutter 邮箱 OTP、可靠 Token Gate、服务端鉴权和 RLS 隔离 | `d3171bb` | 可以开始 ALPHA-005 |
 | 2026-08-21 | 完成版本化内容 Schema、跨端 DTO、严格校验与幂等事务导入 | `bb6979f` | 可以开始 ALPHA-006 |
+| 2026-08-21 | 完成 11 条最小核心表达、草稿场景任务与内容包验证 | `13a6bb1` | 可以开始 ALPHA-007 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
