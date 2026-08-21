@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.phoneme-error-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.need.ask-help",
+    "context": "You need assistance carrying a box and make a polite request.",
+    "referenceExpression": "¿Podría ayudarme?",
+    "intendedMeaning": "Ask politely for help."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "¿Podría ayudarme?",
+    "audioCondition": "phoneme-error",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.91,
+    "providerDisposition": "usable"
+  },
+  "expectation": {
+    "contextualSuccess": true,
+    "evidenceDisposition": "candidate",
+    "pronunciationScoreRange": { "min": 0.35, "max": 0.68 },
+    "fluencyScoreRange": { "min": 0.55, "max": 0.85 },
+    "skillsToUpdate": ["task.need"],
+    "skillsNotToUpdate": ["target.expression", "pronunciation.precision"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Mark the affected consonant or vowel only after a native speaker listens to the actual recording."
+  }
+}

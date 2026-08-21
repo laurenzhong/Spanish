@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.truncated-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.repair.ask-slower",
+    "context": "You start asking someone to speak more slowly, but the recording is cut off.",
+    "referenceExpression": "¿Podría hablar más despacio?",
+    "intendedMeaning": "Ask the other person to slow down."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "¿Podría hablar...",
+    "audioCondition": "truncated",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.63,
+    "providerDisposition": "insufficient"
+  },
+  "expectation": {
+    "contextualSuccess": null,
+    "evidenceDisposition": "insufficient",
+    "pronunciationScoreRange": null,
+    "fluencyScoreRange": null,
+    "skillsToUpdate": [],
+    "skillsNotToUpdate": ["task.repair", "pronunciation.precision", "fluency.turn-taking"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "A cut-off utterance is incomplete evidence and must not lower mastery."
+  }
+}

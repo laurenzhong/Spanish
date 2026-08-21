@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.clear-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.start.check-in",
+    "context": "You greet a classmate and ask how things are going.",
+    "referenceExpression": "¿Cómo va todo?",
+    "intendedMeaning": "Ask casually about the other person's situation."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "¿Cómo va todo?",
+    "audioCondition": "clear",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.96,
+    "providerDisposition": "usable"
+  },
+  "expectation": {
+    "contextualSuccess": true,
+    "evidenceDisposition": "candidate",
+    "pronunciationScoreRange": { "min": 0.82, "max": 1 },
+    "fluencyScoreRange": { "min": 0.78, "max": 1 },
+    "skillsToUpdate": ["task.start", "fluency.turn-taking"],
+    "skillsNotToUpdate": ["target.expression"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Needs Spanish-native review of clarity, stress, and natural pacing."
+  }
+}

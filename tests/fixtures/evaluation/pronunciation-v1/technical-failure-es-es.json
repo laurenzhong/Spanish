@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.technical-failure-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.start.check-in",
+    "context": "You greet a classmate and ask how things are going, but the provider request fails.",
+    "referenceExpression": "¿Cómo va todo?",
+    "intendedMeaning": "Ask casually about the other person's situation."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "¿Cómo va todo?",
+    "audioCondition": "provider-failure",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": null,
+    "providerDisposition": "technical-failure"
+  },
+  "expectation": {
+    "contextualSuccess": null,
+    "evidenceDisposition": "technical-failure",
+    "pronunciationScoreRange": null,
+    "fluencyScoreRange": null,
+    "skillsToUpdate": [],
+    "skillsNotToUpdate": ["task.start", "pronunciation.precision", "fluency.turn-taking"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Provider timeout or unavailable response is a technical failure, not negative learning evidence."
+  }
+}

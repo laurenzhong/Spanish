@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.natural-alternative-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.start.check-in",
+    "context": "You greet a friend and ask about their day.",
+    "referenceExpression": "¿Cómo va todo?",
+    "intendedMeaning": "Ask naturally about the friend's current situation."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "¿Qué tal todo?",
+    "audioCondition": "clear",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.94,
+    "providerDisposition": "usable"
+  },
+  "expectation": {
+    "contextualSuccess": true,
+    "evidenceDisposition": "candidate",
+    "pronunciationScoreRange": { "min": 0.78, "max": 1 },
+    "fluencyScoreRange": { "min": 0.74, "max": 1 },
+    "skillsToUpdate": ["task.start", "fluency.turn-taking"],
+    "skillsNotToUpdate": ["target.expression"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Natural alternative must remain a contextual success even though it differs from the reference expression."
+  }
+}

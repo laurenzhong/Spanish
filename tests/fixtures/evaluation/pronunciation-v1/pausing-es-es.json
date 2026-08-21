@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.pausing-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.maintain.ask-interest",
+    "context": "You are getting to know someone and ask what they like doing in their free time.",
+    "referenceExpression": "¿Qué te gusta hacer en tu tiempo libre?",
+    "intendedMeaning": "Keep the conversation going with an interest question."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "¿Qué te gusta hacer en tu tiempo libre?",
+    "audioCondition": "pausing",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.9,
+    "providerDisposition": "usable"
+  },
+  "expectation": {
+    "contextualSuccess": true,
+    "evidenceDisposition": "candidate",
+    "pronunciationScoreRange": { "min": 0.65, "max": 0.95 },
+    "fluencyScoreRange": { "min": 0.3, "max": 0.7 },
+    "skillsToUpdate": ["task.maintain"],
+    "skillsNotToUpdate": ["fluency.turn-taking"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Check whether pauses occur at sensible sense-group boundaries before assigning a fluency rating."
+  }
+}
