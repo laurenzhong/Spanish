@@ -353,6 +353,8 @@ Flutter 的 `AudioRecorder` 和 `TextToSpeech` 端口继续位于 `apps/mobile/l
 
 供应商选择不应改变 evidence、profile、training 或 conversation 的公共接口。
 
+发音评测使用独立的 `PronunciationProvider`，不把 STT 转写或 LLM 文本判断当作发音证据。内部契约只接受短期音频、`es-ES`/`es-MX` locale、可选参考文本和 `attemptId`/`generationId`，返回可校验的发音、流利度、韵律指标及安全调用元数据，不返回原始转写正文，也不直接写入 evidence 或 profile。`quality: "insufficient"`、低置信度、静音和技术失败只能进入待验证或可恢复路径，不能产生负面能力证据。默认测试使用 fake；真实供应商调用必须单独触发。
+
 ## 14. 可观测性
 
 结构化日志至少包含：
