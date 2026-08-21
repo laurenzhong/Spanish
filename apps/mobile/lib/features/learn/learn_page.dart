@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/core/platform/flutter_secure_storage_adapter.dart';
+import 'package:spanish_mobile/features/training/checkpoints/training_checkpoint.dart';
 import 'package:spanish_mobile/features/training/fakes/fake_training_loop.dart';
 import 'package:spanish_mobile/shared/widgets/surface_card.dart';
 
 class LearnPage extends StatefulWidget {
-  const LearnPage({super.key});
+  const LearnPage({this.userId = 'local-user', super.key});
+
+  final String userId;
 
   @override
   State<LearnPage> createState() => _LearnPageState();
@@ -14,7 +18,13 @@ class _LearnPageState extends State<LearnPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_showTraining) return const FakeTrainingLoop();
+    if (_showTraining)
+      return FakeTrainingLoop(
+        checkpointStore: SecureStorageTrainingCheckpointStore(
+          const FlutterSecureStorageAdapter(),
+          userId: widget.userId,
+        ),
+      );
 
     return LayoutBuilder(
       builder: (context, constraints) {

@@ -570,6 +570,13 @@ a {
   gap: 16px;
 }
 
+.training-loop__restore-status {
+  margin: -8px 0 0;
+  color: var(--success);
+  font-size: 0.8rem;
+  font-weight: 760;
+}
+
 .training-loop__header h1 {
   max-width: 18ch;
   font-size: 2.2rem;

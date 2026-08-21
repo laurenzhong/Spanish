@@ -6,6 +6,7 @@ import 'package:spanish_mobile/shared/widgets/surface_card.dart';
 import '../domain/training_engine.dart';
 import '../domain/training_event.dart';
 import '../domain/training_state.dart';
+import '../checkpoints/training_checkpoint.dart';
 import 'fake_evaluator.dart';
 
 class _Expression {
@@ -27,7 +28,9 @@ class _Expression {
 }
 
 class FakeTrainingLoop extends StatefulWidget {
-  const FakeTrainingLoop({super.key});
+  const FakeTrainingLoop({this.checkpointStore, super.key});
+
+  final TrainingCheckpointStore? checkpointStore;
 
   @override
   State<FakeTrainingLoop> createState() => _FakeTrainingLoopState();
@@ -72,20 +75,18 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
   final _evaluator = const FakeEvaluator();
   final _timers = <Timer>[];
   TrainingState _state = TrainingState.initial();
+  TrainingCheckpointStore? _checkpointStore;
   int _expressionIndex = 0;
   String _draft = '';
+  bool _initialized = false;
 
   _Expression get _expression => _expressions[_expressionIndex];
 
   @override
   void initState() {
     super.initState();
-    _dispatch(
-      const TrainingEvent('content-loaded', <String, Object?>{
-        'contentKey': 'start.como-va-todo',
-        'goalKey': 'communication.start.check-in',
-      }),
-    );
+    _checkpointStore = widget.checkpointStore;
+    _initialize();
   }
 
   @override
@@ -106,9 +107,53 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
     _runEffects(result.effects);
   }
 
+  Future<void> _initialize() async {
+    final restored = _checkpointStore == null
+        ? null
+        : await restoreTrainingCheckpoint(_checkpointStore!);
+    if (!mounted) return;
+
+    if (restored != null) {
+      final index = _expressions.indexWhere(
+        (expression) => expression.key == restored.contentKey,
+      );
+      setState(() {
+        _expressionIndex = index < 0 ? 0 : index;
+        _state = restored;
+        _initialized = true;
+      });
+      return;
+    }
+
+    final result = transition(
+      TrainingState.initial(),
+      const TrainingEvent('content-loaded', <String, Object?>{
+        'contentKey': 'start.como-va-todo',
+        'goalKey': 'communication.start.check-in',
+      }),
+    );
+    setState(() {
+      _state = result.state;
+      _initialized = true;
+    });
+    _runEffects(result.effects);
+  }
+
   void _runEffects(List<TrainingEffect> effects) {
     for (final effect in effects) {
       switch (effect.type) {
+        case 'save-breakpoint':
+          if (_checkpointStore != null) {
+            try {
+              final checkpoint = TrainingCheckpoint.fromState(_state);
+              unawaited(
+                _checkpointStore!.write(checkpoint.encode()).catchError((_) {}),
+              );
+            } on ArgumentError {
+              // The state machine only saves stable states; transient states are ignored.
+            }
+          }
+          break;
         case 'play-input':
           _schedule(const Duration(milliseconds: 220), () {
             _dispatch(const TrainingEvent('input-playback-completed'));
@@ -170,18 +215,32 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
 
   void _nextExpression() {
     final nextIndex = (_expressionIndex + 1) % _expressions.length;
-    setState(() {
-      _expressionIndex = nextIndex;
-      _draft = '';
-      _state = transition(
-        TrainingState.initial(),
-        TrainingEvent('content-loaded', <String, Object?>{
-          'contentKey': _expressions[nextIndex].key,
-          'goalKey': _expressions[nextIndex].goalKey,
-        }),
-      ).state;
-    });
-    _runEffects(<TrainingEffect>[const TrainingEffect('play-input')]);
+    void startNext() {
+      setState(() {
+        _expressionIndex = nextIndex;
+        _draft = '';
+        _state = transition(
+          TrainingState.initial(),
+          TrainingEvent('content-loaded', <String, Object?>{
+            'contentKey': _expressions[nextIndex].key,
+            'goalKey': _expressions[nextIndex].goalKey,
+          }),
+        ).state;
+      });
+      _runEffects(<TrainingEffect>[const TrainingEffect('play-input')]);
+    }
+
+    if (_checkpointStore == null) {
+      startNext();
+      return;
+    }
+    unawaited(
+      _checkpointStore!.clear().then((_) {
+        if (mounted) startNext();
+      }).catchError((_) {
+        if (mounted) startNext();
+      }),
+    );
   }
 
   String _statusLabel(TrainingStatus status) {
@@ -214,6 +273,10 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
     final colors = Theme.of(context).colorScheme;
     final isProcessing = _state.status == TrainingStatus.transcribing ||
         _state.status == TrainingStatus.evaluating;
+
+    if (!_initialized) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 26, 18, 40),

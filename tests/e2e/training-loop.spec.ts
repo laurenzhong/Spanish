@@ -41,3 +41,18 @@ test("keeps the training workbench inside a narrow viewport", async ({ page }) =
     await page.evaluate(() => window.innerWidth),
   );
 });
+
+test("restores the last stable state after a refresh", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/learn/practice");
+
+  const loop = page.locator(".training-loop");
+  await expect(loop).toHaveAttribute("data-status", "awaiting-output");
+  await expect(loop).toHaveAttribute("data-hydrated", "true");
+  await page.reload();
+
+  await expect(loop).toHaveAttribute("data-restored", "true");
+  await expect(loop).toHaveAttribute("data-status", "awaiting-output");
+  await expect(page.getByText("已恢复上次稳定进度")).toBeVisible();
+  await expect(page.getByText("先听一遍")).not.toBeVisible();
+});
