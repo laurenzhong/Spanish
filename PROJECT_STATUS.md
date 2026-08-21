@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-21
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-012 ready，写入第一条真实证据并更新技能快照
+- 总体状态：ALPHA-013 ready，进行第一次产品体验复盘并决定后续语音评测供应商
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -22,43 +22,43 @@
 
 ## 当前任务
 
-### ALPHA-011：选择并接入首个 STT 供应商适配器
+### ALPHA-012：写入第一条真实证据并更新技能快照
 
 - 状态：`done`
 - 负责人：Codex
-- 目标分支：`feat/alpha-011-openai-stt`
-- 计划位置：`docs/superpowers/specs/2026-08-21-openai-stt-provider-design.md`、实施计划任务 4.2
-- 前置依赖：ALPHA-010，已完成（合并 `98b1104`）
-- 实现 Commit：`c7886ed`
-- PR：[#2](https://github.com/zjk159357/Spanish/pull/2)
-- 合并 Commit：`b1da744`
+- 目标分支：`feat/alpha-012-real-evidence`
+- 计划位置：实施计划任务 4.3–4.5
+- 前置依赖：ALPHA-011，已完成（合并 `b1da744`）
+- 实现 Commit：`bf51ffe`
+- PR：[#3](https://github.com/zjk159357/Spanish/pull/3)
+- 合并 Commit：`ffea486`
 
 目标：
 
-- 通过内部 `SpeechToTextProvider` 接口接入 OpenAI 文件转写。
-- 使用 `gpt-transcribe` 完成录音停止后的同步转写。
-- 以统一内部模型返回文本、语言、调用元数据和稳定错误分类。
+- 将训练评估转换为有界、可解释的证据事件。
+- 在一个事务中幂等追加证据并重算用户技能快照。
+- 保持低置信度、技术失败和打字口语隔离规则。
 
 验收条件：
 
-- fake provider 和 OpenAI 适配器契约测试覆盖成功、空文本、取消、超时、限流、故障和响应损坏。
-- 服务端密钥、25 MB 文件限制、MIME 白名单、请求 ID、延迟和 retention policy 有明确边界。
-- OpenAI 不提供可靠置信度时返回 `null`，技术失败和空转写不产生负面能力证据。
-- 默认测试不调用真实收费供应商，适配器默认不自动重试。
+- 可信语音尝试可以写入 `evidence_events` 并更新 `user_skill_states`。
+- 重复提交不增加证据数量，快照可以从历史事件重算。
+- 低置信度、空转写和技术失败不产生负面能力证据。
+- 打字证据不更新口语专属技能，原始转写正文不写入证据引用。
 
 边界：
 
-- 不实现 Realtime transcription、发音评估或新的证据/画像语义。
-- 不直接写入 `evidence_events`、`user_skill_states`、`practice_attempts` 或 `provider_calls`。
-- 不改变 evidence/profile 语义，不实现完整推荐算法。
-- 不保存长期原始录音，不把 OpenAI 响应类型暴露给客户端。
+- 不接入训练 UI、Route Handler 或真实 OpenAI 调用。
+- 不实现发音评估、推荐算法或完整画像展示。
+- 不改变数据库 schema，不保存原始转写正文或长期录音。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
 | ALPHA-011 | done | `feat/alpha-011-openai-stt`（已合并） | Codex | OpenAI 文件转写 provider、fake 与契约测试 | ALPHA-010 |
-| ALPHA-012 | ready | — | 未分配 | 写入第一条真实证据并更新技能快照 | ALPHA-011 |
+| ALPHA-012 | done | `feat/alpha-012-real-evidence`（已合并） | Codex | 证据评估、幂等写入与技能快照重算 | ALPHA-011 |
+| ALPHA-013 | ready | — | 未分配 | 第一次产品体验复盘并决定后续语音评测供应商 | ALPHA-012 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -66,8 +66,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-012 | 写入第一条真实证据并更新技能快照 | ALPHA-011 完成 |
-| 2 | 待编号 | 进行第一次产品体验复盘并决定后续语音评测供应商 | 完成第 13 项 |
+| 1 | ALPHA-013 | 进行第一次产品体验复盘并决定后续语音评测供应商 | ALPHA-012 完成 |
+| 2 | 待编号 | — | — |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
