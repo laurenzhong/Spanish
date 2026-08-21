@@ -78,7 +78,7 @@
 }
 ```
 
-真实 Schema 以代码中的 Zod 定义为权威；文档示例不能替代校验。
+真实 Schema 以 `src/modules/content/schemas/content-bundle.ts` 中的 Zod 定义为权威；生成的跨端结构契约位于 `contracts/schemas/v1/content-bundle.schema.json`，文档示例不能替代校验。
 
 ## 4. 标签与权值
 
@@ -229,6 +229,15 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 - 人物事实冲突。
 
 校验失败时整个导入事务回滚，不允许部分发布。
+
+当前命令：
+
+```powershell
+pnpm content:validate -- content/bundles/alpha-core-v1.json
+pnpm content:import -- content/bundles/alpha-core-v1.json
+```
+
+导入以 bundle 稳定 ID、bundle 版本和规范化 SHA-256 哈希登记。相同版本相同哈希为幂等重试；相同版本不同哈希为冲突。版本化表达、场景、内容包和角色不能被其他 bundle 静默接管。
 
 ## 12. Alpha 内容验收
 

@@ -31,6 +31,8 @@ ALPHA-003 建立 Supabase PostgreSQL / Drizzle 基础；ALPHA-004 在第二版�
 - `src/shared/db/schema/infrastructure.ts`：音频、供应商调用和幂等键。
 - `drizzle/`：版本化 SQL 迁移、快照和迁移日志。
 
+ALPHA-005 新增 `content_bundle_imports` 作为服务端导入登记表，保存 bundle 稳定 ID、版本、规范化内容哈希和实体数量。该表不向 `anon` 或 `authenticated` 开放。`expression_tags.scoring` 区分能力权值与元数据标签；`content_sources` 增加版权状态和内部审核说明。
+
 业务模块后续只能通过 repository/application 边界访问自己拥有的表，不能把 Drizzle 行类型直接扩散到 UI、Flutter 或公共 API。
 
 ## 3. 连接配置
@@ -91,5 +93,6 @@ pnpm db:migrate
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
 - 变体、任务和内容片段通过可见的父内容继承读取权限。
 - 敏感人物固定事实不通过公开客户端角色暴露。
+- 内容导入哈希、许可证据和内部审核说明保持服务端可见；公开客户端只能读取安全的来源署名与版权状态列。
 
 RLS 是纵深防御而不是唯一授权层。Route Handler 仍需验证用户，并对资源执行服务端所有权和业务权限检查。

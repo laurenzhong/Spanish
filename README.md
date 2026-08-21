@@ -115,6 +115,15 @@ pnpm build
 
 数据库 Schema 变更使用 `pnpm db:generate` 生成向前迁移；只有在明确配置本地或测试 PostgreSQL 连接后才运行 `pnpm db:migrate`。真实连接信息只放在未提交的本地 `.env` 中。
 
+版本化内容在写库前先校验，正式语料从 ALPHA-006 开始放入 `content/bundles/`：
+
+```powershell
+pnpm content:validate -- content/bundles/alpha-core-v1.json
+pnpm content:import -- content/bundles/alpha-core-v1.json
+```
+
+内容契约、幂等与版本规则见 [版本化内容源](content/README.md) 和 [内容制作规范](docs/content-authoring.md)。
+
 Flutter 公共代码检查：
 
 ```powershell

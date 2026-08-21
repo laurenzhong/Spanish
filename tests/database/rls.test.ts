@@ -53,6 +53,7 @@ describe("Supabase RLS baseline", () => {
     `);
     await database.exec(await migration("0000_big_phalanx.sql"));
     await database.exec(await migration("0001_auth_rls.sql"));
+    await database.exec(await migration("0002_content_import_registry.sql"));
 
     await database.exec(`
       insert into auth.users (id, email)
@@ -164,6 +165,28 @@ describe("Supabase RLS baseline", () => {
       skill_insert: false,
       memory_insert: false,
       provider_insert: false,
+    });
+  });
+
+  it("keeps import hashes and editorial source evidence server-only", async () => {
+    const privileges = await database.query<{
+      import_select: boolean;
+      import_insert: boolean;
+      public_source_column: boolean;
+      private_source_column: boolean;
+    }>(`
+      select
+        has_table_privilege('authenticated', 'public.content_bundle_imports', 'SELECT') as import_select,
+        has_table_privilege('authenticated', 'public.content_bundle_imports', 'INSERT') as import_insert,
+        has_column_privilege('anon', 'public.content_sources', 'copyright_status', 'SELECT') as public_source_column,
+        has_column_privilege('anon', 'public.content_sources', 'license_evidence', 'SELECT') as private_source_column
+    `);
+
+    expect(privileges.rows[0]).toEqual({
+      import_select: false,
+      import_insert: false,
+      public_source_column: true,
+      private_source_column: false,
     });
   });
 

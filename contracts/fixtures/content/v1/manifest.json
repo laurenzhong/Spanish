@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1.0",
+  "baseFixture": "content-bundle-valid.json",
+  "cases": [
+    {
+      "name": "valid bundle",
+      "valid": true,
+      "operations": []
+    },
+    {
+      "name": "unknown goal reference",
+      "valid": false,
+      "operations": [
+        {
+          "operation": "replace",
+          "path": ["expressions", 0, "goalKey"],
+          "value": "missing.goal"
+        }
+      ]
+    },
+    {
+      "name": "scoring weights do not sum to one",
+      "valid": false,
+      "operations": [
+        {
+          "operation": "replace",
+          "path": ["expressions", 0, "tags", 0, "weight"],
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "name": "published source copyright is not cleared",
+      "valid": false,
+      "operations": [
+        {
+          "operation": "replace",
+          "path": ["contentPacks", 0, "sources", 0, "copyrightStatus"],
+          "value": "unverified"
+        }
+      ]
+    },
+    {
+      "name": "published entity has no approved review",
+      "valid": false,
+      "operations": [
+        {
+          "operation": "replace",
+          "path": ["reviews", 2, "status"],
+          "value": "changes_requested"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,273 @@
+{
+  "schemaVersion": "1.0",
+  "bundle": {
+    "stableKey": "alpha.contract-fixture",
+    "version": 1,
+    "defaultLocale": "es-ES",
+    "nativeLanguage": "zh-CN",
+    "description": "Shared TypeScript and Dart contract fixture."
+  },
+  "domains": [
+    {
+      "stableKey": "communication.start",
+      "title": { "zh-CN": "开始交流", "es-ES": "Iniciar una conversación" },
+      "description": { "zh-CN": "自然开始常见交流。", "es-ES": "Iniciar conversaciones cotidianas." },
+      "position": 0,
+      "status": "published"
+    }
+  ],
+  "goals": [
+    {
+      "stableKey": "communication.start.greet",
+      "domainKey": "communication.start",
+      "title": { "zh-CN": "自然问候", "es-ES": "Saludar con naturalidad" },
+      "description": { "zh-CN": "问候并给对方继续交流的机会。", "es-ES": "Saludar y abrir espacio para continuar." },
+      "cefrMin": "A1",
+      "cefrMax": "A2",
+      "position": 0,
+      "status": "published"
+    }
+  ],
+  "tags": [
+    {
+      "stableKey": "task.greet",
+      "category": "task",
+      "label": { "zh-CN": "问候", "es-ES": "Saludar" },
+      "description": { "zh-CN": "发起自然问候。", "es-ES": "Iniciar un saludo natural." },
+      "isActive": true
+    },
+    {
+      "stableKey": "fluency.turn-taking",
+      "category": "fluency",
+      "label": { "zh-CN": "轮次衔接", "es-ES": "Gestión de turnos" },
+      "description": { "zh-CN": "让对话自然继续。", "es-ES": "Mantener el turno conversacional." },
+      "isActive": true
+    },
+    {
+      "stableKey": "region.es-es",
+      "category": "region",
+      "label": { "zh-CN": "西班牙", "es-ES": "España" },
+      "description": { "zh-CN": "在西班牙常见。", "es-ES": "Uso habitual en España." },
+      "isActive": true
+    }
+  ],
+  "expressions": [
+    {
+      "stableKey": "greet.hola-que-tal",
+      "version": 1,
+      "goalKey": "communication.start.greet",
+      "locale": "es-ES",
+      "text": "Hola, ¿qué tal?",
+      "translations": { "zh-CN": "你好，最近怎么样？" },
+      "communicativeIntent": { "zh-CN": "轻松地问候并邀请对方回应。", "es-ES": "Saludar de forma relajada e invitar a responder." },
+      "chunks": [
+        { "text": "Hola", "kind": "sense_group", "stressed": true },
+        { "text": "¿qué tal?", "kind": "target", "stressed": true }
+      ],
+      "targetChunks": ["¿qué tal?"],
+      "slots": [
+        {
+          "key": "greeting",
+          "description": { "zh-CN": "可替换的开场问候。" },
+          "examples": ["Hola", "Buenas"]
+        }
+      ],
+      "grammar": {
+        "summary": { "zh-CN": "qué tal 是固定问候搭配。" },
+        "details": { "zh-CN": "这里不是逐词询问事物，而是询问对方近况。" }
+      },
+      "pronunciation": {
+        "summary": { "zh-CN": "两个意群之间轻微停顿。" },
+        "details": { "zh-CN": "tal 保持清晰，句末使用自然上扬语调。" }
+      },
+      "usage": {
+        "summary": { "zh-CN": "适合朋友、同学和大多数轻松场合。" },
+        "avoidWhen": { "zh-CN": "非常正式的首次商务会面可使用更正式问候。" },
+        "relationshipTypes": ["friend.new", "classmate.new"],
+        "toneEffects": ["friendly", "open"]
+      },
+      "cefr": "A1",
+      "register": "neutral-informal",
+      "region": "es-ES",
+      "frequency": "core",
+      "status": "published",
+      "publishedAt": "2026-08-20T10:00:00+08:00",
+      "variants": [
+        {
+          "text": "Buenas, ¿qué tal?",
+          "usageNotes": { "zh-CN": "在西班牙很常见的轻松问候。" },
+          "region": "es-ES",
+          "register": "informal",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "Hola, ¿cómo estás?",
+          "usageNotes": { "zh-CN": "更直接询问对方状态。" },
+          "region": "general",
+          "register": "neutral-informal",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        { "tagKey": "task.greet", "weight": 0.6, "scoring": true },
+        { "tagKey": "fluency.turn-taking", "weight": 0.4, "scoring": true },
+        { "tagKey": "region.es-es", "weight": 0.2, "scoring": false }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "stableKey": "campus.meet-classmate",
+      "version": 1,
+      "title": { "zh-CN": "在校园遇见同学", "es-ES": "Encontrarse con un compañero" },
+      "description": { "zh-CN": "第一次课前自然开始交流。", "es-ES": "Empezar a hablar antes de la primera clase." },
+      "setting": "university-campus",
+      "relationshipType": "classmate.new",
+      "cefr": "A1",
+      "status": "published",
+      "tasks": [
+        {
+          "position": 0,
+          "goalKey": "communication.start.greet",
+          "prompt": { "zh-CN": "你在教室门口遇见新同学，请自然问候。" },
+          "successCriteria": { "contextualSuccess": true, "mustInviteReply": true },
+          "targetExpressionKeys": ["greet.hola-que-tal"],
+          "prompts": {
+            "level1": { "zh-CN": "表达友好问候。" },
+            "level2": { "zh-CN": "可以使用 Hola 和询问近况的固定搭配。" },
+            "level3": { "zh-CN": "例如：Hola, ¿qué tal? 也可以自然替换。" }
+          },
+          "transfer": {
+            "changedInformation": { "zh-CN": "把地点改为宿舍公共厨房。" },
+            "changedRelationship": { "zh-CN": "把对方改为刚认识的邻居。" },
+            "unfamiliarVariant": { "zh-CN": "对方先说 Buenas，请自然回应并继续。" }
+          }
+        }
+      ]
+    }
+  ],
+  "contentPacks": [
+    {
+      "stableKey": "story.first-day-campus",
+      "version": 1,
+      "title": { "zh-CN": "校园第一天", "es-ES": "El primer día en el campus" },
+      "summary": { "zh-CN": "一段关于新同学初次交流的原创短对话。", "es-ES": "Un diálogo original sobre dos compañeros nuevos." },
+      "cefr": "A1",
+      "status": "published",
+      "publishedAt": "2026-08-20T10:00:00+08:00",
+      "segments": [
+        {
+          "position": 0,
+          "text": "Lucía llega temprano a clase y ve a Daniel junto a la puerta. Lo saluda con una sonrisa y los dos empiezan a hablar del curso.",
+          "translations": { "zh-CN": "Lucía 提前来到教室，在门口看见 Daniel。她微笑着问候，两人开始聊课程。" },
+          "chunks": [
+            { "text": "Lucía llega temprano a clase", "kind": "sense_group", "stressed": true },
+            { "text": "y ve a Daniel junto a la puerta", "kind": "connector", "stressed": false }
+          ]
+        }
+      ],
+      "activities": [
+        {
+          "position": 0,
+          "segmentPosition": 0,
+          "activityType": "listening",
+          "modality": "listening",
+          "instructions": { "zh-CN": "先听并判断两人在哪里见面。" },
+          "configuration": { "replaysAllowed": 2 }
+        },
+        {
+          "position": 1,
+          "activityType": "speaking",
+          "modality": "speech",
+          "instructions": { "zh-CN": "把自己放进场景，用一句话自然问候。" },
+          "configuration": { "targetExpressionKeys": ["greet.hola-que-tal"] }
+        }
+      ],
+      "sources": [
+        {
+          "sourceType": "original",
+          "title": "El primer día en el campus",
+          "author": "Spanish project editorial fixture",
+          "license": "original",
+          "copyrightStatus": "cleared",
+          "reviewNotes": "Synthetic contract fixture; not production learning content."
+        }
+      ]
+    }
+  ],
+  "characters": [
+    {
+      "stableKey": "lucia",
+      "version": 1,
+      "displayName": "Lucía Martín",
+      "homeLocation": "Madrid",
+      "profile": { "role": "first-friend", "speaks": ["es-ES", "it-IT"] },
+      "status": "published",
+      "canonFacts": [
+        {
+          "factKey": "family.mother-origin",
+          "value": { "country": "Italy" },
+          "sensitivity": "normal",
+          "version": 1,
+          "isActive": true
+        }
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "entityType": "communication_domain",
+      "stableKey": "communication.start",
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "fixture-language-reviewer",
+      "reviewedAt": "2026-08-20T10:00:00+08:00"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "communication.start.greet",
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "fixture-language-reviewer",
+      "reviewedAt": "2026-08-20T10:00:00+08:00"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "greet.hola-que-tal",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "fixture-language-reviewer",
+      "reviewedAt": "2026-08-20T10:00:00+08:00"
+    },
+    {
+      "entityType": "scenario",
+      "stableKey": "campus.meet-classmate",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "fixture-language-reviewer",
+      "reviewedAt": "2026-08-20T10:00:00+08:00"
+    },
+    {
+      "entityType": "content_pack",
+      "stableKey": "story.first-day-campus",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "fixture-copyright-reviewer",
+      "reviewedAt": "2026-08-20T10:00:00+08:00"
+    },
+    {
+      "entityType": "character",
+      "stableKey": "lucia",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "fixture-character-reviewer",
+      "reviewedAt": "2026-08-20T10:00:00+08:00"
+    }
+  ]
+}

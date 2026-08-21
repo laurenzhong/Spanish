@@ -14,6 +14,7 @@ import {
   characterRelationships,
   characters,
   communicationDomains,
+  contentBundleImports,
   contentPackActivities,
   contentPackSegments,
   contentPacks,
@@ -46,6 +47,7 @@ const allTables = [
   profiles,
   userPreferences,
   communicationDomains,
+  contentBundleImports,
   learningGoals,
   expressions,
   expressionVariants,
@@ -95,7 +97,7 @@ const userOwnedTables = [
 ] as const;
 
 describe("database schema", () => {
-  it("defines the complete ALPHA-003 first-table set", () => {
+  it("defines the current versioned database table set", () => {
     expect(allTables.map(getTableName).sort()).toEqual(
       [
         "audio_assets",
@@ -103,6 +105,7 @@ describe("database schema", () => {
         "character_relationships",
         "characters",
         "communication_domains",
+        "content_bundle_imports",
         "content_pack_activities",
         "content_pack_segments",
         "content_packs",
@@ -164,18 +167,42 @@ describe("database schema", () => {
 
   it("applies the versioned migration to an empty PostgreSQL database", async () => {
     const database = new PGlite();
-    const migrationPath = path.join(
-      process.cwd(),
-      "drizzle",
-      "0000_big_phalanx.sql",
-    );
-    const migration = (await readFile(migrationPath, "utf8")).replaceAll(
-      "--> statement-breakpoint",
-      "",
-    );
-
     try {
-      await database.exec(migration);
+      await database.exec(`
+        create role anon nologin;
+        create role authenticated nologin;
+        create schema auth;
+        create table auth.users (
+          id uuid primary key,
+          email text,
+          raw_user_meta_data jsonb not null default '{}'::jsonb
+        );
+        create function auth.uid()
+        returns uuid
+        language sql
+        stable
+        as $$
+          select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+        $$;
+        grant usage on schema auth to anon, authenticated;
+        grant execute on function auth.uid() to anon, authenticated;
+      `);
+      for (const migrationName of [
+        "0000_big_phalanx.sql",
+        "0001_auth_rls.sql",
+        "0002_content_import_registry.sql",
+      ]) {
+        const migrationPath = path.join(
+          process.cwd(),
+          "drizzle",
+          migrationName,
+        );
+        const migration = (await readFile(migrationPath, "utf8")).replaceAll(
+          "--> statement-breakpoint",
+          "",
+        );
+        await database.exec(migration);
+      }
 
       const result = await database.query<{ table_name: string }>(`
         select table_name

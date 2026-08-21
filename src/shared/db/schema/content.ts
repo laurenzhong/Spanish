@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
@@ -168,6 +169,7 @@ export const expressionTags = pgTable(
       .notNull()
       .references(() => tags.id, { onDelete: "restrict" }),
     weight: real("weight").notNull(),
+    scoring: boolean("scoring").default(true).notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -327,10 +329,51 @@ export const contentSources = pgTable(
     license: sourceLicenseEnum("license").notNull(),
     attribution: text("attribution"),
     licenseEvidence: text("license_evidence"),
+    copyrightStatus: text("copyright_status")
+      .default("unverified")
+      .notNull(),
+    reviewNotes: text("review_notes"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [index("content_sources_pack_idx").on(table.contentPackId)],
+  (table) => [
+    index("content_sources_pack_idx").on(table.contentPackId),
+    check(
+      "content_sources_copyright_status_check",
+      sql`${table.copyrightStatus} in ('unverified', 'cleared', 'restricted')`,
+    ),
+  ],
+);
+
+export const contentBundleImports = pgTable(
+  "content_bundle_imports",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    stableKey: stableKey(),
+    bundleVersion: integer("bundle_version").notNull(),
+    schemaVersion: text("schema_version").notNull(),
+    contentHash: text("content_hash").notNull(),
+    entityCounts: jsonObject("entity_counts"),
+    importedAt: timestamp("imported_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .defaultNow()
+      .notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("content_bundle_imports_stable_version_uidx").on(
+      table.stableKey,
+      table.bundleVersion,
+    ),
+    index("content_bundle_imports_imported_at_idx").on(table.importedAt),
+    check(
+      "content_bundle_imports_version_positive_check",
+      sql`${table.bundleVersion} > 0`,
+    ),
+  ],
 );
 
 export const contentReviews = pgTable(

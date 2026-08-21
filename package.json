@@ -11,6 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:contracts": "vitest run tests/contracts",
+    "contracts:generate-content": "tsx scripts/generate-content-contract.ts",
+    "content:validate": "tsx scripts/validate-content.ts",
+    "content:import": "tsx scripts/import-content.ts",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
@@ -51,6 +54,7 @@
     "eslint-config-next": "16.3.1",
     "jsdom": "30.0.1",
     "tailwindcss": "4.3.3",
+    "tsx": "4.20.6",
     "typescript": "5.9.3",
     "vitest": "4.1.11"
   }

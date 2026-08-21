@@ -62,6 +62,9 @@
       },
       "AuthSessionResponse": {
         "$ref": "../../schemas/v1/auth-session-response.schema.json"
+      },
+      "ContentBundle": {
+        "$ref": "../../schemas/v1/content-bundle.schema.json"
       }
     }
   }

@@ -34,11 +34,25 @@ Authorization: Bearer <access-token>
 
 该端点不接受客户端自行解析 JWT 后提交的用户 ID，也不向响应写入刷新令牌。
 
+## Content Bundle v1
+
+`schemas/v1/content-bundle.schema.json` 是版本化内容文件的结构契约，由服务端 Zod Schema 自动生成。`fixtures/content/v1/` 保存 TypeScript 与 Dart 共同读取的有效样本和语义错误变体。
+
+JSON Schema 负责字段、类型、枚举和未知字段拒绝；以下跨实体规则由 TypeScript 与 Dart 严格校验器共同执行：
+
+- 稳定 ID、版本和引用必须存在且唯一。
+- 参与评分的标签权值总和必须为 1。
+- 已发布实体必须有 approved review。
+- 已发布内容包的版权状态必须为 `cleared`。
+- 非原创来源必须提供 URL、署名和许可证据。
+
+修改 Zod Schema 后运行 `pnpm contracts:generate-content` 更新 JSON Schema，再运行两端契约测试。正式内容文件的目录和导入命令见 `content/README.md`。
+
 ## 修改流程
 
 1. 先修改 Schema 和注册表。
 2. 为兼容与不兼容行为各增加 fixture。
-3. 同步 TypeScript 与 Dart DTO/解析器。
+3. 同步 TypeScript 与 Dart DTO/解析器；内容结构从 Zod 重新生成 JSON Schema。
 4. 运行 `pnpm test:contracts` 和 `flutter test test/core/contracts`。
 5. 破坏性变更必须增加新的 API 主版本，不能原地改变 v1 字段含义。
 
