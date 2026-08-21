@@ -3,8 +3,8 @@
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
 - 最后更新：2026-08-21
-- 当前里程碑：个人 Alpha 阶段 2——认证、数据库与内容导入
-- 总体状态：ALPHA-011 in_progress，接入首个 STT 供应商适配器
+- 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
+- 总体状态：ALPHA-012 ready，写入第一条真实证据并更新技能快照
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -24,11 +24,14 @@
 
 ### ALPHA-011：选择并接入首个 STT 供应商适配器
 
-- 状态：`in_progress`
+- 状态：`done`
 - 负责人：Codex
 - 目标分支：`feat/alpha-011-openai-stt`
 - 计划位置：`docs/superpowers/specs/2026-08-21-openai-stt-provider-design.md`、实施计划任务 4.2
 - 前置依赖：ALPHA-010，已完成（合并 `98b1104`）
+- 实现 Commit：`c7886ed`
+- PR：[#2](https://github.com/zjk159357/Spanish/pull/2)
+- 合并 Commit：`b1da744`
 
 目标：
 
@@ -54,7 +57,8 @@
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-011 | in_progress | `feat/alpha-011-openai-stt` | Codex | OpenAI 文件转写 provider、fake 与契约测试 | ALPHA-010 |
+| ALPHA-011 | done | `feat/alpha-011-openai-stt`（已合并） | Codex | OpenAI 文件转写 provider、fake 与契约测试 | ALPHA-010 |
+| ALPHA-012 | ready | — | 未分配 | 写入第一条真实证据并更新技能快照 | ALPHA-011 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -62,9 +66,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-011 | 选择并接入首个 STT 供应商适配器 | ALPHA-010 完成 |
-| 2 | 待编号 | 写入第一条真实证据并更新技能快照 | 首个 STT 适配器完成 |
-| 3 | 待编号 | 进行第一次产品体验复盘并决定后续语音评测供应商 | 完成第 13 项 |
+| 1 | ALPHA-012 | 写入第一条真实证据并更新技能快照 | ALPHA-011 完成 |
+| 2 | 待编号 | 进行第一次产品体验复盘并决定后续语音评测供应商 | 完成第 13 项 |
+| 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
