@@ -1,15 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/features/training/fakes/fake_training_loop.dart';
 import 'package:spanish_mobile/shared/widgets/surface_card.dart';
 
-class LearnPage extends StatelessWidget {
+class LearnPage extends StatefulWidget {
   const LearnPage({super.key});
 
   @override
+  State<LearnPage> createState() => _LearnPageState();
+}
+
+class _LearnPageState extends State<LearnPage> {
+  var _showTraining = false;
+
+  @override
   Widget build(BuildContext context) {
+    if (_showTraining) return const FakeTrainingLoop();
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 760;
-        final focus = const _LearningFocusCard();
+        final focus = _LearningFocusCard(
+          onContinue: () => setState(() => _showTraining = true),
+        );
         final evidence = const _EvidenceCard();
 
         return SingleChildScrollView(
@@ -104,7 +116,9 @@ class _TodayHeader extends StatelessWidget {
 }
 
 class _LearningFocusCard extends StatelessWidget {
-  const _LearningFocusCard();
+  const _LearningFocusCard({required this.onContinue});
+
+  final VoidCallback onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -149,11 +163,7 @@ class _LearningFocusCard extends StatelessWidget {
               width: double.infinity,
               height: 54,
               child: FilledButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('训练闭环将在下一阶段接入')));
-                },
+                onPressed: onContinue,
                 iconAlignment: IconAlignment.end,
                 icon: const Icon(Icons.arrow_forward_rounded),
                 label: const Text('继续学习'),

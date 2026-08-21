@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-21
 - 当前里程碑：个人 Alpha 阶段 2——认证、数据库与内容导入
-- 总体状态：版本化内容 Schema、跨端 DTO 与幂等导入器已合并；正在整理最小核心表达开发内容
+- 总体状态：Web/Flutter fake 训练微循环已完成实现与 Web 验证，等待分支审阅
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -22,38 +22,38 @@
 
 ## 当前任务
 
-### ALPHA-007：实现 TypeScript/Dart 训练编排器及共同样本测试
+### ALPHA-008：用 fake 评估器接通首个 Web/Flutter 训练微循环
 
 - 状态：`review`
 - 负责人：Codex
-- 目标分支：`feat/alpha-007-training-orchestrator`
-- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 3.1：定义训练领域模型”
-- 前置依赖：ALPHA-006，已完成（`13a6bb1`）
+- 目标分支：`feat/alpha-008-fake-training-loop`
+- 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“首批可执行任务顺序”第 9 项
+- 前置依赖：ALPHA-007，已完成（`9b5eb27`）
 
 目标：
 
-- 定义 TypeScript 与 Dart 的纯训练状态、事件和编排器。
-- 使用共同 JSON fixtures 验证两端对相同转换产生等价状态和 effect。
-- 覆盖合法、非法、失败、取消和过期 generation 回调，不接入真实供应商。
+- 用固定的 3–5 条已验证草稿表达和 fake evaluator 跑通一轮训练。
+- Web 与 Flutter 都能加载内容、播放输入、提交打字或语音模拟输出、展示反馈并完成任务。
+- 保持评估失败可恢复、技术失败不产生能力证据，并复用 ALPHA-007 的 generation 规则。
 
 验收条件：
 
-- TypeScript 与 Dart 训练编排器不依赖 UI、数据库、浏览器或供应商 SDK。
-- 过期 `generationId` 结果不会覆盖当前状态。
-- 语音与打字路径、提示升级、失败恢复和取消都有共同 fixture 覆盖。
-- 完成任务与能力掌握保持分离。
+- Web 与 Flutter 各有一个可测试的训练微循环入口。
+- fake evaluator 的输入输出通过内部接口隔离，默认测试不调用真实供应商。
+- 完成反馈后能回到变式或 `completed`，且不直接写 evidence/profile。
+- 错误、取消、过期结果和打字降级有测试覆盖。
 
 边界：
 
-- 不接入录音、TTS、STT、真实评估器、数据库或 UI 微循环。
-- 不在客户端复制服务端评分与画像规则。
-- 不提前实现断点保存、供应商重试或真实证据写入。
+- 不接入真实录音、TTS、STT、LLM、数据库证据写入或长期断点恢复。
+- 不把 fake evaluator 当作生产评分器，不生成真实 mastery/confidence 更新。
+- 不实现完整训练页面、推荐算法或下一任务的供应商适配器。
 
 ## 活跃分支任务
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-007 | review | `feat/alpha-007-training-orchestrator` | Codex | TypeScript/Dart 训练编排器与共同状态转换样本 | ALPHA-006 |
+| ALPHA-008 | review | `feat/alpha-008-fake-training-loop` | Codex | Web/Flutter fake evaluator 微循环 | ALPHA-007 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -61,9 +61,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-007 | 实现 TypeScript/Dart 训练编排器及共同样本测试 | ALPHA-006 完成 |
-| 2 | ALPHA-008 | 用 fake 评估器接通首个 Web/Flutter 训练微循环 | ALPHA-007 完成 |
-| 3 | ALPHA-009 | 添加训练断点保存和恢复 | ALPHA-008 完成 |
+| 1 | ALPHA-008 | 用 fake 评估器接通首个 Web/Flutter 训练微循环 | ALPHA-007 完成 |
+| 2 | ALPHA-009 | 添加训练断点保存和恢复 | ALPHA-008 完成 |
+| 3 | ALPHA-010 | 接入浏览器与 Flutter TTS、录音和打字降级 | ALPHA-009 完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -115,6 +115,7 @@
 | 2026-08-20 | 完成 Web/Flutter 邮箱 OTP、可靠 Token Gate、服务端鉴权和 RLS 隔离 | `d3171bb` | 可以开始 ALPHA-005 |
 | 2026-08-21 | 完成版本化内容 Schema、跨端 DTO、严格校验与幂等事务导入 | `bb6979f` | 可以开始 ALPHA-006 |
 | 2026-08-21 | 完成 11 条最小核心表达、草稿场景任务与内容包验证 | `13a6bb1` | 可以开始 ALPHA-007 |
+| 2026-08-21 | 完成 TypeScript/Dart 训练编排器与共同状态转换测试 | `9b5eb27` | 可以开始 ALPHA-008 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 

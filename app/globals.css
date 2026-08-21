@@ -561,6 +561,234 @@ a {
   text-align: center;
 }
 
+.training-loop {
+  display: grid;
+  gap: 20px;
+}
+
+.training-loop__header {
+  gap: 16px;
+}
+
+.training-loop__header h1 {
+  max-width: 18ch;
+  font-size: 2.2rem;
+}
+
+.training-loop__context {
+  padding: 24px 2px 26px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.training-loop__status {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 30px;
+  margin-bottom: 24px;
+  color: var(--success);
+  font-size: 0.78rem;
+  font-weight: 780;
+}
+
+.training-loop__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentcolor;
+  box-shadow: 0 0 0 5px var(--success-soft);
+}
+
+.training-loop__context h2 {
+  max-width: 24ch;
+  margin: 10px 0 0;
+  font-size: 2rem;
+  line-height: 1.18;
+}
+
+.training-loop__translation,
+.training-loop__intent {
+  max-width: 64ch;
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.training-loop__intent {
+  margin-top: 4px;
+  font-size: 0.88rem;
+}
+
+.training-loop__workbench {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.training-loop__progress,
+.training-loop__feedback-actions,
+.training-loop__output-choice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.training-loop__progress {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.training-loop__instruction {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.training-loop__output-choice {
+  align-items: stretch;
+}
+
+.training-loop__primary,
+.training-loop__secondary,
+.training-loop__hints button {
+  min-height: 44px;
+  border-radius: 7px;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.training-loop__primary,
+.training-loop__secondary {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+}
+
+.training-loop__primary {
+  color: white;
+  background: var(--accent);
+}
+
+.training-loop__primary:hover {
+  background: var(--accent-strong);
+}
+
+.training-loop__primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.training-loop__secondary {
+  border-color: #cbd9ec;
+  color: var(--accent);
+  background: white;
+}
+
+.training-loop__composer {
+  display: grid;
+  gap: 10px;
+}
+
+.training-loop__composer label {
+  color: var(--foreground);
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.training-loop__composer textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #cbd9ec;
+  border-radius: 7px;
+  color: var(--foreground);
+  background: var(--surface-soft);
+  line-height: 1.55;
+}
+
+.training-loop__recording {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 16px;
+  border-left: 3px solid #c45b45;
+  background: #fff7f4;
+}
+
+.training-loop__recording p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.training-loop__recording-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #c45b45;
+  box-shadow: 0 0 0 6px rgb(196 91 69 / 14%);
+}
+
+.training-loop__feedback,
+.training-loop__error {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-left: 3px solid var(--success);
+  background: var(--success-soft);
+}
+
+.training-loop__error {
+  border-left-color: #b54708;
+  background: var(--warning-soft);
+}
+
+.training-loop__feedback h3,
+.training-loop__error h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.training-loop__feedback p:not(.eyebrow),
+.training-loop__error p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.training-loop__feedback-actions {
+  align-items: stretch;
+  margin-top: 8px;
+}
+
+.training-loop__hints {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.training-loop__hints button {
+  padding: 8px 11px;
+  border: 1px solid #d6dfec;
+  color: #657287;
+  background: var(--surface-soft);
+}
+
+.training-loop__hints button.is-active {
+  border-color: #a9c7f3;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 @media (min-width: 700px) {
   .product-content {
     padding: 42px 32px 64px;
@@ -597,6 +825,15 @@ a {
   .profile-grid {
     grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.8fr);
     align-items: start;
+  }
+
+  .training-loop {
+    gap: 24px;
+  }
+
+  .training-loop__workbench {
+    width: min(100%, 760px);
+    padding: 26px;
   }
 }
 
