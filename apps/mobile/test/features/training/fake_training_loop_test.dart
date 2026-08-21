@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spanish_mobile/core/platform/fake_platform_capabilities.dart';
+import 'package:spanish_mobile/core/platform/platform_capabilities.dart';
 import 'package:spanish_mobile/features/training/checkpoints/training_checkpoint.dart';
 import 'package:spanish_mobile/features/training/fakes/fake_training_loop.dart';
 
@@ -37,5 +38,27 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: FakeTrainingLoop(checkpointStore: store)));
     await tester.pump();
     expect(find.text('轮到你了'), findsOneWidget);
+  });
+
+  testWidgets('falls back to typing when microphone permission is denied', (
+    tester,
+  ) async {
+    final recorder = FakeAudioRecorder(
+      startFailure: const PlatformCapabilityException(
+        PlatformCapabilityErrorCode.microphonePermissionDenied,
+        'denied',
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: FakeTrainingLoop(recorder: recorder)),
+    );
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(find.text('轮到你了'), findsOneWidget);
+    await tester.tap(find.text('开始录音'));
+    await tester.pump();
+
+    expect(find.text('麦克风暂时不可用，已切换为文字回答。'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
   });
 }

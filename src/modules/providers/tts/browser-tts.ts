@@ -1,0 +1,127 @@
+import {
+  SpeechCapabilityError,
+  type SpeechCapabilityErrorCode,
+} from "../speech/speech-capability";
+
+export type TextToSpeechOptions = Readonly<{
+  languageTag: string;
+  rate?: number;
+  pitch?: number;
+  voiceName?: string;
+}>;
+
+type SpeechSynthesisLike = Pick<SpeechSynthesis, "speak" | "cancel" | "getVoices">;
+type UtteranceLike = SpeechSynthesisUtterance & {
+  onend: ((event: SpeechSynthesisEvent) => void) | null;
+  onerror: ((event: SpeechSynthesisErrorEvent) => void) | null;
+};
+
+type UtteranceFactory = (text: string) => UtteranceLike;
+
+export class BrowserTextToSpeech {
+  private active: {
+    resolve: () => void;
+    reject: (error: SpeechCapabilityError) => void;
+  } | null = null;
+
+  constructor(
+    private readonly synthesis: SpeechSynthesisLike | null,
+    private readonly utteranceFactory: UtteranceFactory | null,
+  ) {}
+
+  get isSupported(): boolean {
+    return this.synthesis !== null && this.utteranceFactory !== null;
+  }
+
+  voices(): readonly SpeechSynthesisVoice[] {
+    return this.synthesis?.getVoices() ?? [];
+  }
+
+  speak(text: string, options: TextToSpeechOptions): Promise<void> {
+    if (!this.isSupported) {
+      return Promise.reject(
+        new SpeechCapabilityError(
+          "tts-not-supported",
+          "This browser cannot speak text.",
+        ),
+      );
+    }
+
+    this.stop();
+    const utterance = this.utteranceFactory!(text);
+    utterance.lang = options.languageTag;
+    utterance.rate = clamp(options.rate ?? 0.9, 0.5, 2);
+    utterance.pitch = clamp(options.pitch ?? 1, 0, 2);
+    utterance.voice = this.selectVoice(options);
+
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const attempt = {
+        resolve: () => {
+          if (settled) return;
+          settled = true;
+          if (this.active === attempt) this.active = null;
+          resolve();
+        },
+        reject: (error: SpeechCapabilityError) => {
+          if (settled) return;
+          settled = true;
+          if (this.active === attempt) this.active = null;
+          reject(error);
+        },
+      };
+      this.active = attempt;
+      utterance.onend = () => attempt.resolve();
+      utterance.onerror = (event) =>
+        attempt.reject(
+          new SpeechCapabilityError(
+            speechErrorCode(event.error),
+            "Text to speech failed.",
+          ),
+        );
+      this.synthesis!.speak(utterance);
+    });
+  }
+
+  stop(): void {
+    const active = this.active;
+    this.active = null;
+    this.synthesis?.cancel();
+    active?.resolve();
+  }
+
+  private selectVoice(options: TextToSpeechOptions): SpeechSynthesisVoice | null {
+    const voices = this.voices();
+    return (
+      voices.find((voice) => voice.name === options.voiceName) ??
+      voices.find((voice) => voice.lang.toLowerCase() === options.languageTag.toLowerCase()) ??
+      voices.find((voice) => voice.lang.toLowerCase().startsWith(options.languageTag.slice(0, 2).toLowerCase())) ??
+      null
+    );
+  }
+}
+
+export function createBrowserTextToSpeech(): BrowserTextToSpeech {
+  if (
+    typeof window === "undefined" ||
+    typeof window.speechSynthesis === "undefined" ||
+    typeof SpeechSynthesisUtterance === "undefined"
+  ) {
+    return new BrowserTextToSpeech(null, null);
+  }
+
+  return new BrowserTextToSpeech(
+    window.speechSynthesis,
+    (text) => new SpeechSynthesisUtterance(text),
+  );
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function speechErrorCode(error: string): SpeechCapabilityErrorCode {
+  return error === "canceled" || error === "interrupted"
+    ? "tts-cancelled"
+    : "tts-failed";
+}

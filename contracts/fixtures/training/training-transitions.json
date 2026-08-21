@@ -67,6 +67,19 @@
       }
     },
     {
+      "id": "recording-permission-fallback",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "start-recording" },
+        { "type": "recording-start-failed", "generationId": 2, "errorCode": "microphone-permission-denied" }
+      ],
+      "expected": {
+        "state": { "status": "awaiting-output", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "typing", "hintLevel": 0, "generationId": 2, "transcript": null, "evaluation": null, "error": null },
+        "effects": [ { "type": "save-breakpoint" } ]
+      }
+    },
+    {
       "id": "exit-preserves-active-state",
       "events": [
         { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/core/platform/fake_platform_capabilities.dart';
+import 'package:spanish_mobile/core/platform/platform_capabilities.dart';
 import 'package:spanish_mobile/shared/widgets/surface_card.dart';
 
 import '../domain/training_engine.dart';
@@ -28,9 +30,16 @@ class _Expression {
 }
 
 class FakeTrainingLoop extends StatefulWidget {
-  const FakeTrainingLoop({this.checkpointStore, super.key});
+  const FakeTrainingLoop({
+    this.checkpointStore,
+    this.recorder,
+    this.textToSpeech,
+    super.key,
+  });
 
   final TrainingCheckpointStore? checkpointStore;
+  final AudioRecorder? recorder;
+  final TextToSpeech? textToSpeech;
 
   @override
   State<FakeTrainingLoop> createState() => _FakeTrainingLoopState();
@@ -74,10 +83,13 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
 
   final _evaluator = const FakeEvaluator();
   final _timers = <Timer>[];
+  late final AudioRecorder _recorder;
+  late final TextToSpeech _textToSpeech;
   TrainingState _state = TrainingState.initial();
   TrainingCheckpointStore? _checkpointStore;
   int _expressionIndex = 0;
   String _draft = '';
+  String? _capabilityNotice;
   bool _initialized = false;
 
   _Expression get _expression => _expressions[_expressionIndex];
@@ -86,6 +98,8 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
   void initState() {
     super.initState();
     _checkpointStore = widget.checkpointStore;
+    _recorder = widget.recorder ?? FakeAudioRecorder();
+    _textToSpeech = widget.textToSpeech ?? FakeTextToSpeech();
     _initialize();
   }
 
@@ -94,6 +108,8 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
     for (final timer in _timers) {
       timer.cancel();
     }
+    unawaited(_recorder.cancel());
+    unawaited(_textToSpeech.stop());
     super.dispose();
   }
 
@@ -140,6 +156,7 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
   }
 
   void _runEffects(List<TrainingEffect> effects) {
+    Future<bool>? recordingStop;
     for (final effect in effects) {
       switch (effect.type) {
         case 'save-breakpoint':
@@ -155,9 +172,16 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
           }
           break;
         case 'play-input':
-          _schedule(const Duration(milliseconds: 220), () {
-            _dispatch(const TrainingEvent('input-playback-completed'));
-          });
+          unawaited(_speakInput());
+          break;
+        case 'start-recording':
+          unawaited(_startRecording(effect.data['generationId'] as int));
+          break;
+        case 'stop-recording':
+          recordingStop = _stopRecording(
+            effect.data['generationId'] as int,
+            reportFailure: _state.status == TrainingStatus.transcribing,
+          );
           break;
         case 'prepare-variant':
           _schedule(const Duration(milliseconds: 180), () {
@@ -167,13 +191,16 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
         case 'transcribe':
           final generationId = effect.data['generationId'] as int;
           final simulatedTranscript = _expression.text;
-          _schedule(const Duration(milliseconds: 180), () {
-            _dispatch(TrainingEvent('transcription-succeeded', <String, Object?>{
-              'generationId': generationId,
-              'transcript': simulatedTranscript,
-              'confidence': 0.96,
-            }));
-          });
+          unawaited((recordingStop ?? Future<bool>.value(true)).then((success) {
+            if (!success || !mounted) return;
+            _schedule(const Duration(milliseconds: 180), () {
+              _dispatch(TrainingEvent('transcription-succeeded', <String, Object?>{
+                'generationId': generationId,
+                'transcript': simulatedTranscript,
+                'confidence': 0.96,
+              }));
+            });
+          }));
           break;
         case 'evaluate':
           final generationId = effect.data['generationId'] as int;
@@ -195,6 +222,55 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
           break;
       }
     }
+  }
+
+  Future<void> _speakInput() async {
+    try {
+      await _textToSpeech.speak(_expression.text, languageTag: 'es-ES');
+      if (mounted) _dispatch(const TrainingEvent('input-playback-completed'));
+    } catch (error) {
+      if (mounted) {
+        _dispatch(TrainingEvent('input-playback-failed', <String, Object?>{
+          'errorCode': _capabilityErrorCode(error, 'tts-failed'),
+        }));
+      }
+    }
+  }
+
+  Future<void> _startRecording(int generationId) async {
+    try {
+      await _recorder.start();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _capabilityNotice = '麦克风暂时不可用，已切换为文字回答。');
+      _dispatch(TrainingEvent('recording-start-failed', <String, Object?>{
+        'generationId': generationId,
+        'errorCode': _capabilityErrorCode(error, 'recording-failed'),
+      }));
+    }
+  }
+
+  Future<bool> _stopRecording(
+    int generationId, {
+    required bool reportFailure,
+  }) async {
+    try {
+      await _recorder.stop();
+      return true;
+    } catch (error) {
+      if (reportFailure && mounted && _state.status == TrainingStatus.transcribing) {
+        _dispatch(TrainingEvent('transcription-failed', <String, Object?>{
+          'generationId': generationId,
+          'errorCode': _capabilityErrorCode(error, 'recording-failed'),
+        }));
+      }
+      return false;
+    }
+  }
+
+  String _capabilityErrorCode(Object error, String fallback) {
+    if (error is PlatformCapabilityException) return error.code.value;
+    return fallback;
   }
 
   void _schedule(Duration duration, void Function() callback) {
@@ -298,6 +374,13 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
                   Text('${_expressionIndex + 1}/4', style: const TextStyle(fontWeight: FontWeight.w700)),
                 ],
               ),
+              if (_capabilityNotice != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Text(
+                  _capabilityNotice!,
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+              ],
               const SizedBox(height: 20),
               SurfaceCard(
                 color: const Color(0xFFF8FBFF),
@@ -328,9 +411,9 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
                     if (_state.status == TrainingStatus.awaitingOutput) ...<Widget>[
                       Row(
                         children: <Widget>[
-                          Expanded(child: OutlinedButton(onPressed: () => _dispatch(const TrainingEvent('switch-to-silent')), child: const Text('用文字回答'))),
+                          Expanded(child: OutlinedButton(onPressed: () { setState(() => _capabilityNotice = null); _dispatch(const TrainingEvent('switch-to-silent')); }, child: const Text('用文字回答'))),
                           const SizedBox(width: 10),
-                          Expanded(child: FilledButton(onPressed: () => _dispatch(const TrainingEvent('start-recording')), child: const Text('开始模拟录音'))),
+                          Expanded(child: FilledButton(onPressed: () => _dispatch(const TrainingEvent('start-recording')), child: const Text('开始录音'))),
                         ],
                       ),
                       if (_state.outputMode == TrainingOutputMode.typing) ...<Widget>[
@@ -349,7 +432,7 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          const Text('正在等待你的模拟回答'),
+                          const Text('正在等待你的回答'),
                           const SizedBox(height: 12),
                           FilledButton(onPressed: () => _dispatch(TrainingEvent('stop-recording', <String, Object?>{'generationId': _state.generationId})), child: const Text('提交模拟语音')),
                         ],

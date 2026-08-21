@@ -3,9 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { FakeTrainingLoop } from "@/src/modules/training/ui/fake-training-loop";
+import { SpeechCapabilityError } from "@/src/modules/providers/speech";
 
 describe("FakeTrainingLoop", () => {
   beforeEach(() => {
+    cleanup();
     window.localStorage.clear();
   });
 
@@ -53,5 +55,38 @@ describe("FakeTrainingLoop", () => {
 
     expect(await screen.findByText("¿Cómo se llama?")).toBeInTheDocument();
     expect(screen.getByText("先听一遍")).toBeInTheDocument();
+  });
+
+  it("falls back to typing when microphone permission is denied", async () => {
+    const user = userEvent.setup();
+    const audio = {
+      recorder: {
+        start: () =>
+          Promise.reject(
+            new SpeechCapabilityError(
+              "microphone-permission-denied",
+              "denied",
+            ),
+          ),
+        stop: async () => ({ blob: new Blob(), metadata: { mimeType: "audio/webm", sizeBytes: 0 } }),
+        cancel: async () => undefined,
+      },
+      textToSpeech: {
+        isSupported: false,
+        speak: async () => undefined,
+        stop: () => undefined,
+      },
+    };
+    render(<FakeTrainingLoop audio={audio} />);
+
+    await screen.findByText("轮到你了");
+    await user.click(screen.getByRole("button", { name: "开始录音" }));
+
+    expect(await screen.findByText("麦克风暂时不可用，已切换为文字回答。")).toBeInTheDocument();
+    expect(screen.getByLabelText("写下你的回应")).toBeInTheDocument();
+    expect(screen.getByTestId("training-loop")).toHaveAttribute(
+      "data-status",
+      "awaiting-output",
+    );
   });
 });
