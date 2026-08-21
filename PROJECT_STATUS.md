@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-21
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-015 ready，接入 Speechace 试用 API 的服务端适配器
+- 总体状态：ALPHA-015 in_progress，接入 Speechace 试用 API 的服务端适配器
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -120,7 +120,7 @@
 | ALPHA-012 | done | `feat/alpha-012-real-evidence`（已合并） | Codex | 证据评估、幂等写入与技能快照重算 | ALPHA-011 |
 | ALPHA-013 | done | `feat/alpha-013-provider-review`（已合并） | Codex | 第一次产品体验复盘并决定后续语音评测供应商 | ALPHA-012 |
 | ALPHA-014 | done | `feat/alpha-014-pronunciation-contract`（已合并） | Codex | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 |
-| ALPHA-015 | ready | — | 未分配 | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
+| ALPHA-015 | in_progress | `feat/alpha-015-speechace-adapter` | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
