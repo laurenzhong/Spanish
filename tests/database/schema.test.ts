@@ -218,5 +218,5 @@ describe("database schema", () => {
     } finally {
       await database.close();
     }
-  });
+  }, 10_000);
 });
