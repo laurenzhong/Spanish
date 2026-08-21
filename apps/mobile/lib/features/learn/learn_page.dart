@@ -18,13 +18,14 @@ class _LearnPageState extends State<LearnPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_showTraining)
+    if (_showTraining) {
       return FakeTrainingLoop(
         checkpointStore: SecureStorageTrainingCheckpointStore(
           const FlutterSecureStorageAdapter(),
           userId: widget.userId,
         ),
       );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {

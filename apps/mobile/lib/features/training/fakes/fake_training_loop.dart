@@ -418,11 +418,14 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
                       ),
                       if (_state.outputMode == TrainingOutputMode.typing) ...<Widget>[
                         const SizedBox(height: 14),
-                        TextField(
-                          onChanged: (value) => setState(() => _draft = value),
-                          minLines: 2,
-                          maxLines: 4,
-                          decoration: const InputDecoration(labelText: '写下你的回应', border: OutlineInputBorder()),
+                        Material(
+                          type: MaterialType.transparency,
+                          child: TextField(
+                            onChanged: (value) => setState(() => _draft = value),
+                            minLines: 2,
+                            maxLines: 4,
+                            decoration: const InputDecoration(labelText: '写下你的回应', border: OutlineInputBorder()),
+                          ),
                         ),
                         const SizedBox(height: 10),
                         SizedBox(width: double.infinity, child: FilledButton(onPressed: _draft.trim().isEmpty ? null : _submitTyping, child: const Text('提交文字回答'))),
