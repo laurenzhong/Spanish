@@ -22,6 +22,27 @@
 
 ## 当前任务
 
+### ALPHA-016：建立西班牙语发音评测回放集与人工标注
+
+- 状态：`in_progress`
+- 负责人：Codex
+- 目标分支：`feat/alpha-016-pronunciation-replay-set`
+- 计划位置：Speechace provider 接入后的质量校准切片
+- 前置依赖：ALPHA-015，已完成（合并 `1d503aa`）
+
+目标：
+
+- 建立版本化西班牙语发音评测回放样本和 manifest。
+- 覆盖清晰语音、自然替代、明显发音问题、停顿、噪声、静音、截断及 `es-ES`/`es-MX`。
+- 记录人工标注状态、预期语境结果、允许范围和不应更新的技能。
+- 确保样本不包含真实音频、完整私密转写、供应商响应或 API 凭据。
+
+边界：
+
+- 不调用真实 Speechace、Azure 或其他模型 API。
+- 不把样本直接接入训练 application、evidence、mastery 或 confidence。
+- 人工标注初始状态允许为 `pending`，不能伪造已完成母语者审核。
+
 ### ALPHA-014：建立发音评测 provider 契约与 fake 测试基线
 
 - 状态：`done`
@@ -121,6 +142,7 @@
 | ALPHA-013 | done | `feat/alpha-013-provider-review`（已合并） | Codex | 第一次产品体验复盘并决定后续语音评测供应商 | ALPHA-012 |
 | ALPHA-014 | done | `feat/alpha-014-pronunciation-contract`（已合并） | Codex | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 |
 | ALPHA-015 | done | `feat/alpha-015-speechace-adapter`（已合并） | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
+| ALPHA-016 | in_progress | `feat/alpha-016-pronunciation-replay-set` | Codex | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -128,8 +150,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 待编号 | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 完成 |
-| 2 | 待编号 | 将 Speechace provider 接入训练 application | 发音回放集初步校准完成 |
+| 1 | ALPHA-016 | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 完成 |
+| 2 | ALPHA-017 | 将 Speechace provider 接入训练 application | 发音回放集初步校准完成 |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
