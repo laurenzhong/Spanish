@@ -1,0 +1,5 @@
+{
+  "schemaVersion": "1.0",
+  "baseFixture": "training-transitions.json",
+  "description": "Shared TypeScript and Dart training state transition cases."
+}

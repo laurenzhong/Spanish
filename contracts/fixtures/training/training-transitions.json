@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "cases": [
+    {
+      "id": "typing-success",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "submit-typing", "text": "  Hola, ¿qué tal?  " },
+        { "type": "evaluation-succeeded", "generationId": 2, "contextualSuccess": true, "evidenceStrength": "weak", "feedbackKey": "clear-response" }
+      ],
+      "expected": {
+        "state": { "status": "showing-feedback", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "typing", "hintLevel": 0, "generationId": 2, "transcript": "Hola, ¿qué tal?", "evaluation": { "contextualSuccess": true, "evidenceStrength": "weak", "feedbackKey": "clear-response" }, "error": null },
+        "effects": [ { "type": "show-feedback" }, { "type": "save-breakpoint" } ]
+      }
+    },
+    {
+      "id": "speech-success",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "start-recording" },
+        { "type": "stop-recording", "generationId": 2 },
+        { "type": "transcription-succeeded", "generationId": 2, "transcript": "Hola", "confidence": 0.96 },
+        { "type": "evaluation-succeeded", "generationId": 2, "contextualSuccess": true, "evidenceStrength": "strong", "feedbackKey": "contextual-success" }
+      ],
+      "expected": {
+        "state": { "status": "showing-feedback", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "speech", "hintLevel": 0, "generationId": 2, "transcript": "Hola", "evaluation": { "contextualSuccess": true, "evidenceStrength": "strong", "feedbackKey": "contextual-success" }, "error": null },
+        "effects": [ { "type": "show-feedback" }, { "type": "save-breakpoint" } ]
+      }
+    },
+    {
+      "id": "stale-recording-callback",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "start-recording" },
+        { "type": "stop-recording", "generationId": 1 }
+      ],
+      "expected": {
+        "state": { "status": "recording", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "speech", "hintLevel": 0, "generationId": 2, "transcript": null, "evaluation": null, "error": null },
+        "effects": [ { "type": "ignore-stale-result", "eventType": "stop-recording", "generationId": 1, "currentGenerationId": 2 } ]
+      }
+    },
+    {
+      "id": "cancel-recording",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "start-recording" },
+        { "type": "cancel-recording", "generationId": 2 }
+      ],
+      "expected": {
+        "state": { "status": "awaiting-output", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "speech", "hintLevel": 0, "generationId": 2, "transcript": null, "evaluation": null, "error": null },
+        "effects": [ { "type": "stop-recording", "generationId": 2 }, { "type": "save-breakpoint" } ]
+      }
+    },
+    {
+      "id": "exit-preserves-active-state",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "start-recording" },
+        { "type": "exit" }
+      ],
+      "expected": {
+        "state": { "status": "recording", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "speech", "hintLevel": 0, "generationId": 2, "transcript": null, "evaluation": null, "error": null },
+        "effects": [ { "type": "save-breakpoint" }, { "type": "exit-training" } ]
+      }
+    },
+    {
+      "id": "playback-failure-retry",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-failed", "errorCode": "audio-unavailable" },
+        { "type": "retry" }
+      ],
+      "expected": {
+        "state": { "status": "presenting-input", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "speech", "hintLevel": 0, "generationId": 2, "transcript": null, "evaluation": null, "error": null },
+        "effects": [ { "type": "play-input" } ]
+      }
+    },
+    {
+      "id": "transcription-failure-is-recoverable",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "start-recording" },
+        { "type": "stop-recording", "generationId": 2 },
+        { "type": "transcription-failed", "generationId": 2, "errorCode": "stt-timeout" }
+      ],
+      "expected": {
+        "state": { "status": "recoverable-error", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "speech", "hintLevel": 0, "generationId": 2, "transcript": null, "evaluation": null, "error": { "code": "stt-timeout", "recoverTo": "awaiting-output", "technical": true } },
+        "effects": [ { "type": "show-error", "code": "stt-timeout", "technical": true }, { "type": "save-breakpoint" } ]
+      }
+    },
+    {
+      "id": "illegal-before-content",
+      "events": [ { "type": "start-recording" } ],
+      "expected": {
+        "state": { "status": "loading-context", "contentKey": null, "goalKey": null, "outputMode": "speech", "hintLevel": 0, "generationId": 0, "transcript": null, "evaluation": null, "error": null },
+        "effects": [ { "type": "reject-event", "eventType": "start-recording", "reason": "Content must load before this event." } ]
+      }
+    },
+    {
+      "id": "hints-and-silent-mode",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "request-hint", "level": 1 },
+        { "type": "request-hint", "level": 3 },
+        { "type": "switch-to-silent" },
+        { "type": "submit-typing", "text": "Una respuesta" }
+      ],
+      "expected": {
+        "state": { "status": "evaluating", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "typing", "hintLevel": 3, "generationId": 2, "transcript": "Una respuesta", "evaluation": null, "error": null },
+        "effects": [ { "type": "evaluate", "generationId": 2, "outputMode": "typing" } ]
+      }
+    },
+    {
+      "id": "variant-transition",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "submit-typing", "text": "Vale" },
+        { "type": "evaluation-succeeded", "generationId": 2, "contextualSuccess": true, "evidenceStrength": "weak", "feedbackKey": "short-success" },
+        { "type": "enter-variant" },
+        { "type": "variant-ready" }
+      ],
+      "expected": {
+        "state": { "status": "presenting-input", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "typing", "hintLevel": 0, "generationId": 3, "transcript": null, "evaluation": null, "error": null },
+        "effects": [ { "type": "play-input" } ]
+      }
+    },
+    {
+      "id": "task-completion-is-not-mastery",
+      "events": [
+        { "type": "content-loaded", "contentKey": "expression.demo", "goalKey": "goal.demo" },
+        { "type": "input-playback-completed" },
+        { "type": "submit-typing", "text": "Vale" },
+        { "type": "evaluation-succeeded", "generationId": 2, "contextualSuccess": false, "evidenceStrength": "weak", "feedbackKey": "needs-repair" },
+        { "type": "complete-task" }
+      ],
+      "expected": {
+        "state": { "status": "completed", "contentKey": "expression.demo", "goalKey": "goal.demo", "outputMode": "typing", "hintLevel": 0, "generationId": 2, "transcript": "Vale", "evaluation": { "contextualSuccess": false, "evidenceStrength": "weak", "feedbackKey": "needs-repair" }, "error": null },
+        "effects": [ { "type": "save-breakpoint" } ]
+      }
+    }
+  ]
+}

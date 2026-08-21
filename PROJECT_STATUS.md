@@ -24,8 +24,8 @@
 
 ### ALPHA-007：实现 TypeScript/Dart 训练编排器及共同样本测试
 
-- 状态：`ready`
-- 负责人：未分配
+- 状态：`review`
+- 负责人：Codex
 - 目标分支：`feat/alpha-007-training-orchestrator`
 - 计划位置：`docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的“任务 3.1：定义训练领域模型”
 - 前置依赖：ALPHA-006，已完成（`13a6bb1`）
@@ -53,7 +53,7 @@
 
 | 任务 ID | 状态 | 分支 | 负责人/模型 | 范围 | 依赖 |
 |---|---|---|---|---|---|
-| ALPHA-007 | ready | `feat/alpha-007-training-orchestrator` | 未分配 | TypeScript/Dart 训练编排器与共同状态转换样本 | ALPHA-006 |
+| ALPHA-007 | review | `feat/alpha-007-training-orchestrator` | Codex | TypeScript/Dart 训练编排器与共同状态转换样本 | ALPHA-006 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
