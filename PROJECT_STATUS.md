@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-22
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-017 in_progress，将 Speechace provider 接入训练 application
+- 总体状态：ALPHA-017 done，下一步准备真实音频回放与人工标注校准
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -24,11 +24,14 @@
 
 ### ALPHA-017：将 Speechace provider 接入训练 application
 
-- 状态：`in_progress`
+- 状态：`done`
 - 负责人：Codex
 - 目标分支：`feat/alpha-017-pronunciation-application`
 - 计划位置：Speechace provider 与回放集之后的 application 编排切片
 - 前置依赖：ALPHA-016，已完成（合并 `24f782f`）
+- 实现 Commit：`b96ac1a`
+- PR：[#8](https://github.com/zjk159357/Spanish/pull/8)
+- 合并 Commit：`d4a30a5`
 
 目标：
 
@@ -173,7 +176,7 @@
 | ALPHA-014 | done | `feat/alpha-014-pronunciation-contract`（已合并） | Codex | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 |
 | ALPHA-015 | done | `feat/alpha-015-speechace-adapter`（已合并） | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
 | ALPHA-016 | done | `feat/alpha-016-pronunciation-replay-set`（已合并） | Codex | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 |
-| ALPHA-017 | in_progress | `feat/alpha-017-pronunciation-application` | Codex | 将 Speechace provider 接入训练 application | ALPHA-016 |
+| ALPHA-017 | done | `feat/alpha-017-pronunciation-application`（已合并） | Codex | 将 Speechace provider 接入训练 application | ALPHA-016 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -181,8 +184,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-017 | 将 Speechace provider 接入训练 application | ALPHA-016 完成且回放集初步校准完成 |
-| 2 | 待编号 | 运行真实音频回放与人工标注校准 | 获得用户确认并准备合规的测试音频 |
+| 1 | 待编号 | 运行真实音频回放与人工标注校准 | 获得用户确认并准备合规的测试音频 |
+| 2 | 待编号 | — | — |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
@@ -243,6 +246,7 @@
 | 2026-08-21 | 完成 PronunciationProvider 契约、fake 与契约测试 | PR `#5`，合并 `0b972b3`（功能 `830f930`） | 可以开始 ALPHA-015 Speechace 服务端适配器 |
 | 2026-08-22 | 完成 Speechace 服务端适配器、错误边界与隐私测试 | PR `#6`，合并 `1d503aa`（功能 `f60fe9a`） | 可以建立西班牙语发音评测回放集与人工标注 |
 | 2026-08-22 | 完成西班牙语发音评测回放集、Schema 与标注契约 | PR `#7`，合并 `24f782f`（功能 `564d209`） | 可以准备真实音频人工校准，并在校准门槛满足后开始 ALPHA-017 |
+| 2026-08-22 | 完成 Speechace provider training application 编排与安全错误映射 | PR `#8`，合并 `d4a30a5`（功能 `b96ac1a`） | 可以在用户确认并准备合规音频后进行真实回放与人工标注校准 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
