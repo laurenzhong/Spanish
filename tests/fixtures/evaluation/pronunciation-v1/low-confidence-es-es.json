@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.low-confidence-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.need.ask-price",
+    "context": "You point at an item in a shop and ask its price.",
+    "referenceExpression": "¿Cuánto cuesta esto?",
+    "intendedMeaning": "Ask for the price of the item."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "¿Cuánto cuesta esto?",
+    "audioCondition": "noise",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.24,
+    "providerDisposition": "insufficient"
+  },
+  "expectation": {
+    "contextualSuccess": null,
+    "evidenceDisposition": "insufficient",
+    "pronunciationScoreRange": null,
+    "fluencyScoreRange": null,
+    "skillsToUpdate": [],
+    "skillsNotToUpdate": ["task.need", "pronunciation.precision", "fluency.turn-taking"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Low transcription confidence blocks negative evidence; request a retry or mark speech as pending verification."
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.silence-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.repair.ask-repeat",
+    "context": "A speaker asks you something, but you do not answer before the recording ends.",
+    "referenceExpression": "¿Podría repetirlo?",
+    "intendedMeaning": "Request that the other person repeat what they said."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "[no speech]",
+    "audioCondition": "silence",
+    "hasUsableSpeech": false,
+    "transcriptConfidence": null,
+    "providerDisposition": "insufficient"
+  },
+  "expectation": {
+    "contextualSuccess": false,
+    "evidenceDisposition": "insufficient",
+    "pronunciationScoreRange": null,
+    "fluencyScoreRange": null,
+    "skillsToUpdate": [],
+    "skillsNotToUpdate": ["task.repair", "pronunciation.precision", "fluency.turn-taking"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "No speech is evidence-insufficient, never a negative pronunciation observation."
+  }
+}

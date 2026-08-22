@@ -166,12 +166,18 @@ Playwright 覆盖 Web；Flutter integration test 使用 fake/测试服务覆盖�
 建立版本化评估样本：
 
 ```text
-tests/fixtures/evaluation/
-  contextual-success.json
-  natural-alternatives.json
-  common-errors.json
-  low-confidence-transcripts.json
-  prompt-dependence.json
+tests/fixtures/evaluation/pronunciation-v1/
+  manifest.json
+  clear-es-es.json
+  natural-alternative-es-es.json
+  phoneme-error-es-es.json
+  pausing-es-es.json
+  noise-es-es.json
+  silence-es-es.json
+  low-confidence-es-es.json
+  truncated-es-es.json
+  clear-es-mx.json
+  natural-alternative-es-mx.json
 ```
 
 每个样本包含：
@@ -179,10 +185,12 @@ tests/fixtures/evaluation/
 - 情境和交际任务。
 - 参考表达，但不作为唯一答案。
 - 用户输出和输出方式。
-- 转写置信度。
+- 转写置信度；回放集只保存合成短语，不保存供应商原始转写正文。
 - 预期语境结果和允许范围。
 - 不应更新的技能。
-- 人工解释。
+- 人工解释、审核状态和允许的分数范围。
+
+发音回放集使用 `pronunciation-v1` manifest 进行完整性校验。样本不得包含音频、供应商原始响应、API 凭据或完整私密对话；`pending` 标注不能被当作已完成母语者审核。静音、低置信度、截断和技术失败样本的预期技能更新必须为空。
 
 任何 evaluator 或 prompt 变更都运行完整回放集并比较差异。
 

@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.noise-es-es",
+  "locale": "es-ES",
+  "scenario": {
+    "goalKey": "communication.response.accept-suggestion",
+    "context": "A friend suggests visiting a market and you respond positively.",
+    "referenceExpression": "Suena bien.",
+    "intendedMeaning": "Accept or positively acknowledge a suggestion."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "Suena bien.",
+    "audioCondition": "noise",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.72,
+    "providerDisposition": "usable"
+  },
+  "expectation": {
+    "contextualSuccess": true,
+    "evidenceDisposition": "candidate",
+    "pronunciationScoreRange": { "min": 0.55, "max": 0.9 },
+    "fluencyScoreRange": { "min": 0.45, "max": 0.85 },
+    "skillsToUpdate": [],
+    "skillsNotToUpdate": ["task.response", "pronunciation.precision", "fluency.turn-taking"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Noise tolerance and contextual success require a human listen; do not infer a negative result from the provider score alone."
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "setVersion": "1.0",
+  "schemaId": "https://spanish.local/evaluation/pronunciation/v1",
+  "description": "Synthetic Spanish pronunciation calibration cases. Audio and provider responses are intentionally excluded.",
+  "syntheticOnly": true,
+  "containsAudio": false,
+  "containsProviderResponses": false,
+  "samples": [
+    { "file": "clear-es-es.json", "sampleId": "pronunciation.clear-es-es", "locale": "es-ES", "category": "clear" },
+    { "file": "natural-alternative-es-es.json", "sampleId": "pronunciation.natural-alternative-es-es", "locale": "es-ES", "category": "natural-alternative" },
+    { "file": "phoneme-error-es-es.json", "sampleId": "pronunciation.phoneme-error-es-es", "locale": "es-ES", "category": "phoneme-error" },
+    { "file": "pausing-es-es.json", "sampleId": "pronunciation.pausing-es-es", "locale": "es-ES", "category": "pausing" },
+    { "file": "noise-es-es.json", "sampleId": "pronunciation.noise-es-es", "locale": "es-ES", "category": "noise" },
+    { "file": "silence-es-es.json", "sampleId": "pronunciation.silence-es-es", "locale": "es-ES", "category": "silence" },
+    { "file": "technical-failure-es-es.json", "sampleId": "pronunciation.technical-failure-es-es", "locale": "es-ES", "category": "technical-failure" },
+    { "file": "low-confidence-es-es.json", "sampleId": "pronunciation.low-confidence-es-es", "locale": "es-ES", "category": "low-confidence" },
+    { "file": "truncated-es-es.json", "sampleId": "pronunciation.truncated-es-es", "locale": "es-ES", "category": "truncated" },
+    { "file": "clear-es-mx.json", "sampleId": "pronunciation.clear-es-mx", "locale": "es-MX", "category": "clear" },
+    { "file": "natural-alternative-es-mx.json", "sampleId": "pronunciation.natural-alternative-es-mx", "locale": "es-MX", "category": "natural-alternative" }
+  ]
+}

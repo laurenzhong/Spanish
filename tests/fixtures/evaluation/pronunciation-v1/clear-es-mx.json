@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.clear-es-mx",
+  "locale": "es-MX",
+  "scenario": {
+    "goalKey": "communication.relationship.share-interest",
+    "context": "You meet someone new and share that you like travelling.",
+    "referenceExpression": "Me gusta viajar.",
+    "intendedMeaning": "Share a personal interest in a simple way."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "Me gusta viajar.",
+    "audioCondition": "clear",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.95,
+    "providerDisposition": "usable"
+  },
+  "expectation": {
+    "contextualSuccess": true,
+    "evidenceDisposition": "candidate",
+    "pronunciationScoreRange": { "min": 0.8, "max": 1 },
+    "fluencyScoreRange": { "min": 0.75, "max": 1 },
+    "skillsToUpdate": ["task.relationship"],
+    "skillsNotToUpdate": ["target.expression"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Confirm that the same rubric is usable for Mexican Spanish without treating dialect variation as an error."
+  }
+}

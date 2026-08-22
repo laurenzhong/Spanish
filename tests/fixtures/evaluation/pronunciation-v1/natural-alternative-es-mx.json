@@ -1,0 +1,35 @@
+{
+  "setVersion": "1.0",
+  "sampleId": "pronunciation.natural-alternative-es-mx",
+  "locale": "es-MX",
+  "scenario": {
+    "goalKey": "communication.end.keep-contact",
+    "context": "You end a pleasant conversation and say you would like to stay in touch.",
+    "referenceExpression": "Sigamos en contacto.",
+    "intendedMeaning": "Leave the conversation open for future contact."
+  },
+  "input": {
+    "outputMode": "speech",
+    "syntheticUtterance": "Seguimos en contacto.",
+    "audioCondition": "clear",
+    "hasUsableSpeech": true,
+    "transcriptConfidence": 0.93,
+    "providerDisposition": "usable"
+  },
+  "expectation": {
+    "contextualSuccess": true,
+    "evidenceDisposition": "candidate",
+    "pronunciationScoreRange": { "min": 0.76, "max": 1 },
+    "fluencyScoreRange": { "min": 0.72, "max": 1 },
+    "skillsToUpdate": ["task.end"],
+    "skillsNotToUpdate": ["target.expression"]
+  },
+  "annotation": {
+    "status": "pending",
+    "reviewerId": null,
+    "reviewedAt": null,
+    "pronunciationRating": null,
+    "fluencyRating": null,
+    "notes": "Treat this natural alternative as task success; do not require the exact reference wording."
+  }
+}
