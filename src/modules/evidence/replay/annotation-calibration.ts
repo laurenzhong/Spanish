@@ -25,6 +25,8 @@ export const calibrationBatchErrorCodes = [
   "audio-not-found",
   "audio-metadata-mismatch",
   "audio-read-failed",
+  "transcript-not-found",
+  "transcript-invalid",
 ] as const;
 
 export type CalibrationBatchErrorCode = (typeof calibrationBatchErrorCodes)[number];
@@ -40,6 +42,10 @@ export type CalibrationAudioAsset = Readonly<{
 export type CalibrationAudioReader = (
   entry: ReplayAudioManifestEntry,
 ) => Promise<CalibrationAudioAsset | null>;
+
+export type CalibrationTranscriptReader = (
+  entry: ReplayAudioManifestEntry,
+) => Promise<TranscriptResult | null>;
 
 const annotationObservationSchema = z
   .object({
@@ -79,12 +85,47 @@ const completedSampleSchema = z
     attemptId: z.string().regex(/^calibration\.audio\.[a-f0-9]{16}$/),
     status: z.literal("completed"),
     transcript: z.string().trim().min(1),
+    transcriptionProvider: z.enum(["openai", "local-whisper", "fake"]),
+    transcriptionModelVersion: z.string().trim().min(1),
+    transcriptionLatencyMs: z.number().int().nonnegative(),
     transcriptionRequestId: z.string().trim().min(1).nullable(),
     annotationRequestId: z.string().trim().min(1).nullable(),
     draft: annotationDraftSchema,
     speechSignal: z.null(),
   })
   .strict();
+
+const localTranscriptSampleSchema = z
+  .object({
+    sampleId: z.string().regex(calibrationSampleIdPattern),
+    status: z.literal("completed"),
+    transcript: z.string().trim().min(1),
+    modelVersion: z.string().trim().min(1),
+    language: z.enum(["es-ES", "es-MX"]),
+    latencyMs: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const localTranscriptFailureSchema = z
+  .object({
+    sampleId: z.string().regex(calibrationSampleIdPattern),
+    status: z.literal("failed"),
+    errorCode: z.string().trim().min(1),
+  })
+  .strict();
+
+export const localTranscriptSnapshotSchema = z
+  .object({
+    schemaVersion: z.literal("1.0"),
+    provider: z.literal("local-whisper"),
+    runId: z.string().trim().min(1),
+    modelVersion: z.string().trim().min(1),
+    status: z.enum(["completed", "partial-failure"]),
+    samples: z.array(z.union([localTranscriptSampleSchema, localTranscriptFailureSchema])),
+  })
+  .strict();
+
+export type LocalTranscriptSnapshot = z.infer<typeof localTranscriptSnapshotSchema>;
 
 const failedSampleSchema = z
   .object({
@@ -139,8 +180,9 @@ export type AnnotationCalibrationOptions = Readonly<{
   runId: string;
   contentVersion: string;
   locale: AnnotationLocale;
-  readAudio: CalibrationAudioReader;
-  transcriptionProvider: SpeechToTextProvider;
+  readAudio?: CalibrationAudioReader;
+  transcriptionProvider?: SpeechToTextProvider;
+  readTranscript?: CalibrationTranscriptReader;
   annotationProvider: AnnotationDraftProvider;
   existingSnapshot?: CalibrationBatchSnapshot | null;
   retryFailed?: boolean;
@@ -159,6 +201,11 @@ export async function runAnnotationCalibrationBatch(
 ): Promise<CalibrationBatchResult> {
   if (!options.runId.trim() || !options.contentVersion.trim()) {
     throw new Error("Calibration run configuration is incomplete.");
+  }
+  const audioMode = options.readAudio !== undefined && options.transcriptionProvider !== undefined;
+  const transcriptMode = options.readTranscript !== undefined;
+  if (audioMode === transcriptMode) {
+    throw new Error("Calibration requires exactly one transcription input mode.");
   }
   parseReplayAudioManifest(options.manifest);
 
@@ -222,35 +269,44 @@ async function processSample(
   attemptId: string,
   options: AnnotationCalibrationOptions,
 ): Promise<CalibrationCompletedSample | CalibrationFailedSample> {
-  let asset: CalibrationAudioAsset | null;
-  try {
-    asset = await options.readAudio(entry);
-  } catch {
-    return failed(entry.sampleId, attemptId, "audio", "audio-read-failed", false);
-  }
-  if (!asset) return failed(entry.sampleId, attemptId, "audio", "audio-not-found", false);
-  if (
-    asset.sha256 !== entry.sha256 ||
-    asset.sizeBytes !== entry.sizeBytes ||
-    asset.format !== entry.format ||
-    asset.audioBytes.byteLength !== entry.sizeBytes
-  ) {
-    return failed(entry.sampleId, attemptId, "audio", "audio-metadata-mismatch", false);
-  }
-
   let transcript: TranscriptResult;
-  try {
-    transcript = await options.transcriptionProvider.transcribe(
-      {
-        audioBytes: asset.audioBytes,
-        mimeType: mimeTypeForFormat(entry.format),
-        fileName: `${entry.sampleId}${entry.format}`,
-        languageTag: options.locale,
-      },
-      { signal: options.signal },
-    );
-  } catch (error) {
-    return failed(entry.sampleId, attemptId, "transcription", stableErrorCode(error, "provider-unavailable"), isRetryable(error));
+  if (options.readTranscript) {
+    try {
+      const result = await options.readTranscript(entry);
+      if (!result) return failed(entry.sampleId, attemptId, "transcription", "transcript-not-found", false);
+      transcript = result;
+    } catch {
+      return failed(entry.sampleId, attemptId, "transcription", "transcript-invalid", false);
+    }
+  } else {
+    let asset: CalibrationAudioAsset | null;
+    try {
+      asset = await options.readAudio!(entry);
+    } catch {
+      return failed(entry.sampleId, attemptId, "audio", "audio-read-failed", false);
+    }
+    if (!asset) return failed(entry.sampleId, attemptId, "audio", "audio-not-found", false);
+    if (
+      asset.sha256 !== entry.sha256 ||
+      asset.sizeBytes !== entry.sizeBytes ||
+      asset.format !== entry.format ||
+      asset.audioBytes.byteLength !== entry.sizeBytes
+    ) {
+      return failed(entry.sampleId, attemptId, "audio", "audio-metadata-mismatch", false);
+    }
+    try {
+      transcript = await options.transcriptionProvider!.transcribe(
+        {
+          audioBytes: asset.audioBytes,
+          mimeType: mimeTypeForFormat(entry.format),
+          fileName: `${entry.sampleId}${entry.format}`,
+          languageTag: options.locale,
+        },
+        { signal: options.signal },
+      );
+    } catch (error) {
+      return failed(entry.sampleId, attemptId, "transcription", stableErrorCode(error, "provider-unavailable"), isRetryable(error));
+    }
   }
   if (!transcript.text.trim()) {
     return failed(entry.sampleId, attemptId, "transcription", "provider-response-invalid", false);
@@ -278,6 +334,9 @@ async function processSample(
     attemptId,
     status: "completed",
     transcript: transcript.text,
+    transcriptionProvider: transcript.provider,
+    transcriptionModelVersion: transcript.modelVersion,
+    transcriptionLatencyMs: transcript.latencyMs,
     transcriptionRequestId: transcript.providerRequestId,
     annotationRequestId: draft.providerRequestId,
     draft,

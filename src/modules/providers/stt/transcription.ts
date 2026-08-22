@@ -24,7 +24,7 @@ export type TranscriptResult = Readonly<{
   detectedLanguages: readonly string[];
   confidence: number | null;
   confidenceAvailability: "unavailable" | "provider";
-  provider: "openai" | "fake";
+  provider: "openai" | "local-whisper" | "fake";
   modelVersion: string;
   providerRequestId: string | null;
   latencyMs: number;

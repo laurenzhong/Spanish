@@ -186,4 +186,37 @@ describe("annotation calibration batch", () => {
     expect(result.snapshot.samples.every((sample) => sample.status === "failed")).toBe(true);
     expect(calls).toBe(2);
   });
+
+  it("accepts a local transcript snapshot without reading audio or calling cloud STT", async () => {
+    const annotation = new FakeAnnotationDraftProvider();
+    const result = await runAnnotationCalibrationBatch({
+      manifest: { ...manifest, entries: [firstEntry] },
+      runId: "local-annotation-test",
+      contentVersion: "alpha-core-v1",
+      locale: "es-ES",
+      readTranscript: async () => ({
+        text: "Hola desde Whisper.",
+        detectedLanguages: ["es"],
+        confidence: null,
+        confidenceAvailability: "unavailable",
+        provider: "local-whisper",
+        modelVersion: "faster-whisper-small",
+        providerRequestId: null,
+        latencyMs: 321,
+        estimatedCostMicros: 0,
+        retentionPolicy: "ephemeral",
+      }),
+      annotationProvider: annotation,
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.snapshot.samples[0]).toMatchObject({
+      status: "completed",
+      transcriptionProvider: "local-whisper",
+      transcriptionModelVersion: "faster-whisper-small",
+      transcriptionLatencyMs: 321,
+      speechSignal: null,
+    });
+    expect(annotation.inputs[0]?.speechSignal).toBeNull();
+  });
 });
