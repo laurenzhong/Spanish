@@ -209,6 +209,7 @@
 | ALPHA-016 | done | `feat/alpha-016-pronunciation-replay-set`（已合并） | Codex | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 |
 | ALPHA-017 | done | `feat/alpha-017-pronunciation-application`（已合并） | Codex | 将 Speechace provider 接入训练 application | ALPHA-016 |
 | ALPHA-018 | done | `feat/alpha-018-zero-cost-speech-observation`（已合并） | Codex | 零成本语音信号观察与可选标注边界 | ALPHA-017 |
+| ALPHA-019 | in_progress | `feat/alpha-019-minimax-annotation-draft` | Codex | MiniMax 文本与本地信号摘要标注草稿 provider；不上传音频、不写证据 | ALPHA-018 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -216,8 +217,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 待编号 | 使用授权音频进行小批量标注校准 | 获得 MiniMax 接口信息、合规音频和明确的第三方处理许可 |
-| 2 | 待编号 | — | — |
+| 1 | ALPHA-019 | MiniMax 文本标注草稿 provider | 已确认 M3 不接收文档明确的直接音频输入；默认不调用真实 API |
+| 2 | 待编号 | 使用授权音频进行小批量标注校准 | ALPHA-019 完成，且获得合规音频和明确的第三方处理许可 |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
