@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-22
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：一次性本地 Whisper 转写和人工复核草稿已完成 5/5
+- 总体状态：一次性本地 Whisper 转写和人工复核草稿已完成 5/5；复核工作表待人工回听
 - 协调分支：`main`
 - 当前阻塞：MiniMax `/anthropic/v1/messages` 认证探测返回 HTTP 401；已切换为本地 Codex 人工复核草稿，不上传教材音频
 
@@ -22,9 +22,9 @@
 
 ## 当前任务
 
-### 待编号：授权音频小批量标注校准
+### 待编号：人工复核 5 条转写与草稿
 
-- 状态：`blocked`
+- 状态：`review`
 - 负责人：Codex
 - 目标分支：`main`
 - 前置依赖：ALPHA-020，已完成（合并 `a8893a1`）
@@ -36,12 +36,13 @@
 - 仅处理外部 manifest 允许的 5 条自有 MP3；MiniMax 输入固定为转写文本和 `speechSignal: null`。
 - 结果写入外部 `calibration-results-v1.json`，不写数据库、evidence、mastery、confidence，不保存原始音频或供应商原始响应。
 - 已使用本地 `faster-whisper-small` 完成 5 条转写，并生成 `manual-codex` 人工复核草稿；所有草稿均保留 `needsHumanReview: true`。
+- 已生成外部复核工作表：`D:\走西音频\calibration-review-sheet-v1.json`；5 个音频提示均已用 manifest SHA-256 和大小核对。
 - 默认恢复已验证：5 条失败项被跳过，只有 `--retry-failed` 才会再次请求。
 
 阻塞解除条件：
 
 - 后续如需供应商草稿，配置有效 MiniMax API key 后可使用 `audio:calibration:local-annotate`；当前不再重复请求 401。
-- 人工草稿不写 evidence、mastery、confidence 或 profile，不能替代母语者审核。
+- 人工草稿不写 evidence、mastery、confidence 或 profile，不能替代母语者审核。当前等待逐条回听并填写 `confirmedTranscript` 与 `reviewNotes`。
 
 ### ALPHA-017：将 Speechace provider 接入训练 application
 
@@ -253,7 +254,7 @@
 | ALPHA-018 | done | `feat/alpha-018-zero-cost-speech-observation`（已合并） | Codex | 零成本语音信号观察与可选标注边界 | ALPHA-017 |
 | ALPHA-019 | done | `feat/alpha-019-minimax-annotation-draft`（已合并） | Codex | MiniMax 文本与本地信号摘要标注草稿 provider；不上传音频、不写证据 | ALPHA-018 |
 | ALPHA-020 | done | `feat/alpha-020-calibration-gate`（已合并） | Codex | 校准前置许可门禁、只读 dry-run 和阻塞测试 | ALPHA-019 |
-| 待编号 | done | `main` | Codex | 授权音频小批量标注校准；本地转写与人工复核草稿完成 | ALPHA-020 |
+| 待编号 | review | `main` | Codex | 人工复核 5 条转写与草稿；等待外部工作表回听确认 | ALPHA-020 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -262,7 +263,7 @@
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
 | 1 | 待编号 | 人工复核 5 条转写与草稿 | 逐条回听原音频，确认疑似转写错误和教学语境 |
-| 2 | 待编号 | 复核校准结果并决定是否进入有限 provider 抽样 | 小批量人工复核完成，未发现许可或评分污染问题 |
+| 2 | 待编号 | 复核校准结果并决定是否进入有限 provider 抽样 | 5 条人工复核完成，未发现许可或评分污染问题 |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
@@ -330,6 +331,7 @@
 | 2026-08-22 | 完成授权音频转写与 MiniMax 标注批处理器，并执行首批 5 条 | `0aa6a28`，参数修复 `a5b8bbc` | 代理恢复后 5 条仍因 OpenAI 音频转写端点 429 限流失败；恢复与重试边界已验证 |
 | 2026-08-22 | 完成一次性本地 Whisper 转写工具与 MiniMax 文本标注入口 | `15745bd` | 本地 `faster-whisper-small` 转写 5/5；MiniMax key 401，等待有效凭据；本地快照已验证幂等恢复 |
 | 2026-08-22 | 使用本地转写生成 `manual-codex` 人工复核草稿 | 待提交 | 5/5 完成；结果在外部 `calibration-results-manual-v1.json`，不写能力证据 |
+| 2026-08-22 | 生成 5 条音频人工复核工作表并完成哈希/大小核对 | 待提交 | 外部 `calibration-review-sheet-v1.json`，等待人耳回听确认 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
