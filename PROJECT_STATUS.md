@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-22
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-018 in_progress，实现零成本语音信号观察与可选标注边界
+- 总体状态：ALPHA-018 done，下一步准备授权音频的小批量标注校准
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -48,11 +48,15 @@
 
 ### ALPHA-018：零成本语音信号观察与可选标注边界
 
-- 状态：`in_progress`
+- 状态：`done`
 - 负责人：Codex
 - 目标分支：`feat/alpha-018-zero-cost-speech-observation`
 - 计划位置：真实音频校准前的免费默认路径
 - 前置依赖：ALPHA-017，已完成（合并 `d4a30a5`）
+- 设计 Commit：`70e2fef`
+- 实现 Commit：`8d14a9f`
+- PR：[#9](https://github.com/zjk159357/Spanish/pull/9)
+- 合并 Commit：`4031075`
 
 目标：
 
@@ -66,6 +70,12 @@
 - 不实现离线 ASR、音素级评分、自动母语者标注或训练微调。
 - 不接入 React/Flutter UI、数据库迁移或真实供应商调用。
 - 不把教材音频提交到仓库，不把本地信号写入 `evidence_events`、`mastery` 或 `confidence`。
+
+验证：
+
+- `pnpm lint`、`pnpm typecheck`、28 个测试文件/143 个单测、19 个契约测试和 `pnpm build` 通过。
+- 外部音频清单 dry-run 识别 68 个 MP3，跳过 `.downloading` 文件，不输出绝对路径，不上传或复制音频。
+- 未调用 MiniMax、Speechace 或其他真实供应商 API；未提交教材音频、API key、原始响应或长期录音。
 
 ### ALPHA-016：建立西班牙语发音评测回放集与人工标注
 
@@ -198,7 +208,7 @@
 | ALPHA-015 | done | `feat/alpha-015-speechace-adapter`（已合并） | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
 | ALPHA-016 | done | `feat/alpha-016-pronunciation-replay-set`（已合并） | Codex | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 |
 | ALPHA-017 | done | `feat/alpha-017-pronunciation-application`（已合并） | Codex | 将 Speechace provider 接入训练 application | ALPHA-016 |
-| ALPHA-018 | in_progress | `feat/alpha-018-zero-cost-speech-observation` | Codex | 零成本语音信号观察与可选标注边界 | ALPHA-017 |
+| ALPHA-018 | done | `feat/alpha-018-zero-cost-speech-observation`（已合并） | Codex | 零成本语音信号观察与可选标注边界 | ALPHA-017 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -206,8 +216,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-018 | 零成本语音信号观察与可选标注边界 | ALPHA-017 完成且设计获确认 |
-| 2 | 待编号 | 使用授权音频进行小批量标注校准 | 获得 MiniMax 接口信息、合规音频和明确的第三方处理许可 |
+| 1 | 待编号 | 使用授权音频进行小批量标注校准 | 获得 MiniMax 接口信息、合规音频和明确的第三方处理许可 |
+| 2 | 待编号 | — | — |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
@@ -269,6 +279,7 @@
 | 2026-08-22 | 完成 Speechace 服务端适配器、错误边界与隐私测试 | PR `#6`，合并 `1d503aa`（功能 `f60fe9a`） | 可以建立西班牙语发音评测回放集与人工标注 |
 | 2026-08-22 | 完成西班牙语发音评测回放集、Schema 与标注契约 | PR `#7`，合并 `24f782f`（功能 `564d209`） | 可以准备真实音频人工校准，并在校准门槛满足后开始 ALPHA-017 |
 | 2026-08-22 | 完成 Speechace provider training application 编排与安全错误映射 | PR `#8`，合并 `d4a30a5`（功能 `b96ac1a`） | 可以在用户确认并准备合规音频后进行真实回放与人工标注校准 |
+| 2026-08-22 | 完成零成本语音信号观察、外部音频哈希清单与可选标注边界 | PR `#9`，合并 `4031075`（功能 `8d14a9f`） | 可以在获得 MiniMax 接口信息、合规音频和第三方处理许可后进行小批量标注校准 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
