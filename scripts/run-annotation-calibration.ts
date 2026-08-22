@@ -184,6 +184,7 @@ function parseArguments(argv: string[]): Arguments {
   let retryFailed = false;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
+    if (argument === "--") continue;
     if (argument === "--retry-failed") {
       retryFailed = true;
       continue;
