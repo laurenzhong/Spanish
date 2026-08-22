@@ -70,7 +70,7 @@ const annotationDraftSchema = z
         affectsConfidence: z.literal(false),
       })
       .strict(),
-    provider: z.enum(["minimax", "fake"]),
+    provider: z.enum(["minimax", "manual-codex", "fake"]),
     modelVersion: z.string().trim().min(1),
     providerRequestId: z.string().trim().min(1).nullable(),
     latencyMs: z.number().int().nonnegative(),

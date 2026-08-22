@@ -46,7 +46,7 @@ export type AnnotationDraft = Readonly<{
     affectsMastery: false;
     affectsConfidence: false;
   }>;
-  provider: "minimax" | "fake";
+  provider: "minimax" | "manual-codex" | "fake";
   modelVersion: string;
   providerRequestId: string | null;
   latencyMs: number;
