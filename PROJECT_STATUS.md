@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-22
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-016 in_progress，建立西班牙语发音评测回放集与人工标注
+- 总体状态：ALPHA-016 done，西班牙语发音评测回放集与人工标注结构已合并
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -24,11 +24,14 @@
 
 ### ALPHA-016：建立西班牙语发音评测回放集与人工标注
 
-- 状态：`in_progress`
+- 状态：`done`
 - 负责人：Codex
 - 目标分支：`feat/alpha-016-pronunciation-replay-set`
 - 计划位置：Speechace provider 接入后的质量校准切片
 - 前置依赖：ALPHA-015，已完成（合并 `1d503aa`）
+- 实现 Commit：`564d209`
+- PR：[#7](https://github.com/zjk159357/Spanish/pull/7)
+- 合并 Commit：`24f782f`
 
 目标：
 
@@ -42,6 +45,12 @@
 - 不调用真实 Speechace、Azure 或其他模型 API。
 - 不把样本直接接入训练 application、evidence、mastery 或 confidence。
 - 人工标注初始状态允许为 `pending`，不能伪造已完成母语者审核。
+
+验证：
+
+- `pnpm lint`、`pnpm typecheck`、118 个单测、19 个契约测试和 `pnpm build` 通过。
+- 只提交合成元数据；未提交真实音频，未调用 Speechace、Azure 或其他模型 API。
+- 人工标注保持 `pending`，未接入训练 application、evidence、mastery 或 confidence。
 
 ### ALPHA-014：建立发音评测 provider 契约与 fake 测试基线
 
@@ -142,7 +151,8 @@
 | ALPHA-013 | done | `feat/alpha-013-provider-review`（已合并） | Codex | 第一次产品体验复盘并决定后续语音评测供应商 | ALPHA-012 |
 | ALPHA-014 | done | `feat/alpha-014-pronunciation-contract`（已合并） | Codex | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 |
 | ALPHA-015 | done | `feat/alpha-015-speechace-adapter`（已合并） | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
-| ALPHA-016 | in_progress | `feat/alpha-016-pronunciation-replay-set` | Codex | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 |
+| ALPHA-016 | done | `feat/alpha-016-pronunciation-replay-set`（已合并） | Codex | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 |
+| ALPHA-017 | ready | — | 未分配 | 将 Speechace provider 接入训练 application | ALPHA-016 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -150,8 +160,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-016 | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 完成 |
-| 2 | ALPHA-017 | 将 Speechace provider 接入训练 application | 发音回放集初步校准完成 |
+| 1 | ALPHA-017 | 将 Speechace provider 接入训练 application | ALPHA-016 完成且回放集初步校准完成 |
+| 2 | 待编号 | 运行真实音频回放与人工标注校准 | 获得用户确认并准备合规的测试音频 |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
@@ -211,6 +221,7 @@
 | 2026-08-21 | 完成第一次产品体验复盘并决定发音评测供应商 | PR `#4`，合并 `e5db83d`（决策 `a79b23b`） | 可以开始 ALPHA-014 provider 契约与 fake 测试 |
 | 2026-08-21 | 完成 PronunciationProvider 契约、fake 与契约测试 | PR `#5`，合并 `0b972b3`（功能 `830f930`） | 可以开始 ALPHA-015 Speechace 服务端适配器 |
 | 2026-08-22 | 完成 Speechace 服务端适配器、错误边界与隐私测试 | PR `#6`，合并 `1d503aa`（功能 `f60fe9a`） | 可以建立西班牙语发音评测回放集与人工标注 |
+| 2026-08-22 | 完成西班牙语发音评测回放集、Schema 与标注契约 | PR `#7`，合并 `24f782f`（功能 `564d209`） | 可以准备真实音频人工校准，并在校准门槛满足后开始 ALPHA-017 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
