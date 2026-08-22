@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-22
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-017 done，下一步准备真实音频回放与人工标注校准
+- 总体状态：ALPHA-018 in_progress，实现零成本语音信号观察与可选标注边界
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -45,6 +45,27 @@
 - 不接入 React/Flutter UI，不调用真实 Speechace API。
 - 不写 `evidence_events`，不更新 `mastery` 或 `confidence`。
 - 不把供应商分数直接当作语境成功或总能力分数。
+
+### ALPHA-018：零成本语音信号观察与可选标注边界
+
+- 状态：`in_progress`
+- 负责人：Codex
+- 目标分支：`feat/alpha-018-zero-cost-speech-observation`
+- 计划位置：真实音频校准前的免费默认路径
+- 前置依赖：ALPHA-017，已完成（合并 `d4a30a5`）
+
+目标：
+
+- 增加独立于 `PronunciationProvider` 的本地语音信号观察契约与确定性 fake。
+- 覆盖短期音频的时长、停顿和有限能量信号，不产生发音分数或能力画像更新。
+- 增加只读外部音频回放清单工具，只保存哈希和脱敏元数据，不复制或上传音频。
+- 为未来 MiniMax 标注辅助保留显式、可校验、默认关闭的边界；本任务不接入具体模型 API。
+
+边界：
+
+- 不实现离线 ASR、音素级评分、自动母语者标注或训练微调。
+- 不接入 React/Flutter UI、数据库迁移或真实供应商调用。
+- 不把教材音频提交到仓库，不把本地信号写入 `evidence_events`、`mastery` 或 `confidence`。
 
 ### ALPHA-016：建立西班牙语发音评测回放集与人工标注
 
@@ -177,6 +198,7 @@
 | ALPHA-015 | done | `feat/alpha-015-speechace-adapter`（已合并） | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
 | ALPHA-016 | done | `feat/alpha-016-pronunciation-replay-set`（已合并） | Codex | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 |
 | ALPHA-017 | done | `feat/alpha-017-pronunciation-application`（已合并） | Codex | 将 Speechace provider 接入训练 application | ALPHA-016 |
+| ALPHA-018 | in_progress | `feat/alpha-018-zero-cost-speech-observation` | Codex | 零成本语音信号观察与可选标注边界 | ALPHA-017 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -184,8 +206,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 待编号 | 运行真实音频回放与人工标注校准 | 获得用户确认并准备合规的测试音频 |
-| 2 | 待编号 | — | — |
+| 1 | ALPHA-018 | 零成本语音信号观察与可选标注边界 | ALPHA-017 完成且设计获确认 |
+| 2 | 待编号 | 使用授权音频进行小批量标注校准 | 获得 MiniMax 接口信息、合规音频和明确的第三方处理许可 |
 | 3 | 待编号 | — | — |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
