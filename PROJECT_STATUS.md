@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-22
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-016 done，西班牙语发音评测回放集与人工标注结构已合并
+- 总体状态：ALPHA-017 in_progress，将 Speechace provider 接入训练 application
 - 协调分支：`main`
 - 当前阻塞：无
 
@@ -21,6 +21,27 @@
 如果用户只给出任务 ID，以下表格和对应计划章节就是任务范围。不得自行扩大到后续任务。
 
 ## 当前任务
+
+### ALPHA-017：将 Speechace provider 接入训练 application
+
+- 状态：`in_progress`
+- 负责人：Codex
+- 目标分支：`feat/alpha-017-pronunciation-application`
+- 计划位置：Speechace provider 与回放集之后的 application 编排切片
+- 前置依赖：ALPHA-016，已完成（合并 `24f782f`）
+
+目标：
+
+- 通过 training application 调用内部 `PronunciationProvider`。
+- 拒绝打字、过期 generation、空音频和未明确口语复核的请求。
+- 将 provider 结果转换为安全的内部发音观察，不泄漏 Speechace DTO。
+- 保持 `insufficient`、取消、超时和技术失败为待验证/可恢复结果，不写负面能力证据。
+
+边界：
+
+- 不接入 React/Flutter UI，不调用真实 Speechace API。
+- 不写 `evidence_events`，不更新 `mastery` 或 `confidence`。
+- 不把供应商分数直接当作语境成功或总能力分数。
 
 ### ALPHA-016：建立西班牙语发音评测回放集与人工标注
 
@@ -152,7 +173,7 @@
 | ALPHA-014 | done | `feat/alpha-014-pronunciation-contract`（已合并） | Codex | 定义 PronunciationProvider 契约、稳定错误码、fake 与契约测试 | ALPHA-013 |
 | ALPHA-015 | done | `feat/alpha-015-speechace-adapter`（已合并） | Codex | 接入 Speechace 试用 API 的服务端适配器 | ALPHA-014 |
 | ALPHA-016 | done | `feat/alpha-016-pronunciation-replay-set`（已合并） | Codex | 建立西班牙语发音评测回放集与人工标注 | ALPHA-015 |
-| ALPHA-017 | ready | — | 未分配 | 将 Speechace provider 接入训练 application | ALPHA-016 |
+| ALPHA-017 | in_progress | `feat/alpha-017-pronunciation-application` | Codex | 将 Speechace provider 接入训练 application | ALPHA-016 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
