@@ -12,6 +12,37 @@ type EmailOtpFormProps = Readonly<{
   repository?: WebAuthRepository | null;
 }>;
 
+function getOtpRequestErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return "验证码发送失败，请稍后重试。";
+  }
+
+  const candidate = error as {
+    code?: unknown;
+    message?: unknown;
+    status?: unknown;
+  };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+
+  if (
+    candidate.status === 429 ||
+    code.includes("rate") ||
+    /rate limit|after \d+ seconds|security purposes/iu.test(message)
+  ) {
+    const waitSeconds = message.match(/(\d+)\s*seconds?/iu)?.[1];
+    return waitSeconds
+      ? `验证码发送太频繁，请等待 ${waitSeconds} 秒后再试。`
+      : "验证码发送太频繁，请稍后再试；如果之前已收到验证码，请直接填写。";
+  }
+
+  if (code === "email_address_invalid") {
+    return "邮箱地址无效，请检查后重试。";
+  }
+
+  return "验证码发送失败，请稍后重试。";
+}
+
 export function EmailOtpForm({ repository }: EmailOtpFormProps) {
   const router = useRouter();
   const auth = useMemo(
@@ -32,8 +63,8 @@ export function EmailOtpForm({ repository }: EmailOtpFormProps) {
     try {
       await auth.requestEmailOtp(email.trim());
       setOtpSent(true);
-    } catch {
-      setError("验证码发送失败，请稍后重试。");
+    } catch (error) {
+      setError(getOtpRequestErrorMessage(error));
     } finally {
       setBusy(false);
     }

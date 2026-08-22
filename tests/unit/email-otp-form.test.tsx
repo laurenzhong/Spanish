@@ -55,4 +55,41 @@ describe("EmailOtpForm", () => {
       "验证码发送失败，请稍后重试。",
     );
   });
+
+  it("explains when Supabase rate-limits a repeated OTP request", async () => {
+    const auth = repository({
+      requestEmailOtp: vi.fn().mockRejectedValue({
+        code: "over_email_send_rate_limit",
+        message: "For security purposes, you can only request this after 60 seconds.",
+        status: 429,
+      }),
+    });
+    const user = userEvent.setup();
+    render(<EmailOtpForm repository={auth} />);
+
+    await user.type(screen.getByLabelText("邮箱"), "learner@example.test");
+    await user.click(screen.getByRole("button", { name: "获取验证码" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "验证码发送太频繁，请等待 60 秒后再试。",
+    );
+  });
+
+  it("explains invalid email errors from Supabase", async () => {
+    const auth = repository({
+      requestEmailOtp: vi.fn().mockRejectedValue({
+        code: "email_address_invalid",
+        status: 422,
+      }),
+    });
+    const user = userEvent.setup();
+    render(<EmailOtpForm repository={auth} />);
+
+    await user.type(screen.getByLabelText("邮箱"), "learner@example.test");
+    await user.click(screen.getByRole("button", { name: "获取验证码" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "邮箱地址无效，请检查后重试。",
+    );
+  });
 });
