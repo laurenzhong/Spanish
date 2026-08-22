@@ -19,7 +19,7 @@ export type AnnotationDraftInput = Readonly<{
   contentVersion: string;
   attemptId: string;
   generationId: number;
-  speechSignal: SpeechSignalObservation;
+  speechSignal: SpeechSignalObservation | null;
 }>;
 
 export type AnnotationCategory =

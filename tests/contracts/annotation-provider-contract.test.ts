@@ -42,6 +42,14 @@ describe("AnnotationDraftProvider contract", () => {
     expect(provider.inputs).toEqual([input]);
   });
 
+  it("accepts an explicitly unavailable speech signal", async () => {
+    const provider = new FakeAnnotationDraftProvider();
+    await expect(
+      provider.createDraft({ ...input, speechSignal: null }),
+    ).resolves.toMatchObject({ status: "draft" });
+    expect(provider.inputs[0]?.speechSignal).toBeNull();
+  });
+
   it.each([
     [{ ...input, transcript: "" }, "input-invalid"],
     [{ ...input, contentVersion: " " }, "input-invalid"],
