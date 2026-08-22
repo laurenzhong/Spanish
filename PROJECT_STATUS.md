@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-22
 - 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：ALPHA-020 review，已具备校准前置门禁；下一步等待合规音频与第三方处理许可后进行小批量标注校准
+- 总体状态：ALPHA-020 done，已具备校准前置门禁；下一步等待合规音频与第三方处理许可后进行小批量标注校准
 - 协调分支：`main`
 - 当前阻塞：真实校准仍等待明确第三方处理许可和合规音频；当前不上传教材音频
 
@@ -79,11 +79,12 @@
 
 ### ALPHA-020：校准前置门禁与 dry-run
 
-- 状态：`review`
+- 状态：`done`
 - 负责人：Codex
 - 目标分支：`feat/alpha-020-calibration-gate`
 - 前置依赖：ALPHA-019，已完成（合并 `1b26526`）
 - 实现 Commit：`93cdcc5`
+- 合并 Commit：`a8893a1`
 
 目标：
 
@@ -230,7 +231,7 @@
 | ALPHA-017 | done | `feat/alpha-017-pronunciation-application`（已合并） | Codex | 将 Speechace provider 接入训练 application | ALPHA-016 |
 | ALPHA-018 | done | `feat/alpha-018-zero-cost-speech-observation`（已合并） | Codex | 零成本语音信号观察与可选标注边界 | ALPHA-017 |
 | ALPHA-019 | done | `feat/alpha-019-minimax-annotation-draft`（已合并） | Codex | MiniMax 文本与本地信号摘要标注草稿 provider；不上传音频、不写证据 | ALPHA-018 |
-| ALPHA-020 | review | `feat/alpha-020-calibration-gate` | Codex | 校准前置许可门禁、只读 dry-run 和阻塞测试 | ALPHA-019 |
+| ALPHA-020 | done | `feat/alpha-020-calibration-gate`（已合并） | Codex | 校准前置许可门禁、只读 dry-run 和阻塞测试 | ALPHA-019 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -238,7 +239,7 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 待编号 | 使用授权音频进行小批量标注校准 | ALPHA-020 合并，且获得合规音频和明确的第三方处理许可 |
+| 1 | 待编号 | 使用授权音频进行小批量标注校准 | 已获得合规音频和明确的第三方处理许可 |
 | 2 | 待编号 | 复核校准结果并决定是否进入有限 provider 抽样 | 小批量人工复核完成，未发现许可或评分污染问题 |
 | 3 | 待编号 | — | — |
 
@@ -303,7 +304,7 @@
 | 2026-08-22 | 完成 Speechace provider training application 编排与安全错误映射 | PR `#8`，合并 `d4a30a5`（功能 `b96ac1a`） | 可以在用户确认并准备合规音频后进行真实回放与人工标注校准 |
 | 2026-08-22 | 完成零成本语音信号观察、外部音频哈希清单与可选标注边界 | PR `#9`，合并 `4031075`（功能 `8d14a9f`） | 可以在获得 MiniMax 接口信息、合规音频和第三方处理许可后进行小批量标注校准 |
 | 2026-08-22 | 完成 MiniMax 文本标注草稿 provider 与安全边界 | PR `#10`，合并 `1b26526`（功能 `523432e`） | 可以在获得合规音频和明确第三方处理许可后进行小批量标注校准；原始音频仍不上传 |
-| 2026-08-22 | 完成校准前置许可门禁与只读 dry-run | `93cdcc5`（待合并） | 合并后可在许可和合规音频满足时运行小批量校准；当前仍默认阻塞 |
+| 2026-08-22 | 完成校准前置许可门禁与只读 dry-run | 合并 `a8893a1`（功能 `93cdcc5`） | 可在许可和合规音频满足时运行小批量校准；当前仍默认阻塞 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
