@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:contracts": "vitest run tests/contracts",
+    "audio:manifest": "tsx scripts/create-audio-replay-manifest.ts",
     "contracts:generate-content": "tsx scripts/generate-content-contract.ts",
     "content:validate": "tsx scripts/validate-content.ts",
     "content:import": "tsx scripts/import-content.ts",

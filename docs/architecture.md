@@ -357,6 +357,8 @@ Flutter 的 `AudioRecorder` 和 `TextToSpeech` 端口继续位于 `apps/mobile/l
 
 训练 application 通过 `assessPronunciationAttempt` 编排发音调用：它负责检查 spoken output、抽样/明确复核资格和当前 `generationId`，再调用内部 `PronunciationProvider`。application 只返回 observation-only、pending-verification、recoverable-error 或 stale 结果，不把供应商分数当作语境成功、`mastery` 或 `confidence`，也不在该边界直接写入 `evidence_events`。后续 evidence application 只有在独立校准门槛和服务端规则满足后，才能消费有限的发音观察。
 
+默认训练还可以调用独立的 `SpeechSignalAnalyzer`，只提取音频时长、有限能量启发式的语音占比和停顿信号。它与 `PronunciationProvider` 不共用评分 DTO，不产生发音分数、语境成功、`mastery` 或 `confidence`；分析失败、静音、过短音频和取消只能进入待验证或可恢复路径。外部教材音频回放工具只读文件并输出哈希和脱敏元数据，默认 dry-run，不复制、上传或把绝对路径写入清单。MiniMax 等多模态模型未来只能作为显式关闭的标注辅助，必须通过独立 Schema 和人工复核，不能直接写入学习证据。
+
 ## 14. 可观测性
 
 结构化日志至少包含：
