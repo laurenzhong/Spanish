@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 
 export const replayAudioExtensions = [
   ".mp3",
@@ -26,6 +27,31 @@ export type ReplayAudioManifest = Readonly<{
   dryRun: true;
   entries: readonly ReplayAudioManifestEntry[];
 }>;
+
+export const replayAudioManifestSchema = z
+  .object({
+    schemaVersion: z.literal("1.0"),
+    generatedAt: z.string().datetime({ offset: true }),
+    dryRun: z.literal(true),
+    entries: z.array(
+      z
+        .object({
+          sampleId: z.string().regex(/^audio\.[a-f0-9]{16}$/),
+          sha256: z.string().regex(/^[a-f0-9]{64}$/),
+          format: z.enum(replayAudioExtensions),
+          sizeBytes: z.number().int().positive(),
+          durationMs: z.number().int().nonnegative().nullable(),
+          sourceType: z.literal("external-audio"),
+          authorizationStatus: z.enum(["confirmed", "pending"]),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export function parseReplayAudioManifest(input: unknown): ReplayAudioManifest {
+  return replayAudioManifestSchema.parse(input);
+}
 
 export type CreateReplayAudioManifestOptions = Readonly<{
   rootDirectory: string;
