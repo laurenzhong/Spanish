@@ -43,3 +43,31 @@ application path calls the real API.
   processing. Third-party textbook audio therefore remains out of scope unless
   the user has explicit processing permission.
 
+## Calibration preflight gate
+
+Before any future small-batch replay calibration, a separate preflight gate
+must validate a dry-run audio manifest and an explicit authorization record.
+The record must independently confirm the source license and third-party
+processing permission, with opaque references for audit follow-up. Every
+manifest entry must have confirmed authorization, a non-empty content hash,
+and a positive size; duplicate hashes and batches larger than the configured
+small-batch limit are rejected. The gate returns only `ready` or structured
+blocking reasons and never reads, copies, uploads, or annotates audio.
+
+The read-only check is available through
+`pnpm audio:calibration:check -- <manifest.json> <authorization.json>`.
+Until the authorization record and compliant audio exist, this command must
+remain blocked and no MiniMax or Speechace call may be made.
+
+The authorization file contains audit references rather than license text or
+personal data:
+
+```json
+{
+  "schemaVersion": "1.0",
+  "recordId": "permit-2026-08-22",
+  "sourceLicense": { "status": "confirmed", "reference": "license-record-001" },
+  "thirdPartyProcessing": { "status": "confirmed", "reference": "processing-record-001" }
+}
+```
+
