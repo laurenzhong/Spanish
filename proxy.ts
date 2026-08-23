@@ -28,8 +28,8 @@ export async function proxy(request: NextRequest) {
         },
       },
     });
-    const { data } = await client.auth.getUser();
-    isAuthenticated = Boolean(data.user);
+    const { data } = await client.auth.getSession();
+    isAuthenticated = Boolean(data.session);
   }
 
   const redirectPath = resolveAuthRedirect(
