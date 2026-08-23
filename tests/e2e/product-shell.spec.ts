@@ -63,6 +63,10 @@ test("navigates between all four product areas", async ({ page }) => {
       navigation.getByRole("link", { name: destination.name }),
     ).toHaveAttribute("aria-current", "page");
   }
+
+  await expect(
+    page.getByRole("progressbar", { name: "这组表达进度" }),
+  ).toHaveAttribute("aria-valuenow", "1");
 });
 
 test("keeps the shell usable at desktop width", async ({ page }) => {
@@ -76,6 +80,51 @@ test("keeps the shell usable at desktop width", async ({ page }) => {
 
   const manifestResponse = await page.request.get("/manifest.webmanifest");
   expect(manifestResponse.ok()).toBeTruthy();
+});
+
+test("keeps discovery and conversation entry points actionable", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/explore");
+
+  await expect(page.getByRole("link", { name: "开始交流" })).toHaveAttribute(
+    "href",
+    "/learn",
+  );
+  await page.getByRole("link", { name: "开始交流" }).click();
+  await expect(page).toHaveURL(/\/learn$/);
+
+  await page.goto("/chat");
+  await page.getByRole("link", { name: "先练一句" }).click();
+  await expect(page).toHaveURL(/\/learn\/practice$/);
+});
+
+test("keeps the profile axes visible and selectable", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/me");
+
+  const overview = page.getByTestId("profile-overview");
+  await expect(overview).toBeVisible();
+  await expect(
+    overview.locator(".profile-axis-list").getByRole("button", { name: /迁移表达/ }),
+  ).toBeVisible();
+
+  await overview
+    .locator(".profile-axis-list")
+    .getByRole("button", { name: /迁移表达/ })
+    .click();
+  await expect(
+    overview.getByRole("heading", { name: "迁移表达" }),
+  ).toBeVisible();
+
+  const heatmap = page.getByTestId("learning-heatmap");
+  await expect(heatmap).toBeVisible();
+  const visibleDay = heatmap.locator("[data-date]").first();
+  await visibleDay.click();
+  await expect(heatmap.getByTestId("heatmap-day-detail")).toBeVisible();
 });
 
 test("returns the authenticated session through the versioned API", async ({
