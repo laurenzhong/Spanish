@@ -85,7 +85,105 @@
       { "position": 4, "goalKey": "communication.end.keep-contact", "prompt": { "zh-CN": "交流愉快但你需要离开，请表达希望之后保持联系。" }, "successCriteria": { "contextualSuccess": true }, "targetExpressionKeys": ["end.sigamos-en-contacto"], "prompts": { "level1": { "zh-CN": "自然结束并留下继续交流的机会。" }, "level2": { "zh-CN": "使用 en contacto。" }, "level3": { "zh-CN": "例如：Sigamos en contacto；不要承诺虚构线下安排。" } }, "transfer": { "changedInformation": { "zh-CN": "改为希望之后继续聊天。" }, "changedRelationship": { "zh-CN": "改为与新同学结束交流。" }, "unfamiliarVariant": { "zh-CN": "对方先表示想保持联系，请自然回应。" } } }
     ] }
   ],
-  "contentPacks": [],
+  "contentPacks": [
+    {
+      "stableKey": "immersive.first-cafe-conversation",
+      "version": 1,
+      "title": { "zh-CN": "咖啡馆里的新朋友", "es-ES": "Una nueva amistad en la cafetería" },
+      "summary": { "zh-CN": "在校园咖啡馆听一段初次认识的对话，理解问候、兴趣和继续交流。", "es-ES": "Escucha una conversación en una cafetería del campus y sigue una nueva amistad." },
+      "cefr": "A2",
+      "status": "draft",
+      "segments": [
+        {
+          "position": 0,
+          "text": "Después de clase, Marta entra en una cafetería del campus. Ve a una compañera nueva junto a la ventana y se acerca con una sonrisa. Hablan un momento sobre el día y descubren que las dos tienen otra clase por la tarde.",
+          "translations": { "zh-CN": "下课后，Marta 走进校园咖啡馆。她看到一位新女同学坐在窗边，便微笑着走过去。她们聊了聊今天的情况，还发现下午有一节共同的课。" },
+          "chunks": [
+            { "text": "Después de clase", "kind": "sense_group", "stressed": true },
+            { "text": "entra en una cafetería", "kind": "target", "stressed": true },
+            { "text": "del campus", "kind": "connector", "stressed": false }
+          ]
+        },
+        {
+          "position": 1,
+          "text": "La compañera se llama Ana. Marta le cuenta que le gusta viajar y probar la comida local cuando visita una ciudad nueva. Ana responde que prefiere caminar y hacer fotos. Las dos se ríen porque siempre terminan buscando el mismo tipo de café.",
+          "translations": { "zh-CN": "这位同学叫 Ana。Marta 告诉她，去一个新城市时，自己喜欢旅行和尝试当地美食。Ana 说自己更喜欢散步和拍照。两个人笑了起来，因为她们最后总会找到同一种咖啡。" },
+          "chunks": [
+            { "text": "le gusta viajar", "kind": "target", "stressed": true },
+            { "text": "probar la comida local", "kind": "sense_group", "stressed": true },
+            { "text": "Las dos se ríen", "kind": "connector", "stressed": false }
+          ]
+        },
+        {
+          "position": 2,
+          "text": "Antes de volver a clase, Marta pregunta qué le gusta hacer a Ana en su tiempo libre. Ana habla de una ruta junto al río y Marta promete buscarla. Se despiden con calma: tienen que irse, pero quieren seguir en contacto y hablar otro día.",
+          "translations": { "zh-CN": "回教室前，Marta 问 Ana 空闲时喜欢做什么。Ana 讲起河边的一条路线，Marta 说会去找找看。她们从容地道别：虽然要离开了，但希望保持联系，改天继续聊天。" },
+          "chunks": [
+            { "text": "en su tiempo libre", "kind": "target", "stressed": true },
+            { "text": "Antes de volver a clase", "kind": "sense_group", "stressed": false },
+            { "text": "seguir en contacto", "kind": "target", "stressed": true }
+          ]
+        }
+      ],
+      "activities": [
+        {
+          "position": 0,
+          "activityType": "listening",
+          "modality": "listening",
+          "instructions": { "zh-CN": "先听全文，抓住人物、地点和对话走向。" },
+          "configuration": { "scope": "full", "languageTag": "es-ES" }
+        },
+        {
+          "position": 1,
+          "segmentPosition": 0,
+          "activityType": "reading",
+          "modality": "reading",
+          "instructions": { "zh-CN": "展开第一段，确认你听到的情境。" },
+          "configuration": { "showTranslation": true }
+        },
+        {
+          "position": 2,
+          "segmentPosition": 1,
+          "activityType": "reading",
+          "modality": "reading",
+          "instructions": { "zh-CN": "阅读第二段，留意兴趣表达和自然衔接。" },
+          "configuration": { "showTranslation": true }
+        },
+        {
+          "position": 3,
+          "segmentPosition": 2,
+          "activityType": "typing",
+          "modality": "typing",
+          "instructions": { "zh-CN": "用几句话回复：你会怎样继续和 Ana 聊下去？" },
+          "configuration": { "minimumCharacters": 12, "createsOralEvidence": false }
+        },
+        {
+          "position": 4,
+          "segmentPosition": 2,
+          "activityType": "speaking",
+          "modality": "speech",
+          "instructions": { "zh-CN": "准备好开口后，复述你想和 Ana 保持联系的表达。" },
+          "configuration": { "followUp": "training", "createsOralEvidence": true }
+        },
+        {
+          "position": 5,
+          "activityType": "transfer",
+          "modality": "typing",
+          "instructions": { "zh-CN": "把情境换成你真实会遇到的人和兴趣，再写一句自然回复。" },
+          "configuration": { "createsOralEvidence": false }
+        }
+      ],
+      "sources": [
+        {
+          "sourceType": "original",
+          "title": "原创内容：咖啡馆里的新朋友",
+          "license": "original",
+          "copyrightStatus": "cleared",
+          "reviewNotes": "为 Spanish Alpha 编写的原创学习内容。"
+        }
+      ]
+    }
+  ],
   "characters": [],
   "reviews": [
     { "entityType": "expression", "stableKey": "start.como-va-todo", "version": 1, "locale": "es-ES", "status": "pending" },
