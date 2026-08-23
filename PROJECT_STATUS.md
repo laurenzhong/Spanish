@@ -2,11 +2,11 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-08-22
-- 当前里程碑：个人 Alpha 阶段 4——语音输入与供应商接入
-- 总体状态：一次性本地 Whisper 转写和人工复核草稿已完成 5/5；复核工作表待人工回听
+- 最后更新：2026-08-24
+- 当前里程碑：个人 Alpha 阶段 5——首页推荐与初次诊断
+- 总体状态：ALPHA-025 沉浸内容包体验已完成，等待合并
 - 协调分支：`main`
-- 当前阻塞：MiniMax `/anthropic/v1/messages` 认证探测返回 HTTP 401；已切换为本地 Codex 人工复核草稿，不上传教材音频
+- 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
 ## 新模型快速接手
 
@@ -22,27 +22,187 @@
 
 ## 当前任务
 
-### 待编号：人工复核 5 条转写与草稿
+当前任务为 ALPHA-025：沉浸内容包体验；前置任务 ALPHA-024 已完成。
 
-- 状态：`review`
+### ALPHA-025：沉浸内容包体验
+
+- 状态：`done`
 - 负责人：Codex
-- 目标分支：`main`
-- 前置依赖：ALPHA-020，已完成（合并 `a8893a1`）
-- 实现 Commit：`0aa6a28`，参数修复 `a5b8bbc`
+- 目标分支：`codex/alpha-025-immersive-content`
+- 前置依赖：ALPHA-024，已完成
+- 计划位置：实施计划任务 5.3
+
+范围：
+
+- 内容包详情、隐藏文本听全文、分段阅读、意群/解析、打字回复和后续口语复核入口。
+- 听说读写共享内容 ID 与标签；阅读/打字不直接证明口语掌握。
+- Web 与 Flutter 使用同一内容语义，当前先完成 Web 纵向切片和可复用服务端纯逻辑。
+- 不新增支付、后台、实时双向语音、离线 ASR 或独立内容服务。
+
+实现 Commit：`9c45d86`
 
 结果：
 
-- 已实现 OpenAI `gpt-transcribe` → MiniMax-M3 文本标注草稿的 server-only 批处理器。
-- 仅处理外部 manifest 允许的 5 条自有 MP3；MiniMax 输入固定为转写文本和 `speechSignal: null`。
-- 结果写入外部 `calibration-results-v1.json`，不写数据库、evidence、mastery、confidence，不保存原始音频或供应商原始响应。
-- 已使用本地 `faster-whisper-small` 完成 5 条转写，并生成 `manual-codex` 人工复核草稿；所有草稿均保留 `needsHumanReview: true`。
-- 已生成外部复核工作表：`D:\走西音频\calibration-review-sheet-v1.json`；5 个音频提示均已用 manifest SHA-256 和大小核对。
-- 默认恢复已验证：5 条失败项被跳过，只有 `--retry-failed` 才会再次请求。
+- 新增原创 `immersive.first-cafe-conversation@1` draft 内容包，包含全文听力、分段阅读、打字回复、口语复核和迁移步骤。
+- 新增 content pack domain/application/repository 投影；生产环境拒绝 draft 内容包，开发/测试环境可显式读取。
+- 新增 `/explore/packs/[packKey]` Web 体验：浏览器 TTS、文本展开、打字草稿、版本化 localStorage 断点、TTS 失败降级和 `/learn/practice` 口语入口。
+- 阅读和打字只保存本地 UI 进度，不写 `evidence_events`、`mastery` 或 `confidence`。
 
-阻塞解除条件：
+修改文件：
 
-- 后续如需供应商草稿，配置有效 MiniMax API key 后可使用 `audio:calibration:local-annotate`；当前不再重复请求 401。
-- 人工草稿不写 evidence、mastery、confidence 或 profile，不能替代母语者审核。当前等待逐条回听并填写 `confirmedTranscript` 与 `reviewNotes`。
+- `content/bundles/alpha-core-v1.json`
+- `src/modules/content/`
+- `app/(product)/explore/packs/[packKey]/page.tsx`
+- `app/globals.css`
+- `tests/unit/content-pack.test.tsx`
+- `tests/e2e/content-pack.spec.ts`
+
+验证：
+
+- 全量 Vitest：44 个测试文件、218 个测试通过。
+- `pnpm content:validate -- content/bundles/alpha-core-v1.json` 通过。
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm build` 通过，动态内容包路由已纳入 Next 构建。
+- 相关 Browser 路由验证受已有 3000 端口开发服务的登录环境限制，未替换或修改 auth 逻辑；新增 Playwright 覆盖已写入但未在该服务上执行。
+
+限制与下一步：
+
+- 首个内容包保持 `draft`，完成西班牙母语和教学审核后才能发布。
+- 当前只完成 Web 纵向切片；Flutter 内容包页面、数据库进度和服务端证据写入不在本任务范围。
+- 下一项为 ALPHA-026：Lucía 人物圣经。
+
+### ALPHA-024：初次诊断
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`codex/alpha-024-initial-diagnostic`
+- 前置依赖：ALPHA-023，已完成
+- 实现 Commit：`33ef064`
+- 计划位置：实施计划任务 5.2
+
+范围：
+
+- 用户选择一个自认为可以表达的通用沟通场景。
+- 系统提供 3–5 个逐步变化的交际任务。
+- 按语境、独立程度和标签权值建立初始证据；数据不足时显示“正在建立画像”。
+- 不伪造完整八维分数，不接入外部 provider。
+
+结果：
+
+- 新增 diagnostic domain/application，确定性生成 3–5 个连续任务并推进诊断进度。
+- 语音默认，打字作为静默降级；证据统一委托现有 `recordEvidence`。
+- 增加 `diagnostic.first-conversation` 五任务内容场景，复用现有表达、提示和迁移字段。
+- 低置信度、技术失败、越序任务和旧 generation 不推进诊断或污染能力证据。
+
+修改文件：
+
+- `src/modules/diagnostic/`
+- `tests/unit/diagnostic-plan.test.ts`
+- `tests/unit/diagnostic-progress.test.ts`
+- `tests/unit/initial-diagnostic.test.ts`
+- `content/bundles/alpha-core-v1.json`
+- `docs/superpowers/specs/2026-08-23-initial-diagnostic-design.md`
+
+验证：
+
+- 全量 Vitest：43 个测试文件、210 个测试通过。
+- 合约测试：5 个文件、27 个测试通过。
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm content:validate -- content/bundles/alpha-core-v1.json` 通过。
+- `pnpm build` 通过。
+- `pnpm test:e2e`：22/24 通过；2 个匿名登录重定向断言失败（期望 `/login?next=%2Flearn`，实际 `/login`），属于当前工作区 auth/UI 改动，不涉及诊断模块。
+
+限制与下一步：
+
+- 初次诊断场景当前保持 `draft`，需完成西班牙母语和教学审核后才能发布到生产。
+- 未接入 Route Handler、首页/Flutter UI、数据库迁移或外部 provider。
+- 下一项为 ALPHA-025：沉浸内容包体验。
+
+### ALPHA-023（前序任务记录）：首页唯一下一动作推荐器
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`main`
+- 前置依赖：ALPHA-022，已完成
+- 实现 Commit：`33ef064`
+
+结果：
+
+- 新增确定性的 recommendation domain/application，仅返回一个首页首选动作。
+- 按核心目标缺口、口语覆盖不足、可信度缺口、历史薄弱点、近期对话需求、新鲜度和重复惩罚排序。
+- 不支持当前输入方式的候选被过滤；画像数据不足或没有可用候选时返回安全默认动作。
+- 不调用网络、数据库、Whisper、Speechace 或 MiniMax，不修改评分、画像或证据。
+
+修改文件：
+
+- `src/modules/recommendation/`
+- `tests/unit/recommendation.test.ts`
+
+验证：
+
+- 新增测试 6 个通过；全量测试 40 个文件、196 个测试通过。
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+
+### ALPHA-021（前序任务记录）：真人视频语音校准与本地诊断汇总
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`main`
+- 前置依赖：ALPHA-020，已完成（合并 `a8893a1`）
+- 实现 Commit：待提交
+
+结果：
+
+- 已使用用户提供的 5 段真人朗读视频和对应确认文本完成本地 `faster-whisper-small` 转写。
+- 已生成 5 份词级转录差异报告、5 份 `diagnostic-only` 语音观察报告和一份汇总报告。
+- 汇总平均转录匹配率为 `0.835`，范围为 `0.823–0.848`；这些结果只表示 ASR 差异，不表示发音评分。
+- 所有结果均写在外部桌面文件，不写数据库、evidence、mastery 或 confidence，不上传或保存原始视频。
+
+验证：
+
+- 汇总脚本 ESLint 通过；相关 2 个测试文件共 16 个测试通过；汇总 JSON 结构校验通过。
+- 全仓库 `pnpm lint` 和 `pnpm typecheck` 仍受现有 `tests/unit/profile-overview-panel.test.tsx:128` 错误阻塞。
+
+输出：
+
+- `C:\Users\master\Desktop\local-pronunciation-calibration-summary-v1.json`
+
+下一步：
+
+- ALPHA-022 已完成决策：暂缓外部 provider 抽样，保留本地诊断结果作为校准数据。
+
+### ALPHA-022：复核校准结果并决定是否进入有限 provider 抽样
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`main`
+- 前置依赖：ALPHA-021，已完成
+- 实现 Commit：待提交
+
+决策：
+
+- 暂不调用 Speechace、MiniMax 或其他外部 provider。
+- 五段视频的本地 Whisper 平均匹配率为 `0.835`，但转录差异只能标记 ASR 不确定性，不能作为发音错误标签。
+- 五段报告均为 `diagnostic-only`，没有发音评分、`mastery`、`confidence` 或 `evidence` 更新。
+- 继续保留本地转录、词级差异和语音信号观察，供后续本地校准和产品设计使用。
+
+暂缓原因：
+
+- 当前没有针对这五段视频的第三方处理授权记录。
+- 当前没有可用的外部 provider 凭据。
+- 本批样本没有独立的母语者发音标签，无法用它们验证 provider 的评分准确性。
+
+验证：
+
+- 已确认五份诊断报告均为 `diagnostic-only` 且汇总 JSON 结构有效。
+- 已运行 provider、校准门禁、转录比较和 pronunciation application 相关测试；不调用真实供应商。
+
+下一步：
+
+- 进入 ALPHA-023 产品功能实现；外部 provider 抽样仍暂缓。
 
 ### ALPHA-017：将 Speechace provider 接入训练 application
 
@@ -52,7 +212,7 @@
 - 计划位置：Speechace provider 与回放集之后的 application 编排切片
 - 前置依赖：ALPHA-016，已完成（合并 `24f782f`）
 - 实现 Commit：`b96ac1a`
-- PR：[#8](https://github.com/zjk159357/Spanish/pull/8)
+- PR：[#8](https://github.com/laurenzhong/Spanish/pull/8)
 - 合并 Commit：`d4a30a5`
 
 目标：
@@ -77,7 +237,7 @@
 - 前置依赖：ALPHA-017，已完成（合并 `d4a30a5`）
 - 设计 Commit：`70e2fef`
 - 实现 Commit：`8d14a9f`
-- PR：[#9](https://github.com/zjk159357/Spanish/pull/9)
+- PR：[#9](https://github.com/laurenzhong/Spanish/pull/9)
 - 合并 Commit：`4031075`
 
 目标：
@@ -128,7 +288,7 @@
 - 计划位置：Speechace provider 接入后的质量校准切片
 - 前置依赖：ALPHA-015，已完成（合并 `1d503aa`）
 - 实现 Commit：`564d209`
-- PR：[#7](https://github.com/zjk159357/Spanish/pull/7)
+- PR：[#7](https://github.com/laurenzhong/Spanish/pull/7)
 - 合并 Commit：`24f782f`
 
 目标：
@@ -158,7 +318,7 @@
 - 计划位置：ALPHA-013 决策后的 provider 契约切片
 - 前置依赖：ALPHA-013，已完成（合并 `e5db83d`）
 - 实现 Commit：`830f930`
-- PR：[#5](https://github.com/zjk159357/Spanish/pull/5)
+- PR：[#5](https://github.com/laurenzhong/Spanish/pull/5)
 - 合并 Commit：`0b972b3`
 
 目标：
@@ -187,7 +347,7 @@
 - 计划位置：阶段 4 完成后的产品体验复盘
 - 前置依赖：ALPHA-012，已完成（合并 `ffea486`）
 - 实现 Commit：`a79b23b`
-- PR：[#4](https://github.com/zjk159357/Spanish/pull/4)
+- PR：[#4](https://github.com/laurenzhong/Spanish/pull/4)
 - 合并 Commit：`e5db83d`
 
 目标：
@@ -218,7 +378,7 @@
 - 计划位置：实施计划任务 4.3–4.5
 - 前置依赖：ALPHA-011，已完成（合并 `b1da744`）
 - 实现 Commit：`bf51ffe`
-- PR：[#3](https://github.com/zjk159357/Spanish/pull/3)
+- PR：[#3](https://github.com/laurenzhong/Spanish/pull/3)
 - 合并 Commit：`ffea486`
 
 目标：
@@ -254,7 +414,11 @@
 | ALPHA-018 | done | `feat/alpha-018-zero-cost-speech-observation`（已合并） | Codex | 零成本语音信号观察与可选标注边界 | ALPHA-017 |
 | ALPHA-019 | done | `feat/alpha-019-minimax-annotation-draft`（已合并） | Codex | MiniMax 文本与本地信号摘要标注草稿 provider；不上传音频、不写证据 | ALPHA-018 |
 | ALPHA-020 | done | `feat/alpha-020-calibration-gate`（已合并） | Codex | 校准前置许可门禁、只读 dry-run 和阻塞测试 | ALPHA-019 |
-| 待编号 | review | `main` | Codex | 人工复核 5 条转写与草稿；等待外部工作表回听确认 | ALPHA-020 |
+| ALPHA-021 | done | `main` | Codex | 真人视频语音校准与本地诊断汇总 | ALPHA-020 |
+| ALPHA-022 | done | `main` | Codex | 复核校准结果并决定是否进入有限 provider 抽样；决定暂缓外部调用 | ALPHA-021 |
+| ALPHA-023 | done | `main` | Codex | 首页唯一下一动作推荐器 | ALPHA-022 |
+| ALPHA-024 | done | `codex/alpha-024-initial-diagnostic` | Codex | 初次诊断：3–5 个渐进交际任务与初始证据 | ALPHA-023 |
+| ALPHA-025 | done | `codex/alpha-025-immersive-content` | Codex | 沉浸内容包体验 | ALPHA-024 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -262,9 +426,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 待编号 | 人工复核 5 条转写与草稿 | 逐条回听原音频，确认疑似转写错误和教学语境 |
-| 2 | 待编号 | 复核校准结果并决定是否进入有限 provider 抽样 | 5 条人工复核完成，未发现许可或评分污染问题 |
-| 3 | 待编号 | — | — |
+| 1 | ALPHA-026 | Lucía 人物圣经 | ALPHA-025 |
+| 2 | ALPHA-027 | 对话消息流 | ALPHA-026 |
+| 3 | ALPHA-028 | 关系记忆与共享权限 | ALPHA-027 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -332,6 +496,9 @@
 | 2026-08-22 | 完成一次性本地 Whisper 转写工具与 MiniMax 文本标注入口 | `15745bd` | 本地 `faster-whisper-small` 转写 5/5；MiniMax key 401，等待有效凭据；本地快照已验证幂等恢复 |
 | 2026-08-22 | 使用本地转写生成 `manual-codex` 人工复核草稿 | 待提交 | 5/5 完成；结果在外部 `calibration-results-manual-v1.json`，不写能力证据 |
 | 2026-08-22 | 生成 5 条音频人工复核工作表并完成哈希/大小核对 | 待提交 | 外部 `calibration-review-sheet-v1.json`，等待人耳回听确认 |
+| 2026-08-23 | 完成 ALPHA-021 真人视频语音校准与本地诊断汇总 | 待提交 | 5/5 视频完成；外部汇总文件已校验，不写能力证据 |
+| 2026-08-23 | 完成 ALPHA-023 首页唯一下一动作推荐器 | `33ef064` | 推荐排序与安全回退完成；不接入 UI 或 provider |
+| 2026-08-23 | 完成 ALPHA-024 初次诊断 | `33ef064` | 5 任务诊断计划、证据委托和内容校验完成；等待内容审核后发布 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
