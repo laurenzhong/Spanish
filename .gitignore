@@ -14,3 +14,10 @@ next-env.d.ts
 !.env.example
 *.log
 __pycache__/
+
+# Local calibration and visual-review artifacts; source scripts stay tracked.
+.tmp-pymupdf/
+.tmp-pypdf/
+recording-script-*.png
+student-*.png
+sueno1-recording-script.txt

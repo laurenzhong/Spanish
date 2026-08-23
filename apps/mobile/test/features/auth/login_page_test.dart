@@ -41,6 +41,7 @@ void main() {
       MaterialApp(home: LoginPage(repository: repository)),
     );
 
+    expect(find.text('Sueño · 个人 Alpha'), findsOneWidget);
     await tester.enterText(
       find.byType(TextField).first,
       ' learner@example.test ',

@@ -1,4 +1,4 @@
-# Spanish mobile client
+# Sueño mobile client
 
 Flutter 客户端与 Next.js Web 共享产品信息架构和服务端契约，但不共享 UI 源码。
 

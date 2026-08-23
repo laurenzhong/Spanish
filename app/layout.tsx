@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
+import { ThemeInitializer } from "@/src/shared/ui/theme-initializer";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Spanish Alpha",
-    template: "%s | Spanish Alpha",
+    default: "Sueño",
+    template: "%s | Sueño",
   },
   description: "A speaking-first Spanish learning experience.",
 };
@@ -14,7 +16,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f4f7fb",
+  themeColor: "#F6F3ED",
 };
 
 type RootLayoutProps = Readonly<{
@@ -23,8 +25,11 @@ type RootLayoutProps = Readonly<{
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="zh-CN">
-      <body>{children}</body>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body>
+        <ThemeInitializer />
+        {children}
+      </body>
     </html>
   );
 }

@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = spanish_mobile
+PRODUCT_NAME = Sueño
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.zjk159357.spanishMobile
+PRODUCT_BUNDLE_IDENTIFIER = com.laurenzhong.spanishMobile
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.zjk159357. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.laurenzhong. All rights reserved.

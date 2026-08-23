@@ -60,6 +60,18 @@ describe("assessPronunciationAttempt", () => {
     });
   });
 
+  it("passes the human-confirmed transcript as the pronunciation reference", async () => {
+    const provider = new FakePronunciationProvider();
+    const confirmedTranscript = "Mucha gente dice que el trabajo es el futuro.";
+
+    await assessPronunciationAttempt(provider, {
+      ...baseInput,
+      referenceText: confirmedTranscript,
+    });
+
+    expect(provider.inputs[0]?.referenceText).toBe(confirmedTranscript);
+  });
+
   it.each([
     [{ outputMode: "typing" as const }, "spoken output"],
     [{ assessmentMode: "typing" as const }, "sampled or explicit review"],

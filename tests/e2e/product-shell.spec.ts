@@ -90,14 +90,34 @@ test("keeps discovery and conversation entry points actionable", async ({
 
   await expect(page.getByRole("link", { name: "开始交流" })).toHaveAttribute(
     "href",
-    "/learn",
+    "/learn?focus=start",
   );
   await page.getByRole("link", { name: "开始交流" }).click();
-  await expect(page).toHaveURL(/\/learn$/);
+  await expect(page).toHaveURL(/\/learn\?focus=start$/);
 
   await page.goto("/chat");
   await page.getByRole("link", { name: "先练一句" }).click();
   await expect(page).toHaveURL(/\/learn\/practice$/);
+});
+
+test("preserves the selected discovery direction on the learning page", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/explore");
+
+  const needsCard = page.getByRole("link", { name: /表达需要/ });
+  await expect(needsCard).toHaveAttribute("href", "/learn?focus=needs");
+  await needsCard.click();
+
+  await expect(page).toHaveURL(/\/learn\?focus=needs$/);
+  await expect(page.locator(".focus-card")).toHaveAttribute("data-focus", "needs");
+  await expect(page.getByRole("heading", { name: "把需要说得清楚又自然" })).toBeVisible();
+
+  await page.goto("/explore");
+  await page.getByRole("link", { name: /安静学习/ }).click();
+  await expect(page).toHaveURL(/\/learn\?focus=silent$/);
+  await expect(page.getByRole("status")).toContainText("暂时没有可开始的静默内容包");
 });
 
 test("keeps the profile axes visible and selectable", async ({

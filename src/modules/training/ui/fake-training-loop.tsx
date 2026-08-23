@@ -115,6 +115,12 @@ function statusLabel(state: TrainingState): string {
   }
 }
 
+function formatRecordingTime(seconds: number): string {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const remainder = (seconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${remainder}`;
+}
+
 function useTrainingEffects(
   current: LoopState,
   dispatch: Dispatch<LoopEvent>,
@@ -277,6 +283,7 @@ export function FakeTrainingLoop({
   const [hydrated, setHydrated] = useState(false);
   const [restored, setRestored] = useState(false);
   const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const state = current.transition.state;
   const checkpointStore = useMemo(
     () =>
@@ -296,6 +303,17 @@ export function FakeTrainingLoop({
   const expression = practiceExpressions[current.expressionIndex] ?? practiceExpressions[0];
   const isProcessing =
     state.status === "transcribing" || state.status === "evaluating";
+
+  useEffect(() => {
+    if (state.status !== "recording") return;
+
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setRecordingSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [state.status]);
 
   useEffect(() => {
     if (!checkpointStore) return;
@@ -348,6 +366,11 @@ export function FakeTrainingLoop({
     setDraft("");
   }
 
+  function startRecording() {
+    setRecordingSeconds(0);
+    dispatch({ type: "start-recording" });
+  }
+
   function moveToNextExpression() {
     const nextIndex = (current.expressionIndex + 1) % practiceExpressions.length;
     setDraft("");
@@ -368,10 +391,20 @@ export function FakeTrainingLoop({
     >
       <header className="page-header page-header--simple training-loop__header">
         <div>
-          <p className="eyebrow">表达练习 · {current.expressionIndex + 1}/4</p>
+          <p className="eyebrow">表达练习</p>
           <h1>把一句话说到对方能接住</h1>
         </div>
-        <span className="quiet-badge">开发微循环</span>
+        <div
+          className="training-loop__counter"
+          role="progressbar"
+          aria-label={`第 ${current.expressionIndex + 1} 句，共 4 句`}
+          aria-valuemin={1}
+          aria-valuemax={4}
+          aria-valuenow={current.expressionIndex + 1}
+        >
+          <span>当前句</span>
+          <strong>{current.expressionIndex + 1} / 4</strong>
+        </div>
       </header>
 
       {restored ? (
@@ -395,12 +428,33 @@ export function FakeTrainingLoop({
         <h2 id="training-expression">{expression.text}</h2>
         <p className="training-loop__translation">{expression.translations["zh-CN"]}</p>
         <p className="training-loop__intent">{expression.communicativeIntent["zh-CN"]}</p>
+        <div
+          className="training-loop__audio-line"
+          data-playing={state.status === "presenting-input"}
+          aria-label="西班牙语输入音频"
+        >
+          <span className="training-loop__audio-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 10v4h3l4 4V6l-4 4H5Z" />
+              <path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10" />
+            </svg>
+          </span>
+          <span className="training-loop__audio-bars" aria-hidden="true">
+            <i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i />
+          </span>
+          <span className="training-loop__audio-label">
+            {state.status === "presenting-input" ? "正在播放" : "已听过一遍"}
+          </span>
+        </div>
       </section>
 
       <section className="training-loop__workbench" aria-label="训练操作">
         <div className="training-loop__progress">
-          <span>提示 {state.hintLevel}/3</span>
-          <span>generation {state.generationId}</span>
+          <div className="training-loop__progress-copy">
+            <span className="training-loop__progress-label">本轮节奏</span>
+            <strong>{state.outputMode === "typing" ? "文字回答" : "口语回答"}</strong>
+          </div>
+          <span className="training-loop__progress-hint">提示 {state.hintLevel}/3</span>
         </div>
 
         {state.status === "presenting-input" ? (
@@ -410,21 +464,30 @@ export function FakeTrainingLoop({
         {state.status === "awaiting-output" ? (
           <div className="training-loop__output-choice">
             <button
-              className="training-loop__secondary"
+              className="training-loop__primary training-loop__voice-action"
+              onClick={startRecording}
+              type="button"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <rect x="8" y="3" width="8" height="13" rx="4" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+              </svg>
+              <span>开始录音</span>
+              <span className="training-loop__button-note" aria-hidden="true">用声音回答</span>
+            </button>
+            <button
+              className="training-loop__secondary training-loop__typing-action"
               onClick={() => {
                 setCapabilityNotice(null);
                 dispatch({ type: "switch-to-silent" });
               }}
               type="button"
             >
-              用文字回答
-            </button>
-            <button
-              className="training-loop__primary"
-              onClick={() => dispatch({ type: "start-recording" })}
-              type="button"
-            >
-              开始录音
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M5 5.5h14v13H5zM8 9h8M8 12h5M8 15h8" />
+              </svg>
+              <span>用文字回答</span>
+              <span className="training-loop__button-note" aria-hidden="true">安静环境</span>
             </button>
           </div>
         ) : null}
@@ -439,33 +502,70 @@ export function FakeTrainingLoop({
               placeholder="例如：¿Qué tal todo?"
               rows={3}
             />
-            <button
-              className="training-loop__primary"
-              disabled={!draft.trim()}
-              onClick={submitTyping}
-              type="button"
-            >
-              提交文字回答
-            </button>
+            <div className="training-loop__composer-actions">
+              <button
+                className="training-loop__primary"
+                disabled={!draft.trim()}
+                onClick={submitTyping}
+                type="button"
+              >
+                提交文字回答
+              </button>
+              <button
+                className="training-loop__secondary training-loop__composer-voice"
+                onClick={() => {
+                  setDraft("");
+                  startRecording();
+                }}
+                type="button"
+              >
+                改用语音录音
+              </button>
+            </div>
           </div>
         ) : null}
 
         {state.status === "recording" ? (
           <div className="training-loop__recording" aria-live="polite">
-            <span className="training-loop__recording-mark" aria-hidden="true" />
-            <p>正在等待你的模拟回答</p>
-            <button
-              className="training-loop__primary"
-              onClick={() =>
-                dispatch({
-                  type: "stop-recording",
-                  generationId: state.generationId,
-                })
-              }
-              type="button"
-            >
-              提交模拟语音
-            </button>
+            <div className="training-loop__recording-head">
+              <div className="training-loop__recording-state">
+                <span className="training-loop__recording-mark" aria-hidden="true" />
+                <span>正在听你说</span>
+              </div>
+              <time dateTime={`PT${recordingSeconds}S`} aria-label={`已录音 ${formatRecordingTime(recordingSeconds)}`}>
+                {formatRecordingTime(recordingSeconds)}
+              </time>
+            </div>
+            <div className="training-loop__recording-waveform" aria-hidden="true">
+              {Array.from({ length: 18 }, (_, index) => <i key={index} />)}
+            </div>
+            <p>完整说完，再结束这一轮。</p>
+            <div className="training-loop__recording-actions">
+              <button
+                className="training-loop__primary"
+                onClick={() =>
+                  dispatch({
+                    type: "stop-recording",
+                    generationId: state.generationId,
+                  })
+                }
+                type="button"
+              >
+                完成录音
+              </button>
+              <button
+                className="training-loop__cancel"
+                onClick={() =>
+                  dispatch({
+                    type: "cancel-recording",
+                    generationId: state.generationId,
+                  })
+                }
+                type="button"
+              >
+                取消，改用文字
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -478,16 +578,32 @@ export function FakeTrainingLoop({
         {state.status === "showing-feedback" && state.evaluation ? (
           <div className="training-loop__feedback" role="status">
             <p className="eyebrow eyebrow--accent">这轮反馈</p>
-            <h3>
+            <div className="training-loop__feedback-result">
+              <span className="training-loop__feedback-mark" aria-hidden="true">
+                {state.evaluation.contextualSuccess ? "✓" : "!"}
+              </span>
+              <div>
+                <span className="training-loop__feedback-label">沟通结果</span>
+                <h3>
+                  {state.evaluation.contextualSuccess
+                    ? "对方可以接住你的意思"
+                    : "这次还没有完成沟通任务"}
+                </h3>
+              </div>
+            </div>
+            <p className="training-loop__feedback-summary">
               {state.evaluation.contextualSuccess
-                ? "对方可以接住你的意思"
-                : "这次还没有完成沟通任务"}
-            </h3>
-            <p>
-              {state.evaluation.contextualSuccess
-                ? "自然的相近表达也算成功；下一步换一个信息再试。"
-                : "先保留这次尝试，再换一种说法完成同一个目的。"}
+                ? "自然的相近表达也算成功。"
+                : "意思还差一点，再给自己一次完整表达的机会。"}
             </p>
+            <div className="training-loop__feedback-next">
+              <span>下一步</span>
+              <strong>
+                {state.evaluation.contextualSuccess
+                  ? "换一个信息，再说一次"
+                  : "换一种说法，完成同一个目的"}
+              </strong>
+            </div>
             <div className="training-loop__feedback-actions">
               <button
                 className="training-loop__secondary"
@@ -514,8 +630,14 @@ export function FakeTrainingLoop({
         {state.status === "completed" ? (
           <div className="training-loop__feedback" role="status">
             <p className="eyebrow eyebrow--accent">已保存</p>
-            <h3>这句练习完成了</h3>
-            <p>完成一次任务不会直接改变能力画像，之后还会用陌生变体复核。</p>
+            <div className="training-loop__feedback-result">
+              <span className="training-loop__feedback-mark" aria-hidden="true">✓</span>
+              <div>
+                <span className="training-loop__feedback-label">本句完成</span>
+                <h3>这句练习完成了</h3>
+              </div>
+            </div>
+            <p className="training-loop__feedback-summary">完成一次任务不会直接改变能力画像，之后还会用陌生变体复核。</p>
             <button className="training-loop__primary" onClick={moveToNextExpression} type="button">
               下一句
             </button>
@@ -524,7 +646,13 @@ export function FakeTrainingLoop({
 
         {state.status === "recoverable-error" && state.error ? (
           <div className="training-loop__error" role="alert">
-            <h3>这次技术步骤没有完成</h3>
+            <div className="training-loop__feedback-result">
+              <span className="training-loop__feedback-mark" aria-hidden="true">!</span>
+              <div>
+                <span className="training-loop__feedback-label">需要再试一次</span>
+                <h3>这次技术步骤没有完成</h3>
+              </div>
+            </div>
             <p>没有产生负面能力记录，你可以回到当前句重新尝试。</p>
             <button className="training-loop__primary" onClick={() => dispatch({ type: "retry" })} type="button">
               再试一次
@@ -534,16 +662,25 @@ export function FakeTrainingLoop({
 
         {state.status === "awaiting-output" ? (
           <div className="training-loop__hints">
-            {[1, 2, 3].map((level) => (
-              <button
-                key={level}
-                className={level <= state.hintLevel ? "is-active" : ""}
-                onClick={() => dispatch({ type: "request-hint", level: level as 1 | 2 | 3 })}
-                type="button"
-              >
-                提示 {level}
-              </button>
-            ))}
+            <div className="training-loop__hints-head">
+              <span>需要一点支撑？</span>
+              <span>{state.hintLevel === 0 ? "按需打开" : `已打开 ${state.hintLevel}/3`}</span>
+            </div>
+            <div className="training-loop__hint-drawer">
+              {[1, 2, 3].map((level) => (
+                <button
+                  key={level}
+                  className={level <= state.hintLevel ? "is-active" : ""}
+                  aria-pressed={level <= state.hintLevel}
+                  onClick={() => dispatch({ type: "request-hint", level: level as 1 | 2 | 3 })}
+                  type="button"
+                >
+                  <span className="training-loop__hint-index">0{level}</span>
+                  <span>提示 {level}</span>
+                  <span className="training-loop__hint-state" aria-hidden="true">{level <= state.hintLevel ? "已开" : ""}</span>
+                </button>
+              ))}
+            </div>
           </div>
         ) : null}
       </section>

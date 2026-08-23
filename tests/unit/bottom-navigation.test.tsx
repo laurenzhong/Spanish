@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 
 import { BottomNavigation } from "@/src/shared/ui/bottom-navigation";
 
@@ -12,12 +13,19 @@ vi.mock("next/navigation", () => ({
 describe("BottomNavigation", () => {
   beforeEach(() => {
     usePathname.mockReturnValue("/chat");
+    window.localStorage.clear();
+    delete document.documentElement.dataset.theme;
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("links every product area and exposes the current item", () => {
     render(<BottomNavigation />);
 
     expect(screen.getByRole("navigation", { name: "主要导航" })).toBeVisible();
+    expect(screen.getByText("Sueño")).toBeVisible();
     expect(screen.getByRole("link", { name: "学习" })).toHaveAttribute(
       "href",
       "/learn",
@@ -34,5 +42,19 @@ describe("BottomNavigation", () => {
       "href",
       "/me",
     );
+  });
+
+  it("toggles and persists the visual theme", async () => {
+    const user = userEvent.setup();
+    render(<BottomNavigation />);
+
+    const toggle = screen.getByRole("button", { name: "切换到深色模式" });
+    await user.click(toggle);
+
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(window.localStorage.getItem("spanish-theme")).toBe("dark");
+    expect(
+      screen.getByRole("button", { name: "切换到浅色模式" }),
+    ).toBeVisible();
   });
 });

@@ -19,7 +19,7 @@ class SpanishApp extends StatelessWidget {
     );
 
     return MaterialApp(
-      title: 'Spanish Alpha',
+      title: 'Sueño',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: colorScheme,

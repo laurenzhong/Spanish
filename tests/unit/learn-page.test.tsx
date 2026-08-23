@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import LearnPage from "@/app/(product)/learn/page";
+import { LearnPageContent } from "@/app/(product)/learn/learn-page-content";
 
 describe("LearnPage", () => {
   it("keeps one clear primary learning action", () => {
-    render(<LearnPage />);
+    render(<LearnPageContent />);
 
     expect(
       screen.getByRole("heading", { name: "问候后自然继续交流" }),

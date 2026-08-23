@@ -42,6 +42,18 @@ test("keeps the training workbench inside a narrow viewport", async ({ page }) =
   );
 });
 
+test("keeps a voice path visible after switching to typing", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/learn/practice");
+
+  await page.getByRole("button", { name: "用文字回答" }).click();
+  await expect(page.getByLabel("写下你的回应")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "改用语音录音" }),
+  ).toBeVisible();
+});
+
 test("restores the last stable state after a refresh", async ({ page }) => {
   await authenticate(page);
   await page.goto("/learn/practice");

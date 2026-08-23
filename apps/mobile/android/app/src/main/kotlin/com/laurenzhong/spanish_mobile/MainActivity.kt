@@ -1,4 +1,4 @@
-package com.zjk159357.spanish_mobile
+package com.laurenzhong.spanish_mobile
 
 import io.flutter.embedding.android.FlutterActivity
 

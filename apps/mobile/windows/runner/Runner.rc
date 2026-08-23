@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.zjk159357" "\0"
-            VALUE "FileDescription", "spanish_mobile" "\0"
+            VALUE "CompanyName", "com.laurenzhong" "\0"
+            VALUE "FileDescription", "Sueño" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "spanish_mobile" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.zjk159357. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.laurenzhong. All rights reserved." "\0"
             VALUE "OriginalFilename", "spanish_mobile.exe" "\0"
-            VALUE "ProductName", "spanish_mobile" "\0"
+            VALUE "ProductName", "Sueño" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
