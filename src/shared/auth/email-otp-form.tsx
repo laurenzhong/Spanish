@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import {
   createWebAuthRepository,
+  normalizeEmailAddress,
   type WebAuthRepository,
 } from "./web-auth-repository";
 
@@ -23,7 +24,17 @@ function getOtpRequestErrorMessage(error: unknown) {
     status?: unknown;
   };
   const code = typeof candidate.code === "string" ? candidate.code : "";
+  const name = typeof (error as { name?: unknown }).name === "string"
+    ? (error as { name: string }).name
+    : "";
   const message = typeof candidate.message === "string" ? candidate.message : "";
+
+  if (
+    name === "AuthRetryableFetchError" ||
+    /failed to fetch|network error|connection reset|fetch failed/iu.test(message)
+  ) {
+    return "暂时无法连接认证服务，请检查网络后重试。";
+  }
 
   if (
     candidate.status === 429 ||
@@ -41,6 +52,28 @@ function getOtpRequestErrorMessage(error: unknown) {
   }
 
   return "验证码发送失败，请稍后重试。";
+}
+
+function getOtpVerifyErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return "验证码无效或已经过期，请重新输入。";
+  }
+
+  const candidate = error as {
+    message?: unknown;
+    name?: unknown;
+  };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+  const name = typeof candidate.name === "string" ? candidate.name : "";
+
+  if (
+    name === "AuthRetryableFetchError" ||
+    /failed to fetch|network error|connection reset|fetch failed/iu.test(message)
+  ) {
+    return "暂时无法连接认证服务，请检查网络后重试。";
+  }
+
+  return "验证码无效或已经过期，请重新输入。";
 }
 
 export function EmailOtpForm({ repository }: EmailOtpFormProps) {
@@ -61,7 +94,7 @@ export function EmailOtpForm({ repository }: EmailOtpFormProps) {
     setBusy(true);
     setError(null);
     try {
-      await auth.requestEmailOtp(email.trim());
+      await auth.requestEmailOtp(normalizeEmailAddress(email));
       setOtpSent(true);
     } catch (error) {
       setError(getOtpRequestErrorMessage(error));
@@ -76,11 +109,11 @@ export function EmailOtpForm({ repository }: EmailOtpFormProps) {
     setBusy(true);
     setError(null);
     try {
-      await auth.verifyEmailOtp(email.trim(), token.trim());
+      await auth.verifyEmailOtp(normalizeEmailAddress(email), token.trim());
       router.replace("/learn");
-      router.refresh();
-    } catch {
-      setError("验证码无效或已经过期，请重新获取。");
+    } catch (error) {
+      setToken("");
+      setError(getOtpVerifyErrorMessage(error));
     } finally {
       setBusy(false);
     }

@@ -41,6 +41,43 @@ describe("EmailOtpForm", () => {
     expect(await screen.findByLabelText("六位验证码")).toBeVisible();
   });
 
+  it("verifies the entered code and navigates to learning", async () => {
+    const auth = repository();
+    const user = userEvent.setup();
+    render(<EmailOtpForm repository={auth} />);
+
+    await user.type(screen.getByLabelText("邮箱"), "Learner@Example.Test");
+    await user.click(screen.getByRole("button", { name: "获取验证码" }));
+    await user.type(screen.getByLabelText("六位验证码"), "123456");
+    await user.click(screen.getByRole("button", { name: "进入学习" }));
+
+    expect(auth.verifyEmailOtp).toHaveBeenCalledWith(
+      "learner@example.test",
+      "123456",
+    );
+    expect(replace).toHaveBeenCalledWith("/learn");
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("keeps the verification step available after an invalid code", async () => {
+    const auth = repository({
+      verifyEmailOtp: vi.fn().mockRejectedValue(new Error("otp_expired")),
+    });
+    const user = userEvent.setup();
+    render(<EmailOtpForm repository={auth} />);
+
+    await user.type(screen.getByLabelText("邮箱"), "learner@example.test");
+    await user.click(screen.getByRole("button", { name: "获取验证码" }));
+    await user.type(screen.getByLabelText("六位验证码"), "123456");
+    await user.click(screen.getByRole("button", { name: "进入学习" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "验证码无效或已经过期，请重新输入。",
+    );
+    expect(screen.getByLabelText("六位验证码")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "获取验证码" })).not.toBeInTheDocument();
+  });
+
   it("shows a stable error when sending fails", async () => {
     const auth = repository({
       requestEmailOtp: vi.fn().mockRejectedValue(new Error("network")),
@@ -90,6 +127,24 @@ describe("EmailOtpForm", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "邮箱地址无效，请检查后重试。",
+    );
+  });
+
+  it("explains when the auth service cannot be reached", async () => {
+    const auth = repository({
+      requestEmailOtp: vi.fn().mockRejectedValue({
+        name: "AuthRetryableFetchError",
+        message: "Failed to fetch",
+      }),
+    });
+    const user = userEvent.setup();
+    render(<EmailOtpForm repository={auth} />);
+
+    await user.type(screen.getByLabelText("邮箱"), "learner@example.test");
+    await user.click(screen.getByRole("button", { name: "获取验证码" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "暂时无法连接认证服务，请检查网络后重试。",
     );
   });
 });

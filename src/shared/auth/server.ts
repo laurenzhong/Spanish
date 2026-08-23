@@ -14,6 +14,54 @@ export interface AccessTokenVerifier {
   verify(accessToken: string): Promise<AuthenticatedUser | null>;
 }
 
+type AuthUserLookupError = Readonly<{
+  code?: string;
+  message?: string;
+  name?: string;
+  status?: number;
+}>;
+
+export type AuthUserLookupResult = Readonly<{
+  data: Readonly<{
+    user: Readonly<{ email?: string | null; id: string }> | null;
+  }>;
+  error: AuthUserLookupError | null;
+}>;
+
+export function isRetryableAuthError(
+  error: AuthUserLookupError | null,
+): boolean {
+  if (!error) {
+    return false;
+  }
+
+  if (error.name === "AuthRetryableFetchError") {
+    return true;
+  }
+
+  if (typeof error.status === "number" && error.status >= 500) {
+    return true;
+  }
+
+  return /connection reset|failed to fetch|network error|timed? out|temporarily unavailable/iu.test(
+    error.message ?? "",
+  );
+}
+
+export async function getUserWithRetry(
+  readUser: () => Promise<AuthUserLookupResult>,
+  wait: (milliseconds: number) => Promise<void> = (milliseconds) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+): Promise<AuthUserLookupResult> {
+  const firstResult = await readUser();
+  if (!isRetryableAuthError(firstResult.error)) {
+    return firstResult;
+  }
+
+  await wait(150);
+  return readUser();
+}
+
 function testUserFromCookie(
   cookieValue: string | undefined,
 ): AuthenticatedUser | null {
@@ -83,7 +131,7 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
       },
     },
   });
-  const { data, error } = await client.auth.getUser();
+  const { data, error } = await getUserWithRetry(() => client.auth.getUser());
 
   if (error || !data.user) {
     return null;

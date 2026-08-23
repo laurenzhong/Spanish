@@ -11,6 +11,7 @@ export async function proxy(request: NextRequest) {
     process.env.AUTH_E2E_ENABLED === "1" &&
     request.cookies.has("spanish-e2e-user");
   let isAuthenticated = e2eUser;
+  let authCheckFailed = false;
   const config = readSupabasePublicConfig();
 
   if (config && !e2eUser) {
@@ -28,20 +29,31 @@ export async function proxy(request: NextRequest) {
         },
       },
     });
-    const { data } = await client.auth.getSession();
-    isAuthenticated = Boolean(data.session);
+    const { data, error } = await client.auth.getUser();
+    if (error) {
+      // Do not turn a transient Auth outage into a login redirect loop. The
+      // protected product layout still performs the authoritative check.
+      authCheckFailed = true;
+    } else {
+      isAuthenticated = Boolean(data.user);
+    }
   }
 
-  const redirectPath = resolveAuthRedirect(
-    request.nextUrl.pathname,
-    isAuthenticated,
-  );
+  const redirectPath = authCheckFailed
+    ? null
+    : resolveAuthRedirect(request.nextUrl.pathname, isAuthenticated);
   if (redirectPath) {
     const redirectUrl = request.nextUrl.clone();
     const [pathname, search = ""] = redirectPath.split("?");
     redirectUrl.pathname = pathname;
     redirectUrl.search = search ? `?${search}` : "";
-    return NextResponse.redirect(redirectUrl);
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    // Supabase may refresh the session while getUser() runs. Preserve those
+    // Set-Cookie headers when the optimistic route gate redirects.
+    for (const cookie of response.cookies.getAll()) {
+      redirectResponse.cookies.set(cookie);
+    }
+    return redirectResponse;
   }
 
   return response;

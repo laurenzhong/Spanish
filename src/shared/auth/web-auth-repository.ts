@@ -10,12 +10,16 @@ export interface WebAuthRepository {
   verifyEmailOtp(email: string, token: string): Promise<void>;
 }
 
+export function normalizeEmailAddress(email: string) {
+  return email.trim().toLowerCase();
+}
+
 export class SupabaseWebAuthRepository implements WebAuthRepository {
   constructor(private readonly client: SupabaseClient) {}
 
   async requestEmailOtp(email: string) {
     const { error } = await this.client.auth.signInWithOtp({
-      email,
+      email: normalizeEmailAddress(email),
       options: { shouldCreateUser: true },
     });
     if (error) throw error;
@@ -23,7 +27,7 @@ export class SupabaseWebAuthRepository implements WebAuthRepository {
 
   async verifyEmailOtp(email: string, token: string) {
     const { error } = await this.client.auth.verifyOtp({
-      email,
+      email: normalizeEmailAddress(email),
       token,
       type: "email",
     });

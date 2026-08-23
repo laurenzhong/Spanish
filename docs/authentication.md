@@ -18,7 +18,7 @@ Web 浏览器通过 `@supabase/ssr` 持有 Cookie 会话：
 
 1. 客户端 Auth Repository 请求和验证 OTP。
 2. `proxy.ts` 在受保护页面前刷新 Supabase Cookie，并做快速跳转。
-3. 产品服务端布局再次调用 Supabase `auth.getUser()`，不把 proxy 或客户端状态当作权威身份。
+3. 产品服务端布局再次调用 Supabase `auth.getUser()`，不把 proxy 或客户端状态当作权威身份；如果验证遇到可重试的网络或 5xx 错误，只短暂重试一次，401/无效会话不会重试。
 4. Route Handler 对 Bearer Token 调用 `auth.getUser(token)`；不接受客户端声明的 user ID，也不只做本地 JWT 解码。
 
 UI 组件不散落直接调用 Supabase；当前登录行为通过 `WebAuthRepository` 隔离，后续可注入 fake 做组件测试。
@@ -66,6 +66,7 @@ Flutter 测试使用内存 Auth source、secure storage 和 HTTP transport，覆
 
 - 执行版本化迁移并复查 RLS。
 - 配置邮件发送方、OTP 模板、有效期和限流。
+- 六位验证码入口必须使用包含 `{{ .Token }}` 的邮件模板；不要只发送 `{{ .ConfirmationURL }}`。后者是 magic link，不能复制其中的内容到六位验证码输入框中完成 `verifyOtp`。
 - 使用两个真实测试用户复验跨用户隔离。
 - 验证退出、令牌撤销和账号删除路径。
 

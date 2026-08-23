@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   type AccessTokenVerifier,
+  getUserWithRetry,
+  isRetryableAuthError,
   verifyRequestUser,
 } from "@/src/shared/auth/server";
 
@@ -39,5 +41,50 @@ describe("verifyRequestUser", () => {
     await expect(
       verifyRequestUser(request("Bearer signed-token"), { verify }),
     ).resolves.toEqual(user);
+  });
+});
+
+describe("getUserWithRetry", () => {
+  it("retries a transient auth failure once", async () => {
+    const readUser = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: { user: null },
+        error: { name: "AuthRetryableFetchError", message: "Failed to fetch" },
+      })
+      .mockResolvedValueOnce({
+        data: { user: { id: "user-1", email: "learner@example.test" } },
+        error: null,
+      });
+    const wait = vi.fn().mockResolvedValue(undefined);
+
+    await expect(getUserWithRetry(readUser, wait)).resolves.toEqual({
+      data: { user: { id: "user-1", email: "learner@example.test" } },
+      error: null,
+    });
+    expect(wait).toHaveBeenCalledWith(150);
+    expect(readUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry an invalid-session response", async () => {
+    const readUser = vi.fn().mockResolvedValue({
+      data: { user: null },
+      error: { name: "AuthApiError", status: 401, message: "Invalid JWT" },
+    });
+    const wait = vi.fn().mockResolvedValue(undefined);
+
+    await expect(getUserWithRetry(readUser, wait)).resolves.toEqual({
+      data: { user: null },
+      error: { name: "AuthApiError", status: 401, message: "Invalid JWT" },
+    });
+    expect(wait).not.toHaveBeenCalled();
+    expect(readUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("classifies service and network failures as retryable", () => {
+    expect(isRetryableAuthError({ status: 503 })).toBe(true);
+    expect(isRetryableAuthError({ message: "connection reset" })).toBe(true);
+    expect(isRetryableAuthError({ status: 401 })).toBe(false);
+    expect(isRetryableAuthError(null)).toBe(false);
   });
 });
