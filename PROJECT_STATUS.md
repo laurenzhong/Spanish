@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-24
 - 当前里程碑：个人 Alpha 阶段 6——Lucía 好友系统
-- 总体状态：ALPHA-028 关系记忆与共享权限已完成；当前执行 ALPHA-029 角色回复规划
+- 总体状态：ALPHA-029 角色回复规划已完成；下一项为 ALPHA-030 好友介绍与角色网络
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,16 +22,16 @@
 
 ## 当前任务
 
-当前任务为 ALPHA-029：角色回复规划；前置任务 ALPHA-028 已完成。
+当前任务为 ALPHA-029：角色回复规划；前置任务 ALPHA-028 已完成，本任务已完成。
 
 ### ALPHA-029：角色回复规划
 
-- 状态：`in_progress`
+- 状态：`done`
 - 负责人：Codex
 - 目标分支：`fix/login-redirect-after-otp`
 - 前置依赖：ALPHA-028，已完成
 - 计划位置：实施计划任务 6.3
-- 实现 Commit：待提交
+- 实现 Commit：`b1ea5a9`
 
 范围：
 
@@ -45,6 +45,19 @@
 - 纯 TypeScript domain/application 可独立确定性测试。
 - AI 身份询问、情绪表达、自然追问和角色边界有固定回放断言。
 - 私密关系记忆不会从其他角色上下文进入回复；无 `done` 的流不触发后续记忆提取。
+
+验证：
+
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm exec vitest run --maxWorkers=1`：54 个文件、259 个测试通过。
+- `pnpm build` 通过。
+
+限制与下一步：
+
+- 当前仍使用 deterministic fake，没有真实 LLM/provider；回复规划接口已为后续 provider 保留替换边界。
+- 当前关系阶段使用安全默认值，好友介绍与联系人创建留给 ALPHA-030。
+- 下一项为 ALPHA-030：好友介绍与角色网络。
 
 ### ALPHA-028：关系记忆与共享权限
 
@@ -617,7 +630,7 @@
 | ALPHA-026 | done | `fix/login-redirect-after-otp` | Codex | Lucía 人物圣经 | ALPHA-025 |
 | ALPHA-027 | done | `fix/login-redirect-after-otp` | Codex | 对话消息流 | ALPHA-026 |
 | ALPHA-028 | done | `fix/login-redirect-after-otp` | Codex | 关系记忆与共享权限 | ALPHA-027 |
-| ALPHA-029 | in_progress | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
+| ALPHA-029 | done | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -625,9 +638,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-029 | 角色回复规划 | ALPHA-028 |
-| 2 | ALPHA-030 | 好友介绍与角色网络 | ALPHA-029 |
-| 3 | 待排序 | 后续 Alpha 完整化任务 | ALPHA-030 |
+| 1 | ALPHA-030 | 好友介绍与角色网络 | ALPHA-029 |
+| 2 | 待排序 | 后续 Alpha 完整化任务 | ALPHA-030 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
