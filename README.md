@@ -82,6 +82,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - pnpm 11.x，精确版本记录在 `package.json`。
 - Flutter 客户端固定使用 Flutter 3.47.1 / Dart 3.13.1，版本文件位于 `apps/mobile/`。
 - 执行 E2E 时需要本机安装 Google Chrome。
+- `pnpm test:e2e` 默认使用隔离的 `127.0.0.1:3100` 和 `.next/e2e` 构建目录，不会抢占正在运行的 3000 开发服务；如需更换端口可设置 `PLAYWRIGHT_PORT`。
 - iOS/macOS 编译、签名和真机调试需要 Mac 与 Xcode；Windows 只能完成 Flutter 公共代码和非 iOS 测试。
 
 首次运行：
