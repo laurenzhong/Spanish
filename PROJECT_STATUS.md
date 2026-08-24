@@ -3,8 +3,8 @@
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
 - 最后更新：2026-08-24
-- 当前里程碑：个人 Alpha 阶段 5——首页推荐与初次诊断
-- 总体状态：ALPHA-025 沉浸内容包体验已完成，等待合并
+- 当前里程碑：个人 Alpha 阶段 6——Lucía 好友系统
+- 总体状态：ALPHA-026 Lucía 人物圣经已完成，等待合并
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,47 @@
 
 ## 当前任务
 
-当前任务为 ALPHA-025：沉浸内容包体验；前置任务 ALPHA-024 已完成。
+当前任务为 ALPHA-026：Lucía 人物圣经；前置任务 ALPHA-025 已完成。
+
+### ALPHA-026：Lucía 人物圣经
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`（功能提交保持独立）
+- 前置依赖：ALPHA-025，已完成
+- 计划位置：实施计划任务 6.1
+
+实现 Commit：`c46bea8`
+
+结果：
+
+- 新增版本化 `content/characters/lucia.json`，初始为 `lucia@1`、`draft`。
+- 固定 v1 核心身份：24 岁、在马德里长大并生活、数字传播与新媒体硕士。
+- 定义性格、语气、主动程度、话题偏好、人物关系、可揭示事实和现实世界边界。
+- 新增纯 TypeScript `characters` 模块 Schema 与 canon checker。
+- 支持未发布且未揭示草稿的原地编辑；已发布或已揭示事实的语义变化要求新版本和变更原因。
+- 核心身份变化允许版本升级，但已揭示身份冲突会被阻止；敏感事实不能静默扩大揭示范围。
+- 未实现聊天、关系记忆、数据库迁移、provider 或人物 UI。
+
+修改文件：
+
+- `content/characters/lucia.json`
+- `src/modules/characters/`
+- `tests/unit/character-bible.test.ts`
+
+验证：
+
+- 全量 Vitest：45 个测试文件、227 个测试通过。
+- `pnpm content:validate -- content/bundles/alpha-core-v1.json` 通过。
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm build` 通过。
+
+限制与下一步：
+
+- Lucía v1 仍为 `draft`，未经语言、教学和角色一致性审核不得生产发布。
+- 用户级事实揭示状态留给关系/对话任务，不写回全局人物圣经。
+- 下一项为 ALPHA-027：对话消息流。
 
 ### ALPHA-025：沉浸内容包体验
 
@@ -419,6 +459,7 @@
 | ALPHA-023 | done | `main` | Codex | 首页唯一下一动作推荐器 | ALPHA-022 |
 | ALPHA-024 | done | `codex/alpha-024-initial-diagnostic` | Codex | 初次诊断：3–5 个渐进交际任务与初始证据 | ALPHA-023 |
 | ALPHA-025 | done | `codex/alpha-025-immersive-content` | Codex | 沉浸内容包体验 | ALPHA-024 |
+| ALPHA-026 | done | `fix/login-redirect-after-otp` | Codex | Lucía 人物圣经 | ALPHA-025 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -426,9 +467,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-026 | Lucía 人物圣经 | ALPHA-025 |
-| 2 | ALPHA-027 | 对话消息流 | ALPHA-026 |
-| 3 | ALPHA-028 | 关系记忆与共享权限 | ALPHA-027 |
+| 1 | ALPHA-027 | 对话消息流 | ALPHA-026 |
+| 2 | ALPHA-028 | 关系记忆与共享权限 | ALPHA-027 |
+| 3 | ALPHA-029 | 角色回复规划 | ALPHA-028 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
