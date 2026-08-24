@@ -52,6 +52,16 @@ describe("conversation stream protocol", () => {
 });
 
 describe("conversation state", () => {
+  it("merges persisted history without dropping a message submitted during loading", () => {
+    let state = submitted();
+    state = transitionConversationState(state, {
+      type: "hydrate",
+      messages: [{ id: "persisted-user", clientMessageId: "client-1", role: "user", text: "Hola, Lucía", complete: true }],
+    });
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]).toMatchObject({ text: "Hola, Lucía" });
+  });
+
   it("only marks a reply complete after done", () => {
     let state = submitted();
     state = transitionConversationState(state, { type: "stream-event", event: meta });

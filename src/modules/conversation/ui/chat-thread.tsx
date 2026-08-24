@@ -25,6 +25,7 @@ function createId(prefix: string): string {
 
 export function ChatThread({ characterKey, characterName, characterVersion }: ChatThreadProps) {
   const [state, setState] = useState<ConversationState>(() => createConversationState());
+  const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">("loading");
   const [draft, setDraft] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -39,11 +40,20 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
   useEffect(() => {
     let cancelled = false;
     void fetch(`/api/v1/conversations/${characterKey}`)
-      .then((response) => response.ok ? response.json() as Promise<{ data?: { messages?: ConversationState["messages"] } }> : null)
+      .then((response) => {
+        if (!response.ok) {
+          setPersistenceStatus("unavailable");
+          return null;
+        }
+        setPersistenceStatus("available");
+        return response.json() as Promise<{ data?: { messages?: ConversationState["messages"] } }>;
+      })
       .then((payload) => {
         if (!cancelled && payload?.data?.messages) apply({ type: "hydrate", messages: payload.data.messages });
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setPersistenceStatus("unavailable");
+      });
     return () => { cancelled = true; };
   }, [characterKey]);
 
@@ -61,6 +71,7 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
         body: JSON.stringify({ characterVersion, text, clientMessageId, generationId }),
         signal: controller.signal,
       });
+      setPersistenceStatus(response.headers.get("x-conversation-persistence") === "available" ? "available" : "unavailable");
       if (!response.ok || !response.body) {
         apply({
           type: "stream-event",
@@ -158,6 +169,11 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
       </header>
 
       <div className="conversation-thread__messages" aria-live="polite">
+        {persistenceStatus === "unavailable" ? (
+          <p className="conversation-thread__persistence-notice" role="status" data-testid="conversation-persistence-status">
+            聊天记录暂未保存：当前环境未连接消息数据库。配置 DATABASE_URL 后，切换页面仍可恢复记录。
+          </p>
+        ) : null}
         {state.messages.length === 0 ? (
           <div className="conversation-thread__welcome">
             <p className="eyebrow eyebrow--accent">Lucía 的消息</p>

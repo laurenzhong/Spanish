@@ -20,8 +20,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       role: message.role,
       text: message.content,
       complete: message.status === "completed",
-    })) } });
+    })) } }, { headers: { "x-conversation-persistence": "available" } });
   } catch {
-    return NextResponse.json({ error: { code: "CONVERSATION_UNAVAILABLE", retryable: true } }, { status: 503 });
+    return NextResponse.json(
+      { error: { code: "CONVERSATION_UNAVAILABLE", retryable: true } },
+      { status: 503, headers: { "x-conversation-persistence": "unavailable" } },
+    );
   }
 }

@@ -137,6 +137,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       "content-type": "application/x-ndjson; charset=utf-8",
       "cache-control": "no-store, no-cache, must-revalidate",
       connection: "keep-alive",
+      "x-conversation-persistence": repository ? "available" : "unavailable",
     },
   });
 }

@@ -59,7 +59,20 @@ export function transitionConversationState(
   if (action.type === "reset") return createConversationState();
 
   if (action.type === "hydrate") {
-    return { ...state, messages: action.messages, status: "idle", activeGenerationId: null, activeMessageId: null, error: null };
+    const persistedKeys = new Set(
+      action.messages.map((message) => message.clientMessageId ?? message.id),
+    );
+    const currentOnly = state.messages.filter(
+      (message) => !persistedKeys.has(message.clientMessageId ?? message.id),
+    );
+    return {
+      ...state,
+      messages: [...action.messages, ...currentOnly],
+      status: state.status === "streaming" ? state.status : "idle",
+      activeGenerationId: state.activeGenerationId,
+      activeMessageId: state.activeMessageId,
+      error: state.error,
+    };
   }
 
   if (action.type === "submit") {
