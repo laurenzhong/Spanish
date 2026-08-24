@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-24
 - 当前里程碑：个人 Alpha 阶段 6——Lucía 好友系统
-- 总体状态：ALPHA-027 对话消息流及消息持久化基础已完成；已补充数据库不可用提示与历史恢复竞态修复
+- 总体状态：ALPHA-027 对话消息流及消息持久化基础已完成；数据库前置数据准备已完成，下一项为 ALPHA-028
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -79,6 +79,42 @@
 - 2026-08-24 已配置 Supabase PostgreSQL；Drizzle `0000`–`0003` 迁移已应用，`conversations_user_character_uidx` 已在远程数据库存在。当前远程 `characters`、`conversations`、`messages` 为空，真实 Lucía 写入需先导入角色/内容并使用已有用户 profile 验证。
 - 语音入口只验证录音能力和文字降级，真实 STT/语音消息留给后续 provider 任务。
 - 下一项为 ALPHA-028：关系记忆与共享权限；只从完整 `done` 对话轮提取候选记忆并实施角色共享许可。
+
+### ALPHA-027 后置数据库准备切片
+
+状态：`done`
+
+结果：
+
+- 新增独立人物导入 application/repository 与 `pnpm character:import` 脚本，按人物圣经校验并幂等写入 `characters` 与 `character_canon_facts`。
+- 新增 `pnpm auth:repair-profiles` 脚本，只为现有 `auth.users` 补建缺失的 `profiles` 和 `user_preferences`，不修改认证信息、关系记忆或能力数据。
+- 已执行远程 Supabase 初始化：`profiles=1`、`user_preferences=1`、`characters=1`、`character_canon_facts=4`；Lucía `lucia@1` 保持 `draft`。
+- `pnpm character:import` 连续执行结果为 `imported`、`unchanged`，证明同版本导入幂等；不同内容会拒绝覆盖。
+
+修改文件：
+
+- `src/modules/characters/application/import-character-bible.ts`
+- `src/modules/characters/repositories/character-repository.ts`
+- `src/modules/characters/repositories/drizzle-character-repository.ts`
+- `src/modules/characters/repositories/index.ts`
+- `src/modules/characters/index.ts`
+- `scripts/import-character.ts`
+- `scripts/ensure-auth-profiles.ts`
+- `tests/unit/character-import.test.ts`
+- `package.json`
+
+验证：
+
+- `pnpm typecheck` 通过。
+- `pnpm lint` 通过。
+- `pnpm test --run tests/unit/character-import.test.ts`：3 个测试通过。
+- `pnpm test --run tests/database`：5 个文件、20 个测试通过。
+- `pnpm test --run --maxWorkers=1`：50 个文件、244 个测试通过；默认并发运行曾触发 Windows Node worker 内存耗尽，已用单 worker 完成全量验证。
+
+限制与下一步：
+
+- Lucía 仍是 `draft`，未绕过审核门禁；生产聊天不可因本切片自动开放 draft 角色。
+- 未实现关系记忆、共享权限或 ALPHA-028 的任何逻辑；下一项仍为 ALPHA-028。
 
 ### ALPHA-026：Lucía 人物圣经
 

@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+
+import luciaSource from "@/content/characters/lucia.json";
+import { CharacterImportConflictError, importCharacterBible } from "@/src/modules/characters";
+import type { CharacterRepository, PersistedCharacter } from "@/src/modules/characters";
+
+function repository(existing: PersistedCharacter | null = null): CharacterRepository {
+  let value = existing;
+  return {
+    async findByStableVersion() { return value; },
+    async insert({ character, profile }) {
+      value = {
+        id: "character-1",
+        stableKey: character.stableKey,
+        version: character.version,
+        status: character.status,
+        displayName: character.displayName,
+        avatarUrl: character.avatarUrl ?? null,
+        homeLocation: character.homeLocation,
+        profile,
+        facts: character.facts.map(({ factKey, value, sensitivity, version, isActive }) => ({
+          factKey,
+          value,
+          sensitivity,
+          version,
+          isActive,
+        })),
+      };
+      return value;
+    },
+    async transaction(work) { return work(this); },
+  };
+}
+
+describe("importCharacterBible", () => {
+  it("imports the validated draft with canon facts", async () => {
+    const result = await importCharacterBible(repository(), luciaSource);
+    expect(result).toMatchObject({ stableKey: "lucia", version: 1, status: "imported" });
+  });
+
+  it("is idempotent for the same character version", async () => {
+    const target = repository();
+    const first = await importCharacterBible(target, luciaSource);
+    const second = await importCharacterBible(target, luciaSource);
+    expect(first.characterId).toBe(second.characterId);
+    expect(second.status).toBe("unchanged");
+  });
+
+  it("rejects a different payload for an existing version", async () => {
+    const target = repository();
+    await importCharacterBible(target, luciaSource);
+    const changed = structuredClone(luciaSource) as typeof luciaSource;
+    changed.displayName = "Lucía distinta";
+    await expect(importCharacterBible(target, changed)).rejects.toBeInstanceOf(CharacterImportConflictError);
+  });
+});
