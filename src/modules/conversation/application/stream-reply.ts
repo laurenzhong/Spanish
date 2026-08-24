@@ -2,6 +2,8 @@ import {
   type ConversationErrorEvent,
   type ConversationStreamEvent,
 } from "../domain/stream-protocol";
+import { generateCharacterReply } from "./generate-character-reply";
+import type { ReplyContext } from "./build-reply-context";
 
 export type StreamReplyInput = Readonly<{
   characterKey: string;
@@ -10,6 +12,7 @@ export type StreamReplyInput = Readonly<{
   clientMessageId: string;
   generationId: string;
   messageId: string;
+  replyContext?: ReplyContext;
   signal?: AbortSignal;
   wait?: (milliseconds: number) => Promise<void>;
 }>;
@@ -23,31 +26,6 @@ export class StreamReplyError extends Error {
     this.event = event;
   }
 }
-const replies = [
-  {
-    test: /\b(ia|inteligencia artificial|eres un bot|real)\b/iu,
-    text: "Soy un personaje de IA, y me gusta hablar contigo con honestidad. ¿Qué te gustaría contarme?",
-  },
-  {
-    test: /\b(cómo estás|como estas|qué tal estás|que tal estas|cómo te va|como te va)\b/iu,
-    text: "Estoy bien, gracias. Me alegra leerte; ¿y tú, cómo estás?",
-  },
-  {
-    test: /\b(hola|hey|buenas|qué tal|como va|cómo va)\b/iu,
-    text: "¡Hola! Qué alegría leerte. Yo estoy bien; ¿cómo va todo por tu lado?",
-  },
-  {
-    test: /\b(comida|comer|café|caf[eé]|cocina|sabor)\b/iu,
-    text: "La comida siempre da para una buena charla. ¿Qué sabor te apetece descubrir hoy?",
-  },
-  {
-    test: /\b(madrid|foto|fotografía|paseo|ciudad)\b/iu,
-    text: "Me encanta fijarme en los detalles de la ciudad. ¿Qué escena te llamó la atención últimamente?",
-  },
-] as const;
-
-const defaultReply = "Te leo. Cuéntame un poco más; me interesa saber qué tienes en mente.";
-
 function splitReply(text: string): readonly string[] {
   return text.match(/.{1,18}(?:\s+|$)/gu)?.map((part) =>
     /\s$/u.test(part) ? part.replace(/\s+$/u, " ") : part,
@@ -81,6 +59,10 @@ export async function* streamReply(
     yield errorEvent(input, "character-unavailable", false);
     return;
   }
+  if (input.signal?.aborted) {
+    yield errorEvent(input, "stream-aborted", true);
+    return;
+  }
 
   yield {
     type: "meta",
@@ -91,7 +73,27 @@ export async function* streamReply(
     messageId: input.messageId,
   };
 
-  const reply = replies.find((candidate) => candidate.test.test(trimmed))?.text ?? defaultReply;
+  const context = input.replyContext ?? {
+    generationId: input.generationId,
+    userId: "anonymous",
+    userMessage: trimmed,
+    recentMessages: [],
+    character: {
+      characterKey: input.characterKey,
+      characterVersion: input.characterVersion,
+      displayName: "Lucía Martín",
+      homeLocation: "Madrid",
+      initiative: "balanced" as const,
+      tone: ["cercana", "natural"],
+      topics: ["fotografía urbana", "comida local", "Madrid"],
+      facts: [],
+    },
+    relationshipStage: "new_contact" as const,
+    relationshipSummary: null,
+    memories: [],
+    teachingOpportunity: null,
+  };
+  const reply = generateCharacterReply({ context, signal: input.signal }).text;
   for (const chunk of splitReply(reply)) {
     if (input.signal?.aborted) {
       yield errorEvent(input, "stream-aborted", true);

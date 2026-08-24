@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  buildReplyContext,
   encodeConversationEvent,
   createDrizzleConversationRepository,
+  luciaReplyCharacter,
   persistCompletedAssistantMessage,
   persistUserMessage,
   streamReply,
@@ -65,6 +67,33 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
+  const repository = process.env.DATABASE_URL
+    ? createDrizzleConversationRepository(getDatabase())
+    : null;
+  const memoryRepository = process.env.DATABASE_URL
+    ? createDrizzleMemoryRepository(getDatabase())
+    : null;
+  const readableMemoryRepository = memoryRepository && typeof memoryRepository.listReadableMemories === "function"
+    ? memoryRepository
+    : undefined;
+  let replyContext;
+  try {
+    replyContext = await buildReplyContext({
+      generationId,
+      userId: user.id,
+      userMessage: text.trim(),
+      character: luciaReplyCharacter,
+      memoryRepository: readableMemoryRepository,
+    });
+  } catch {
+    // A memory read failure must not block a natural reply; continue without memory context.
+    replyContext = await buildReplyContext({
+      generationId,
+      userId: user.id,
+      userMessage: text.trim(),
+      character: luciaReplyCharacter,
+    });
+  }
   const replyInput: StreamReplyInput = {
     characterKey: characterId,
     characterVersion: 1,
@@ -72,14 +101,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     clientMessageId,
     generationId,
     messageId: randomUUID(),
+    replyContext,
     signal: request.signal,
   };
-  const repository = process.env.DATABASE_URL
-    ? createDrizzleConversationRepository(getDatabase())
-    : null;
-  const memoryRepository = process.env.DATABASE_URL
-    ? createDrizzleMemoryRepository(getDatabase())
-    : null;
   let conversationId: string | null = null;
   let userMessageId: string | null = null;
   if (repository) {

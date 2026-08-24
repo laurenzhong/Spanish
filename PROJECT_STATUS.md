@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-24
 - 当前里程碑：个人 Alpha 阶段 6——Lucía 好友系统
-- 总体状态：ALPHA-027 对话消息流及消息持久化基础已完成；数据库前置数据准备已完成，下一项为 ALPHA-028
+- 总体状态：ALPHA-028 关系记忆与共享权限已完成；当前执行 ALPHA-029 角色回复规划
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,70 @@
 
 ## 当前任务
 
-当前任务为 ALPHA-027：对话消息流及消息持久化基础；前置任务 ALPHA-026 已完成。
+当前任务为 ALPHA-029：角色回复规划；前置任务 ALPHA-028 已完成。
+
+### ALPHA-029：角色回复规划
+
+- 状态：`in_progress`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：ALPHA-028，已完成
+- 计划位置：实施计划任务 6.3
+- 实现 Commit：待提交
+
+范围：
+
+- 先生成结构化回复计划，再生成西班牙语表面文本。
+- 回复计划覆盖真实回应、情绪、关系阶段、追问/分享/换话题、自然学习机会和回复长度。
+- 记忆上下文只读取当前角色可读的关系记忆；教学机会不能替代对用户内容的回应。
+- 保留现有 NDJSON `meta`、`delta`、`done`、`error` 协议，以及取消、重试和 generation 边界。
+
+验收：
+
+- 纯 TypeScript domain/application 可独立确定性测试。
+- AI 身份询问、情绪表达、自然追问和角色边界有固定回放断言。
+- 私密关系记忆不会从其他角色上下文进入回复；无 `done` 的流不触发后续记忆提取。
+
+### ALPHA-028：关系记忆与共享权限
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：ALPHA-027，已完成
+- 计划位置：实施计划任务 6.4
+- 实现 Commit：`8a4b836`
+- 后续修复 Commit：`316a50a`
+
+结果：
+
+- 新增纯 TypeScript 记忆候选提取、重复/冲突分类和事务提交用例。
+- 只从完整 `done` 对话轮提取用户第一人称事实；候选默认 `private`。
+- 新增关系记忆仓库、显式共享许可、撤销、删除和当前角色可读投影。
+- 对话流只在助手消息持久化完成后触发记忆提取；提取失败不会把已完成回复标为失败。
+
+修改文件：
+
+- `src/modules/memory/`
+- `app/api/v1/conversations/[characterId]/stream/route.ts`
+- `src/shared/db/schema/characters.ts`
+- `drizzle/0004_calm_iron_monger.sql`
+- `tests/unit/memory.test.ts`
+- `tests/unit/conversation-route-persistence.test.ts`
+- `tests/database/memory-persistence.test.ts`
+- `docs/database.md`
+
+验证：
+
+- 关系记忆领域、对话持久化和数据库共享权限测试通过。
+- 迁移保持版本化；客户端不能直接写关系记忆或共享权限。
+
+限制与下一步：
+
+- 当前没有 LLM/provider；回复仍由 deterministic fake 生成。
+- Lucía 人物仍为 `draft`，生产发布继续受审核门禁约束。
+- 下一项为 ALPHA-029：角色回复规划。
+
+以下为前序任务记录：ALPHA-027 对话消息流及消息持久化基础；前置任务 ALPHA-026 已完成。
 
 ### ALPHA-027：对话消息流
 
@@ -78,7 +141,7 @@
 - 当前开发服务未配置 `DATABASE_URL` 时，聊天页会明确提示消息未保存；配置可用 PostgreSQL 后，Web 才能在切换页面/刷新后恢复消息。
 - 2026-08-24 已配置 Supabase PostgreSQL；Drizzle `0000`–`0003` 迁移已应用，`conversations_user_character_uidx` 已在远程数据库存在。当前远程 `characters`、`conversations`、`messages` 为空，真实 Lucía 写入需先导入角色/内容并使用已有用户 profile 验证。
 - 语音入口只验证录音能力和文字降级，真实 STT/语音消息留给后续 provider 任务。
-- 下一项为 ALPHA-028：关系记忆与共享权限；只从完整 `done` 对话轮提取候选记忆并实施角色共享许可。
+- 后续 ALPHA-028 已完成关系记忆与共享权限；当前执行 ALPHA-029 角色回复规划。
 
 ### ALPHA-027 后置数据库准备切片
 
@@ -114,7 +177,7 @@
 限制与下一步：
 
 - Lucía 仍是 `draft`，未绕过审核门禁；生产聊天不可因本切片自动开放 draft 角色。
-- 未实现关系记忆、共享权限或 ALPHA-028 的任何逻辑；下一项仍为 ALPHA-028。
+- 关系记忆与共享权限已在 ALPHA-028 完成；当前进入 ALPHA-029。
 
 ### ALPHA-026：Lucía 人物圣经
 
@@ -553,6 +616,8 @@
 | ALPHA-025 | done | `codex/alpha-025-immersive-content` | Codex | 沉浸内容包体验 | ALPHA-024 |
 | ALPHA-026 | done | `fix/login-redirect-after-otp` | Codex | Lucía 人物圣经 | ALPHA-025 |
 | ALPHA-027 | done | `fix/login-redirect-after-otp` | Codex | 对话消息流 | ALPHA-026 |
+| ALPHA-028 | done | `fix/login-redirect-after-otp` | Codex | 关系记忆与共享权限 | ALPHA-027 |
+| ALPHA-029 | in_progress | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -560,9 +625,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-028 | 关系记忆与共享权限 | ALPHA-027 |
-| 2 | ALPHA-029 | 角色回复规划 | ALPHA-028 |
-| 3 | ALPHA-030 | 好友介绍与角色网络 | ALPHA-029 |
+| 1 | ALPHA-029 | 角色回复规划 | ALPHA-028 |
+| 2 | ALPHA-030 | 好友介绍与角色网络 | ALPHA-029 |
+| 3 | 待排序 | 后续 Alpha 完整化任务 | ALPHA-030 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
