@@ -33,7 +33,13 @@ export default function ChatPage() {
             <span>文字和语音都可以</span>
           </div>
         </div>
-        <Link className="conversation-hero__action" href="/learn/practice">
+        <Link className="conversation-hero__action" href="/chat/lucia">
+          打开对话
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M5 12h13M13 6l6 6-6 6" />
+          </svg>
+        </Link>
+        <Link className="conversation-hero__action conversation-hero__action--secondary" href="/learn/practice">
           先练一句
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <path d="M5 12h13M13 6l6 6-6 6" />

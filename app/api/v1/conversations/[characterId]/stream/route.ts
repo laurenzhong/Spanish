@@ -1,0 +1,104 @@
+import { randomUUID } from "node:crypto";
+
+import { NextRequest, NextResponse } from "next/server";
+
+import {
+  encodeConversationEvent,
+  streamReply,
+  type StreamReplyInput,
+} from "@/src/modules/conversation";
+import { verifyRequestUser } from "@/src/shared/auth/server";
+
+type RouteContext = Readonly<{ params: Promise<{ characterId: string }> }>;
+
+function jsonError(code: string, message: string, status: number): NextResponse {
+  return NextResponse.json(
+    { error: { code, message, retryable: status >= 500 } },
+    { status },
+  );
+}
+
+export async function POST(request: NextRequest, context: RouteContext) {
+  const user = await verifyRequestUser(request);
+  if (!user) return jsonError("AUTH_REQUIRED", "A valid user session is required.", 401);
+
+  const { characterId } = await context.params;
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError("INPUT_INVALID", "The conversation request is not valid JSON.", 400);
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonError("INPUT_INVALID", "The conversation request is invalid.", 400);
+  }
+  const input = body as Record<string, unknown>;
+  const text = typeof input.text === "string" ? input.text : "";
+  const characterVersion = input.characterVersion === undefined ? 1 : input.characterVersion;
+  const clientMessageId = typeof input.clientMessageId === "string" ? input.clientMessageId : "";
+  const generationId = typeof input.generationId === "string" ? input.generationId : "";
+  if (
+    characterId !== "lucia" ||
+    characterVersion !== 1 ||
+    !text.trim() ||
+    text.length > 2_000 ||
+    !clientMessageId.trim() ||
+    !generationId.trim()
+  ) {
+    return jsonError(
+      characterId !== "lucia" || characterVersion !== 1
+        ? "CHARACTER_UNAVAILABLE"
+        : "INPUT_INVALID",
+      "This conversation request cannot be started.",
+      characterId !== "lucia" || characterVersion !== 1 ? 404 : 400,
+    );
+  }
+
+  const replyInput: StreamReplyInput = {
+    characterKey: characterId,
+    characterVersion: 1,
+    text,
+    clientMessageId,
+    generationId,
+    messageId: randomUUID(),
+    signal: request.signal,
+  };
+  const iterator = streamReply(replyInput);
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const event of iterator) {
+          controller.enqueue(encoder.encode(encodeConversationEvent(event)));
+        }
+        controller.close();
+      } catch {
+        controller.enqueue(
+          encoder.encode(
+            encodeConversationEvent({
+              type: "error",
+              generationId,
+              messageId: null,
+              code: "stream-failed",
+              retryable: true,
+            }),
+          ),
+        );
+        controller.close();
+      }
+    },
+    cancel() {
+      // The request signal is owned by Next; streamReply observes it between chunks.
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-store, no-cache, must-revalidate",
+      connection: "keep-alive",
+    },
+  });
+}

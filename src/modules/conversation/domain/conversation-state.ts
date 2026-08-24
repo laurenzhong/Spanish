@@ -1,0 +1,170 @@
+import type {
+  ConversationErrorEvent,
+  ConversationStreamEvent,
+} from "./stream-protocol";
+
+export type ConversationStatus = "idle" | "streaming" | "completed" | "cancelled" | "failed";
+
+export type ConversationMessage = Readonly<{
+  id: string;
+  clientMessageId?: string;
+  role: "user" | "character";
+  text: string;
+  generationId?: string;
+  complete: boolean;
+}>;
+
+export type ConversationState = Readonly<{
+  status: ConversationStatus;
+  messages: readonly ConversationMessage[];
+  activeGenerationId: string | null;
+  activeMessageId: string | null;
+  error: ConversationErrorEvent | null;
+}>;
+
+export type ConversationAction =
+  | Readonly<{ type: "submit"; text: string; clientMessageId: string; generationId: string }>
+  | Readonly<{ type: "retry"; userMessageId: string; generationId: string }>
+  | Readonly<{ type: "stream-event"; event: ConversationStreamEvent }>
+  | Readonly<{ type: "cancel"; generationId: string }>
+  | Readonly<{ type: "reset" }>;
+
+export function createConversationState(): ConversationState {
+  return {
+    status: "idle",
+    messages: [],
+    activeGenerationId: null,
+    activeMessageId: null,
+    error: null,
+  };
+}
+
+function isCurrent(state: ConversationState, generationId: string): boolean {
+  return state.activeGenerationId === generationId;
+}
+
+function withMessage(
+  messages: readonly ConversationMessage[],
+  id: string,
+  update: (message: ConversationMessage) => ConversationMessage,
+): readonly ConversationMessage[] {
+  return messages.map((message) => (message.id === id ? update(message) : message));
+}
+
+export function transitionConversationState(
+  state: ConversationState,
+  action: ConversationAction,
+): ConversationState {
+  if (action.type === "reset") return createConversationState();
+
+  if (action.type === "submit") {
+    const alreadyAdded = state.messages.some(
+      (message) => message.clientMessageId === action.clientMessageId,
+    );
+    return {
+      ...state,
+      status: "streaming",
+      messages: alreadyAdded
+        ? state.messages
+        : [
+            ...state.messages,
+            {
+              id: action.clientMessageId,
+              clientMessageId: action.clientMessageId,
+              role: "user",
+              text: action.text,
+              complete: true,
+            },
+          ],
+      activeGenerationId: action.generationId,
+      activeMessageId: null,
+      error: null,
+    };
+  }
+
+  if (action.type === "retry") {
+    if (state.status !== "failed" && state.status !== "cancelled") return state;
+    const userMessage = state.messages.find((message) => message.id === action.userMessageId);
+    if (!userMessage || userMessage.role !== "user") return state;
+    return {
+      ...state,
+      status: "streaming",
+      activeGenerationId: action.generationId,
+      activeMessageId: null,
+      error: null,
+    };
+  }
+
+  if (action.type === "cancel") {
+    if (!isCurrent(state, action.generationId)) return state;
+    return { ...state, status: "cancelled", error: null };
+  }
+
+  const event = action.event;
+  if (!isCurrent(state, event.generationId)) return state;
+
+  if (event.type === "meta") {
+    const existing = state.messages.some((message) => message.id === event.messageId);
+    return {
+      ...state,
+      status: "streaming",
+      activeMessageId: event.messageId,
+      messages: existing
+        ? state.messages
+        : [
+            ...state.messages,
+            {
+              id: event.messageId,
+              role: "character",
+              text: "",
+              generationId: event.generationId,
+              complete: false,
+            },
+          ],
+    };
+  }
+
+  if (event.type === "error") {
+    return {
+      ...state,
+      status: event.code === "stream-aborted" ? "cancelled" : "failed",
+      error: event,
+    };
+  }
+
+  if (!state.activeMessageId || event.messageId !== state.activeMessageId) return state;
+
+  if (event.type === "delta") {
+    return {
+      ...state,
+      status: "streaming",
+      messages: withMessage(state.messages, event.messageId, (message) => ({
+        ...message,
+        text: `${message.text}${event.text}`,
+      })),
+    };
+  }
+  if (event.type === "done") {
+    return {
+      ...state,
+      status: "completed",
+      messages: withMessage(state.messages, event.messageId, (message) => ({
+        ...message,
+        complete: true,
+      })),
+    };
+  }
+  return state;
+}
+
+export function findRetryableUserMessage(state: ConversationState): ConversationMessage | null {
+  const assistant = state.activeMessageId
+    ? state.messages.find((message) => message.id === state.activeMessageId)
+    : null;
+  if (!assistant) return null;
+  const index = state.messages.findIndex((message) => message.id === assistant.id);
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (state.messages[cursor]?.role === "user") return state.messages[cursor] ?? null;
+  }
+  return null;
+}
