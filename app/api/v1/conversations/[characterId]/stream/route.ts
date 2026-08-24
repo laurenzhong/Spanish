@@ -10,6 +10,11 @@ import {
   streamReply,
   type StreamReplyInput,
 } from "@/src/modules/conversation";
+import {
+  commitMemories,
+  createDrizzleMemoryRepository,
+  extractMemories,
+} from "@/src/modules/memory";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -72,11 +77,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const repository = process.env.DATABASE_URL
     ? createDrizzleConversationRepository(getDatabase())
     : null;
+  const memoryRepository = process.env.DATABASE_URL
+    ? createDrizzleMemoryRepository(getDatabase())
+    : null;
   let conversationId: string | null = null;
+  let userMessageId: string | null = null;
   if (repository) {
     try {
       conversationId = await repository.getOrCreateConversation(user.id, characterId, 1);
-      await persistUserMessage(repository, {
+      const userMessage = await persistUserMessage(repository, {
         userId: user.id,
         conversationId,
         characterKey: characterId,
@@ -84,6 +93,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
         generationId,
         content: text.trim(),
       });
+      // reply_to_message_id is a database UUID, not the client-generated id.
+      userMessageId = userMessage.id;
     } catch {
       return jsonError("CONVERSATION_UNAVAILABLE", "The conversation could not be saved.", 503);
     }
@@ -96,8 +107,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       try {
         for await (const event of iterator) {
           if (event.type === "delta") assistantText += event.text;
-          if (event.type === "done" && repository && conversationId) {
-            await persistCompletedAssistantMessage(repository, {
+          if (event.type === "done" && repository && conversationId && userMessageId) {
+            const assistantMessage = await persistCompletedAssistantMessage(repository, {
               userId: user.id,
               conversationId,
               characterKey: characterId,
@@ -105,8 +116,40 @@ export async function POST(request: NextRequest, context: RouteContext) {
               generationId,
               clientMessageId: `assistant-${generationId}`,
               content: assistantText,
-              replyToMessageId: clientMessageId,
+              replyToMessageId: userMessageId,
             });
+            if (memoryRepository) {
+              const candidates = extractMemories({
+                userId: user.id,
+                characterKey: characterId,
+                characterVersion: 1,
+                conversationId,
+                turn: {
+                  status: "done",
+                  userMessage: {
+                    id: userMessageId,
+                    role: "user",
+                    status: "completed",
+                    content: text.trim(),
+                  },
+                  assistantMessage: {
+                    id: assistantMessage.id,
+                    role: "character",
+                    status: "completed",
+                    content: assistantMessage.content,
+                  },
+                },
+              });
+              if (candidates.length > 0) {
+                // Memory extraction is best-effort after the durable message write.
+                // A memory failure must not turn a completed chat reply into a failed one.
+                try {
+                  await commitMemories({ repository: memoryRepository, completed: true, candidates });
+                } catch {
+                  // Do not log candidate text or private conversation content.
+                }
+              }
+            }
           }
           controller.enqueue(encoder.encode(encodeConversationEvent(event)));
         }

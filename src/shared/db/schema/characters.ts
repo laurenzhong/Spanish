@@ -209,6 +209,7 @@ export const relationshipMemories = pgTable(
     sourceMessageId: uuid("source_message_id").references(() => messages.id, {
       onDelete: "set null",
     }),
+    factKey: text("fact_key").notNull(),
     category: text("category").notNull(),
     content: text("content").notNull(),
     confidence: real("confidence").notNull(),
@@ -226,6 +227,11 @@ export const relationshipMemories = pgTable(
       table.characterId,
     ),
     index("relationship_memories_user_status_idx").on(table.userId, table.status),
+    index("relationship_memories_user_character_fact_idx").on(
+      table.userId,
+      table.characterId,
+      table.factKey,
+    ),
     check(
       "relationship_memories_confidence_range_check",
       sql`${table.confidence} >= 0 and ${table.confidence} <= 1`,

@@ -35,6 +35,8 @@ ALPHA-005 新增 `content_bundle_imports` 作为服务端导入登记表，保�
 
 业务模块后续只能通过 repository/application 边界访问自己拥有的表，不能把 Drizzle 行类型直接扩散到 UI、Flutter 或公共 API。
 
+ALPHA-028 的 `relationship_memories.fact_key` 是用户与角色范围内的稳定事实键，用于在事务中判定重复与冲突；冲突候选追加为 `conflict`，不会覆盖旧记忆。`share_scope` 默认保持 `private`，跨角色读取必须同时存在用户明确授予的 `memory_sharing_permissions` 记录。
+
 ## 3. 连接配置
 
 复制 `.env.example` 为本地 `.env`，不要提交真实值：
@@ -84,6 +86,7 @@ pnpm db:migrate
 - 尝试、证据和角色消息包含稳定客户端 ID、幂等键或 generation 标识，后续重试不能重复写入事实。
 - 内容和人物设定保存版本；已经产生学习证据的版本不得静默覆盖。
 - 普通录音使用 `audio_assets.retention_policy` 表达生命周期，真正的存储删除流程在语音任务中实现。
+- 关系记忆只保存抽取后的短事实值及来源 ID，不保存完整私聊正文；完整 `done` 消息轮之外不得创建记忆候选。
 
 ## 6. RLS 策略摘要
 
