@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-24
 - 当前里程碑：个人 Alpha 阶段 6——Lucía 好友系统
-- 总体状态：ALPHA-026 Lucía 人物圣经已完成，等待合并
+- 总体状态：ALPHA-027 对话消息流已完成，等待合并
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,56 @@
 
 ## 当前任务
 
-当前任务为 ALPHA-026：Lucía 人物圣经；前置任务 ALPHA-025 已完成。
+当前任务为 ALPHA-027：对话消息流；前置任务 ALPHA-026 已完成。
+
+### ALPHA-027：对话消息流
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：ALPHA-026，已完成
+- 计划位置：实施计划任务 6.2
+- 实现 Commit：`ecdfd03`
+
+结果：
+
+- 新增纯 TypeScript `conversation` domain/application：版本化 NDJSON `meta`、`delta`、`done`、`error` 协议、任意 chunk 解析、确定性 fake Lucía 回复和 generation 状态机。
+- 新增鉴权 Route Handler `/api/v1/conversations/[characterId]/stream`，仅允许 `lucia@1`，不调用网络、LLM/provider、不写 `conversations`、`messages` 或关系记忆。
+- Web 新增 `/chat/lucia` 消息线程；用户消息先出现，只有收到 `done` 才标记角色消息完成；停止、断流、stale generation 和重试可预测。
+- Flutter 新增同协议解析器、fake 流、消息线程和语音 composer；无 STT 时只降级到打字，不伪造转写、不上传或保存录音。
+- `/chat` 保留原有“先练一句”入口，并新增“打开对话”进入 Lucía 线程。
+
+修改文件：
+
+- `src/modules/conversation/`
+- `app/api/v1/conversations/[characterId]/stream/route.ts`
+- `app/(product)/chat/[characterId]/page.tsx`
+- `app/(product)/chat/page.tsx`
+- `src/modules/conversation/ui/`
+- `apps/mobile/lib/features/conversation/`
+- `apps/mobile/lib/features/chat/chat_page.dart`
+- `tests/unit/conversation.test.ts`
+- `apps/mobile/test/features/conversation/conversation_stream_test.dart`
+- `tests/e2e/conversation.spec.ts`
+- `docs/superpowers/specs/2026-08-24-conversation-message-stream-design.md`
+- `app/globals.css`
+
+验证：
+
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm test --run tests/unit`：37 个文件、190 个测试通过。
+- `pnpm test:contracts`：5 个文件、27 个测试通过。
+- `pnpm build` 通过，动态对话页和 Route Handler 已纳入构建。
+- `flutter analyze` 通过；`flutter test`：58 个测试通过。
+- `pnpm test --run` 全量 235 个测试中 232 个通过；3 个既有 PGlite/数据库测试因本机初始化超过 10 秒超时，不涉及 conversation 改动。
+- 新增 Playwright 未执行：3000 端口已有用户开发服务，Playwright 配置要求独占该端口；未停止或修改该服务。
+
+限制与下一步：
+
+- 回复仍是本地 fake，不代表最终生成质量；消息只存在客户端当前会话，刷新会丢失。
+- 语音入口只验证录音能力和文字降级，真实 STT/语音消息留给后续 provider 任务。
+- 下一项为 ALPHA-028：关系记忆与共享权限；只从完整 `done` 对话轮提取候选记忆并实施角色共享许可。
 
 ### ALPHA-026：Lucía 人物圣经
 
@@ -460,6 +509,7 @@
 | ALPHA-024 | done | `codex/alpha-024-initial-diagnostic` | Codex | 初次诊断：3–5 个渐进交际任务与初始证据 | ALPHA-023 |
 | ALPHA-025 | done | `codex/alpha-025-immersive-content` | Codex | 沉浸内容包体验 | ALPHA-024 |
 | ALPHA-026 | done | `fix/login-redirect-after-otp` | Codex | Lucía 人物圣经 | ALPHA-025 |
+| ALPHA-027 | done | `fix/login-redirect-after-otp` | Codex | 对话消息流 | ALPHA-026 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -467,9 +517,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-027 | 对话消息流 | ALPHA-026 |
-| 2 | ALPHA-028 | 关系记忆与共享权限 | ALPHA-027 |
-| 3 | ALPHA-029 | 角色回复规划 | ALPHA-028 |
+| 1 | ALPHA-028 | 关系记忆与共享权限 | ALPHA-027 |
+| 2 | ALPHA-029 | 角色回复规划 | ALPHA-028 |
+| 3 | ALPHA-030 | 好友介绍与角色网络 | ALPHA-029 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -540,6 +590,7 @@
 | 2026-08-23 | 完成 ALPHA-021 真人视频语音校准与本地诊断汇总 | 待提交 | 5/5 视频完成；外部汇总文件已校验，不写能力证据 |
 | 2026-08-23 | 完成 ALPHA-023 首页唯一下一动作推荐器 | `33ef064` | 推荐排序与安全回退完成；不接入 UI 或 provider |
 | 2026-08-23 | 完成 ALPHA-024 初次诊断 | `33ef064` | 5 任务诊断计划、证据委托和内容校验完成；等待内容审核后发布 |
+| 2026-08-24 | 完成 ALPHA-027 对话消息流 | `ecdfd03` | Web/Flutter NDJSON fake 对话、取消、断流和重试完成；下一步处理关系记忆权限 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
