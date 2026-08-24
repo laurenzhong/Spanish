@@ -22,6 +22,13 @@
       "when": 1787239521320,
       "tag": "0002_content_import_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787568617296,
+      "tag": "0003_chunky_black_knight",
+      "breakpoints": true
     }
   ]
 }

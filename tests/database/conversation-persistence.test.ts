@@ -37,7 +37,7 @@ describe("conversation persistence", () => {
       grant usage on schema auth to anon, authenticated;
       grant execute on function auth.uid() to anon, authenticated;
     `);
-    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_conversation_persistence.sql"]) await client.exec(await migration(name));
+    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql"]) await client.exec(await migration(name));
     database = drizzle(client, { schema });
     await client.exec(`insert into auth.users (id, email) values ('${userId}', 'conversation@example.test');`);
     await database.insert(schema.characters).values({ id: characterId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "published" });
