@@ -130,6 +130,20 @@ abstract interface class ConversationStreamClient {
   Stream<String> streamReply({required String text, required String clientMessageId, required String generationId});
 }
 
+class ConversationHistoryMessage {
+  const ConversationHistoryMessage({required this.id, required this.role, required this.text, required this.complete, this.clientMessageId, this.generationId});
+  final String id;
+  final String role;
+  final String text;
+  final bool complete;
+  final String? clientMessageId;
+  final String? generationId;
+}
+
+abstract interface class ConversationHistoryClient {
+  Future<List<ConversationHistoryMessage>> loadHistory();
+}
+
 class FakeConversationStreamClient implements ConversationStreamClient {
   const FakeConversationStreamClient();
 

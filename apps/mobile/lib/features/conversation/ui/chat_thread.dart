@@ -6,9 +6,10 @@ import '../data/conversation_stream.dart';
 import 'voice_composer.dart';
 
 class ConversationChatThread extends StatefulWidget {
-  const ConversationChatThread({this.client, super.key});
+  const ConversationChatThread({this.client, this.historyClient, super.key});
 
   final ConversationStreamClient? client;
+  final ConversationHistoryClient? historyClient;
 
   @override
   State<ConversationChatThread> createState() => _ConversationChatThreadState();
@@ -38,6 +39,15 @@ class _ConversationChatThreadState extends State<ConversationChatThread> {
   void initState() {
     super.initState();
     _client = widget.client ?? const FakeConversationStreamClient();
+    final historyClient = widget.historyClient;
+    if (historyClient != null) {
+      unawaited(historyClient.loadHistory().then((history) {
+        if (!mounted || _messages.isNotEmpty) return;
+        setState(() {
+          _messages.addAll(history.map((message) => _ConversationMessage(id: message.id, role: message.role, text: message.text, complete: message.complete, clientMessageId: message.clientMessageId)));
+        });
+      }).catchError((_) {}));
+    }
   }
 
   @override

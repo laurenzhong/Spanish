@@ -191,6 +191,7 @@ describe("database schema", () => {
         "0000_big_phalanx.sql",
         "0001_auth_rls.sql",
         "0002_content_import_registry.sql",
+        "0003_conversation_persistence.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),

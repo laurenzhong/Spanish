@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-24
 - 当前里程碑：个人 Alpha 阶段 6——Lucía 好友系统
-- 总体状态：ALPHA-027 对话消息流已完成，等待合并
+- 总体状态：ALPHA-027 对话消息流及消息持久化基础已完成，等待合并
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 ALPHA-027：对话消息流；前置任务 ALPHA-026 已完成。
+当前任务为 ALPHA-027：对话消息流及消息持久化基础；前置任务 ALPHA-026 已完成。
 
 ### ALPHA-027：对话消息流
 
@@ -33,11 +33,12 @@
 - 计划位置：实施计划任务 6.2
 - 实现 Commit：`ecdfd03`
 - 后续修复 Commit：`cf68679`, `018048d`
+- 持久化补充 Commit：本次提交（以当前分支最新 commit 为准）
 
 结果：
 
 - 新增纯 TypeScript `conversation` domain/application：版本化 NDJSON `meta`、`delta`、`done`、`error` 协议、任意 chunk 解析、确定性 fake Lucía 回复和 generation 状态机。
-- 新增鉴权 Route Handler `/api/v1/conversations/[characterId]/stream`，仅允许 `lucia@1`，不调用网络、LLM/provider、不写 `conversations`、`messages` 或关系记忆。
+- 新增鉴权 Route Handler `/api/v1/conversations/[characterId]/stream`，仅允许 `lucia@1`；消息持久化只在服务端通过 repository 完成，不调用网络、LLM/provider。
 - Web 新增 `/chat/lucia` 消息线程；用户消息先出现，只有收到 `done` 才标记角色消息完成；停止、断流、stale generation 和重试可预测。
 - Flutter 新增同协议解析器、fake 流、消息线程和语音 composer；无 STT 时只降级到打字，不伪造转写、不上传或保存录音。
 - `/chat` 保留原有“先练一句”入口，并新增“打开对话”进入 Lucía 线程。
@@ -72,7 +73,8 @@
 
 限制与下一步：
 
-- 回复仍是本地 fake，不代表最终生成质量；消息只存在客户端当前会话，刷新会丢失。
+- 回复仍是本地 fake，不代表最终生成质量。Web 已通过历史 GET 在刷新/重开后恢复 completed 消息；助手半截、失败或取消回复不入库。
+- Flutter 已加入历史读取客户端抽象和 HTTP 历史实现，但当前生产流式 transport 仍是后续切片；现有 Flutter 聊天默认继续使用 deterministic fake。
 - 语音入口只验证录音能力和文字降级，真实 STT/语音消息留给后续 provider 任务。
 - 下一项为 ALPHA-028：关系记忆与共享权限；只从完整 `done` 对话轮提取候选记忆并实施角色共享许可。
 

@@ -23,6 +23,7 @@ export type ConversationState = Readonly<{
 }>;
 
 export type ConversationAction =
+  | Readonly<{ type: "hydrate"; messages: readonly ConversationMessage[] }>
   | Readonly<{ type: "submit"; text: string; clientMessageId: string; generationId: string }>
   | Readonly<{ type: "retry"; userMessageId: string; generationId: string }>
   | Readonly<{ type: "stream-event"; event: ConversationStreamEvent }>
@@ -56,6 +57,10 @@ export function transitionConversationState(
   action: ConversationAction,
 ): ConversationState {
   if (action.type === "reset") return createConversationState();
+
+  if (action.type === "hydrate") {
+    return { ...state, messages: action.messages, status: "idle", activeGenerationId: null, activeMessageId: null, error: null };
+  }
 
   if (action.type === "submit") {
     const alreadyAdded = state.messages.some(

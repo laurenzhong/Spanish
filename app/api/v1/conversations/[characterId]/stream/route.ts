@@ -4,10 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   encodeConversationEvent,
+  createDrizzleConversationRepository,
+  persistCompletedAssistantMessage,
+  persistUserMessage,
   streamReply,
   type StreamReplyInput,
 } from "@/src/modules/conversation";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getDatabase } from "@/src/shared/db/client";
 
 type RouteContext = Readonly<{ params: Promise<{ characterId: string }> }>;
 
@@ -65,12 +69,45 @@ export async function POST(request: NextRequest, context: RouteContext) {
     messageId: randomUUID(),
     signal: request.signal,
   };
+  const repository = process.env.DATABASE_URL
+    ? createDrizzleConversationRepository(getDatabase())
+    : null;
+  let conversationId: string | null = null;
+  if (repository) {
+    try {
+      conversationId = await repository.getOrCreateConversation(user.id, characterId, 1);
+      await persistUserMessage(repository, {
+        userId: user.id,
+        conversationId,
+        characterKey: characterId,
+        clientMessageId,
+        generationId,
+        content: text.trim(),
+      });
+    } catch {
+      return jsonError("CONVERSATION_UNAVAILABLE", "The conversation could not be saved.", 503);
+    }
+  }
   const iterator = streamReply(replyInput);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      let assistantText = "";
       try {
         for await (const event of iterator) {
+          if (event.type === "delta") assistantText += event.text;
+          if (event.type === "done" && repository && conversationId) {
+            await persistCompletedAssistantMessage(repository, {
+              userId: user.id,
+              conversationId,
+              characterKey: characterId,
+              messageId: event.messageId,
+              generationId,
+              clientMessageId: `assistant-${generationId}`,
+              content: assistantText,
+              replyToMessageId: clientMessageId,
+            });
+          }
           controller.enqueue(encoder.encode(encodeConversationEvent(event)));
         }
         controller.close();

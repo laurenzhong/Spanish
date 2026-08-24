@@ -54,6 +54,7 @@ describe("Supabase RLS baseline", () => {
     await database.exec(await migration("0000_big_phalanx.sql"));
     await database.exec(await migration("0001_auth_rls.sql"));
     await database.exec(await migration("0002_content_import_registry.sql"));
+    await database.exec(await migration("0003_conversation_persistence.sql"));
 
     await database.exec(`
       insert into auth.users (id, email)

@@ -146,6 +146,10 @@ export const conversations = pgTable(
       table.userId,
       table.characterId,
     ),
+    uniqueIndex("conversations_user_character_uidx").on(
+      table.userId,
+      table.characterId,
+    ),
   ],
 );
 

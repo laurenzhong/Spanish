@@ -36,6 +36,17 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/v1/conversations/${characterKey}`)
+      .then((response) => response.ok ? response.json() as Promise<{ data?: { messages?: ConversationState["messages"] } }> : null)
+      .then((payload) => {
+        if (!cancelled && payload?.data?.messages) apply({ type: "hydrate", messages: payload.data.messages });
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [characterKey]);
+
   function apply(action: Parameters<typeof transitionConversationState>[1]) {
     setState((current) => transitionConversationState(current, action));
   }

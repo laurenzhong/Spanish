@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { POST } from "@/app/api/v1/conversations/[characterId]/stream/route";
+import { GET } from "@/app/api/v1/conversations/[characterId]/route";
 
 vi.mock("@/src/shared/auth/server", () => ({
   getCurrentUser: vi.fn(),
@@ -38,5 +39,12 @@ describe("conversation stream route authentication", () => {
     expect(body).toContain('"type":"done"');
     expect(mockedGetCurrentUser).toHaveBeenCalledTimes(1);
   });
-});
 
+  it("requires authentication before reading conversation history", async () => {
+    mockedVerifyRequestUser.mockResolvedValue(null);
+    mockedGetCurrentUser.mockResolvedValue(null);
+    const request = new NextRequest("http://localhost/api/v1/conversations/lucia");
+    const response = await GET(request, { params: Promise.resolve({ characterId: "lucia" }) });
+    expect(response.status).toBe(401);
+  });
+});
