@@ -76,6 +76,7 @@
 - 回复仍是本地 fake，不代表最终生成质量。Web 已通过历史 GET 在刷新/重开后恢复 completed 消息；助手半截、失败或取消回复不入库。
 - Flutter 已加入历史读取客户端抽象和 HTTP 历史实现，但当前生产流式 transport 仍是后续切片；现有 Flutter 聊天默认继续使用 deterministic fake。
 - 当前开发服务未配置 `DATABASE_URL` 时，聊天页会明确提示消息未保存；配置可用 PostgreSQL 后，Web 才能在切换页面/刷新后恢复消息。
+- 2026-08-24 已配置 Supabase PostgreSQL；Drizzle `0000`–`0003` 迁移已应用，`conversations_user_character_uidx` 已在远程数据库存在。当前远程 `characters`、`conversations`、`messages` 为空，真实 Lucía 写入需先导入角色/内容并使用已有用户 profile 验证。
 - 语音入口只验证录音能力和文字降级，真实 STT/语音消息留给后续 provider 任务。
 - 下一项为 ALPHA-028：关系记忆与共享权限；只从完整 `done` 对话轮提取候选记忆并实施角色共享许可。
 
