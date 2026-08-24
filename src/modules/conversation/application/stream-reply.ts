@@ -45,7 +45,9 @@ const replies = [
 const defaultReply = "Te leo. Cuéntame un poco más; me interesa saber qué tienes en mente.";
 
 function splitReply(text: string): readonly string[] {
-  return text.match(/.{1,18}(?:\s+|$)/gu)?.map((part) => part.trim()).filter(Boolean) ?? [text];
+  return text.match(/.{1,18}(?:\s+|$)/gu)?.map((part) =>
+    /\s$/u.test(part) ? part.replace(/\s+$/u, " ") : part,
+  ).filter(Boolean) ?? [text];
 }
 
 function errorEvent(

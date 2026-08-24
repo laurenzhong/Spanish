@@ -7,7 +7,7 @@ import {
   streamReply,
   type StreamReplyInput,
 } from "@/src/modules/conversation";
-import { verifyRequestUser } from "@/src/shared/auth/server";
+import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 
 type RouteContext = Readonly<{ params: Promise<{ characterId: string }> }>;
 
@@ -19,7 +19,8 @@ function jsonError(code: string, message: string, status: number): NextResponse 
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  const user = await verifyRequestUser(request);
+  // Web sends the Supabase session cookie; Flutter sends a bearer token.
+  const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
   if (!user) return jsonError("AUTH_REQUIRED", "A valid user session is required.", 401);
 
   const { characterId } = await context.params;

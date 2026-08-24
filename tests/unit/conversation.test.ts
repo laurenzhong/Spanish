@@ -110,6 +110,8 @@ describe("fake conversation reply", () => {
     expect(events[0]).toEqual(expect.objectContaining({ type: "meta" }));
     expect(events.at(-1)).toEqual({ type: "done", generationId: "generation-1", messageId: "message-1" });
     expect(events.filter((event) => event.type === "delta").length).toBeGreaterThan(0);
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toBe("¡Hola! Qué alegría leerte. Yo estoy bien; ¿cómo va todo por tu lado?");
   });
 
   it("emits an abort error and never emits done after cancellation", async () => {
