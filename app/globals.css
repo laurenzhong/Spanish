@@ -2460,8 +2460,9 @@ button {
 
 .conversation-thread {
   display: grid;
-  grid-template-rows: auto minmax(360px, 1fr) auto;
-  min-height: min(760px, calc(100vh - 56px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: min(760px, calc(100vh - 56px));
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -2628,7 +2629,7 @@ button {
 .icon-action--active, .icon-action--stop { border-color: #b65b28; background: #fff0e8; color: #9b4315; }
 
 @media (max-width: 699px) {
-  .conversation-thread { min-height: calc(100vh - 26px); border-radius: 14px; }
+  .conversation-thread { height: calc(100vh - 26px); border-radius: 14px; }
   .conversation-thread__header { padding: 18px 16px 15px; }
   .conversation-thread__status { top: 18px; right: 16px; }
   .conversation-thread__messages { padding: 18px 14px; }

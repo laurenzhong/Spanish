@@ -34,6 +34,38 @@ test("sends with Enter and keeps Shift+Enter available for a newline", async ({ 
   await expect(page.getByTestId("conversation-thread")).toContainText("Hola por teclado");
   await expect(page.locator('[data-status="completed"]')).toBeVisible({ timeout: 5_000 });
 });
+
+test("keeps the page height stable while the message history grows", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/chat/lucia");
+
+  const thread = page.getByTestId("conversation-thread");
+  const initial = await thread.evaluate((element) => ({
+    documentHeight: document.documentElement.scrollHeight,
+    threadHeight: Math.round(element.getBoundingClientRect().height),
+  }));
+  const composer = page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+
+  for (const text of ["Hola, mensaje uno", "Hola, mensaje dos", "Hola, mensaje tres"]) {
+    await composer.fill(text);
+    await page.getByRole("button", { name: "发送消息" }).click();
+    await expect(page.locator('[data-status="completed"]')).toBeVisible({ timeout: 5_000 });
+  }
+
+  const final = await thread.evaluate((element) => ({
+    documentHeight: document.documentElement.scrollHeight,
+    threadHeight: Math.round(element.getBoundingClientRect().height),
+    messages: (() => {
+      const messages = element.querySelector<HTMLElement>(".conversation-thread__messages");
+      return messages ? { clientHeight: messages.clientHeight, scrollHeight: messages.scrollHeight } : null;
+    })(),
+  }));
+  expect(final.threadHeight).toBe(initial.threadHeight);
+  expect(final.documentHeight).toBeLessThanOrEqual(initial.documentHeight + 2);
+  expect(final.messages).not.toBeNull();
+  expect(final.messages?.scrollHeight).toBeGreaterThan(final.messages?.clientHeight ?? 0);
+});
+
 test("keeps the conversation thread within a phone viewport", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });

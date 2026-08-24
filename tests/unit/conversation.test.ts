@@ -106,6 +106,21 @@ describe("conversation state", () => {
 });
 
 describe("fake conversation reply", () => {
+  it("answers a wellbeing question instead of using the generic greeting", async () => {
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia",
+      characterVersion: 1,
+      text: "¿Qué tal estás?",
+      clientMessageId: "client-1",
+      generationId: "generation-1",
+      messageId: "message-1",
+      wait: async () => {},
+    })) events.push(event);
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toBe("Estoy bien, gracias. Me alegra leerte; ¿y tú, cómo estás?");
+  });
+
   it("emits meta, deltas, and done deterministically", async () => {
     const events = [];
     for await (const event of streamReply({

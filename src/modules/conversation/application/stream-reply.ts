@@ -29,6 +29,10 @@ const replies = [
     text: "Soy un personaje de IA, y me gusta hablar contigo con honestidad. ¿Qué te gustaría contarme?",
   },
   {
+    test: /\b(cómo estás|como estas|qué tal estás|que tal estas|cómo te va|como te va)\b/iu,
+    text: "Estoy bien, gracias. Me alegra leerte; ¿y tú, cómo estás?",
+  },
+  {
     test: /\b(hola|hey|buenas|qué tal|como va|cómo va)\b/iu,
     text: "¡Hola! Qué alegría leerte. Yo estoy bien; ¿cómo va todo por tu lado?",
   },
