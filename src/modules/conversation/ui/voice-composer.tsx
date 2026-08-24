@@ -87,6 +87,11 @@ export function VoiceComposer({
           disabled={disabled || recording}
           maxLength={2_000}
           onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey) return;
+            event.preventDefault();
+            if (!disabled && !recording && value.trim()) onSubmit();
+          }}
           placeholder="写下你想说的话…"
           rows={2}
           value={value}

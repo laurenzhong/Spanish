@@ -20,6 +20,20 @@ test("sends a message and completes the Lucía stream", async ({ page }) => {
   await expect(page.locator('[data-status="completed"]')).toBeVisible();
   await expect(page.locator('.conversation-message--character[data-complete="true"]')).toBeVisible();
 });
+
+test("sends with Enter and keeps Shift+Enter available for a newline", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/chat/lucia");
+
+  const composer = page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+  await composer.fill("Hola por teclado");
+  await composer.press("Shift+Enter");
+  await composer.press("End");
+  await composer.press("Enter");
+
+  await expect(page.getByTestId("conversation-thread")).toContainText("Hola por teclado");
+  await expect(page.locator('[data-status="completed"]')).toBeVisible({ timeout: 5_000 });
+});
 test("keeps the conversation thread within a phone viewport", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
