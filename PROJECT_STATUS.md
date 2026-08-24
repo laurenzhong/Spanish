@@ -32,6 +32,7 @@
 - 前置依赖：ALPHA-026，已完成
 - 计划位置：实施计划任务 6.2
 - 实现 Commit：`ecdfd03`
+- 后续修复 Commit：`cf68679`, `018048d`
 
 结果：
 
@@ -40,6 +41,7 @@
 - Web 新增 `/chat/lucia` 消息线程；用户消息先出现，只有收到 `done` 才标记角色消息完成；停止、断流、stale generation 和重试可预测。
 - Flutter 新增同协议解析器、fake 流、消息线程和语音 composer；无 STT 时只降级到打字，不伪造转写、不上传或保存录音。
 - `/chat` 保留原有“先练一句”入口，并新增“打开对话”进入 Lucía 线程。
+- Web composer 支持 `Enter` 发送、`Shift+Enter` 换行，避免只能点击发送按钮。
 
 修改文件：
 
@@ -66,6 +68,7 @@
 - `flutter analyze` 通过；`flutter test`：58 个测试通过。
 - `pnpm test --run` 全量 235 个测试中 232 个通过；3 个既有 PGlite/数据库测试因本机初始化超过 10 秒超时，不涉及 conversation 改动。
 - 新增 Playwright 未执行：3000 端口已有用户开发服务，Playwright 配置要求独占该端口；未停止或修改该服务。
+- 浏览器实际验证：`Enter`/`Shift+Enter` 路径通过；消息显示“已送达”，回复文本完整，控制台无错误。
 
 限制与下一步：
 
