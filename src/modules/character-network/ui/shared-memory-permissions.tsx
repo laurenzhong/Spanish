@@ -20,21 +20,42 @@ const characterNames: Record<string, string> = {
 
 export function SharedMemoryPermissions() {
   const [permissions, setPermissions] = useState<readonly Permission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     void fetch("/api/v1/character-network/permissions", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : { data: { permissions: [] } })
+      .then((response) => {
+        if (!response.ok) throw new Error("PERMISSIONS_UNAVAILABLE");
+        return response.json();
+      })
       .then((payload: { data?: { permissions?: Permission[] } }) => {
-        if (active) setPermissions(payload.data?.permissions ?? []);
+        if (active) {
+          setPermissions(payload.data?.permissions ?? []);
+          setMessage(null);
+        }
       })
       .catch(() => {
-        if (active) setMessage("暂时无法读取授权资料。");
+        if (active) {
+          setPermissions([]);
+          setLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, []);
+  }, [reloadToken]);
+
+  function retry() {
+    setLoading(true);
+    setLoadError(false);
+    setReloadToken((token) => token + 1);
+  }
 
   async function revoke(permission: Permission) {
     const targetCharacterKey = permission.targetCharacterKey;
@@ -53,7 +74,7 @@ export function SharedMemoryPermissions() {
     }
   }
 
-  if (permissions.length === 0 && !message) return null;
+  if (permissions.length === 0 && !message && !loading && !loadError) return null;
 
   return (
     <section className="privacy-permissions" aria-labelledby="privacy-permissions-title">
@@ -62,6 +83,15 @@ export function SharedMemoryPermissions() {
         <h2 id="privacy-permissions-title">已授权给角色的资料</h2>
         <p>这里的授权只对指定角色生效。撤销后，原始记忆仍保留在你的账户中。</p>
       </header>
+      {loading ? <p className="surface-state__message">正在读取授权资料……</p> : null}
+      {!loading && loadError ? (
+        <div className="surface-state__message" role="alert">
+          <p>暂时无法读取授权资料。</p>
+          <button type="button" className="button--quiet" onClick={retry}>
+            重试
+          </button>
+        </div>
+      ) : null}
       {permissions.map((permission) => (
         <article className="privacy-permission-card" key={`${permission.id}:${permission.targetCharacterKey}`}>
           <div>
@@ -80,4 +110,3 @@ export function SharedMemoryPermissions() {
     </section>
   );
 }
-

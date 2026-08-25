@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
@@ -7,6 +7,7 @@ import { SharedMemoryPermissions } from "@/src/modules/character-network/ui/shar
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
+  cleanup();
   globalThis.fetch = originalFetch;
   vi.restoreAllMocks();
 });
@@ -44,5 +45,37 @@ describe("introduction privacy controls", () => {
       "/api/v1/character-network/permissions/memory-1/mateo",
       expect.objectContaining({ method: "DELETE" }),
     ));
+  });
+
+  it("recovers the introduction inbox after a failed request", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { offers: [{ offerKey: "retry-offer", targetCharacterKey: "mateo", reasonText: "共同兴趣", reasonCode: "shared-interest" }] } }),
+      });
+    globalThis.fetch = fetchMock;
+    render(<IntroductionInbox />);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(screen.getByText("Mateo Ruiz")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers shared permissions after a failed request", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { permissions: [{ id: "retry-memory", characterKey: "lucia", targetCharacterKey: "mateo", category: "interest", content: "喜欢摄影", sensitivity: "normal", alreadyShared: true }] } }),
+      });
+    globalThis.fetch = fetchMock;
+    render(<SharedMemoryPermissions />);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(screen.getByText("喜欢摄影")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

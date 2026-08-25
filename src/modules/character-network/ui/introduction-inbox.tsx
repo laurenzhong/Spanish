@@ -23,13 +23,19 @@ const names: Record<string, string> = { mateo: "Mateo Ruiz", ines: "Inés Garcí
 export function IntroductionInbox() {
   const [offers, setOffers] = useState<readonly Offer[]>([]);
   const [selectedMemoryIds, setSelectedMemoryIds] = useState<Readonly<Record<string, readonly string[]>>>({});
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     void fetch("/api/v1/character-network/introductions", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : { data: { offers: [] } })
+      .then((response) => {
+        if (!response.ok) throw new Error("INTRODUCTIONS_UNAVAILABLE");
+        return response.json();
+      })
       .then((payload: { data?: { offers?: Offer[] } }) => {
         if (!active) return;
         const nextOffers = payload.data?.offers ?? [];
@@ -40,10 +46,22 @@ export function IntroductionInbox() {
         ])));
       })
       .catch(() => {
-        if (active) setOffers([]);
+        if (active) {
+          setOffers([]);
+          setLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, []);
+  }, [reloadToken]);
+
+  function retry() {
+    setLoading(true);
+    setLoadError(false);
+    setReloadToken((token) => token + 1);
+  }
 
   async function respond(offerKey: string, decision: "accept" | "decline") {
     setBusy(offerKey);
@@ -64,7 +82,7 @@ export function IntroductionInbox() {
     }
   }
 
-  if (offers.length === 0 && !message) return null;
+  if (offers.length === 0 && !message && !loading && !loadError) return null;
 
   function toggleMemory(offerKey: string, memoryId: string, checked: boolean) {
     setSelectedMemoryIds((current) => {
@@ -82,6 +100,15 @@ export function IntroductionInbox() {
         <h2 id="conversation-introductions-title">认识一个新朋友</h2>
         <p>只有在聊天中出现真实理由时才会出现介绍。你可以先同意建立关系，之后再单独授权资料。</p>
       </div>
+      {loading ? <p className="surface-state__message">正在读取介绍……</p> : null}
+      {!loading && loadError ? (
+        <div className="surface-state__message" role="alert">
+          <p>暂时无法读取好友介绍。</p>
+          <button type="button" className="button--quiet" onClick={retry}>
+            重试
+          </button>
+        </div>
+      ) : null}
       {offers.map((offer) => (
         <article className="introduction-card" key={offer.offerKey}>
           <div>

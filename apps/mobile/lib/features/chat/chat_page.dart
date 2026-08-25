@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/features/character_network/character_network_panels.dart';
+import 'package:spanish_mobile/features/character_network/fake_character_network.dart';
 import 'package:spanish_mobile/features/conversation/ui/chat_thread.dart';
 import 'package:spanish_mobile/shared/widgets/page_intro.dart';
 
 class ChatPage extends StatelessWidget {
-  const ChatPage({super.key});
+  const ChatPage({this.network, super.key});
+
+  final FakeCharacterNetworkState? network;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +26,11 @@ class ChatPage extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               const ConversationChatThread(),
+              if (network != null) ...<Widget>[
+                const SizedBox(height: 16),
+                CharacterIntroductionPanel(network: network!),
+                CharacterNetworkNotice(network: network!),
+              ],
             ],
           ),
         ),

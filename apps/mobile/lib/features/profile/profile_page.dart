@@ -1,11 +1,15 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/features/character_network/character_network_panels.dart';
+import 'package:spanish_mobile/features/character_network/fake_character_network.dart';
 import 'package:spanish_mobile/shared/widgets/page_intro.dart';
 import 'package:spanish_mobile/shared/widgets/surface_card.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  const ProfilePage({this.network, super.key});
+
+  final FakeCharacterNetworkState? network;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -120,6 +124,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 onSelected: (index) => setState(() => _selectedDay = index),
               ),
               const SizedBox(height: 16),
+              if (widget.network != null) ...<Widget>[
+                SharedMemoryPermissionsPanel(network: widget.network!),
+                CharacterNetworkNotice(network: widget.network!),
+                const SizedBox(height: 16),
+              ],
               if (_notice != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),

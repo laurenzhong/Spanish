@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/features/character_network/fake_character_network.dart';
 import 'package:spanish_mobile/features/chat/chat_page.dart';
 import 'package:spanish_mobile/features/explore/explore_page.dart';
 import 'package:spanish_mobile/features/learn/learn_page.dart';
 import 'package:spanish_mobile/features/profile/profile_page.dart';
 
 class ProductShell extends StatefulWidget {
-  const ProductShell({this.userId = 'local-user', super.key});
+  const ProductShell({this.network, this.userId = 'local-user', super.key});
 
+  final FakeCharacterNetworkState? network;
   final String userId;
 
   @override
@@ -38,21 +40,29 @@ class _ProductShellState extends State<ProductShell> {
   ];
 
   int _selectedIndex = 0;
+  late final FakeCharacterNetworkState _network;
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    _network = widget.network ?? FakeCharacterNetworkState();
     _pages = <Widget>[
       LearnPage(userId: widget.userId),
       ExplorePage(userId: widget.userId),
-      const ChatPage(),
-      const ProfilePage(),
+      ChatPage(network: _network),
+      ProfilePage(network: _network),
     ];
   }
 
   void _select(int index) {
     setState(() => _selectedIndex = index);
+  }
+
+  @override
+  void dispose() {
+    if (widget.network == null) _network.dispose();
+    super.dispose();
   }
 
   @override
