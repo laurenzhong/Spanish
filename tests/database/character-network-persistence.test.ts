@@ -71,6 +71,14 @@ describe("character network persistence", () => {
     expect(permission?.targetCharacterId).toBe(mateoId);
     const [offer] = await database.select().from(schema.characterIntroductionOffers).where(eq(schema.characterIntroductionOffers.userId, userId));
     expect(offer?.status).toBe("accepted");
+
+    const shareable = await repository.listShareableMemoryPreviews(userId, "lucia", "mateo");
+    expect(shareable).toEqual([expect.objectContaining({ id: memoryId, alreadyShared: true, sensitivity: "normal" })]);
+    expect(await repository.listGrantedMemoryPreviews(userId)).toEqual([expect.objectContaining({ id: memoryId, characterKey: "lucia", targetCharacterKey: "mateo" })]);
+    await repository.revokeMemoryPermission(userId, memoryId, "mateo");
+    expect(await repository.listGrantedMemoryPreviews(userId)).toHaveLength(0);
+    const [memory] = await database.select({ shareScope: schema.relationshipMemories.shareScope }).from(schema.relationshipMemories).where(eq(schema.relationshipMemories.id, memoryId));
+    expect(memory?.shareScope).toBe("private");
   });
 
   it("is idempotent when the same accepted offer is retried", async () => {

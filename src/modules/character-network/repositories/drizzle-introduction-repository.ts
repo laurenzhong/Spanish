@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, or } from "drizzle-orm";
+import { aliasedTable, and, asc, eq, inArray, or } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -7,6 +7,7 @@ import type {
   CharacterRelationshipRecord,
   IntroductionRecord,
   IntroductionRepository,
+  ShareableMemoryPreview,
 } from "./introduction-repository";
 
 type NetworkDatabase<TResult extends PgQueryResultHKT> = PgDatabase<TResult, typeof schema>;
@@ -170,6 +171,103 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
         await database.update(schema.relationshipMemories).set({ shareScope: "explicit", updatedAt: new Date() }).where(and(
           eq(schema.relationshipMemories.id, memoryId),
           eq(schema.relationshipMemories.userId, userId),
+        ));
+      }
+    },
+
+    async listShareableMemoryPreviews(userId, sourceCharacterKey, targetCharacterKey): Promise<readonly ShareableMemoryPreview[]> {
+      const sourceId = await characterId(database, sourceCharacterKey, 1);
+      const targetId = await characterId(database, targetCharacterKey, 1);
+      const rows = await database
+        .select({
+          id: schema.relationshipMemories.id,
+          characterKey: schema.characters.stableKey,
+          category: schema.relationshipMemories.category,
+          content: schema.relationshipMemories.content,
+          sensitivity: schema.relationshipMemories.sensitivity,
+          alreadyShared: schema.memorySharingPermissions.isAllowed,
+        })
+        .from(schema.relationshipMemories)
+        .innerJoin(schema.characters, eq(schema.relationshipMemories.characterId, schema.characters.id))
+        .leftJoin(schema.memorySharingPermissions, and(
+          eq(schema.memorySharingPermissions.memoryId, schema.relationshipMemories.id),
+          eq(schema.memorySharingPermissions.userId, userId),
+          eq(schema.memorySharingPermissions.targetCharacterId, targetId),
+        ))
+        .where(and(
+          eq(schema.relationshipMemories.userId, userId),
+          eq(schema.relationshipMemories.characterId, sourceId),
+          or(eq(schema.relationshipMemories.status, "candidate"), eq(schema.relationshipMemories.status, "confirmed")),
+          or(eq(schema.relationshipMemories.sensitivity, "normal"), eq(schema.relationshipMemories.sensitivity, "sensitive")),
+        ))
+        .orderBy(asc(schema.relationshipMemories.createdAt));
+      return rows.map((row) => ({
+        id: row.id,
+        characterKey: row.characterKey,
+        category: row.category,
+        content: row.content,
+        sensitivity: row.sensitivity as ShareableMemoryPreview["sensitivity"],
+        alreadyShared: row.alreadyShared === true,
+      }));
+    },
+
+    async listGrantedMemoryPreviews(userId): Promise<readonly ShareableMemoryPreview[]> {
+      const sourceCharacters = aliasedTable(schema.characters, "shared_memory_source_characters");
+      const targetCharacters = aliasedTable(schema.characters, "shared_memory_target_characters");
+      const rows = await database
+        .select({
+          id: schema.relationshipMemories.id,
+          characterKey: sourceCharacters.stableKey,
+          category: schema.relationshipMemories.category,
+          content: schema.relationshipMemories.content,
+          sensitivity: schema.relationshipMemories.sensitivity,
+          alreadyShared: schema.memorySharingPermissions.isAllowed,
+          targetCharacterKey: targetCharacters.stableKey,
+        })
+        .from(schema.relationshipMemories)
+        .innerJoin(schema.memorySharingPermissions, and(
+          eq(schema.memorySharingPermissions.memoryId, schema.relationshipMemories.id),
+          eq(schema.memorySharingPermissions.userId, userId),
+          eq(schema.memorySharingPermissions.isAllowed, true),
+        ))
+        .innerJoin(sourceCharacters, eq(schema.relationshipMemories.characterId, sourceCharacters.id))
+        .innerJoin(targetCharacters, eq(schema.memorySharingPermissions.targetCharacterId, targetCharacters.id))
+        .where(and(
+          eq(schema.relationshipMemories.userId, userId),
+          or(eq(schema.relationshipMemories.status, "candidate"), eq(schema.relationshipMemories.status, "confirmed")),
+          or(eq(schema.relationshipMemories.sensitivity, "normal"), eq(schema.relationshipMemories.sensitivity, "sensitive")),
+        ))
+        .orderBy(asc(schema.relationshipMemories.createdAt));
+      return rows.map((row) => ({
+        id: row.id,
+        characterKey: row.characterKey,
+        targetCharacterKey: row.targetCharacterKey,
+        category: row.category,
+        content: row.content,
+        sensitivity: row.sensitivity as ShareableMemoryPreview["sensitivity"],
+        alreadyShared: row.alreadyShared === true,
+      }));
+    },
+
+    async revokeMemoryPermission(userId, memoryId, targetCharacterKey) {
+      const targetId = await characterId(database, targetCharacterKey, 1);
+      await database.update(schema.memorySharingPermissions).set({
+        isAllowed: false,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(schema.memorySharingPermissions.userId, userId),
+        eq(schema.memorySharingPermissions.memoryId, memoryId),
+        eq(schema.memorySharingPermissions.targetCharacterId, targetId),
+      ));
+      const [activePermission] = await database.select({ id: schema.memorySharingPermissions.id }).from(schema.memorySharingPermissions).where(and(
+        eq(schema.memorySharingPermissions.userId, userId),
+        eq(schema.memorySharingPermissions.memoryId, memoryId),
+        eq(schema.memorySharingPermissions.isAllowed, true),
+      )).limit(1);
+      if (!activePermission) {
+        await database.update(schema.relationshipMemories).set({ shareScope: "private", updatedAt: new Date() }).where(and(
+          eq(schema.relationshipMemories.userId, userId),
+          eq(schema.relationshipMemories.id, memoryId),
         ));
       }
     },

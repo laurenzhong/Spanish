@@ -126,6 +126,48 @@ test("shows a contextual friend introduction and requires explicit consent", asy
   await expect(page.getByRole("status")).toContainText("已同意介绍");
 });
 
+test("shares only the memory explicitly selected in an introduction", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/character-network/introductions", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { offers: [{ offerKey: "intro-memory-test", targetCharacterKey: "mateo", reasonCode: "shared-interest", reasonText: "共同兴趣", shareableMemories: [{ id: "memory-test", category: "interest", content: "喜欢摄影", sensitivity: "normal", alreadyShared: false }] }] } }),
+    });
+  });
+  await page.route("**/api/v1/character-network/introductions/intro-memory-test", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ decision: "accept", memoryIds: ["memory-test"] });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { status: "accepted", targetCharacterKey: "mateo", relationshipStage: "new_contact", conversationId: "conversation-test", sharedMemoryIds: ["memory-test"] } }) });
+  });
+
+  await page.goto("/chat");
+  const memory = page.getByRole("checkbox", { name: /喜欢摄影/ });
+  await expect(memory).not.toBeChecked();
+  await memory.check();
+  await page.getByRole("button", { name: "同意介绍" }).click();
+  await expect(page.getByRole("status")).toContainText("已同意介绍");
+});
+
+test("lets the user revoke a target-specific memory permission", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/character-network/permissions", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { permissions: [{ id: "memory-revoke-test", characterKey: "lucia", targetCharacterKey: "mateo", category: "interest", content: "喜欢摄影", sensitivity: "normal", alreadyShared: true }] } }),
+    });
+  });
+  await page.route("**/api/v1/character-network/permissions/memory-revoke-test/mateo", async (route) => {
+    expect(route.request().method()).toBe("DELETE");
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { revoked: true } }) });
+  });
+
+  await page.goto("/me");
+  await expect(page.getByRole("heading", { name: "已授权给角色的资料" })).toBeVisible();
+  await page.getByRole("button", { name: "撤销授权" }).click({ force: true });
+  await expect(page.getByRole("status")).toContainText("已撤销");
+});
+
 test("preserves the selected discovery direction on the learning page", async ({
   page,
 }) => {

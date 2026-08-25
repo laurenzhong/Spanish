@@ -592,6 +592,151 @@ a {
   text-wrap: balance;
 }
 
+.conversation-introductions,
+.privacy-permissions {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.conversation-introductions__header,
+.privacy-permissions > header {
+  display: grid;
+  gap: 6px;
+}
+
+.conversation-introductions h2,
+.privacy-permissions h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.conversation-introductions__header p:last-child,
+.privacy-permissions > header p:last-child {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.introduction-card,
+.privacy-permission-card {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.introduction-card h3,
+.privacy-permission-card h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.introduction-card p,
+.privacy-permission-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.introduction-card__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.introduction-card__actions button,
+.privacy-permission-card button {
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  color: var(--foreground);
+  background: var(--surface);
+}
+
+.introduction-card__actions button:first-child {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.introduction-card__actions button:disabled,
+.privacy-permission-card button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.introduction-card__memories {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.introduction-card__memories legend {
+  padding-inline: 4px;
+  color: var(--foreground);
+  font-size: 0.84rem;
+}
+
+.introduction-card__hint {
+  margin: 0 !important;
+  font-size: 0.82rem;
+}
+
+.introduction-card__memory {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--foreground);
+  font-size: 0.88rem;
+}
+
+.introduction-card__memory input {
+  margin-top: 3px;
+}
+
+.introduction-card__memory small {
+  margin-left: 5px;
+  color: #94621d;
+}
+
+.privacy-permission-card {
+  align-items: center;
+}
+
+.privacy-permission-card button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 699px) {
+  .conversation-introductions,
+  .privacy-permissions {
+    padding: 16px;
+  }
+
+  .introduction-card,
+  .privacy-permission-card {
+    flex-direction: column;
+  }
+
+  .introduction-card__actions,
+  .introduction-card__actions button,
+  .privacy-permission-card button {
+    width: 100%;
+  }
+}
+
 .training-loop__context {
   padding: 24px 2px 26px;
   border-top: 1px solid var(--border);

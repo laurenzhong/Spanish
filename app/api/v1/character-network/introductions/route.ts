@@ -38,7 +38,11 @@ export async function GET(request: NextRequest) {
   try {
     const repository = createDrizzleIntroductionRepository(getDatabase());
     const offers = await repository.listPending(user.id);
-    return NextResponse.json({ data: { offers: offers.map(recordJson) } }, { headers: { "cache-control": "no-store" } });
+    const offerPayloads = await Promise.all(offers.map(async (offer) => ({
+      ...recordJson(offer),
+      shareableMemories: await repository.listShareableMemoryPreviews(user.id, offer.sourceCharacterKey, offer.targetCharacterKey),
+    })));
+    return NextResponse.json({ data: { offers: offerPayloads } }, { headers: { "cache-control": "no-store" } });
   } catch {
     return errorResponse("INTRODUCTION_UNAVAILABLE", 503);
   }

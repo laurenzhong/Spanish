@@ -15,6 +15,16 @@ export type CharacterRelationshipRecord = Readonly<{
   revealedCanonFactKeys: readonly string[];
 }>;
 
+export type ShareableMemoryPreview = Readonly<{
+  id: string;
+  characterKey: string;
+  targetCharacterKey?: string;
+  category: string;
+  content: string;
+  sensitivity: "normal" | "sensitive";
+  alreadyShared: boolean;
+}>;
+
 export type IntroductionRepository = Readonly<{
   transaction<T>(work: (repository: IntroductionRepository) => Promise<T>): Promise<T>;
   createOrGetPending(offer: IntroductionOffer): Promise<IntroductionRecord>;
@@ -25,5 +35,7 @@ export type IntroductionRepository = Readonly<{
   ensureConversation(userId: string, characterKey: string, characterVersion: number): Promise<string>;
   validateShareableMemories(userId: string, memoryIds: readonly string[], sourceCharacterKey: string): Promise<readonly string[]>;
   grantMemoryPermissions(userId: string, memoryIds: readonly string[], targetCharacterKey: string): Promise<void>;
+  listShareableMemoryPreviews(userId: string, sourceCharacterKey: string, targetCharacterKey: string): Promise<readonly ShareableMemoryPreview[]>;
+  listGrantedMemoryPreviews(userId: string): Promise<readonly ShareableMemoryPreview[]>;
+  revokeMemoryPermission(userId: string, memoryId: string, targetCharacterKey: string): Promise<void>;
 }>;
-
