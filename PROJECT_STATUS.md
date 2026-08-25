@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-25
 - 当前里程碑：个人 Alpha 阶段 7——角色扩展、进步展示与隐私控制
-- 总体状态：阶段 8 个人 Alpha 验证可恢复；UI 功能门槛推进至 UI-002，暂缓全面人工体验
+- 总体状态：阶段 8 个人 Alpha 验证可恢复；UI 功能门槛推进至 UI-003，暂缓全面人工体验
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 UI-003：Lucía 对话发送、停止、断流和重试闭环；阶段 8 全面人工体验继续等待 UI-001 至 UI-005 功能门槛完成。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 UI-004：画像、热力图和隐私数据控制闭环；阶段 8 全面人工体验继续等待 UI-001 至 UI-005 功能门槛完成。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 阶段 7 已完成切片
 
@@ -251,6 +251,44 @@
 - Flutter 端仍使用本地 fake 内容和确定性 fake TTS，不代表真实内容 provider 或 iOS 音频能力已验收。
 - 当前环境没有 Mac/Xcode，未执行 iOS 编译、签名或真机验证。
 - 下一项 `UI-003`：Lucía 对话发送、停止、断流和重试闭环。
+
+### UI-003：Lucía 对话发送、停止、断流和重试闭环
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：UI-002，已完成
+- 实现 Commit：`e0b7b0c`
+
+结果：
+
+- Web 对话状态机在首个角色 `meta` 事件之前发生 HTTP/流错误或取消时，仍保留最近一条用户消息作为重试目标。
+- Flutter 对话停止回复时保存当前用户文本，首包失败、断流和停止后都可以点击“重新发送”，且不会重复添加用户消息。
+- 保持 generation/取消边界，旧流回调不能污染重试后的新一轮回复；未完成回复继续明确提示不产生学习评分。
+
+修改文件：
+
+- `src/modules/conversation/domain/conversation-state.ts`
+- `apps/mobile/lib/features/conversation/ui/chat_thread.dart`
+- `tests/unit/conversation.test.ts`
+- `tests/e2e/conversation.spec.ts`
+- `apps/mobile/test/features/conversation/conversation_stream_test.dart`
+
+验证：
+
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过（先执行 `pnpm build` 生成 Next.js 类型后复跑）。
+- `pnpm build` 通过。
+- Web 对话单测：12/12 通过。
+- Web 对话移动端 E2E：6/6 通过。
+- `flutter analyze` 通过。
+- `flutter test`：69 个公共 Dart/Widget 测试通过。
+
+限制与下一步：
+
+- 对话回复仍使用确定性 fake，不代表真实 provider 生成质量或网络环境验收。
+- 当前环境没有 Mac/Xcode，未执行 iOS 编译、签名或真机验证。
+- 下一项 `UI-004`：画像、热力图和隐私数据控制闭环。
 
 ### ALPHA-029：角色回复规划
 
@@ -862,7 +900,8 @@
 | ALPHA-030 | done | `fix/login-redirect-after-otp` | Codex | 好友介绍与角色网络 | ALPHA-029 |
 | UI-001 | done | `fix/login-redirect-after-otp` | Codex | 认证回跳、四栏导航和学习入口功能闭环 | 阶段 8 |
 | UI-002 | done | `fix/login-redirect-after-otp` | Codex | 探索内容包功能闭环 | UI-001 |
-| UI-003 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
+| UI-003 | done | `fix/login-redirect-after-otp` | Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
+| UI-004 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
 | 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待 UI-001 至 UI-005 功能门槛完成 | 7.6 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -871,10 +910,9 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | UI-003 | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
-| 2 | UI-004 | 画像、热力图和隐私数据控制闭环 | UI-003 |
-| 3 | UI-005 | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
-| 4 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
+| 1 | UI-004 | 画像、热力图和隐私数据控制闭环 | UI-003 |
+| 2 | UI-005 | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
+| 3 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -948,6 +986,7 @@
 | 2026-08-24 | 完成 ALPHA-027 对话消息流 | `ecdfd03` | Web/Flutter NDJSON fake 对话、取消、断流和重试完成；下一步处理关系记忆权限 |
 | 2026-08-24 | 修复聊天历史不可用时静默丢失 | 待提交 | 显示数据库不可用状态、合并历史 hydration 与当前消息；配置 `DATABASE_URL` 后可恢复持久化 |
 | 2026-08-25 | 完成 UI-002 探索内容包功能闭环 | `429c225` | Flutter/Web 内容包按钮、进度、草稿恢复、TTS 降级和口语复核可用；下一项 UI-003 |
+| 2026-08-25 | 完成 UI-003 Lucía 对话恢复闭环 | `e0b7b0c` | 首包失败、停止、断流后可重试且不重复用户消息；下一项 UI-004 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
