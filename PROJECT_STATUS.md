@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-25
 - 当前里程碑：个人 Alpha 阶段 7——角色扩展、进步展示与隐私控制
-- 总体状态：阶段 8 个人 Alpha 验证可恢复；训练闭环阻塞已在 `4648972` 修复，等待重新开始人工体验
+- 总体状态：阶段 8 个人 Alpha 验证可恢复；UI 功能门槛推进至 UI-002，暂缓全面人工体验
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为阶段 8：个人 Alpha 使用周期与人工体验复核；训练闭环修复已完成，记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 UI-003：Lucía 对话发送、停止、断流和重试闭环；阶段 8 全面人工体验继续等待 UI-001 至 UI-005 功能门槛完成。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 阶段 7 已完成切片
 
@@ -212,6 +212,45 @@
 
 - Flutter 当前没有 Web 式深链登录回跳；本切片不改变其单一产品入口。
 - 下一项 `UI-002`：探索内容包的播放、展开、完成、断点和口语复核闭环。
+
+### UI-002：探索内容包功能闭环
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：UI-001，已完成
+- 实现 Commit：`429c225`
+
+结果：
+
+- Flutter 探索页新增“咖啡馆内容包”入口，支持播放全文、TTS 失败降级、展开西语/中文、输入回复、口语复核和换情境迁移。
+- 内容包进度、两个草稿和完成步骤通过安全存储恢复；存储不可用或数据损坏时保留可用的内存流程。
+- 口语复核沿用用户断点存储；内容包本身不写入 `evidence_events`、`mastery` 或 `confidence`。
+- 修复输入后按钮不刷新、迁移步骤无完成动作、嵌套 `setState` 和朗读异步释放边界。
+
+修改文件：
+
+- `apps/mobile/lib/features/content/fakes/fake_content_pack.dart`
+- `apps/mobile/lib/features/explore/explore_page.dart`
+- `apps/mobile/lib/shared/widgets/product_shell.dart`
+- `apps/mobile/test/features/content/fake_content_pack_test.dart`
+- `apps/mobile/test/app_navigation_test.dart`
+
+验证：
+
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过（先执行 `pnpm build` 生成 Next.js 类型后复跑）。
+- `pnpm build` 通过。
+- `pnpm exec vitest run tests/unit/content-pack.test.tsx --pool=threads --maxWorkers=1`：5/5 通过。
+- 内容包与 Alpha 手机视口 E2E：6/6 通过。
+- `flutter analyze` 通过。
+- `flutter test`：68 个公共 Dart/Widget 测试通过。
+
+限制与下一步：
+
+- Flutter 端仍使用本地 fake 内容和确定性 fake TTS，不代表真实内容 provider 或 iOS 音频能力已验收。
+- 当前环境没有 Mac/Xcode，未执行 iOS 编译、签名或真机验证。
+- 下一项 `UI-003`：Lucía 对话发送、停止、断流和重试闭环。
 
 ### ALPHA-029：角色回复规划
 
@@ -822,7 +861,8 @@
 | ALPHA-029 | done | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
 | ALPHA-030 | done | `fix/login-redirect-after-otp` | Codex | 好友介绍与角色网络 | ALPHA-029 |
 | UI-001 | done | `fix/login-redirect-after-otp` | Codex | 认证回跳、四栏导航和学习入口功能闭环 | 阶段 8 |
-| UI-002 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 探索内容包功能闭环 | UI-001 |
+| UI-002 | done | `fix/login-redirect-after-otp` | Codex | 探索内容包功能闭环 | UI-001 |
+| UI-003 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
 | 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待 UI-001 至 UI-005 功能门槛完成 | 7.6 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -831,11 +871,10 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | UI-002 | 探索内容包功能闭环 | UI-001 |
-| 2 | UI-003 | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
-| 3 | UI-004 | 画像、热力图和隐私数据控制闭环 | UI-003 |
-| 4 | UI-005 | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
-| 5 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
+| 1 | UI-003 | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
+| 2 | UI-004 | 画像、热力图和隐私数据控制闭环 | UI-003 |
+| 3 | UI-005 | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
+| 4 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -908,6 +947,7 @@
 | 2026-08-23 | 完成 ALPHA-024 初次诊断 | `33ef064` | 5 任务诊断计划、证据委托和内容校验完成；等待内容审核后发布 |
 | 2026-08-24 | 完成 ALPHA-027 对话消息流 | `ecdfd03` | Web/Flutter NDJSON fake 对话、取消、断流和重试完成；下一步处理关系记忆权限 |
 | 2026-08-24 | 修复聊天历史不可用时静默丢失 | 待提交 | 显示数据库不可用状态、合并历史 hydration 与当前消息；配置 `DATABASE_URL` 后可恢复持久化 |
+| 2026-08-25 | 完成 UI-002 探索内容包功能闭环 | `429c225` | Flutter/Web 内容包按钮、进度、草稿恢复、TTS 降级和口语复核可用；下一项 UI-003 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
