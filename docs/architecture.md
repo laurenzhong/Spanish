@@ -250,6 +250,8 @@ Route Handler 的职责只有：
 - `POST /api/v1/relationships/:id/share-permission`
 - `DELETE /api/v1/me/data`
 
+`GET /api/v1/profile` 返回固定八个能力维度的当前掌握度、可信度、口语覆盖和证据计数；当历史证据足够时还返回四周前掌握度，并提供最多三条只含日期、输入方式、场景标签和提示级别的脱敏代表性尝试。响应不得包含原始答案、转写正文或音频引用。
+
 API 错误使用稳定代码，不让前端解析供应商原始错误文本。
 
 ### 8.1 认证与会话边界

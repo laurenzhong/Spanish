@@ -35,6 +35,9 @@ function emptyOverview(): ProfileOverview {
       lastEvidenceAt: null,
       mastery: null,
       oralCoverage: null,
+      previousMastery: null,
+      previousConfidence: null,
+      representativeAttempts: [],
       skillKeys: [],
       status: "data-insufficient",
     })),
@@ -47,13 +50,17 @@ function formatPercent(value: number | null): string {
   return value === null ? "待验证" : `${Math.round(value * 100)}%`;
 }
 
-function axisPoints(axes: readonly ProfileAxis[], radius: number): string {
+function axisPoints(
+  axes: readonly ProfileAxis[],
+  radius: number,
+  value: (axis: ProfileAxis) => number | null = (axis) => axis.mastery,
+): string {
   const center = 50;
   return axes
     .map((axis, index) => {
       const angle = (Math.PI * 2 * index) / axes.length - Math.PI / 2;
-      const value = axis.mastery ?? 0;
-      return `${center + Math.cos(angle) * radius * value},${center + Math.sin(angle) * radius * value}`;
+      const mastery = value(axis) ?? 0;
+      return `${center + Math.cos(angle) * radius * mastery},${center + Math.sin(angle) * radius * mastery}`;
     })
     .join(" ");
 }
@@ -73,6 +80,7 @@ async function fetchProfileOverview(): Promise<ProfileOverview> {
 
 function RadarGraphic({ axes }: Readonly<{ axes: readonly ProfileAxis[] }>) {
   const complete = axes.every((axis) => axis.mastery !== null);
+  const previousComplete = axes.every((axis) => axis.previousMastery !== null);
   const rings = [20, 35, 50];
 
   return (
@@ -106,12 +114,18 @@ function RadarGraphic({ axes }: Readonly<{ axes: readonly ProfileAxis[] }>) {
             />
           );
         })}
+        {previousComplete ? (
+          <polygon
+            className="profile-radar__area profile-radar__area--previous"
+            points={axisPoints(axes, 50, (axis) => axis.previousMastery)}
+          />
+        ) : null}
         {complete ? (
           <polygon className="profile-radar__area" points={axisPoints(axes, 50)} />
         ) : null}
       </svg>
       <div className="profile-radar__caption">
-        {complete ? "当前掌握度" : "证据积累后显示能力轮廓"}
+        {complete && previousComplete ? "当前掌握度 · 虚线为四周前" : complete ? "当前掌握度" : "证据积累后显示能力轮廓"}
       </div>
     </div>
   );
@@ -238,6 +252,7 @@ export function ProfileOverviewPanel() {
           </div>
           <div className="profile-axis-detail__metrics">
             <div><span>掌握程度</span><strong>{formatPercent(selectedAxis.mastery)}</strong></div>
+            <div><span>四周前</span><strong>{formatPercent(selectedAxis.previousMastery)}</strong></div>
             <div><span>证据可信度</span><strong>{formatPercent(selectedAxis.confidence)}</strong></div>
             <div><span>口语覆盖</span><strong>{formatPercent(selectedAxis.oralCoverage)}</strong></div>
             <div><span>有效证据</span><strong>{selectedAxis.evidenceCount || "待积累"}</strong></div>
@@ -246,6 +261,21 @@ export function ProfileOverviewPanel() {
             <span className={`status-dot status-dot--${selectedAxis.status}`} aria-hidden="true" />
             {statusLabels[selectedAxis.status]} · {statusDescriptions[selectedAxis.status]}
           </p>
+          <div className="profile-axis-detail__attempts">
+            <h3>代表性尝试</h3>
+            {selectedAxis.representativeAttempts.length > 0 ? (
+              <ul>
+                {selectedAxis.representativeAttempts.map((attempt, index) => (
+                  <li key={`${attempt.occurredAt}:${attempt.modality}:${index}`}>
+                    <time dateTime={attempt.occurredAt}>{new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(attempt.occurredAt))}</time>
+                    <span>{attempt.modality === "speech" ? "自主开口" : attempt.modality === "typing" ? "自主打字" : attempt.modality === "listening" ? "听力活动" : "阅读活动"}</span>
+                    <span>{attempt.sceneLabel ?? "未标注场景"}</span>
+                    <span>{attempt.hintLevel === null ? "无提示记录" : attempt.hintLevel === 0 ? "独立完成" : `使用 ${attempt.hintLevel} 级提示`}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p>完成可追溯表达后，这里会显示代表性尝试。</p>}
+          </div>
         </section>
       ) : null}
 
@@ -258,12 +288,13 @@ export function ProfileOverviewPanel() {
         </div>
         <div className="profile-axis-table__scroll">
           <table>
-            <thead><tr><th>能力维度</th><th>掌握度</th><th>可信度</th><th>口语覆盖</th><th>证据</th><th>状态</th></tr></thead>
+            <thead><tr><th>能力维度</th><th>掌握度</th><th>四周前</th><th>可信度</th><th>口语覆盖</th><th>证据</th><th>状态</th></tr></thead>
             <tbody>
               {overview.axes.map((axis) => (
                 <tr key={axis.key}>
                   <th scope="row"><button type="button" onClick={() => setSelectedKey(axis.key)}>{axis.label}</button></th>
                   <td>{formatPercent(axis.mastery)}</td>
+                  <td>{formatPercent(axis.previousMastery)}</td>
                   <td>{formatPercent(axis.confidence)}</td>
                   <td>{formatPercent(axis.oralCoverage)}</td>
                   <td>{axis.evidenceCount || "—"}</td>

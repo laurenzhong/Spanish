@@ -10,7 +10,7 @@ export {
   profileAxisSchema,
   profileOverviewSchema,
 } from "./profile-overview";
-export type { ProfileAxis, ProfileEvidence, ProfileOverview } from "./profile-overview";
+export type { ProfileAxis, ProfileEvidence, ProfileOverview, ProfileRepresentativeAttempt } from "./profile-overview";
 export {
   buildLearningHeatmap,
   heatmapDaySchema,

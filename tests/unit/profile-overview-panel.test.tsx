@@ -16,7 +16,7 @@ describe("ProfileOverviewPanel", () => {
       ok: true,
       json: async () => ({
         data: {
-          axes: [
+          axes: ([
             {
               key: "listening-comprehension",
               label: "听辨理解",
@@ -113,7 +113,12 @@ describe("ProfileOverviewPanel", () => {
               skillKeys: [],
               status: "data-insufficient",
             },
-          ],
+          ]).map((axis) => ({
+            previousMastery: null,
+            previousConfidence: null,
+            representativeAttempts: [],
+            ...axis,
+          })),
           generatedAt: "2026-08-23T00:00:00.000Z",
           summary: { totalAxes: 8, totalEvidence: 3, verifiedAxes: 1 },
         },
@@ -128,5 +133,47 @@ describe("ProfileOverviewPanel", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /语流节奏/ })[0]);
     expect(screen.getByRole("heading", { name: "语流节奏" })).toBeInTheDocument();
     expect(screen.getByText("已验证 · 掌握度与证据可信度都达到当前验证门槛。")).toBeInTheDocument();
+    expect(screen.getAllByText("四周前").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("完成可追溯表达后，这里会显示代表性尝试。")).toBeInTheDocument();
+  });
+
+  it("renders historical comparison and representative attempts for the selected axis", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          axes: Array.from({ length: 8 }, (_, index) => ({
+            key: index === 0 ? "listening-comprehension" : `axis-${index}`,
+            label: index === 0 ? "听辨理解" : `维度 ${index}`,
+            description: "测试维度",
+            mastery: index === 0 ? 0.75 : null,
+            confidence: index === 0 ? 0.8 : null,
+            oralCoverage: index === 0 ? 0.5 : null,
+            evidenceCount: index === 0 ? 2 : 0,
+            lastEvidenceAt: index === 0 ? "2026-08-22T08:00:00.000Z" : null,
+            previousMastery: 0.5,
+            previousConfidence: index === 0 ? 0.6 : null,
+            representativeAttempts: index === 0 ? [{
+              occurredAt: "2026-08-22T08:00:00.000Z",
+              modality: "speech",
+              sceneLabel: "咖啡馆",
+              hintLevel: 1,
+            }] : [],
+            skillKeys: index === 0 ? ["listening.primary"] : [],
+            status: index === 0 ? "developing" : "data-insufficient",
+          })),
+          generatedAt: "2026-08-23T00:00:00.000Z",
+          summary: { totalAxes: 8, totalEvidence: 2, verifiedAxes: 0 },
+        },
+      }),
+    });
+
+    render(<ProfileOverviewPanel />);
+    await waitFor(() => expect(screen.getByTestId("profile-overview")).toBeInTheDocument());
+
+    expect(screen.getAllByText("50%").length).toBeGreaterThan(0);
+    expect(document.querySelector(".profile-radar__area--previous")).toBeInTheDocument();
+    expect(screen.getByText("咖啡馆")).toBeInTheDocument();
+    expect(screen.getByText("使用 1 级提示")).toBeInTheDocument();
   });
 });

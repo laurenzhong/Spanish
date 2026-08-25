@@ -10,6 +10,16 @@ type ProfileDatabase<TResult extends PgQueryResultHKT> = PgDatabase<
   typeof schema
 >;
 
+function sceneLabel(title: unknown): string | null {
+  if (!title || typeof title !== "object") return null;
+  const localized = title as Record<string, unknown>;
+  return typeof localized.zh === "string"
+    ? localized.zh
+    : typeof localized.es === "string"
+      ? localized.es
+      : null;
+}
+
 export function createDrizzleProfileRepository<
   TResult extends PgQueryResultHKT,
 >(database: ProfileDatabase<TResult>): ProfileRepository {
@@ -17,15 +27,43 @@ export function createDrizzleProfileRepository<
     async listEvidence(userId) {
       const rows = await database
         .select({
+          confidence: schema.evidenceEvents.confidence,
           occurredAt: schema.evidenceEvents.occurredAt,
+          evidenceWeight: schema.evidenceEvents.evidenceWeight,
           skillKey: schema.evidenceEvents.skillKey,
           modality: schema.evidenceEvents.modality,
+          outcomeScore: schema.evidenceEvents.outcomeScore,
+          practiceAttemptId: schema.evidenceEvents.practiceAttemptId,
+          hintLevel: schema.practiceAttempts.hintLevel,
+          sceneTitle: schema.scenarios.title,
         })
         .from(schema.evidenceEvents)
+        .leftJoin(
+          schema.practiceAttempts,
+          eq(schema.evidenceEvents.practiceAttemptId, schema.practiceAttempts.id),
+        )
+        .leftJoin(
+          schema.scenarioTasks,
+          eq(schema.practiceAttempts.scenarioTaskId, schema.scenarioTasks.id),
+        )
+        .leftJoin(
+          schema.scenarios,
+          eq(schema.scenarioTasks.scenarioId, schema.scenarios.id),
+        )
         .where(eq(schema.evidenceEvents.userId, userId))
         .orderBy(desc(schema.evidenceEvents.occurredAt));
 
-      return rows;
+      return rows.map((row) => ({
+        confidence: row.confidence,
+        occurredAt: row.occurredAt,
+        evidenceWeight: row.evidenceWeight,
+        skillKey: row.skillKey,
+        modality: row.modality,
+        outcomeScore: row.outcomeScore,
+        practiceAttemptId: row.practiceAttemptId,
+        hintLevel: row.hintLevel,
+        sceneLabel: sceneLabel(row.sceneTitle),
+      }));
     },
 
     async listSkillStates(userId) {

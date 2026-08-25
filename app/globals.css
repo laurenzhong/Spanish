@@ -3180,6 +3180,13 @@ button {
   stroke-width: 1.4;
 }
 
+.profile-radar__area--previous {
+  fill: color-mix(in srgb, var(--muted) 8%, transparent);
+  stroke: var(--muted);
+  stroke-dasharray: 2.5 2;
+  stroke-width: 1;
+}
+
 .profile-radar__caption {
   position: absolute;
   right: 0;
@@ -3267,7 +3274,7 @@ button {
 
 .profile-axis-detail__metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -3290,6 +3297,53 @@ button {
   align-items: center;
   margin: 0 !important;
   font-size: 0.82rem;
+}
+
+.profile-axis-detail__attempts {
+  display: grid;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.profile-axis-detail__attempts h3 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 0.9rem;
+}
+
+.profile-axis-detail__attempts p {
+  margin: 0;
+}
+
+.profile-axis-detail__attempts ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-axis-detail__attempts li {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.profile-axis-detail__attempts time {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-axis-detail__attempts li span:last-child {
+  text-align: right;
 }
 
 .status-dot {
@@ -3542,6 +3596,15 @@ button.learning-heatmap__cell[aria-pressed="true"] {
 
   .profile-axis-detail__metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-axis-detail__attempts li {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .profile-axis-detail__attempts li span:nth-child(3),
+  .profile-axis-detail__attempts li span:last-child {
+    text-align: left;
   }
 
   .profile-data-warning {

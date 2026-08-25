@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-import type { SkillStateSnapshot } from "./update-skill-state";
+import { rebuildSkillState, type SkillStateSnapshot } from "./update-skill-state";
+
+const representativeAttemptSchema = z.object({
+  occurredAt: z.string().datetime(),
+  modality: z.enum(["listening", "reading", "speech", "typing"]),
+  sceneLabel: z.string().nullable(),
+  hintLevel: z.number().int().min(0).max(3).nullable(),
+});
 
 export const profileAxisSchema = z.object({
   confidence: z.number().min(0).max(1).nullable(),
@@ -11,6 +18,9 @@ export const profileAxisSchema = z.object({
   lastEvidenceAt: z.string().datetime().nullable(),
   mastery: z.number().min(0).max(1).nullable(),
   oralCoverage: z.number().min(0).max(1).nullable(),
+  previousMastery: z.number().min(0).max(1).nullable(),
+  previousConfidence: z.number().min(0).max(1).nullable(),
+  representativeAttempts: z.array(representativeAttemptSchema).max(3),
   skillKeys: z.array(z.string()),
   status: z.enum(["data-insufficient", "accumulating", "developing", "verified"]),
 });
@@ -27,11 +37,18 @@ export const profileOverviewSchema = z.object({
 
 export type ProfileAxis = z.infer<typeof profileAxisSchema>;
 export type ProfileOverview = z.infer<typeof profileOverviewSchema>;
+export type ProfileRepresentativeAttempt = z.infer<typeof representativeAttemptSchema>;
 
 export type ProfileEvidence = Readonly<{
+  confidence: number;
   occurredAt: Date;
+  evidenceWeight: number;
   skillKey: string;
   modality: "listening" | "reading" | "speech" | "typing";
+  outcomeScore: number;
+  practiceAttemptId: string | null;
+  hintLevel: number | null;
+  sceneLabel: string | null;
 }>;
 
 type AxisDefinition = Readonly<{
@@ -134,12 +151,66 @@ function statusFor(
   return "developing";
 }
 
+function historicalStates(
+  userId: string,
+  evidence: readonly ProfileEvidence[],
+  cutoff: Date,
+): readonly SkillStateSnapshot[] {
+  const grouped = new Map<string, ProfileEvidence[]>();
+  for (const item of evidence) {
+    if (item.occurredAt > cutoff) continue;
+    const entries = grouped.get(item.skillKey) ?? [];
+    entries.push(item);
+    grouped.set(item.skillKey, entries);
+  }
+  return [...grouped.entries()].map(([skillKey, entries]) =>
+    rebuildSkillState(
+      userId,
+      skillKey,
+      [...entries]
+        .sort((left, right) => left.occurredAt.getTime() - right.occurredAt.getTime())
+        .map((item) => ({
+          confidence: item.confidence,
+          evidenceWeight: item.evidenceWeight,
+          occurredAt: item.occurredAt,
+          outcomeScore: item.outcomeScore,
+        })),
+    ),
+  );
+}
+
+function representativeAttempts(
+  evidence: readonly ProfileEvidence[],
+  skillKeys: readonly string[],
+): ProfileRepresentativeAttempt[] {
+  const seenAttempts = new Set<string>();
+  return [...evidence]
+    .filter((item) => skillKeys.includes(item.skillKey))
+    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
+    .filter((item) => {
+      if (!item.practiceAttemptId) return true;
+      if (seenAttempts.has(item.practiceAttemptId)) return false;
+      seenAttempts.add(item.practiceAttemptId);
+      return true;
+    })
+    .slice(0, 3)
+    .map((item) => ({
+      occurredAt: item.occurredAt.toISOString(),
+      hintLevel: item.hintLevel,
+      modality: item.modality,
+      sceneLabel: item.sceneLabel,
+    }));
+}
+
 export function buildProfileOverview(
-  _userId: string,
+  userId: string,
   states: readonly SkillStateSnapshot[],
   evidence: readonly ProfileEvidence[],
   generatedAt = new Date(),
 ): ProfileOverview {
+  const cutoff = new Date(generatedAt);
+  cutoff.setUTCDate(cutoff.getUTCDate() - 28);
+  const previous = historicalStates(userId, evidence, cutoff);
   const axes = PROFILE_AXIS_DEFINITIONS.map((definition) => {
     const matchingStates = states.filter((state) =>
       matchesAxis(state.skillKey, definition),
@@ -147,6 +218,9 @@ export function buildProfileOverview(
     const skillKeys = matchingStates.map((state) => state.skillKey);
     const matchingEvidence = evidence.filter((item) =>
       skillKeys.includes(item.skillKey),
+    );
+    const previousStates = previous.filter((state) =>
+      skillKeys.includes(state.skillKey),
     );
     const evidenceCount = matchingStates.reduce(
       (sum, state) => sum + state.evidenceCount,
@@ -171,6 +245,9 @@ export function buildProfileOverview(
       mastery,
       oralCoverage:
         matchingEvidence.length > 0 ? oralEvidence / matchingEvidence.length : null,
+      previousConfidence: weightedAverage(previousStates, (state) => state.confidence),
+      previousMastery: weightedAverage(previousStates, (state) => state.mastery),
+      representativeAttempts: representativeAttempts(evidence, skillKeys),
       skillKeys,
       status: statusFor(mastery, confidence, evidenceCount),
     } satisfies ProfileAxis;
