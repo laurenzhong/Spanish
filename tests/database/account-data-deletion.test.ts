@@ -67,6 +67,7 @@ describe("account data deletion", () => {
       "0007_spicy_talkback.sql",
       "0008_broad_chronomancer.sql",
       "0009_oval_namora.sql",
+      "0010_watery_ogun.sql",
     ]) {
       await client.exec(await migration(name));
     }
@@ -114,6 +115,13 @@ describe("account data deletion", () => {
       providerType: "stt",
       provider: "fake",
       metadata: { requestId: "private-request" },
+    });
+    await database.insert(schema.diagnosticEvents).values({
+      userId: userA,
+      eventType: "memory.conflict",
+      severity: "warning",
+      dedupeKey: "memory-conflict-delete-test",
+      metadata: { factKey: "city" },
     });
     await database.insert(schema.evidenceEvents).values({
       userId: userA,
@@ -176,6 +184,11 @@ describe("account data deletion", () => {
       database.select().from(schema.providerCalls).where(eq(schema.providerCalls.provider, "fake")),
     ).resolves.toEqual([
       expect.objectContaining({ userId: null, metadata: { anonymized: true } }),
+    ]);
+    await expect(
+      database.select().from(schema.diagnosticEvents).where(eq(schema.diagnosticEvents.dedupeKey, "memory-conflict-delete-test")),
+    ).resolves.toEqual([
+      expect.objectContaining({ userId: null, eventType: "memory.conflict" }),
     ]);
     await expect(
       database.select().from(schema.privacyCleanupTasks).where(eq(schema.privacyCleanupTasks.storagePath, "user-a/milestone.webm")),

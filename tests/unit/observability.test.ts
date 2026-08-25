@@ -4,6 +4,7 @@ import {
   createCorrelationIds,
   recordProviderCallSafely,
   safeProviderErrorType,
+  sanitizeDiagnosticMetadata,
 } from "@/src/shared/observability";
 
 describe("observability", () => {
@@ -49,5 +50,14 @@ describe("observability", () => {
         latencyMs: 10,
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("keeps diagnostic metadata scalar and bounded", () => {
+    expect(sanitizeDiagnosticMetadata({
+      factKey: "location.current",
+      count: 2,
+      nested: { secret: "content" },
+      "bad key": "ignored",
+    })).toEqual({ factKey: "location.current", count: 2 });
   });
 });

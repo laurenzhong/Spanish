@@ -180,3 +180,35 @@ export const privacyCleanupTasks = pgTable(
     ),
   ],
 );
+
+export const diagnosticEvents = pgTable(
+  "diagnostic_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => profiles.id, { onDelete: "set null" }),
+    eventType: text("event_type").notNull(),
+    severity: text("severity").default("warning").notNull(),
+    status: text("status").default("open").notNull(),
+    dedupeKey: text("dedupe_key").notNull(),
+    requestId: text("request_id"),
+    sessionId: text("session_id"),
+    attemptId: text("attempt_id"),
+    conversationId: text("conversation_id"),
+    generationId: text("generation_id"),
+    errorType: text("error_type"),
+    metadata: jsonb("metadata").$type<JsonObject>().default(sql`'{}'::jsonb`).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, mode: "date" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("diagnostic_events_dedupe_uidx").on(table.dedupeKey),
+    index("diagnostic_events_occurred_idx").on(table.occurredAt),
+    index("diagnostic_events_type_status_occurred_idx").on(table.eventType, table.status, table.occurredAt),
+    check("diagnostic_events_type_check", sql`${table.eventType} in ('conversation.stream_failed', 'evidence.duplicate', 'memory.conflict', 'privacy.storage_cleanup_failed')`),
+    check("diagnostic_events_severity_check", sql`${table.severity} in ('warning', 'alert')`),
+    check("diagnostic_events_status_check", sql`${table.status} in ('open', 'acknowledged', 'resolved')`),
+  ],
+);

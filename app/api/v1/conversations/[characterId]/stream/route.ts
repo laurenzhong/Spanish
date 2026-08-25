@@ -25,9 +25,11 @@ import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 import {
   createCorrelationIds,
+  recordDiagnosticEventSafely,
   recordProviderCallSafely,
 } from "@/src/shared/observability";
 import { createDrizzleProviderCallRepository } from "@/src/modules/providers/repositories/drizzle-provider-call-repository";
+import { createDrizzleDiagnosticEventRepository } from "@/src/modules/observability";
 
 type RouteContext = Readonly<{ params: Promise<{ characterId: string }> }>;
 
@@ -89,6 +91,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const providerCallObserver = database
     ? createDrizzleProviderCallRepository(database)
     : undefined;
+  const diagnostics = database ? createDrizzleDiagnosticEventRepository(database) : undefined;
   const readableMemoryRepository = memoryRepository && typeof memoryRepository.listReadableMemories === "function"
     ? memoryRepository
     : undefined;
@@ -210,7 +213,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 // Memory extraction is best-effort after the durable message write.
                 // A memory failure must not turn a completed chat reply into a failed one.
                 try {
-                  await commitMemories({ repository: memoryRepository, completed: true, candidates });
+                  await commitMemories({
+                    repository: memoryRepository,
+                    completed: true,
+                    candidates,
+                    diagnostics,
+                    requestId,
+                  });
                 } catch {
                   // Do not log candidate text or private conversation content.
                 }
@@ -234,6 +243,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
         });
         controller.close();
       } catch {
+        await recordDiagnosticEventSafely(diagnostics, {
+          userId: user.id,
+          eventType: "conversation.stream_failed",
+          severity: "alert",
+          dedupeKey: `conversation-stream-failed:${user.id}:${generationId}`,
+          correlation: {
+            requestId,
+            conversationId: conversationId ?? undefined,
+            generationId,
+          },
+          errorType: request.signal.aborted ? "provider-cancelled" : "stream-failed",
+        });
         await recordProviderCallSafely(providerCallObserver, {
           userId: user.id,
           correlation: createCorrelationIds({

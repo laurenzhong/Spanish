@@ -1,5 +1,6 @@
 import type { AccountDataSummary, PrivacyRepository } from "../repositories";
 import type { StorageObjectDeleter } from "../storage/storage-object-deleter";
+import { recordDiagnosticEventSafely, type DiagnosticEventWriter } from "@/src/shared/observability";
 
 export const ACCOUNT_DATA_CONFIRMATION = "DELETE_MY_DATA" as const;
 
@@ -21,6 +22,7 @@ export async function deleteAccountData(
   repository: PrivacyRepository,
   storageDeleter: StorageObjectDeleter,
   userId: string,
+  options: Readonly<{ diagnostics?: DiagnosticEventWriter; requestId?: string }> = {},
 ): Promise<DeleteAccountDataResult> {
   const deletion = await repository.transaction((transaction) =>
     transaction.deleteAccountData(userId),
@@ -35,6 +37,17 @@ export async function deleteAccountData(
         storageResult.deferred ? "failed" : "completed",
         storageResult.errorMessage,
       );
+      if (storageResult.deferred) {
+        await recordDiagnosticEventSafely(options.diagnostics, {
+          userId,
+          eventType: "privacy.storage_cleanup_failed",
+          severity: "alert",
+          dedupeKey: `storage-cleanup-failed:${task.id}`,
+          correlation: { requestId: options.requestId },
+          errorType: "storage-cleanup-failed",
+          metadata: { taskId: task.id },
+        });
+      }
     }
     cleanupDeferred = storageResult.deferred ? deletion.cleanupTasks.length : 0;
   }

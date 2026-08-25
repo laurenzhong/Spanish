@@ -1,6 +1,7 @@
 import { classifyMemoryCandidate, type MemoryConflict } from "../domain/memory-conflict";
 import type { MemoryCandidate } from "../domain/memory-candidate";
 import type { MemoryRecord, MemoryRepository } from "../repositories/memory-repository";
+import { recordDiagnosticEventSafely, type DiagnosticEventWriter } from "@/src/shared/observability";
 
 export type MemoryCommitOutcome = Readonly<{
   candidateId: string;
@@ -16,11 +17,13 @@ export async function commitMemories(input: Readonly<{
   repository: MemoryRepository;
   completed: boolean;
   candidates: readonly MemoryCandidate[];
+  diagnostics?: DiagnosticEventWriter;
+  requestId?: string;
 }>): Promise<readonly MemoryCommitOutcome[]> {
   if (!input.completed || input.candidates.length === 0) {
     return input.candidates.map((candidate) => outcome(candidate, "rejected", null));
   }
-  return input.repository.transaction(async (repository) => {
+  const results = await input.repository.transaction(async (repository) => {
     const results: MemoryCommitOutcome[] = [];
     for (const candidate of input.candidates) {
       const existing = await repository.findByFactKey(candidate.userId, candidate.characterKey, candidate.factKey);
@@ -35,6 +38,21 @@ export async function commitMemories(input: Readonly<{
     }
     return results;
   });
+  for (const result of results) {
+    if (result.result !== "conflict" || !result.memory) continue;
+    await recordDiagnosticEventSafely(input.diagnostics, {
+      userId: result.memory.userId,
+      eventType: "memory.conflict",
+      severity: "warning",
+      dedupeKey: `memory-conflict:${result.memory.userId}:${result.candidateId}`,
+      correlation: {
+        requestId: input.requestId,
+        conversationId: result.memory.sourceConversationId ?? undefined,
+      },
+      metadata: { characterKey: result.memory.characterKey, factKey: result.memory.factKey },
+    });
+  }
+  return results;
 }
 
 export function listRelationshipMemories(repository: MemoryRepository, userId: string, characterKey: string) {

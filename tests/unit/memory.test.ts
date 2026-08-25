@@ -87,12 +87,20 @@ describe("memory conflict and commit rules", () => {
     const repository = fakeRepository();
     const first = await commitMemories({ repository, completed: true, candidates: [candidate()] });
     const duplicate = await commitMemories({ repository, completed: true, candidates: [candidate()] });
-    const conflict = await commitMemories({ repository, completed: true, candidates: [candidate({ content: "el senderismo" })] });
+    const events: unknown[] = [];
+    const conflict = await commitMemories({
+      repository,
+      completed: true,
+      candidates: [candidate({ content: "el senderismo" })],
+      diagnostics: { record: async (event) => { events.push(event); } },
+      requestId: "req_12345678",
+    });
     const rejected = await commitMemories({ repository, completed: false, candidates: [candidate({ candidateId: "candidate-2" })] });
     expect(first[0]?.result).toBe("inserted");
     expect(duplicate[0]?.result).toBe("duplicate");
     expect(conflict[0]?.result).toBe("conflict");
     expect(rejected[0]?.result).toBe("rejected");
+    expect(events[0]).toMatchObject({ eventType: "memory.conflict", severity: "warning" });
     expect(await repository.listMemories("user-1", "lucia")).toHaveLength(2);
     expect((await repository.listMemories("user-1", "lucia"))[0]?.content).toBe("la fotografía");
   });

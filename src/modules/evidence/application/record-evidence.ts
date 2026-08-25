@@ -10,6 +10,10 @@ import {
   rebuildSkillState,
   type SkillStateSnapshot,
 } from "@/src/modules/profile/domain";
+import {
+  recordDiagnosticEventSafely,
+  type DiagnosticEventWriter,
+} from "@/src/shared/observability";
 
 export type RecordEvidenceResult = Readonly<{
   events: readonly PersistedEvidenceEvent[];
@@ -21,6 +25,7 @@ export type RecordEvidenceResult = Readonly<{
 export async function recordEvidence(
   repository: EvidenceRepository,
   input: unknown,
+  options: Readonly<{ diagnostics?: DiagnosticEventWriter; requestId?: string }> = {},
 ): Promise<RecordEvidenceResult> {
   const evaluation = evaluateAttempt(input);
   if (evaluation.status === "ignored") {
@@ -32,7 +37,7 @@ export async function recordEvidence(
     };
   }
 
-  return repository.transaction(async (transaction) => {
+  const result = await repository.transaction(async (transaction) => {
     const firstEvent = evaluation.events[0]!;
     const ownsAttempt = await transaction.assertPracticeAttemptBelongsToUser(
       firstEvent.userId,
@@ -75,7 +80,29 @@ export async function recordEvidence(
     return {
       events: persisted,
       skillStates,
-      status: missing.length === 0 ? "duplicate" : "recorded",
+      status: missing.length === 0 ? ("duplicate" as const) : ("recorded" as const),
+      firstEvent,
+      missingCount: missing.length,
     };
   });
+
+  if (result.status === "duplicate") {
+    await recordDiagnosticEventSafely(options.diagnostics, {
+      userId: result.firstEvent.userId,
+      eventType: "evidence.duplicate",
+      severity: "warning",
+      dedupeKey: `evidence-duplicate:${result.firstEvent.userId}:${result.firstEvent.idempotencyKey}`,
+      correlation: {
+        requestId: options.requestId,
+        attemptId: result.firstEvent.practiceAttemptId ?? undefined,
+      },
+      metadata: { eventCount: result.events.length, missingCount: result.missingCount },
+    });
+  }
+
+  return {
+    events: result.events,
+    skillStates: result.skillStates,
+    status: result.status,
+  };
 }

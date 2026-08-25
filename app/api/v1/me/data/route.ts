@@ -13,6 +13,7 @@ import {
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
+import { createDrizzleDiagnosticEventRepository } from "@/src/modules/observability";
 
 const deleteRequestSchema = z.object({
   confirmation: z.literal(ACCOUNT_DATA_CONFIRMATION),
@@ -68,6 +69,7 @@ export async function DELETE(request: NextRequest) {
       repository,
       createSupabaseStorageObjectDeleter(),
       user.id,
+      { diagnostics: createDrizzleDiagnosticEventRepository(getDatabase()), requestId },
     );
     return NextResponse.json(
       {

@@ -22,6 +22,7 @@ import {
   contentReviews,
   contentSources,
   conversations,
+  diagnosticEvents,
   evidenceEvents,
   expressionTags,
   expressionVariants,
@@ -80,6 +81,7 @@ const allTables = [
   messages,
   audioAssets,
   providerCalls,
+  diagnosticEvents,
   privacyCleanupTasks,
   idempotencyKeys,
 ] as const;
@@ -121,6 +123,7 @@ describe("database schema", () => {
         "content_reviews",
         "content_sources",
         "conversations",
+        "diagnostic_events",
         "evidence_events",
         "expression_tags",
         "expression_variants",
@@ -209,6 +212,7 @@ describe("database schema", () => {
         "0007_spicy_talkback.sql",
         "0008_broad_chronomancer.sql",
         "0009_oval_namora.sql",
+        "0010_watery_ogun.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),

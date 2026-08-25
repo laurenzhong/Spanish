@@ -41,6 +41,8 @@ ALPHA-030 的 `character_introduction_offers` 保存 Lucía 触发的好友介�
 
 7.5a 在 `provider_calls` 中保存服务端生成或透传的 `request_id`，以及可选的学习会话、尝试、对话和 generation 关联 ID；`error_type` 只保存稳定错误码。`provider_calls` 仍没有客户端写策略，观测记录由服务端 repository 写入；调用记录不保存输入正文、音频内容、令牌或签名 URL。账号删除继续将其 `user_id` 置空并替换 metadata 为匿名标记，关联 ID 不用于恢复用户身份。
 
+7.5b 新增 `diagnostic_events` 作为不可变业务诊断事件表。`dedupe_key` 唯一约束抑制重复告警；`event_type`、`severity` 和 `status` 通过数据库 CHECK 限定；`request_id`/session/attempt/conversation/generation 只作为关联线索。该表启用 RLS 并撤销 `anon`/`authenticated` 的全部权限，只有服务端 repository 可以写入和查询。用户删除时 `user_id` 置空，事件保留为不含身份的运维事实。
+
 ## 3. 连接配置
 
 复制 `.env.example` 为本地 `.env`，不要提交真实值：
@@ -103,6 +105,7 @@ pnpm db:migrate
 - 关系记忆只能通过服务端 application 查看和删除；删除 `relationship_memories` 会级联清理 `memory_sharing_permissions`，客户端不能直接写入或绕过用户所有权检查。
 - 7.4b 只向用户展示非 `ephemeral` 的 `audio_assets` 和 speech 尝试中的转写文本；录音删除使用 `deleted_at` 软删除，转写删除清空 `practice_attempts.response_text`，两者都保留证据历史。账号级删除的 Storage 对象清理由 7.4c 的专用 storage deleter 和可重试任务负责。
 - 7.4c 的账号数据删除由服务端事务执行：先删除 `evidence_events` 解除 `practice_attempts` 的 restrict 引用，再删除 `profiles` 触发用户私有表级联；`provider_calls` 在 profile 删除前置空 `user_id` 并替换 metadata 为匿名标记。`privacy_cleanup_tasks` 不含 `user_id`，只保存待清理的 bucket/path、状态、尝试次数和脱敏错误，RLS 对客户端完全关闭。
+- `diagnostic_events` 不开放客户端读写；内部查询只返回去掉 `user_id` 和 `dedupe_key` 的诊断投影。
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
 - 变体、任务和内容片段通过可见的父内容继承读取权限。
 - 敏感人物固定事实不通过公开客户端角色暴露。

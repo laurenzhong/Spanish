@@ -85,13 +85,18 @@ describe("recordEvidence", () => {
 
   it("treats a retry as a duplicate without increasing evidence count", async () => {
     const store = repository();
+    const events: unknown[] = [];
 
     const first = await recordEvidence(store, input());
-    const second = await recordEvidence(store, input());
+    const second = await recordEvidence(store, input(), {
+      diagnostics: { record: async (event) => { events.push(event); } },
+      requestId: "req_12345678",
+    });
 
     expect(first.status).toBe("recorded");
     expect(second.status).toBe("duplicate");
     expect(second.skillStates[0]!.evidenceCount).toBe(1);
+    expect(events[0]).toMatchObject({ eventType: "evidence.duplicate", severity: "warning" });
   });
 
   it("records a reliable contextual miss without treating it as a technical failure", async () => {

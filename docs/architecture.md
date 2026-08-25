@@ -236,9 +236,12 @@ Route Handler 的职责只有：
 
 7.5a 的供应商观测由 `shared/observability` 定义纯 TypeScript DTO 和关联 ID（`requestId`、`sessionId`、`attemptId`、`conversationId`、`generationId`）。provider application 通过可选 `ProviderCallObserver` 写入 `provider_calls`；观测写入失败只能被吞并，不能改变学习、聊天或评分结果。聊天流响应回传 `x-request-id`，无效或缺失的客户端 ID 由服务端生成。
 
+7.5b 的业务故障写入独立的 append-only `diagnostic_events`：只允许四类固定事件（异常断流、重复证据、记忆冲突、Storage 清理失败），通过 `dedupe_key` 幂等。事件 metadata 只能是短字符串、数字、布尔值或 null；内部查询端点 `/api/v1/internal/diagnostics` 需要 `DIAGNOSTICS_INTERNAL_TOKEN`，响应不包含用户 ID、正文、音频路径或令牌。聚合规则按事件类型和错误类型的滑动窗口产生 warning/alert，不发送外部通知。
+
 对 Web 与 Flutter 开放的 Alpha API 使用显式版本前缀，例如 `/api/v1/`。推荐端点：
 
 - `POST /api/v1/diagnostics`
+- `GET /api/v1/internal/diagnostics`（服务端诊断查询，不对普通客户端开放）
 - `GET /api/v1/learning/next-action`
 - `POST /api/v1/practice/sessions`
 - `POST /api/v1/practice/attempts`

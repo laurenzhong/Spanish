@@ -59,6 +59,9 @@ describe("Supabase RLS baseline", () => {
     await database.exec(await migration("0005_kind_character_network.sql"));
     await database.exec(await migration("0006_opposite_centennial.sql"));
     await database.exec(await migration("0007_spicy_talkback.sql"));
+    await database.exec(await migration("0008_broad_chronomancer.sql"));
+    await database.exec(await migration("0009_oval_namora.sql"));
+    await database.exec(await migration("0010_watery_ogun.sql"));
 
     await database.exec(`
       insert into auth.users (id, email)
@@ -159,6 +162,8 @@ describe("Supabase RLS baseline", () => {
       skill_insert: boolean;
       memory_insert: boolean;
       provider_insert: boolean;
+      diagnostic_select: boolean;
+      diagnostic_insert: boolean;
       cleanup_select: boolean;
       cleanup_insert: boolean;
     }>(`
@@ -166,6 +171,8 @@ describe("Supabase RLS baseline", () => {
         has_table_privilege('authenticated', 'public.user_skill_states', 'INSERT') as skill_insert,
         has_table_privilege('authenticated', 'public.relationship_memories', 'INSERT') as memory_insert,
         has_table_privilege('authenticated', 'public.provider_calls', 'INSERT') as provider_insert,
+        has_table_privilege('authenticated', 'public.diagnostic_events', 'SELECT') as diagnostic_select,
+        has_table_privilege('authenticated', 'public.diagnostic_events', 'INSERT') as diagnostic_insert,
         has_table_privilege('authenticated', 'public.privacy_cleanup_tasks', 'SELECT') as cleanup_select,
         has_table_privilege('authenticated', 'public.privacy_cleanup_tasks', 'INSERT') as cleanup_insert
     `);
@@ -174,6 +181,8 @@ describe("Supabase RLS baseline", () => {
       skill_insert: false,
       memory_insert: false,
       provider_insert: false,
+      diagnostic_select: false,
+      diagnostic_insert: false,
       cleanup_select: false,
       cleanup_insert: false,
     });
