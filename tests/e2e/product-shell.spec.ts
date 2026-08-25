@@ -197,6 +197,34 @@ test("lets the user delete an owned relationship memory", async ({ page }) => {
   await expect(page.getByText("喜欢摄影")).not.toBeVisible();
 });
 
+test("lets the user delete a saved speech transcript", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/profile/media**", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { audio: [], transcripts: [{ attemptId: "00000000-0000-4000-8000-000000000072", createdAt: "2026-08-25T00:00:00.000Z", text: "¿Cómo va todo?" }] } }),
+      });
+      return;
+    }
+    expect(route.request().method()).toBe("DELETE");
+    expect(route.request().url()).toContain("kind=transcript");
+    expect(route.request().url()).toContain("id=00000000-0000-4000-8000-000000000072");
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { deleted: true, kind: "transcript", id: "00000000-0000-4000-8000-000000000072" } }) });
+  });
+  page.on("dialog", (dialog) => void dialog.accept());
+
+  await page.goto("/me");
+  await expect(page.getByRole("heading", { name: "已保存的录音与转写" })).toBeVisible();
+  await expect(page.getByText("¿Cómo va todo?")).toBeVisible();
+  const deleteButton = page.getByRole("button", { name: "删除转写" });
+  await deleteButton.scrollIntoViewIfNeeded();
+  await deleteButton.click({ force: true });
+  await expect(page.getByRole("status")).toContainText("已删除");
+  await expect(page.getByText("¿Cómo va todo?")).not.toBeVisible();
+});
+
 test("preserves the selected discovery direction on the learning page", async ({
   page,
 }) => {

@@ -255,6 +255,8 @@ Route Handler 的职责只有：
 
 7.4a 的关系记忆控制通过 `GET /api/v1/profile/memories` 和 `DELETE /api/v1/profile/memories?memoryId=...` 提供。列表只返回当前用户拥有的记忆，删除由服务端所有权检查执行，并依赖外键级联清理相关角色共享授权；能力证据和画像不会随之删除。
 
+7.4b 的语音数据控制通过 `GET /api/v1/profile/media` 和带 `kind`/`id` 的 `DELETE` 提供。列表排除 `ephemeral` 录音且不暴露 storage 路径；删除保存录音写入 `audio_assets.deleted_at`，删除 speech 转写清空对应练习尝试的 `response_text`，不删除追加式证据或技能快照。
+
 练习活动接口只接受客户端实例 ID、单调序号和 `active`/`inactive`/`ended` 生命周期事件。服务端写入接收时间并以 `(session_id, client_instance_id, sequence)` 幂等；热力图仅消费相邻活动心跳形成的有效秒数，超过 45 秒的间隔、后台/失焦区间和未完成尾部不计入学习时长。
 
 API 错误使用稳定代码，不让前端解析供应商原始错误文本。

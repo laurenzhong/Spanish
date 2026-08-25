@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sueno.local/contracts/v1/profile-media-response.schema.json",
+  "title": "Profile saved voice data response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audio", "transcripts"],
+      "properties": {
+        "audio": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["createdAt", "durationMs", "id", "mimeType", "purpose", "retentionPolicy", "sizeBytes"],
+            "properties": {
+              "createdAt": { "type": "string", "format": "date-time" },
+              "durationMs": { "type": ["integer", "null"], "minimum": 0 },
+              "id": { "type": "string", "format": "uuid" },
+              "mimeType": { "type": "string", "minLength": 1 },
+              "purpose": { "type": "string", "minLength": 1 },
+              "retentionPolicy": { "type": "string", "minLength": 1 },
+              "sizeBytes": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "transcripts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["attemptId", "createdAt", "text"],
+            "properties": {
+              "attemptId": { "type": "string", "format": "uuid" },
+              "createdAt": { "type": "string", "format": "date-time" },
+              "text": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

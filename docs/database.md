@@ -99,6 +99,7 @@ pnpm db:migrate
 - `evidence_events`、技能/场景快照、关系记忆、`provider_calls` 和 `idempotency_keys` 没有客户端写策略；写入必须经过服务端 application 层。
 - `practice_session_activity_events` 只能通过活动 application 写入；客户端只读策略不开放插入、更新或删除。
 - 关系记忆只能通过服务端 application 查看和删除；删除 `relationship_memories` 会级联清理 `memory_sharing_permissions`，客户端不能直接写入或绕过用户所有权检查。
+- 7.4b 只向用户展示非 `ephemeral` 的 `audio_assets` 和 speech 尝试中的转写文本；录音删除使用 `deleted_at` 软删除，转写删除清空 `practice_attempts.response_text`，两者都保留证据历史。实际 Storage 对象清理需要后续接入专用 storage deleter。
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
 - 变体、任务和内容片段通过可见的父内容继承读取权限。
 - 敏感人物固定事实不通过公开客户端角色暴露。
