@@ -22,7 +22,7 @@ test("opens the immersive content pack as one recoverable path", async ({ page }
   await expect(page.getByText("Después de clase", { exact: false })).not.toBeVisible();
 
   await page.getByRole("button", { name: "展开西语和中文" }).first().click();
-  await expect(page.getByText("Después de clase", { exact: false })).toBeVisible();
+  await expect(page.getByText("Después de clase", { exact: true })).toBeVisible();
   await expect(page.getByText("下课后，Marta 走进校园咖啡馆。", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "进入口语复核" })).toHaveAttribute(
     "href",
