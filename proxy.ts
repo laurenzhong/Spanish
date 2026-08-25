@@ -2,7 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { readSupabasePublicConfig } from "@/src/shared/auth/config";
-import { resolveAuthRedirect } from "@/src/shared/auth/route-access";
+import {
+  isPublicRoute,
+  resolveAuthRedirect,
+} from "@/src/shared/auth/route-access";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -54,6 +57,16 @@ export async function proxy(request: NextRequest) {
       redirectResponse.cookies.set(cookie);
     }
     return redirectResponse;
+  }
+
+  if (authCheckFailed && !isPublicRoute(request.nextUrl.pathname)) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-auth-next-path", request.nextUrl.pathname);
+    const nextResponse = NextResponse.next({ request: { headers: requestHeaders } });
+    for (const cookie of response.cookies.getAll()) {
+      nextResponse.cookies.set(cookie);
+    }
+    response = nextResponse;
   }
 
   return response;

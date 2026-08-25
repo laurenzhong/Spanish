@@ -1,10 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
+const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
 
 async function authenticate(page: Page) {
   await page.context().addCookies([
-    { name: "spanish-e2e-user", value: e2eUserId, domain: "localhost", path: "/" },
+    { name: "spanish-e2e-user", value: e2eUserId, url: e2eBaseUrl },
   ]);
 }
 
