@@ -8,9 +8,11 @@ import {
   normalizeEmailAddress,
   type WebAuthRepository,
 } from "./web-auth-repository";
+import { resolvePostLoginTarget } from "./route-access";
 
 type EmailOtpFormProps = Readonly<{
   repository?: WebAuthRepository | null;
+  redirectTo?: string;
 }>;
 
 function getOtpRequestErrorMessage(error: unknown) {
@@ -76,7 +78,7 @@ function getOtpVerifyErrorMessage(error: unknown) {
   return "验证码无效或已经过期，请重新输入。";
 }
 
-export function EmailOtpForm({ repository }: EmailOtpFormProps) {
+export function EmailOtpForm({ repository, redirectTo = "/learn" }: EmailOtpFormProps) {
   const router = useRouter();
   const auth = useMemo(
     () => repository === undefined ? createWebAuthRepository() : repository,
@@ -110,7 +112,7 @@ export function EmailOtpForm({ repository }: EmailOtpFormProps) {
     setError(null);
     try {
       await auth.verifyEmailOtp(normalizeEmailAddress(email), token.trim());
-      router.replace("/learn");
+      router.replace(resolvePostLoginTarget(redirectTo));
     } catch (error) {
       setToken("");
       setError(getOtpVerifyErrorMessage(error));

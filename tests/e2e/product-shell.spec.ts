@@ -38,6 +38,15 @@ test("redirects anonymous product traffic to email OTP login", async ({
   ).toBeVisible();
 });
 
+test("preserves the requested page through the login handoff", async ({ page }) => {
+  await page.goto("/chat/lucia");
+
+  await expect(page).toHaveURL(/\/login\?next=%2Fchat%2Flucia$/);
+  await expect(
+    page.getByRole("heading", { name: "用邮箱接收验证码" }),
+  ).toBeVisible();
+});
+
 test("navigates between all four product areas", async ({ page }) => {
   await authenticate(page);
   await page.goto("/learn");

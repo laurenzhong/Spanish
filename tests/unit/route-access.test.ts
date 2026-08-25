@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveAuthRedirect } from "@/src/shared/auth/route-access";
+import {
+  resolveAuthRedirect,
+  resolvePostLoginTarget,
+} from "@/src/shared/auth/route-access";
 
 describe("resolveAuthRedirect", () => {
   it("sends anonymous product traffic to login with the original path", () => {
@@ -15,5 +18,17 @@ describe("resolveAuthRedirect", () => {
 
   it("keeps the public introduction page available", () => {
     expect(resolveAuthRedirect("/", false)).toBeNull();
+  });
+
+  it("keeps a valid internal destination after login", () => {
+    expect(resolvePostLoginTarget("/chat/lucia?from=invite")).toBe(
+      "/chat/lucia?from=invite",
+    );
+  });
+
+  it("rejects external and login destinations after login", () => {
+    expect(resolvePostLoginTarget("https://example.com")).toBe("/learn");
+    expect(resolvePostLoginTarget("//example.com")).toBe("/learn");
+    expect(resolvePostLoginTarget("/login?next=/me")).toBe("/learn");
   });
 });

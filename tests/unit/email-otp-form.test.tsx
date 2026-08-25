@@ -59,6 +59,19 @@ describe("EmailOtpForm", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("returns to the requested internal page after verification", async () => {
+    const auth = repository();
+    const user = userEvent.setup();
+    render(<EmailOtpForm repository={auth} redirectTo="/chat/lucia" />);
+
+    await user.type(screen.getByLabelText("邮箱"), "learner@example.test");
+    await user.click(screen.getByRole("button", { name: "获取验证码" }));
+    await user.type(screen.getByLabelText("六位验证码"), "123456");
+    await user.click(screen.getByRole("button", { name: "进入学习" }));
+
+    expect(replace).toHaveBeenCalledWith("/chat/lucia");
+  });
+
   it("keeps the verification step available after an invalid code", async () => {
     const auth = repository({
       verifyEmailOtp: vi.fn().mockRejectedValue(new Error("otp_expired")),

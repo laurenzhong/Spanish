@@ -7,10 +7,12 @@ import {
   createWebAuthRepository,
   type WebAuthRepository,
 } from "./web-auth-repository";
+import { resolvePostLoginTarget } from "./route-access";
 
 export function PasswordForm({
   repository,
-}: Readonly<{ repository?: WebAuthRepository | null }>) {
+  redirectTo = "/learn",
+}: Readonly<{ repository?: WebAuthRepository | null; redirectTo?: string }>) {
   const router = useRouter();
   const auth = useMemo(
     () => repository === undefined ? createWebAuthRepository() : repository,
@@ -28,7 +30,7 @@ export function PasswordForm({
     setError(null);
     try {
       await auth.signInWithPassword(email.trim(), password);
-      router.replace("/learn");
+      router.replace(resolvePostLoginTarget(redirectTo));
       router.refresh();
     } catch {
       setError("邮箱或密码不正确。");
