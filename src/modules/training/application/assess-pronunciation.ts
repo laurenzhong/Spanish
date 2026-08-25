@@ -6,6 +6,12 @@ import {
   type PronunciationProvider,
   validatePronunciationInput,
 } from "@/src/modules/providers/pronunciation";
+import {
+  createCorrelationIds,
+  recordProviderCallSafely,
+  safeProviderErrorType,
+  type ProviderCallObserver,
+} from "@/src/shared/observability";
 
 export type PronunciationAssessmentMode = "sampled" | "explicit-review" | "typing";
 
@@ -16,6 +22,9 @@ export type AssessPronunciationAttemptInput = Readonly<
     currentGenerationId: number;
     outputMode: "speech" | "typing";
     assessmentMode: PronunciationAssessmentMode;
+    userId?: string;
+    sessionId?: string;
+    requestId?: string;
   }
 >;
 
@@ -82,7 +91,7 @@ export class PronunciationApplicationError extends Error {
 export async function assessPronunciationAttempt(
   provider: PronunciationProvider,
   input: AssessPronunciationAttemptInput,
-  options: Readonly<{ signal?: AbortSignal }> = {},
+  options: Readonly<{ signal?: AbortSignal; observer?: ProviderCallObserver }> = {},
 ): Promise<PronunciationAssessmentApplicationResult> {
   if (input.generationId !== input.currentGenerationId) {
     return {
@@ -116,10 +125,41 @@ export async function assessPronunciationAttempt(
   };
   validatePronunciationInput(providerInput);
 
+  const startedAt = Date.now();
+  const correlation = createCorrelationIds({
+    requestId: input.requestId,
+    sessionId: input.sessionId,
+    attemptId: input.attemptId,
+    generationId: String(input.generationId),
+  });
+
   try {
     const result = await provider.assess(providerInput, options);
+    await recordProviderCallSafely(options.observer, {
+      userId: input.userId,
+      correlation,
+      providerType: "pronunciation",
+      provider: result.provider,
+      modelVersion: result.modelVersion,
+      providerRequestId: result.providerRequestId,
+      status: "succeeded",
+      latencyMs: result.latencyMs,
+      estimatedCostMicros: result.estimatedCostMicros,
+    });
     return mapProviderResult(providerInput, result);
   } catch (error) {
+    await recordProviderCallSafely(options.observer, {
+      userId: input.userId,
+      correlation,
+      providerType: "pronunciation",
+      provider: "unknown",
+      status:
+        error instanceof PronunciationAssessmentError && error.code === "provider-cancelled"
+          ? "cancelled"
+          : "failed",
+      latencyMs: Date.now() - startedAt,
+      errorType: safeProviderErrorType(error),
+    });
     if (!(error instanceof PronunciationAssessmentError)) throw error;
     return {
       status: "recoverable-error",

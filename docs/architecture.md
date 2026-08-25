@@ -234,6 +234,8 @@ Route Handler 的职责只有：
 4. 把领域结果转换为 HTTP/流式协议。
 5. 记录相关 ID、延迟和结构化错误。
 
+7.5a 的供应商观测由 `shared/observability` 定义纯 TypeScript DTO 和关联 ID（`requestId`、`sessionId`、`attemptId`、`conversationId`、`generationId`）。provider application 通过可选 `ProviderCallObserver` 写入 `provider_calls`；观测写入失败只能被吞并，不能改变学习、聊天或评分结果。聊天流响应回传 `x-request-id`，无效或缺失的客户端 ID 由服务端生成。
+
 对 Web 与 Flutter 开放的 Alpha API 使用显式版本前缀，例如 `/api/v1/`。推荐端点：
 
 - `POST /api/v1/diagnostics`
@@ -403,6 +405,8 @@ Flutter 的 `AudioRecorder` 和 `TextToSpeech` 端口继续位于 `apps/mobile/l
 - 无 `done` 异常断流率。
 - 记忆冲突和越权共享拦截次数。
 - 每次有效训练和聊天的供应商成本。
+
+7.5a 已落地 `provider_calls` 的 `request_id`、`session_id`、`attempt_id`、`conversation_id`、`generation_id` 和 `error_type` 字段，并为 request/attempt 建立诊断查询索引。记录只保存结构化供应商元数据，不保存音频、完整对话或供应商响应正文。
 
 ## 15. 暂不拆分的边界
 

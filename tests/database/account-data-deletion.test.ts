@@ -65,6 +65,8 @@ describe("account data deletion", () => {
       "0005_kind_character_network.sql",
       "0006_opposite_centennial.sql",
       "0007_spicy_talkback.sql",
+      "0008_broad_chronomancer.sql",
+      "0009_oval_namora.sql",
     ]) {
       await client.exec(await migration(name));
     }

@@ -1,0 +1,2 @@
+CREATE INDEX "provider_calls_request_idx" ON "provider_calls" USING btree ("request_id");--> statement-breakpoint
+CREATE INDEX "provider_calls_attempt_idx" ON "provider_calls" USING btree ("attempt_id");

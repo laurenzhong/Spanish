@@ -24,6 +24,26 @@ const baseInput: AssessPronunciationAttemptInput = {
 };
 
 describe("assessPronunciationAttempt", () => {
+  it("records provider metadata without changing the observation result", async () => {
+    const provider = new FakePronunciationProvider();
+    const calls: unknown[] = [];
+    const result = await assessPronunciationAttempt(provider, baseInput, {
+      observer: { record: async (input) => { calls.push(input); } },
+    });
+
+    expect(result.status).toBe("observed");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      providerType: "pronunciation",
+      provider: "fake",
+      status: "succeeded",
+      correlation: {
+        attemptId: baseInput.attemptId,
+        generationId: String(baseInput.generationId),
+      },
+    });
+  });
+
   it("maps a usable provider result to an observation-only result", async () => {
     const provider = new FakePronunciationProvider();
 

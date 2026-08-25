@@ -23,6 +23,11 @@ import {
 } from "@/src/modules/character-network";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
+import {
+  createCorrelationIds,
+  recordProviderCallSafely,
+} from "@/src/shared/observability";
+import { createDrizzleProviderCallRepository } from "@/src/modules/providers/repositories/drizzle-provider-call-repository";
 
 type RouteContext = Readonly<{ params: Promise<{ characterId: string }> }>;
 
@@ -34,6 +39,13 @@ function jsonError(code: string, message: string, status: number): NextResponse 
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  const suppliedRequestId = request.headers.get("x-request-id");
+  let requestId: string;
+  try {
+    requestId = createCorrelationIds({ requestId: suppliedRequestId ?? undefined }).requestId;
+  } catch {
+    requestId = createCorrelationIds().requestId;
+  }
   // Web sends the Supabase session cookie; Flutter sends a bearer token.
   const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
   if (!user) return jsonError("AUTH_REQUIRED", "A valid user session is required.", 401);
@@ -71,12 +83,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const repository = process.env.DATABASE_URL
-    ? createDrizzleConversationRepository(getDatabase())
-    : null;
-  const memoryRepository = process.env.DATABASE_URL
-    ? createDrizzleMemoryRepository(getDatabase())
-    : null;
+  const database = process.env.DATABASE_URL ? getDatabase() : null;
+  const repository = database ? createDrizzleConversationRepository(database) : null;
+  const memoryRepository = database ? createDrizzleMemoryRepository(database) : null;
+  const providerCallObserver = database
+    ? createDrizzleProviderCallRepository(database)
+    : undefined;
   const readableMemoryRepository = memoryRepository && typeof memoryRepository.listReadableMemories === "function"
     ? memoryRepository
     : undefined;
@@ -128,6 +140,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
   }
   const iterator = streamReply(replyInput);
+  const correlation = createCorrelationIds({ requestId, generationId });
+  const providerStartedAt = Date.now();
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -157,7 +171,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 ? "ines"
                 : "mateo";
               await proposeIntroduction({
-                repository: createDrizzleIntroductionRepository(getDatabase()),
+                repository: createDrizzleIntroductionRepository(database ?? getDatabase()),
                 candidate: {
                   userId: user.id,
                   sourceCharacterKey: "lucia",
@@ -205,8 +219,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
           }
           controller.enqueue(encoder.encode(encodeConversationEvent(event)));
         }
+        await recordProviderCallSafely(providerCallObserver, {
+          userId: user.id,
+          correlation: createCorrelationIds({
+            requestId,
+            conversationId: conversationId ?? undefined,
+            generationId,
+          }),
+          providerType: "conversation",
+          provider: "deterministic-fake",
+          modelVersion: "lucia-reply-v1",
+          status: "succeeded",
+          latencyMs: Date.now() - providerStartedAt,
+        });
         controller.close();
       } catch {
+        await recordProviderCallSafely(providerCallObserver, {
+          userId: user.id,
+          correlation: createCorrelationIds({
+            ...correlation,
+            conversationId: conversationId ?? undefined,
+          }),
+          providerType: "conversation",
+          provider: "deterministic-fake",
+          modelVersion: "lucia-reply-v1",
+          status: request.signal.aborted ? "cancelled" : "failed",
+          latencyMs: Date.now() - providerStartedAt,
+          errorType: request.signal.aborted ? "provider-cancelled" : "stream-failed",
+        });
         controller.enqueue(
           encoder.encode(
             encodeConversationEvent({
@@ -233,6 +273,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       "cache-control": "no-store, no-cache, must-revalidate",
       connection: "keep-alive",
       "x-conversation-persistence": repository ? "available" : "unavailable",
+      "x-request-id": requestId,
     },
   });
 }
