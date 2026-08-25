@@ -10,6 +10,7 @@
 - 围绕打招呼、建立关系、表达需要、维持对话和修复沟通等通用交际能力训练。
 - 通过情境输入、独立输出、渐进提示、变式迁移和真实对话形成听说闭环。
 - 在不方便发声时用听力、阅读和打字继续学习，之后补充口语验证。
+- 在独立的“阅读”页面阅读可核验来源的西语刊物、生活和工作文章，支持断点、词语辅助、保存和可选口语迁移；阅读行为本身不计为口语证据。
 - 用学习证据、八维能力图和场景状态说明真实进步，而不是只展示经验值或打卡。
 - 与长期 AI 好友 Lucía 在接近真实私信的环境中持续交流，并自然认识其他角色。
 
@@ -28,6 +29,7 @@ Alpha 计划包含：
 
 - 40–60 条正式训练表达。
 - 8–12 个沉浸式内容包。
+- 首批可持续扩充的西语阅读文章库（原创、公共领域、开放许可或明确授权来源）。
 - 听说核心训练、静默读写替代和抽样口语复核。
 - Web 浏览器 TTS、Flutter 平台语音接口、录音、转写和基础评估。
 - 八维学习画像、有效学习热力图和唯一下一动作推荐。
@@ -52,6 +54,8 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 
 - [当前任务与项目状态](PROJECT_STATUS.md)
 - [完整产品设计](docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
+- [阅读库与西语文章内容体系设计](docs/superpowers/specs/2026-08-26-reading-library-and-article-content-design.md)
+- [Web UI 设计研究与页面方案](docs/superpowers/specs/2026-08-26-web-ui-design-research-and-scheme.md)
 - [Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
 - [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](docs/architecture.md)
@@ -74,7 +78,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 
 实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
 
-基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。Web 与 Flutter 都已建立“学习、探索、对话、我的”四栏产品壳层和静态学习首页；当前视觉是 Alpha 基线，后续会在真实体验中继续打磨。
+基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。Web 与 Flutter 的产品壳层按“学习、阅读、探索、对话、我的”五项语义演进；当前视觉是 Alpha 基线，阅读库与阅读器仍处于设计审阅阶段，后续会在真实体验中继续打磨。
 
 本地环境要求：
 

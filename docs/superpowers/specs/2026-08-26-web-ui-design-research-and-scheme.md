@@ -16,7 +16,7 @@ Sueño Web 采用“温暖编辑式对话工作台”（Warm Editorial Conversat
 - 用联系人、最近话题和语音/文字输入建立对话页，而不是把对话做成第二个课程仪表盘。
 - 用“当前能做什么”和“证据是否足够可靠”展示进步，不用经验值、连胜或学习时长制造能力感。
 - 所有可点击元素都必须有真实目的、可观察结果和失败恢复路径；未发布内容使用状态标签，不伪装成按钮。
-- 桌面端使用侧栏，移动端使用四项底部导航；两端共享导航语义，不共享 UI 源码。
+- 桌面端使用侧栏，移动端使用五项底部导航；两端共享导航语义，不共享 UI 源码。
 
 本决策不改变服务端评分、证据、画像、记忆权限和角色安全规则，也不提前实现支付、实时双向语音、开放角色商城或其他 Alpha 延后能力。
 
@@ -32,6 +32,7 @@ Sueño Web 采用“温暖编辑式对话工作台”（Warm Editorial Conversat
 4. [Tandem](https://tandem.net/)：公开中文首页、联系人和消息/语音交换叙事。
 5. [Echo-Loop](https://github.com/echo-loop/Echo-Loop)：公开仓库首页与本仓库既有参考评审。
 6. 当前本地 Web：`http://localhost:3000/`、`/learn`、`/explore`、`/chat`、`/me`、`/learn/practice` 的 DOM、可见按钮、链接和截图。
+7. [LingQ](https://www.lingq.com/en/learn-spanish-online/)、[Readlang](https://readlang.com/)、[BBC Learning English](https://www.bbc.co.uk/learningenglish)、[Readwise Reader](https://readwise.io/read)、[Omnivore](https://github.com/omnivore-app/omnivore)、[wallabag](https://github.com/wallabag/wallabag)、[Readest](https://github.com/readest/readest)、[The Guardian](https://www.theguardian.com/international) 和 [Medium](https://medium.com/)：文章发现、阅读器、标注、搜索、来源与版权边界。
 
 GitHub 的通用仓库搜索在调研时触发了 secondary rate limit，因此没有把搜索结果数量或排序作为证据；Echo-Loop 使用直接公开仓库页面和本仓库既有评审作为可靠来源。
 
@@ -56,7 +57,7 @@ GitHub 的通用仓库搜索在调研时触发了 secondary rate limit，因此�
 
 本地页面检查得到以下结论：
 
-- 四项主导航 `/learn`、`/explore`、`/chat`、`/me` 都能解析到现有页面。
+- 现有四项主导航 `/learn`、`/explore`、`/chat`、`/me` 都能解析到页面；阅读库作为新增产品表面，需要独立路由和状态设计。
 - 当前可见主页面的导航链接没有发现明显的无目标链接；问题主要是视觉层级、空状态与可操作状态的区分不足。
 - `/learn` 的主卡片方向正确，但桌面端内容区偏窄，右侧留白过大。
 - `/explore` 的集合结构清楚，但“内容整理中”需要更明确地表现为非交互状态。
@@ -180,14 +181,15 @@ GitHub 的通用仓库搜索在调研时触发了 secondary rate limit，因此�
 | 导航项 | 路由 | 责任 | 不承载的内容 |
 | --- | --- | --- | --- |
 | 学习 | `/learn` | 唯一下一步、训练断点和最近能力 | 内容浏览、账号设置 |
+| 阅读 | `/read` | 文章发现、阅读器、保存、标注和可选口语迁移 | 核心表达课程目录、直接能力评分 |
 | 探索 | `/explore` | 沟通目标、表达资料库、已发布内容包 | 训练中的即时状态 |
 | 对话 | `/chat` | Lucía、角色联系人、好友介绍和私信入口 | 八维能力统计 |
 | 我的 | `/me` | 能力证据、活动、记忆、语音和数据控制 | 课程选择和对话列表 |
 
 ### 6.2 桌面端与移动端
 
-- 桌面端：左侧品牌与四项导航，内容区滚动；主题、语言和数据设置不放在导航中作为孤立 icon-only 按钮。
-- 移动端：底部四项导航，固定栏预留安全区和内容底部 padding。
+- 桌面端：左侧品牌与五项导航，按“开始（学习、阅读）/发现（探索、对话）/账户（我的）”分组，内容区滚动；主题、语言和数据设置不放在导航中作为孤立 icon-only 按钮。
+- 移动端：底部五项导航，固定栏预留安全区和内容底部 padding；“阅读”使用书页图标和文字，不能隐藏为更多菜单中的假入口。
 - 375–767px：单列布局，主 CTA 固定在内容节奏中，不遮挡输入和键盘焦点。
 - 768–1023px：单列或双列过渡布局，侧栏不强制出现。
 - 1024–1439px：侧栏 + 1120px 内容工作区。
@@ -258,7 +260,31 @@ GitHub 的通用仓库搜索在调研时触发了 secondary rate limit，因此�
 - 内容包必须有版本和发布状态；未发布版本不能通过公开页面进入。
 - 后续如果增加搜索，只有在有真实查询和结果状态后才显示输入框；本设计不预建假的搜索按钮。
 
-### 7.4 对话页 `/chat`
+### 7.4 阅读库 `/read`
+
+#### 目标
+
+让用户在不需要先做课程决策的情况下找到一篇真正能读的西语文章，并在下次打开时回到断点。
+
+#### 结构
+
+- 页头：阅读标题、搜索入口和“已保存”链接。
+- 继续阅读：最近文章、段落位置、剩余预计时间和唯一主 CTA。
+- 今日精选：少量编辑精选，卡片先说明“为什么值得读”，再展示难度、主题、来源和时长。
+- 主题与筛选：生活、工作、文化、科技、旅行、新闻、观点；CEFR、阅读时长、内容形式和阅读状态。
+- 明确的加载、空结果、无已发布内容、文章已退休和服务错误状态。
+
+文章卡片的“打开”“继续”“保存”必须分别对应真实导航或状态变化；“整理中”“等待审核”等状态只显示为非交互标签。
+
+### 7.5 文章阅读器 `/read/article/[articleId]`
+
+- 正文使用语义化标题、段落和列表，宽度控制在每行约 65–75 个字符，来源、作者、日期和许可信息可追溯。
+- 右侧（移动端底部抽屉）提供词语解释、中文辅助、TTS、速度、保存短语、高亮和笔记；辅助面板不替代正文阅读。
+- 顶部显示阅读进度和返回书架；刷新、断网恢复和跨设备同步都不能丢失已确认的阅读位置。
+- 文章末尾提供“用自己的话说说”入口，但明确标注为可选口语迁移；跳过它不会显示失败，也不会写入口语证据。
+- 文章版本过期时显示重新定位/迁移提示，不静默覆盖高亮或进度。
+
+### 7.6 对话页 `/chat`
 
 #### 结构
 
@@ -273,7 +299,7 @@ GitHub 的通用仓库搜索在调研时触发了 secondary rate limit，因此�
 - 角色是否为 AI 的说明在角色详情或直接问答中诚实呈现。
 - 关系记忆只在完整聊天轮完成后提取，并显示其共享范围。
 
-### 7.5 Lucía 对话页 `/chat/lucia`
+### 7.7 Lucía 对话页 `/chat/lucia`
 
 - 顶部提供返回、角色身份和当前关系上下文。
 - 中部是消息流，用户发送后立即显示自己的消息和处理状态。
@@ -282,7 +308,7 @@ GitHub 的通用仓库搜索在调研时触发了 secondary rate limit，因此�
 - 用户取消可以保留已收到的自然部分，但不能写入完整长期记忆或口语证据。
 - 学习摘要放在完整对话结束后，以可折叠区呈现，避免打断自然聊天。
 
-### 7.6 我的 `/me`
+### 7.8 我的 `/me`
 
 #### 首屏
 
@@ -404,19 +430,26 @@ idle → loading → ready
 - 重构角色卡、好友介绍、消息流和语音/文字 composer。
 - 让流式聊天的 `done`、取消、重试和异常断流都有明确状态。
 
-### UI-009：我的与隐私
+### UI-009：阅读库与阅读器
+
+- 扩展产品壳层为五项导航，并实现 `/read`、主题列表、保存列表和真实搜索/筛选状态。
+- 实现文章卡片、继续阅读、规范化阅读器、阅读进度、TTS、词语辅助、高亮和保存短语。
+- 明确版权/来源/审核状态、退休文章、版本迁移和文章加载失败的可恢复路径。
+- 阅读行为只写阅读活动；口语迁移通过现有训练 application 进入评估链路。
+
+### UI-010：我的与隐私
 
 - 重组能力图、证据详情、热力图、关系记忆和数据控制。
 - 删除重复面板和无证据雷达图。
 - 将高风险数据操作移入独立分组，补齐确认、结果和可重试路径。
 
-### UI-010：跨视口与可用性回归
+### UI-011：跨视口与可用性回归
 
 - Playwright 覆盖主要路径和所有 visible action 的真实结果。
 - React Testing Library 覆盖状态卡、按钮、语音拒绝、提示和焦点。
 - 移动视口检查 375/414/768，桌面检查 1024/1440。
 
-以上切片只覆盖现有 Alpha 能力，不新增支付、实时双向语音、开放角色创建或完整内容管理后台。
+以上切片只覆盖现有 Alpha 能力和已批准的阅读库，不新增支付、实时双向语音、开放角色创建、任意网页导入或完整内容管理后台。
 
 ## 12. 测试与验收标准
 
@@ -430,7 +463,7 @@ idle → loading → ready
 
 ### 12.2 路由与按钮验收
 
-- 主导航四路由均可导航并保留当前项语义。
+- 主导航五路由均可导航并保留当前项语义；阅读路由只返回已发布且版权字段完整的文章。
 - 首页主 CTA 导向稳定训练断点。
 - 未发布内容不出现可点击假按钮。
 - 所有重试按钮都对应可重试操作。
@@ -446,6 +479,7 @@ idle → loading → ready
 5. Lucía 对话 → 流正常结束 → 关系记忆候选。
 6. 流异常断开 → 重试 → 不重复生成记忆或证据。
 7. 我的 → 查看能力证据 → 删除关系记忆或语音资料并确认结果。
+8. 阅读首页 → 打开文章 → 点击词语/播放 TTS/保存短语 → 刷新恢复位置；跳过口语迁移不产生口语证据。
 
 测试重点是状态、错误、恢复和权限，不用页面快照替代行为断言。
 
@@ -478,6 +512,15 @@ idle → loading → ready
 - [Busuu](https://www.busuu.com/)
 - [Tandem](https://tandem.net/)
 - [Echo-Loop GitHub repository](https://github.com/echo-loop/Echo-Loop)
+- [LingQ](https://www.lingq.com/en/learn-spanish-online/)
+- [Readlang](https://readlang.com/)
+- [BBC Learning English](https://www.bbc.co.uk/learningenglish)
+- [Readwise Reader](https://readwise.io/read)
+- [Omnivore](https://github.com/omnivore-app/omnivore)
+- [wallabag](https://github.com/wallabag/wallabag)
+- [Readest](https://github.com/readest/readest)
+- [The Guardian](https://www.theguardian.com/international)
+- [Medium](https://medium.com/)
 - [Next.js loading UI and streaming](https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming)
 - [Sueño 产品设计](D:/workspace/docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
 - [Sueño 多平台客户端架构](D:/workspace/docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
@@ -486,9 +529,9 @@ idle → loading → ready
 ## 16. 自审结果
 
 - 未发现 `TODO`、`TBD` 或未定义的实施占位项。
-- 页面路由与现有四栏导航一致，没有新增未批准的产品表面。
+- 页面路由已扩展为五项导航；“阅读”有独立文章库和阅读器边界，没有把文章能力塞进探索页。
 - 训练页、聊天页和我的页面的状态规则与现有产品不变量一致。
 - 设计令牌、响应式断点、可访问性、错误恢复和按钮真实性均有明确验收条件。
 - 本文只描述设计和实施边界，未改变数据库、API、评分算法、供应商或隐私策略。
 
-下一步是由产品本人审阅本文件；确认后再调用 writing-plans 生成 UI-006 至 UI-010 的实现计划。
+下一步是由产品本人审阅本文件；确认后再调用 writing-plans 生成 UI-006 至 UI-011 的实现计划。
