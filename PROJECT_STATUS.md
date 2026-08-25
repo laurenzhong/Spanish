@@ -3,8 +3,8 @@
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
 - 最后更新：2026-08-25
-- 当前里程碑：个人 Alpha 阶段 7——角色扩展、进步展示与隐私控制
-- 总体状态：阶段 8 个人 Alpha 验证可恢复；UI-004 已完成，等待 UI-005 后再开始全面人工体验
+- 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
+- 总体状态：UI-005 已完成，阶段 8 个人 Alpha 全面人工体验可以开始
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 UI-005：好友介绍、共享授权和 Flutter/Web 全模块验收；阶段 8 全面人工体验继续等待 UI-001 至 UI-005 功能门槛完成。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为阶段 8：个人 Alpha 使用周期与人工体验复核；UI-001 至 UI-005 功能门槛已完成。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 阶段 7 已完成切片
 
@@ -39,6 +39,7 @@
 | 7.6 | `88b2113` | 手机视口 Web E2E 与 Flutter fake integration test 关键路径 |
 | 阶段 8 阻塞修复 | `4648972` | 训练提示、自然替代表达与真实变式闭环（Web/Flutter） |
 | UI-001 | `8ab9cc6` | 认证回跳、四栏导航和学习入口功能闭环 |
+| UI-005 | `a1766d5`、`8f680ee` | 好友介绍、共享授权和 Flutter/Web 全模块验收 |
 
 7.4c 限制：实际 Storage 删除需要配置服务端 `SUPABASE_SERVICE_ROLE_KEY`；未配置或供应商失败时，私有数据库数据仍完成删除，清理任务保留为失败/可重试状态。该服务端密钥不能进入客户端或日志。
 
@@ -325,7 +326,49 @@
 
 - Flutter 当前使用本地 fake 画像、热力图和删除流程，仅用于验证客户端按钮与状态逻辑；真实服务端画像、删除 API、数据库/RLS 未在本切片重复实现。
 - 当前环境没有 Mac/Xcode，未执行 Flutter iOS 编译、签名、真机录音或 integration test 验收；公共 Flutter 测试通过不代表 iOS 已验证。
-- 下一项 `UI-005`：好友介绍、共享授权和 Flutter/Web 全模块验收。
+- UI-005 已完成；下一项为阶段 8 个人 Alpha 使用周期与人工体验复核。
+
+### UI-005：好友介绍、共享授权和 Flutter/Web 全模块验收
+
+- 状态：`done`
+- 负责人：产品本人 / Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：UI-004，已完成
+- 实现 Commit：`a1766d5`
+- 测试 Commit：`8f680ee`
+
+结果：
+
+- Web 好友介绍和共享授权面板补齐加载、失败和“重试”状态；重试会重新获取当前介绍或授权列表。
+- Flutter 新增本地 fake 好友网络状态：可选分享非私密记忆、接受/拒绝介绍、查看授权并按目标角色撤销；默认不共享，拒绝或不选记忆不会产生授权。
+- Chat/Profile 共享同一个客户端演示状态，面板明确提示这不直接修改服务端关系授权，未改服务端 API、数据库、RLS 或评分逻辑。
+
+修改文件：
+
+- `src/modules/character-network/ui/introduction-inbox.tsx`
+- `src/modules/character-network/ui/shared-memory-permissions.tsx`
+- `apps/mobile/lib/features/character_network/fake_character_network.dart`
+- `apps/mobile/lib/features/character_network/character_network_panels.dart`
+- `apps/mobile/lib/features/chat/chat_page.dart`
+- `apps/mobile/lib/features/profile/profile_page.dart`
+- `apps/mobile/lib/shared/widgets/product_shell.dart`
+- `tests/unit/character-network-privacy.test.tsx`
+- `tests/e2e/product-shell.spec.ts`
+- `apps/mobile/test/features/character_network/character_network_test.dart`
+
+验证：
+
+- `pnpm lint`、`pnpm build`、`pnpm typecheck` 通过（typecheck 在 build 生成 `.next/e2e` 类型后复跑）。
+- 全量 Vitest：76 个文件、328 个测试通过。
+- `pnpm test:e2e`：桌面与手机共 66/66 通过；画像/好友相关手机 E2E 17/17 通过。
+- 好友隐私 Web 单测：4/4 通过。
+- `flutter analyze` 通过；`flutter test`：74 个公共 Dart/Widget 测试通过；好友网络专项测试 3/3 通过。
+
+限制与下一步：
+
+- Flutter 好友网络使用本地 fake，仅验证按钮和状态逻辑，不代表服务端真实关系授权、撤销或跨设备同步已验收。
+- 当前环境没有 Mac/Xcode，未执行 iOS 编译、签名、真机、音频权限或 Flutter integration test 验收；公共 Flutter 测试通过不代表 iOS 已验证。
+- 下一项为阶段 8：个人 Alpha 使用周期与人工体验复核；优先记录训练、静默模式、内容包、Lucía 和好友隐私的真实使用反馈。
 
 ### ALPHA-029：角色回复规划
 
@@ -939,8 +982,8 @@
 | UI-002 | done | `fix/login-redirect-after-otp` | Codex | 探索内容包功能闭环 | UI-001 |
 | UI-003 | done | `fix/login-redirect-after-otp` | Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
 | UI-004 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
-| UI-005 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
-| 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待 UI-001 至 UI-005 功能门槛完成 | 7.6 |
+| UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
+| 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；UI-001 至 UI-005 功能门槛已完成 | 7.6 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -948,8 +991,7 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | UI-005 | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
-| 2 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
+| 1 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -1025,6 +1067,7 @@
 | 2026-08-25 | 完成 UI-002 探索内容包功能闭环 | `429c225` | Flutter/Web 内容包按钮、进度、草稿恢复、TTS 降级和口语复核可用；下一项 UI-003 |
 | 2026-08-25 | 完成 UI-003 Lucía 对话恢复闭环 | `e0b7b0c` | 首包失败、停止、断流后可重试且不重复用户消息；下一项 UI-004 |
 | 2026-08-25 | 完成 UI-004 画像、热力图和隐私数据控制闭环 | `8857364` | Flutter 画像选择、热力图日期、隐私删除确认与 Web 画像重试可用；下一项 UI-005 |
+| 2026-08-25 | 完成 UI-005 好友介绍、共享授权和 Flutter/Web 全模块验收 | `a1766d5`、`8f680ee` | Web 介绍/授权失败可重试；Flutter fake 支持接受、拒绝、可选共享和撤销；下一项阶段 8 人工体验复核 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
