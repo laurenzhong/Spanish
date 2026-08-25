@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-25
 - 当前里程碑：个人 Alpha 阶段 7——角色扩展、进步展示与隐私控制
-- 总体状态：7.5b 诊断告警与备份恢复演练已完成；下一项为 7.6 完整 Web E2E 与 Flutter 集成测试
+- 总体状态：7.6 完整 Web E2E 与 Flutter 集成测试已完成；下一项为阶段 8 个人 Alpha 验证
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 7.5b：诊断告警与备份恢复演练；本子切片已完成，下一项为 7.6 完整 Web E2E 与 Flutter 集成测试。
+当前任务为 7.6：完整 Web E2E 与 Flutter 集成测试；本任务已完成，下一项为阶段 8 个人 Alpha 验证。
 
 ### 阶段 7 已完成切片
 
@@ -36,6 +36,7 @@
 | 7.4c | `c539cc9` | 账号数据汇总、删除、去标识化与 Storage 清理任务 |
 | 7.5a | `91c3639` | 关联 ID、供应商调用状态/延迟/成本观测与脱敏记录 |
 | 7.5b | `75d74df` | 诊断事件、滑动窗口告警聚合与备份恢复演练说明 |
+| 7.6 | `88b2113` | 手机视口 Web E2E 与 Flutter fake integration test 关键路径 |
 
 7.4c 限制：实际 Storage 删除需要配置服务端 `SUPABASE_SERVICE_ROLE_KEY`；未配置或供应商失败时，私有数据库数据仍完成删除，清理任务保留为失败/可重试状态。该服务端密钥不能进入客户端或日志。
 
@@ -118,6 +119,44 @@
 - 当前告警只提供内部查询和聚合，不发送 Slack、邮件或 PagerDuty 通知。
 - 备份恢复文档是可执行演练流程，本次未连接或恢复真实生产数据库；Storage 对象仍需单独备份策略。
 - 下一项为 7.6：完整 Web E2E 与 Flutter 集成测试。
+
+### 7.6：完整 Web E2E 与 Flutter 集成测试
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：7.5b，已完成
+- 计划位置：实施计划任务 7.6
+- 实现 Commit：`88b2113`
+
+结果：
+
+- 新增 `tests/e2e/alpha-flow.spec.ts`，在手机视口覆盖继续学习、三级提示、自然替代表达、打字降级、画像数据不足、内容包听读写到口语复核、Lucía 断流重试和角色消息去重。
+- 新增 `apps/mobile/integration_test/alpha_flow_test.dart`，使用内存 OTP 会话、`FakeSecureStorage`、麦克风拒绝 fake 和可控 Lucía 流覆盖认证、训练降级、三层提示、反馈和不完整流重试。
+- Flutter 增加 `integration_test` SDK 开发依赖；没有修改服务端评分、证据、记忆或权限逻辑。
+
+修改文件：
+
+- `tests/e2e/alpha-flow.spec.ts`
+- `apps/mobile/integration_test/alpha_flow_test.dart`
+- `apps/mobile/pubspec.yaml`、`apps/mobile/pubspec.lock`
+
+验证：
+
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm exec vitest run --pool=threads --maxWorkers=1`：74 个文件、313 个测试通过。
+- `pnpm test:e2e`：56/56 通过（桌面与手机项目）。
+- `pnpm build` 通过。
+- `cd apps/mobile; flutter analyze` 通过。
+- `cd apps/mobile; flutter test`：60 个公共 Dart/Widget 测试通过。
+
+限制与下一步：
+
+- `flutter test integration_test/alpha_flow_test.dart` 在当前 Windows 环境未能启动：Flutter 需要 Developer Mode 创建插件 symlink；测试文件已通过 `flutter analyze`，但不能据此宣称 Flutter integration 或 iOS 编译通过。
+- 没有 Mac/Xcode，因此真实 iOS 录音权限、键盘、安全区、生命周期和真机集成仍待阶段 8 的设备验收。
+- Playwright 使用空数据库和确定性 fake；它验证客户端状态、降级和恢复契约，不替代真实 Supabase/RLS 生产验收。当前仓库仍没有独立初次诊断页面，Web 测试以现有继续学习与有限画像空状态为边界。
+- 下一项为阶段 8：个人 Alpha 使用周期与人工体验复核；准备 Mac/Xcode 后补跑 Flutter integration 和 iOS 真机关键路径。
 
 ### ALPHA-029：角色回复规划
 
@@ -734,7 +773,7 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 7.6 | 完整 Web E2E 与 Flutter 集成测试 | 7.5b |
+| 1 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | 7.6 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
