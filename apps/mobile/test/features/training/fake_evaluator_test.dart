@@ -18,6 +18,33 @@ void main() {
     expect(result.string('evidenceStrength'), 'strong');
   });
 
+  test('accepts a natural check-in response', () async {
+    final result = await const FakeEvaluator(latency: Duration.zero).evaluate(
+      const FakeEvaluationRequest(
+        expressionKey: 'start.como-va-todo',
+        generationId: 10,
+        outputMode: TrainingOutputMode.typing,
+        text: 'Bien, gracias. Hoy estoy tranquilo.',
+      ),
+    );
+
+    expect(result.boolean('contextualSuccess'), isTrue);
+    expect(result.string('evidenceStrength'), 'weak');
+  });
+
+  test('evaluates variant content against its base communicative purpose', () async {
+    final result = await const FakeEvaluator(latency: Duration.zero).evaluate(
+      const FakeEvaluationRequest(
+        expressionKey: 'start.como-va-todo.variant.0',
+        generationId: 11,
+        outputMode: TrainingOutputMode.speech,
+        text: 'Todo bien, gracias.',
+      ),
+    );
+
+    expect(result.boolean('contextualSuccess'), isTrue);
+  });
+
   test('keeps typed success at weak evidence', () async {
     final result = await const FakeEvaluator(latency: Duration.zero).evaluate(
       const FakeEvaluationRequest(

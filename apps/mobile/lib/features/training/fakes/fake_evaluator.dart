@@ -36,23 +36,37 @@ class FakeEvaluator {
   }
 
   bool _matches(String expressionKey, String text) {
-    switch (expressionKey) {
+    final baseKey = expressionKey.split('.variant.').first;
+    switch (baseKey) {
       case 'start.como-va-todo':
         return text.contains('como va') ||
             text.contains('que tal') ||
-            text.contains('como te va');
+            text.contains('como te va') ||
+            _containsAny(text, const <String>[
+              'bien', 'mal', 'regular', 'genial', 'tranquil', 'ocupad',
+              'cansad', 'gracias', 'todo', 'trabajo', 'clase', 'dia', 'semana',
+            ]);
       case 'relationship.como-se-llama':
         return text.contains('como se llama') ||
             text.contains('como te llamas') ||
-            text.contains('cual es tu nombre');
+            text.contains('cual es tu nombre') ||
+            _containsAny(text, const <String>['me llamo', 'soy']);
       case 'relationship.me-gusta-viajar':
-        return text.contains('me gusta') || text.contains('me encanta');
+        return _containsAny(text, const <String>[
+          'me gusta', 'me encanta', 'disfruto', 'aficion', 'hobby', 'viajar',
+          'viaje', 'musica', 'cine', 'leer', 'senderismo', 'comida',
+        ]);
       case 'need.necesito-ayuda':
-        return text.contains('necesito') || text.contains('puede ayudar');
+        return _containsAny(text, const <String>[
+          'necesito', 'ayuda', 'podrias', 'puede', 'por favor', 'problema',
+        ]);
       default:
         return false;
     }
   }
+
+  bool _containsAny(String text, List<String> signals) =>
+      signals.any(text.contains);
 
   String _fold(String value) => value
       .replaceAll('á', 'a')

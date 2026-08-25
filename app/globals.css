@@ -4032,6 +4032,27 @@ button.learning-heatmap__cell[aria-pressed="true"] {
   font-weight: 700;
 }
 
+.training-loop__hint-content {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.training-loop__hint-content strong {
+  color: var(--accent);
+  font-size: 0.76rem;
+}
+
+.training-loop__hint-content p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
 @keyframes input-wave {
   from { transform: scaleY(0.45); }
   to { transform: scaleY(1); }

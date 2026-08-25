@@ -16,13 +16,40 @@ export type FakeEvaluator = Readonly<{
 }>;
 
 const acceptedPatterns: Record<string, readonly RegExp[]> = {
-  "start.como-va-todo": [/cómo va/i, /que tal/i, /qué tal/i, /cómo te va/i],
-  "relationship.como-se-llama": [/cómo se llama/i, /cómo te llamas/i, /cual es tu nombre/i, /cuál es tu nombre/i],
-  "relationship.me-gusta-viajar": [/me gusta/i, /me encanta/i],
-  "need.necesito-ayuda": [/necesito/i, /puede ayudar/i],
-  "response.suena-bien": [/suena bien/i, /me parece bien/i, /perfecto/i, /genial/i],
-  "repair.podria-repetirlo": [/podría repetir/i, /puede repetir/i, /repítelo/i],
+  // Bounded fake-rubric signals, not sentence matching. Natural alternatives
+  // can complete the communicative purpose without copying the prompt.
+  "start.como-va-todo": [
+    /c[oó]mo\s+(va|te va)/i,
+    /qu[eé]\s+tal/i,
+    /\b(bien|mal|regular|genial|tranquil|ocupad|cansad|gracias|todo|trabajo|clase|d[ií]a|semana)\b/i,
+  ],
+  "relationship.como-se-llama": [
+    /c[oó]mo\s+(se llama|te llamas)/i,
+    /cu[aá]l es tu nombre/i,
+    /\b(me llamo|soy)\b/i,
+  ],
+  "relationship.me-gusta-viajar": [
+    /\b(me gusta|me encanta|disfruto|afici[oó]n|hobby)\b/i,
+    /\b(viajar|viaje|m[uú]sica|cine|leer|senderismo|comida)\b/i,
+  ],
+  "need.necesito-ayuda": [
+    /\b(necesito|ayuda|podr[ií]as|puede|por favor|problema)\b/i,
+  ],
+  "response.suena-bien": [
+    /\b(suena bien|me parece bien|perfecto|genial|vale|de acuerdo|claro)\b/i,
+  ],
+  "repair.podria-repetirlo": [
+    /podr[ií]a repetir/i,
+    /puede repetir/i,
+    /rep[ií]telo/i,
+    /m[aá]s despacio/i,
+    /no he entendido/i,
+  ],
 };
+
+function baseExpressionKey(expressionKey: string): string {
+  return expressionKey.split(".variant.", 1)[0] ?? expressionKey;
+}
 
 function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -49,7 +76,7 @@ export function createFakeEvaluator(latencyMs = 160): FakeEvaluator {
       const text = request.text.trim();
       const accepted =
         text.length > 0 &&
-        (acceptedPatterns[request.expressionKey] ?? []).some((pattern) =>
+        (acceptedPatterns[baseExpressionKey(request.expressionKey)] ?? []).some((pattern) =>
           pattern.test(text),
         );
 

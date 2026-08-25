@@ -63,4 +63,42 @@ void main() {
     expect(find.text('麦克风暂时不可用，已切换为文字回答。'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
   });
+
+  testWidgets('shows progressive hints and moves to a real variant prompt', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: FakeTrainingLoop()));
+    await tester.pump(const Duration(milliseconds: 220));
+
+    await tester.ensureVisible(find.text('提示 1'));
+    await tester.tap(find.text('提示 1'));
+    await tester.pump();
+    expect(find.textContaining('先决定你想表达的近况'), findsOneWidget);
+    await tester.ensureVisible(find.text('提示 2'));
+    await tester.tap(find.text('提示 2'));
+    await tester.pump();
+    expect(find.textContaining('bien'), findsOneWidget);
+    await tester.ensureVisible(find.text('提示 3'));
+    await tester.tap(find.text('提示 3'));
+    await tester.pump();
+    expect(find.textContaining('句式骨架'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('用文字回答'));
+    await tester.tap(find.text('用文字回答'));
+    await tester.pump();
+    await tester.ensureVisible(find.byType(TextField));
+    await tester.enterText(find.byType(TextField), 'Bien, gracias.');
+    await tester.pump();
+    await tester.ensureVisible(find.widgetWithText(FilledButton, '提交文字回答'));
+    await tester.tap(find.widgetWithText(FilledButton, '提交文字回答'));
+    await tester.pumpAndSettle();
+    expect(find.text('对方可以接住你的意思'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('练习变式'));
+    await tester.tap(find.text('练习变式'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿Qué tal todo?'), findsOneWidget);
+    expect(find.text('变式情境'), findsOneWidget);
+    expect(find.text('轮到你了'), findsOneWidget);
+  });
 }

@@ -16,6 +16,29 @@ describe("fake evaluator", () => {
     expect(result.feedbackKey).toBe("contextual-success");
   });
 
+  it("accepts a natural check-in response instead of requiring another question", async () => {
+    const result = await createFakeEvaluator(0).evaluate({
+      expressionKey: "start.como-va-todo",
+      generationId: 10,
+      outputMode: "typing",
+      text: "Bien, gracias. Hoy estoy tranquilo.",
+    });
+
+    expect(result.contextualSuccess).toBe(true);
+    expect(result.evidenceStrength).toBe("weak");
+  });
+
+  it("uses the base communicative purpose for a variant expression", async () => {
+    const result = await createFakeEvaluator(0).evaluate({
+      expressionKey: "start.como-va-todo.variant.0",
+      generationId: 11,
+      outputMode: "speech",
+      text: "Todo bien, gracias.",
+    });
+
+    expect(result.contextualSuccess).toBe(true);
+  });
+
   it("keeps typed output at weak evidence even when the task succeeds", async () => {
     const result = await createFakeEvaluator(0).evaluate({
       expressionKey: "relationship.me-gusta-viajar",

@@ -69,3 +69,27 @@ test("restores the last stable state after a refresh", async ({ page }) => {
   await expect(page.getByText("已恢复上次稳定进度")).toBeVisible();
   await expect(page.getByText("先听一遍")).not.toBeVisible();
 });
+
+test("shows progressive hint content and a real variant prompt", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: undefined });
+  });
+  await authenticate(page);
+  await page.goto("/learn/practice");
+
+  await page.getByRole("button", { name: "提示 1" }).click();
+  await expect(page.getByTestId("training-hint-content")).toContainText("先决定");
+  await page.getByRole("button", { name: "提示 2" }).click();
+  await expect(page.getByTestId("training-hint-content")).toContainText("bien");
+  await page.getByRole("button", { name: "提示 3" }).click();
+  await expect(page.getByTestId("training-hint-content")).toContainText("句式骨架");
+
+  await page.getByRole("button", { name: "用文字回答" }).click();
+  await page.getByLabel("写下你的回应").fill("Bien, gracias.");
+  await page.getByRole("button", { name: "提交文字回答" }).click();
+  await expect(page.getByRole("heading", { name: "对方可以接住你的意思" })).toBeVisible();
+  await page.getByRole("button", { name: "练习变式" }).click();
+  await expect(page.getByRole("heading", { name: "¿Qué tal todo?" })).toBeVisible();
+  await expect(page.getByText("变式情境")).toBeVisible();
+  await expect(page.getByTestId("training-loop")).toHaveAttribute("data-status", "awaiting-output");
+});

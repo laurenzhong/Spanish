@@ -41,6 +41,7 @@ const evaluator = createFakeEvaluator();
 
 type LoopState = Readonly<{
   expressionIndex: number;
+  variantIndex: number;
   transition: TrainingTransition;
 }>;
 
@@ -58,15 +59,27 @@ export type TrainingAudioCapabilities = Readonly<{
   textToSpeech: Pick<BrowserTextToSpeech, "isSupported" | "speak" | "stop">;
 }>;
 
-function startExpression(expressionIndex: number): LoopState {
-  const expression = practiceExpressions[expressionIndex] ?? practiceExpressions[0];
+function expressionFor(expressionIndex: number, variantIndex: number) {
+  const base = practiceExpressions[expressionIndex] ?? practiceExpressions[0];
+  const variant = variantIndex > 0 ? base.variants?.[variantIndex - 1] : undefined;
+  if (!variant) return base;
+  return {
+    ...base,
+    stableKey: `${base.stableKey}.variant.${variant.position}`,
+    text: variant.text,
+    communicativeIntent: variant.usageNotes,
+  };
+}
+
+function startExpression(expressionIndex: number, variantIndex = 0): LoopState {
+  const expression = expressionFor(expressionIndex, variantIndex);
   const loaded = transition(createTrainingState(), {
     type: "content-loaded",
     contentKey: expression.stableKey,
     goalKey: expression.goalKey,
   });
 
-  return { expressionIndex, transition: loaded };
+  return { expressionIndex, variantIndex, transition: loaded };
 }
 
 function loopReducer(state: LoopState, event: LoopEvent): LoopState {
@@ -75,15 +88,36 @@ function loopReducer(state: LoopState, event: LoopEvent): LoopState {
   }
 
   if (event.type === "restore-checkpoint") {
+    const contentKey = event.state.contentKey ?? "";
+    const variantIndex = contentKey.includes(".variant.")
+      ? Math.max(1, Number(contentKey.split(".variant.")[1]) + 1)
+      : 0;
     return {
       expressionIndex: event.expressionIndex,
+      variantIndex,
       transition: { state: event.state, effects: [] },
+    };
+  }
+
+  const next = transition(state.transition.state, event);
+  if (event.type === "variant-ready" && next.state.status === "presenting-input") {
+    const base = practiceExpressions[state.expressionIndex] ?? practiceExpressions[0];
+    const variantCount = base.variants?.length ?? 0;
+    const variantIndex = variantCount === 0 ? 0 : (state.variantIndex % variantCount) + 1;
+    const expression = expressionFor(state.expressionIndex, variantIndex);
+    return {
+      expressionIndex: state.expressionIndex,
+      variantIndex,
+      transition: {
+        ...next,
+        state: { ...next.state, contentKey: expression.stableKey },
+      },
     };
   }
 
   return {
     ...state,
-    transition: transition(state.transition.state, event),
+    transition: next,
   };
 }
 
@@ -122,6 +156,34 @@ function formatRecordingTime(seconds: number): string {
   return `${minutes}:${remainder}`;
 }
 
+const trainingHints: Record<string, readonly string[]> = {
+  "start.como-va-todo": [
+    "先决定你想表达的近况：好、一般、忙，还是有点累。",
+    "可以先说 bien、regular 或 cansado，再补一句 gracias 或今天的情况。",
+    "句式骨架：近况 + gracias。Hoy + 一个简单原因。",
+  ],
+  "relationship.como-se-llama": [
+    "先确认你是在礼貌询问对方姓名。",
+    "可以用 cómo te llamas，或在回答时用 me llamo / soy。",
+    "句式骨架：Me llamo + 名字；再用 ¿Y tú? 把对话交回去。",
+  ],
+  "relationship.me-gusta-viajar": [
+    "先说一个你愿意分享的兴趣或活动。",
+    "可以用 me gusta、me encanta 或 disfruto + 活动。",
+    "句式骨架：Me gusta + 活动 + y + 一个具体对象。",
+  ],
+  "need.necesito-ayuda": [
+    "先明确你需要对方做什么。",
+    "可以用 necesito、podrías 或 por favor 让请求更清楚。",
+    "句式骨架：Necesito + 帮助内容；再补 por favor。",
+  ],
+};
+
+function hintFor(expressionKey: string, level: number): string | null {
+  const baseKey = expressionKey.split(".variant.", 1)[0] ?? expressionKey;
+  return trainingHints[baseKey]?.[level - 1] ?? null;
+}
+
 function useTrainingEffects(
   current: LoopState,
   dispatch: Dispatch<LoopEvent>,
@@ -155,11 +217,7 @@ function useTrainingEffects(
           );
           cleanups.push(() => window.clearTimeout(timer));
         } else {
-          const expressionText =
-            practiceExpressions.find(
-              (expression) =>
-                expression.stableKey === current.transition.state.contentKey,
-            )?.text ?? "";
+          const expressionText = expressionFor(current.expressionIndex, current.variantIndex).text;
           void audio.textToSpeech
             .speak(expressionText, { languageTag: "es-ES", rate: 0.9 })
             .then(() => {
@@ -214,11 +272,7 @@ function useTrainingEffects(
       }
 
       if (effect.type === "transcribe") {
-        const simulatedTranscript =
-          practiceExpressions.find(
-            (expression) =>
-              expression.stableKey === current.transition.state.contentKey,
-          )?.text ?? "";
+        const simulatedTranscript = expressionFor(current.expressionIndex, current.variantIndex).text;
         void (recordingStop ?? Promise.resolve(true)).then((success) => {
           if (!active || !success) return;
           const timer = window.setTimeout(
@@ -303,7 +357,7 @@ export function FakeTrainingLoop({
       },
     [providedAudio],
   );
-  const expression = practiceExpressions[current.expressionIndex] ?? practiceExpressions[0];
+  const expression = expressionFor(current.expressionIndex, current.variantIndex);
   const isProcessing =
     state.status === "transcribing" || state.status === "evaluating";
 
@@ -335,8 +389,8 @@ export function FakeTrainingLoop({
       if (restoredState) {
         const expressionIndex = Math.max(
           0,
-          practiceExpressions.findIndex(
-            (expression) => expression.stableKey === restoredState.contentKey,
+          practiceExpressions.findIndex((expression) =>
+            restoredState.contentKey?.startsWith(expression.stableKey),
           ),
         );
         dispatch({
@@ -433,7 +487,9 @@ export function FakeTrainingLoop({
           <span className="training-loop__status-dot" aria-hidden="true" />
           {statusLabel(state)}
         </div>
-        <p className="eyebrow eyebrow--accent">{expression.goalKey}</p>
+        <p className="eyebrow eyebrow--accent">
+          {current.variantIndex > 0 ? "变式情境" : expression.goalKey}
+        </p>
         <h2 id="training-expression">{expression.text}</h2>
         <p className="training-loop__translation">{expression.translations["zh-CN"]}</p>
         <p className="training-loop__intent">{expression.communicativeIntent["zh-CN"]}</p>
@@ -690,6 +746,12 @@ export function FakeTrainingLoop({
                 </button>
               ))}
             </div>
+            {state.hintLevel > 0 && hintFor(expression.stableKey, state.hintLevel) ? (
+              <aside className="training-loop__hint-content" data-testid="training-hint-content" role="status">
+                <strong>提示 {state.hintLevel}</strong>
+                <p>{hintFor(expression.stableKey, state.hintLevel)}</p>
+              </aside>
+            ) : null}
           </div>
         ) : null}
       </section>

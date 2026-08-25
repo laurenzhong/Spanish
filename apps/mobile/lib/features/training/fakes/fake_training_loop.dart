@@ -20,6 +20,7 @@ class _Expression {
     required this.text,
     required this.translation,
     required this.intent,
+    this.variants = const <_Expression>[],
   });
 
   final String key;
@@ -28,6 +29,7 @@ class _Expression {
   final String text;
   final String translation;
   final String intent;
+  final List<_Expression> variants;
 }
 
 class FakeTrainingLoop extends StatefulWidget {
@@ -57,6 +59,10 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       text: '¿Cómo va todo?',
       translation: '一切都怎么样？',
       intent: '轻松问候，并邀请对方谈谈近况。',
+      variants: <_Expression>[
+        _Expression(key: 'start.como-va-todo.variant.0', goalKey: 'communication.start.check-in', goalTitle: '变式情境', text: '¿Qué tal todo?', translation: '最近怎么样？', intent: '用另一种自然说法询问近况。'),
+        _Expression(key: 'start.como-va-todo.variant.1', goalKey: 'communication.start.check-in', goalTitle: '变式情境', text: '¿Cómo te va?', translation: '你最近过得怎么样？', intent: '直接向熟人询问近况。'),
+      ],
     ),
     _Expression(
       key: 'relationship.como-se-llama',
@@ -65,6 +71,10 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       text: '¿Cómo se llama?',
       translation: '您叫什么名字？',
       intent: '礼貌询问初次见面的人的姓名。',
+      variants: <_Expression>[
+        _Expression(key: 'relationship.como-se-llama.variant.0', goalKey: 'communication.relationship.ask-name', goalTitle: '变式情境', text: '¿Cómo te llamas?', translation: '你叫什么名字？', intent: '对同龄人或熟人使用更直接的问法。'),
+        _Expression(key: 'relationship.como-se-llama.variant.1', goalKey: 'communication.relationship.ask-name', goalTitle: '变式情境', text: 'Perdone, ¿cómo se llama?', translation: '不好意思，您叫什么名字？', intent: '在礼貌打断陌生人时询问姓名。'),
+      ],
     ),
     _Expression(
       key: 'relationship.me-gusta-viajar',
@@ -73,6 +83,10 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       text: 'Me gusta viajar y probar la comida local.',
       translation: '我喜欢旅行和尝试当地美食。',
       intent: '分享个人兴趣，为对方追问创造机会。',
+      variants: <_Expression>[
+        _Expression(key: 'relationship.me-gusta-viajar.variant.0', goalKey: 'communication.relationship.share-interest', goalTitle: '变式情境', text: 'Me encanta descubrir sitios nuevos.', translation: '我很喜欢发现新的地方。', intent: '换一个具体兴趣继续分享。'),
+        _Expression(key: 'relationship.me-gusta-viajar.variant.1', goalKey: 'communication.relationship.share-interest', goalTitle: '变式情境', text: 'Disfruto mucho de la música.', translation: '我很喜欢音乐。', intent: '用另一种结构表达个人兴趣。'),
+      ],
     ),
     _Expression(
       key: 'need.necesito-ayuda',
@@ -81,6 +95,10 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       text: 'Necesito ayuda.',
       translation: '我需要帮助。',
       intent: '在需要协助时直接说明核心需求。',
+      variants: <_Expression>[
+        _Expression(key: 'need.necesito-ayuda.variant.0', goalKey: 'communication.need.ask-help', goalTitle: '变式情境', text: '¿Podrías ayudarme, por favor?', translation: '你可以帮帮我吗？', intent: '用更礼貌的方式请求帮助。'),
+        _Expression(key: 'need.necesito-ayuda.variant.1', goalKey: 'communication.need.ask-help', goalTitle: '变式情境', text: '¿Me puede ayudar?', translation: '您可以帮我吗？', intent: '在正式场合请求协助。'),
+      ],
     ),
   ];
 
@@ -91,11 +109,38 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
   TrainingState _state = TrainingState.initial();
   TrainingCheckpointStore? _checkpointStore;
   int _expressionIndex = 0;
+  int _variantIndex = 0;
   String _draft = '';
   String? _capabilityNotice;
   bool _initialized = false;
 
-  _Expression get _expression => _expressions[_expressionIndex];
+  _Expression get _baseExpression => _expressions[_expressionIndex];
+  _Expression get _expression => _variantIndex == 0
+      ? _baseExpression
+      : _baseExpression.variants[_variantIndex - 1];
+
+  static const _hints = <String, List<String>>{
+    'start.como-va-todo': <String>[
+      '先决定你想表达的近况：好、一般、忙，还是有点累。',
+      '可以先说 bien、regular 或 cansado，再补一句 gracias 或今天的情况。',
+      '句式骨架：近况 + gracias。Hoy + 一个简单原因。',
+    ],
+    'relationship.como-se-llama': <String>[
+      '先确认你是在礼貌询问对方姓名。',
+      '可以用 cómo te llamas，或在回答时用 me llamo / soy。',
+      '句式骨架：Me llamo + 名字；再用 ¿Y tú？把对话交回去。',
+    ],
+    'relationship.me-gusta-viajar': <String>[
+      '先说一个你愿意分享的兴趣或活动。',
+      '可以用 me gusta、me encanta 或 disfruto + 活动。',
+      '句式骨架：Me gusta + 活动 + y + 一个具体对象。',
+    ],
+    'need.necesito-ayuda': <String>[
+      '先明确你需要对方做什么。',
+      '可以用 necesito、podrías 或 por favor 让请求更清楚。',
+      '句式骨架：Necesito + 帮助内容；再补 por favor。',
+    ],
+  };
 
   @override
   void initState() {
@@ -120,11 +165,25 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
 
   void _dispatch(TrainingEvent event) {
     final result = transition(_state, event);
+    var nextState = result.state;
+    var nextVariantIndex = _variantIndex;
+    if (event.type == 'variant-ready' &&
+        result.state.status == TrainingStatus.presentingInput &&
+        _baseExpression.variants.isNotEmpty) {
+      nextVariantIndex = (_variantIndex % _baseExpression.variants.length) + 1;
+      nextState = result.state.copyWith(
+        contentKey: _baseExpression.variants[nextVariantIndex - 1].key,
+      );
+    }
     if (!mounted) {
-      _state = result.state;
+      _state = nextState;
+      _variantIndex = nextVariantIndex;
       return;
     }
-    setState(() => _state = result.state);
+    setState(() {
+      _state = nextState;
+      _variantIndex = nextVariantIndex;
+    });
     _runEffects(result.effects);
   }
 
@@ -135,11 +194,22 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
     if (!mounted) return;
 
     if (restored != null) {
-      final index = _expressions.indexWhere(
+      var index = _expressions.indexWhere(
         (expression) => expression.key == restored.contentKey,
       );
+      var variantIndex = 0;
+      if (index < 0) {
+        index = _expressions.indexWhere((expression) {
+          final variant = expression.variants.indexWhere(
+            (candidate) => candidate.key == restored.contentKey,
+          );
+          if (variant >= 0) variantIndex = variant + 1;
+          return variant >= 0;
+        });
+      }
       setState(() {
         _expressionIndex = index < 0 ? 0 : index;
+        _variantIndex = variantIndex;
         _state = restored;
         _initialized = true;
       });
@@ -313,6 +383,7 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
     void startNext() {
       setState(() {
         _expressionIndex = nextIndex;
+        _variantIndex = 0;
         _draft = '';
         _state = transition(
           TrainingState.initial(),
@@ -427,7 +498,7 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        _expression.goalTitle,
+                        _variantIndex > 0 ? '变式情境' : _expression.goalTitle,
                         style: TextStyle(
                           color: colors.primary,
                           fontWeight: FontWeight.w700,
@@ -466,6 +537,17 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
                           fontSize: 12,
                         ),
                       ),
+                      if (_state.hintLevel > 0 &&
+                          _hints[_baseExpression.key] != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        Text(
+                          _hints[_baseExpression.key]![_state.hintLevel - 1],
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       if (_state.status == TrainingStatus.presentingInput)
                         const Text('先听输入，听完后用自己的话回应。'),
