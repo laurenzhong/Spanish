@@ -164,8 +164,37 @@ test("lets the user revoke a target-specific memory permission", async ({ page }
 
   await page.goto("/me");
   await expect(page.getByRole("heading", { name: "已授权给角色的资料" })).toBeVisible();
-  await page.getByRole("button", { name: "撤销授权" }).click({ force: true });
+  const revokeButton = page.getByRole("button", { name: "撤销授权" });
+  await revokeButton.scrollIntoViewIfNeeded();
+  await revokeButton.click({ force: true });
   await expect(page.getByRole("status")).toContainText("已撤销");
+});
+
+test("lets the user delete an owned relationship memory", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/profile/memories**", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { memories: [{ id: "00000000-0000-4000-8000-000000000071", characterKey: "lucia", category: "interest", content: "喜欢摄影", createdAt: "2026-08-25T00:00:00.000Z", sensitivity: "normal", shareScope: "private", status: "candidate" }] } }),
+      });
+      return;
+    }
+    expect(route.request().method()).toBe("DELETE");
+    expect(route.request().url()).toContain("memoryId=00000000-0000-4000-8000-000000000071");
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { deleted: true } }) });
+  });
+  page.on("dialog", (dialog) => void dialog.accept());
+
+  await page.goto("/me");
+  await expect(page.getByRole("heading", { name: "我的关系记忆" })).toBeVisible();
+  await expect(page.getByText("喜欢摄影")).toBeVisible();
+  const deleteButton = page.getByRole("button", { name: "删除记忆" });
+  await deleteButton.scrollIntoViewIfNeeded();
+  await deleteButton.click({ force: true });
+  await expect(page.getByRole("status")).toContainText("已删除");
+  await expect(page.getByText("喜欢摄影")).not.toBeVisible();
 });
 
 test("preserves the selected discovery direction on the learning page", async ({

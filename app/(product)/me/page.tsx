@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ProfileOverviewPanel } from "@/src/modules/profile/ui/profile-overview-panel";
 import { LearningHeatmap } from "@/src/modules/profile/ui/learning-heatmap";
 import { SharedMemoryPermissions } from "@/src/modules/character-network/ui/shared-memory-permissions";
+import { MemoryDataControls } from "@/src/modules/profile/ui/memory-data-controls";
 
 export const metadata: Metadata = {
   title: "我的",
@@ -22,6 +23,7 @@ export default function ProfilePage() {
       <ProfileOverviewPanel />
       <LearningHeatmap />
       <SharedMemoryPermissions />
+      <MemoryDataControls />
     </div>
   );
 }

@@ -65,6 +65,22 @@ export function createDrizzleMemoryRepository<TResult extends PgQueryResultHKT>(
       return toRecord(row, candidate.characterKey);
     },
 
+    async listAllMemories(userId) {
+      const rows = await database
+        .select({
+          characterKey: schema.characters.stableKey,
+          memory: schema.relationshipMemories,
+        })
+        .from(schema.relationshipMemories)
+        .innerJoin(
+          schema.characters,
+          eq(schema.relationshipMemories.characterId, schema.characters.id),
+        )
+        .where(eq(schema.relationshipMemories.userId, userId))
+        .orderBy(asc(schema.relationshipMemories.createdAt));
+      return rows.map((row) => toRecord(row.memory, row.characterKey));
+    },
+
     async listMemories(userId, characterKey) {
       const id = await characterId(database, characterKey);
       const rows = await database.select().from(schema.relationshipMemories)

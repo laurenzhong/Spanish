@@ -46,6 +46,7 @@ function fakeRepository(initial: MemoryRecord[] = []): MemoryRepository {
       memories.push(record);
       return record;
     },
+    async listAllMemories(userId) { return memories.filter((memory) => memory.userId === userId); },
     async listMemories(userId, characterKey) { return memories.filter((memory) => memory.userId === userId && memory.characterKey === characterKey); },
     async listReadableMemories(userId, characterKey) { return memories.filter((memory) => memory.userId === userId && memory.characterKey === characterKey); },
     async deleteMemory(userId, memoryId) { const index = memories.findIndex((memory) => memory.userId === userId && memory.id === memoryId); if (index < 0) return false; memories.splice(index, 1); return true; },

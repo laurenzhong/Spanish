@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -95,6 +96,8 @@ describe("memory persistence and sharing", () => {
     await commitMemories({ repository, completed: true, candidates: [candidate({ userId: userB, candidateId: "candidate-db-user-b", conversationId: "20000000-0000-4000-8000-000000000052", content: "Valencia" })] });
     const memoryId = inserted?.memory?.id;
     expect(memoryId).toBeTruthy();
+    expect((await repository.listAllMemories(userA)).map((memory) => memory.content)).toEqual(["Madrid"]);
+    expect((await repository.listAllMemories(userB)).map((memory) => memory.content)).toEqual(["Valencia"]);
     await client.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${userA}', false);`);
     const visibleToUserA = await database.select({ userId: schema.relationshipMemories.userId }).from(schema.relationshipMemories);
     await client.exec("reset role;");
@@ -107,6 +110,7 @@ describe("memory persistence and sharing", () => {
     expect(await repository.listReadableMemories(userB, "mateo")).toHaveLength(0);
     expect(await repository.deleteMemory(userB, memoryId!)).toBe(false);
     expect(await repository.deleteMemory(userA, memoryId!)).toBe(true);
+    expect(await database.select().from(schema.memorySharingPermissions).where(eq(schema.memorySharingPermissions.memoryId, memoryId!))).toHaveLength(0);
     expect(await repository.listMemories(userA, "lucia")).toHaveLength(0);
   });
 });

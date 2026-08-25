@@ -41,6 +41,10 @@ export function listRelationshipMemories(repository: MemoryRepository, userId: s
   return repository.listMemories(userId, characterKey);
 }
 
+export function listAllRelationshipMemories(repository: MemoryRepository, userId: string) {
+  return repository.listAllMemories(userId);
+}
+
 export function listReadableRelationshipMemories(repository: MemoryRepository, userId: string, characterKey: string) {
   return repository.listReadableMemories(userId, characterKey);
 }
