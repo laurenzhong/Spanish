@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ProfileOverviewPanel } from "@/src/modules/profile/ui/profile-overview-panel";
@@ -6,6 +6,7 @@ import { ProfileOverviewPanel } from "@/src/modules/profile/ui/profile-overview-
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
+  cleanup();
   globalThis.fetch = originalFetch;
   vi.restoreAllMocks();
 });
@@ -175,5 +176,41 @@ describe("ProfileOverviewPanel", () => {
     expect(document.querySelector(".profile-radar__area--previous")).toBeInTheDocument();
     expect(screen.getByText("咖啡馆")).toBeInTheDocument();
     expect(screen.getByText("使用 1 级提示")).toBeInTheDocument();
+  });
+
+  it("recovers from a profile request failure with the retry action", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            axes: Array.from({ length: 8 }, (_, index) => ({
+              key: index === 0 ? "listening-comprehension" : `axis-${index}`,
+              label: index === 0 ? "听辨理解" : `维度 ${index}`,
+              description: "测试维度",
+              mastery: null,
+              confidence: null,
+              oralCoverage: null,
+              evidenceCount: 0,
+              lastEvidenceAt: null,
+              previousMastery: null,
+              previousConfidence: null,
+              representativeAttempts: [],
+              skillKeys: [],
+              status: "data-insufficient",
+            })),
+            generatedAt: "2026-08-25T00:00:00.000Z",
+            summary: { totalAxes: 8, totalEvidence: 0, verifiedAxes: 0 },
+          },
+        }),
+      });
+    globalThis.fetch = fetchMock;
+
+    render(<ProfileOverviewPanel />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(screen.getByTestId("profile-overview")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
