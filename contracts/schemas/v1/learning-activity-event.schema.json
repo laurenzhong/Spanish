@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sueno.local/contracts/v1/learning-activity-event.schema.json",
+  "title": "Learning activity event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["clientInstanceId", "eventType", "sequence"],
+  "properties": {
+    "clientInstanceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "eventType": {
+      "type": "string",
+      "enum": ["active", "inactive", "ended"]
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

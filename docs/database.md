@@ -25,7 +25,7 @@ ALPHA-003 建立 Supabase PostgreSQL / Drizzle 基础；ALPHA-004 在第二版�
 - `src/shared/db/client.ts`：只供服务端使用的 PostgreSQL/Drizzle 连接入口。
 - `src/shared/db/schema/users.ts`：用户资料与偏好。
 - `src/shared/db/schema/content.ts`：沟通能力、表达、场景、内容包和审核。
-- `src/shared/db/schema/training.ts`：训练会话、尝试和断点。
+- `src/shared/db/schema/training.ts`：训练会话、尝试、会话断点和有效活动事件。
 - `src/shared/db/schema/evidence.ts`：只追加证据与可重算画像快照。
 - `src/shared/db/schema/characters.ts`：人物设定、关系、对话、消息与记忆权限。
 - `src/shared/db/schema/infrastructure.ts`：音频、供应商调用和幂等键。
@@ -86,6 +86,7 @@ pnpm db:migrate
 - `evidence_events` 只追加。首版迁移在 Supabase 角色存在时撤销 `anon` 和 `authenticated` 的 `UPDATE` / `DELETE` 权限。
 - `user_skill_states` 与 `user_scene_states` 是可重算快照，不能替代原始证据。
 - 尝试、证据和角色消息包含稳定客户端 ID、幂等键或 generation 标识，后续重试不能重复写入事实。
+- `practice_session_activity_events` 只保存服务端接收时间、客户端实例不透明 ID、序号和生命周期事件；`(session_id, client_instance_id, sequence)` 幂等，活动间隔由服务端领域函数保守聚合。
 - 内容和人物设定保存版本；已经产生学习证据的版本不得静默覆盖。
 - 普通录音使用 `audio_assets.retention_policy` 表达生命周期，真正的存储删除流程在语音任务中实现。
 - 关系记忆只保存抽取后的短事实值及来源 ID，不保存完整私聊正文；完整 `done` 消息轮之外不得创建记忆候选。
@@ -96,6 +97,7 @@ pnpm db:migrate
 - 用户可以读取自己的训练、证据、画像、关系、对话、消息和音频记录，但不能读取其他用户的数据。
 - 用户只可有限更新自己的资料和偏好。
 - `evidence_events`、技能/场景快照、关系记忆、`provider_calls` 和 `idempotency_keys` 没有客户端写策略；写入必须经过服务端 application 层。
+- `practice_session_activity_events` 只能通过活动 application 写入；客户端只读策略不开放插入、更新或删除。
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
 - 变体、任务和内容片段通过可见的父内容继承读取权限。
 - 敏感人物固定事实不通过公开客户端角色暴露。

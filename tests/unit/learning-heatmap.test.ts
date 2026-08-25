@@ -10,6 +10,7 @@ const generatedAt = new Date("2026-08-23T12:00:00.000Z");
 
 function session(overrides: Partial<LearningSession>): LearningSession {
   return {
+    activeSeconds: 25 * 60,
     attemptCount: 1,
     completedAt: new Date("2026-08-23T08:25:00.000Z"),
     id: crypto.randomUUID(),
@@ -30,6 +31,7 @@ describe("buildLearningHeatmap", () => {
         id: crypto.randomUUID(),
         startedAt: new Date("2026-08-23T09:00:00.000Z"),
         completedAt: new Date("2026-08-23T09:10:00.000Z"),
+        activeSeconds: 10 * 60,
         sceneLabel: "和朋友确认时间",
         independentExpressionCount: 1,
         skillKeys: ["transfer.rephrase"],
@@ -38,6 +40,7 @@ describe("buildLearningHeatmap", () => {
         id: crypto.randomUUID(),
         status: "abandoned",
         completedAt: null,
+        activeSeconds: 0,
       }),
     ], generatedAt);
 
@@ -63,11 +66,13 @@ describe("buildLearningHeatmap", () => {
       session({
         startedAt: new Date("2026-08-22T08:00:00.000Z"),
         completedAt: new Date("2026-08-22T10:00:00.000Z"),
+        activeSeconds: 60 * 60,
       }),
       session({
         startedAt: new Date("2026-08-21T08:00:00.000Z"),
         completedAt: new Date("2026-08-21T08:25:00.000Z"),
         status: "active",
+        activeSeconds: 25 * 60,
       }),
     ], generatedAt);
 
@@ -75,8 +80,8 @@ describe("buildLearningHeatmap", () => {
       durationMinutes: learningHeatmapConstants.maxSessionMinutes,
     });
     expect(result.days.find((day) => day.date === "2026-08-21")).toMatchObject({
-      durationMinutes: 0,
-      sessionCount: 0,
+      durationMinutes: 25,
+      sessionCount: 1,
     });
   });
 });

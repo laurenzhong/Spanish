@@ -10,6 +10,7 @@ import '../domain/training_event.dart';
 import '../domain/training_state.dart';
 import '../checkpoints/training_checkpoint.dart';
 import 'fake_evaluator.dart';
+import '../activity/learning_activity_recorder.dart';
 
 class _Expression {
   const _Expression({
@@ -32,12 +33,14 @@ class _Expression {
 class FakeTrainingLoop extends StatefulWidget {
   const FakeTrainingLoop({
     this.checkpointStore,
+    this.activityRecorder,
     this.recorder,
     this.textToSpeech,
     super.key,
   });
 
   final TrainingCheckpointStore? checkpointStore;
+  final LearningActivityRecorder? activityRecorder;
   final AudioRecorder? recorder;
   final TextToSpeech? textToSpeech;
 
@@ -100,6 +103,7 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
     _checkpointStore = widget.checkpointStore;
     _recorder = widget.recorder ?? FakeAudioRecorder();
     _textToSpeech = widget.textToSpeech ?? FakeTextToSpeech();
+    widget.activityRecorder?.start();
     _initialize();
   }
 
@@ -110,6 +114,7 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
     }
     unawaited(_recorder.cancel());
     unawaited(_textToSpeech.stop());
+    widget.activityRecorder?.stop();
     super.dispose();
   }
 
@@ -191,16 +196,20 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
         case 'transcribe':
           final generationId = effect.data['generationId'] as int;
           final simulatedTranscript = _expression.text;
-          unawaited((recordingStop ?? Future<bool>.value(true)).then((success) {
-            if (!success || !mounted) return;
-            _schedule(const Duration(milliseconds: 180), () {
-              _dispatch(TrainingEvent('transcription-succeeded', <String, Object?>{
-                'generationId': generationId,
-                'transcript': simulatedTranscript,
-                'confidence': 0.96,
-              }));
-            });
-          }));
+          unawaited(
+            (recordingStop ?? Future<bool>.value(true)).then((success) {
+              if (!success || !mounted) return;
+              _schedule(const Duration(milliseconds: 180), () {
+                _dispatch(
+                  TrainingEvent('transcription-succeeded', <String, Object?>{
+                    'generationId': generationId,
+                    'transcript': simulatedTranscript,
+                    'confidence': 0.96,
+                  }),
+                );
+              });
+            }),
+          );
           break;
         case 'evaluate':
           final generationId = effect.data['generationId'] as int;
@@ -215,7 +224,9 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
             text: _state.transcript ?? '',
           );
           _evaluator.evaluate(request).then((event) {
-            if (mounted && generationId == _state.generationId) _dispatch(event);
+            if (mounted && generationId == _state.generationId) {
+              _dispatch(event);
+            }
           });
           break;
         default:
@@ -230,9 +241,11 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       if (mounted) _dispatch(const TrainingEvent('input-playback-completed'));
     } catch (error) {
       if (mounted) {
-        _dispatch(TrainingEvent('input-playback-failed', <String, Object?>{
-          'errorCode': _capabilityErrorCode(error, 'tts-failed'),
-        }));
+        _dispatch(
+          TrainingEvent('input-playback-failed', <String, Object?>{
+            'errorCode': _capabilityErrorCode(error, 'tts-failed'),
+          }),
+        );
       }
     }
   }
@@ -243,10 +256,12 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _capabilityNotice = '麦克风暂时不可用，已切换为文字回答。');
-      _dispatch(TrainingEvent('recording-start-failed', <String, Object?>{
-        'generationId': generationId,
-        'errorCode': _capabilityErrorCode(error, 'recording-failed'),
-      }));
+      _dispatch(
+        TrainingEvent('recording-start-failed', <String, Object?>{
+          'generationId': generationId,
+          'errorCode': _capabilityErrorCode(error, 'recording-failed'),
+        }),
+      );
     }
   }
 
@@ -258,11 +273,15 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       await _recorder.stop();
       return true;
     } catch (error) {
-      if (reportFailure && mounted && _state.status == TrainingStatus.transcribing) {
-        _dispatch(TrainingEvent('transcription-failed', <String, Object?>{
-          'generationId': generationId,
-          'errorCode': _capabilityErrorCode(error, 'recording-failed'),
-        }));
+      if (reportFailure &&
+          mounted &&
+          _state.status == TrainingStatus.transcribing) {
+        _dispatch(
+          TrainingEvent('transcription-failed', <String, Object?>{
+            'generationId': generationId,
+            'errorCode': _capabilityErrorCode(error, 'recording-failed'),
+          }),
+        );
       }
       return false;
     }
@@ -311,11 +330,14 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       return;
     }
     unawaited(
-      _checkpointStore!.clear().then((_) {
-        if (mounted) startNext();
-      }).catchError((_) {
-        if (mounted) startNext();
-      }),
+      _checkpointStore!
+          .clear()
+          .then((_) {
+            if (mounted) startNext();
+          })
+          .catchError((_) {
+            if (mounted) startNext();
+          }),
     );
   }
 
@@ -347,153 +369,256 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final isProcessing = _state.status == TrainingStatus.transcribing ||
+    final isProcessing =
+        _state.status == TrainingStatus.transcribing ||
         _state.status == TrainingStatus.evaluating;
 
     if (!_initialized) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 26, 18, 40),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: <Widget>[
-                  const Expanded(
-                    child: Text(
-                      '把一句话说到对方能接住',
-                      style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  Text('${_expressionIndex + 1}/4', style: const TextStyle(fontWeight: FontWeight.w700)),
-                ],
-              ),
-              if (_capabilityNotice != null) ...<Widget>[
-                const SizedBox(height: 12),
-                Text(
-                  _capabilityNotice!,
-                  style: TextStyle(color: colors.onSurfaceVariant),
-                ),
-              ],
-              const SizedBox(height: 20),
-              SurfaceCard(
-                color: const Color(0xFFF8FBFF),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return Listener(
+      onPointerDown: (_) => widget.activityRecorder?.markInteraction(),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(18, 26, 18, 40),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    Text(_statusLabel(_state.status), style: TextStyle(color: colors.primary, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 18),
-                    Text(_expression.goalTitle, style: TextStyle(color: colors.primary, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 8),
-                    Text(_expression.text, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 8),
-                    Text(_expression.translation),
-                    const SizedBox(height: 6),
-                    Text(_expression.intent, style: TextStyle(color: colors.onSurfaceVariant, height: 1.5)),
+                    const Expanded(
+                      child: Text(
+                        '把一句话说到对方能接住',
+                        style: TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${_expressionIndex + 1}/4',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              SurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('提示 ${_state.hintLevel}/3', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
-                    const SizedBox(height: 16),
-                    if (_state.status == TrainingStatus.presentingInput)
-                      const Text('先听输入，听完后用自己的话回应。'),
-                    if (_state.status == TrainingStatus.awaitingOutput) ...<Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(child: OutlinedButton(onPressed: () { setState(() => _capabilityNotice = null); _dispatch(const TrainingEvent('switch-to-silent')); }, child: const Text('用文字回答'))),
-                          const SizedBox(width: 10),
-                          Expanded(child: FilledButton(onPressed: () => _dispatch(const TrainingEvent('start-recording')), child: const Text('开始录音'))),
-                        ],
-                      ),
-                      if (_state.outputMode == TrainingOutputMode.typing) ...<Widget>[
-                        const SizedBox(height: 14),
-                        Material(
-                          type: MaterialType.transparency,
-                          child: TextField(
-                            onChanged: (value) => setState(() => _draft = value),
-                            minLines: 2,
-                            maxLines: 4,
-                            decoration: const InputDecoration(labelText: '写下你的回应', border: OutlineInputBorder()),
-                          ),
+                if (_capabilityNotice != null) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Text(
+                    _capabilityNotice!,
+                    style: TextStyle(color: colors.onSurfaceVariant),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SurfaceCard(
+                  color: const Color(0xFFF8FBFF),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        _statusLabel(_state.status),
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w800,
                         ),
-                        const SizedBox(height: 10),
-                        SizedBox(width: double.infinity, child: FilledButton(onPressed: _draft.trim().isEmpty ? null : _submitTyping, child: const Text('提交文字回答'))),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        _expression.goalTitle,
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _expression.text,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(_expression.translation),
+                      const SizedBox(height: 6),
+                      Text(
+                        _expression.intent,
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        '提示 ${_state.hintLevel}/3',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (_state.status == TrainingStatus.presentingInput)
+                        const Text('先听输入，听完后用自己的话回应。'),
+                      if (_state.status ==
+                          TrainingStatus.awaitingOutput) ...<Widget>[
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  setState(() => _capabilityNotice = null);
+                                  _dispatch(
+                                    const TrainingEvent('switch-to-silent'),
+                                  );
+                                },
+                                child: const Text('用文字回答'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () => _dispatch(
+                                  const TrainingEvent('start-recording'),
+                                ),
+                                child: const Text('开始录音'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_state.outputMode ==
+                            TrainingOutputMode.typing) ...<Widget>[
+                          const SizedBox(height: 14),
+                          Material(
+                            type: MaterialType.transparency,
+                            child: TextField(
+                              onChanged: (value) {
+                                widget.activityRecorder?.markInteraction();
+                                setState(() => _draft = value);
+                              },
+                              minLines: 2,
+                              maxLines: 4,
+                              decoration: const InputDecoration(
+                                labelText: '写下你的回应',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: _draft.trim().isEmpty
+                                  ? null
+                                  : _submitTyping,
+                              child: const Text('提交文字回答'),
+                            ),
+                          ),
+                        ],
+                      ],
+                      if (_state.status == TrainingStatus.recording)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text('正在等待你的回答'),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: () => _dispatch(
+                                TrainingEvent(
+                                  'stop-recording',
+                                  <String, Object?>{
+                                    'generationId': _state.generationId,
+                                  },
+                                ),
+                              ),
+                              child: const Text('提交模拟语音'),
+                            ),
+                          ],
+                        ),
+                      if (isProcessing)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text('正在给出这轮反馈……'),
+                        ),
+                      if (_state.status == TrainingStatus.showingFeedback &&
+                          _state.evaluation != null)
+                        _Feedback(
+                          success: _state.evaluation!.contextualSuccess,
+                          onVariant: () =>
+                              _dispatch(const TrainingEvent('enter-variant')),
+                          onComplete: () =>
+                              _dispatch(const TrainingEvent('complete-task')),
+                        ),
+                      if (_state.status == TrainingStatus.transitioning)
+                        const Text('换一个信息，再完成同一个沟通目的。'),
+                      if (_state.status == TrainingStatus.recoverableError)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              '这次技术步骤没有完成',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text('没有产生负面能力记录，你可以回到当前句重新尝试。'),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: () =>
+                                  _dispatch(const TrainingEvent('retry')),
+                              child: const Text('再试一次'),
+                            ),
+                          ],
+                        ),
+                      if (_state.status == TrainingStatus.completed)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              '这句练习完成了',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text('完成一次任务不会直接改变能力画像，之后还会用陌生变体复核。'),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: _nextExpression,
+                              child: const Text('下一句'),
+                            ),
+                          ],
+                        ),
+                      if (_state.status ==
+                          TrainingStatus.awaitingOutput) ...<Widget>[
+                        const Divider(height: 28),
+                        Wrap(
+                          spacing: 8,
+                          children: <Widget>[
+                            for (var level = 1; level <= 3; level++)
+                              OutlinedButton(
+                                onPressed: () => _dispatch(
+                                  TrainingEvent(
+                                    'request-hint',
+                                    <String, Object?>{'level': level},
+                                  ),
+                                ),
+                                child: Text('提示 $level'),
+                              ),
+                          ],
+                        ),
                       ],
                     ],
-                    if (_state.status == TrainingStatus.recording)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Text('正在等待你的回答'),
-                          const SizedBox(height: 12),
-                          FilledButton(onPressed: () => _dispatch(TrainingEvent('stop-recording', <String, Object?>{'generationId': _state.generationId})), child: const Text('提交模拟语音')),
-                        ],
-                      ),
-                    if (isProcessing) const Padding(padding: EdgeInsets.only(top: 4), child: Text('正在给出这轮反馈……')),
-                    if (_state.status == TrainingStatus.showingFeedback && _state.evaluation != null)
-                      _Feedback(
-                        success: _state.evaluation!.contextualSuccess,
-                        onVariant: () => _dispatch(const TrainingEvent('enter-variant')),
-                        onComplete: () => _dispatch(const TrainingEvent('complete-task')),
-                      ),
-                    if (_state.status == TrainingStatus.transitioning)
-                      const Text('换一个信息，再完成同一个沟通目的。'),
-                    if (_state.status == TrainingStatus.recoverableError)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Text(
-                            '这次技术步骤没有完成',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text('没有产生负面能力记录，你可以回到当前句重新尝试。'),
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed: () => _dispatch(const TrainingEvent('retry')),
-                            child: const Text('再试一次'),
-                          ),
-                        ],
-                      ),
-                    if (_state.status == TrainingStatus.completed)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Text('这句练习完成了', style: TextStyle(fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 8),
-                          const Text('完成一次任务不会直接改变能力画像，之后还会用陌生变体复核。'),
-                          const SizedBox(height: 12),
-                          FilledButton(onPressed: _nextExpression, child: const Text('下一句')),
-                        ],
-                      ),
-                    if (_state.status == TrainingStatus.awaitingOutput) ...<Widget>[
-                      const Divider(height: 28),
-                      Wrap(
-                        spacing: 8,
-                        children: <Widget>[
-                          for (var level = 1; level <= 3; level++)
-                            OutlinedButton(
-                              onPressed: () => _dispatch(TrainingEvent('request-hint', <String, Object?>{'level': level})),
-                              child: Text('提示 $level'),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -502,7 +627,11 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
 }
 
 class _Feedback extends StatelessWidget {
-  const _Feedback({required this.success, required this.onVariant, required this.onComplete});
+  const _Feedback({
+    required this.success,
+    required this.onVariant,
+    required this.onComplete,
+  });
 
   final bool success;
   final VoidCallback onVariant;
@@ -515,7 +644,10 @@ class _Feedback extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(success ? '对方可以接住你的意思' : '这次还没有完成沟通任务', style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(
+            success ? '对方可以接住你的意思' : '这次还没有完成沟通任务',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 8),
           const Text('自然的相近表达也算成功；下一步换一个信息再试。'),
           const SizedBox(height: 12),

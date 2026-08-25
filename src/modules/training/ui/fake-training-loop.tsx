@@ -34,6 +34,7 @@ import {
   createBrowserTextToSpeech,
   type BrowserTextToSpeech,
 } from "@/src/modules/providers/tts";
+import type { LearningActivityRecorder } from "@/src/modules/profile/activity";
 
 const practiceExpressions = contentBundle.expressions.slice(0, 4);
 const evaluator = createFakeEvaluator();
@@ -270,11 +271,13 @@ function useTrainingEffects(
 }
 
 type FakeTrainingLoopProps = Readonly<{
+  activityRecorder?: LearningActivityRecorder;
   userId?: string;
   audio?: TrainingAudioCapabilities;
 }>;
 
 export function FakeTrainingLoop({
+  activityRecorder,
   userId = "local-user",
   audio: providedAudio,
 }: FakeTrainingLoopProps) {
@@ -303,6 +306,12 @@ export function FakeTrainingLoop({
   const expression = practiceExpressions[current.expressionIndex] ?? practiceExpressions[0];
   const isProcessing =
     state.status === "transcribing" || state.status === "evaluating";
+
+  useEffect(() => {
+    if (!hydrated || !activityRecorder) return;
+    activityRecorder.start();
+    return () => activityRecorder.stop();
+  }, [activityRecorder, hydrated]);
 
   useEffect(() => {
     if (state.status !== "recording") return;

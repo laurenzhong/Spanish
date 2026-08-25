@@ -242,6 +242,7 @@ Route Handler 的职责只有：
 - `POST /api/v1/practice/attempts`
 - `POST /api/v1/practice/attempts/:id/audio-upload`
 - `POST /api/v1/practice/attempts/:id/evaluate`
+- `POST /api/v1/practice/sessions/:sessionId/activity`
 - `GET /api/v1/profile`
 - `GET /api/v1/content/packs/:id`
 - `GET /api/v1/conversations`
@@ -251,6 +252,8 @@ Route Handler 的职责只有：
 - `DELETE /api/v1/me/data`
 
 `GET /api/v1/profile` 返回固定八个能力维度的当前掌握度、可信度、口语覆盖和证据计数；当历史证据足够时还返回四周前掌握度，并提供最多三条只含日期、输入方式、场景标签和提示级别的脱敏代表性尝试。响应不得包含原始答案、转写正文或音频引用。
+
+练习活动接口只接受客户端实例 ID、单调序号和 `active`/`inactive`/`ended` 生命周期事件。服务端写入接收时间并以 `(session_id, client_instance_id, sequence)` 幂等；热力图仅消费相邻活动心跳形成的有效秒数，超过 45 秒的间隔、后台/失焦区间和未完成尾部不计入学习时长。
 
 API 错误使用稳定代码，不让前端解析供应商原始错误文本。
 

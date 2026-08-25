@@ -59,6 +59,11 @@ export const sessionStatusEnum = pgEnum("practice_session_status", [
   "abandoned",
 ]);
 
+export const sessionActivityEventTypeEnum = pgEnum(
+  "practice_session_activity_event_type",
+  ["active", "inactive", "ended"],
+);
+
 export const messageRoleEnum = pgEnum("message_role", [
   "user",
   "character",

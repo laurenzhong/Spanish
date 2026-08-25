@@ -145,6 +145,7 @@ Playwright 覆盖 Web；Flutter integration test 使用 fake/测试服务覆盖�
 | 场景掌握需要口语覆盖 | scene status 单元 |
 | 学习时长不参与能力评分 | profile 单元 |
 | 能力图历史值与代表性尝试可追溯且脱敏 | profile 单元 + 画像 E2E |
+| 热力图排除后台空置和长间隔 | activity domain + API/数据库幂等 + Web/Flutter lifecycle test |
 | 用户说话时不被纠错 | 组件测试 |
 
 ## 5. 训练状态机测试

@@ -22,3 +22,9 @@ export type {
   LearningHeatmap,
   LearningSession,
 } from "./learning-heatmap";
+export {
+  activeSecondsForEvents,
+  learningActivityConstants,
+  learningActivityEventSchema,
+} from "./learning-activity";
+export type { LearningActivityEvent } from "./learning-activity";

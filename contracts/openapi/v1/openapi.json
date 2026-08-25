@@ -37,6 +37,74 @@
           }
         }
       }
+    },
+    "/practice/sessions/{sessionId}/activity": {
+      "post": {
+        "summary": "Record a foreground learning activity heartbeat",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../../schemas/v1/learning-activity-event.schema.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Activity event accepted or already recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../schemas/v1/learning-activity-response.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid activity event",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          },
+          "404": {
+            "description": "Practice session not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          },
+          "409": {
+            "description": "Practice session is closed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

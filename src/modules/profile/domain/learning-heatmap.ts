@@ -29,6 +29,7 @@ export type HeatmapDay = z.infer<typeof heatmapDaySchema>;
 export type LearningHeatmap = z.infer<typeof learningHeatmapSchema>;
 
 export type LearningSession = Readonly<{
+  activeSeconds: number;
   attemptCount: number;
   completedAt: Date | null;
   id: string;
@@ -78,12 +79,8 @@ function skillLabel(skillKey: string): string | null {
 }
 
 function sessionDurationMinutes(session: LearningSession): number {
-  if (session.attemptCount === 0 || session.status !== "completed" || !session.completedAt) return 0;
-  const elapsed = Math.max(
-    0,
-    Math.ceil((session.completedAt.getTime() - session.startedAt.getTime()) / 60_000),
-  );
-  return Math.min(MAX_SESSION_MINUTES, elapsed);
+  if (session.attemptCount === 0 || session.activeSeconds <= 0) return 0;
+  return Math.min(MAX_SESSION_MINUTES, Math.ceil(session.activeSeconds / 60));
 }
 
 export function buildLearningHeatmap(

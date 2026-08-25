@@ -139,7 +139,7 @@ export function LearningHeatmap() {
         <div>
           <p className="eyebrow eyebrow--accent">有效学习</p>
           <h2 id="learning-heatmap-title">学习活动热力图</h2>
-          <p>只记录完成训练后可确认的学习时间，不参与能力评分，也不惩罚中断。</p>
+          <p>只记录前台且有近期活动的有效学习时间，不参与能力评分，也不惩罚中断。</p>
         </div>
         <div className="learning-heatmap__totals" aria-label="学习活动摘要">
           <strong>{heatmap.totals.activeDays}</strong>

@@ -16,6 +16,7 @@ import { learningGoals, scenarioTasks, scenarios } from "./content";
 import {
   createdAt,
   modalityEnum,
+  sessionActivityEventTypeEnum,
   sessionStatusEnum,
   updatedAt,
   type JsonObject,
@@ -61,6 +62,50 @@ export const practiceSessions = pgTable(
     check(
       "practice_sessions_content_version_positive_check",
       sql`${table.contentVersion} > 0`,
+    ),
+  ],
+);
+
+export const practiceSessionActivityEvents = pgTable(
+  "practice_session_activity_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => practiceSessions.id, { onDelete: "cascade" }),
+    clientInstanceId: text("client_instance_id").notNull(),
+    sequence: integer("sequence").notNull(),
+    eventType: sessionActivityEventTypeEnum("event_type").notNull(),
+    occurredAt: timestamp("occurred_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .defaultNow()
+      .notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("practice_session_activity_events_session_client_seq_uidx").on(
+      table.sessionId,
+      table.clientInstanceId,
+      table.sequence,
+    ),
+    index("practice_session_activity_events_user_session_occurred_idx").on(
+      table.userId,
+      table.sessionId,
+      table.occurredAt,
+    ),
+    index("practice_session_activity_events_session_occurred_idx").on(
+      table.sessionId,
+      table.occurredAt,
+    ),
+    check(
+      "practice_session_activity_events_sequence_nonnegative_check",
+      sql`${table.sequence} >= 0`,
     ),
   ],
 );

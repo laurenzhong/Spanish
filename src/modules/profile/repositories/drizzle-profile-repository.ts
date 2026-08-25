@@ -4,6 +4,7 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "@/src/shared/db/schema";
 
 import type { ProfileRepository } from "./profile-repository";
+import { activeSecondsForEvents } from "../domain/learning-activity";
 
 type ProfileDatabase<TResult extends PgQueryResultHKT> = PgDatabase<
   TResult,
@@ -24,6 +25,59 @@ export function createDrizzleProfileRepository<
   TResult extends PgQueryResultHKT,
 >(database: ProfileDatabase<TResult>): ProfileRepository {
   return {
+    async appendActivityEvent(userId, sessionId, event) {
+      const existing = await database
+        .select({ id: schema.practiceSessionActivityEvents.id })
+        .from(schema.practiceSessionActivityEvents)
+        .where(
+          and(
+            eq(schema.practiceSessionActivityEvents.userId, userId),
+            eq(schema.practiceSessionActivityEvents.sessionId, sessionId),
+            eq(
+              schema.practiceSessionActivityEvents.clientInstanceId,
+              event.clientInstanceId,
+            ),
+            eq(schema.practiceSessionActivityEvents.sequence, event.sequence),
+          ),
+        )
+        .limit(1);
+      if (existing.length > 0) return "duplicate";
+
+      const [session] = await database
+        .select({ status: schema.practiceSessions.status })
+        .from(schema.practiceSessions)
+        .where(
+          and(
+            eq(schema.practiceSessions.id, sessionId),
+            eq(schema.practiceSessions.userId, userId),
+          ),
+        )
+        .limit(1);
+      if (!session) return "not-found";
+      if (event.eventType !== "ended" && session.status !== "active") {
+        return "closed";
+      }
+
+      const inserted = await database
+        .insert(schema.practiceSessionActivityEvents)
+        .values({
+          clientInstanceId: event.clientInstanceId,
+          eventType: event.eventType,
+          sequence: event.sequence,
+          sessionId,
+          userId,
+        })
+        .onConflictDoNothing({
+          target: [
+            schema.practiceSessionActivityEvents.sessionId,
+            schema.practiceSessionActivityEvents.clientInstanceId,
+            schema.practiceSessionActivityEvents.sequence,
+          ],
+        })
+        .returning({ id: schema.practiceSessionActivityEvents.id });
+      return inserted.length > 0 ? "inserted" : "duplicate";
+    },
+
     async listEvidence(userId) {
       const rows = await database
         .select({
@@ -128,6 +182,28 @@ export function createDrizzleProfileRepository<
         .from(schema.evidenceEvents)
         .where(eq(schema.evidenceEvents.userId, userId));
 
+      const activityEvents = await database
+        .select({
+          clientInstanceId: schema.practiceSessionActivityEvents.clientInstanceId,
+          eventType: schema.practiceSessionActivityEvents.eventType,
+          occurredAt: schema.practiceSessionActivityEvents.occurredAt,
+          sequence: schema.practiceSessionActivityEvents.sequence,
+          sessionId: schema.practiceSessionActivityEvents.sessionId,
+        })
+        .from(schema.practiceSessionActivityEvents)
+        .where(
+          and(
+            eq(schema.practiceSessionActivityEvents.userId, userId),
+            gte(schema.practiceSessionActivityEvents.occurredAt, from),
+          ),
+        );
+      const activityBySession = new Map<string, typeof activityEvents>();
+      for (const event of activityEvents) {
+        const existing = activityBySession.get(event.sessionId) ?? [];
+        existing.push(event);
+        activityBySession.set(event.sessionId, existing);
+      }
+
       const attemptsBySession = new Map<string, typeof attempts>();
       for (const attempt of attempts) {
         const existing = attemptsBySession.get(attempt.sessionId) ?? [];
@@ -152,6 +228,9 @@ export function createDrizzleProfileRepository<
           ? sceneTitle.zh ?? sceneTitle.es ?? null
           : null;
         return {
+          activeSeconds: activeSecondsForEvents(
+            activityBySession.get(session.id) ?? [],
+          ),
           attemptCount: sessionAttempts.length,
           completedAt: session.completedAt,
           id: session.id,
