@@ -219,6 +219,8 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 - AI 生成变式必须通过 Schema、重复和禁用词检查，再进行人工抽样。
 - 修改已发布内容必须增加版本并记录变更原因。
 
+个人 Alpha 在缺少外部审核人时，可以由项目所有者明确授权临时 AI 审核。该审核必须使用 `codex-ai-temporary-review` 标识，并在 `content_reviews.notes` 中说明其临时性质；它只用于当前个人 Alpha，不得被描述为母语者或教学专家签字，进入更大规模发布前仍需补齐真人复核。
+
 ## 11. 自动校验
 
 内容导入前至少检查：

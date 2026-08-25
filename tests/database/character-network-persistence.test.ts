@@ -8,6 +8,12 @@ import { drizzle } from "drizzle-orm/pglite";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import inesSource from "@/content/characters/ines.json";
+import {
+  createDrizzleCharacterRepository,
+  importCharacterBible,
+  publishCharacterBible,
+} from "@/src/modules/characters";
 import {
   createDrizzleIntroductionRepository,
   proposeIntroduction,
@@ -95,5 +101,21 @@ describe("character network persistence", () => {
     expect((second as { status: string }).status).toBe("accepted");
     expect((await database.select().from(schema.characterRelationships))).toHaveLength(1);
     expect((await database.select().from(schema.conversations))).toHaveLength(2);
+  });
+
+  it("publishes a character and records the three temporary review decisions", async () => {
+    const repository = createDrizzleCharacterRepository(database);
+    await importCharacterBible(repository, inesSource);
+    const result = await publishCharacterBible({
+      repository,
+      source: inesSource,
+      reviewedAt: new Date("2026-08-25T04:00:00.000Z"),
+    });
+    expect(result.status).toBe("published");
+    const [character] = await database.select({ status: schema.characters.status }).from(schema.characters).where(eq(schema.characters.stableKey, "ines"));
+    expect(character?.status).toBe("published");
+    const reviews = await database.select().from(schema.contentReviews).where(eq(schema.contentReviews.entityType, "character"));
+    expect(reviews).toHaveLength(3);
+    expect(reviews.every((review) => review.reviewerReference?.startsWith("codex-ai-temporary-review:") === true)).toBe(true);
   });
 });

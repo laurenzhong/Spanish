@@ -37,7 +37,7 @@ ALPHA-005 新增 `content_bundle_imports` 作为服务端导入登记表，保�
 
 ALPHA-028 的 `relationship_memories.fact_key` 是用户与角色范围内的稳定事实键，用于在事务中判定重复与冲突；冲突候选追加为 `conflict`，不会覆盖旧记忆。`share_scope` 默认保持 `private`，跨角色读取必须同时存在用户明确授予的 `memory_sharing_permissions` 记录。
 
-ALPHA-030 的 `character_introduction_offers` 保存 Lucía 触发的好友介绍提议、可解释理由、用户决策和接受时明确授权的记忆 ID。提议以 `(user_id, offer_key)` 幂等；接受事务同时确保目标角色的 `character_relationships` 与 `conversations`，并只为通过服务端校验的非私密记忆写入目标角色共享权限。该表只向用户开放自己的 `SELECT`，创建、解决和授权必须经过服务端 application。隐私 UI 只读取服务端生成的非私密资料预览；撤销授权会关闭指定目标角色的权限，最后一条授权撤销后记忆恢复为 `private`。
+ALPHA-030 的 `character_introduction_offers` 保存 Lucía 触发的好友介绍提议、可解释理由、用户决策和接受时明确授权的记忆 ID。提议以 `(user_id, offer_key)` 幂等；接受事务同时确保目标角色的 `character_relationships` 与 `conversations`，并只为通过服务端校验的非私密记忆写入目标角色共享权限。该表只向用户开放自己的 `SELECT`，创建、解决和授权必须经过服务端 application。隐私 UI 只读取服务端生成的非私密资料预览；撤销授权会关闭指定目标角色的权限，最后一条授权撤销后记忆恢复为 `private`。角色发布通过 `publishCharacterBibles` 事务完成，并在已有 `content_reviews` 中记录语言、教学和 canon 三项审核；个人 Alpha 暂时允许项目所有者授权 `codex-ai-temporary-review`，记录明确标注仍建议后续补充真人审核。
 
 ## 3. 连接配置
 

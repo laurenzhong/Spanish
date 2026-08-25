@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import luciaSource from "@/content/characters/lucia.json";
 import mateoSource from "@/content/characters/mateo.json";
 import inesSource from "@/content/characters/ines.json";
-import { CharacterImportConflictError, importCharacterBible } from "@/src/modules/characters";
+import {
+  CharacterImportConflictError,
+  importCharacterBible,
+  publishCharacterBible,
+} from "@/src/modules/characters";
 import type { CharacterRepository, PersistedCharacter } from "@/src/modules/characters";
 
 function repository(existing: PersistedCharacter | null = null): CharacterRepository {
@@ -28,6 +32,29 @@ function repository(existing: PersistedCharacter | null = null): CharacterReposi
           isActive,
         })),
       };
+      return value;
+    },
+    async replaceDraft({ character, profile }) {
+      if (!value) throw new Error("CHARACTER_UNAVAILABLE");
+      value = {
+        ...value,
+        displayName: character.displayName,
+        avatarUrl: character.avatarUrl ?? null,
+        homeLocation: character.homeLocation,
+        profile,
+        facts: character.facts.map(({ factKey, value: factValue, sensitivity, version, isActive }) => ({
+          factKey,
+          value: factValue,
+          sensitivity,
+          version,
+          isActive,
+        })),
+      };
+      return value;
+    },
+    async publish() {
+      if (!value) throw new Error("CHARACTER_UNAVAILABLE");
+      value = { ...value, status: "published" };
       return value;
     },
     async transaction(work) { return work(this); },
@@ -61,5 +88,22 @@ describe("importCharacterBible", () => {
     const ines = await importCharacterBible(repository(), inesSource);
     expect(mateo).toMatchObject({ stableKey: "mateo", version: 1, status: "imported" });
     expect(ines).toMatchObject({ stableKey: "ines", version: 1, status: "imported" });
+  });
+
+  it("publishes a validated character with explicit temporary review records", async () => {
+    const target = repository();
+    await importCharacterBible(target, mateoSource);
+    const result = await publishCharacterBible({
+      repository: target,
+      source: mateoSource,
+      reviewedAt: new Date("2026-08-25T04:00:00.000Z"),
+    });
+    expect(result.status).toBe("published");
+    expect(result.character.status).toBe("published");
+    expect(result.reviews).toHaveLength(3);
+    expect(result.reviews.every((review) => review.reviewerReference.startsWith("codex-ai-temporary-review:"))).toBe(true);
+
+    const repeated = await publishCharacterBible({ repository: target, source: mateoSource });
+    expect(repeated.status).toBe("unchanged");
   });
 });

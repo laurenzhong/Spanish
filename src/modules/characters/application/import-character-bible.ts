@@ -24,7 +24,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function profileFor(character: CharacterBible): PersistedCharacter["profile"] {
+export function profileFor(character: CharacterBible): PersistedCharacter["profile"] {
   return {
     identity: character.identity,
     personality: character.personality,
@@ -33,7 +33,7 @@ function profileFor(character: CharacterBible): PersistedCharacter["profile"] {
   };
 }
 
-function persistedFactsFor(character: CharacterBible): readonly PersistedCanonFact[] {
+export function persistedFactsFor(character: CharacterBible): readonly PersistedCanonFact[] {
   return character.facts.map(({ factKey, value, sensitivity, version, isActive }) => ({
     factKey,
     value,
@@ -49,25 +49,41 @@ function sortedFacts(facts: readonly PersistedCanonFact[]): readonly PersistedCa
   );
 }
 
-function samePersistedCharacter(existing: PersistedCharacter, character: CharacterBible, profile: PersistedCharacter["profile"]): boolean {
-  return canonical({
+function persistedPayload(existing: PersistedCharacter): Readonly<Record<string, unknown>> {
+  return {
     stableKey: existing.stableKey,
     version: existing.version,
-    status: existing.status,
     displayName: existing.displayName,
     avatarUrl: existing.avatarUrl,
     homeLocation: existing.homeLocation,
     profile: existing.profile,
     facts: sortedFacts(existing.facts),
-  }) === canonical({
+  };
+}
+
+function candidatePayload(character: CharacterBible, profile: PersistedCharacter["profile"]): Readonly<Record<string, unknown>> {
+  return {
     stableKey: character.stableKey,
     version: character.version,
-    status: character.status,
     displayName: character.displayName,
     avatarUrl: character.avatarUrl ?? null,
     homeLocation: character.homeLocation,
     profile,
     facts: sortedFacts(persistedFactsFor(character)),
+  };
+}
+
+export function sameCharacterContent(existing: PersistedCharacter, character: CharacterBible): boolean {
+  return canonical(persistedPayload(existing)) === canonical(candidatePayload(character, profileFor(character)));
+}
+
+function samePersistedCharacter(existing: PersistedCharacter, character: CharacterBible, profile: PersistedCharacter["profile"]): boolean {
+  return canonical({
+    ...persistedPayload(existing),
+    status: existing.status,
+  }) === canonical({
+    ...candidatePayload(character, profile),
+    status: character.status,
   });
 }
 

@@ -25,6 +25,7 @@
     "content:validate": "tsx scripts/validate-content.ts",
     "content:import": "tsx scripts/import-content.ts",
     "character:import": "tsx scripts/import-character.ts",
+    "character:publish": "tsx scripts/publish-character.ts",
     "auth:repair-profiles": "tsx scripts/ensure-auth-profiles.ts",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
