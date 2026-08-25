@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-25
 - 当前里程碑：个人 Alpha 阶段 7——角色扩展、进步展示与隐私控制
-- 总体状态：阶段 8 个人 Alpha 验证可恢复；UI 功能门槛推进至 UI-003，暂缓全面人工体验
+- 总体状态：阶段 8 个人 Alpha 验证可恢复；UI-004 已完成，等待 UI-005 后再开始全面人工体验
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 UI-004：画像、热力图和隐私数据控制闭环；阶段 8 全面人工体验继续等待 UI-001 至 UI-005 功能门槛完成。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 UI-005：好友介绍、共享授权和 Flutter/Web 全模块验收；阶段 8 全面人工体验继续等待 UI-001 至 UI-005 功能门槛完成。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 阶段 7 已完成切片
 
@@ -289,6 +289,43 @@
 - 对话回复仍使用确定性 fake，不代表真实 provider 生成质量或网络环境验收。
 - 当前环境没有 Mac/Xcode，未执行 iOS 编译、签名或真机验证。
 - 下一项 `UI-004`：画像、热力图和隐私数据控制闭环。
+
+### UI-004：画像、热力图和隐私数据控制闭环
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：UI-003，已完成
+- 实现 Commit：`8857364`
+
+结果：
+
+- Flutter 画像页支持八维能力选择、当前维度状态和“数据不足/待验证”语义；不使用伪造分数，也不把学习时长写入能力评分。
+- Flutter 新增本地确定性 fake 热力图，支持选择日期并查看有效学习分钟数和场景；新增关系记忆、保存录音和账号数据删除确认，确认后只移除当前设备演示资料并明确不修改服务端能力证据。
+- Web 画像失败恢复测试覆盖请求失败后点击“重试”并成功恢复；现有 Web 画像、热力图和隐私 API 闭环保持不变。
+
+修改文件：
+
+- `apps/mobile/lib/features/profile/profile_page.dart`
+- `apps/mobile/test/features/profile/profile_page_test.dart`
+- `tests/unit/profile-overview-panel.test.tsx`
+
+验证：
+
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm build` 通过。
+- 全量 Vitest：75 个文件、322 个测试通过。
+- `pnpm test:e2e`：桌面与手机共 64/64 通过。
+- `flutter analyze` 通过。
+- `flutter test`：71 个公共 Dart/Widget 测试通过。
+- 画像相关 Web 单测：4/4 通过；画像/隐私 Web 手机视口 E2E：15/15 通过。
+
+限制与下一步：
+
+- Flutter 当前使用本地 fake 画像、热力图和删除流程，仅用于验证客户端按钮与状态逻辑；真实服务端画像、删除 API、数据库/RLS 未在本切片重复实现。
+- 当前环境没有 Mac/Xcode，未执行 Flutter iOS 编译、签名、真机录音或 integration test 验收；公共 Flutter 测试通过不代表 iOS 已验证。
+- 下一项 `UI-005`：好友介绍、共享授权和 Flutter/Web 全模块验收。
 
 ### ALPHA-029：角色回复规划
 
@@ -901,7 +938,8 @@
 | UI-001 | done | `fix/login-redirect-after-otp` | Codex | 认证回跳、四栏导航和学习入口功能闭环 | 阶段 8 |
 | UI-002 | done | `fix/login-redirect-after-otp` | Codex | 探索内容包功能闭环 | UI-001 |
 | UI-003 | done | `fix/login-redirect-after-otp` | Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
-| UI-004 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
+| UI-004 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
+| UI-005 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
 | 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待 UI-001 至 UI-005 功能门槛完成 | 7.6 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -910,9 +948,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | UI-004 | 画像、热力图和隐私数据控制闭环 | UI-003 |
-| 2 | UI-005 | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
-| 3 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
+| 1 | UI-005 | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
+| 2 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -987,6 +1024,7 @@
 | 2026-08-24 | 修复聊天历史不可用时静默丢失 | 待提交 | 显示数据库不可用状态、合并历史 hydration 与当前消息；配置 `DATABASE_URL` 后可恢复持久化 |
 | 2026-08-25 | 完成 UI-002 探索内容包功能闭环 | `429c225` | Flutter/Web 内容包按钮、进度、草稿恢复、TTS 降级和口语复核可用；下一项 UI-003 |
 | 2026-08-25 | 完成 UI-003 Lucía 对话恢复闭环 | `e0b7b0c` | 首包失败、停止、断流后可重试且不重复用户消息；下一项 UI-004 |
+| 2026-08-25 | 完成 UI-004 画像、热力图和隐私数据控制闭环 | `8857364` | Flutter 画像选择、热力图日期、隐私删除确认与 Web 画像重试可用；下一项 UI-005 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
