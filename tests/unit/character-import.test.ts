@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import luciaSource from "@/content/characters/lucia.json";
+import mateoSource from "@/content/characters/mateo.json";
+import inesSource from "@/content/characters/ines.json";
 import { CharacterImportConflictError, importCharacterBible } from "@/src/modules/characters";
 import type { CharacterRepository, PersistedCharacter } from "@/src/modules/characters";
 
@@ -52,5 +54,12 @@ describe("importCharacterBible", () => {
     const changed = structuredClone(luciaSource) as typeof luciaSource;
     changed.displayName = "Lucía distinta";
     await expect(importCharacterBible(target, changed)).rejects.toBeInstanceOf(CharacterImportConflictError);
+  });
+
+  it("validates both alpha-030 introduction characters as independent drafts", async () => {
+    const mateo = await importCharacterBible(repository(), mateoSource);
+    const ines = await importCharacterBible(repository(), inesSource);
+    expect(mateo).toMatchObject({ stableKey: "mateo", version: 1, status: "imported" });
+    expect(ines).toMatchObject({ stableKey: "ines", version: 1, status: "imported" });
   });
 });

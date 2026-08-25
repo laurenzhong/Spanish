@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   audioAssets,
   characterCanonFacts,
+  characterIntroductionOffers,
   characterRelationships,
   characters,
   communicationDomains,
@@ -68,6 +69,7 @@ const allTables = [
   userSceneStates,
   characters,
   characterCanonFacts,
+  characterIntroductionOffers,
   characterRelationships,
   relationshipMemories,
   memorySharingPermissions,
@@ -90,6 +92,7 @@ const userOwnedTables = [
   userSkillStates,
   userSceneStates,
   characterRelationships,
+  characterIntroductionOffers,
   relationshipMemories,
   memorySharingPermissions,
   conversations,
@@ -102,6 +105,7 @@ describe("database schema", () => {
       [
         "audio_assets",
         "character_canon_facts",
+        "character_introduction_offers",
         "character_relationships",
         "characters",
         "communication_domains",
@@ -192,6 +196,8 @@ describe("database schema", () => {
         "0001_auth_rls.sql",
         "0002_content_import_registry.sql",
         "0003_chunky_black_knight.sql",
+        "0004_calm_iron_monger.sql",
+        "0005_kind_character_network.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),

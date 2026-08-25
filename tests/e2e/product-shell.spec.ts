@@ -100,6 +100,32 @@ test("keeps discovery and conversation entry points actionable", async ({
   await expect(page).toHaveURL(/\/learn\/practice$/);
 });
 
+test("shows a contextual friend introduction and requires explicit consent", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/character-network/introductions", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { offers: [{ offerKey: "intro-test", targetCharacterKey: "mateo", reasonCode: "shared-interest", reasonText: "你们刚好有一个共同感兴趣的话题，介绍会很自然。" }] } }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await page.route("**/api/v1/character-network/introductions/intro-test", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().postDataJSON()).toEqual({ decision: "accept", memoryIds: [] });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { status: "accepted", targetCharacterKey: "mateo", relationshipStage: "new_contact", conversationId: "conversation-test", sharedMemoryIds: [] } }) });
+  });
+
+  await page.goto("/chat");
+  await expect(page.getByRole("heading", { name: "认识一个新朋友" })).toBeVisible();
+  await expect(page.getByText("Mateo Ruiz")).toBeVisible();
+  await page.getByRole("button", { name: "同意介绍" }).click();
+  await expect(page.getByRole("status")).toContainText("已同意介绍");
+});
+
 test("preserves the selected discovery direction on the learning page", async ({
   page,
 }) => {

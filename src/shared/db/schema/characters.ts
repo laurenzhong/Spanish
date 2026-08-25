@@ -119,6 +119,50 @@ export const characterRelationships = pgTable(
   ],
 );
 
+export const characterIntroductionOffers = pgTable(
+  "character_introduction_offers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    offerKey: text("offer_key").notNull(),
+    sourceCharacterId: uuid("source_character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "restrict" }),
+    targetCharacterId: uuid("target_character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "restrict" }),
+    reasonCode: text("reason_code").notNull(),
+    reasonText: text("reason_text").notNull(),
+    context: jsonb("context").$type<JsonObject>().default(sql`'{}'::jsonb`).notNull(),
+    status: text("status").default("pending").notNull(),
+    acceptedMemoryIds: jsonb("accepted_memory_ids")
+      .$type<string[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("character_introduction_offers_user_key_uidx").on(
+      table.userId,
+      table.offerKey,
+    ),
+    index("character_introduction_offers_user_status_idx").on(
+      table.userId,
+      table.status,
+      table.updatedAt,
+    ),
+    check(
+      "character_introduction_offers_status_check",
+      sql`${table.status} in ('pending', 'accepted', 'declined', 'expired')`,
+    ),
+  ],
+);
+
 export const conversations = pgTable(
   "conversations",
   {

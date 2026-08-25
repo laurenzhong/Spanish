@@ -36,6 +36,13 @@
       "when": 1787572668053,
       "tag": "0004_calm_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787575000000,
+      "tag": "0005_kind_character_network",
+      "breakpoints": true
     }
   ]
 }

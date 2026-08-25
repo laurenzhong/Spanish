@@ -17,6 +17,10 @@ import {
   createDrizzleMemoryRepository,
   extractMemories,
 } from "@/src/modules/memory";
+import {
+  createDrizzleIntroductionRepository,
+  proposeIntroduction,
+} from "@/src/modules/character-network";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -142,6 +146,30 @@ export async function POST(request: NextRequest, context: RouteContext) {
               content: assistantText,
               replyToMessageId: userMessageId,
             });
+            // Introduction offers are derived only from a durable, completed Lucía turn.
+            // A failed character import or offer write must not change chat success.
+            try {
+              const normalizedText = text
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/gu, "")
+                .toLocaleLowerCase("es-ES");
+              const targetCharacterKey = /\b(?:trabajo|universidad|estudio|mudanza|familia|casa|alquiler|vecino|barrio|rutina)\b/iu.test(normalizedText)
+                ? "ines"
+                : "mateo";
+              await proposeIntroduction({
+                repository: createDrizzleIntroductionRepository(getDatabase()),
+                candidate: {
+                  userId: user.id,
+                  sourceCharacterKey: "lucia",
+                  sourceCharacterVersion: 1,
+                  targetCharacterKey,
+                  targetCharacterVersion: 1,
+                  recentMessages: [{ role: "user", content: text.trim() }],
+                },
+              });
+            } catch {
+              // Offers are best-effort and never turn a completed reply into a failure.
+            }
             if (memoryRepository) {
               const candidates = extractMemories({
                 userId: user.id,

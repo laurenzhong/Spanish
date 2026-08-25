@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { SurfaceState } from "@/src/shared/ui/surface-state";
+import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
 
 export const metadata: Metadata = {
   title: "对话",
@@ -59,6 +60,8 @@ export default function ChatPage() {
           state="empty"
         />
       </section>
+
+      <IntroductionInbox />
     </div>
   );
 }
