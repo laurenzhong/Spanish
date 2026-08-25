@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-25
 - 当前里程碑：个人 Alpha 阶段 7——角色扩展、进步展示与隐私控制
-- 总体状态：阶段 8 个人 Alpha 验证进行中；前置 7.6 已完成
+- 总体状态：阶段 8 个人 Alpha 验证因训练闭环阻塞反馈暂缓；前置 7.6 已完成
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为阶段 8：个人 Alpha 使用周期与人工体验复核；记录模板见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为阶段 8：个人 Alpha 使用周期与人工体验复核；首轮发现训练闭环阻塞，记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 阶段 7 已完成切片
 
@@ -766,7 +766,7 @@
 | ALPHA-028 | done | `fix/login-redirect-after-otp` | Codex | 关系记忆与共享权限 | ALPHA-027 |
 | ALPHA-029 | done | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
 | ALPHA-030 | done | `fix/login-redirect-after-otp` | Codex | 好友介绍与角色网络 | ALPHA-029 |
-| 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核 | 7.6 |
+| 阶段 8 | blocked | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待训练闭环阻塞修复 | 7.6 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
