@@ -135,6 +135,31 @@ test("shows a contextual friend introduction and requires explicit consent", asy
   await expect(page.getByRole("status")).toContainText("已同意介绍");
 });
 
+test("recovers the friend introduction inbox after a failed request", async ({ page }) => {
+  await authenticate(page);
+  let attempts = 0;
+  let allowSuccess = false;
+  await page.route("**/api/v1/character-network/introductions", async (route) => {
+    attempts += 1;
+    if (!allowSuccess) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "TEMPORARY_FAILURE" } }) });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { offers: [{ offerKey: "retry-intro", targetCharacterKey: "mateo", reasonCode: "shared-interest", reasonText: "共同兴趣" }] } }),
+    });
+  });
+
+  await page.goto("/chat");
+  await expect(page.locator(".conversation-introductions [role=alert]")).toContainText("暂时无法读取好友介绍");
+  allowSuccess = true;
+  await page.getByRole("button", { name: "重试" }).click();
+  await expect(page.getByText("Mateo Ruiz")).toBeVisible();
+  expect(attempts).toBeGreaterThanOrEqual(2);
+});
+
 test("shares only the memory explicitly selected in an introduction", async ({ page }) => {
   await authenticate(page);
   await page.route("**/api/v1/character-network/introductions", async (route) => {
