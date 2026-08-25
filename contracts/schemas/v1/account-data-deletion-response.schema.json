@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sueno.local/contracts/v1/account-data-deletion-response.schema.json",
+  "title": "Account data deletion response",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": [
+        "alreadyDeleted",
+        "cleanupDeferred",
+        "evidenceDeleted",
+        "providerCallsAnonymized"
+      ],
+      "properties": {
+        "alreadyDeleted": { "type": "boolean" },
+        "cleanupDeferred": { "type": "integer", "minimum": 0 },
+        "evidenceDeleted": { "type": "integer", "minimum": 0 },
+        "providerCallsAnonymized": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -36,6 +36,7 @@ import {
   practiceSessions,
   profiles,
   providerCalls,
+  privacyCleanupTasks,
   relationshipMemories,
   scenarioTasks,
   scenarios,
@@ -79,6 +80,7 @@ const allTables = [
   messages,
   audioAssets,
   providerCalls,
+  privacyCleanupTasks,
   idempotencyKeys,
 ] as const;
 
@@ -133,6 +135,7 @@ describe("database schema", () => {
         "practice_sessions",
         "profiles",
         "provider_calls",
+        "privacy_cleanup_tasks",
         "relationship_memories",
         "scenario_tasks",
         "scenarios",
@@ -203,6 +206,7 @@ describe("database schema", () => {
         "0004_calm_iron_monger.sql",
         "0005_kind_character_network.sql",
         "0006_opposite_centennial.sql",
+        "0007_spicy_talkback.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),

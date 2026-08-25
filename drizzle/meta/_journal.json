@@ -50,6 +50,13 @@
       "when": 1787633751390,
       "tag": "0006_opposite_centennial",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787642958086,
+      "tag": "0007_spicy_talkback",
+      "breakpoints": true
     }
   ]
 }

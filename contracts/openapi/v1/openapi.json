@@ -251,6 +251,99 @@
           }
         }
       }
+    },
+    "/me/data": {
+      "get": {
+        "summary": "Summarize the authenticated user's private account data",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Private account data summary",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/account-data-summary-response.schema.json" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          },
+          "503": {
+            "description": "Account data summary is temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete the authenticated user's private account data",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 128 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["confirmation"],
+                "properties": {
+                  "confirmation": { "const": "DELETE_MY_DATA" }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Private account data deletion result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/account-data-deletion-response.schema.json" }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing explicit deletion confirmation",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+                "application/json": {
+                  "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+                }
+            }
+          },
+          "503": {
+            "description": "Account data deletion is temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

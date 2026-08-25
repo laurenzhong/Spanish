@@ -132,3 +132,43 @@ export const idempotencyKeys = pgTable(
     ),
   ],
 );
+
+export const privacyCleanupTasks = pgTable(
+  "privacy_cleanup_tasks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    storageBucket: text("storage_bucket").notNull(),
+    storagePath: text("storage_path").notNull(),
+    status: text("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    nextAttemptAt: timestamp("next_attempt_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("privacy_cleanup_tasks_location_uidx").on(
+      table.storageBucket,
+      table.storagePath,
+    ),
+    index("privacy_cleanup_tasks_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    check(
+      "privacy_cleanup_tasks_status_check",
+      sql`${table.status} in ('pending', 'processing', 'completed', 'failed')`,
+    ),
+    check(
+      "privacy_cleanup_tasks_attempts_nonnegative_check",
+      sql`${table.attempts} >= 0`,
+    ),
+  ],
+);

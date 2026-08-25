@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sueno.local/contracts/v1/account-data-summary-response.schema.json",
+  "title": "Account data summary response",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": [
+        "conversations",
+        "evidenceEvents",
+        "practiceAttempts",
+        "relationshipMemories",
+        "savedAudio",
+        "savedTranscripts",
+        "sessions"
+      ],
+      "properties": {
+        "conversations": { "type": "integer", "minimum": 0 },
+        "evidenceEvents": { "type": "integer", "minimum": 0 },
+        "practiceAttempts": { "type": "integer", "minimum": 0 },
+        "relationshipMemories": { "type": "integer", "minimum": 0 },
+        "savedAudio": { "type": "integer", "minimum": 0 },
+        "savedTranscripts": { "type": "integer", "minimum": 0 },
+        "sessions": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

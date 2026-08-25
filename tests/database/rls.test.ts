@@ -57,6 +57,8 @@ describe("Supabase RLS baseline", () => {
     await database.exec(await migration("0003_chunky_black_knight.sql"));
     await database.exec(await migration("0004_calm_iron_monger.sql"));
     await database.exec(await migration("0005_kind_character_network.sql"));
+    await database.exec(await migration("0006_opposite_centennial.sql"));
+    await database.exec(await migration("0007_spicy_talkback.sql"));
 
     await database.exec(`
       insert into auth.users (id, email)
@@ -157,17 +159,23 @@ describe("Supabase RLS baseline", () => {
       skill_insert: boolean;
       memory_insert: boolean;
       provider_insert: boolean;
+      cleanup_select: boolean;
+      cleanup_insert: boolean;
     }>(`
       select
         has_table_privilege('authenticated', 'public.user_skill_states', 'INSERT') as skill_insert,
         has_table_privilege('authenticated', 'public.relationship_memories', 'INSERT') as memory_insert,
-        has_table_privilege('authenticated', 'public.provider_calls', 'INSERT') as provider_insert
+        has_table_privilege('authenticated', 'public.provider_calls', 'INSERT') as provider_insert,
+        has_table_privilege('authenticated', 'public.privacy_cleanup_tasks', 'SELECT') as cleanup_select,
+        has_table_privilege('authenticated', 'public.privacy_cleanup_tasks', 'INSERT') as cleanup_insert
     `);
 
     expect(privileges.rows[0]).toEqual({
       skill_insert: false,
       memory_insert: false,
       provider_insert: false,
+      cleanup_select: false,
+      cleanup_insert: false,
     });
   });
 

@@ -257,6 +257,8 @@ Route Handler 的职责只有：
 
 7.4b 的语音数据控制通过 `GET /api/v1/profile/media` 和带 `kind`/`id` 的 `DELETE` 提供。列表排除 `ephemeral` 录音且不暴露 storage 路径；删除保存录音写入 `audio_assets.deleted_at`，删除 speech 转写清空对应练习尝试的 `response_text`，不删除追加式证据或技能快照。
 
+7.4c 的账号级数据控制通过 `DELETE /api/v1/me/data` 提供。请求必须来自已验证会话、携带 `Idempotency-Key` 和 `DELETE_MY_DATA` 明确确认；服务端事务先删除用户证据，再删除用户 profile 触发其余私有数据级联，同时将 `provider_calls.user_id` 置空并清理 metadata。音频 Storage 路径先登记到无用户外键的 `privacy_cleanup_tasks`，提交后由内部 deleter 清理；供应商未配置或清理失败时保留可重试任务，不阻止私有数据库数据删除。
+
 练习活动接口只接受客户端实例 ID、单调序号和 `active`/`inactive`/`ended` 生命周期事件。服务端写入接收时间并以 `(session_id, client_instance_id, sequence)` 幂等；热力图仅消费相邻活动心跳形成的有效秒数，超过 45 秒的间隔、后台/失焦区间和未完成尾部不计入学习时长。
 
 API 错误使用稳定代码，不让前端解析供应商原始错误文本。

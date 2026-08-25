@@ -14,9 +14,42 @@ export type SavedTranscriptRecord = Readonly<{
   text: string;
 }>;
 
+export type StorageCleanupTask = Readonly<{
+  id: string;
+  storageBucket: string;
+  storagePath: string;
+}>;
+
+export type AccountDataDeletionResult = Readonly<{
+  alreadyDeleted: boolean;
+  cleanupTasks: readonly StorageCleanupTask[];
+  evidenceDeleted: number;
+  providerCallsAnonymized: number;
+}>;
+
+export type AccountDataSummary = Readonly<{
+  conversations: number;
+  evidenceEvents: number;
+  practiceAttempts: number;
+  relationshipMemories: number;
+  savedAudio: number;
+  savedTranscripts: number;
+  sessions: number;
+}>;
+
+export type StorageCleanupStatus = "completed" | "failed" | "pending";
+
 export type PrivacyRepository = Readonly<{
+  transaction<T>(work: (repository: PrivacyRepository) => Promise<T>): Promise<T>;
+  getAccountDataSummary(userId: string): Promise<AccountDataSummary>;
+  deleteAccountData(userId: string): Promise<AccountDataDeletionResult>;
   deleteSavedAudio(userId: string, audioAssetId: string): Promise<boolean>;
   deleteTranscript(userId: string, attemptId: string): Promise<boolean>;
   listSavedAudio(userId: string): Promise<readonly SavedAudioRecord[]>;
   listTranscripts(userId: string): Promise<readonly SavedTranscriptRecord[]>;
+  updateStorageCleanupTask(
+    taskId: string,
+    status: StorageCleanupStatus,
+    errorMessage?: string,
+  ): Promise<boolean>;
 }>;

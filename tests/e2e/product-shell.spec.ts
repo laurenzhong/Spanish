@@ -225,6 +225,34 @@ test("lets the user delete a saved speech transcript", async ({ page }) => {
   await expect(page.getByText("¿Cómo va todo?")).not.toBeVisible();
 });
 
+test("requires explicit confirmation before deleting account data", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/me/data", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { sessions: 2, practiceAttempts: 3, evidenceEvents: 2, conversations: 1, relationshipMemories: 1, savedAudio: 1, savedTranscripts: 1 } }),
+      });
+      return;
+    }
+    expect(route.request().method()).toBe("DELETE");
+    expect(route.request().headers()["idempotency-key"]).toBeTruthy();
+    expect(route.request().postDataJSON()).toEqual({ confirmation: "DELETE_MY_DATA" });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { alreadyDeleted: false, cleanupDeferred: 0, evidenceDeleted: 2, providerCallsAnonymized: 1 } }),
+    });
+  });
+  page.on("dialog", (dialog) => void dialog.accept());
+
+  await page.goto("/me");
+  await expect(page.getByRole("heading", { name: "删除我的账号数据" })).toBeVisible();
+  await page.getByRole("button", { name: "删除账号数据" }).click();
+  await expect(page.getByRole("status")).toHaveText("账号数据已删除。");
+});
+
 test("preserves the selected discovery direction on the learning page", async ({
   page,
 }) => {
