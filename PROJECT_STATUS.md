@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-25
 - 当前里程碑：个人 Alpha 阶段 7——角色扩展、进步展示与隐私控制
-- 总体状态：7.4c 账号级数据控制已完成；下一项为 7.5 稳定性与可观测性
+- 总体状态：7.5a 关联 ID 与供应商调用观测已完成；下一项为 7.5b 诊断告警与备份恢复演练
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 7.4c：账号级数据控制；本任务已完成，下一项为 7.5 稳定性与可观测性。
+当前任务为 7.5a：关联 ID 与供应商调用观测；本子切片已完成，下一项为 7.5b 诊断告警与备份恢复演练。
 
 ### 阶段 7 已完成切片
 
@@ -34,8 +34,50 @@
 | 7.4a | `0363368` | 关系记忆查看、删除与共享授权级联 |
 | 7.4b | `014c2ac` | 已保存录音与语音转写控制 |
 | 7.4c | `c539cc9` | 账号数据汇总、删除、去标识化与 Storage 清理任务 |
+| 7.5a | `91c3639` | 关联 ID、供应商调用状态/延迟/成本观测与脱敏记录 |
 
 7.4c 限制：实际 Storage 删除需要配置服务端 `SUPABASE_SERVICE_ROLE_KEY`；未配置或供应商失败时，私有数据库数据仍完成删除，清理任务保留为失败/可重试状态。该服务端密钥不能进入客户端或日志。
+
+### 7.5a：关联 ID 与供应商调用观测
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：7.4c，已完成
+- 计划位置：实施计划任务 7.5
+- 实现 Commit：`91c3639`
+
+结果：
+
+- 新增 `shared/observability` 关联 ID 和脱敏 provider 观测契约；支持 `requestId`、`sessionId`、`attemptId`、`conversationId`、`generationId`。
+- 新增 `provider_calls` repository；记录 provider、模型、状态、错误类型、延迟、估算成本和供应商请求 ID，观测写入失败不改变业务结果。
+- 发音评估 application 和 Lucía 聊天流接入观测；聊天响应返回 `x-request-id`，无效请求 ID 由服务端生成。
+- 数据库迁移 `0008`/`0009` 增加关联字段和 request/attempt 查询索引；记录不保存原始音频、完整对话、令牌或签名 URL。
+
+修改文件：
+
+- `src/shared/observability/`
+- `src/modules/providers/repositories/`
+- `src/modules/training/application/assess-pronunciation.ts`
+- `app/api/v1/conversations/[characterId]/stream/route.ts`
+- `src/shared/db/schema/infrastructure.ts`
+- `drizzle/0008_broad_chronomancer.sql`、`drizzle/0009_oval_namora.sql`
+- `docs/architecture.md`、`docs/database.md`、`docs/testing-strategy.md`、实施计划
+
+验证：
+
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm db:check` 通过。
+- 全量 Vitest：72 个文件、308 个测试通过。
+- `pnpm build` 通过。
+- `pnpm test:e2e`：48/48 通过。
+
+限制与下一步：
+
+- 当前聊天仍使用 deterministic fake；真实供应商接入沿用同一 observer 边界，真实成本只有 provider 返回估算值时才可记录。
+- 7.5a 只提供结构化记录和查询索引，尚未实现告警规则、诊断查询界面、数据库备份或恢复演练。
+- 下一项为 7.5b：异常断流/重复证据/记忆冲突/Storage 清理失败的诊断告警，以及数据库备份与恢复演练说明。
 
 ### ALPHA-029：角色回复规划
 
@@ -70,7 +112,7 @@
 
 - 当前仍使用 deterministic fake，没有真实 LLM/provider；回复规划接口已为后续 provider 保留替换边界。
 - ALPHA-030 已在 `f35ebcb` 完成；好友介绍和角色联系人流程已进入阶段 7 完成切片记录。
-- 7.4c 已在 `c539cc9` 完成；下一项为 7.5 稳定性与可观测性。
+- 7.4c 已在 `c539cc9` 完成；7.5a 已在 `91c3639` 完成，当前下一项为 7.5b。
 
 ### ALPHA-028：关系记忆与共享权限
 
@@ -652,8 +694,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 7.5 | 稳定性与可观测性 | 7.4c |
-| 2 | 7.6 | 完整 Web E2E 与 Flutter 集成测试 | 7.5 |
+| 1 | 7.5b | 诊断告警与备份恢复演练 | 7.5a |
+| 2 | 7.6 | 完整 Web E2E 与 Flutter 集成测试 | 7.5b |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
