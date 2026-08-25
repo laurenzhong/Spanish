@@ -36,6 +36,85 @@ test("sends with Enter and keeps Shift+Enter available for a newline", async ({ 
   await expect(page.locator('[data-status="completed"]')).toBeVisible({ timeout: 5_000 });
 });
 
+test("offers retry when the stream fails before the first character event", async ({ page }) => {
+  await authenticate(page);
+  let attempts = 0;
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not configured" }) });
+      return;
+    }
+    await route.continue();
+  });
+  await page.route("**/api/v1/conversations/lucia/stream", async (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporary" }) });
+      return;
+    }
+    const body = route.request().postDataJSON() as { generationId: string };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/x-ndjson",
+      body: [
+        JSON.stringify({ type: "meta", protocolVersion: "v1", characterKey: "lucia", characterVersion: 1, generationId: body.generationId, messageId: "retry-message" }),
+        JSON.stringify({ type: "delta", generationId: body.generationId, messageId: "retry-message", text: "¡Hola de nuevo!" }),
+        JSON.stringify({ type: "done", generationId: body.generationId, messageId: "retry-message" }),
+      ].join("\n") + "\n",
+    });
+  });
+
+  await page.goto("/chat/lucia");
+  const composer = page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+  await composer.fill("Hola, Lucía");
+  await page.getByRole("button", { name: "发送消息" }).click();
+  await expect(page.locator('[data-status="failed"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新发送" })).toBeVisible();
+
+  await page.getByRole("button", { name: "重新发送" }).click();
+  await expect(page.locator('[data-status="completed"]')).toBeVisible();
+  await expect(page.locator(".conversation-message--user")).toHaveCount(1);
+  await expect(page.locator('.conversation-message--character[data-complete="true"]')).toContainText("Hola de nuevo");
+});
+
+test("can stop before the first character event and retry the same user message", async ({ page }) => {
+  await authenticate(page);
+  let attempts = 0;
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not configured" }) });
+      return;
+    }
+    await route.continue();
+  });
+  await page.route("**/api/v1/conversations/lucia/stream", async (route) => {
+    attempts += 1;
+    const body = route.request().postDataJSON() as { generationId: string };
+    if (attempts === 1) {
+      await new Promise(() => {});
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/x-ndjson",
+      body: [
+        JSON.stringify({ type: "meta", protocolVersion: "v1", characterKey: "lucia", characterVersion: 1, generationId: body.generationId, messageId: "stopped-message" }),
+        JSON.stringify({ type: "delta", generationId: body.generationId, messageId: "stopped-message", text: "Seguimos hablando." }),
+        JSON.stringify({ type: "done", generationId: body.generationId, messageId: "stopped-message" }),
+      ].join("\n") + "\n",
+    });
+  });
+
+  await page.goto("/chat/lucia");
+  await page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" }).fill("Hola, Lucía");
+  await page.getByRole("button", { name: "发送消息" }).click();
+  await page.getByRole("button", { name: "停止回复" }).click();
+  await expect(page.locator('[data-status="cancelled"]')).toBeVisible();
+  await page.getByRole("button", { name: "重新发送" }).click();
+  await expect(page.locator('[data-status="completed"]')).toBeVisible();
+  await expect(page.locator(".conversation-message--user")).toHaveCount(1);
+});
+
 test("keeps the page height stable while the message history grows", async ({ page }) => {
   await authenticate(page);
   await page.goto("/chat/lucia");

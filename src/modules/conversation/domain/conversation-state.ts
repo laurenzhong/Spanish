@@ -176,12 +176,21 @@ export function transitionConversationState(
 }
 
 export function findRetryableUserMessage(state: ConversationState): ConversationMessage | null {
+  if (state.status !== "failed" && state.status !== "cancelled") return null;
+
   const assistant = state.activeMessageId
     ? state.messages.find((message) => message.id === state.activeMessageId)
     : null;
-  if (!assistant) return null;
-  const index = state.messages.findIndex((message) => message.id === assistant.id);
-  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+  if (assistant) {
+    const index = state.messages.findIndex((message) => message.id === assistant.id);
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      if (state.messages[cursor]?.role === "user") return state.messages[cursor] ?? null;
+    }
+  }
+
+  // HTTP failures and cancellations can happen before the stream emits meta.
+  // In that case the latest user message is still the safe retry target.
+  for (let cursor = state.messages.length - 1; cursor >= 0; cursor -= 1) {
     if (state.messages[cursor]?.role === "user") return state.messages[cursor] ?? null;
   }
   return null;

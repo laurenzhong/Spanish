@@ -6,6 +6,7 @@ import {
   encodeConversationEvent,
   streamReply,
   transitionConversationState,
+  findRetryableUserMessage,
 } from "@/src/modules/conversation";
 
 const ids = { generationId: "generation-1", messageId: "message-1" };
@@ -102,6 +103,33 @@ describe("conversation state", () => {
       event: { type: "error", generationId: ids.generationId, messageId: null, code: "stream-failed", retryable: true },
     });
     expect(state.status).toBe("failed");
+  });
+
+  it("keeps the latest user message retryable when failure happens before meta", () => {
+    let state = submitted();
+    state = transitionConversationState(state, {
+      type: "stream-event",
+      event: { type: "error", generationId: ids.generationId, messageId: null, code: "stream-failed", retryable: true },
+    });
+
+    expect(findRetryableUserMessage(state)).toMatchObject({
+      id: "client-1",
+      text: "Hola, Lucía",
+    });
+    expect(transitionConversationState(state, {
+      type: "retry",
+      userMessageId: "client-1",
+      generationId: "generation-2",
+    }).status).toBe("streaming");
+  });
+
+  it("keeps a cancelled message retryable even when no character message exists", () => {
+    const state = transitionConversationState(submitted(), {
+      type: "cancel",
+      generationId: ids.generationId,
+    });
+
+    expect(findRetryableUserMessage(state)?.id).toBe("client-1");
   });
 });
 
