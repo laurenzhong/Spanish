@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-25
 - 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
-- 总体状态：UI-005 已完成，阶段 8 个人 Alpha 全面人工体验可以开始
+- 总体状态：UI-005 已完成；阶段 8 人工体验暂缓，继续补齐剩余 UI 与功能闭环
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,13 @@
 
 ## 当前任务
 
-当前任务为阶段 8：个人 Alpha 使用周期与人工体验复核；UI-001 至 UI-005 功能门槛已完成。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为后续 UI 与功能闭环完善（下一切片待拆分）；阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+
+### 当前工作边界
+
+- UI-001 至 UI-005 已完成，但不代表整个产品已经达到人工体验条件。
+- 在剩余 UI 和功能模块全部落地前，只验证按钮、状态流转、错误恢复和局部用户路径；不启动阶段 8 的连续使用配额、周度复盘或全面主观体验。
+- 后续 UI 切片完成后，先更新本状态页和对应测试，再由产品本人确认是否进入阶段 8 人工体验。
 
 ### 阶段 7 已完成切片
 
@@ -39,7 +45,7 @@
 | 7.6 | `88b2113` | 手机视口 Web E2E 与 Flutter fake integration test 关键路径 |
 | 阶段 8 阻塞修复 | `4648972` | 训练提示、自然替代表达与真实变式闭环（Web/Flutter） |
 | UI-001 | `8ab9cc6` | 认证回跳、四栏导航和学习入口功能闭环 |
-| UI-005 | `a1766d5`、`8f680ee` | 好友介绍、共享授权和 Flutter/Web 全模块验收 |
+| UI-005 | `a1766d5`、`8f680ee` | 好友介绍、共享授权和 Flutter/Web 局部功能验收 |
 
 7.4c 限制：实际 Storage 删除需要配置服务端 `SUPABASE_SERVICE_ROLE_KEY`；未配置或供应商失败时，私有数据库数据仍完成删除，清理任务保留为失败/可重试状态。该服务端密钥不能进入客户端或日志。
 
@@ -159,7 +165,7 @@
 - `flutter test integration_test/alpha_flow_test.dart` 在当前 Windows 环境未能启动：Flutter 需要 Developer Mode 创建插件 symlink；测试文件已通过 `flutter analyze`，但不能据此宣称 Flutter integration 或 iOS 编译通过。
 - 没有 Mac/Xcode，因此真实 iOS 录音权限、键盘、安全区、生命周期和真机集成仍待阶段 8 的设备验收。
 - Playwright 使用空数据库和确定性 fake；它验证客户端状态、降级和恢复契约，不替代真实 Supabase/RLS 生产验收。当前仓库仍没有独立初次诊断页面，Web 测试以现有继续学习与有限画像空状态为边界。
-- 下一项为阶段 8：个人 Alpha 使用周期与人工体验复核；准备 Mac/Xcode 后补跑 Flutter integration 和 iOS 真机关键路径。
+- 阶段 8 人工体验暂不启动；先完成剩余 UI/功能切片，准备 Mac/Xcode 后再补跑 Flutter integration 和 iOS 真机关键路径。
 
 ### 阶段 8：训练闭环阻塞修复
 
@@ -188,7 +194,7 @@
 
 - 当前仍使用确定性 fake evaluator，不代表真实供应商评估质量。
 - 没有 Mac/Xcode，Flutter integration 和 iOS 真机录音仍未验收。
-- 阶段 8 可重新开始人工体验；先记录首轮修复后的训练、静默模式和聊天体验。
+- 训练闭环可继续做模块级局部回归；阶段 8 人工体验仍暂缓，待所有 UI 与功能切片完成后再开始。
 
 ### UI-001：认证、导航和学习入口功能闭环
 
@@ -326,7 +332,7 @@
 
 - Flutter 当前使用本地 fake 画像、热力图和删除流程，仅用于验证客户端按钮与状态逻辑；真实服务端画像、删除 API、数据库/RLS 未在本切片重复实现。
 - 当前环境没有 Mac/Xcode，未执行 Flutter iOS 编译、签名、真机录音或 integration test 验收；公共 Flutter 测试通过不代表 iOS 已验证。
-- UI-005 已完成；下一项为阶段 8 个人 Alpha 使用周期与人工体验复核。
+- UI-005 已完成；下一步继续拆分并实现剩余 UI/功能闭环，阶段 8 人工体验暂缓。
 
 ### UI-005：好友介绍、共享授权和 Flutter/Web 全模块验收
 
@@ -368,7 +374,7 @@
 
 - Flutter 好友网络使用本地 fake，仅验证按钮和状态逻辑，不代表服务端真实关系授权、撤销或跨设备同步已验收。
 - 当前环境没有 Mac/Xcode，未执行 iOS 编译、签名、真机、音频权限或 Flutter integration test 验收；公共 Flutter 测试通过不代表 iOS 已验证。
-- 下一项为阶段 8：个人 Alpha 使用周期与人工体验复核；优先记录训练、静默模式、内容包、Lucía 和好友隐私的真实使用反馈。
+- 下一步继续拆分并实现剩余 UI/功能闭环；阶段 8 人工体验必须等全部功能落地后再开始。
 
 ### ALPHA-029：角色回复规划
 
@@ -982,8 +988,8 @@
 | UI-002 | done | `fix/login-redirect-after-otp` | Codex | 探索内容包功能闭环 | UI-001 |
 | UI-003 | done | `fix/login-redirect-after-otp` | Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
 | UI-004 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
-| UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
-| 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；UI-001 至 UI-005 功能门槛已完成 | 7.6 |
+| UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
+| 阶段 8 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待所有 UI 与功能模块落地 | UI-005 及后续 UI 切片 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -991,7 +997,8 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
+| 1 | 后续 UI 切片 | 继续补齐剩余 UI 与功能闭环，并逐项完成局部测试 | UI-005 |
+| 2 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | 所有 UI/功能切片完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -1067,7 +1074,7 @@
 | 2026-08-25 | 完成 UI-002 探索内容包功能闭环 | `429c225` | Flutter/Web 内容包按钮、进度、草稿恢复、TTS 降级和口语复核可用；下一项 UI-003 |
 | 2026-08-25 | 完成 UI-003 Lucía 对话恢复闭环 | `e0b7b0c` | 首包失败、停止、断流后可重试且不重复用户消息；下一项 UI-004 |
 | 2026-08-25 | 完成 UI-004 画像、热力图和隐私数据控制闭环 | `8857364` | Flutter 画像选择、热力图日期、隐私删除确认与 Web 画像重试可用；下一项 UI-005 |
-| 2026-08-25 | 完成 UI-005 好友介绍、共享授权和 Flutter/Web 全模块验收 | `a1766d5`、`8f680ee` | Web 介绍/授权失败可重试；Flutter fake 支持接受、拒绝、可选共享和撤销；下一项阶段 8 人工体验复核 |
+| 2026-08-25 | 完成 UI-005 好友介绍、共享授权和 Flutter/Web 局部功能验收 | `a1766d5`、`8f680ee` | Web 介绍/授权失败可重试；Flutter fake 支持接受、拒绝、可选共享和撤销；继续剩余 UI/功能切片，人工体验暂缓 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
