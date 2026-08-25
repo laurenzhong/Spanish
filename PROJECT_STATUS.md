@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-25
 - 当前里程碑：个人 Alpha 阶段 7——角色扩展、进步展示与隐私控制
-- 总体状态：阶段 8 个人 Alpha 验证因训练闭环阻塞反馈暂缓；前置 7.6 已完成
+- 总体状态：阶段 8 个人 Alpha 验证可恢复；训练闭环阻塞已在 `4648972` 修复，等待重新开始人工体验
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为阶段 8：个人 Alpha 使用周期与人工体验复核；首轮发现训练闭环阻塞，记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为阶段 8：个人 Alpha 使用周期与人工体验复核；训练闭环修复已完成，记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 阶段 7 已完成切片
 
@@ -37,6 +37,7 @@
 | 7.5a | `91c3639` | 关联 ID、供应商调用状态/延迟/成本观测与脱敏记录 |
 | 7.5b | `75d74df` | 诊断事件、滑动窗口告警聚合与备份恢复演练说明 |
 | 7.6 | `88b2113` | 手机视口 Web E2E 与 Flutter fake integration test 关键路径 |
+| 阶段 8 阻塞修复 | `4648972` | 训练提示、自然替代表达与真实变式闭环（Web/Flutter） |
 
 7.4c 限制：实际 Storage 删除需要配置服务端 `SUPABASE_SERVICE_ROLE_KEY`；未配置或供应商失败时，私有数据库数据仍完成删除，清理任务保留为失败/可重试状态。该服务端密钥不能进入客户端或日志。
 
@@ -157,6 +158,35 @@
 - 没有 Mac/Xcode，因此真实 iOS 录音权限、键盘、安全区、生命周期和真机集成仍待阶段 8 的设备验收。
 - Playwright 使用空数据库和确定性 fake；它验证客户端状态、降级和恢复契约，不替代真实 Supabase/RLS 生产验收。当前仓库仍没有独立初次诊断页面，Web 测试以现有继续学习与有限画像空状态为边界。
 - 下一项为阶段 8：个人 Alpha 使用周期与人工体验复核；准备 Mac/Xcode 后补跑 Flutter integration 和 iOS 真机关键路径。
+
+### 阶段 8：训练闭环阻塞修复
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：7.6，已完成
+- 实现 Commit：`4648972`
+
+结果：
+
+- fake evaluator 按交际目的识别自然替代表达，并将 `.variant.N` 归一化到基础任务。
+- Web 与 Flutter 的“练习变式”会加载内容包中的真实新表达，并显示“变式情境”。
+- 提示 1/2/3 展示渐进提示内容，状态机继续记录提示级别。
+- Web/Flutter 单元、Widget 和手机视口 E2E 覆盖上述闭环。
+
+验证：
+
+- `pnpm lint`、`pnpm typecheck` 通过。
+- 全量 Vitest：74 个文件、315 个测试通过。
+- `pnpm build` 通过。
+- 训练 E2E 手机视口：5/5 通过；完整 E2E：56/58 通过，另 2 条为既有内容包进度文案和关系记忆删除提示失败，与本修复无关。
+- `flutter analyze`、`flutter test` 通过（63 个测试）。
+
+限制与下一步：
+
+- 当前仍使用确定性 fake evaluator，不代表真实供应商评估质量。
+- 没有 Mac/Xcode，Flutter integration 和 iOS 真机录音仍未验收。
+- 阶段 8 可重新开始人工体验；先记录首轮修复后的训练、静默模式和聊天体验。
 
 ### ALPHA-029：角色回复规划
 
@@ -766,7 +796,7 @@
 | ALPHA-028 | done | `fix/login-redirect-after-otp` | Codex | 关系记忆与共享权限 | ALPHA-027 |
 | ALPHA-029 | done | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
 | ALPHA-030 | done | `fix/login-redirect-after-otp` | Codex | 好友介绍与角色网络 | ALPHA-029 |
-| 阶段 8 | blocked | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待训练闭环阻塞修复 | 7.6 |
+| 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；训练闭环已修复，可恢复体验 | 7.6 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
