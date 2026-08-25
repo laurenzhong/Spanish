@@ -38,6 +38,7 @@
 | 7.5b | `75d74df` | 诊断事件、滑动窗口告警聚合与备份恢复演练说明 |
 | 7.6 | `88b2113` | 手机视口 Web E2E 与 Flutter fake integration test 关键路径 |
 | 阶段 8 阻塞修复 | `4648972` | 训练提示、自然替代表达与真实变式闭环（Web/Flutter） |
+| UI-001 | `8ab9cc6` | 认证回跳、四栏导航和学习入口功能闭环 |
 
 7.4c 限制：实际 Storage 删除需要配置服务端 `SUPABASE_SERVICE_ROLE_KEY`；未配置或供应商失败时，私有数据库数据仍完成删除，清理任务保留为失败/可重试状态。该服务端密钥不能进入客户端或日志。
 
@@ -187,6 +188,30 @@
 - 当前仍使用确定性 fake evaluator，不代表真实供应商评估质量。
 - 没有 Mac/Xcode，Flutter integration 和 iOS 真机录音仍未验收。
 - 阶段 8 可重新开始人工体验；先记录首轮修复后的训练、静默模式和聊天体验。
+
+### UI-001：认证、导航和学习入口功能闭环
+
+- 状态：`done`
+- 负责人：Codex
+- 实现 Commit：`8ab9cc6`
+
+结果：
+
+- 登录页读取 Next.js 16 `searchParams`，OTP 和测试账号密码登录成功后返回原始站内目标。
+- 非法、外部、登录页自身的 `next` 参数统一回退到 `/learn`，避免开放重定向。
+- 四栏导航与学习入口现有行为保持不变，并补充登录交接回归覆盖。
+
+验证：
+
+- Web 单元：认证回跳、站内目标校验和表单行为 14/14 通过。
+- Flutter 认证/导航 Widget 测试 7/7 通过。
+- Web 手机视口认证回跳和四栏导航 E2E 3/3 通过。
+- `pnpm lint`、`pnpm typecheck` 通过。
+
+限制与下一步：
+
+- Flutter 当前没有 Web 式深链登录回跳；本切片不改变其单一产品入口。
+- 下一项 `UI-002`：探索内容包的播放、展开、完成、断点和口语复核闭环。
 
 ### ALPHA-029：角色回复规划
 
@@ -796,7 +821,9 @@
 | ALPHA-028 | done | `fix/login-redirect-after-otp` | Codex | 关系记忆与共享权限 | ALPHA-027 |
 | ALPHA-029 | done | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
 | ALPHA-030 | done | `fix/login-redirect-after-otp` | Codex | 好友介绍与角色网络 | ALPHA-029 |
-| 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；训练闭环已修复，可恢复体验 | 7.6 |
+| UI-001 | done | `fix/login-redirect-after-otp` | Codex | 认证回跳、四栏导航和学习入口功能闭环 | 阶段 8 |
+| UI-002 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 探索内容包功能闭环 | UI-001 |
+| 阶段 8 | in_progress | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待 UI-001 至 UI-005 功能门槛完成 | 7.6 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -804,7 +831,11 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | 7.6 |
+| 1 | UI-002 | 探索内容包功能闭环 | UI-001 |
+| 2 | UI-003 | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
+| 3 | UI-004 | 画像、热力图和隐私数据控制闭环 | UI-003 |
+| 4 | UI-005 | 好友介绍、共享授权和 Flutter/Web 全模块验收 | UI-004 |
+| 5 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | UI-005 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
