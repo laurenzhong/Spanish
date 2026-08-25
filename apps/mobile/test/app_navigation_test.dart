@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spanish_mobile/app.dart';
 import 'package:spanish_mobile/core/auth/auth_session.dart';
+import 'package:spanish_mobile/core/platform/fake_platform_capabilities.dart';
+import 'package:spanish_mobile/features/explore/explore_page.dart';
 
 class _AuthenticatedSessionSource implements AuthSessionSource {
   static final snapshot = AuthSessionSnapshot(
@@ -55,6 +57,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(destination.value), findsOneWidget);
     }
+  });
+
+  testWidgets('opens the usable cafe content pack from explore', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ExplorePage(storage: FakeSecureStorage())),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '打开咖啡馆内容包'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('咖啡馆里的新朋友'), findsOneWidget);
+    expect(find.text('0/5 个步骤'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '播放全文'), findsOneWidget);
   });
 
   testWidgets('uses a navigation rail on wide screens', (tester) async {

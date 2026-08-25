@@ -1,9 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/core/platform/flutter_secure_storage_adapter.dart';
+import 'package:spanish_mobile/core/platform/platform_capabilities.dart';
+import 'package:spanish_mobile/features/content/fakes/fake_content_pack.dart';
+import 'package:spanish_mobile/features/training/checkpoints/training_checkpoint.dart';
+import 'package:spanish_mobile/features/training/fakes/fake_training_loop.dart';
 import 'package:spanish_mobile/shared/widgets/page_intro.dart';
 import 'package:spanish_mobile/shared/widgets/surface_card.dart';
 
-class ExplorePage extends StatelessWidget {
-  const ExplorePage({super.key});
+class ExplorePage extends StatefulWidget {
+  const ExplorePage({
+    this.userId = 'local-user',
+    this.storage,
+    this.textToSpeech,
+    super.key,
+  });
+
+  final String userId;
+  final SecureStorage? storage;
+  final TextToSpeech? textToSpeech;
+
+  @override
+  State<ExplorePage> createState() => _ExplorePageState();
+}
+
+class _ExplorePageState extends State<ExplorePage> {
+  var _showPack = false;
+
+  void _openPractice() {
+    final storage = widget.storage ?? const FlutterSecureStorageAdapter();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FakeTrainingLoop(
+          checkpointStore: SecureStorageTrainingCheckpointStore(
+            storage,
+            userId: widget.userId,
+          ),
+          textToSpeech: widget.textToSpeech,
+        ),
+      ),
+    );
+  }
 
   static const _collections = <({String number, String title, String detail})>[
     (number: '01', title: '开始交流', detail: '问候、认识新朋友、自然开启话题'),
@@ -14,6 +50,15 @@ class ExplorePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (_showPack) {
+      return FakeContentPackExperience(
+        onBack: () => setState(() => _showPack = false),
+        onOpenPractice: _openPractice,
+        storage: widget.storage,
+        textToSpeech: widget.textToSpeech,
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 760;
@@ -112,6 +157,15 @@ class ExplorePage extends StatelessWidget {
                                 .colorScheme
                                 .onSurfaceVariant,
                             height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => setState(() => _showPack = true),
+                            icon: const Icon(Icons.menu_book_outlined),
+                            label: const Text('打开咖啡馆内容包'),
                           ),
                         ),
                       ],

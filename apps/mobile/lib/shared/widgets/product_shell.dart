@@ -45,7 +45,7 @@ class _ProductShellState extends State<ProductShell> {
     super.initState();
     _pages = <Widget>[
       LearnPage(userId: widget.userId),
-      const ExplorePage(),
+      ExplorePage(userId: widget.userId),
       const ChatPage(),
       const ProfilePage(),
     ];
