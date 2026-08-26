@@ -347,6 +347,11 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("link", { name: "Public Texts" })).toBeVisible();
   await expect(page.getByRole("link", { name: "My Texts" })).toHaveAttribute("href", "/read?saved=1");
   await expect(page.getByRole("link", { name: "Web Sites" })).toHaveAttribute("href", "/read?source=web");
+  await expect(page.getByText("105 texts", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Next page" })).toHaveAttribute("href", "/read?page=2");
+  await page.getByRole("link", { name: "Next page" }).click();
+  await expect(page).toHaveURL(/\/read\?page=2$/);
+  await expect(page.getByRole("link", { name: "Previous page" })).toBeVisible();
   await page.getByRole("button", { name: /Generate Story/ }).click();
   await expect(page.getByText(/Generate Story 当前仅保留入口/)).toBeVisible();
   await page.locator("summary").filter({ hasText: "Filters" }).click();

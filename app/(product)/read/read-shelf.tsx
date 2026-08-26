@@ -11,6 +11,8 @@ type ReadSource = "public" | "web";
 
 type ReadShelfProps = Readonly<{
   result: ArticleListResult;
+  page?: number;
+  pageSize?: number;
   search: string;
   topic: string;
   cefr: string;
@@ -69,7 +71,7 @@ function withParams(params: Readonly<Record<string, string | undefined>>): strin
   return serialized ? `/read?${serialized}` : "/read";
 }
 
-export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, savedOnly }: ReadShelfProps) {
+export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, savedOnly }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
   const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(savedOnly ? null : new Set());
   const [savingArticleIds, setSavingArticleIds] = useState<ReadonlySet<string>>(new Set());
@@ -98,20 +100,8 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
 
   const visibleArticles = useMemo(() => {
     if (source === "web") return [];
-    const filtered = result.articles.filter((article) => {
-      if (savedOnly && !savedArticleIds?.has(article.id)) return false;
-      if (cefr && article.cefr !== cefr) return false;
-      if (minutes === "short" && article.estimatedReadingMinutes > 5) return false;
-      if (minutes === "medium" && (article.estimatedReadingMinutes < 6 || article.estimatedReadingMinutes > 10)) return false;
-      if (minutes === "long" && article.estimatedReadingMinutes < 11) return false;
-      return true;
-    });
-    return [...filtered].sort((left, right) => {
-      if (sort === "shortest") return left.estimatedReadingMinutes - right.estimatedReadingMinutes;
-      if (sort === "newest") return (right.publicationDate ?? "").localeCompare(left.publicationDate ?? "");
-      return 0;
-    });
-  }, [cefr, minutes, result.articles, savedArticleIds, savedOnly, sort, source]);
+    return savedOnly ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles;
+  }, [result.articles, savedArticleIds, savedOnly, source]);
 
   useEffect(() => {
     const nextStates = Object.fromEntries(
@@ -196,7 +186,7 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
         <Link className={source === "public" && !savedOnly ? "is-selected" : ""} href={withParams({ search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>Public Texts</Link>
         <Link className={savedOnly ? "is-selected" : ""} href={withParams({ saved: "1", search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>My Texts</Link>
         <Link className={source === "web" ? "is-selected" : ""} href={withParams({ source: "web", search, sort: sort !== "hot" ? sort : undefined })}>Web Sites</Link>
-        <span className="read-library__source-count">{source === "web" || savedArticleIds === null ? "" : `${visibleArticles.length} texts`}</span>
+        <span className="read-library__source-count">{source === "web" || savedArticleIds === null ? "" : `${savedOnly ? visibleArticles.length : result.totalCount} texts`}</span>
       </nav>
 
       <section className="read-library__toolbar" aria-label="Reading tools">
@@ -255,9 +245,26 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
             {source === "web" ? <button className="text-link" type="button" onClick={() => setToolNotice("请先在文章阅读器中使用真实的来源保存入口。")}>了解来源保存</button> : hasFilters ? <Link className="text-link" href="/read">View Public Texts <span aria-hidden="true">→</span></Link> : null}
           </div>
         )}
-        {result.hasMore && result.nextCursor && source === "public" ? <Link className="secondary-action read-more" href={withParams({ search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined, cursor: result.nextCursor })}>Load more</Link> : null}
+        {source === "public" && !savedOnly && result.totalCount > 0 ? <ArticlePagination page={page} pageSize={pageSize} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} /> : null}
       </section>
     </div>
+  );
+}
+
+function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, minutes, sort }: Readonly<{ page: number; pageSize: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort }>) {
+  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
+  const hrefFor = (targetPage: number) => withParams({ page: targetPage > 1 ? String(targetPage) : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
+  return (
+    <nav className="read-pagination" aria-label="Article pages">
+      {page > 1 ? <Link className="read-pagination__arrow" href={hrefFor(page - 1)} aria-label="Previous page">← <span>Previous</span></Link> : <span className="read-pagination__arrow is-disabled" aria-disabled="true">← <span>Previous</span></span>}
+      <div className="read-pagination__pages">
+        {pageNumbers.map((pageNumber) => pageNumber === page
+          ? <span className="read-pagination__page is-current" aria-current="page" key={pageNumber}>{pageNumber}</span>
+          : <Link className="read-pagination__page" href={hrefFor(pageNumber)} key={pageNumber}>{pageNumber}</Link>)}
+      </div>
+      {page < totalPages ? <Link className="read-pagination__arrow" href={hrefFor(page + 1)} aria-label="Next page"><span>Next</span> →</Link> : <span className="read-pagination__arrow is-disabled" aria-disabled="true"><span>Next</span> →</span>}
+    </nav>
   );
 }
 

@@ -2,11 +2,16 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 import { ReadShelf } from "@/app/(product)/read/read-shelf";
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
 
 const result: ArticleListResult = {
   articles: [],
+  totalCount: 0,
   topics: ["topic.daily-life", "topic.relationships"],
   nextCursor: null,
   hasMore: false,
@@ -42,7 +47,7 @@ describe("article library shelf", () => {
 
   it("shows Readlang source tabs and explains the empty public library", async () => {
     const user = userEvent.setup();
-    render(<ReadShelf result={result} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
 
     expect(screen.getByRole("heading", { name: "可公开阅读的文章正在准备中" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Public Texts" })).toHaveAttribute("href", "/read");
@@ -69,7 +74,7 @@ describe("article library shelf", () => {
       },
     }));
     vi.stubGlobal("fetch", fetchMock);
-    render(<ReadShelf result={{ ...result, articles: [article] }} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
 
     const saveButton = await screen.findByRole("button", { name: `保存到 My Texts：${article.title}` });
     await user.click(saveButton);
@@ -77,5 +82,14 @@ describe("article library shelf", () => {
     await user.click(screen.getByRole("button", { name: `从 My Texts 移除：${article.title}` }));
     await waitFor(() => expect(screen.getByRole("button", { name: `保存到 My Texts：${article.title}` })).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/read/saved", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("renders numbered pages and preserves reading filters", () => {
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 25, hasMore: true }} page={2} pageSize={12} search="vida" topic="topic.daily-life" cefr="A2" minutes="short" source="public" sort="newest" savedOnly={false} />);
+
+    expect(screen.getByRole("navigation", { name: "Article pages" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Previous page" })).toHaveAttribute("href", "/read?search=vida&topic=topic.daily-life&cefr=A2&minutes=short&sort=newest");
+    expect(screen.getByRole("link", { name: "Next page" })).toHaveAttribute("href", "/read?page=3&search=vida&topic=topic.daily-life&cefr=A2&minutes=short&sort=newest");
+    expect(screen.getByText("2")).toHaveAttribute("aria-current", "page");
   });
 });

@@ -1,5 +1,7 @@
 export type ArticleFormat = "news" | "essay" | "dialogue" | "guide" | "story";
 export type ArticleOralTransferType = "none" | "summary" | "opinion" | "personal_transfer";
+export type ArticleSort = "hot" | "newest" | "shortest";
+export type ArticleReadingLength = "short" | "medium" | "long";
 
 export type ArticleCardProjection = Readonly<{
   id: string;
@@ -41,6 +43,9 @@ export type ArticleReaderProjection = ArticleCardProjection & Readonly<{
 export type ArticleListQuery = Readonly<{
   search?: string;
   topic?: string;
+  cefr?: ArticleCardProjection["cefr"];
+  minutes?: ArticleReadingLength;
+  sort?: ArticleSort;
   savedOnly?: boolean;
   cursor?: string;
   pageSize?: number;
@@ -48,6 +53,7 @@ export type ArticleListQuery = Readonly<{
 
 export type ArticleListResult = Readonly<{
   articles: readonly ArticleCardProjection[];
+  totalCount: number;
   topics: readonly string[];
   nextCursor: string | null;
   hasMore: boolean;
@@ -146,23 +152,35 @@ export function filterArticles(
   query: ArticleListQuery,
 ): ArticleListResult {
   const allTopics = [...new Set(articles.flatMap((article) => article.topics))].sort();
-  if (query.savedOnly) return { articles: [], topics: allTopics, nextCursor: null, hasMore: false, savedFilterAvailable: false };
+  if (query.savedOnly) return { articles: [], totalCount: 0, topics: allTopics, nextCursor: null, hasMore: false, savedFilterAvailable: false };
 
   const term = query.search?.trim().toLocaleLowerCase() ?? "";
   const filtered = articles.filter((article) => {
     const matchesTopic = !query.topic || article.topics.includes(query.topic);
+    const matchesCefr = !query.cefr || article.cefr === query.cefr;
+    const matchesMinutes = !query.minutes || (
+      query.minutes === "short" ? article.estimatedReadingMinutes <= 5 :
+        query.minutes === "medium" ? article.estimatedReadingMinutes >= 6 && article.estimatedReadingMinutes <= 10 :
+          article.estimatedReadingMinutes >= 11
+    );
     const haystack = `${article.title} ${article.summary} ${article.sourceName} ${article.topics.join(" ")}`.toLocaleLowerCase();
-    return matchesTopic && (!term || haystack.includes(term));
+    return matchesTopic && matchesCefr && matchesMinutes && (!term || haystack.includes(term));
+  });
+  const sorted = [...filtered].sort((left, right) => {
+    if (query.sort === "shortest") return left.estimatedReadingMinutes - right.estimatedReadingMinutes;
+    if (query.sort === "newest") return (right.publicationDate ?? "").localeCompare(left.publicationDate ?? "");
+    return 0;
   });
   const pageSize = Math.min(Math.max(query.pageSize ?? 12, 1), 24);
   const offset = Math.max(Number.parseInt(query.cursor ?? "0", 10) || 0, 0);
-  const page = filtered.slice(offset, offset + pageSize);
+  const page = sorted.slice(offset, offset + pageSize);
   const nextOffset = offset + page.length;
   return {
     articles: page,
+    totalCount: sorted.length,
     topics: allTopics,
-    nextCursor: nextOffset < filtered.length ? String(nextOffset) : null,
-    hasMore: nextOffset < filtered.length,
+    nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
+    hasMore: nextOffset < sorted.length,
     savedFilterAvailable: false,
   };
 }
