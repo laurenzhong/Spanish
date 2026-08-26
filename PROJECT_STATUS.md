@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-26
 - 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
-- 总体状态：READ-002 已完成；READ-003 至 READ-005 待按顺序实现；UI-008 已完成；阶段 8 人工体验暂缓
+- 总体状态：READ-003 已完成；READ-004 至 READ-005 待按顺序实现；UI-008 已完成；阶段 8 人工体验暂缓
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 **READ-002：阅读导航与文章书架** 的实现交接；READ-003 至 READ-005 和 UI-009 至 UI-011 已在实施计划中拆分，必须按顺序逐项领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 **READ-003：规范化阅读器** 的实现交接；READ-004 至 READ-005 和 UI-009 至 UI-011 已在实施计划中拆分，必须按顺序逐项领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 当前工作边界
 
@@ -62,6 +62,17 @@
 - 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、相关 Vitest（5/5）、单 worker 全量 Vitest（78 文件/331 测试）、`pnpm test:e2e` 相关回归（4/4）、`flutter analyze`、`flutter test`（74 测试）通过；默认并行 Vitest 在 Windows 触发已知 OOM。
 - 限制：当前内容 bundle 只有 draft 文章，因此书架显示审核中的空状态；阅读器、进度、保存写入、高亮、笔记和外部来源仍属于 READ-003 至 READ-005。
 - 下一项：`READ-003` 规范化阅读器。
+
+### READ-003：规范化阅读器
+
+- 状态：`done`
+- 负责人：Codex
+- 实现 Commit：`f71eca5`
+- 范围：文章版本 detail 投影与公开 API、Web 规范化阅读器、段落定位与阅读进度、版本哈希迁移提示、浏览器 TTS/段落辅助/词语辅助、高亮/保存短语/个人笔记、本地离线恢复；Flutter `ArticleReaderPage`、SecureStorage 进度缓存和 TTS 入口。
+- 修改：`src/modules/content/`、`app/(product)/read/article/`、`app/api/v1/content/articles/[articleId]/`、`apps/mobile/lib/features/read/`、契约 Schema/OpenAPI、`app/globals.css`、架构与数据库文档、阅读器单测。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、阅读器 Vitest（2/2）、内容契约 Vitest（3/3）、相关书架/壳层 Vitest（1/1）、`flutter analyze`、`flutter test`（74 测试）通过。
+- 限制：当前 bundle 文章仍为 draft，公开书架和 detail API 正确返回空状态/404；Web localStorage 与 Flutter SecureStorage 只是 Alpha 恢复缓存，服务端 `user_reading_progress`、高亮、短语和笔记表/RLS 尚未接入；未实现 READ-004 口语迁移或 READ-005 外部来源导入。
+- 下一项：`READ-004` 阅读到口语迁移。
 
 ### 阶段 7 已完成切片
 
