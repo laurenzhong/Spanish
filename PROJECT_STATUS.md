@@ -1341,6 +1341,7 @@ READ-005 已完成；当前下一项为 UI-010：我的进步与隐私控制。
 | 2026-08-26 | 完成 READ-005 个人保存和外部来源增量 | `f4e1037` | 阅读私有表/RLS、服务端状态同步、收藏/标注/笔记和外部来源元数据接口完成；下一项 UI-010 |
 | 2026-08-27 | 恢复 UI-009 Readlang 风格阅读工作台 | `c07bec1` | 文章正文词语级交互、Explain/Guide/Words/Settings 右侧辅助栏、移动抽屉、阅读设置与全文/分段 TTS；局部测试、lint、typecheck、build 通过；全量单测受并行 PGlite 超时和既有 ReadShelf Router 测试限制 |
 | 2026-08-27 | 精简文章阅读器界面 | `0ac5180` | 移除顶部阅读进度、来源/查看原文、正文工具条、底部个人笔记、口语迁移和完成提示，仅保留正文与右侧辅助栏；局部测试、lint、typecheck、build 通过 |
+| 2026-08-27 | 对齐 Readlang 阅读工作台顶部与侧栏 | `009f05d` | 顶部改为返回文章库、居中标题和操作区；移除 R 方标；侧栏增加 Dictionary 并保留 Explain/Guide/Words/Settings；阅读器单测、lint、typecheck、build 通过 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
