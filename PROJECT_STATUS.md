@@ -612,12 +612,14 @@ READ-005 已完成；当前下一项为 UI-010：我的进步与隐私控制。
 - 新增 `reading` application/repository 与 `/api/v1/read/articles/:articleId/state`、`/read/saved`、`/read/sources` 接口；内容哈希不一致返回 `409 CONFLICT`，保存写入幂等，外部 URL 只规范化和去重，不执行抓取。
 - Web 阅读器服务端同步优先，未登录、离线或数据库不可用时保留 localStorage；书架已保存筛选读取服务端 ID，阅读行为不写 `evidence_events`、`mastery` 或 `confidence`。
 - OpenAPI/JSON Schema、架构/数据库/测试文档同步更新；路由、RLS、幂等、版本冲突和账号删除级联均有测试。
+- 后置内容种子：新增 `content/bundles/readlang-public-v1.json`，导入项目所有者确认拥有再发布授权的 100 篇西语文章；Public Texts 默认 bundle 已合并该文章源，并保留每篇原始 URL、归属、授权证据和审核记录。
 
 验证：
 
 - `pnpm lint`、`pnpm typecheck`、`pnpm db:check` 通过。
 - READ-005 专项 Vitest：4 个文件、15 个测试通过；单 worker 阅读器/账号删除测试通过。
 - `pnpm build` 通过；构建产物包含三条新的阅读 API 路由。
+- 授权文章 bundle：`pnpm content:validate -- content/bundles/readlang-public-v1.json` 通过；数据库导入返回 `imported`，重复导入返回 `unchanged`。
 - 全量 `pnpm test --run` 在 Windows 并行 worker 发生 OOM；单 worker 复跑后仅剩既有 `tests/database/article-content.test.ts` 两条 fixture 断言失败（bundle 已有 5 篇文章且版权断言过期）。
 - 本次未进行 Flutter/iOS 编译或真机验证；完整 E2E 受并行 WebServer OOM 影响未完成。
 

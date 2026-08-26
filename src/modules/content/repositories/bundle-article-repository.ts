@@ -1,11 +1,16 @@
 import bundle from "@/content/bundles/alpha-core-v1.json";
+import publicTextsBundle from "@/content/bundles/readlang-public-v1.json";
 
 import { validateContentBundle } from "../import";
 import type { ContentBundle } from "../schemas";
 import { filterArticles, parseArticleId, projectArticleReader, projectPublicArticle, type ArticleListQuery, type ArticleLookupResult } from "../domain/article";
 import type { ArticleRepository } from "./article-repository";
 
-const validatedBundle = validateContentBundle(bundle) as ContentBundle;
+const validatedBundle = validateContentBundle({
+  ...bundle,
+  articles: [...bundle.articles, ...publicTextsBundle.articles],
+  reviews: [...bundle.reviews, ...publicTextsBundle.reviews],
+}) as ContentBundle;
 
 export class BundleArticleRepository implements ArticleRepository {
   constructor(private readonly source: ContentBundle = validatedBundle) {}
