@@ -30,8 +30,10 @@ describe("normalized article reader", () => {
     const repository = new BundleArticleRepository(source);
     const result = await getArticle(repository, "article.sueno-first-cafe@1");
     expect(result.reason).toBe("found");
-    expect(result.article?.segments.map((segment) => segment.position)).toEqual([0, 1, 2]);
-    const draft = await getArticle(new BundleArticleRepository(), "article.sueno-first-cafe@1");
+    expect(result.article?.segments.map((segment) => segment.position)).toEqual([0, 1, 2, 3, 4]);
+    const draftSource = publishedBundle();
+    draftSource.articles[0] = { ...draftSource.articles[0], status: "draft" };
+    const draft = await getArticle(new BundleArticleRepository(draftSource), "article.sueno-first-cafe@1");
     expect(draft.reason).toBe("unpublished");
     expect(draft.article).toBeNull();
   });
@@ -43,7 +45,7 @@ describe("normalized article reader", () => {
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
     expect(screen.getByRole("heading", { name: result.article.title })).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "文章阅读进度" })).toHaveAttribute("aria-valuenow", "33");
+    expect(screen.getByRole("progressbar", { name: "文章阅读进度" })).toHaveAttribute("aria-valuenow", "20");
     await user.click(screen.getByRole("button", { name: "阅读设置" }));
     expect(screen.getByLabelText("字号")).toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "文章个人笔记" }), "下次复习这一段");
