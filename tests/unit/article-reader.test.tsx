@@ -48,6 +48,8 @@ describe("normalized article reader", () => {
     expect(screen.queryByRole("progressbar", { name: "文章阅读进度" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /返回文章库/ })).toHaveAttribute("href", "/read");
     expect(screen.getByRole("tab", { name: "Dictionary" })).toBeInTheDocument();
+    expect(document.querySelector(".article-reader__layout")?.children).toHaveLength(2);
+    expect(screen.getByRole("complementary", { name: "阅读辅助" })).toBeInTheDocument();
     expect(screen.getAllByText("阅读辅助").length).toBeGreaterThan(0);
     expect(screen.queryByText(result.article.cefr)).not.toBeInTheDocument();
     expect(screen.queryByText(result.article.estimatedReadingMinutes + " 分钟")).not.toBeInTheDocument();
