@@ -107,6 +107,25 @@ test("keeps discovery and conversation entry points actionable", async ({
   await expect(page).toHaveURL(/\/learn\/practice$/);
 });
 
+test("separates communication goals from unpublished content packs", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/explore");
+
+  await expect(page.getByRole("heading", { name: "把交流拆成可以练习的动作" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toBeVisible();
+  await expect(page.getByText("内容整理中", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "内容整理中" })).toHaveCount(0);
+});
+
+test("shows Lucía as the pinned contact in the conversation workspace", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/chat");
+
+  await expect(page.getByRole("navigation", { name: "好友列表" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Lucía Martín.*主要好友/ })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByLabel("已置顶")).toBeVisible();
+});
+
 test("shows a contextual friend introduction and requires explicit consent", async ({ page }) => {
   await authenticate(page);
   await page.route("**/api/v1/character-network/introductions", async (route) => {

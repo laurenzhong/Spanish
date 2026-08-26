@@ -65,12 +65,17 @@ export function VoiceComposer({
   return (
     <form
       className="conversation-composer"
+      data-state={recording ? "recording" : disabled ? "streaming" : "idle"}
       onSubmit={(event) => {
         event.preventDefault();
         if (!disabled && value.trim()) onSubmit();
       }}
     >
-      {notice ? <p className="conversation-composer__notice" role="status">{notice}</p> : null}
+      <div className="conversation-composer__status" role="status" aria-live="polite">
+        <span className="conversation-composer__status-dot" aria-hidden="true" />
+        <span>{recording ? "正在录音" : disabled ? "Lucía 正在回复" : "语音优先，也可以打字"}</span>
+        {notice ? <span className="conversation-composer__notice">{notice}</span> : null}
+      </div>
       <div className="conversation-composer__row">
         <button
           aria-label={recording ? "停止录音" : "使用语音输入"}
@@ -80,7 +85,7 @@ export function VoiceComposer({
           title={recording ? "停止录音" : "使用语音输入"}
           type="button"
         >
-          <span aria-hidden="true">{recording ? "■" : "♩"}</span>
+          {recording ? <span aria-hidden="true">■</span> : <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm-7 9a7 7 0 0 0 14 0M12 19v3m-4 0h8" /></svg>}
         </button>
         <textarea
           aria-label="写下你想对 Lucía 说的话"
@@ -102,7 +107,7 @@ export function VoiceComposer({
           </button>
         ) : (
           <button aria-label="发送消息" className="icon-action" disabled={!value.trim()} title="发送消息" type="submit">
-            <span aria-hidden="true">↑</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-3-6-7-1Z" /></svg>
           </button>
         )}
       </div>

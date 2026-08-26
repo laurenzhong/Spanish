@@ -164,7 +164,7 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
           </div>
         </div>
         <span className="conversation-thread__status" data-status={state.status} role="status">
-          {state.status === "streaming" ? "正在回复" : state.status === "completed" ? "已送达" : state.status === "failed" ? "发送失败" : state.status === "cancelled" ? "已停止" : "在线"}
+          {state.status === "streaming" ? "正在回复" : state.status === "completed" ? "回复已完成" : state.status === "failed" ? "发送失败，可重试" : state.status === "cancelled" ? "已停止" : "可以发送"}
         </span>
       </header>
 
