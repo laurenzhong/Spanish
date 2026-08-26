@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-26
 - 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
-- 总体状态：UI-005 已完成；UI-006 至 UI-011 已完成设计拆分，等待产品确认后逐批实现；阶段 8 人工体验暂缓
+- 总体状态：UI-006 已完成；UI-007 至 UI-011 已完成设计拆分，等待按顺序实现；阶段 8 人工体验暂缓
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 **UI-006：设计系统与产品壳层** 的实现准备；UI-007 至 UI-011 已在实施计划中拆分，必须按顺序逐批领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 **UI-006：设计系统与产品壳层** 的实现交接；UI-007 至 UI-011 已在实施计划中拆分，必须按顺序逐批领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 当前工作边界
 
@@ -32,8 +32,8 @@
 
 ### 待执行 UI 批次
 
-- `UI-006`：设计系统与产品壳层（ready；下一批）
-- `UI-007`：公开首页与登录后学习首页（pending；依赖 UI-006）
+- `UI-006`：设计系统与产品壳层（done；`cb441ca`）
+- `UI-007`：公开首页与登录后学习首页（ready；下一批，依赖 UI-006）
 - `UI-008`：探索与对话工作区（pending；依赖 UI-006）
 - `UI-009`：阅读库与规范化阅读器（pending；依赖 UI-006、READ-001 至 READ-005）
 - `UI-010`：我的进步与隐私控制（pending；依赖 UI-006）
@@ -386,6 +386,47 @@
 - Flutter 好友网络使用本地 fake，仅验证按钮和状态逻辑，不代表服务端真实关系授权、撤销或跨设备同步已验收。
 - 当前环境没有 Mac/Xcode，未执行 iOS 编译、签名、真机、音频权限或 Flutter integration test 验收；公共 Flutter 测试通过不代表 iOS 已验证。
 - 下一步继续拆分并实现剩余 UI/功能闭环；阶段 8 人工体验必须等全部功能落地后再开始。
+
+### UI-006：设计系统与产品壳层
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：W2 网站纯字标、五项导航语义和编辑式线性图标，已完成
+- 实现 Commit：`cb441ca`
+
+结果：
+
+- 产品壳层扩展为学习、阅读、探索、对话、我的五项导航；桌面侧栏按“开始/发现/账户”分组，移动端使用五项固定底栏。
+- 新增 W2 斜体刊头字标在公开首页、桌面侧栏和移动顶部栏的使用；字标作为品牌/首页链接，不承担功能按钮。
+- 新增头像入口与基础账户菜单；主题切换移入账户菜单，公开首页保留紧凑主题入口。
+- 建立语义间距、圆角、字体和动效令牌，统一焦点环、44px 命中区、安全区、减弱动效和页面级横向溢出保护。
+
+修改文件：
+
+- `app/globals.css`
+- `app/page.tsx`
+- `src/shared/ui/app-shell.tsx`
+- `src/shared/ui/bottom-navigation.tsx`
+- `src/shared/ui/account-menu.tsx`
+- `src/shared/ui/theme-toggle.tsx`
+- `tests/unit/bottom-navigation.test.tsx`
+
+验证：
+
+- `pnpm lint` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm exec vitest run --pool=threads --maxWorkers=1`：75 个文件、324 个测试通过。
+- `pnpm build` 通过。
+- `pnpm exec playwright test tests/e2e/product-shell.spec.ts --workers=1`：桌面与手机共 32/32 通过。
+- 浏览器检查覆盖公开首页、1280px 桌面侧栏、375px 手机顶部栏/底栏、账户菜单、主题切换和无横向溢出。
+
+限制与下一步：
+
+- `/read` 导航目标已接入壳层，但阅读书架与阅读器仍由 UI-009 实现；本切片不读取业务数据。
+- 账户菜单当前提供“我的进步与隐私”和主题切换，退出登录流程不在 UI-006 范围内。
+- 任务前已存在的 `tests/e2e/product-shell.spec.ts` 用户改动保留在工作树，未并入本次 Commit。
+- 下一项为 UI-007：公开首页与登录后学习首页。
 
 ### ALPHA-029：角色回复规划
 
