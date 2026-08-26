@@ -16,6 +16,7 @@ class ContentBundleDto {
     required this.scenarios,
     required this.contentPacks,
     required this.characters,
+    required this.articles,
     required this.reviews,
   });
 
@@ -30,6 +31,7 @@ class ContentBundleDto {
       'scenarios',
       'contentPacks',
       'characters',
+      'articles',
       'reviews',
     });
     final schemaVersion = _string(json['schemaVersion'], 'schemaVersion');
@@ -68,6 +70,11 @@ class ContentBundleDto {
         'characters',
         ContentCharacterDto.fromJson,
       ),
+      articles: _typedList(
+        json['articles'],
+        'articles',
+        ArticleDto.fromJson,
+      ),
       reviews: _typedList(
         json['reviews'],
         'reviews',
@@ -87,6 +94,7 @@ class ContentBundleDto {
   final List<ContentScenarioDto> scenarios;
   final List<ContentPackDto> contentPacks;
   final List<ContentCharacterDto> characters;
+  final List<ArticleDto> articles;
   final List<ContentReviewDto> reviews;
 
   void _validateSemantics() {
@@ -113,6 +121,10 @@ class ContentBundleDto {
     _requireUnique(
       characters.map((item) => _versioned(item.stableKey, item.version)),
       'character',
+    );
+    _requireUnique(
+      articles.map((item) => _versioned(item.stableKey, item.version)),
+      'article',
     );
 
     final domainKeys = domains.map((item) => item.stableKey).toSet();
@@ -1235,6 +1247,72 @@ class ContentCharacterDto {
   final List<CanonFactDto> canonFacts;
 }
 
+class ArticleDto {
+  const ArticleDto({
+    required this.stableKey,
+    required this.version,
+    required this.locale,
+    required this.title,
+    required this.summary,
+    required this.status,
+    required this.contentHash,
+    required this.segments,
+  });
+
+  factory ArticleDto.fromJson(Object? input) {
+    final json = _object(input, 'article', const {
+      'stableKey', 'version', 'locale', 'title', 'summary', 'source',
+      'publishedAt', 'curatedAt', 'contentHash', 'cefr', 'topics', 'region',
+      'register', 'format', 'estimatedReadingMinutes', 'assets',
+      'relatedExpressionKeys', 'relatedGoalKeys', 'relatedTagKeys',
+      'oralTransferType', 'status', 'changeReason', 'reviewNotes', 'segments',
+    });
+    final segments = _typedList(
+      json['segments'],
+      'article.segments',
+      ArticleSegmentDto.fromJson,
+    );
+    final positions = segments.map((segment) => segment.position).toList()..sort();
+    if (positions.asMap().entries.any((entry) => entry.value != entry.key)) {
+      throw ContentBundleFormatException('article segment positions must be contiguous.');
+    }
+    return ArticleDto(
+      stableKey: _stableKey(json['stableKey'], 'article.stableKey'),
+      version: _positiveInt(json['version'], 'article.version'),
+      locale: _locale(json['locale'], 'article.locale'),
+      title: _string(json['title'], 'article.title'),
+      summary: _string(json['summary'], 'article.summary'),
+      status: _enum(json['status'], 'article.status', _contentStatuses),
+      contentHash: _string(json['contentHash'], 'article.contentHash'),
+      segments: segments,
+    );
+  }
+
+  final String stableKey;
+  final int version;
+  final String locale;
+  final String title;
+  final String summary;
+  final String status;
+  final String contentHash;
+  final List<ArticleSegmentDto> segments;
+}
+
+class ArticleSegmentDto {
+  const ArticleSegmentDto({required this.position, required this.text});
+
+  factory ArticleSegmentDto.fromJson(Object? input) {
+    final json = _object(input, 'article segment', const {'position', 'text'});
+    return ArticleSegmentDto(
+      position: _position(json['position'], 'article.segment.position'),
+      text: _string(json['text'], 'article.segment.text'),
+    );
+  }
+
+  final int position;
+  final String text;
+}
+
 class ContentReviewDto {
   const ContentReviewDto({
     required this.entityType,
@@ -1348,12 +1426,14 @@ const _reviewEntityTypes = {
   'scenario',
   'content_pack',
   'character',
+  'article',
 };
 const _versionedReviewTypes = {
   'expression',
   'scenario',
   'content_pack',
   'character',
+  'article',
 };
 
 Map<String, Object?> _object(

@@ -4,6 +4,7 @@ import 'package:spanish_mobile/features/chat/chat_page.dart';
 import 'package:spanish_mobile/features/explore/explore_page.dart';
 import 'package:spanish_mobile/features/learn/learn_page.dart';
 import 'package:spanish_mobile/features/profile/profile_page.dart';
+import 'package:spanish_mobile/features/read/read_page.dart';
 
 class ProductShell extends StatefulWidget {
   const ProductShell({this.network, this.userId = 'local-user', super.key});
@@ -19,6 +20,11 @@ class _ProductShellState extends State<ProductShell> {
   static const _destinations = <_ProductDestination>[
     _ProductDestination(
       label: '学习',
+      icon: Icons.menu_book_outlined,
+      selectedIcon: Icons.menu_book_rounded,
+    ),
+    _ProductDestination(
+      label: '阅读',
       icon: Icons.menu_book_outlined,
       selectedIcon: Icons.menu_book_rounded,
     ),
@@ -49,6 +55,7 @@ class _ProductShellState extends State<ProductShell> {
     _network = widget.network ?? FakeCharacterNetworkState();
     _pages = <Widget>[
       LearnPage(userId: widget.userId),
+      const ReadPage(),
       ExplorePage(userId: widget.userId),
       ChatPage(network: _network),
       ProfilePage(network: _network),

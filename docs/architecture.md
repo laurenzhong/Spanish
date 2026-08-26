@@ -52,7 +52,7 @@ app/
   api/                    # 薄 Route Handlers
 src/
   modules/
-    content/              # 内容图谱、导入、发布与查询
+      content/              # 内容图谱、导入、发布与文章查询
     training/             # 训练计划、状态机、断点
     evidence/             # 评估结果、证据强度、事件写入
     profile/              # 技能快照、场景状态、进步解释
@@ -249,7 +249,8 @@ Route Handler 的职责只有：
 - `POST /api/v1/practice/attempts/:id/evaluate`
 - `POST /api/v1/practice/sessions/:sessionId/activity`
 - `GET /api/v1/profile`
-- `GET /api/v1/content/packs/:id`
+  - `GET /api/v1/content/packs/:id`
+  - `GET /api/v1/content/articles`
 - `GET /api/v1/conversations`
 - `POST /api/v1/conversations/:id/messages`
 - `GET /api/v1/conversations/:id/stream`

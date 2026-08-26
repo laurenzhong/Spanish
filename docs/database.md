@@ -33,6 +33,8 @@ ALPHA-003 建立 Supabase PostgreSQL / Drizzle 基础；ALPHA-004 在第二版�
 
 READ-001 新增 `articles`、`article_versions`、`article_sources`、`article_segments` 和 `article_assets` 表族。文章版本以 `(article_id, version)` 唯一，保存规范化内容哈希、版权来源、段落和资产声明；公开 RLS 只允许已发布且在 `content_reviews` 中获批的文章版本及其从属行。文章关联的表达、目标和标签作为稳定 key 快照保存，阅读数据不写入 `evidence_events`、`user_skill_states` 或 `user_scene_states`。
 
+READ-002 的 `GET /api/v1/content/articles` 只返回已发布文章的卡片 DTO，使用服务端分页、主题和搜索过滤；不会把文章正文或用户阅读状态放入列表响应。当前 bundle 只有 draft 文章，因此 Web 与 Flutter 均显示可解释的空状态。
+
 ALPHA-005 新增 `content_bundle_imports` 作为服务端导入登记表，保存 bundle 稳定 ID、版本、规范化内容哈希和实体数量。该表不向 `anon` 或 `authenticated` 开放。`expression_tags.scoring` 区分能力权值与元数据标签；`content_sources` 增加版权状态和内部审核说明。
 
 业务模块后续只能通过 repository/application 边界访问自己拥有的表，不能把 Drizzle 行类型直接扩散到 UI、Flutter 或公共 API。

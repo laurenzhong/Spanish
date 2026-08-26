@@ -326,6 +326,18 @@ test("preserves the selected discovery direction on the learning page", async ({
   await expect(page.getByRole("status")).toContainText("暂时没有可开始的静默内容包");
 });
 
+test("opens the reading shelf with an honest unpublished empty state", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/read");
+
+  await expect(page).toHaveTitle(/阅读/);
+  await expect(page.getByRole("heading", { name: "读一篇真实的西语文章" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "可公开阅读的文章正在准备中" })).toBeVisible();
+  await page.getByRole("link", { name: "已保存" }).click();
+  await expect(page).toHaveURL(/\/read\?saved=1$/);
+  await expect(page.getByRole("heading", { name: "还没有保存的文章" })).toBeVisible();
+});
+
 test("keeps the profile axes visible and selectable", async ({
   page,
 }) => {

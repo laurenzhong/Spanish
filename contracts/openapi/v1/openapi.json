@@ -12,6 +12,22 @@
     }
   ],
   "paths": {
+    "/content/articles": {
+      "get": {
+        "summary": "List published article cards",
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "topic", "in": "query", "schema": { "type": "string" } },
+          { "name": "saved", "in": "query", "schema": { "type": "string", "enum": ["1"] } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string" } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 24 } }
+        ],
+        "responses": {
+          "200": { "description": "Published article cards", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/article-list-response.schema.json" } } } },
+          "503": { "description": "Content temporarily unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/auth/session": {
       "get": {
         "summary": "Verify the current authenticated session",
