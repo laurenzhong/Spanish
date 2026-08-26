@@ -81,8 +81,8 @@
 - 实现 Commit：`209f5fb`
 - 范围：新增四种文章迁移任务 DTO（摘要、观点、个人迁移、角色对话）；Web 阅读器迁移卡片支持选择、草稿保存、跳过和显式口语复核；口语复核 URL 按文章版本和迁移类型加载上下文并复用现有训练状态机；Flutter 阅读器与训练 fake 提供同等入口和上下文；打字草稿、跳过和阅读完成不创建口语证据。
 - 修改：`src/modules/content/domain/article-transfer.ts`、`app/(product)/read/article/[articleId]/article-reader.tsx`、`app/(product)/learn/practice/page.tsx`、`src/modules/training/ui/fake-training-loop.tsx`、`apps/mobile/lib/features/read/read_page.dart`、`apps/mobile/lib/features/training/fakes/fake_training_loop.dart`、内容 DTO、迁移单测与 E2E、架构/测试文档。
-- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、迁移/阅读器/训练 Vitest（9/9）、`pnpm exec playwright test tests/e2e/article-transfer.spec.ts --project=desktop-chromium`（1/1）、`flutter analyze`、`flutter test`（76 测试）通过；Chrome 390px 视觉验收无横向溢出、迁移入口和练习上下文可见、控制台无错误。
-- 限制：`pnpm test --run` 在 Windows 并行/全量运行仍受已知资源和既有 `article-content` fixture 失败影响（bundle 已包含 5 篇文章）；本任务未接入服务端阅读私有表/RLS，也未实现 READ-005 外部来源导入；Flutter 未进行 iOS 真机或 Xcode 构建验证。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、迁移/阅读器/训练 Vitest（9/9）、`pnpm exec playwright test tests/e2e/article-transfer.spec.ts --project=desktop-chromium`（1/1）、`flutter analyze`、`flutter test`（76 测试）通过；Chrome 390px 视觉验收无横向溢出、迁移入口和练习上下文可见、控制台无错误；完整 Web E2E 为 73/74。
+- 限制：`pnpm test --run` 在 Windows 并行/全量运行仍受已知资源和既有 `article-content` fixture 失败影响（bundle 已包含 5 篇文章）；完整 E2E 唯一失败为既有移动端“撤销授权”按钮视口定位，与 READ-004 无关；本任务未接入服务端阅读私有表/RLS，也未实现 READ-005 外部来源导入；Flutter 未进行 iOS 真机或 Xcode 构建验证。
 - 下一项：`READ-005` 个人保存和外部来源增量。
 
 ### 阶段 7 已完成切片
