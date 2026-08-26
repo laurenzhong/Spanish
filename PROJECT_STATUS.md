@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-26
 - 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
-- 总体状态：UI-008 已完成；UI-009 至 UI-011 已完成设计拆分，等待按顺序实现；阶段 8 人工体验暂缓
+- 总体状态：READ-001 已完成；READ-002 至 READ-005 待按顺序实现；UI-008 已完成；阶段 8 人工体验暂缓
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 **UI-008：探索与对话工作区** 的实现交接；UI-009 至 UI-011 已在实施计划中拆分，必须按顺序逐批领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 **READ-001：文章内容契约与版权字段** 的实现交接；READ-002 至 READ-005 和 UI-009 至 UI-011 已在实施计划中拆分，必须按顺序逐项领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 当前工作边界
 
@@ -40,6 +40,17 @@
 - `UI-011`：跨视口、可访问性与行为回归（pending；依赖 UI-006 至 UI-010）
 
 每批只完成一个任务 ID；产品本人在批次结束后进行视觉和行为确认，协调者再更新状态页。
+
+### READ-001：文章内容契约与版权字段
+
+- 状态：`done`
+- 负责人：Codex
+- 实现 Commit：`5fd3250`
+- 范围：扩展 Content Bundle 文章 Schema、文章级规范化哈希、来源/版本/段落/资产表族、版权与审核发布门禁、稳定 key 引用校验、事务导入与同版本冲突保护。
+- 修改：`src/modules/content/`、`src/shared/db/schema/content.ts`、`drizzle/0011_early_colleen_wing.sql`、契约 Schema/fixture、`content/bundles/alpha-core-v1.json`、文章数据库测试。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm content:validate -- content/bundles/alpha-core-v1.json`、`pnpm test --run`（77 文件/330 测试）、`pnpm test:e2e`（70/70）、`pnpm build` 均通过。
+- 限制：当前只有开发用 Sueño 原创 draft 文章；未实现 `/read`、阅读进度、保存、高亮、笔记、外部来源抓取或口语证据写入。
+- 下一项：`READ-002` 阅读导航与文章书架。
 
 ### 阶段 7 已完成切片
 
@@ -1122,7 +1133,8 @@
 | UI-003 | done | `fix/login-redirect-after-otp` | Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
 | UI-004 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
 | UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
-| 阶段 8 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待所有 UI 与功能模块落地 | UI-005 及后续 UI 切片 |
+| READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
+| 阶段 8 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待所有 UI 与功能模块落地 | UI-005 及后续 UI/READ 切片 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -1130,8 +1142,12 @@
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | 后续 UI 切片 | 继续补齐剩余 UI 与功能闭环，并逐项完成局部测试 | UI-005 |
-| 2 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | 所有 UI/功能切片完成 |
+| 1 | READ-002 | 阅读导航与文章书架 | READ-001 |
+| 2 | READ-003 | 规范化阅读器 | READ-002 |
+| 3 | READ-004 | 阅读到口语迁移 | READ-003 |
+| 4 | READ-005 | 个人保存和外部来源增量 | READ-004 |
+| 5 | UI-009 | 阅读库与规范化阅读器 UI | READ-001 至 READ-005 |
+| 6 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | 所有 UI/READ 功能切片完成 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
