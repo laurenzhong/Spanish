@@ -1729,7 +1729,7 @@ body { background: var(--background); }
 .read-pagination__arrow.is-disabled { color: var(--border-strong); background: var(--surface-soft); cursor: not-allowed; }
 
 /* READ-003 normalized article reader, rebuilt as a two-panel reading workbench. */
-.article-reader { width: min(100%, 1180px); min-height: 100vh; margin-inline: auto; padding: 0 24px 72px; color: var(--foreground); }
+.article-reader { width: min(100%, 1180px); min-height: 100vh; margin-inline: auto; padding: 0 24px 72px; color: var(--foreground); --reader-tools-width: 425px; }
 .article-reader__topbar, .article-reader__header, .article-reader__layout, .article-reader__notes { width: min(100%, 1120px); margin-inline: auto; }
 .article-reader__topbar { position: sticky; z-index: 20; top: 0; display: grid; min-height: 64px; grid-template-columns: minmax(0, 1fr) minmax(200px, 1fr) minmax(0, 1fr); align-items: center; gap: 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--background) 94%, transparent); backdrop-filter: blur(12px); }
 .article-reader__topbar-left { display: flex; min-width: 0; align-items: center; }
@@ -1790,6 +1790,9 @@ body { background: var(--background); }
 .article-reader__tool-kicker { color: var(--accent); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .article-reader__selected-word { display: flex; gap: 8px; align-items: center; justify-content: space-between; color: var(--foreground); font-family: var(--font-display); font-size: 1.45rem; }
 .article-reader__selected-word button { width: 38px; height: 38px; border: 0; border-radius: 8px; background: var(--accent-soft); cursor: pointer; }
+.article-reader__dictionary-languages { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center; }
+.article-reader__dictionary-languages select { min-height: 38px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; color: var(--foreground); background: var(--surface); font: inherit; font-size: .78rem; }
+.article-reader__dictionary-languages span { color: var(--muted); font-size: 1.2rem; }
 .article-reader__tool-actions { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
 .article-reader__tool-actions .secondary-action, .article-reader__tools-footer .primary-link, .article-reader__tool-panel > .secondary-action { width: 100%; justify-content: center; margin-top: 0; }
 .article-reader__setting { display: flex; min-height: 40px; gap: 12px; align-items: center; justify-content: space-between; color: var(--muted); font-size: .8rem; }
@@ -1807,15 +1810,27 @@ body { background: var(--background); }
 .article-reader__notes textarea { width: 100%; min-height: 130px; resize: vertical; padding: 12px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--foreground); background: var(--surface); font: inherit; line-height: 1.6; }
 .article-reader__notes .secondary-action { margin-top: 9px; }
 @media (min-width: 960px) {
-  .article-reader { position: relative; padding-right: 425px; }
+  .article-reader { position: relative; padding-right: 24px; }
+  .article-reader.article-reader--tools-open { padding-right: calc(24px + var(--reader-tools-width)); }
   .article-reader__topbar, .article-reader__layout, .article-reader__notice { width: 100%; margin-inline: 0; }
   .article-reader__layout { position: static; display: block; }
   .article-reader__content { width: auto; padding-right: 48px; }
-  .article-reader__tools { position: absolute; top: 0; right: 0; width: 425px; min-height: 100vh; }
+  .article-reader__tools { position: absolute; top: 0; right: 0; display: none; width: var(--reader-tools-width); min-height: 100vh; }
+  .article-reader__tools.is-open { display: grid; }
+  .article-reader__tools.is-open .article-reader__tools-header > div { display: block; }
+  .article-reader__tools.is-open .article-reader__tools-close { display: block; }
 }
 @media (max-width: 959px) {
-  .article-reader__layout { grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; }
+  .article-reader__layout { display: block; }
   .article-reader__tool-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 800px) and (max-width: 959px) {
+  .article-reader { position: relative; --reader-tools-width: min(380px, calc(100vw - 32px)); }
+  .article-reader.article-reader--tools-open { padding-right: calc(24px + var(--reader-tools-width)); }
+  .article-reader__tools { position: absolute; top: 0; right: 0; display: none; width: var(--reader-tools-width); min-height: 100vh; }
+  .article-reader__tools.is-open { display: grid; }
+  .article-reader__tools.is-open .article-reader__tools-header > div { display: block; }
+  .article-reader__tools.is-open .article-reader__tools-close { display: block; }
 }
 @media (max-width: 799px) {
   .read-page__utility { min-height: 26px; }

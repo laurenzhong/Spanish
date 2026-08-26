@@ -34,3 +34,38 @@ test("moves an explicit article transfer into the oral practice context", async 
   await expect(page.getByTestId("article-transfer-context")).toContainText("说说你的看法");
   await expect(page.getByTestId("article-transfer-context")).toContainText("只有你主动用声音回答时");
 });
+
+test("opens reader tools on demand and explains a selected word", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/read/article/article.sueno-first-cafe@1");
+
+  const toggle = page.locator(".article-reader__assist-toggle");
+  const tools = page.getByRole("complementary", { name: "阅读辅助" });
+  await expect(toggle).toHaveAccessibleName("打开阅读辅助");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(tools).not.toBeVisible();
+
+  await toggle.click();
+  await expect(toggle).toHaveAccessibleName("关闭阅读辅助");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(tools).toBeVisible();
+  await expect(tools).toContainText("Click any word on the left for a context-aware explanation.");
+
+  if ((page.viewportSize()?.width ?? 0) < 800) {
+    await page.locator(".article-reader__tools-close").click();
+    await expect(tools).not.toBeVisible();
+  }
+  await page.getByRole("button", { name: /^café/ }).click();
+  await expect(tools).toContainText("咖啡；也可以指喝咖啡的场所");
+
+  await page.getByRole("tab", { name: "Dictionary" }).click();
+  await expect(page.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
+  await expect(page.getByRole("combobox", { name: "词典目标语言" })).toHaveValue("Chinese");
+  await expect(tools).toContainText("还没有配置 Spanish → Chinese 词典。");
+
+  if ((page.viewportSize()?.width ?? 0) < 800) await page.locator(".article-reader__tools-close").click();
+  else await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toHaveAccessibleName("打开阅读辅助");
+  await expect(tools).not.toBeVisible();
+});

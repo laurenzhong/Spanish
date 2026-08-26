@@ -76,4 +76,34 @@ describe("normalized article reader", () => {
     expect(screen.queryByRole("button", { name: "朗读本段" })).not.toBeInTheDocument();
     expect(screen.queryByText("西语原文 · 点击词语查看辅助")).not.toBeInTheDocument();
   });
+
+  it("opens the assist panel on demand and shows the context-aware Explain and Dictionary states", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+
+    const toggle = screen.getByRole("button", { name: "打开阅读辅助" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Click any word on the left for a context-aware explanation.")).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(document.querySelector(".article-reader")?.className).toContain("article-reader--tools-open");
+
+    const café = screen.getAllByRole("button").find((button) => button.textContent?.startsWith("café"));
+    expect(café).toBeDefined();
+    if (!café) throw new Error("glossary token missing");
+    await user.click(café);
+    expect(screen.getByText("咖啡；也可以指喝咖啡的场所")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Dictionary" }));
+    expect(screen.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
+    expect(screen.getByRole("combobox", { name: "词典目标语言" })).toHaveValue("Chinese");
+    expect(screen.getByText("还没有配置 Spanish → Chinese 词典。")).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(document.querySelector(".article-reader")?.className).not.toContain("article-reader--tools-open");
+  });
 });
