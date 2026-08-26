@@ -49,7 +49,7 @@
 - 范围：扩展 Content Bundle 文章 Schema、文章级规范化哈希、来源/版本/段落/资产表族、版权与审核发布门禁、稳定 key 引用校验、事务导入与同版本冲突保护。
 - 修改：`src/modules/content/`、`src/shared/db/schema/content.ts`、`drizzle/0011_early_colleen_wing.sql`、契约 Schema/fixture、`content/bundles/alpha-core-v1.json`、文章数据库测试。
 - 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm content:validate -- content/bundles/alpha-core-v1.json`、`pnpm test --run`（77 文件/330 测试）、`pnpm test:e2e`（70/70）、`pnpm build` 均通过。
-- 限制：当前只有开发用 Sueño 原创 draft 文章；未实现 `/read`、阅读进度、保存、高亮、笔记、外部来源抓取或口语证据写入。
+- 限制：当前 bundle 已有 5 篇 Sueño 原创、版权清晰并经 `codex-ai-temporary-review` 标注的已发布文章；仍未实现外部来源抓取或口语证据写入。
 - 下一项：`READ-002` 阅读导航与文章书架。
 
 ### READ-002：阅读导航与文章书架
@@ -60,7 +60,7 @@
 - 范围：新增文章卡片查询 DTO/repository/application、分页/搜索/主题过滤 API、Web `/read` 书架、诚实空状态、Flutter 五项导航与阅读空状态；列表不返回正文，已保存筛选暂不伪造数据。
 - 修改：`src/modules/content/`、`app/(product)/read/`、`app/api/v1/content/articles/`、`apps/mobile/lib/features/read/`、共享 Flutter 内容 DTO、OpenAPI/响应 Schema、架构与数据库文档。
 - 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、相关 Vitest（5/5）、单 worker 全量 Vitest（78 文件/331 测试）、`pnpm test:e2e` 相关回归（4/4）、`flutter analyze`、`flutter test`（74 测试）通过；默认并行 Vitest 在 Windows 触发已知 OOM。
-- 限制：当前内容 bundle 只有 draft 文章，因此书架显示审核中的空状态；阅读器、进度、保存写入、高亮、笔记和外部来源仍属于 READ-003 至 READ-005。
+- 限制：当前内容 bundle 已发布 5 篇原创文章；服务端用户保存写入、高亮/笔记同步和外部来源仍属于后续切片。
 - 下一项：`READ-003` 规范化阅读器。
 
 ### READ-003：规范化阅读器
@@ -71,7 +71,7 @@
 - 范围：文章版本 detail 投影与公开 API、Web 规范化阅读器、段落定位与阅读进度、版本哈希迁移提示、浏览器 TTS/段落辅助/词语辅助、高亮/保存短语/个人笔记、本地离线恢复；Flutter `ArticleReaderPage`、SecureStorage 进度缓存和 TTS 入口。
 - 修改：`src/modules/content/`、`app/(product)/read/article/`、`app/api/v1/content/articles/[articleId]/`、`apps/mobile/lib/features/read/`、契约 Schema/OpenAPI、`app/globals.css`、架构与数据库文档、阅读器单测。
 - 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、阅读器 Vitest（2/2）、内容契约 Vitest（3/3）、相关书架/壳层 Vitest（1/1）、`pnpm test:e2e`（72/72）、`flutter analyze`、`flutter test`（74 测试）通过；Chrome + Playwright 375px 视觉回归通过。
-- 限制：当前 bundle 文章仍为 draft，公开书架和 detail API 正确返回空状态/404；Web localStorage 与 Flutter SecureStorage 只是 Alpha 恢复缓存，服务端 `user_reading_progress`、高亮、短语和笔记表/RLS 尚未接入；未实现 READ-004 口语迁移或 READ-005 外部来源导入。
+- 限制：bundle 现有 5 篇原创文章已发布；Web localStorage 与 Flutter SecureStorage 只是 Alpha 恢复缓存，服务端 `user_reading_progress`、高亮、短语和笔记表/RLS 尚未接入；未实现 READ-004 口语迁移或 READ-005 外部来源导入。
 - 下一项：`READ-004` 阅读到口语迁移。
 
 ### 阶段 7 已完成切片
