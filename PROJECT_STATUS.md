@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-26
 - 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
-- 总体状态：READ-001 已完成；READ-002 至 READ-005 待按顺序实现；UI-008 已完成；阶段 8 人工体验暂缓
+- 总体状态：READ-002 已完成；READ-003 至 READ-005 待按顺序实现；UI-008 已完成；阶段 8 人工体验暂缓
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 **READ-001：文章内容契约与版权字段** 的实现交接；READ-002 至 READ-005 和 UI-009 至 UI-011 已在实施计划中拆分，必须按顺序逐项领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 **READ-002：阅读导航与文章书架** 的实现交接；READ-003 至 READ-005 和 UI-009 至 UI-011 已在实施计划中拆分，必须按顺序逐项领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 当前工作边界
 
@@ -51,6 +51,17 @@
 - 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm content:validate -- content/bundles/alpha-core-v1.json`、`pnpm test --run`（77 文件/330 测试）、`pnpm test:e2e`（70/70）、`pnpm build` 均通过。
 - 限制：当前只有开发用 Sueño 原创 draft 文章；未实现 `/read`、阅读进度、保存、高亮、笔记、外部来源抓取或口语证据写入。
 - 下一项：`READ-002` 阅读导航与文章书架。
+
+### READ-002：阅读导航与文章书架
+
+- 状态：`done`
+- 负责人：Codex
+- 实现 Commit：`cbc2c6b`
+- 范围：新增文章卡片查询 DTO/repository/application、分页/搜索/主题过滤 API、Web `/read` 书架、诚实空状态、Flutter 五项导航与阅读空状态；列表不返回正文，已保存筛选暂不伪造数据。
+- 修改：`src/modules/content/`、`app/(product)/read/`、`app/api/v1/content/articles/`、`apps/mobile/lib/features/read/`、共享 Flutter 内容 DTO、OpenAPI/响应 Schema、架构与数据库文档。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、相关 Vitest（5/5）、单 worker 全量 Vitest（78 文件/331 测试）、`pnpm test:e2e` 相关回归（4/4）、`flutter analyze`、`flutter test`（74 测试）通过；默认并行 Vitest 在 Windows 触发已知 OOM。
+- 限制：当前内容 bundle 只有 draft 文章，因此书架显示审核中的空状态；阅读器、进度、保存写入、高亮、笔记和外部来源仍属于 READ-003 至 READ-005。
+- 下一项：`READ-003` 规范化阅读器。
 
 ### 阶段 7 已完成切片
 
