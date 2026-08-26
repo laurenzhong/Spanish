@@ -1820,8 +1820,8 @@ body { background: var(--background); }
   .article-reader__layout { display: block; }
   .article-reader__mobile-tools-link { display: inline-flex; }
   .article-reader__content p { font-size: 1.08rem; }
-  .article-reader__tools { position: fixed; z-index: 101; top: 0; right: 0; bottom: 0; width: min(100%, 360px); height: 100dvh; border: 0; border-left: 1px solid var(--border); border-radius: 0; box-shadow: -18px 0 48px rgb(20 35 28 / 16%); transform: translateX(100%); transition: transform 180ms ease; overflow-y: auto; }
-  .article-reader__tools.is-open { transform: translateX(0); }
+  .article-reader__tools { position: fixed; z-index: 101; top: 0; right: 0; bottom: 0; width: min(100%, 360px); height: 100dvh; border: 0; border-left: 1px solid var(--border); border-radius: 0; box-shadow: -18px 0 48px rgb(20 35 28 / 16%); transform: translateX(100%); visibility: hidden; pointer-events: none; transition: transform 180ms ease, visibility 180ms ease; overflow-y: auto; }
+  .article-reader__tools.is-open { transform: translateX(0); visibility: visible; pointer-events: auto; }
   .article-reader__tools-close { display: block; }
   .article-reader__scrim { position: fixed; z-index: 100; inset: 0; display: block; border: 0; background: rgb(13 26 20 / 36%); cursor: pointer; }
   .article-reader__notes { grid-template-columns: 1fr; gap: 18px; margin-top: 48px; }
