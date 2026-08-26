@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/saved-source-input.schema.json",
+  "title": "Saved external source input v1",
+  "type": "object",
+  "required": ["url"],
+  "additionalProperties": false,
+  "properties": {
+    "url": { "type": "string", "format": "uri", "maxLength": 2048 },
+    "title": { "type": ["string", "null"], "maxLength": 500 },
+    "author": { "type": ["string", "null"], "maxLength": 240 },
+    "sourceName": { "type": ["string", "null"], "maxLength": 240 },
+    "license": { "enum": ["original", "public_domain", "creative_commons", "licensed", "short_quote", null] }
+  }
+}

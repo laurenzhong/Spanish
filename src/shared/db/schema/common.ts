@@ -64,6 +64,21 @@ export const sessionActivityEventTypeEnum = pgEnum(
   ["active", "inactive", "ended"],
 );
 
+export const readingProgressStatusEnum = pgEnum("reading_progress_status", [
+  "in_progress",
+  "completed",
+]);
+
+export const readingItemTypeEnum = pgEnum("reading_item_type", [
+  "phrase",
+  "highlight",
+]);
+
+export const savedArticleSourceStatusEnum = pgEnum(
+  "saved_article_source_status",
+  ["saved", "blocked"],
+);
+
 export const messageRoleEnum = pgEnum("message_role", [
   "user",
   "character",

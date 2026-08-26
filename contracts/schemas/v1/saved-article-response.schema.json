@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/saved-article-response.schema.json",
+  "title": "Saved article mutation response v1",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": ["articleId", "saved"],
+      "additionalProperties": false,
+      "properties": { "articleId": { "type": "string" }, "saved": { "type": "boolean" } }
+    }
+  }
+}

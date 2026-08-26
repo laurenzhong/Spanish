@@ -24,7 +24,7 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   const result = await getArticles(new BundleArticleRepository(), {
     search,
     topic,
-    savedOnly,
+    savedOnly: false,
     cursor: first(params.cursor),
   });
 

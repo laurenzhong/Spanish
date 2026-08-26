@@ -93,6 +93,7 @@ pnpm db:migrate
 ## 5. 数据不变量
 
 - 用户私有表包含 `user_id`、`created_at` 和 `updated_at`；`profiles.id` 本身就是用户 ID。
+- `0012` 新增四张阅读私有表：`user_reading_progress`、`user_article_saves`、`user_article_highlights`、`user_saved_article_sources`。前三张通过 `article_version_id` 关联已发布内容版本，来源表只保存用户提交的外部 URL 元数据，不保存正文。
 - `evidence_events` 只追加。首版迁移在 Supabase 角色存在时撤销 `anon` 和 `authenticated` 的 `UPDATE` / `DELETE` 权限。
 - `user_skill_states` 与 `user_scene_states` 是可重算快照，不能替代原始证据。
 - 尝试、证据和角色消息包含稳定客户端 ID、幂等键或 generation 标识，后续重试不能重复写入事实。
@@ -111,6 +112,7 @@ pnpm db:migrate
 - 关系记忆只能通过服务端 application 查看和删除；删除 `relationship_memories` 会级联清理 `memory_sharing_permissions`，客户端不能直接写入或绕过用户所有权检查。
 - 7.4b 只向用户展示非 `ephemeral` 的 `audio_assets` 和 speech 尝试中的转写文本；录音删除使用 `deleted_at` 软删除，转写删除清空 `practice_attempts.response_text`，两者都保留证据历史。账号级删除的 Storage 对象清理由 7.4c 的专用 storage deleter 和可重试任务负责。
 - 7.4c 的账号数据删除由服务端事务执行：先删除 `evidence_events` 解除 `practice_attempts` 的 restrict 引用，再删除 `profiles` 触发用户私有表级联；`provider_calls` 在 profile 删除前置空 `user_id` 并替换 metadata 为匿名标记。`privacy_cleanup_tasks` 不含 `user_id`，只保存待清理的 bucket/path、状态、尝试次数和脱敏错误，RLS 对客户端完全关闭。
+- `0012` 的阅读表启用 RLS。`authenticated` 仅能按 `user_id = auth.uid()` 读写自己的阅读行；`anon` 没有表权限。删除账号时由 `profiles` 外键级联清理阅读进度、收藏、高亮、笔记和外部来源元数据，公共文章和文章版本不受影响。
 - `diagnostic_events` 不开放客户端读写；内部查询只返回去掉 `user_id` 和 `dedupe_key` 的诊断投影。
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
 - 变体、任务和内容片段通过可见的父内容继承读取权限。

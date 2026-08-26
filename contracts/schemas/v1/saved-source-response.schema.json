@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/saved-source-response.schema.json",
+  "title": "Saved external source mutation response v1",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": ["source", "fetched"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "$ref": "saved-sources-response.schema.json#/$defs/source" },
+        "fetched": { "const": false }
+      }
+    }
+  }
+}

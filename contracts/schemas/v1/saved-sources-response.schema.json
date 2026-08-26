@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/saved-sources-response.schema.json",
+  "title": "Saved external sources response v1",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": ["sources"],
+      "additionalProperties": false,
+      "properties": { "sources": { "type": "array", "items": { "$ref": "#/$defs/source" } } }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["id", "sourceUrl", "normalizedUrl", "title", "author", "sourceName", "license", "copyrightStatus", "status", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "sourceUrl": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "normalizedUrl": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "title": { "type": ["string", "null"] },
+        "author": { "type": ["string", "null"] },
+        "sourceName": { "type": ["string", "null"] },
+        "license": { "enum": ["original", "public_domain", "creative_commons", "licensed", "short_quote", null] },
+        "copyrightStatus": { "enum": ["unverified", "cleared", "restricted"] },
+        "status": { "enum": ["saved", "blocked"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

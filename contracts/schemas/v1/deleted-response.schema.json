@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/deleted-response.schema.json",
+  "title": "Deleted response v1",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": ["deleted"],
+      "additionalProperties": false,
+      "properties": { "deleted": { "type": "boolean" } }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/saved-articles-response.schema.json",
+  "title": "Saved articles response v1",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": ["articleIds"],
+      "additionalProperties": false,
+      "properties": { "articleIds": { "type": "array", "items": { "type": "string" } } }
+    }
+  }
+}

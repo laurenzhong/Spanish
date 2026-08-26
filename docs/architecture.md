@@ -120,6 +120,7 @@ UI / Route Handler → Application → Domain
 | 模块 | 拥有的规则 | 主要数据 |
 |---|---|---|
 | content | 内容版本、审核、图谱和发布 | expressions、tags、scenarios、content_packs |
+| reading | 阅读断点、用户标注、保存和外部来源元数据 | user_reading_progress、user_article_saves、user_article_highlights、user_saved_article_sources |
 | training | 当前训练计划、状态机和断点 | practice_sessions、practice_attempts、learning_breakpoints |
 | evidence | 尝试评估和证据强度 | evidence_events |
 | profile | 技能快照、场景状态和解释 | user_skill_states、user_scene_states |
@@ -130,6 +131,15 @@ UI / Route Handler → Application → Domain
 | providers | 供应商适配和统一错误 | provider_calls、audio_assets |
 
 ## 6. 关键领域边界
+
+### 6.0 阅读状态与外部来源
+
+`reading` 模块拥有用户阅读私有数据，Route Handler 只负责会话验证、Zod 输入校验和协议转换，application 调用 `ReadingRepository` 完成事务写入。文章正文仍由 `content` 模块的已发布版本提供；阅读表只引用 `article_versions.id` 和内容哈希，不复制公共正文。
+
+- `user_reading_progress` 保存版本化断点、完成状态和个人笔记；`user_article_saves` 保存文章收藏；`user_article_highlights` 保存短语/高亮文本及段落位置。
+- `/api/v1/read/articles/:articleId/state` 使用内容哈希做乐观版本检查。哈希过期返回 `409 CONFLICT`，客户端保留本地状态并提示重新定位，不静默覆盖标注。
+- `/api/v1/read/saved` 和 `/api/v1/read/sources` 只返回当前用户的明确 DTO。外部来源接口目前只保存规范化 URL、标题、作者、许可和版权状态等元数据，绝不抓取 URL 或保存未经验证的全文。
+- 阅读、TTS、词语查询、笔记和保存操作不会写入 `evidence_events`、`mastery` 或 `confidence`；只有显式口语迁移才进入 training/evidence 链路。
 
 ### 6.1 训练完成不等于能力掌握
 

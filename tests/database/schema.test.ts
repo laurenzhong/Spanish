@@ -48,6 +48,10 @@ import {
   scenarios,
   tags,
   userPreferences,
+  userArticleHighlights,
+  userArticleSaves,
+  userReadingProgress,
+  userSavedArticleSources,
   userSceneStates,
   userSkillStates,
 } from "@/src/shared/db/schema";
@@ -94,6 +98,10 @@ const allTables = [
   diagnosticEvents,
   privacyCleanupTasks,
   idempotencyKeys,
+  userReadingProgress,
+  userArticleSaves,
+  userArticleHighlights,
+  userSavedArticleSources,
 ] as const;
 
 const userOwnedTables = [
@@ -158,7 +166,11 @@ describe("database schema", () => {
         "scenario_tasks",
         "scenarios",
         "tags",
+        "user_article_highlights",
+        "user_article_saves",
         "user_preferences",
+        "user_reading_progress",
+        "user_saved_article_sources",
         "user_scene_states",
         "user_skill_states",
       ].sort(),
@@ -229,6 +241,7 @@ describe("database schema", () => {
         "0009_oval_namora.sql",
         "0010_watery_ogun.sql",
         "0011_early_colleen_wing.sql",
+        "0012_wakeful_spiral.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/saved-article-patch.schema.json",
+  "title": "Saved article patch v1",
+  "type": "object",
+  "required": ["articleId"],
+  "additionalProperties": false,
+  "properties": {
+    "articleId": { "type": "string", "minLength": 3, "maxLength": 240 },
+    "saved": { "type": "boolean", "default": true }
+  }
+}

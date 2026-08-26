@@ -10,6 +10,7 @@ import {
   recommendedArticleTransferType,
   type ArticleTransferType,
 } from "@/src/modules/content/domain";
+import { readingStatePatchSchema } from "@/src/modules/reading/domain/reading-state";
 import { createBrowserTextToSpeech } from "@/src/modules/providers/tts";
 
 type SavedPhrase = Readonly<{ id: string; text: string; position: number }>;
@@ -22,6 +23,7 @@ type ReaderState = Readonly<{
   savedPhrases: readonly SavedPhrase[];
   highlights: readonly Highlight[];
   note: string;
+  saved: boolean;
   lastOpenedAt?: string;
 }>;
 type ReaderTool = "explain" | "paragraph" | "saved" | "settings";
@@ -30,7 +32,7 @@ type ArticleReaderProps = Readonly<{ article: ArticleReaderProjection }>;
 const readerStoragePrefix = "reading-reader:v1:";
 
 function initialState(article: ArticleReaderProjection): ReaderState {
-  return { stableKey: article.stableKey, version: article.version, contentHash: article.contentHash, position: 0, savedPhrases: [], highlights: [], note: "" };
+  return { stableKey: article.stableKey, version: article.version, contentHash: article.contentHash, position: 0, savedPhrases: [], highlights: [], note: "", saved: false };
 }
 
 function storageKey(article: ArticleReaderProjection): string {
@@ -41,6 +43,30 @@ function isReaderState(value: unknown): value is ReaderState {
   if (!value || typeof value !== "object") return false;
   const state = value as Partial<ReaderState>;
   return typeof state.stableKey === "string" && typeof state.version === "number" && typeof state.contentHash === "string" && typeof state.position === "number" && Array.isArray(state.savedPhrases) && Array.isArray(state.highlights) && typeof state.note === "string";
+}
+
+function normalizeReaderState(value: ReaderState): ReaderState {
+  return { ...value, saved: typeof value.saved === "boolean" ? value.saved : false };
+}
+
+function remoteState(value: unknown): { contentHash: string; highlights: Highlight[]; note: string; position: number; saved: boolean; savedPhrases: SavedPhrase[]; status: "in_progress" | "completed" } | null {
+  if (!value || typeof value !== "object") return null;
+  const state = value as Record<string, unknown>;
+  const parsed = readingStatePatchSchema.safeParse({
+    contentHash: state.contentHash,
+    highlights: state.highlights,
+    note: state.note,
+    position: state.position,
+    saved: state.saved,
+    savedPhrases: state.savedPhrases,
+    status: state.status,
+  });
+  if (!parsed.success) return null;
+  return {
+    ...parsed.data,
+    highlights: parsed.data.highlights.map((item) => ({ ...item, id: `${item.position}:${item.text}` })),
+    savedPhrases: parsed.data.savedPhrases.map((item) => ({ ...item, id: `${item.position}:${item.text}` })),
+  };
 }
 
 function selectedText(): string {
@@ -84,6 +110,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [speakingPosition, setSpeakingPosition] = useState<number | "full" | null>(null);
   const [ttsError, setTtsError] = useState(false);
   const [online, setOnline] = useState(true);
+  const [serverSync, setServerSync] = useState<"pending" | "available" | "unauthenticated" | "unavailable" | "conflict">("pending");
   const [status, setStatus] = useState("");
   const [activeTransfer, setActiveTransfer] = useState<ArticleTransferType | null>(null);
   const [transferDraft, setTransferDraft] = useState("");
@@ -100,7 +127,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       if (raw) {
         const saved: unknown = JSON.parse(raw);
         if (isReaderState(saved) && saved.stableKey === article.stableKey && saved.contentHash === article.contentHash) {
-          queueMicrotask(() => setState({ ...saved, position: Math.min(saved.position, Math.max(article.segments.length - 1, 0)) }));
+          queueMicrotask(() => setState(normalizeReaderState({ ...saved, position: Math.min(saved.position, Math.max(article.segments.length - 1, 0)) })));
         } else if (isReaderState(saved) && saved.version !== article.version) {
           queueMicrotask(() => setStatus("文章版本已更新，旧标注仍保留在原版本；请从第一段或你熟悉的位置重新开始。"));
         }
@@ -112,6 +139,38 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       setOnline(navigator.onLine);
       setHydrated(true);
     });
+    let cancelled = false;
+    void fetch(`/api/v1/read/articles/${encodeURIComponent(article.id)}/state`, { credentials: "same-origin" })
+      .then(async (response) => {
+        if (response.status === 401) {
+          if (!cancelled) setServerSync("unauthenticated");
+          return;
+        }
+        if (!response.ok) throw new Error("state-unavailable");
+        const payload = (await response.json()) as { data?: { state?: unknown } };
+        const remote = remoteState(payload.data?.state);
+        if (!cancelled && remote) {
+          if (remote.contentHash !== article.contentHash) {
+            setStatus("服务端保留了旧文章版本的阅读标注；当前版本从本地位置继续，旧标注不会被覆盖。");
+            setServerSync("conflict");
+            return;
+          }
+          setState((previous) => ({
+            ...previous,
+            contentHash: remote.contentHash,
+            highlights: remote.highlights,
+            note: remote.note,
+            position: Math.min(remote.position, Math.max(article.segments.length - 1, 0)),
+            saved: remote.saved,
+            savedPhrases: remote.savedPhrases,
+          }));
+        }
+        if (!cancelled) setServerSync("available");
+      })
+      .catch(() => {
+        if (!cancelled) setServerSync("unavailable");
+      });
+    return () => { cancelled = true; };
   }, [article]);
 
   useEffect(() => {
@@ -122,6 +181,41 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       // In-memory progress remains usable when browser storage is unavailable.
     }
   }, [article, hydrated, state]);
+
+  useEffect(() => {
+    if (!hydrated || !online || serverSync !== "available") return;
+    const controller = new AbortController();
+    const statusValue = state.position >= article.segments.length - 1 ? "completed" : "in_progress";
+    const payload = readingStatePatchSchema.safeParse({
+      contentHash: article.contentHash,
+      highlights: state.highlights,
+      note: state.note,
+      position: state.position,
+      saved: state.saved,
+      savedPhrases: state.savedPhrases,
+      status: statusValue,
+    });
+    if (!payload.success) return () => controller.abort();
+    void fetch(`/api/v1/read/articles/${encodeURIComponent(article.id)}/state`, {
+      body: JSON.stringify(payload.data),
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+      signal: controller.signal,
+    }).then((response) => {
+      if (response.status === 409) {
+        setServerSync("conflict");
+        setStatus("文章版本已更新，当前标注保留在本机；重新打开最新版本后可以重新保存。");
+      } else if (response.status === 401) {
+        setServerSync("unauthenticated");
+      } else if (!response.ok) {
+        setServerSync("unavailable");
+      }
+    }).catch(() => {
+      if (!controller.signal.aborted) setServerSync("unavailable");
+    });
+    return () => controller.abort();
+  }, [article, hydrated, online, serverSync, state]);
 
   useEffect(() => {
     const onOnline = () => setOnline(true);
@@ -196,6 +290,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
         <div className="article-reader__topbar-title" title={article.title}>{article.title}</div>
         <div className="article-reader__topbar-actions">
           <span className="article-reader__counter">第 {state.position + 1} / {article.segments.length} 段</span>
+          <button className="secondary-action" type="button" onClick={() => setState((previous) => ({ ...previous, saved: !previous.saved }))}>{state.saved ? "已保存" : "保存文章"}</button>
           <button className="secondary-action article-reader__settings-toggle" type="button" aria-expanded={activeTool === "settings" && assistOpen} onClick={() => openTool("settings")}>阅读设置</button>
           <button className="article-reader__assist-toggle" type="button" aria-label={assistOpen ? "关闭辅助工具" : "打开辅助工具"} aria-expanded={assistOpen} onClick={() => setAssistOpen((open) => !open)}><span aria-hidden="true">☷</span></button>
         </div>

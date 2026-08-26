@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/reading-state-patch.schema.json",
+  "title": "Reading state patch v1",
+  "type": "object",
+  "required": ["contentHash", "highlights", "note", "position", "saved", "savedPhrases", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "highlights": { "type": "array", "maxItems": 500, "items": { "$ref": "reading-state-response.schema.json#/$defs/item" } },
+    "note": { "type": "string", "maxLength": 2000 },
+    "position": { "type": "integer", "minimum": 0 },
+    "saved": { "type": "boolean" },
+    "savedPhrases": { "type": "array", "maxItems": 500, "items": { "$ref": "reading-state-response.schema.json#/$defs/item" } },
+    "status": { "enum": ["in_progress", "completed"] }
+  }
+}

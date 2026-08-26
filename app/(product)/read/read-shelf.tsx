@@ -48,15 +48,39 @@ function readStoredState(stableKey: string): StoredReaderState | null {
 export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
   const [continueArticle, setContinueArticle] = useState<ArticleCardProjection | null>(null);
+  const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(savedOnly ? null : new Set());
+  const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const hasFilters = Boolean(search || topic || savedOnly);
 
   useEffect(() => {
-    const candidates = result.articles
+    if (!savedOnly) return;
+    let cancelled = false;
+    void fetch("/api/v1/read/saved", { credentials: "same-origin" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("saved-unavailable");
+        const payload = (await response.json()) as { data?: { articleIds?: unknown } };
+        const ids = payload.data?.articleIds;
+        if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) throw new Error("saved-invalid");
+        if (!cancelled) setSavedArticleIds(new Set(ids));
+      })
+      .catch(() => {
+        if (!cancelled) setSavedLoadFailed(true);
+      });
+    return () => { cancelled = true; };
+  }, [savedOnly]);
+
+  const visibleArticles = useMemo(
+    () => savedOnly ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles,
+    [result.articles, savedArticleIds, savedOnly],
+  );
+
+  useEffect(() => {
+    const candidates = visibleArticles
       .map((article) => ({ article, state: readStoredState(article.stableKey) }))
       .filter((entry): entry is { article: ArticleCardProjection; state: StoredReaderState } => Boolean(entry.state && entry.state.position > 0));
     candidates.sort((a, b) => (b.state.lastOpenedAt ?? "").localeCompare(a.state.lastOpenedAt ?? ""));
     queueMicrotask(() => setContinueArticle(candidates[0]?.article ?? null));
-  }, [result.articles]);
+  }, [visibleArticles]);
 
   const resultLabel = useMemo(() => {
     if (savedOnly) return "已保存";
@@ -117,16 +141,16 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
       </section>
 
       <section className="read-results" aria-labelledby="read-results-title">
-        <div className="section-heading"><div><p className="eyebrow eyebrow--accent">文章库</p><h2 id="read-results-title">{resultLabel}</h2></div><span>{result.articles.length} 篇</span></div>
-        {result.articles.length > 0 ? (
+        <div className="section-heading"><div><p className="eyebrow eyebrow--accent">文章库</p><h2 id="read-results-title">{resultLabel}</h2></div><span>{visibleArticles.length} 篇</span></div>
+        {visibleArticles.length > 0 ? (
           <div className="read-article-list">
-            {result.articles.map((article) => <ArticleListItem article={article} key={article.id} />)}
+            {visibleArticles.map((article) => <ArticleListItem article={article} key={article.id} />)}
           </div>
         ) : (
           <div className="surface-state read-empty" role="status">
             <span className="surface-state__marker" aria-hidden="true">文</span>
-            <h2>{savedOnly ? "还没有保存的文章" : hasFilters ? "没有找到匹配的文章" : "可公开阅读的文章正在准备中"}</h2>
-            <p>{savedOnly ? "打开一篇文章后，你可以在正文中保存短语或高亮。" : hasFilters ? "换一个主题或搜索词试试，或者先回到今天的练习。" : "每篇文章都会经过来源、版权和语言审核；准备好后会出现在这里。"}</p>
+            <h2>{savedOnly ? (savedLoadFailed ? "已保存文章暂时无法读取" : "还没有保存的文章") : hasFilters ? "没有找到匹配的文章" : "可公开阅读的文章正在准备中"}</h2>
+            <p>{savedOnly ? (savedLoadFailed ? "网络恢复或登录后可以重新读取你的个人保存。" : "打开一篇文章后，你可以保存文章、短语或高亮。") : hasFilters ? "换一个主题或搜索词试试，或者先回到今天的练习。" : "每篇文章都会经过来源、版权和语言审核；准备好后会出现在这里。"}</p>
             {hasFilters ? <Link className="text-link" href="/read">查看全部文章 <span aria-hidden="true">→</span></Link> : <Link className="text-link" href="/learn">回到今天 <span aria-hidden="true">→</span></Link>}
           </div>
         )}

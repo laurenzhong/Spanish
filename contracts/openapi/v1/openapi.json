@@ -38,6 +38,87 @@
         }
       }
     },
+    "/read/articles/{articleId}/state": {
+      "get": {
+        "summary": "Read the authenticated user's progress and annotations",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Reading state or null", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/reading-state-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Reading state unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      },
+      "patch": {
+        "summary": "Replace the authenticated user's reading state",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/reading-state-patch.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Reading state saved", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/reading-state-response.schema.json" } } } },
+          "400": { "description": "Malformed state", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Article version changed", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Reading state unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/read/saved": {
+      "get": {
+        "summary": "List the authenticated user's saved article IDs",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Saved article IDs", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-articles-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      },
+      "post": {
+        "summary": "Save or unsave a published article",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-article-patch.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Save state updated", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-article-response.schema.json" } } } },
+          "400": { "description": "Malformed save request", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "404": { "description": "Article unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      },
+      "delete": {
+        "summary": "Remove a saved article",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "articleId", "in": "query", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Save removed", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-article-response.schema.json" } } } },
+          "400": { "description": "Malformed save request", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/read/sources": {
+      "get": {
+        "summary": "List saved external source metadata",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Saved source metadata", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-sources-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      },
+      "post": {
+        "summary": "Save external source metadata without fetching content",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-source-input.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Source metadata saved", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-source-response.schema.json" } } } },
+          "400": { "description": "Invalid or unsupported URL", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      },
+      "delete": {
+        "summary": "Delete saved external source metadata",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "sourceId", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Source deleted", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/deleted-response.schema.json" } } } },
+          "400": { "description": "Invalid source ID", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/auth/session": {
       "get": {
         "summary": "Verify the current authenticated session",
