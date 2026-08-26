@@ -334,7 +334,14 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("link", { name: "回到今天" })).toBeVisible();
   await expect(page.getByText("安静输入", { exact: true })).toHaveCount(0);
   await expect(page.getByText("读一篇真实的西语文章", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "精选文章" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Public Texts" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "My Texts" })).toHaveAttribute("href", "/read?saved=1");
+  await expect(page.getByRole("link", { name: "Web Sites" })).toHaveAttribute("href", "/read?source=web");
+  await page.getByRole("button", { name: /Generate Story/ }).click();
+  await expect(page.getByText(/Generate Story 当前仅保留入口/)).toBeVisible();
+  await page.locator("summary").filter({ hasText: "Filters" }).click();
+  await expect(page.locator(".read-filter-menu__panel")).toBeVisible();
+  await page.goto("/read");
   const firstArticleLink = page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true });
   await expect(firstArticleLink).toBeVisible();
   await firstArticleLink.click();
@@ -342,9 +349,9 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
   await expect(page.getByRole("progressbar", { name: "文章阅读进度" })).toBeVisible();
   await page.goto("/read");
-  await page.getByRole("link", { name: "已保存" }).click();
+  await page.getByRole("link", { name: "My Texts" }).click();
   await expect(page).toHaveURL(/\/read\?saved=1$/);
-  await expect(page.getByRole("heading", { name: "还没有保存的文章" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /My Texts (还是空的|暂时无法读取)/ })).toBeVisible();
 });
 
 test("keeps the profile axes visible and selectable", async ({

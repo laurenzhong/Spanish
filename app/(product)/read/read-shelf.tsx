@@ -5,10 +5,17 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
 
+type ReadSort = "hot" | "newest" | "shortest";
+type ReadSource = "public" | "web";
+
 type ReadShelfProps = Readonly<{
   result: ArticleListResult;
   search: string;
   topic: string;
+  cefr: string;
+  minutes: string;
+  source: ReadSource;
+  sort: ReadSort;
   savedOnly: boolean;
 }>;
 
@@ -52,13 +59,22 @@ function readStoredState(stableKey: string): StoredReaderState | null {
   }
 }
 
-export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) {
+function withParams(params: Readonly<Record<string, string | undefined>>): string {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) query.set(key, value);
+  });
+  const serialized = query.toString();
+  return serialized ? `/read?${serialized}` : "/read";
+}
+
+export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, savedOnly }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
-  const [continueArticle, setContinueArticle] = useState<ArticleCardProjection | null>(null);
   const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(savedOnly ? null : new Set());
   const [readerStates, setReaderStates] = useState<Readonly<Record<string, StoredReaderState>>>({});
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
-  const hasFilters = Boolean(search || topic || savedOnly);
+  const [toolNotice, setToolNotice] = useState<string | null>(null);
+  const hasFilters = Boolean(search || topic || cefr || minutes);
 
   useEffect(() => {
     if (!savedOnly) return;
@@ -77,10 +93,22 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
     return () => { cancelled = true; };
   }, [savedOnly]);
 
-  const visibleArticles = useMemo(
-    () => savedOnly ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles,
-    [result.articles, savedArticleIds, savedOnly],
-  );
+  const visibleArticles = useMemo(() => {
+    if (source === "web") return [];
+    const filtered = result.articles.filter((article) => {
+      if (savedOnly && !savedArticleIds?.has(article.id)) return false;
+      if (cefr && article.cefr !== cefr) return false;
+      if (minutes === "short" && article.estimatedReadingMinutes > 5) return false;
+      if (minutes === "medium" && (article.estimatedReadingMinutes < 6 || article.estimatedReadingMinutes > 10)) return false;
+      if (minutes === "long" && article.estimatedReadingMinutes < 11) return false;
+      return true;
+    });
+    return [...filtered].sort((left, right) => {
+      if (sort === "shortest") return left.estimatedReadingMinutes - right.estimatedReadingMinutes;
+      if (sort === "newest") return (right.publicationDate ?? "").localeCompare(left.publicationDate ?? "");
+      return 0;
+    });
+  }, [cefr, minutes, result.articles, savedArticleIds, savedOnly, sort, source]);
 
   useEffect(() => {
     const nextStates = Object.fromEntries(
@@ -92,75 +120,71 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
     queueMicrotask(() => setReaderStates(nextStates));
   }, [visibleArticles]);
 
-  useEffect(() => {
-    const candidates = visibleArticles
-      .map((article) => ({ article, state: readStoredState(article.stableKey) }))
-      .filter((entry): entry is { article: ArticleCardProjection; state: StoredReaderState } => Boolean(entry.state && entry.state.position > 0));
-    candidates.sort((a, b) => (b.state.lastOpenedAt ?? "").localeCompare(a.state.lastOpenedAt ?? ""));
-    queueMicrotask(() => setContinueArticle(candidates[0]?.article ?? null));
-  }, [visibleArticles]);
-
-  const resultLabel = useMemo(() => {
-    if (savedOnly) return "已保存";
-    if (search || topic) return "匹配文章";
-    return "精选文章";
-  }, [savedOnly, search, topic]);
+  const sourceLabel = source === "web" ? "Web Sites" : savedOnly ? "My Texts" : "Public Texts";
+  const emptyHeading = source === "web"
+    ? "Web Sites 暂未开放"
+    : savedOnly
+      ? savedLoadFailed ? "My Texts 暂时无法读取" : "My Texts 还是空的"
+      : hasFilters ? "没有找到匹配的文章" : "可公开阅读的文章正在准备中";
+  const emptyDescription = source === "web"
+    ? "外部网站保存和正文解析需要单独的来源许可，当前 Alpha 先保留入口。"
+    : savedOnly
+      ? savedLoadFailed ? "网络恢复或登录后可以重新读取你的个人保存。" : "打开一篇文章后，点击保存文章即可在这里继续阅读。"
+      : hasFilters ? "换一个筛选条件试试，或者回到 Public Texts。" : "每篇文章都会经过来源、版权和语言审核；准备好后会出现在这里。";
 
   return (
     <div className="read-library">
-      {continueArticle ? (
-        <section className="read-continue read-continue--active" aria-labelledby="read-continue-title">
-          <div className="read-continue__copy">
-            <p className="eyebrow eyebrow--accent">继续阅读</p>
-            <h2 id="read-continue-title">{continueArticle.title}</h2>
-            <p>{continueArticle.sourceName} · {continueArticle.estimatedReadingMinutes} 分钟 · 从上次停下的地方继续</p>
-          </div>
-          <Link className="primary-link" href={`/read/article/${encodeURIComponent(continueArticle.id)}`}>继续阅读 <span aria-hidden="true">→</span></Link>
-        </section>
-      ) : null}
-
-      <nav className="read-library__subnav" aria-label="阅读内容来源">
-        <Link className={!savedOnly ? "is-selected" : ""} href={topic ? `/read?topic=${encodeURIComponent(topic)}` : "/read"}>精选文章</Link>
-        <Link className={savedOnly ? "is-selected" : ""} href="/read?saved=1">已保存</Link>
+      <nav className="read-library__source-tabs" aria-label="Reading sources">
+        <Link className={source === "public" && !savedOnly ? "is-selected" : ""} href={withParams({ search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>Public Texts</Link>
+        <Link className={savedOnly ? "is-selected" : ""} href={withParams({ saved: "1", search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>My Texts</Link>
+        <Link className={source === "web" ? "is-selected" : ""} href={withParams({ source: "web", search, sort: sort !== "hot" ? sort : undefined })}>Web Sites</Link>
       </nav>
 
-      <section className="read-library__toolbar" aria-label="文章筛选">
+      <section className="read-library__toolbar" aria-label="Reading tools">
         <form className="read-search" method="get">
-          <label htmlFor="read-search-input">搜索文章</label>
+          <label htmlFor="read-search-input">Search by title or author</label>
           <div className="read-search__field">
-            <input id="read-search-input" name="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="标题、主题或来源" />
-            {topic ? <input type="hidden" name="topic" value={topic} /> : null}
+            <input id="read-search-input" name="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by title or author" />
+            {source === "web" ? <input type="hidden" name="source" value="web" /> : null}
             {savedOnly ? <input type="hidden" name="saved" value="1" /> : null}
-            <button type="submit" aria-label="搜索文章"><span aria-hidden="true">⌕</span></button>
+            {topic ? <input type="hidden" name="topic" value={topic} /> : null}
+            {cefr ? <input type="hidden" name="cefr" value={cefr} /> : null}
+            {minutes ? <input type="hidden" name="minutes" value={minutes} /> : null}
+            {sort !== "hot" ? <input type="hidden" name="sort" value={sort} /> : null}
+            <button type="submit" aria-label="Search"><span aria-hidden="true">⌕</span></button>
           </div>
         </form>
         <div className="read-library__toolbar-actions">
+          <button className="read-tool-button" type="button" onClick={() => setToolNotice("Generate Story 当前仅保留入口；生成内容需要经过内容审核后才会进入文章库。")}>✣ <span>Generate Story</span></button>
+          <button className="read-tool-button" type="button" onClick={() => setToolNotice("Upload Text or Audio 当前仅保留入口；上传解析和版权检查将在后续 Alpha 增量开放。")}>↑ <span>Upload Text or Audio</span></button>
           <label className="read-sort">
-            <span>排序</span>
-            <select aria-label="文章排序" defaultValue="recommended">
-              <option value="recommended">推荐</option>
-              <option value="newest">最新</option>
-              <option value="shortest">最短</option>
+            <span>Sort</span>
+            <select aria-label="Sort articles" value={sort} onChange={(event) => { window.location.href = withParams({ source: source === "web" ? "web" : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: event.target.value }); }}>
+              <option value="hot">Hot</option>
+              <option value="newest">Newest</option>
+              <option value="shortest">Shortest</option>
             </select>
           </label>
+          <details className="read-filter-menu">
+            <summary>Filters <span aria-hidden="true">⌄</span></summary>
+            <form method="get" className="read-filter-menu__panel">
+              {source === "web" ? <input type="hidden" name="source" value="web" /> : null}
+              {savedOnly ? <input type="hidden" name="saved" value="1" /> : null}
+              {search ? <input type="hidden" name="search" value={search} /> : null}
+              {sort !== "hot" ? <input type="hidden" name="sort" value={sort} /> : null}
+              <label><span>Topic</span><select name="topic" defaultValue={topic}><option value="">All topics</option>{result.topics.map((value) => <option value={value} key={value}>{topicLabel(value)}</option>)}</select></label>
+              <label><span>Level</span><select name="cefr" defaultValue={cefr}><option value="">All levels</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+              <label><span>Length</span><select name="minutes" defaultValue={minutes}><option value="">Any length</option><option value="short">Up to 5 min</option><option value="medium">6–10 min</option><option value="long">11+ min</option></select></label>
+              <button className="secondary-action" type="submit">Apply filters</button>
+            </form>
+          </details>
         </div>
       </section>
 
-      <section className="read-topics" aria-labelledby="read-topics-title">
-        <div className="section-heading">
-          <div><p className="eyebrow eyebrow--accent">按主题浏览</p><h2 id="read-topics-title">找到你现在关心的方向</h2></div>
-          <span>{result.topics.length} 个主题</span>
-        </div>
-        <div className="read-topic-list">
-          <Link className={!topic ? "is-selected" : ""} href={savedOnly ? "/read?saved=1" : "/read"}>全部</Link>
-          {result.topics.map((value) => (
-            <Link className={topic === value ? "is-selected" : ""} href={`/read?topic=${encodeURIComponent(value)}${savedOnly ? "&saved=1" : ""}`} key={value}>{topicLabel(value)}</Link>
-          ))}
-        </div>
-      </section>
+      {toolNotice ? <aside className="read-library__notice" role="status">{toolNotice}<button type="button" onClick={() => setToolNotice(null)} aria-label="Dismiss notice">×</button></aside> : null}
 
       <section className="read-results" aria-labelledby="read-results-title">
-        <div className="section-heading"><div><p className="eyebrow eyebrow--accent">文章库</p><h2 id="read-results-title">{resultLabel}</h2></div><span>{visibleArticles.length} 篇</span></div>
+        <div className="section-heading"><div><p className="eyebrow eyebrow--accent">Reading library</p><h2 id="read-results-title">{sourceLabel}</h2></div><span>{source === "web" || savedArticleIds === null ? "" : `${visibleArticles.length} 篇`}</span></div>
         {visibleArticles.length > 0 ? (
           <div className="read-article-list">
             {visibleArticles.map((article) => <ArticleListItem article={article} readerState={readerStates[article.stableKey]} key={article.id} />)}
@@ -168,12 +192,12 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
         ) : (
           <div className="surface-state read-empty" role="status">
             <span className="surface-state__marker" aria-hidden="true">文</span>
-            <h2>{savedOnly ? (savedLoadFailed ? "已保存文章暂时无法读取" : "还没有保存的文章") : hasFilters ? "没有找到匹配的文章" : "可公开阅读的文章正在准备中"}</h2>
-            <p>{savedOnly ? (savedLoadFailed ? "网络恢复或登录后可以重新读取你的个人保存。" : "打开一篇文章后，你可以保存文章、短语或高亮。") : hasFilters ? "换一个主题或搜索词试试，或者先回到今天的练习。" : "每篇文章都会经过来源、版权和语言审核；准备好后会出现在这里。"}</p>
-            {hasFilters ? <Link className="text-link" href="/read">查看全部文章 <span aria-hidden="true">→</span></Link> : <Link className="text-link" href="/learn">回到今天 <span aria-hidden="true">→</span></Link>}
+            <h2>{emptyHeading}</h2>
+            <p>{emptyDescription}</p>
+            {source === "web" ? <button className="text-link" type="button" onClick={() => setToolNotice("请先在文章阅读器中使用真实的来源保存入口。")}>了解来源保存</button> : hasFilters ? <Link className="text-link" href="/read">View Public Texts <span aria-hidden="true">→</span></Link> : null}
           </div>
         )}
-        {result.hasMore && result.nextCursor ? <Link className="secondary-action read-more" href={`/read?cursor=${result.nextCursor}`}>加载更多文章</Link> : null}
+        {result.hasMore && result.nextCursor && source === "public" ? <Link className="secondary-action read-more" href={withParams({ search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined, cursor: result.nextCursor })}>Load more</Link> : null}
       </section>
     </div>
   );
