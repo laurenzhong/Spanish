@@ -86,8 +86,8 @@ type RawArticle = {
   assets: readonly { assetType: "audio" | "chinese_summary" | "word_help" | "image"; available: boolean }[];
   oralTransferType: ArticleOralTransferType;
   status: "draft" | "review" | "approved" | "published" | "archived";
-  contentHash: string;
-  segments: readonly { position: number; text: string }[];
+  contentHash?: string;
+  segments?: readonly { position: number; text: string }[];
 };
 
 export function projectPublicArticle(raw: RawArticle): ArticleCardProjection | null {
@@ -122,7 +122,7 @@ export function projectPublicArticle(raw: RawArticle): ArticleCardProjection | n
 
 export function projectArticleReader(raw: RawArticle): ArticleReaderProjection | null {
   const card = projectPublicArticle(raw);
-  if (!card) return null;
+  if (!card || !raw.contentHash || !raw.segments?.length) return null;
   return {
     ...card,
     contentHash: raw.contentHash,
