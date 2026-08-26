@@ -46,7 +46,8 @@ describe("normalized article reader", () => {
     render(<ArticleReader article={result.article} />);
     expect(screen.getByRole("heading", { name: result.article.title })).toBeInTheDocument();
     expect(screen.queryByRole("progressbar", { name: "文章阅读进度" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "阅读设置" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /返回文章库/ })).toHaveAttribute("href", "/read");
+    expect(screen.getByRole("tab", { name: "Dictionary" })).toBeInTheDocument();
     expect(screen.getAllByText("阅读辅助").length).toBeGreaterThan(0);
     expect(screen.queryByText(result.article.cefr)).not.toBeInTheDocument();
     expect(screen.queryByText(result.article.estimatedReadingMinutes + " 分钟")).not.toBeInTheDocument();
