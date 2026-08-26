@@ -2,50 +2,42 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useSyncExternalStore } from "react";
+import { AccountMenu } from "./account-menu";
 
-const navigationItems = [
-  { href: "/learn", label: "学习", icon: "learn" },
-  { href: "/explore", label: "探索", icon: "explore" },
-  { href: "/chat", label: "对话", icon: "chat" },
-  { href: "/me", label: "我的", icon: "profile" },
+const navigationGroups = [
+  {
+    label: "开始",
+    items: [
+      { href: "/learn", label: "学习", icon: "learn" },
+      { href: "/read", label: "阅读", icon: "read" },
+    ],
+  },
+  {
+    label: "发现",
+    items: [
+      { href: "/explore", label: "探索", icon: "explore" },
+      { href: "/chat", label: "对话", icon: "chat" },
+    ],
+  },
+  {
+    label: "账户",
+    items: [{ href: "/me", label: "我的", icon: "profile" }],
+  },
 ] as const;
 
-type NavigationIconProps = Readonly<{
-  name: (typeof navigationItems)[number]["icon"];
-}>;
+type NavigationIconName = "learn" | "read" | "explore" | "chat" | "profile";
 
-type Theme = "light" | "dark";
-
-function getPreferredTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-
-  const storedTheme = window.localStorage.getItem("spanish-theme");
-  if (storedTheme === "dark" || storedTheme === "light") {
-    return storedTheme;
+function NavigationIcon({ name }: Readonly<{ name: NavigationIconName }>) {
+  if (name === "learn") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M5 17.5 3.8 20.4l3.4-1.1c1.4.7 3 1.1 4.8 1.1 4.8 0 8.2-3.2 8.2-7.2S16.8 6 12 6 3.8 9.2 3.8 13.2c0 1.6.4 3 1.2 4.3Z" />
+        <path d="M8.2 13.2h.01M12 13.2h.01M15.8 13.2h.01" />
+      </svg>
+    );
   }
 
-  return typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-}
-
-function subscribeToTheme(onStoreChange: () => void): () => void {
-  window.addEventListener("storage", onStoreChange);
-  window.addEventListener("spanish-theme-change", onStoreChange);
-  return () => {
-    window.removeEventListener("storage", onStoreChange);
-    window.removeEventListener("spanish-theme-change", onStoreChange);
-  };
-}
-
-function getServerTheme(): Theme {
-  return "light";
-}
-
-function NavigationIcon({ name }: NavigationIconProps) {
-  if (name === "learn") {
+  if (name === "read") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
         <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Z" />
@@ -66,8 +58,9 @@ function NavigationIcon({ name }: NavigationIconProps) {
   if (name === "chat") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="M5 17.5 3.5 21l4.2-1.4c1.3.6 2.7.9 4.3.9 5 0 9-3.7 9-8.3S17 4 12 4s-9 3.7-9 8.2c0 2 .7 3.8 2 5.3Z" />
-        <path d="M8 12h.01M12 12h.01M16 12h.01" />
+        <path d="M4.5 15.6 3.6 19l3.3-1.1c1.2.5 2.5.8 3.9.8 4.4 0 7.7-2.9 7.7-6.5S15.2 5.7 10.8 5.7 3 8.6 3 12.2c0 1.3.5 2.5 1.5 3.4Z" />
+        <path d="M13.4 18.2c.9 1 2.3 1.6 4 1.6 1.1 0 2.1-.2 3-.7l1.8.6-.7-2.1c.6-.7 1-1.5 1-2.4 0-1.8-1.3-3.4-3.2-4.1" />
+        <path d="M8.2 12.3h.01M10.8 12.3h.01M13.4 12.3h.01" />
       </svg>
     );
   }
@@ -82,72 +75,43 @@ function NavigationIcon({ name }: NavigationIconProps) {
 
 export function BottomNavigation() {
   const pathname = usePathname();
-  const theme = useSyncExternalStore(
-    subscribeToTheme,
-    getPreferredTheme,
-    getServerTheme,
-  );
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
-
-  function toggleTheme() {
-    const nextTheme = theme === "dark" ? "light" : "dark";
-    window.localStorage.setItem("spanish-theme", nextTheme);
-    document.documentElement.dataset.theme = nextTheme;
-    window.dispatchEvent(new Event("spanish-theme-change"));
-  }
 
   return (
     <nav className="primary-navigation" aria-label="主要导航">
-      <div className="brand-lockup" aria-hidden="true">
-        <span>S</span>
-        <div>
-          <strong>Sueño</strong>
-          <small>说出来，才真正属于你</small>
-        </div>
-      </div>
-      <div className="navigation-items">
-        {navigationItems.map((item) => {
-          const isCurrent =
-            pathname === item.href || pathname.startsWith(`${item.href}/`);
+      <Link className="brand-lockup" href="/" aria-label="Sueño 首页">
+        <span className="brand-lockup__wordmark">Sue<span>ñ</span>o</span>
+        <small>把话说出来</small>
+      </Link>
+      <div className="navigation-groups">
+        {navigationGroups.map((group) => (
+          <div className="navigation-group" key={group.label}>
+            <span className="navigation-group__label">{group.label}</span>
+            <div className="navigation-items">
+              {group.items.map((item) => {
+                const isCurrent =
+                  pathname === item.href || pathname.startsWith(`${item.href}/`);
 
-          return (
-            <Link
-              aria-current={isCurrent ? "page" : undefined}
-              className="navigation-link"
-              href={item.href}
-              key={item.href}
-            >
-              <span className="navigation-icon">
-                <NavigationIcon name={item.icon} />
-              </span>
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+                return (
+                  <Link
+                    aria-current={isCurrent ? "page" : undefined}
+                    className="navigation-link"
+                    href={item.href}
+                    key={item.href}
+                  >
+                    <span className="navigation-icon">
+                      <NavigationIcon name={item.icon} />
+                    </span>
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
-      <button
-        className="navigation-utility"
-        onClick={toggleTheme}
-        type="button"
-        aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
-        title={theme === "dark" ? "浅色模式" : "深色模式"}
-      >
-        <span className="navigation-utility__icon" aria-hidden="true">
-          {theme === "dark" ? (
-            <svg viewBox="0 0 24 24">
-              <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="3.5" />
-              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-            </svg>
-          )}
-        </span>
-      </button>
+      <div className="navigation-account">
+        <AccountMenu />
+      </div>
     </nav>
   );
 }
