@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import contentBundle from "@/content/bundles/alpha-core-v1.json";
+import {
+  createBrowserTrainingCheckpointStore,
+  restoreTrainingCheckpoint,
+} from "@/src/modules/training/checkpoints";
+
 const focusContent = {
   start: { eyebrow: "开始交流", title: "问候后自然继续交流", reason: "从认识新朋友开始，练习接着分享共同点，让对话自然延续。" },
   needs: { eyebrow: "表达需要", title: "把需要说得清楚又自然", reason: "练习提出请求、确认信息和解决生活问题时最常用的表达。" },
@@ -11,13 +17,28 @@ const focusContent = {
 
 type LearnFocus = keyof typeof focusContent | "silent";
 
+type LearnProgress = Readonly<{
+  expressionIndex: number;
+  totalExpressions: number;
+  status: string;
+}>;
+
 function readFocus(value: string | string[] | undefined): LearnFocus | null {
   const focus = Array.isArray(value) ? value[0] : value;
   return focus === "start" || focus === "needs" || focus === "maintain" || focus === "silent" ? focus : null;
 }
 
-export function LearnPageContent() {
+const practiceExpressions = contentBundle.expressions.slice(0, 4);
+
+function focusForGoal(goalKey: string | null): Exclude<LearnFocus, "silent"> {
+  if (goalKey?.includes("need")) return "needs";
+  if (goalKey?.includes("relationship")) return "maintain";
+  return "start";
+}
+
+export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: string }>) {
   const [focus, setFocus] = useState<LearnFocus | null>(null);
+  const [progress, setProgress] = useState<LearnProgress | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -26,8 +47,43 @@ export function LearnPageContent() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    const store = createBrowserTrainingCheckpointStore(userId);
+    let active = true;
+    void restoreTrainingCheckpoint(store, {
+      contentBundleKey: "alpha.core",
+      contentBundleVersion: 1,
+    }).then((checkpoint) => {
+      if (!active || !checkpoint) return;
+      const expressionIndex = Math.max(
+        0,
+        practiceExpressions.findIndex((expression) =>
+          checkpoint.contentKey?.startsWith(expression.stableKey),
+        ),
+      );
+      setProgress({
+        expressionIndex,
+        status: checkpoint.status,
+        totalExpressions: practiceExpressions.length,
+      });
+      setFocus((current) => current ?? focusForGoal(checkpoint.goalKey));
+    });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
   const selectedContent = focus && focus !== "silent" ? focusContent[focus] : focusContent.start;
   const isSilent = focus === "silent";
+  const hasProgress = progress !== null;
+  const primaryLabel = hasProgress ? "继续学习" : "开始第一次练习";
+  const title = hasProgress
+    ? selectedContent.title
+    : isSilent
+      ? "先用安静模式理解真实表达"
+      : focus && focus !== "start"
+        ? selectedContent.title
+        : "从一句真实表达开始";
 
   return (
     <div className="page-stack learn-page">
@@ -36,25 +92,24 @@ export function LearnPageContent() {
         <Link className="icon-button" href="/me" aria-label="打开我的进步"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6" /></svg></Link>
       </header>
 
-      <section className="focus-card" aria-labelledby="next-goal-title" data-focus={focus ?? "default"}>
+      <section className="focus-card" aria-labelledby="next-goal-title" data-focus={focus ?? "default"} data-has-progress={hasProgress}>
         <div className="focus-card__halo" aria-hidden="true" />
         <div className="focus-card__main">
-          <p className="eyebrow eyebrow--accent">{isSilent ? "安静学习" : selectedContent.eyebrow}</p>
-          <h1 id="next-goal-title">{isSilent ? "先用安静模式理解真实表达" : selectedContent.title}</h1>
-          <p className="focus-card__reason">{isSilent ? "阅读、听力和打字内容正在整理中；完成后仍需通过一次口语复核，才会进入能力画像。" : selectedContent.reason}</p>
-          {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" href="/learn/practice"><span>继续学习</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
+          <p className="eyebrow eyebrow--accent">{isSilent ? "安静学习" : hasProgress ? "继续上次练习" : selectedContent.eyebrow}</p>
+          <h1 id="next-goal-title">{title}</h1>
+          <p className="focus-card__reason">{isSilent ? "阅读、听力和打字内容正在整理中；完成后仍需通过一次口语复核，才会进入能力画像。" : hasProgress ? `${selectedContent.reason} 从第 ${(progress?.expressionIndex ?? 0) + 1} 句接着说。` : selectedContent.reason}</p>
+          {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" href="/learn/practice"><span>{primaryLabel}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
         </div>
-        <div className="focus-card__side" aria-label="当前学习进度">
-          <div className="focus-card__side-head"><span>这组表达</span><strong>1 / 4</strong></div>
-          <div className="progress-track" role="progressbar" aria-label="这组表达进度" aria-valuemin={0} aria-valuemax={4} aria-valuenow={1}><span /></div>
-          <p>每句完成后都会保存，下一次打开就从这里继续。</p>
-        </div>
+        {hasProgress ? <div className="focus-card__side" aria-label="当前学习进度"><div className="focus-card__side-head"><span>这组表达</span><strong>{(progress?.expressionIndex ?? 0) + 1} / {progress?.totalExpressions}</strong></div><div className="progress-track" role="progressbar" aria-label="这组表达进度" aria-valuemin={0} aria-valuemax={progress?.totalExpressions} aria-valuenow={(progress?.expressionIndex ?? 0) + 1}><span style={{ width: `${(((progress?.expressionIndex ?? 0) + 1) / (progress?.totalExpressions || 1)) * 100}%` }} /></div><p>每句完成后都会保存，下一次打开就从这里继续。</p></div> : null}
       </section>
 
-      <section className="evidence-card" aria-labelledby="recent-ability-title">
-        <div className="evidence-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg></div>
-        <div><p className="eyebrow eyebrow--accent">最近获得的能力</p><h2 id="recent-ability-title">可以独立完成简单自我介绍</h2><p>平均开口反应时间从 5.4 秒降到 3.8 秒。</p></div>
+      <section className="learn-support" aria-label="继续探索">
+        <article className="learn-support__card learn-support__card--empty"><span className="eyebrow">阅读库</span><strong>读一篇文章</strong><small>文章库正在准备中，稍后会在这里出现。</small></article>
+        <Link className="learn-support__card" href="/chat/lucia"><span className="eyebrow">关系练习</span><strong>和 Lucía 聊几句</strong><small>从最近话题自然继续</small></Link>
+        <Link className="learn-support__card" href="/explore"><span className="eyebrow">沟通目标</span><strong>探索新的表达</strong><small>找到下一种说法</small></Link>
       </section>
+
+      {!hasProgress ? <section className="learn-empty-progress" aria-label="学习进度为空"><strong>完成第一次练习后，这里会显示你的真实进步。</strong><span>现在没有可展示的口语证据或稳定断点。</span></section> : null}
 
       <aside className="gentle-note" aria-label="学习建议"><span className="gentle-note__mark" aria-hidden="true">i</span><p>每完成一句都会保存进度，随时停下也不会失去本次练习。</p></aside>
     </div>

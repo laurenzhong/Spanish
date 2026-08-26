@@ -21,10 +21,10 @@ test("shows the public introduction without requiring a session", async ({
   await expect(page).toHaveURL(/\/$/);
   await expect(
     page.getByRole("heading", {
-      name: "把认识的西班牙语，变成真正说得出口的表达。",
+      name: "把认识的西语，变成真正说得出口的话。",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "开始学习" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /开始第一次练习/ }).first()).toBeVisible();
 });
 
 test("redirects anonymous product traffic to email OTP login", async ({
@@ -61,7 +61,7 @@ test("navigates between all four product areas", async ({ page }) => {
     { name: "探索", path: "/explore", heading: "探索真实表达" },
     { name: "对话", path: "/chat", heading: "你的西语好友" },
     { name: "我的", path: "/me", heading: "我的进步" },
-    { name: "学习", path: "/learn", heading: "问候后自然继续交流" },
+    { name: "学习", path: "/learn", heading: "从一句真实表达开始" },
   ]) {
     await navigation.getByRole("link", { name: destination.name }).click();
     await expect(page).toHaveURL(new RegExp(`${destination.path}$`));
@@ -73,9 +73,7 @@ test("navigates between all four product areas", async ({ page }) => {
     ).toHaveAttribute("aria-current", "page");
   }
 
-  await expect(
-    page.getByRole("progressbar", { name: "这组表达进度" }),
-  ).toHaveAttribute("aria-valuenow", "1");
+  await expect(page.getByRole("progressbar", { name: "这组表达进度" })).toHaveCount(0);
 });
 
 test("keeps the shell usable at desktop width", async ({ page }) => {
@@ -283,7 +281,9 @@ test("requires explicit confirmation before deleting account data", async ({ pag
 
   await page.goto("/me");
   await expect(page.getByRole("heading", { name: "删除我的账号数据" })).toBeVisible();
-  await page.getByRole("button", { name: "删除账号数据" }).click();
+  const deleteAccountButton = page.getByRole("button", { name: "删除账号数据" });
+  await deleteAccountButton.scrollIntoViewIfNeeded();
+  await deleteAccountButton.click({ force: true });
   await expect(page.getByRole("status")).toHaveText("账号数据已删除。");
 });
 

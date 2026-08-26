@@ -17,9 +17,9 @@ test("runs the phone learning path with hints, silent output, feedback, and base
   await authenticate(page);
   await usePhoneViewport(page);
   await page.goto("/learn");
-  await expect(page.getByRole("progressbar", { name: "这组表达进度" })).toHaveAttribute("aria-valuenow", "1");
+  await expect(page.getByRole("progressbar", { name: "这组表达进度" })).toHaveCount(0);
 
-  await page.getByRole("link", { name: "继续学习" }).click();
+  await page.getByRole("link", { name: "开始第一次练习" }).click();
   const loop = page.getByTestId("training-loop");
   await expect(loop).toHaveAttribute("data-hydrated", "true");
   await expect(loop).toHaveAttribute("data-status", "awaiting-output");
