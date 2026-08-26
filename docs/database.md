@@ -24,12 +24,14 @@ ALPHA-003 建立 Supabase PostgreSQL / Drizzle 基础；ALPHA-004 在第二版�
 
 - `src/shared/db/client.ts`：只供服务端使用的 PostgreSQL/Drizzle 连接入口。
 - `src/shared/db/schema/users.ts`：用户资料与偏好。
-- `src/shared/db/schema/content.ts`：沟通能力、表达、场景、内容包和审核。
+- `src/shared/db/schema/content.ts`：沟通能力、表达、场景、内容包、阅读文章和审核。
 - `src/shared/db/schema/training.ts`：训练会话、尝试、会话断点和有效活动事件。
 - `src/shared/db/schema/evidence.ts`：只追加证据与可重算画像快照。
 - `src/shared/db/schema/characters.ts`：人物设定、关系、对话、消息与记忆权限。
 - `src/shared/db/schema/infrastructure.ts`：音频、供应商调用、幂等键和隐私 Storage 清理任务。
 - `drizzle/`：版本化 SQL 迁移、快照和迁移日志。
+
+READ-001 新增 `articles`、`article_versions`、`article_sources`、`article_segments` 和 `article_assets` 表族。文章版本以 `(article_id, version)` 唯一，保存规范化内容哈希、版权来源、段落和资产声明；公开 RLS 只允许已发布且在 `content_reviews` 中获批的文章版本及其从属行。文章关联的表达、目标和标签作为稳定 key 快照保存，阅读数据不写入 `evidence_events`、`user_skill_states` 或 `user_scene_states`。
 
 ALPHA-005 新增 `content_bundle_imports` 作为服务端导入登记表，保存 bundle 稳定 ID、版本、规范化内容哈希和实体数量。该表不向 `anon` 或 `authenticated` 开放。`expression_tags.scoring` 区分能力权值与元数据标签；`content_sources` 增加版权状态和内部审核说明。
 

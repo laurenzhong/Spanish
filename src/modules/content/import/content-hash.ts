@@ -19,3 +19,11 @@ export function hashContentBundle(value: unknown): string {
     .update(JSON.stringify(canonicalize(value)))
     .digest("hex");
 }
+
+export function hashArticleContent(value: unknown): string {
+  const article = structuredClone(value) as Record<string, unknown>;
+  delete article.contentHash;
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(article)))
+    .digest("hex");
+}

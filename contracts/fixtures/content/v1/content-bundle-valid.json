@@ -216,6 +216,7 @@
       ]
     }
   ],
+  "articles": [],
   "reviews": [
     {
       "entityType": "communication_domain",

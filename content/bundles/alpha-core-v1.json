@@ -185,6 +185,48 @@
     }
   ],
   "characters": [],
+  "articles": [
+    {
+      "stableKey": "article.sueno-first-cafe",
+      "version": 1,
+      "locale": "es-ES",
+      "title": "Una conversación que empieza con un café",
+      "summary": "Una breve historia sobre conocer a alguien nuevo y mantener una conversación sencilla.",
+      "source": {
+        "sourceType": "original",
+        "sourceName": "Sueño Editorial",
+        "author": "Sueño Content Team",
+        "license": "original",
+        "copyrightStatus": "cleared",
+        "reviewNotes": "Texto original creado para el alpha personal de Sueño."
+      },
+      "curatedAt": "2026-08-26T08:00:00.000Z",
+      "contentHash": "ad3e609fc298a8e89d84c889a7046313273c33d019444ebc93e29c7fed48d6f6",
+      "cefr": "A2",
+      "topics": ["topic.daily-life", "topic.relationships"],
+      "region": "es-ES",
+      "register": "neutral",
+      "format": "story",
+      "estimatedReadingMinutes": 3,
+      "assets": [
+        { "assetType": "audio", "available": false, "copyrightStatus": "cleared" },
+        { "assetType": "chinese_summary", "available": true, "license": "original", "copyrightStatus": "cleared" },
+        { "assetType": "word_help", "available": true, "license": "original", "copyrightStatus": "cleared" },
+        { "assetType": "image", "available": false, "copyrightStatus": "cleared" }
+      ],
+      "relatedExpressionKeys": ["start.como-va-todo", "relationship.me-gusta-viajar", "maintain.que-le-gusta-hacer", "end.sigamos-en-contacto"],
+      "relatedGoalKeys": ["communication.start.check-in", "communication.relationship.share-interest", "communication.maintain.ask-interest"],
+      "relatedTagKeys": ["task.start", "task.maintain", "task.end"],
+      "oralTransferType": "personal_transfer",
+      "status": "draft",
+      "changeReason": "Initial article fixture for READ-001.",
+      "segments": [
+        { "position": 0, "text": "Después de clase, Marta entra en una cafetería del campus. Ve a una compañera nueva junto a la ventana y se acerca con una sonrisa." },
+        { "position": 1, "text": "Hablan un momento sobre el día y descubren que las dos tienen otra clase por la tarde. Marta cuenta que le gusta viajar y probar la comida local." },
+        { "position": 2, "text": "Antes de volver a clase, Marta pregunta qué le gusta hacer a su compañera en su tiempo libre. Se despiden con calma y quieren seguir en contacto." }
+      ]
+    }
+  ],
   "reviews": [
     { "entityType": "expression", "stableKey": "start.como-va-todo", "version": 1, "locale": "es-ES", "status": "pending" },
     { "entityType": "expression", "stableKey": "relationship.como-se-llama", "version": 1, "locale": "es-ES", "status": "pending" },

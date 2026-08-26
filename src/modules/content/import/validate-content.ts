@@ -5,6 +5,7 @@ import {
   type ContentBundle,
   type ReviewEntityType,
 } from "../schemas";
+import { hashArticleContent } from "./content-hash";
 
 const cefrOrder = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 const versionedReviewTypes = new Set<ReviewEntityType>([
@@ -12,6 +13,7 @@ const versionedReviewTypes = new Set<ReviewEntityType>([
   "scenario",
   "content_pack",
   "character",
+  "article",
 ]);
 
 function versionedKey(stableKey: string, version: number) {
@@ -48,6 +50,13 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
   addDuplicateIssues(
     bundle.domains.map((domain) => domain.stableKey),
     ["domains"],
+    ctx,
+  );
+  addDuplicateIssues(
+    bundle.articles.map((article) =>
+      versionedKey(article.stableKey, article.version),
+    ),
+    ["articles"],
     ctx,
   );
   addDuplicateIssues(
@@ -93,6 +102,109 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
   const expressionKeys = new Set(
     bundle.expressions.map((expression) => expression.stableKey),
   );
+
+  bundle.articles.forEach((article, articleIndex) => {
+    if (hashArticleContent(article) !== article.contentHash) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Article contentHash does not match normalized article content.",
+        path: ["articles", articleIndex, "contentHash"],
+      });
+    }
+    addDuplicateIssues(
+      article.segments.map((segment) => String(segment.position)),
+      ["articles", articleIndex, "segments"],
+      ctx,
+    );
+    const positions = article.segments.map((segment) => segment.position).sort((a, b) => a - b);
+    positions.forEach((position, index) => {
+      if (position !== index) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Article segment positions must be continuous from zero.",
+          path: ["articles", articleIndex, "segments"],
+        });
+      }
+    });
+    const source = article.source;
+    if (
+      source.license !== "original" &&
+      (!source.sourceUrl || !source.attribution || !source.licenseEvidence)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Non-original article sources require sourceUrl, attribution, and licenseEvidence.",
+        path: ["articles", articleIndex, "source"],
+      });
+    }
+    article.assets.forEach((asset, assetIndex) => {
+      if (asset.available && asset.license !== "original" &&
+        (!asset.sourceUrl || !asset.attribution)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Available non-original article assets require sourceUrl and attribution.",
+          path: ["articles", articleIndex, "assets", assetIndex],
+        });
+      }
+      if (article.status === "published" && asset.available && asset.copyrightStatus !== "cleared") {
+        ctx.addIssue({
+          code: "custom",
+          message: "Published article assets require cleared copyright status.",
+          path: ["articles", articleIndex, "assets", assetIndex, "copyrightStatus"],
+        });
+      }
+    });
+    article.relatedExpressionKeys.forEach((key, keyIndex) => {
+      if (!expressionKeys.has(key)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `Unknown related expression: ${key}`,
+          path: ["articles", articleIndex, "relatedExpressionKeys", keyIndex],
+        });
+      }
+    });
+    article.relatedGoalKeys.forEach((key, keyIndex) => {
+      if (!goalKeys.has(key)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `Unknown related goal: ${key}`,
+          path: ["articles", articleIndex, "relatedGoalKeys", keyIndex],
+        });
+      }
+    });
+    article.relatedTagKeys.forEach((key, keyIndex) => {
+      if (!tagKeys.has(key)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `Unknown related tag: ${key}`,
+          path: ["articles", articleIndex, "relatedTagKeys", keyIndex],
+        });
+      }
+    });
+    if (article.segments.some((segment) => /<[^>]+>/u.test(segment.text))) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Article segments must contain cleaned plain text, not HTML.",
+        path: ["articles", articleIndex, "segments"],
+      });
+    }
+    if (article.status === "published") {
+      if (!article.publishedAt) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Published articles require publishedAt.",
+          path: ["articles", articleIndex, "publishedAt"],
+        });
+      }
+      if (source.copyrightStatus !== "cleared") {
+        ctx.addIssue({
+          code: "custom",
+          message: "Published articles require cleared copyright status.",
+          path: ["articles", articleIndex, "source", "copyrightStatus"],
+        });
+      }
+    }
+  });
 
   bundle.goals.forEach((goal, index) => {
     if (!domainKeys.has(goal.domainKey)) {
@@ -294,6 +406,9 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
     ...bundle.characters.map((item) =>
       reviewKey("character", item.stableKey, item.version),
     ),
+    ...bundle.articles.map((item) =>
+      reviewKey("article", item.stableKey, item.version),
+    ),
   ]);
   const approvedReviews = new Set<string>();
 
@@ -348,6 +463,9 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
     ...bundle.characters
       .filter((item) => item.status === "published")
       .map((item) => reviewKey("character", item.stableKey, item.version)),
+    ...bundle.articles
+      .filter((item) => item.status === "published")
+      .map((item) => reviewKey("article", item.stableKey, item.version)),
   ];
   publishedEntities.forEach((key) => {
     if (!approvedReviews.has(key)) {

@@ -398,3 +398,124 @@ export const contentReviews = pgTable(
     index("content_reviews_status_idx").on(table.status),
   ],
 );
+
+export const articleSources = pgTable(
+  "article_sources",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceType: text("source_type").notNull(),
+    sourceName: text("source_name").notNull(),
+    author: text("author"),
+    sourceUrl: text("source_url"),
+    publicationDate: text("publication_date"),
+    license: sourceLicenseEnum("license").notNull(),
+    attribution: text("attribution"),
+    licenseEvidence: text("license_evidence"),
+    copyrightStatus: text("copyright_status").default("unverified").notNull(),
+    reviewNotes: text("review_notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("article_sources_license_idx").on(table.license, table.copyrightStatus),
+    check(
+      "article_sources_copyright_status_check",
+      sql`${table.copyrightStatus} in ('unverified', 'cleared', 'restricted')`,
+    ),
+  ],
+);
+
+export const articles = pgTable(
+  "articles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    stableKey: stableKey(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [uniqueIndex("articles_stable_key_uidx").on(table.stableKey)],
+);
+
+export const articleVersions = pgTable(
+  "article_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    articleId: uuid("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade" }),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => articleSources.id, { onDelete: "restrict" }),
+    version: integer("version").notNull(),
+    locale: text("locale").notNull(),
+    title: text("title").notNull(),
+    summary: text("summary").notNull(),
+    curatedAt: timestamp("curated_at", { withTimezone: true, mode: "date" }),
+    contentHash: text("content_hash").notNull(),
+    cefrLevel: text("cefr_level").notNull(),
+    topics: jsonb("topics").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    region: text("region").notNull(),
+    register: text("register").notNull(),
+    format: text("format").notNull(),
+    estimatedReadingMinutes: integer("estimated_reading_minutes").notNull(),
+    assets: jsonb("assets").$type<JsonObject[]>().default(sql`'[]'::jsonb`).notNull(),
+    relatedExpressionKeys: jsonb("related_expression_keys").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    relatedGoalKeys: jsonb("related_goal_keys").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    relatedTagKeys: jsonb("related_tag_keys").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    oralTransferType: text("oral_transfer_type").notNull(),
+    status: contentStatusEnum("status").default("draft").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    changeReason: text("change_reason"),
+    reviewNotes: text("review_notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("article_versions_article_version_uidx").on(table.articleId, table.version),
+    uniqueIndex("article_versions_content_hash_uidx").on(table.articleId, table.version, table.contentHash),
+    index("article_versions_status_cefr_idx").on(table.status, table.cefrLevel),
+    check("article_versions_version_positive_check", sql`${table.version} > 0`),
+    check("article_versions_estimated_minutes_positive_check", sql`${table.estimatedReadingMinutes} > 0`),
+  ],
+);
+
+export const articleSegments = pgTable(
+  "article_segments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    articleVersionId: uuid("article_version_id")
+      .notNull()
+      .references(() => articleVersions.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    sourceText: text("source_text").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("article_segments_version_position_uidx").on(table.articleVersionId, table.position),
+    check("article_segments_position_nonnegative_check", sql`${table.position} >= 0`),
+  ],
+);
+
+export const articleAssets = pgTable(
+  "article_assets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    articleVersionId: uuid("article_version_id")
+      .notNull()
+      .references(() => articleVersions.id, { onDelete: "cascade" }),
+    assetType: text("asset_type").notNull(),
+    available: boolean("available").default(false).notNull(),
+    sourceUrl: text("source_url"),
+    license: sourceLicenseEnum("license"),
+    attribution: text("attribution"),
+    copyrightStatus: text("copyright_status").default("unverified").notNull(),
+    altText: text("alt_text"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("article_assets_version_type_uidx").on(table.articleVersionId, table.assetType),
+    check("article_assets_copyright_status_check", sql`${table.copyrightStatus} in ('unverified', 'cleared', 'restricted')`),
+  ],
+);

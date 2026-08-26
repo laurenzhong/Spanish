@@ -9,6 +9,11 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import {
+  articleAssets,
+  articleSegments,
+  articleSources,
+  articleVersions,
+  articles,
   audioAssets,
   characterCanonFacts,
   characterIntroductionOffers,
@@ -80,6 +85,11 @@ const allTables = [
   conversations,
   messages,
   audioAssets,
+  articleAssets,
+  articleSegments,
+  articleSources,
+  articleVersions,
+  articles,
   providerCalls,
   diagnosticEvents,
   privacyCleanupTasks,
@@ -110,7 +120,12 @@ describe("database schema", () => {
   it("defines the current versioned database table set", () => {
     expect(allTables.map(getTableName).sort()).toEqual(
       [
-        "audio_assets",
+      "audio_assets",
+        "article_assets",
+        "article_segments",
+        "article_sources",
+        "article_versions",
+        "articles",
         "character_canon_facts",
         "character_introduction_offers",
         "character_relationships",
@@ -213,6 +228,7 @@ describe("database schema", () => {
         "0008_broad_chronomancer.sql",
         "0009_oval_namora.sql",
         "0010_watery_ogun.sql",
+        "0011_early_colleen_wing.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),

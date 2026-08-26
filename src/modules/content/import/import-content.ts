@@ -11,6 +11,11 @@ import {
   contentPacks,
   contentReviews,
   contentSources,
+  articleAssets,
+  articleSegments,
+  articleSources,
+  articleVersions,
+  articles,
   expressionTags,
   expressionVariants,
   expressions,
@@ -35,6 +40,7 @@ type ContentDatabase<TResult extends PgQueryResultHKT> = PgDatabase<
 >;
 
 type ImportCounts = Readonly<{
+  articles: number;
   characters: number;
   domains: number;
   expressions: number;
@@ -93,6 +99,7 @@ function reviewKey(
 
 function importCounts(bundle: ContentBundle): ImportCounts {
   return {
+    articles: bundle.articles.length,
     characters: bundle.characters.length,
     domains: bundle.domains.length,
     expressions: bundle.expressions.length,
@@ -572,6 +579,113 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
             sensitivity: fact.sensitivity,
             canonVersion: fact.version,
             isActive: fact.isActive,
+          })),
+        );
+      }
+    }
+
+    for (const article of bundle.articles) {
+      let articleId: string;
+      const [existingArticle] = await transaction
+        .select({ id: articles.id })
+        .from(articles)
+        .where(eq(articles.stableKey, article.stableKey))
+        .limit(1);
+      if (existingArticle) {
+        articleId = existingArticle.id;
+      } else {
+        const [insertedArticle] = await transaction
+          .insert(articles)
+          .values({ stableKey: article.stableKey })
+          .returning({ id: articles.id });
+        articleId = insertedArticle!.id;
+      }
+
+      const [existingVersion] = await transaction
+        .select({ id: articleVersions.id, contentHash: articleVersions.contentHash })
+        .from(articleVersions)
+        .where(
+          and(
+            eq(articleVersions.articleId, articleId),
+            eq(articleVersions.version, article.version),
+          ),
+        )
+        .limit(1);
+      if (existingVersion) {
+        if (existingVersion.contentHash !== article.contentHash) {
+          throw new ContentImportConflictError(
+            `Article ${versionedKey(article.stableKey, article.version)} already exists with a different content hash.`,
+          );
+        }
+        throw new ContentImportConflictError(
+          `Article ${versionedKey(article.stableKey, article.version)} already belongs to another import.`,
+        );
+      }
+
+      const [source] = await transaction
+        .insert(articleSources)
+        .values({
+          sourceType: article.source.sourceType,
+          sourceName: article.source.sourceName,
+          author: article.source.author ?? null,
+          sourceUrl: article.source.sourceUrl ?? null,
+          publicationDate: article.source.publicationDate ?? null,
+          license: article.source.license,
+          attribution: article.source.attribution ?? null,
+          licenseEvidence: article.source.licenseEvidence ?? null,
+          copyrightStatus: article.source.copyrightStatus,
+          reviewNotes: article.source.reviewNotes ?? null,
+        })
+        .returning({ id: articleSources.id });
+      const [version] = await transaction
+        .insert(articleVersions)
+        .values({
+          articleId,
+          sourceId: source!.id,
+          version: article.version,
+          locale: article.locale,
+          title: article.title,
+          summary: article.summary,
+          curatedAt: article.curatedAt ? new Date(article.curatedAt) : null,
+          contentHash: article.contentHash,
+          cefrLevel: article.cefr,
+          topics: article.topics,
+          region: article.region,
+          register: article.register,
+          format: article.format,
+          estimatedReadingMinutes: article.estimatedReadingMinutes,
+          assets: article.assets,
+          relatedExpressionKeys: article.relatedExpressionKeys,
+          relatedGoalKeys: article.relatedGoalKeys,
+          relatedTagKeys: article.relatedTagKeys,
+          oralTransferType: article.oralTransferType,
+          status: article.status,
+          publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
+          changeReason: article.changeReason ?? null,
+          reviewNotes: article.reviewNotes ?? null,
+        })
+        .returning({ id: articleVersions.id });
+      const articleVersionId = version!.id;
+      entityIds.set(reviewKey("article", article.stableKey, article.version), articleVersionId);
+
+      await transaction.insert(articleSegments).values(
+        article.segments.map((segment) => ({
+          articleVersionId,
+          position: segment.position,
+          sourceText: segment.text,
+        })),
+      );
+      if (article.assets.length > 0) {
+        await transaction.insert(articleAssets).values(
+          article.assets.map((asset) => ({
+            articleVersionId,
+            assetType: asset.assetType,
+            available: asset.available,
+            sourceUrl: asset.sourceUrl ?? null,
+            license: asset.license ?? null,
+            attribution: asset.attribution ?? null,
+            copyrightStatus: asset.copyrightStatus,
+            altText: asset.altText ?? null,
           })),
         );
       }

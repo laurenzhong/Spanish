@@ -259,6 +259,258 @@
         "additionalProperties": false
       }
     },
+    "articles": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stableKey": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "version": {
+            "$ref": "#/$defs/__schema1"
+          },
+          "locale": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "sourceType": {
+                "type": "string",
+                "enum": [
+                  "original",
+                  "ai_assisted_original",
+                  "public_domain",
+                  "creative_commons",
+                  "licensed",
+                  "short_quote"
+                ]
+              },
+              "sourceName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "author": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "sourceUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "publicationDate": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "license": {
+                "$ref": "#/$defs/__schema26"
+              },
+              "attribution": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "licenseEvidence": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "copyrightStatus": {
+                "$ref": "#/$defs/__schema27"
+              },
+              "reviewNotes": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "sourceType",
+              "sourceName",
+              "license",
+              "copyrightStatus"
+            ],
+            "additionalProperties": false
+          },
+          "publishedAt": {
+            "$ref": "#/$defs/__schema17"
+          },
+          "curatedAt": {
+            "$ref": "#/$defs/__schema17"
+          },
+          "contentHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "cefr": {
+            "$ref": "#/$defs/__schema9"
+          },
+          "topics": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            }
+          },
+          "region": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40
+          },
+          "register": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "news",
+              "essay",
+              "dialogue",
+              "guide",
+              "story"
+            ]
+          },
+          "estimatedReadingMinutes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 240
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "assetType": {
+                  "type": "string",
+                  "enum": [
+                    "audio",
+                    "chinese_summary",
+                    "word_help",
+                    "image"
+                  ]
+                },
+                "available": {
+                  "type": "boolean"
+                },
+                "sourceUrl": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "license": {
+                  "$ref": "#/$defs/__schema26"
+                },
+                "attribution": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "copyrightStatus": {
+                  "$ref": "#/$defs/__schema27"
+                },
+                "altText": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "assetType",
+                "available",
+                "copyrightStatus"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "relatedExpressionKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            }
+          },
+          "relatedGoalKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            }
+          },
+          "relatedTagKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            }
+          },
+          "oralTransferType": {
+            "type": "string",
+            "enum": [
+              "none",
+              "summary",
+              "opinion",
+              "personal_transfer"
+            ]
+          },
+          "status": {
+            "$ref": "#/$defs/__schema7"
+          },
+          "changeReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "reviewNotes": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "segments": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/__schema28"
+            }
+          }
+        },
+        "required": [
+          "stableKey",
+          "version",
+          "locale",
+          "title",
+          "summary",
+          "source",
+          "contentHash",
+          "cefr",
+          "topics",
+          "region",
+          "register",
+          "format",
+          "estimatedReadingMinutes",
+          "assets",
+          "relatedExpressionKeys",
+          "relatedGoalKeys",
+          "relatedTagKeys",
+          "oralTransferType",
+          "status",
+          "segments"
+        ],
+        "additionalProperties": false
+      }
+    },
     "reviews": {
       "type": "array",
       "items": {
@@ -272,7 +524,8 @@
               "expression",
               "scenario",
               "content_pack",
-              "character"
+              "character",
+              "article"
             ]
           },
           "stableKey": {
@@ -326,6 +579,7 @@
     "scenarios",
     "contentPacks",
     "characters",
+    "articles",
     "reviews"
   ],
   "additionalProperties": false,
@@ -1006,14 +1260,7 @@
           "format": "uri"
         },
         "license": {
-          "type": "string",
-          "enum": [
-            "original",
-            "public_domain",
-            "creative_commons",
-            "licensed",
-            "short_quote"
-          ]
+          "$ref": "#/$defs/__schema26"
         },
         "attribution": {
           "type": "string",
@@ -1026,12 +1273,7 @@
           "maxLength": 2000
         },
         "copyrightStatus": {
-          "type": "string",
-          "enum": [
-            "unverified",
-            "cleared",
-            "restricted"
-          ]
+          "$ref": "#/$defs/__schema27"
         },
         "reviewNotes": {
           "type": "string",
@@ -1044,6 +1286,42 @@
         "title",
         "license",
         "copyrightStatus"
+      ],
+      "additionalProperties": false
+    },
+    "__schema26": {
+      "type": "string",
+      "enum": [
+        "original",
+        "public_domain",
+        "creative_commons",
+        "licensed",
+        "short_quote"
+      ]
+    },
+    "__schema27": {
+      "type": "string",
+      "enum": [
+        "unverified",
+        "cleared",
+        "restricted"
+      ]
+    },
+    "__schema28": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        }
+      },
+      "required": [
+        "position",
+        "text"
       ],
       "additionalProperties": false
     }

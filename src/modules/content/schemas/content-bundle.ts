@@ -261,6 +261,76 @@ const characterSchema = z
   })
   .strict();
 
+const articleAssetSchema = z
+  .object({
+    assetType: z.enum(["audio", "chinese_summary", "word_help", "image"]),
+    available: z.boolean(),
+    sourceUrl: z.url().optional(),
+    license: sourceLicenseSchema.optional(),
+    attribution: z.string().trim().min(1).max(1_000).optional(),
+    copyrightStatus: copyrightStatusSchema,
+    altText: z.string().trim().min(1).max(500).optional(),
+  })
+  .strict();
+
+const articleSourceSchema = z
+  .object({
+    sourceType: z.enum([
+      "original",
+      "ai_assisted_original",
+      "public_domain",
+      "creative_commons",
+      "licensed",
+      "short_quote",
+    ]),
+    sourceName: z.string().trim().min(1).max(300),
+    author: z.string().trim().min(1).max(300).optional(),
+    sourceUrl: z.url().optional(),
+    publicationDate: z.iso.date().optional(),
+    license: sourceLicenseSchema,
+    attribution: z.string().trim().min(1).max(1_000).optional(),
+    licenseEvidence: z.string().trim().min(1).max(2_000).optional(),
+    copyrightStatus: copyrightStatusSchema,
+    reviewNotes: z.string().trim().min(1).max(2_000).optional(),
+  })
+  .strict();
+
+const articleSegmentSchema = z
+  .object({
+    position: positionSchema,
+    text: z.string().trim().min(1).max(8_000),
+  })
+  .strict();
+
+const articleSchema = z
+  .object({
+    stableKey: stableKeySchema,
+    version: positiveVersionSchema,
+    locale: localeSchema,
+    title: z.string().trim().min(1).max(500),
+    summary: z.string().trim().min(1).max(4_000),
+    source: articleSourceSchema,
+    publishedAt: dateTimeSchema.optional(),
+    curatedAt: dateTimeSchema.optional(),
+    contentHash: z.string().regex(/^[a-f0-9]{64}$/u),
+    cefr: cefrLevelSchema,
+    topics: z.array(stableKeySchema).min(1),
+    region: z.string().trim().min(2).max(40),
+    register: z.string().trim().min(2).max(80),
+    format: z.enum(["news", "essay", "dialogue", "guide", "story"]),
+    estimatedReadingMinutes: z.number().int().positive().max(240),
+    assets: z.array(articleAssetSchema),
+    relatedExpressionKeys: z.array(stableKeySchema),
+    relatedGoalKeys: z.array(stableKeySchema),
+    relatedTagKeys: z.array(stableKeySchema),
+    oralTransferType: z.enum(["none", "summary", "opinion", "personal_transfer"]),
+    status: contentStatusSchema,
+    changeReason: z.string().trim().min(1).max(2_000).optional(),
+    reviewNotes: z.string().trim().min(1).max(2_000).optional(),
+    segments: z.array(articleSegmentSchema).min(1),
+  })
+  .strict();
+
 const reviewEntityTypeSchema = z.enum([
   "communication_domain",
   "learning_goal",
@@ -268,6 +338,7 @@ const reviewEntityTypeSchema = z.enum([
   "scenario",
   "content_pack",
   "character",
+  "article",
 ]);
 
 const contentReviewSchema = z
@@ -302,6 +373,7 @@ export const contentBundleSchema = z
     scenarios: z.array(scenarioSchema),
     contentPacks: z.array(contentPackSchema),
     characters: z.array(characterSchema),
+    articles: z.array(articleSchema).default([]),
     reviews: z.array(contentReviewSchema),
   })
   .strict();
