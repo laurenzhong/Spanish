@@ -1849,6 +1849,19 @@ body { background: var(--background); }
 }
 
 @media (max-width: 699px) {
+  .read-page__header {
+    gap: 16px;
+  }
+
+  .read-page__header > div {
+    min-width: 0;
+  }
+
+  .read-page__header > .text-link {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
   .read-toolbar,
   .read-continue {
     grid-template-columns: 1fr;
