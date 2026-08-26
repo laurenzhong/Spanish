@@ -27,7 +27,6 @@ type ReaderState = Readonly<{
   status?: "in_progress" | "completed";
   lastOpenedAt?: string;
 }>;
-type ReaderTool = "explain" | "paragraph" | "saved" | "settings";
 type ArticleReaderProps = Readonly<{ article: ArticleReaderProjection }>;
 
 const readerStoragePrefix = "reading-reader:v1:";
@@ -70,43 +69,9 @@ function remoteState(value: unknown): { contentHash: string; highlights: Highlig
   };
 }
 
-function selectedText(): string {
-  return typeof window === "undefined" ? "" : window.getSelection()?.toString().trim().replace(/\s+/gu, " ") ?? "";
-}
-
-function wordHelp(text: string): string {
-  const normalized = text.toLocaleLowerCase();
-  if (normalized.includes("cafetería")) return "cafetería：咖啡馆，也可以指提供简餐的校园或街区小店。";
-  if (normalized.includes("compañera")) return "compañera：女同学、女同事或女性同伴，具体含义取决于上下文。";
-  if (normalized.includes("seguir en contacto")) return "seguir en contacto：保持联系，常用于告别时表达之后还想联系。";
-  return "先看它在这一段里和谁、什么动作连在一起，再决定是否需要保存。";
-}
-
-function tokens(text: string): readonly string[] {
-  return text.split(/(\s+|[,.!?;:"'“”¡¿()[\]…])/gu).filter(Boolean);
-}
-
-function isWordToken(value: string): boolean {
-  return /[\p{L}\p{N}]/u.test(value);
-}
-
-const toolLabels: Readonly<Record<ReaderTool, string>> = {
-  explain: "解释",
-  paragraph: "段落辅助",
-  saved: "已保存",
-  settings: "设置",
-};
-
 export function ArticleReader({ article }: ArticleReaderProps) {
   const [state, setState] = useState<ReaderState>(() => initialState(article));
   const [hydrated, setHydrated] = useState(false);
-  const [selected, setSelected] = useState<{ text: string; position: number } | null>(null);
-  const [activeTool, setActiveTool] = useState<ReaderTool>("explain");
-  const [assistOpen, setAssistOpen] = useState(false);
-  const [fontScale, setFontScale] = useState<"normal" | "large">("normal");
-  const [lineHeight, setLineHeight] = useState<"standard" | "relaxed">("standard");
-  const [narrowColumn, setNarrowColumn] = useState(true);
-  const [readerTheme, setReaderTheme] = useState<"light" | "dim">("light");
   const [activePosition, setActivePosition] = useState(0);
   const [speakingPosition, setSpeakingPosition] = useState<number | "full" | null>(null);
   const [ttsError, setTtsError] = useState(false);
@@ -119,8 +84,6 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [transferSaved, setTransferSaved] = useState(false);
   const contentRef = useRef<HTMLElement>(null);
   const tts = useMemo(() => createBrowserTextToSpeech(), []);
-  const progressPercent = article.segments.length === 0 ? 0 : Math.round(((state.position + 1) / article.segments.length) * 100);
-
   useEffect(() => () => tts.stop(), [tts]);
 
   useEffect(() => {
@@ -255,67 +218,29 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", onScroll); };
   }, [updatePosition]);
 
-  const openTool = useCallback((tool: ReaderTool) => {
-    setActiveTool(tool);
-    setAssistOpen(true);
-  }, []);
-
-  const inspectSelection = useCallback((text: string, position: number) => {
-    const value = text.trim() || selectedText();
-    if (!value) return;
-    setSelected({ text: value, position });
-    openTool("explain");
-  }, [openTool]);
-
-  const savePhrase = useCallback(() => {
-    if (!selected) return;
-    setState((previous) => previous.savedPhrases.some((phrase) => phrase.text === selected.text && phrase.position === selected.position) ? previous : { ...previous, savedPhrases: [...previous.savedPhrases, { ...selected, id: `${selected.position}:${selected.text}` }] });
-    setStatus(`已保存短语：“${selected.text}”`);
-  }, [selected]);
-
-  const saveHighlight = useCallback(() => {
-    if (!selected) return;
-    setState((previous) => previous.highlights.some((highlight) => highlight.text === selected.text && highlight.position === selected.position) ? previous : { ...previous, highlights: [...previous.highlights, { ...selected, id: `${selected.position}:${selected.text}` }] });
-    setStatus("已添加高亮。");
-  }, [selected]);
-
   const speak = useCallback(async (text: string, position: number | "full") => {
     if (!tts.isSupported) { setTtsError(true); return; }
     setSpeakingPosition(position); setTtsError(false);
     try { await tts.speak(text, { languageTag: article.locale, rate: 0.88 }); } catch { setTtsError(true); } finally { setSpeakingPosition(null); }
   }, [article.locale, tts]);
 
-  const fullText = article.segments.map((segment) => segment.text).join(" ");
   const recommendedTransfer = recommendedArticleTransferType(article.oralTransferType);
   const transferTask = activeTransfer ? articleTransferTask(article, activeTransfer) : null;
   const transferHref = transferTask
     ? `/learn/practice?article=${encodeURIComponent(article.id)}&transfer=${transferTask.type}`
     : "/learn/practice";
-  const readerClass = `article-reader${fontScale === "large" ? " article-reader--large" : ""}${lineHeight === "relaxed" ? " article-reader--relaxed" : ""}${narrowColumn ? " article-reader--narrow" : ""}${readerTheme === "dim" ? " article-reader--dim" : ""}`;
+  const readerClass = "article-reader";
 
   return (
     <div className={readerClass} data-online={online}>
       <header className="article-reader__topbar">
         <Link className="text-link article-reader__back" href="/read"><span aria-hidden="true">←</span> 返回文章库</Link>
-        <div className="article-reader__topbar-title" title={article.title}>{article.title}</div>
-        <div className="article-reader__topbar-actions">
-          <span className="article-reader__counter">第 {state.position + 1} / {article.segments.length} 段</span>
-          <button className="secondary-action" type="button" onClick={() => setState((previous) => ({ ...previous, saved: !previous.saved }))}>{state.saved ? "已保存" : "保存文章"}</button>
-          <button className="secondary-action article-reader__settings-toggle" type="button" aria-expanded={activeTool === "settings" && assistOpen} onClick={() => openTool("settings")}>阅读设置</button>
-          <button className="article-reader__assist-toggle" type="button" aria-label={assistOpen ? "关闭辅助工具" : "打开辅助工具"} aria-expanded={assistOpen} onClick={() => setAssistOpen((open) => !open)}><span aria-hidden="true">☷</span></button>
-        </div>
       </header>
-
-      <section className="article-reader__progress" aria-label="阅读进度">
-        <div className="article-reader__progress-copy"><span>阅读进度</span><strong>{progressPercent}%</strong></div>
-        <div className="article-reader__progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} aria-label="文章阅读进度"><span style={{ width: `${progressPercent}%` }} /></div>
-      </section>
 
       {!online ? <aside className="article-reader__notice" role="status">当前处于离线状态。已确认的阅读位置和标注会保存在本机，网络恢复后可继续。</aside> : null}
       {status ? <aside className="article-reader__notice" role="status">{status}</aside> : null}
 
       <header className="article-reader__header">
-        <div className="article-reader__meta"><span>{article.cefr}</span><span>{article.estimatedReadingMinutes} 分钟</span><span>{article.region}</span></div>
         <h1>{article.title}</h1>
         <p>{article.summary}</p>
         <div className="article-reader__source"><span>{article.sourceName}{article.author ? ` · ${article.author}` : ""}</span>{article.sourceUrl ? <a href={article.sourceUrl} target="_blank" rel="noreferrer">查看原文 <span aria-hidden="true">↗</span></a> : null}</div>
@@ -324,65 +249,10 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       <div className="article-reader__layout">
         <main className="article-reader__content" ref={contentRef} aria-label="西语文章正文">
           <div className="article-reader__document-bar"><span>西语原文</span><button className="secondary-action" type="button" onClick={() => { const segment = article.segments[state.position]; if (segment) void speak(segment.text, state.position); }} disabled={speakingPosition !== null}>{speakingPosition === state.position ? "正在朗读本段" : "朗读本段"}</button></div>
-          {article.segments.map((segment) => {
-            const highlighted = state.highlights.some((item) => item.position === segment.position);
-            return (
-              <p className={highlighted ? "is-highlighted" : ""} data-reader-position={segment.position} key={segment.position}>
-                <span className="article-reader__segment-index" aria-hidden="true">{String(segment.position + 1).padStart(2, "0")}</span>
-                {tokens(segment.text).map((token, index) => isWordToken(token) ? <button className="reader-token" type="button" key={`${segment.position}-${index}`} onMouseUp={(event) => event.stopPropagation()} onClick={() => inspectSelection(token, segment.position)}>{token}</button> : <span key={`${segment.position}-${index}`}>{token}</span>)}
-              </p>
-            );
-          })}
+          {ttsError ? <p className="article-reader__tts-error" role="status">浏览器暂时无法朗读。正文阅读不受影响，可以稍后重试。</p> : null}
+          {article.segments.map((segment) => <p data-reader-position={segment.position} key={segment.position}>{segment.text}</p>)}
           <div className="article-reader__complete"><strong>读到这里，先停一下。</strong><span>阅读完成只记录为阅读活动，不会直接变成口语能力证据。</span></div>
         </main>
-
-        <aside className={`article-reader__tools${assistOpen ? " is-open" : ""}`} aria-label="文章辅助工具">
-          <div className="article-reader__tools-header"><div><p className="eyebrow eyebrow--accent">阅读辅助</p><strong>贴着正文理解</strong></div><button className="article-reader__tools-close" type="button" aria-label="关闭辅助工具" onClick={() => setAssistOpen(false)}>×</button></div>
-          <div className="article-reader__tool-tabs" role="tablist" aria-label="阅读辅助标签">
-            {(Object.keys(toolLabels) as ReaderTool[]).map((tool) => <button key={tool} type="button" role="tab" aria-selected={activeTool === tool} className={activeTool === tool ? "is-selected" : ""} onClick={() => openTool(tool)}>{toolLabels[tool]}</button>)}
-          </div>
-
-          {activeTool === "explain" ? (
-            <div className="article-reader__tool-panel" role="tabpanel">
-              {selected ? (
-                <>
-                  <div className="article-reader__selected-word"><span lang="es">{selected.text}</span><button type="button" onClick={() => void speak(selected.text, selected.position)} aria-label={`朗读 ${selected.text}`}>🔊</button></div>
-                  <p>{wordHelp(selected.text)}</p>
-                  <div className="article-reader__tool-actions"><button className="secondary-action" type="button" onClick={savePhrase}>保存短语</button><button className="secondary-action" type="button" onClick={saveHighlight}>添加高亮</button></div>
-                </>
-              ) : <p className="article-reader__tool-empty">点击正文中的词语，查看它在当前语境里的辅助。正文始终可以不借助翻译继续阅读。</p>}
-            </div>
-          ) : null}
-
-          {activeTool === "paragraph" ? (
-            <div className="article-reader__tool-panel" role="tabpanel">
-              <p className="article-reader__tool-kicker">第 {state.position + 1} 段</p>
-              <p>先抓住这一段的关系：谁在做什么，事情如何发展，再回到西语原文确认细节。这是阅读策略提示，不是原文翻译。</p>
-              <button className="secondary-action" type="button" onClick={() => { const segment = article.segments[state.position]; if (segment) void speak(segment.text, state.position); }} disabled={speakingPosition !== null}>{speakingPosition === state.position ? "正在朗读本段" : "朗读当前段"}</button>
-            </div>
-          ) : null}
-
-          {activeTool === "saved" ? (
-            <div className="article-reader__tool-panel" role="tabpanel">
-              <p className="article-reader__tool-kicker">这篇文章</p>
-              {state.savedPhrases.length > 0 ? <ul className="article-reader__saved-list">{state.savedPhrases.map((phrase) => <li key={phrase.id}><span lang="es">{phrase.text}</span><button type="button" onClick={() => setState((previous) => ({ ...previous, savedPhrases: previous.savedPhrases.filter((item) => item.id !== phrase.id) }))}>移除</button></li>)}</ul> : <p className="article-reader__tool-empty">还没有保存的短语。点击正文词语后，可以把它留给下一次复习。</p>}
-              <p className="article-reader__tool-note">{state.highlights.length} 条高亮 · 笔记保存在文章阅读状态中</p>
-            </div>
-          ) : null}
-
-          {activeTool === "settings" ? (
-            <div className="article-reader__tool-panel" role="tabpanel">
-              <label className="article-reader__setting"><span>字号</span><select value={fontScale} onChange={(event) => setFontScale(event.target.value as typeof fontScale)}><option value="normal">标准</option><option value="large">大号</option></select></label>
-              <label className="article-reader__setting"><span>行距</span><select value={lineHeight} onChange={(event) => setLineHeight(event.target.value as typeof lineHeight)}><option value="standard">标准</option><option value="relaxed">宽松</option></select></label>
-              <label className="article-reader__setting"><span>正文宽度</span><select value={narrowColumn ? "narrow" : "wide"} onChange={(event) => setNarrowColumn(event.target.value === "narrow")}><option value="narrow">窄栏</option><option value="wide">标准</option></select></label>
-              <label className="article-reader__setting"><span>背景</span><select value={readerTheme} onChange={(event) => setReaderTheme(event.target.value as typeof readerTheme)}><option value="light">浅色</option><option value="dim">柔和</option></select></label>
-              <p className="article-reader__tool-note">设置只影响阅读呈现，不改变文章内容或学习评分。</p>
-            </div>
-          ) : null}
-
-          <div className="article-reader__tools-footer"><button className="primary-link" type="button" onClick={() => void speak(fullText, "full")} disabled={speakingPosition !== null}>{speakingPosition === "full" ? "正在朗读全文" : "朗读全文"}</button>{ttsError ? <p className="article-reader__tool-error" role="status">浏览器暂时无法朗读。正文阅读不受影响，可以稍后重试。</p> : null}</div>
-        </aside>
-        {assistOpen ? <button className="article-reader__scrim" type="button" aria-label="关闭辅助工具" onClick={() => setAssistOpen(false)} /> : null}
       </div>
 
       <section className="article-reader__notes" aria-labelledby="article-reader-note-title"><div><p className="eyebrow eyebrow--accent">个人笔记</p><h2 id="article-reader-note-title">留一句给下次的自己</h2><p>笔记只保存在你的阅读状态里，不会写入能力画像或角色记忆。</p></div><div><textarea value={state.note} onChange={(event) => setState((previous) => ({ ...previous, note: event.target.value.slice(0, 2_000) }))} placeholder="可以写中文或西语……" aria-label="文章个人笔记" /><button className="secondary-action" type="button" onClick={() => setStatus("笔记已保存在本机阅读状态中。")}>保存笔记</button></div></section>

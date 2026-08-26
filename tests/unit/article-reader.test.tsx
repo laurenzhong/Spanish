@@ -38,16 +38,18 @@ describe("normalized article reader", () => {
     expect(draft.article).toBeNull();
   });
 
-  it("exposes reader settings, progress semantics, and private notes", async () => {
+  it("keeps the reader focused on the article and private notes", async () => {
     const source = publishedBundle();
     const result = await getArticle(new BundleArticleRepository(source), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
     expect(screen.getByRole("heading", { name: result.article.title })).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "文章阅读进度" })).toHaveAttribute("aria-valuenow", "20");
-    await user.click(screen.getByRole("button", { name: "阅读设置" }));
-    expect(screen.getByLabelText("字号")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", { name: "文章阅读进度" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "阅读设置" })).not.toBeInTheDocument();
+    expect(screen.queryByText("阅读辅助")).not.toBeInTheDocument();
+    expect(screen.queryByText(`${result.article.cefr}`)).not.toBeInTheDocument();
+    expect(screen.queryByText(`${result.article.estimatedReadingMinutes} 分钟`)).not.toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "文章个人笔记" }), "下次复习这一段");
     await user.click(screen.getByRole("button", { name: "保存笔记" }));
     expect(screen.getByRole("status")).toHaveTextContent("笔记已保存在本机阅读状态中。");

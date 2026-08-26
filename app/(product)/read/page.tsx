@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { getArticles } from "@/src/modules/content/application";
 import { BundleArticleRepository } from "@/src/modules/content/repositories";
@@ -37,10 +36,7 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
 
   return (
     <div className="page-stack read-page">
-      <header className="read-page__utility">
-        <h1 className="sr-only">阅读</h1>
-        <Link className="text-link" href="/learn">回到今天 <span aria-hidden="true">→</span></Link>
-      </header>
+      <h1 className="sr-only">阅读</h1>
       <ReadShelf result={result} search={search ?? ""} topic={topic ?? ""} cefr={cefr ?? ""} minutes={minutes ?? ""} source={source} sort={sort} savedOnly={savedOnly} />
     </div>
   );

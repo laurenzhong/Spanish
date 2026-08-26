@@ -328,10 +328,20 @@ test("preserves the selected discovery direction on the learning page", async ({
 
 test("opens the published reading shelf and article reader", async ({ page }) => {
   await authenticate(page);
+  let savedArticleId: string | null = null;
+  await page.route("**/api/v1/read/saved", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { articleIds: savedArticleId ? [savedArticleId] : [] } }) });
+      return;
+    }
+    const body = route.request().postDataJSON() as { articleId?: string; saved?: boolean };
+    savedArticleId = body.saved ? body.articleId ?? null : null;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { articleId: body.articleId, saved: Boolean(savedArticleId) } }) });
+  });
   await page.goto("/read");
 
   await expect(page).toHaveTitle(/阅读/);
-  await expect(page.getByRole("link", { name: "回到今天" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "回到今天" })).toHaveCount(0);
   await expect(page.getByText("安静输入", { exact: true })).toHaveCount(0);
   await expect(page.getByText("读一篇真实的西语文章", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Public Texts" })).toBeVisible();
@@ -344,14 +354,21 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await page.goto("/read");
   const firstArticleLink = page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true });
   await expect(firstArticleLink).toBeVisible();
+  const firstArticleSave = page.getByRole("button", { name: /保存到 My Texts：Una conversación que empieza con un café/ });
+  await firstArticleSave.click();
+  await expect(page.getByRole("button", { name: /从 My Texts 移除：Una conversación que empieza con un café/ })).toBeVisible();
   await firstArticleLink.click();
   await expect(page).toHaveURL(/\/read\/article\/article\.sueno-first-cafe%401$/);
   await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
-  await expect(page.getByRole("progressbar", { name: "文章阅读进度" })).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "文章阅读进度" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "阅读设置" })).toHaveCount(0);
+  await expect(page.getByText("阅读辅助", { exact: true })).toHaveCount(0);
   await page.goto("/read");
   await page.getByRole("link", { name: "My Texts" }).click();
   await expect(page).toHaveURL(/\/read\?saved=1$/);
-  await expect(page.getByRole("heading", { name: /My Texts (还是空的|暂时无法读取)/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /从 My Texts 移除：Una conversación que empieza con un café/ }).click();
+  await expect(page.getByRole("heading", { name: "My Texts 还是空的" })).toBeVisible();
 });
 
 test("keeps the profile axes visible and selectable", async ({

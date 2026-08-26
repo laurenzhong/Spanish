@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
 
@@ -71,13 +71,14 @@ function withParams(params: Readonly<Record<string, string | undefined>>): strin
 export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, savedOnly }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
   const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(savedOnly ? null : new Set());
+  const [savingArticleIds, setSavingArticleIds] = useState<ReadonlySet<string>>(new Set());
   const [readerStates, setReaderStates] = useState<Readonly<Record<string, StoredReaderState>>>({});
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
   const hasFilters = Boolean(search || topic || cefr || minutes);
 
   useEffect(() => {
-    if (!savedOnly) return;
+    if (source === "web") return;
     let cancelled = false;
     void fetch("/api/v1/read/saved", { credentials: "same-origin" })
       .then(async (response) => {
@@ -91,7 +92,7 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
         if (!cancelled) setSavedLoadFailed(true);
       });
     return () => { cancelled = true; };
-  }, [savedOnly]);
+  }, [savedOnly, source]);
 
   const visibleArticles = useMemo(() => {
     if (source === "web") return [];
@@ -128,8 +129,40 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
   const emptyDescription = source === "web"
     ? "外部网站保存和正文解析需要单独的来源许可，当前 Alpha 先保留入口。"
     : savedOnly
-      ? savedLoadFailed ? "网络恢复或登录后可以重新读取你的个人保存。" : "打开一篇文章后，点击保存文章即可在这里继续阅读。"
+      ? savedLoadFailed ? "网络恢复或登录后可以重新读取你的个人保存。" : "在文章卡片右侧点击五角星，即可把它加入这里。"
       : hasFilters ? "换一个筛选条件试试，或者回到 Public Texts。" : "每篇文章都会经过来源、版权和语言审核；准备好后会出现在这里。";
+
+  const toggleSaved = useCallback(async (articleId: string, currentlySaved: boolean) => {
+    if (savingArticleIds.has(articleId)) return;
+    setSavingArticleIds((previous) => new Set(previous).add(articleId));
+    try {
+      const response = await fetch("/api/v1/read/saved", {
+        body: JSON.stringify({ articleId, saved: !currentlySaved }),
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("save-unavailable");
+      const payload = (await response.json()) as { data?: { saved?: unknown } };
+      const saved = payload.data?.saved;
+      if (typeof saved !== "boolean") throw new Error("save-invalid");
+      setSavedArticleIds((previous) => {
+        const next = new Set(previous ?? []);
+        if (saved) next.add(articleId);
+        else next.delete(articleId);
+        return next;
+      });
+      setToolNotice(saved ? "已保存到 My Texts。" : "已从 My Texts 移除。");
+    } catch {
+      setToolNotice("保存状态暂时无法更新，请稍后重试。");
+    } finally {
+      setSavingArticleIds((previous) => {
+        const next = new Set(previous);
+        next.delete(articleId);
+        return next;
+      });
+    }
+  }, [savingArticleIds]);
 
   return (
     <div className="read-library">
@@ -186,7 +219,7 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
       <section className="read-results" aria-label="文章列表">
         {visibleArticles.length > 0 ? (
           <div className="read-article-list">
-            {visibleArticles.map((article) => <ArticleListItem article={article} readerState={readerStates[article.stableKey]} key={article.id} />)}
+            {visibleArticles.map((article) => <ArticleListItem article={article} isSaved={savedArticleIds?.has(article.id) ?? false} isSaving={savingArticleIds.has(article.id)} onToggleSaved={toggleSaved} readerState={readerStates[article.stableKey]} key={article.id} />)}
           </div>
         ) : (
           <div className="surface-state read-empty" role="status">
@@ -202,7 +235,7 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
   );
 }
 
-function ArticleListItem({ article, readerState }: Readonly<{ article: ArticleCardProjection; readerState?: StoredReaderState }>) {
+function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, readerState }: Readonly<{ article: ArticleCardProjection; isSaved: boolean; isSaving: boolean; onToggleSaved: (articleId: string, currentlySaved: boolean) => void; readerState?: StoredReaderState }>) {
   return (
     <article className={`read-article-row read-article-row--${article.format}`}>
       <div className="read-article-row__type" aria-hidden="true"><span>{formatLabel(article.format)}</span><i /></div>
@@ -219,7 +252,7 @@ function ArticleListItem({ article, readerState }: Readonly<{ article: ArticleCa
           <Link className="read-article-row__read-link" href={`/read/article/${encodeURIComponent(article.id)}`}>打开文章 <span aria-hidden="true">＋</span></Link>
         </div>
       </div>
-      <Link className="read-article-row__action" href={`/read/article/${encodeURIComponent(article.id)}`} aria-label={`打开文章：${article.title}`} title={article.title}><span aria-hidden="true">→</span></Link>
+      <button className={`read-article-row__save${isSaved ? " is-saved" : ""}`} type="button" aria-label={isSaved ? `从 My Texts 移除：${article.title}` : `保存到 My Texts：${article.title}`} title={isSaved ? "从 My Texts 移除" : "保存到 My Texts"} aria-pressed={isSaved} aria-busy={isSaving} disabled={isSaving} onClick={() => onToggleSaved(article.id, isSaved)}><span aria-hidden="true">{isSaved ? "★" : "☆"}</span></button>
     </article>
   );
 }
