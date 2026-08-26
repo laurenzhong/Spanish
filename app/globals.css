@@ -1745,8 +1745,11 @@ body { background: var(--background); }
 .article-reader__header > p { max-width: 62ch; margin: 0; color: var(--muted); font-size: 1rem; line-height: 1.75; }
 .article-reader__source { display: flex; margin-top: 24px; gap: 18px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: .8rem; }
 .article-reader__source a { color: var(--terracotta); font-weight: 750; }
-.article-reader__layout { position: relative; display: block; }
-.article-reader__content { width: min(100%, 760px); min-width: 0; margin-inline: auto; }
+.article-reader__layout { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
+.article-reader__content { width: min(100%, 760px); min-width: 0; margin-inline: 0; }
+.article-reader--wide .article-reader__content { width: min(100%, 860px); }
+.article-reader--wide .article-reader__layout { grid-template-columns: minmax(0, 1fr) 320px; }
+.article-reader__mobile-tools-link { display: none; margin-left: 6px; }
 .article-reader__document-bar { display: flex; min-height: 44px; align-items: center; justify-content: space-between; margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: .76rem; font-weight: 760; }
 .article-reader__document-bar .secondary-action { min-height: 36px; padding: 6px 10px; }
 .article-reader__content p { position: relative; margin: 0; padding: 0 0 28px; color: var(--foreground); font-family: var(--font-display); font-size: 1.22rem; line-height: 1.85; text-wrap: pretty; }
@@ -1815,6 +1818,7 @@ body { background: var(--background); }
   .article-reader__topbar, .article-reader__header, .article-reader__layout, .article-reader__notes, .article-reader__notice { width: 100%; }
   .article-reader__topbar { min-height: 60px; }
   .article-reader__layout { display: block; }
+  .article-reader__mobile-tools-link { display: inline-flex; }
   .article-reader__content p { font-size: 1.08rem; }
   .article-reader__tools { position: fixed; z-index: 101; top: 0; right: 0; bottom: 0; width: min(100%, 360px); height: 100dvh; border: 0; border-left: 1px solid var(--border); border-radius: 0; box-shadow: -18px 0 48px rgb(20 35 28 / 16%); transform: translateX(100%); transition: transform 180ms ease; overflow-y: auto; }
   .article-reader__tools.is-open { transform: translateX(0); }

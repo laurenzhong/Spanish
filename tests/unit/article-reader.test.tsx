@@ -38,18 +38,29 @@ describe("normalized article reader", () => {
     expect(draft.article).toBeNull();
   });
 
-  it("keeps the reader focused on the article and private notes", async () => {
+  it("renders the reading workbench and keeps notes private", async () => {
     const source = publishedBundle();
     const result = await getArticle(new BundleArticleRepository(source), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
     expect(screen.getByRole("heading", { name: result.article.title })).toBeInTheDocument();
-    expect(screen.queryByRole("progressbar", { name: "文章阅读进度" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "阅读设置" })).not.toBeInTheDocument();
-    expect(screen.queryByText("阅读辅助")).not.toBeInTheDocument();
-    expect(screen.queryByText(`${result.article.cefr}`)).not.toBeInTheDocument();
-    expect(screen.queryByText(`${result.article.estimatedReadingMinutes} 分钟`)).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "文章阅读进度" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "阅读设置" })).toBeInTheDocument();
+    expect(screen.getAllByText("阅读辅助").length).toBeGreaterThan(0);
+    expect(screen.getByText(result.article.cefr)).toBeInTheDocument();
+    expect(screen.getByText(result.article.estimatedReadingMinutes + " 分钟")).toBeInTheDocument();
+    const token = screen.getAllByRole("button").find((button) => button.classList.contains("reader-token"));
+    expect(token).toBeDefined();
+    if (!token) throw new Error("reader token missing");
+    await user.click(token);
+    expect(screen.getByRole("tab", { name: "Explain" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("button", { name: "保存词语" }));
+    await user.click(screen.getByRole("tab", { name: "Words" }));
+    expect(screen.getAllByText(token.textContent ?? "").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("tab", { name: "Settings" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "字号" }), "large");
+    expect(screen.getByRole("combobox", { name: "字号" })).toHaveValue("large");
     await user.type(screen.getByRole("textbox", { name: "文章个人笔记" }), "下次复习这一段");
     await user.click(screen.getByRole("button", { name: "保存笔记" }));
     expect(screen.getByRole("status")).toHaveTextContent("笔记已保存在本机阅读状态中。");
