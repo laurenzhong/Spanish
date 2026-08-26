@@ -24,6 +24,7 @@ type ReaderState = Readonly<{
   highlights: readonly Highlight[];
   note: string;
   saved: boolean;
+  status?: "in_progress" | "completed";
   lastOpenedAt?: string;
 }>;
 type ReaderTool = "explain" | "paragraph" | "saved" | "settings";
@@ -176,7 +177,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      window.localStorage.setItem(storageKey(article), JSON.stringify({ ...state, lastOpenedAt: new Date().toISOString() }));
+      window.localStorage.setItem(storageKey(article), JSON.stringify({ ...state, status: state.position >= article.segments.length - 1 ? "completed" : "in_progress", lastOpenedAt: new Date().toISOString() }));
     } catch {
       // In-memory progress remains usable when browser storage is unavailable.
     }

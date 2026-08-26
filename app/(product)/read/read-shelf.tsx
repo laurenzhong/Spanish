@@ -17,6 +17,8 @@ type StoredReaderState = Readonly<{
   version: number;
   contentHash: string;
   position: number;
+  saved?: boolean;
+  status?: "in_progress" | "completed";
   lastOpenedAt?: string;
 }>;
 
@@ -28,6 +30,11 @@ function topicLabel(topic: string): string {
 
 function formatLabel(format: ArticleCardProjection["format"]): string {
   return { news: "新闻", essay: "随笔", dialogue: "对话", guide: "指南", story: "故事" }[format];
+}
+
+function readingStatus(state: StoredReaderState | undefined): "未开始" | "阅读中" | "已读" {
+  if (!state || state.position <= 0) return "未开始";
+  return state.status === "completed" ? "已读" : "阅读中";
 }
 
 function readStoredState(stableKey: string): StoredReaderState | null {
@@ -49,6 +56,7 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
   const [query, setQuery] = useState(search);
   const [continueArticle, setContinueArticle] = useState<ArticleCardProjection | null>(null);
   const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(savedOnly ? null : new Set());
+  const [readerStates, setReaderStates] = useState<Readonly<Record<string, StoredReaderState>>>({});
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const hasFilters = Boolean(search || topic || savedOnly);
 
@@ -73,6 +81,16 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
     () => savedOnly ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles,
     [result.articles, savedArticleIds, savedOnly],
   );
+
+  useEffect(() => {
+    const nextStates = Object.fromEntries(
+      visibleArticles.flatMap((article) => {
+        const state = readStoredState(article.stableKey);
+        return state ? [[article.stableKey, state] as const] : [];
+      }),
+    );
+    queueMicrotask(() => setReaderStates(nextStates));
+  }, [visibleArticles]);
 
   useEffect(() => {
     const candidates = visibleArticles
@@ -144,7 +162,7 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
         <div className="section-heading"><div><p className="eyebrow eyebrow--accent">文章库</p><h2 id="read-results-title">{resultLabel}</h2></div><span>{visibleArticles.length} 篇</span></div>
         {visibleArticles.length > 0 ? (
           <div className="read-article-list">
-            {visibleArticles.map((article) => <ArticleListItem article={article} key={article.id} />)}
+            {visibleArticles.map((article) => <ArticleListItem article={article} readerState={readerStates[article.stableKey]} key={article.id} />)}
           </div>
         ) : (
           <div className="surface-state read-empty" role="status">
@@ -160,23 +178,24 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
   );
 }
 
-function ArticleListItem({ article }: Readonly<{ article: ArticleCardProjection }>) {
+function ArticleListItem({ article, readerState }: Readonly<{ article: ArticleCardProjection; readerState?: StoredReaderState }>) {
   return (
     <article className={`read-article-row read-article-row--${article.format}`}>
-      <div className="read-article-row__type" aria-hidden="true"><span>{formatLabel(article.format)}</span></div>
+      <div className="read-article-row__type" aria-hidden="true"><span>{formatLabel(article.format)}</span><i /></div>
       <div className="read-article-row__body">
         <div className="read-article-row__heading">
-          <div className="read-article-row__meta"><span>{article.cefr}</span><span>{article.estimatedReadingMinutes} 分钟</span><span>{article.region}</span></div>
-          <span className="read-article-row__state">未开始</span>
+          <div className="read-article-row__meta"><span>{article.sourceName}</span>{article.author ? <span>作者 {article.author}</span> : null}<span>{article.cefr} · {article.estimatedReadingMinutes} 分钟</span></div>
+          <span className="read-article-row__state">{readingStatus(readerState)}</span>
         </div>
         <h3><Link href={`/read/article/${encodeURIComponent(article.id)}`}>{article.title}</Link></h3>
         <p>{article.summary}</p>
+        <div className="read-article-row__rule" aria-hidden="true"><span /></div>
         <div className="read-article-row__footer">
           <div className="read-article-row__topics">{article.topics.map((value) => <span key={value}>{topicLabel(value)}</span>)}</div>
-          <span>{article.sourceName}{article.author ? ` · ${article.author}` : ""}</span>
+          <Link className="read-article-row__read-link" href={`/read/article/${encodeURIComponent(article.id)}`}>打开文章 <span aria-hidden="true">＋</span></Link>
         </div>
       </div>
-      <Link className="read-article-row__action" href={`/read/article/${encodeURIComponent(article.id)}`} aria-label="打开文章" title={article.title}><span aria-hidden="true">→</span></Link>
+      <Link className="read-article-row__action" href={`/read/article/${encodeURIComponent(article.id)}`} aria-label={`打开文章：${article.title}`} title={article.title}><span aria-hidden="true">→</span></Link>
     </article>
   );
 }
