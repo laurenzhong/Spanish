@@ -67,10 +67,10 @@
 
 - 状态：`done`
 - 负责人：Codex
-- 实现 Commit：`f71eca5`、`fc00253`（随后置文档提交 `c45bafd`）
+- 实现 Commit：`f71eca5`、`fc00253`、`4f41fe3`（随后置文档提交 `c45bafd`）
 - 范围：文章版本 detail 投影与公开 API、Web 规范化阅读器、段落定位与阅读进度、版本哈希迁移提示、浏览器 TTS/段落辅助/词语辅助、高亮/保存短语/个人笔记、本地离线恢复；Flutter `ArticleReaderPage`、SecureStorage 进度缓存和 TTS 入口。
 - 修改：`src/modules/content/`、`app/(product)/read/article/`、`app/api/v1/content/articles/[articleId]/`、`apps/mobile/lib/features/read/`、契约 Schema/OpenAPI、`app/globals.css`、架构与数据库文档、阅读器单测。
-- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、阅读器 Vitest（2/2）、内容契约 Vitest（3/3）、相关书架/壳层 Vitest（1/1）、`flutter analyze`、`flutter test`（74 测试）通过。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、阅读器 Vitest（2/2）、内容契约 Vitest（3/3）、相关书架/壳层 Vitest（1/1）、`pnpm test:e2e`（72/72）、`flutter analyze`、`flutter test`（74 测试）通过；Chrome + Playwright 375px 视觉回归通过。
 - 限制：当前 bundle 文章仍为 draft，公开书架和 detail API 正确返回空状态/404；Web localStorage 与 Flutter SecureStorage 只是 Alpha 恢复缓存，服务端 `user_reading_progress`、高亮、短语和笔记表/RLS 尚未接入；未实现 READ-004 口语迁移或 READ-005 外部来源导入。
 - 下一项：`READ-004` 阅读到口语迁移。
 
