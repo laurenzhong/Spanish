@@ -32,12 +32,24 @@ class _Expression {
   final List<_Expression> variants;
 }
 
+String _articleTransferLabel(String type) {
+  const labels = <String, String>{
+    'summary': '说说文章讲了什么',
+    'opinion': '说说你的看法',
+    'personal_transfer': '联系到自己的生活',
+    'character_dialogue': '和角色聊两句',
+  };
+  return labels[type] ?? '读到口语';
+}
+
 class FakeTrainingLoop extends StatefulWidget {
   const FakeTrainingLoop({
     this.checkpointStore,
     this.activityRecorder,
     this.recorder,
     this.textToSpeech,
+    this.articleTransferType,
+    this.articleTitle,
     super.key,
   });
 
@@ -45,6 +57,8 @@ class FakeTrainingLoop extends StatefulWidget {
   final LearningActivityRecorder? activityRecorder;
   final AudioRecorder? recorder;
   final TextToSpeech? textToSpeech;
+  final String? articleTransferType;
+  final String? articleTitle;
 
   @override
   State<FakeTrainingLoop> createState() => _FakeTrainingLoopState();
@@ -60,8 +74,22 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       translation: '一切都怎么样？',
       intent: '轻松问候，并邀请对方谈谈近况。',
       variants: <_Expression>[
-        _Expression(key: 'start.como-va-todo.variant.0', goalKey: 'communication.start.check-in', goalTitle: '变式情境', text: '¿Qué tal todo?', translation: '最近怎么样？', intent: '用另一种自然说法询问近况。'),
-        _Expression(key: 'start.como-va-todo.variant.1', goalKey: 'communication.start.check-in', goalTitle: '变式情境', text: '¿Cómo te va?', translation: '你最近过得怎么样？', intent: '直接向熟人询问近况。'),
+        _Expression(
+          key: 'start.como-va-todo.variant.0',
+          goalKey: 'communication.start.check-in',
+          goalTitle: '变式情境',
+          text: '¿Qué tal todo?',
+          translation: '最近怎么样？',
+          intent: '用另一种自然说法询问近况。',
+        ),
+        _Expression(
+          key: 'start.como-va-todo.variant.1',
+          goalKey: 'communication.start.check-in',
+          goalTitle: '变式情境',
+          text: '¿Cómo te va?',
+          translation: '你最近过得怎么样？',
+          intent: '直接向熟人询问近况。',
+        ),
       ],
     ),
     _Expression(
@@ -72,8 +100,22 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       translation: '您叫什么名字？',
       intent: '礼貌询问初次见面的人的姓名。',
       variants: <_Expression>[
-        _Expression(key: 'relationship.como-se-llama.variant.0', goalKey: 'communication.relationship.ask-name', goalTitle: '变式情境', text: '¿Cómo te llamas?', translation: '你叫什么名字？', intent: '对同龄人或熟人使用更直接的问法。'),
-        _Expression(key: 'relationship.como-se-llama.variant.1', goalKey: 'communication.relationship.ask-name', goalTitle: '变式情境', text: 'Perdone, ¿cómo se llama?', translation: '不好意思，您叫什么名字？', intent: '在礼貌打断陌生人时询问姓名。'),
+        _Expression(
+          key: 'relationship.como-se-llama.variant.0',
+          goalKey: 'communication.relationship.ask-name',
+          goalTitle: '变式情境',
+          text: '¿Cómo te llamas?',
+          translation: '你叫什么名字？',
+          intent: '对同龄人或熟人使用更直接的问法。',
+        ),
+        _Expression(
+          key: 'relationship.como-se-llama.variant.1',
+          goalKey: 'communication.relationship.ask-name',
+          goalTitle: '变式情境',
+          text: 'Perdone, ¿cómo se llama?',
+          translation: '不好意思，您叫什么名字？',
+          intent: '在礼貌打断陌生人时询问姓名。',
+        ),
       ],
     ),
     _Expression(
@@ -84,8 +126,22 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       translation: '我喜欢旅行和尝试当地美食。',
       intent: '分享个人兴趣，为对方追问创造机会。',
       variants: <_Expression>[
-        _Expression(key: 'relationship.me-gusta-viajar.variant.0', goalKey: 'communication.relationship.share-interest', goalTitle: '变式情境', text: 'Me encanta descubrir sitios nuevos.', translation: '我很喜欢发现新的地方。', intent: '换一个具体兴趣继续分享。'),
-        _Expression(key: 'relationship.me-gusta-viajar.variant.1', goalKey: 'communication.relationship.share-interest', goalTitle: '变式情境', text: 'Disfruto mucho de la música.', translation: '我很喜欢音乐。', intent: '用另一种结构表达个人兴趣。'),
+        _Expression(
+          key: 'relationship.me-gusta-viajar.variant.0',
+          goalKey: 'communication.relationship.share-interest',
+          goalTitle: '变式情境',
+          text: 'Me encanta descubrir sitios nuevos.',
+          translation: '我很喜欢发现新的地方。',
+          intent: '换一个具体兴趣继续分享。',
+        ),
+        _Expression(
+          key: 'relationship.me-gusta-viajar.variant.1',
+          goalKey: 'communication.relationship.share-interest',
+          goalTitle: '变式情境',
+          text: 'Disfruto mucho de la música.',
+          translation: '我很喜欢音乐。',
+          intent: '用另一种结构表达个人兴趣。',
+        ),
       ],
     ),
     _Expression(
@@ -96,8 +152,22 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
       translation: '我需要帮助。',
       intent: '在需要协助时直接说明核心需求。',
       variants: <_Expression>[
-        _Expression(key: 'need.necesito-ayuda.variant.0', goalKey: 'communication.need.ask-help', goalTitle: '变式情境', text: '¿Podrías ayudarme, por favor?', translation: '你可以帮帮我吗？', intent: '用更礼貌的方式请求帮助。'),
-        _Expression(key: 'need.necesito-ayuda.variant.1', goalKey: 'communication.need.ask-help', goalTitle: '变式情境', text: '¿Me puede ayudar?', translation: '您可以帮我吗？', intent: '在正式场合请求协助。'),
+        _Expression(
+          key: 'need.necesito-ayuda.variant.0',
+          goalKey: 'communication.need.ask-help',
+          goalTitle: '变式情境',
+          text: '¿Podrías ayudarme, por favor?',
+          translation: '你可以帮帮我吗？',
+          intent: '用更礼貌的方式请求帮助。',
+        ),
+        _Expression(
+          key: 'need.necesito-ayuda.variant.1',
+          goalKey: 'communication.need.ask-help',
+          goalTitle: '变式情境',
+          text: '¿Me puede ayudar?',
+          translation: '您可以帮我吗？',
+          intent: '在正式场合请求协助。',
+        ),
       ],
     ),
   ];
@@ -481,6 +551,52 @@ class _FakeTrainingLoopState extends State<FakeTrainingLoop> {
                   Text(
                     _capabilityNotice!,
                     style: TextStyle(color: colors.onSurfaceVariant),
+                  ),
+                ],
+                if (widget.articleTransferType != null) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7F0),
+                      border: Border.all(color: const Color(0xFFE7C9AF)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text(
+                          '来自阅读',
+                          style: TextStyle(
+                            color: Color(0xFF9B5C2E),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          _articleTransferLabel(widget.articleTransferType!),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '围绕《${widget.articleTitle ?? '这篇文章'}》先组织要点，再用声音回答。',
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            height: 1.45,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '只有主动用声音回答时，才会进入口语评估。',
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
                 const SizedBox(height: 20),

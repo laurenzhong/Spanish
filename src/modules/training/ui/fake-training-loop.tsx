@@ -35,6 +35,7 @@ import {
   type BrowserTextToSpeech,
 } from "@/src/modules/providers/tts";
 import type { LearningActivityRecorder } from "@/src/modules/profile/activity";
+import type { ArticleTransferTask } from "@/src/modules/content/domain";
 
 const practiceExpressions = contentBundle.expressions.slice(0, 4);
 const evaluator = createFakeEvaluator();
@@ -328,12 +329,14 @@ type FakeTrainingLoopProps = Readonly<{
   activityRecorder?: LearningActivityRecorder;
   userId?: string;
   audio?: TrainingAudioCapabilities;
+  articleTransfer?: ArticleTransferTask;
 }>;
 
 export function FakeTrainingLoop({
   activityRecorder,
   userId = "local-user",
   audio: providedAudio,
+  articleTransfer,
 }: FakeTrainingLoopProps) {
   const [current, dispatch] = useReducer(loopReducer, undefined, initialLoopState);
   const [draft, setDraft] = useState("");
@@ -480,6 +483,15 @@ export function FakeTrainingLoop({
         <p className="training-loop__capability-notice" role="status">
           {capabilityNotice}
         </p>
+      ) : null}
+
+      {articleTransfer ? (
+        <aside className="training-loop__article-context" data-testid="article-transfer-context">
+          <p className="eyebrow eyebrow--accent">来自阅读</p>
+          <strong>{articleTransfer.label}</strong>
+          <p>{articleTransfer.prompt}</p>
+          <small>只有你主动用声音回答时，才会进入口语评估。</small>
+        </aside>
       ) : null}
 
       <section className="training-loop__context" aria-labelledby="training-expression">

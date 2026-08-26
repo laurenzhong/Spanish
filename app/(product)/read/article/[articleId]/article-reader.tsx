@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ArticleReaderProjection } from "@/src/modules/content/domain";
+import {
+  articleTransferTask,
+  articleTransferTypes,
+  recommendedArticleTransferType,
+  type ArticleTransferType,
+} from "@/src/modules/content/domain";
 import { createBrowserTextToSpeech } from "@/src/modules/providers/tts";
 
 type SavedPhrase = Readonly<{ id: string; text: string; position: number }>;
@@ -63,6 +69,9 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [ttsError, setTtsError] = useState(false);
   const [online, setOnline] = useState(true);
   const [status, setStatus] = useState("");
+  const [activeTransfer, setActiveTransfer] = useState<ArticleTransferType | null>(null);
+  const [transferDraft, setTransferDraft] = useState("");
+  const [transferSaved, setTransferSaved] = useState(false);
   const contentRef = useRef<HTMLElement>(null);
   const tts = useMemo(() => createBrowserTextToSpeech(), []);
   const progressPercent = article.segments.length === 0 ? 0 : Math.round(((state.position + 1) / article.segments.length) * 100);
@@ -148,6 +157,11 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, [article.locale, tts]);
 
   const fullText = article.segments.map((segment) => segment.text).join(" ");
+  const recommendedTransfer = recommendedArticleTransferType(article.oralTransferType);
+  const transferTask = activeTransfer ? articleTransferTask(article, activeTransfer) : null;
+  const transferHref = transferTask
+    ? `/learn/practice?article=${encodeURIComponent(article.id)}&transfer=${transferTask.type}`
+    : "/learn/practice";
   const readerClass = `article-reader${fontScale === "large" ? " article-reader--large" : ""}${lineHeight === "relaxed" ? " article-reader--relaxed" : ""}${narrowColumn ? " article-reader--narrow" : ""}`;
 
   return (
@@ -201,6 +215,48 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       </div>
 
       <section className="article-reader__notes" aria-labelledby="article-reader-note-title"><div><p className="eyebrow eyebrow--accent">个人笔记</p><h2 id="article-reader-note-title">留一句给下次的自己</h2><p>笔记只保存在你的阅读状态里，不会写入能力画像或角色记忆。</p></div><div><textarea value={state.note} onChange={(event) => setState((previous) => ({ ...previous, note: event.target.value.slice(0, 2_000) }))} placeholder="可以写中文或西语……" aria-label="文章个人笔记" /><button className="secondary-action" type="button" onClick={() => setStatus("笔记已保存在本机阅读状态中。")}>保存笔记</button></div></section>
+      <section className="article-reader__transfer" data-testid="article-transfer" aria-labelledby="article-transfer-title">
+        <header>
+          <p className="eyebrow eyebrow--accent">读到口语</p>
+          <h2 id="article-transfer-title">把读到的内容说出来</h2>
+          <p>选一个自然的方向。跳过、阅读和打字都只留在阅读状态里；只有主动进入口语复核才会开始训练。</p>
+        </header>
+        <div className="article-reader__transfer-options" role="group" aria-label="口语迁移方向">
+          {articleTransferTypes.map((type) => {
+            const task = articleTransferTask(article, type);
+            return (
+              <button
+                className="article-reader__transfer-option"
+                type="button"
+                key={type}
+                aria-pressed={activeTransfer === type}
+                onClick={() => { setActiveTransfer(type); setTransferSaved(false); }}
+              >
+                <strong>{task.label}</strong>
+                <span>{task.description}</span>
+                {recommendedTransfer === type ? <small>这篇文章的推荐方向</small> : null}
+              </button>
+            );
+          })}
+        </div>
+        {transferTask ? (
+          <div className="article-reader__transfer-panel">
+            <p>{transferTask.prompt}</p>
+            <textarea
+              value={transferDraft}
+              onChange={(event) => { setTransferDraft(event.target.value.slice(0, 2_000)); setTransferSaved(false); }}
+              placeholder="可以先写下要说的要点（可选）"
+              aria-label="口语迁移草稿"
+            />
+            {transferSaved ? <p className="article-reader__transfer-saved">草稿已保存在本机阅读状态中，尚未进入口语评估。</p> : null}
+            <div className="article-reader__transfer-actions">
+              <Link className="primary-link" href={transferHref}>进入口语复核</Link>
+              <button className="secondary-action" type="button" onClick={() => { setTransferSaved(true); setStatus("草稿已保存；尚未进入口语评估，也不会改变口语能力画像。继续准备好后，再进入口语复核。"); }}>先保存草稿</button>
+              <button className="secondary-action" type="button" onClick={() => { setActiveTransfer(null); setTransferDraft(""); setTransferSaved(false); setStatus("已跳过这次口语迁移；阅读完成不会产生口语能力证据。"); }}>跳过这一步</button>
+            </div>
+          </div>
+        ) : null}
+      </section>
       {state.savedPhrases.length > 0 ? <section className="article-reader__saved" aria-labelledby="article-reader-saved-title"><div className="section-heading"><div><p className="eyebrow eyebrow--accent">已保存</p><h2 id="article-reader-saved-title">这篇文章里的短语</h2></div><span>{state.savedPhrases.length} 条</span></div><ul>{state.savedPhrases.map((phrase) => <li key={phrase.id}><span lang="es">{phrase.text}</span><button type="button" onClick={() => setState((previous) => ({ ...previous, savedPhrases: previous.savedPhrases.filter((item) => item.id !== phrase.id) }))}>移除</button></li>)}</ul></section> : null}
     </div>
   );

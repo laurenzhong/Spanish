@@ -70,11 +70,7 @@ class ContentBundleDto {
         'characters',
         ContentCharacterDto.fromJson,
       ),
-      articles: _typedList(
-        json['articles'],
-        'articles',
-        ArticleDto.fromJson,
-      ),
+      articles: _typedList(json['articles'], 'articles', ArticleDto.fromJson),
       reviews: _typedList(
         json['reviews'],
         'reviews',
@@ -98,7 +94,10 @@ class ContentBundleDto {
   final List<ContentReviewDto> reviews;
 
   void _validateSemantics() {
-    if (domains.isEmpty || goals.isEmpty || tags.isEmpty || expressions.isEmpty) {
+    if (domains.isEmpty ||
+        goals.isEmpty ||
+        tags.isEmpty ||
+        expressions.isEmpty) {
       throw ContentBundleFormatException(
         'Content bundles require domains, goals, tags, and expressions.',
       );
@@ -1257,24 +1256,47 @@ class ArticleDto {
     required this.status,
     required this.contentHash,
     required this.segments,
+    this.oralTransferType = 'none',
   });
 
   factory ArticleDto.fromJson(Object? input) {
     final json = _object(input, 'article', const {
-      'stableKey', 'version', 'locale', 'title', 'summary', 'source',
-      'publishedAt', 'curatedAt', 'contentHash', 'cefr', 'topics', 'region',
-      'register', 'format', 'estimatedReadingMinutes', 'assets',
-      'relatedExpressionKeys', 'relatedGoalKeys', 'relatedTagKeys',
-      'oralTransferType', 'status', 'changeReason', 'reviewNotes', 'segments',
+      'stableKey',
+      'version',
+      'locale',
+      'title',
+      'summary',
+      'source',
+      'publishedAt',
+      'curatedAt',
+      'contentHash',
+      'cefr',
+      'topics',
+      'region',
+      'register',
+      'format',
+      'estimatedReadingMinutes',
+      'assets',
+      'relatedExpressionKeys',
+      'relatedGoalKeys',
+      'relatedTagKeys',
+      'oralTransferType',
+      'status',
+      'changeReason',
+      'reviewNotes',
+      'segments',
     });
     final segments = _typedList(
       json['segments'],
       'article.segments',
       ArticleSegmentDto.fromJson,
     );
-    final positions = segments.map((segment) => segment.position).toList()..sort();
+    final positions = segments.map((segment) => segment.position).toList()
+      ..sort();
     if (positions.asMap().entries.any((entry) => entry.value != entry.key)) {
-      throw ContentBundleFormatException('article segment positions must be contiguous.');
+      throw ContentBundleFormatException(
+        'article segment positions must be contiguous.',
+      );
     }
     return ArticleDto(
       stableKey: _stableKey(json['stableKey'], 'article.stableKey'),
@@ -1285,6 +1307,11 @@ class ArticleDto {
       status: _enum(json['status'], 'article.status', _contentStatuses),
       contentHash: _string(json['contentHash'], 'article.contentHash'),
       segments: segments,
+      oralTransferType: _enum(
+        json['oralTransferType'],
+        'article.oralTransferType',
+        const {'none', 'summary', 'opinion', 'personal_transfer'},
+      ),
     );
   }
 
@@ -1296,6 +1323,7 @@ class ArticleDto {
   final String status;
   final String contentHash;
   final List<ArticleSegmentDto> segments;
+  final String oralTransferType;
 }
 
 class ArticleSegmentDto {
