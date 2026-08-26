@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-26
 - 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
-- 总体状态：READ-003 已完成；READ-004 至 READ-005 待按顺序实现；UI-008 已完成；阶段 8 人工体验暂缓
+- 总体状态：READ-004 已完成；READ-005 待实现；UI-008 已完成；阶段 8 人工体验暂缓
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -22,7 +22,7 @@
 
 ## 当前任务
 
-当前任务为 **READ-003：规范化阅读器** 的实现交接；READ-004 至 READ-005 和 UI-009 至 UI-011 已在实施计划中拆分，必须按顺序逐项领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 **READ-004：阅读到口语迁移** 的实现交接；READ-005 和 UI-009 至 UI-011 已在实施计划中拆分，必须按顺序逐项领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 当前工作边界
 
@@ -73,6 +73,17 @@
 - 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、阅读器 Vitest（2/2）、内容契约 Vitest（3/3）、相关书架/壳层 Vitest（1/1）、`pnpm test:e2e`（72/72）、`flutter analyze`、`flutter test`（74 测试）通过；Chrome + Playwright 375px 视觉回归通过。
 - 限制：bundle 现有 5 篇原创文章已发布；Web localStorage 与 Flutter SecureStorage 只是 Alpha 恢复缓存，服务端 `user_reading_progress`、高亮、短语和笔记表/RLS 尚未接入；未实现 READ-004 口语迁移或 READ-005 外部来源导入。
 - 下一项：`READ-004` 阅读到口语迁移。
+
+### READ-004：阅读到口语迁移
+
+- 状态：`done`
+- 负责人：Codex
+- 实现 Commit：`209f5fb`
+- 范围：新增四种文章迁移任务 DTO（摘要、观点、个人迁移、角色对话）；Web 阅读器迁移卡片支持选择、草稿保存、跳过和显式口语复核；口语复核 URL 按文章版本和迁移类型加载上下文并复用现有训练状态机；Flutter 阅读器与训练 fake 提供同等入口和上下文；打字草稿、跳过和阅读完成不创建口语证据。
+- 修改：`src/modules/content/domain/article-transfer.ts`、`app/(product)/read/article/[articleId]/article-reader.tsx`、`app/(product)/learn/practice/page.tsx`、`src/modules/training/ui/fake-training-loop.tsx`、`apps/mobile/lib/features/read/read_page.dart`、`apps/mobile/lib/features/training/fakes/fake_training_loop.dart`、内容 DTO、迁移单测与 E2E、架构/测试文档。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm build`、迁移/阅读器/训练 Vitest（9/9）、`pnpm exec playwright test tests/e2e/article-transfer.spec.ts --project=desktop-chromium`（1/1）、`flutter analyze`、`flutter test`（76 测试）通过；Chrome 390px 视觉验收无横向溢出、迁移入口和练习上下文可见、控制台无错误。
+- 限制：`pnpm test --run` 在 Windows 并行/全量运行仍受已知资源和既有 `article-content` fixture 失败影响（bundle 已包含 5 篇文章）；本任务未接入服务端阅读私有表/RLS，也未实现 READ-005 外部来源导入；Flutter 未进行 iOS 真机或 Xcode 构建验证。
+- 下一项：`READ-005` 个人保存和外部来源增量。
 
 ### 阶段 7 已完成切片
 
