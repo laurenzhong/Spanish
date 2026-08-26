@@ -30,12 +30,8 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
 
   return (
     <div className="page-stack read-page">
-      <header className="page-header page-header--simple read-page__header">
-        <div>
-          <p className="eyebrow">安静输入</p>
-          <h1>读一篇真实的西语文章</h1>
-          <p>在不方便开口时，先让语言进入耳朵和眼睛。读过的内容不会直接变成口语能力证据。</p>
-        </div>
+      <header className="read-page__utility">
+        <h1 className="sr-only">阅读</h1>
         <Link className="text-link" href="/learn">回到今天 <span aria-hidden="true">→</span></Link>
       </header>
       <ReadShelf result={result} search={search ?? ""} topic={topic ?? ""} savedOnly={savedOnly} />

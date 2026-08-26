@@ -331,10 +331,13 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await page.goto("/read");
 
   await expect(page).toHaveTitle(/阅读/);
-  await expect(page.getByRole("heading", { name: "读一篇真实的西语文章" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "回到今天" })).toBeVisible();
+  await expect(page.getByText("安静输入", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("读一篇真实的西语文章", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "精选文章" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Una conversación que empieza con un café" })).toBeVisible();
-  await page.getByRole("link", { name: "Una conversación que empieza con un café" }).click();
+  const firstArticleLink = page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true });
+  await expect(firstArticleLink).toBeVisible();
+  await firstArticleLink.click();
   await expect(page).toHaveURL(/\/read\/article\/article\.sueno-first-cafe%401$/);
   await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
   await expect(page.getByRole("progressbar", { name: "文章阅读进度" })).toBeVisible();
