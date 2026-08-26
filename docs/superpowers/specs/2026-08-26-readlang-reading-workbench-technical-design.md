@@ -2,7 +2,7 @@
 
 - 日期：2026-08-26
 - 任务：UI-009 阅读库与规范化阅读器
-- 状态：设计已确认，待实现
+- 状态：设计已确认，UI-009 已实现（`4cbc121`）
 - 参考页面：[Readlang Spanish public library](https://readlang.com/es/library)、[Readlang article reader](https://readlang.com/library/6a8970cc201825d7541080f8/from/0)
 - 相关现有设计：[阅读库与西语文章内容体系](./2026-08-26-reading-library-and-article-content-design.md)、[Web UI 设计研究与页面方案](./2026-08-26-web-ui-design-research-and-scheme.md)
 
