@@ -334,7 +334,7 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("link", { name: "回到今天" })).toBeVisible();
   await expect(page.getByText("安静输入", { exact: true })).toHaveCount(0);
   await expect(page.getByText("读一篇真实的西语文章", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Public Texts" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Public Texts" })).toBeVisible();
   await expect(page.getByRole("link", { name: "My Texts" })).toHaveAttribute("href", "/read?saved=1");
   await expect(page.getByRole("link", { name: "Web Sites" })).toHaveAttribute("href", "/read?source=web");
   await page.getByRole("button", { name: /Generate Story/ }).click();

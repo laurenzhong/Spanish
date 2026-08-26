@@ -22,6 +22,7 @@ describe("article library shelf", () => {
 
     expect(screen.getByRole("heading", { name: "可公开阅读的文章正在准备中" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Public Texts" })).toHaveAttribute("href", "/read");
+    expect(screen.getByText("0 texts")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "My Texts" })).toHaveAttribute("href", "/read?saved=1");
     expect(screen.queryByRole("heading", { name: "找到你现在关心的方向" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Generate Story/ }));

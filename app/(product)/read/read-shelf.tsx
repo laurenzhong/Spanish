@@ -120,7 +120,6 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
     queueMicrotask(() => setReaderStates(nextStates));
   }, [visibleArticles]);
 
-  const sourceLabel = source === "web" ? "Web Sites" : savedOnly ? "My Texts" : "Public Texts";
   const emptyHeading = source === "web"
     ? "Web Sites 暂未开放"
     : savedOnly
@@ -138,6 +137,7 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
         <Link className={source === "public" && !savedOnly ? "is-selected" : ""} href={withParams({ search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>Public Texts</Link>
         <Link className={savedOnly ? "is-selected" : ""} href={withParams({ saved: "1", search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>My Texts</Link>
         <Link className={source === "web" ? "is-selected" : ""} href={withParams({ source: "web", search, sort: sort !== "hot" ? sort : undefined })}>Web Sites</Link>
+        <span className="read-library__source-count">{source === "web" || savedArticleIds === null ? "" : `${visibleArticles.length} texts`}</span>
       </nav>
 
       <section className="read-library__toolbar" aria-label="Reading tools">
@@ -183,8 +183,7 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
 
       {toolNotice ? <aside className="read-library__notice" role="status">{toolNotice}<button type="button" onClick={() => setToolNotice(null)} aria-label="Dismiss notice">×</button></aside> : null}
 
-      <section className="read-results" aria-labelledby="read-results-title">
-        <div className="section-heading"><div><p className="eyebrow eyebrow--accent">Reading library</p><h2 id="read-results-title">{sourceLabel}</h2></div><span>{source === "web" || savedArticleIds === null ? "" : `${visibleArticles.length} 篇`}</span></div>
+      <section className="read-results" aria-label="文章列表">
         {visibleArticles.length > 0 ? (
           <div className="read-article-list">
             {visibleArticles.map((article) => <ArticleListItem article={article} readerState={readerStates[article.stableKey]} key={article.id} />)}

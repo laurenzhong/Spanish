@@ -1665,6 +1665,7 @@ body { background: var(--background); }
 .read-library__source-tabs a { min-height: 46px; padding: 10px 20px; border: 1px solid transparent; border-bottom: 0; color: var(--muted); font-size: .95rem; text-decoration: none; }
 .read-library__source-tabs a:first-child { padding-left: 20px; }
 .read-library__source-tabs a.is-selected { border-color: var(--border); border-bottom-color: var(--surface); margin-bottom: -1px; color: var(--foreground); background: var(--surface); }
+.read-library__source-count { display: inline-flex; min-height: 30px; align-items: center; margin: 0 0 8px auto; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: var(--surface-soft); font-size: .72rem; font-weight: 760; white-space: nowrap; }
 .read-library__toolbar { display: grid; gap: 16px; padding: 0 0 16px; border-bottom: 1px solid var(--border); }
 .read-library__toolbar-actions { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; justify-content: end; order: -1; }
 .read-tool-button { display: inline-flex; min-height: 42px; gap: 8px; align-items: center; padding: 8px 14px; border: 0; border-radius: 6px; color: #fff; background: #3d9dce; cursor: pointer; font: inherit; font-size: .92rem; font-weight: 650; white-space: nowrap; }
@@ -1791,6 +1792,8 @@ body { background: var(--background); }
 }
 @media (max-width: 799px) {
   .read-page__utility { min-height: 26px; }
+  .read-library__source-tabs { flex-wrap: wrap; }
+  .read-library__source-count { flex: 0 0 100%; justify-content: end; min-height: 0; margin: 0; padding: 7px 8px 9px; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; }
   .read-library__toolbar { gap: 14px; padding-bottom: 14px; }
   .read-search { order: -1; }
   .read-library__toolbar-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; justify-content: stretch; }
