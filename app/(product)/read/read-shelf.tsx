@@ -119,6 +119,11 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
         </section>
       ) : null}
 
+      <nav className="read-library__subnav" aria-label="阅读内容来源">
+        <Link className={!savedOnly ? "is-selected" : ""} href={topic ? `/read?topic=${encodeURIComponent(topic)}` : "/read"}>精选文章</Link>
+        <Link className={savedOnly ? "is-selected" : ""} href="/read?saved=1">已保存</Link>
+      </nav>
+
       <section className="read-library__toolbar" aria-label="文章筛选">
         <form className="read-search" method="get">
           <label htmlFor="read-search-input">搜索文章</label>
@@ -130,10 +135,6 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
           </div>
         </form>
         <div className="read-library__toolbar-actions">
-          <div className="read-filter-group" aria-label="文章视图">
-            <Link className={!savedOnly && !topic ? "is-selected" : ""} href="/read">全部文章</Link>
-            <Link className={savedOnly ? "is-selected" : ""} href="/read?saved=1">已保存</Link>
-          </div>
           <label className="read-sort">
             <span>排序</span>
             <select aria-label="文章排序" defaultValue="recommended">

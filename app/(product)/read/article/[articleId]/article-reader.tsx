@@ -115,6 +115,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [status, setStatus] = useState("");
   const [activeTransfer, setActiveTransfer] = useState<ArticleTransferType | null>(null);
   const [transferDraft, setTransferDraft] = useState("");
+  const restoredPositionRef = useRef<number | null>(null);
   const [transferSaved, setTransferSaved] = useState(false);
   const contentRef = useRef<HTMLElement>(null);
   const tts = useMemo(() => createBrowserTextToSpeech(), []);
@@ -227,8 +228,16 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, []);
 
   useEffect(() => {
+    restoredPositionRef.current = null;
+  }, [article]);
+
+  useEffect(() => {
     if (!hydrated || state.position <= 0) return;
-    document.querySelector<HTMLElement>(`[data-reader-position="${state.position}"]`)?.scrollIntoView({ block: "center" });
+    if (restoredPositionRef.current !== null) return;
+    restoredPositionRef.current = state.position;
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-reader-position="${state.position}"]`)?.scrollIntoView({ block: "center" });
+    });
   }, [hydrated, state.position]);
 
   const updatePosition = useCallback(() => {
