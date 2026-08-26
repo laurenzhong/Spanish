@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
 
@@ -12,6 +12,16 @@ type ReadShelfProps = Readonly<{
   savedOnly: boolean;
 }>;
 
+type StoredReaderState = Readonly<{
+  stableKey: string;
+  version: number;
+  contentHash: string;
+  position: number;
+  lastOpenedAt?: string;
+}>;
+
+const readerStoragePrefix = "reading-reader:v1:";
+
 function topicLabel(topic: string): string {
   return topic.replace(/^topic\./u, "").replaceAll("-", " ");
 }
@@ -20,12 +30,54 @@ function formatLabel(format: ArticleCardProjection["format"]): string {
   return { news: "新闻", essay: "随笔", dialogue: "对话", guide: "指南", story: "故事" }[format];
 }
 
+function readStoredState(stableKey: string): StoredReaderState | null {
+  try {
+    const raw = window.localStorage.getItem(`${readerStoragePrefix}${stableKey}`);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object") return null;
+    const state = value as Partial<StoredReaderState>;
+    return typeof state.stableKey === "string" && typeof state.version === "number" && typeof state.contentHash === "string" && typeof state.position === "number"
+      ? state as StoredReaderState
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
+  const [continueArticle, setContinueArticle] = useState<ArticleCardProjection | null>(null);
   const hasFilters = Boolean(search || topic || savedOnly);
+
+  useEffect(() => {
+    const candidates = result.articles
+      .map((article) => ({ article, state: readStoredState(article.stableKey) }))
+      .filter((entry): entry is { article: ArticleCardProjection; state: StoredReaderState } => Boolean(entry.state && entry.state.position > 0));
+    candidates.sort((a, b) => (b.state.lastOpenedAt ?? "").localeCompare(a.state.lastOpenedAt ?? ""));
+    queueMicrotask(() => setContinueArticle(candidates[0]?.article ?? null));
+  }, [result.articles]);
+
+  const resultLabel = useMemo(() => {
+    if (savedOnly) return "已保存";
+    if (search || topic) return "匹配文章";
+    return "精选文章";
+  }, [savedOnly, search, topic]);
+
   return (
-    <>
-      <section className="read-toolbar" aria-label="文章筛选">
+    <div className="read-library">
+      {continueArticle ? (
+        <section className="read-continue read-continue--active" aria-labelledby="read-continue-title">
+          <div className="read-continue__copy">
+            <p className="eyebrow eyebrow--accent">继续阅读</p>
+            <h2 id="read-continue-title">{continueArticle.title}</h2>
+            <p>{continueArticle.sourceName} · {continueArticle.estimatedReadingMinutes} 分钟 · 从上次停下的地方继续</p>
+          </div>
+          <Link className="primary-link" href={`/read/article/${encodeURIComponent(continueArticle.id)}`}>继续阅读 <span aria-hidden="true">→</span></Link>
+        </section>
+      ) : null}
+
+      <section className="read-library__toolbar" aria-label="文章筛选">
         <form className="read-search" method="get">
           <label htmlFor="read-search-input">搜索文章</label>
           <div className="read-search__field">
@@ -35,15 +87,25 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
             <button type="submit" aria-label="搜索文章"><span aria-hidden="true">⌕</span></button>
           </div>
         </form>
-        <div className="read-filter-group" aria-label="文章视图">
-          <Link className={!savedOnly && !topic ? "is-selected" : ""} href="/read">全部文章</Link>
-          <Link className={savedOnly ? "is-selected" : ""} href="/read?saved=1">已保存</Link>
+        <div className="read-library__toolbar-actions">
+          <div className="read-filter-group" aria-label="文章视图">
+            <Link className={!savedOnly && !topic ? "is-selected" : ""} href="/read">全部文章</Link>
+            <Link className={savedOnly ? "is-selected" : ""} href="/read?saved=1">已保存</Link>
+          </div>
+          <label className="read-sort">
+            <span>排序</span>
+            <select aria-label="文章排序" defaultValue="recommended">
+              <option value="recommended">推荐</option>
+              <option value="newest">最新</option>
+              <option value="shortest">最短</option>
+            </select>
+          </label>
         </div>
       </section>
 
       <section className="read-topics" aria-labelledby="read-topics-title">
         <div className="section-heading">
-          <div><p className="eyebrow eyebrow--accent">按主题</p><h2 id="read-topics-title">找到你现在关心的方向</h2></div>
+          <div><p className="eyebrow eyebrow--accent">按主题浏览</p><h2 id="read-topics-title">找到你现在关心的方向</h2></div>
           <span>{result.topics.length} 个主题</span>
         </div>
         <div className="read-topic-list">
@@ -54,39 +116,43 @@ export function ReadShelf({ result, search, topic, savedOnly }: ReadShelfProps) 
         </div>
       </section>
 
-      <section className="read-continue" aria-labelledby="read-continue-title">
-        <div><p className="eyebrow eyebrow--accent">继续阅读</p><h2 id="read-continue-title">从上次停下的地方接着看</h2></div>
-        <p>你还没有进行中的文章。打开第一篇后，阅读断点会出现在这里。</p>
-      </section>
-
       <section className="read-results" aria-labelledby="read-results-title">
-        <div className="section-heading"><div><p className="eyebrow eyebrow--accent">文章库</p><h2 id="read-results-title">精选文章</h2></div><span>{result.articles.length} 篇</span></div>
+        <div className="section-heading"><div><p className="eyebrow eyebrow--accent">文章库</p><h2 id="read-results-title">{resultLabel}</h2></div><span>{result.articles.length} 篇</span></div>
         {result.articles.length > 0 ? (
-          <div className="read-article-grid">
-            {result.articles.map((article) => <ArticleCard article={article} key={article.id} />)}
+          <div className="read-article-list">
+            {result.articles.map((article) => <ArticleListItem article={article} key={article.id} />)}
           </div>
         ) : (
           <div className="surface-state read-empty" role="status">
             <span className="surface-state__marker" aria-hidden="true">文</span>
             <h2>{savedOnly ? "还没有保存的文章" : hasFilters ? "没有找到匹配的文章" : "可公开阅读的文章正在准备中"}</h2>
-            <p>{savedOnly ? "保存功能会在阅读器开放后出现。" : hasFilters ? "换一个主题或搜索词试试，或者先回到今天的练习。" : "每篇文章都会经过来源、版权和语言审核；准备好后会出现在这里。"}</p>
+            <p>{savedOnly ? "打开一篇文章后，你可以在正文中保存短语或高亮。" : hasFilters ? "换一个主题或搜索词试试，或者先回到今天的练习。" : "每篇文章都会经过来源、版权和语言审核；准备好后会出现在这里。"}</p>
             {hasFilters ? <Link className="text-link" href="/read">查看全部文章 <span aria-hidden="true">→</span></Link> : <Link className="text-link" href="/learn">回到今天 <span aria-hidden="true">→</span></Link>}
           </div>
         )}
         {result.hasMore && result.nextCursor ? <Link className="secondary-action read-more" href={`/read?cursor=${result.nextCursor}`}>加载更多文章</Link> : null}
       </section>
-    </>
+    </div>
   );
 }
 
-function ArticleCard({ article }: Readonly<{ article: ArticleCardProjection }>) {
+function ArticleListItem({ article }: Readonly<{ article: ArticleCardProjection }>) {
   return (
-    <article className="read-article-card">
-      <div className="read-article-card__meta"><span>{article.cefr}</span><span>{formatLabel(article.format)}</span><span>{article.estimatedReadingMinutes} 分钟</span></div>
-      <h3><Link href={`/read/article/${encodeURIComponent(article.id)}`}>{article.title}</Link></h3>
-      <p>{article.summary}</p>
-      <div className="read-article-card__topics">{article.topics.map((topic) => <span key={topic}>{topicLabel(topic)}</span>)}</div>
-      <footer><span>{article.sourceName}</span><span>{article.region}</span></footer>
+    <article className={`read-article-row read-article-row--${article.format}`}>
+      <div className="read-article-row__type" aria-hidden="true"><span>{formatLabel(article.format)}</span></div>
+      <div className="read-article-row__body">
+        <div className="read-article-row__heading">
+          <div className="read-article-row__meta"><span>{article.cefr}</span><span>{article.estimatedReadingMinutes} 分钟</span><span>{article.region}</span></div>
+          <span className="read-article-row__state">未开始</span>
+        </div>
+        <h3><Link href={`/read/article/${encodeURIComponent(article.id)}`}>{article.title}</Link></h3>
+        <p>{article.summary}</p>
+        <div className="read-article-row__footer">
+          <div className="read-article-row__topics">{article.topics.map((value) => <span key={value}>{topicLabel(value)}</span>)}</div>
+          <span>{article.sourceName}{article.author ? ` · ${article.author}` : ""}</span>
+        </div>
+      </div>
+      <Link className="read-article-row__action" href={`/read/article/${encodeURIComponent(article.id)}`} aria-label="打开文章" title={article.title}><span aria-hidden="true">→</span></Link>
     </article>
   );
 }
