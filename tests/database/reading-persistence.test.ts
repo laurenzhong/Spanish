@@ -146,7 +146,7 @@ describe("reading persistence", () => {
       savedPhrases: [],
       status: "in_progress",
     })).rejects.toThrow("ARTICLE_VERSION_CONFLICT");
-    await expect(repository.setSaved(userA, "article.reading-test@1", false)).resolves.toBe(true);
+    await expect(repository.setSaved(userA, "article.reading-test@1", false)).resolves.toBe(false);
     await expect(repository.listSavedArticleIds(userA)).resolves.toEqual([]);
   });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
@@ -76,6 +77,7 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
   const hasFilters = Boolean(search || topic || cefr || minutes);
+  const router = useRouter();
 
   useEffect(() => {
     if (source === "web") return;
@@ -121,6 +123,12 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
     queueMicrotask(() => setReaderStates(nextStates));
   }, [visibleArticles]);
 
+  useEffect(() => {
+    if (!toolNotice) return;
+    const timeout = window.setTimeout(() => setToolNotice(null), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [toolNotice]);
+
   const emptyHeading = source === "web"
     ? "Web Sites 暂未开放"
     : savedOnly
@@ -134,14 +142,26 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
 
   const toggleSaved = useCallback(async (articleId: string, currentlySaved: boolean) => {
     if (savingArticleIds.has(articleId)) return;
+    const nextSaved = !currentlySaved;
     setSavingArticleIds((previous) => new Set(previous).add(articleId));
+    setSavedArticleIds((previous) => {
+      const next = new Set(previous ?? []);
+      if (nextSaved) next.add(articleId);
+      else next.delete(articleId);
+      return next;
+    });
     try {
       const response = await fetch("/api/v1/read/saved", {
-        body: JSON.stringify({ articleId, saved: !currentlySaved }),
+        body: JSON.stringify({ articleId, saved: nextSaved }),
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
         method: "POST",
       });
+      if (response.status === 401) {
+        const next = `${window.location.pathname}${window.location.search}`;
+        router.push(`/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
       if (!response.ok) throw new Error("save-unavailable");
       const payload = (await response.json()) as { data?: { saved?: unknown } };
       const saved = payload.data?.saved;
@@ -154,6 +174,12 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
       });
       setToolNotice(saved ? "已保存到 My Texts。" : "已从 My Texts 移除。");
     } catch {
+      setSavedArticleIds((previous) => {
+        const next = new Set(previous ?? []);
+        if (currentlySaved) next.add(articleId);
+        else next.delete(articleId);
+        return next;
+      });
       setToolNotice("保存状态暂时无法更新，请稍后重试。");
     } finally {
       setSavingArticleIds((previous) => {
@@ -162,7 +188,7 @@ export function ReadShelf({ result, search, topic, cefr, minutes, source, sort, 
         return next;
       });
     }
-  }, [savingArticleIds]);
+  }, [router, savingArticleIds]);
 
   return (
     <div className="read-library">

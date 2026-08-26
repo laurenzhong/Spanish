@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   verifyRequestUser: vi.fn(),
+  getCurrentUser: vi.fn(),
   createRepository: vi.fn(),
   getDatabase: vi.fn(),
   repository: {
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/src/shared/auth/server", () => ({ verifyRequestUser: mocks.verifyRequestUser }));
+vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser: mocks.getCurrentUser, verifyRequestUser: mocks.verifyRequestUser }));
 vi.mock("@/src/shared/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/src/modules/reading/repositories", () => ({ createDrizzleReadingRepository: mocks.createRepository }));
 
@@ -88,6 +89,17 @@ describe("reading API routes", () => {
     ]);
 
     expect(responses.map((response) => response.status)).toEqual([503, 503, 503]);
+  });
+
+  it("accepts the Supabase cookie session for saved article reads", async () => {
+    mocks.verifyRequestUser.mockResolvedValue(null);
+    mocks.getCurrentUser.mockResolvedValue(user);
+    mocks.repository.listSavedArticleIds.mockResolvedValue(["article.reading-test@1"]);
+    const response = await getSaved(request("http://localhost/api/v1/read/saved", { headers: { cookie: "sb-session=present" } }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ data: { articleIds: ["article.reading-test@1"] } });
+    expect(mocks.getCurrentUser).toHaveBeenCalledOnce();
   });
 
   it("rejects malformed state and save payloads before repository access", async () => {

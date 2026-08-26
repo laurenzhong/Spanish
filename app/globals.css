@@ -1686,7 +1686,7 @@ body { background: var(--background); }
 .read-filter-menu__panel label { display: grid; gap: 5px; color: var(--muted); font-size: .76rem; font-weight: 760; }
 .read-filter-menu__panel select { min-height: 38px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); background: var(--background); font: inherit; }
 .read-filter-menu__panel .secondary-action { width: 100%; justify-content: center; margin-top: 3px; }
-.read-library__notice { display: flex; gap: 14px; align-items: center; justify-content: space-between; padding: 10px 12px; border-left: 3px solid var(--accent); color: var(--muted); background: var(--surface-soft); font-size: .8rem; line-height: 1.5; }
+.read-library__notice { position: fixed; z-index: 50; top: 16px; left: 50%; display: flex; width: min(calc(100vw - 32px), 520px); gap: 14px; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; color: var(--muted); background: var(--surface-soft); box-shadow: var(--shadow); font-size: .8rem; line-height: 1.5; transform: translateX(-50%); }
 .read-library__notice button { flex: 0 0 auto; width: 32px; height: 32px; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 1.2rem; }
 .read-results { display: grid; gap: 16px; }
 .read-article-list { display: grid; gap: 14px; }
@@ -1718,7 +1718,7 @@ body { background: var(--background); }
 .read-article-row__save { display: grid; width: 44px; height: 44px; place-items: center; align-self: center; justify-self: end; margin-right: 10px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; font-size: 1.55rem; line-height: 1; }
 .read-article-row__save:hover, .read-article-row__save:focus-visible { color: var(--accent); background: var(--accent-soft); }
 .read-article-row__save.is-saved { color: #c18a24; }
-.read-article-row__save:disabled { cursor: wait; opacity: .56; }
+.read-article-row__save:disabled { cursor: pointer; opacity: .7; }
 .read-empty { min-height: 220px; }
 .read-more { justify-self: center; }
 

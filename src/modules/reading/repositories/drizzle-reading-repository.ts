@@ -183,16 +183,16 @@ export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>
           .returning({ id: schema.userArticleSaves.id });
         return inserted.length > 0 || (await projectState(userId, version))?.saved === true;
       }
-      const deleted = await database
+      await database
         .delete(schema.userArticleSaves)
         .where(
           and(
             eq(schema.userArticleSaves.userId, userId),
             eq(schema.userArticleSaves.articleVersionId, version.articleVersionId),
           ),
-        )
-        .returning({ id: schema.userArticleSaves.id });
-      return deleted.length > 0;
+        );
+      // The API returns the resulting state, not whether a row was deleted.
+      return false;
     },
 
     async listSavedArticleIds(userId) {

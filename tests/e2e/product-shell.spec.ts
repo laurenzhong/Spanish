@@ -354,9 +354,15 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await page.goto("/read");
   const firstArticleLink = page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true });
   await expect(firstArticleLink).toBeVisible();
+  const firstArticleRow = page.locator("article.read-article-row").first();
+  const firstArticleTop = await firstArticleRow.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
   const firstArticleSave = page.getByRole("button", { name: /保存到 My Texts：Una conversación que empieza con un café/ });
   await firstArticleSave.click();
+  const firstArticleTopAfterSave = await firstArticleRow.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+  expect(Math.abs(firstArticleTopAfterSave - firstArticleTop)).toBeLessThan(4);
   await expect(page.getByRole("button", { name: /从 My Texts 移除：Una conversación que empieza con un café/ })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("已保存到 My Texts。");
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4000 });
   await firstArticleLink.click();
   await expect(page).toHaveURL(/\/read\/article\/article\.sueno-first-cafe%401$/);
   await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
@@ -369,6 +375,22 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /从 My Texts 移除：Una conversación que empieza con un café/ }).click();
   await expect(page.getByRole("heading", { name: "My Texts 还是空的" })).toBeVisible();
+});
+
+test("redirects readers to login when their save session expires", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/read/saved", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { articleIds: [] } }) });
+      return;
+    }
+    await route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", error: { code: "AUTH_REQUIRED" } }) });
+  });
+  await page.goto("/read");
+  const title = "Una conversación que empieza con un café";
+  await page.context().clearCookies();
+  await page.getByRole("button", { name: `保存到 My Texts：${title}` }).click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fread$/);
 });
 
 test("keeps the profile axes visible and selectable", async ({
