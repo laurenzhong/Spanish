@@ -83,7 +83,7 @@ function ArticleCard({ article }: Readonly<{ article: ArticleCardProjection }>) 
   return (
     <article className="read-article-card">
       <div className="read-article-card__meta"><span>{article.cefr}</span><span>{formatLabel(article.format)}</span><span>{article.estimatedReadingMinutes} 分钟</span></div>
-      <h3>{article.title}</h3>
+      <h3><Link href={`/read/article/${encodeURIComponent(article.id)}`}>{article.title}</Link></h3>
       <p>{article.summary}</p>
       <div className="read-article-card__topics">{article.topics.map((topic) => <span key={topic}>{topicLabel(topic)}</span>)}</div>
       <footer><span>{article.sourceName}</span><span>{article.region}</span></footer>

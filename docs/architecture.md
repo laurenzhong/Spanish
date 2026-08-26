@@ -251,6 +251,7 @@ Route Handler 的职责只有：
 - `GET /api/v1/profile`
   - `GET /api/v1/content/packs/:id`
   - `GET /api/v1/content/articles`
+  - `GET /api/v1/content/articles/:articleId`
 - `GET /api/v1/conversations`
 - `POST /api/v1/conversations/:id/messages`
 - `GET /api/v1/conversations/:id/stream`
@@ -258,6 +259,8 @@ Route Handler 的职责只有：
 - `DELETE /api/v1/me/data`
 
 `GET /api/v1/profile` 返回固定八个能力维度的当前掌握度、可信度、口语覆盖和证据计数；当历史证据足够时还返回四周前掌握度，并提供最多三条只含日期、输入方式、场景标签和提示级别的脱敏代表性尝试。响应不得包含原始答案、转写正文或音频引用。
+
+READ-003 的文章 detail 端点只接受稳定 `stableKey@version`，并在服务端按发布状态、版权状态投影纯文本段落；不会执行客户端传入的 HTML，也不会返回未发布版本。Web 阅读器和 Flutter `ArticleReaderPage` 以文章版本和内容哈希作为本地阅读状态边界，保存位置、短语、高亮和笔记时不写入 `evidence_events`、`mastery` 或 `confidence`。版本哈希变化只提示重新定位，旧版本标注不被静默覆盖；TTS/词语辅助失败不阻塞正文。
 
 7.4a 的关系记忆控制通过 `GET /api/v1/profile/memories` 和 `DELETE /api/v1/profile/memories?memoryId=...` 提供。列表只返回当前用户拥有的记忆，删除由服务端所有权检查执行，并依赖外键级联清理相关角色共享授权；能力证据和画像不会随之删除。
 

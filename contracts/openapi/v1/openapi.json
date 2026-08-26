@@ -28,6 +28,16 @@
         }
       }
     },
+    "/content/articles/{articleId}": {
+      "get": {
+        "summary": "Read one published normalized article version",
+        "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Published normalized article", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/article-detail-response.schema.json" } } } },
+          "404": { "description": "Article is missing, unpublished, or retired", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/auth/session": {
       "get": {
         "summary": "Verify the current authenticated session",

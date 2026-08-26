@@ -26,6 +26,18 @@ export type ArticleCardProjection = Readonly<{
   oralTransferType: ArticleOralTransferType;
 }>;
 
+export type ArticleReaderSegment = Readonly<{
+  position: number;
+  text: string;
+}>;
+
+export type ArticleReaderProjection = ArticleCardProjection & Readonly<{
+  contentHash: string;
+  sourceUrl: string | null;
+  attribution: string | null;
+  segments: readonly ArticleReaderSegment[];
+}>;
+
 export type ArticleListQuery = Readonly<{
   search?: string;
   topic?: string;
@@ -40,6 +52,11 @@ export type ArticleListResult = Readonly<{
   nextCursor: string | null;
   hasMore: boolean;
   savedFilterAvailable: boolean;
+}>;
+
+export type ArticleLookupResult = Readonly<{
+  article: ArticleReaderProjection | null;
+  reason: "found" | "not-found" | "unpublished";
 }>;
 
 export function articleId(stableKey: string, version: number): string {
@@ -57,6 +74,8 @@ type RawArticle = {
     author?: string;
     publicationDate?: string;
     copyrightStatus: "unverified" | "cleared" | "restricted";
+    sourceUrl?: string;
+    attribution?: string;
   };
   cefr: ArticleCardProjection["cefr"];
   topics: string[];
@@ -67,6 +86,8 @@ type RawArticle = {
   assets: readonly { assetType: "audio" | "chinese_summary" | "word_help" | "image"; available: boolean }[];
   oralTransferType: ArticleOralTransferType;
   status: "draft" | "review" | "approved" | "published" | "archived";
+  contentHash: string;
+  segments: readonly { position: number; text: string }[];
 };
 
 export function projectPublicArticle(raw: RawArticle): ArticleCardProjection | null {
@@ -97,6 +118,27 @@ export function projectPublicArticle(raw: RawArticle): ArticleCardProjection | n
     assets,
     oralTransferType: raw.oralTransferType,
   };
+}
+
+export function projectArticleReader(raw: RawArticle): ArticleReaderProjection | null {
+  const card = projectPublicArticle(raw);
+  if (!card) return null;
+  return {
+    ...card,
+    contentHash: raw.contentHash,
+    sourceUrl: raw.source.sourceUrl ?? null,
+    attribution: raw.source.attribution ?? null,
+    segments: [...raw.segments]
+      .sort((a, b) => a.position - b.position)
+      .map((segment) => ({ position: segment.position, text: segment.text })),
+  };
+}
+
+export function parseArticleId(id: string): { stableKey: string; version: number } | null {
+  const match = /^(.*)@(\d+)$/.exec(id.trim());
+  if (!match) return null;
+  const version = Number.parseInt(match[2], 10);
+  return Number.isInteger(version) && version > 0 ? { stableKey: match[1], version } : null;
 }
 
 export function filterArticles(

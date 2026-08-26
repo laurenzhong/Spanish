@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/article-detail-response.schema.json",
+  "title": "Article detail response v1",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": ["id", "stableKey", "version", "locale", "title", "summary", "cefr", "topics", "region", "register", "format", "estimatedReadingMinutes", "sourceName", "author", "publicationDate", "assets", "oralTransferType", "contentHash", "sourceUrl", "attribution", "segments"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" }, "stableKey": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "locale": { "type": "string" }, "title": { "type": "string" }, "summary": { "type": "string" }, "cefr": { "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] }, "topics": { "type": "array", "items": { "type": "string" } }, "region": { "type": "string" }, "register": { "type": "string" }, "format": { "enum": ["news", "essay", "dialogue", "guide", "story"] }, "estimatedReadingMinutes": { "type": "integer", "minimum": 1 }, "sourceName": { "type": "string" }, "author": { "type": ["string", "null"] }, "publicationDate": { "type": ["string", "null"] }, "assets": { "type": "object", "additionalProperties": false, "required": ["audio", "chineseSummary", "wordHelp", "image"], "properties": { "audio": { "type": "boolean" }, "chineseSummary": { "type": "boolean" }, "wordHelp": { "type": "boolean" }, "image": { "type": "boolean" } } }, "oralTransferType": { "enum": ["none", "summary", "opinion", "personal_transfer"] }, "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }, "sourceUrl": { "type": ["string", "null"], "format": "uri" }, "attribution": { "type": ["string", "null"] }, "segments": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["position", "text"], "additionalProperties": false, "properties": { "position": { "type": "integer", "minimum": 0 }, "text": { "type": "string" } } } }
+      }
+    }
+  }
+}
