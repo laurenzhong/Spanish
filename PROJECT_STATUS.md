@@ -1342,6 +1342,7 @@ READ-005 已完成；当前下一项为 UI-010：我的进步与隐私控制。
 | 2026-08-27 | 恢复 UI-009 Readlang 风格阅读工作台 | `c07bec1` | 文章正文词语级交互、Explain/Guide/Words/Settings 右侧辅助栏、移动抽屉、阅读设置与全文/分段 TTS；局部测试、lint、typecheck、build 通过；全量单测受并行 PGlite 超时和既有 ReadShelf Router 测试限制 |
 | 2026-08-27 | 精简文章阅读器界面 | `0ac5180` | 移除顶部阅读进度、来源/查看原文、正文工具条、底部个人笔记、口语迁移和完成提示，仅保留正文与右侧辅助栏；局部测试、lint、typecheck、build 通过 |
 | 2026-08-27 | 对齐 Readlang 阅读工作台顶部与侧栏 | `009f05d` | 顶部改为返回文章库、居中标题和操作区；移除 R 方标；侧栏增加 Dictionary 并保留 Explain/Guide/Words/Settings；阅读器单测、lint、typecheck、build 通过 |
+| 2026-08-27 | 修正阅读器双板块布局 | `6585e83` | 正文与侧栏改为并列双列面板；侧栏固定 425px、取消卡片阴影并与 Readlang 的 tabs 面板边界对齐；移动端继续使用抽屉；阅读器单测、lint、typecheck、build 通过 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
