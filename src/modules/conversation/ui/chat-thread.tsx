@@ -156,7 +156,7 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
   return (
     <section className="conversation-thread" aria-labelledby="conversation-title" data-testid="conversation-thread">
       <header className="conversation-thread__header">
-        <Link className="conversation-thread__back" href="/chat">
+        <Link aria-label="返回对话列表" className="conversation-thread__back" href="/chat">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>
           <span>返回对话列表</span>
         </Link>

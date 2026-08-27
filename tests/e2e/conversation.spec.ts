@@ -153,3 +153,15 @@ test("keeps the conversation thread within a phone viewport", async ({ page }) =
   const width = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
   expect(width.scroll).toBeLessThanOrEqual(width.client);
 });
+
+test("keeps the mobile back link accessible and actionable", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/chat/lucia");
+
+  const backLink = page.getByRole("link", { name: "返回对话列表" });
+  await expect(backLink).toHaveAttribute("href", "/chat");
+  await backLink.click();
+  await expect(page).toHaveURL(/\/chat$/);
+  await expect(page.getByRole("heading", { name: "Lucía Martín" })).toBeVisible();
+});
