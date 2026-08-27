@@ -266,6 +266,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     setExpandedTimestampId((current) => current === messageId ? null : messageId);
   }
 
+  function handleMessageClick(message: ConversationState["messages"][number]) {
+    if (!message.createdAt) return;
+    toggleMessageTimestamp(message.id);
+  }
+
   function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     if (message.role === "user") {
       openMessageMenu(event, message);
@@ -405,7 +410,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             data-complete={message.complete}
             data-withdrawn={message.withdrawn ? "true" : undefined}
             aria-live={message.role === "character" && message.id === state.activeMessageId ? "polite" : undefined}
-            onClick={() => { if (message.createdAt) toggleMessageTimestamp(message.id); }}
+            onClick={() => handleMessageClick(message)}
             onContextMenu={(event) => handleMessageContextMenu(event, message)}
             onKeyDown={(event) => handleMessageKeyDown(event, message)}
             tabIndex={message.createdAt ? 0 : undefined}
