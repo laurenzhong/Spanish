@@ -11,6 +11,7 @@ type ConversationContactRailProps = Readonly<{
 export function ConversationContactRail({ activeCharacterKey }: ConversationContactRailProps) {
   const [conversations, setConversations] = useState<readonly ConversationPreview[]>([]);
   const [status, setStatus] = useState<"loading" | "available" | "unavailable">("loading");
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -28,7 +29,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
         setStatus("unavailable");
       });
     return () => controller.abort();
-  }, []);
+  }, [reloadToken]);
 
   return (
     <aside className="conversation-contact-rail" aria-label="联系人">
@@ -45,7 +46,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       <p className="conversation-contact-rail__label">最近</p>
       <nav className="conversation-contact-rail__list" aria-label="好友列表">
         {status === "loading" ? <p className="conversation-contact-rail__state">正在加载会话……</p> : null}
-        {status === "unavailable" ? <p className="conversation-contact-rail__state" role="alert">暂时无法加载会话列表，请稍后重试。</p> : null}
+        {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表。</p><button type="button" onClick={() => { setStatus("loading"); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
         {status === "available" && conversations.length === 0 ? <p className="conversation-contact-rail__state">还没有已保存的会话。打开一个角色开始聊天。</p> : null}
         {conversations.map((conversation) => (
           <Link
