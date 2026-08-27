@@ -42,7 +42,7 @@
 - 范围：对照产品设计和 Alpha 范围盘点未完成能力与已知缺陷；补齐核心训练、初次诊断、阅读、对话、画像、隐私和 Web/Flutter 跨端闭环；修复阻塞级/高优先级流程、状态机、取消/竞态、数据隔离、证据污染和角色一致性问题；清理全量测试与 fixture 漂移；准备发布候选质量门禁。
 - 不包含：阶段 8 连续使用配额、周度复盘或全面主观体验；支付、完整内容后台、实时双向语音、大规模角色网络、任意外部来源抓取和其他 Alpha 延后范围。
 - 验收：核心路径可从入口走到完成或可恢复失败；P0/P1 缺陷清零；关键数据和角色安全不变量有自动化回归；`pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm test:e2e`、`pnpm build` 按发布候选范围通过；Flutter 公共检查通过，并记录 Mac/Xcode 真机验收缺口。
-- 当前切片：除引用与转发外，收敛对话 P0/P1 缺陷；语音按钮接入一次性转写与可编辑确认；新增真实会话列表、长对话滚动/加载体验和移动端消息操作入口。实现 Commit：`6055078`、`191b49c`、`8b3c257`、`be3fcd4`、`42e551e`。相关 Vitest 12/12、`pnpm exec tsc --noEmit`、`pnpm build` 和受影响文件 ESLint 通过；浏览器复现确认好友栏始终显示 Lucía、Mateo、Inés，切换到 Mateo 后不再显示“正在加载会话”；介绍请求已改为独立弹层，详情页移除冗余返回按钮。全量 lint 仍被既有 `tests/unit/minimax-story-generation.test.ts` 两个未使用参数警告阻断，全量 E2E 在 Windows 多 worker 运行时出现既有 Node OOM/超时，需用单 worker 复核。
+- 当前切片：除引用与转发外，收敛对话 P0/P1 缺陷；语音按钮接入一次性转写与可编辑确认；新增真实会话列表、长对话滚动/加载体验和移动端消息操作入口。实现 Commit：`6055078`、`191b49c`、`8b3c257`、`be3fcd4`、`42e551e`、`8c390be`。相关 Vitest 17/17、`pnpm exec tsc --noEmit`、`pnpm build` 和受影响文件 ESLint 通过；浏览器复现确认好友栏始终显示 Lucía、Mateo、Inés，切换到 Mateo 后不再显示“正在加载会话”；介绍请求已改为独立弹层，详情页移除冗余返回按钮；左侧标题简化为“好友”，角色副标题去除重复能力文案，用户消息换行改为左对齐。全量 lint 仍被既有 `tests/unit/minimax-story-generation.test.ts` 两个未使用参数警告阻断，全量 E2E 在 Windows 多 worker 运行时出现既有 Node OOM/超时，需用单 worker 复核。
 - 下一项：阶段 8 个人 Alpha 连续使用与人工体验复核，仅在本任务退出条件满足并经产品本人确认后启动。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
