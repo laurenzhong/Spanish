@@ -119,6 +119,8 @@ export function LearningHeatmap() {
     return heatmap.days.find((day) => day.date === date) ?? heatmap.days.at(-1);
   }, [heatmap.days, heatmap.range.to, selectedDate]);
 
+  const visibleDays = useMemo(() => heatmap.days.slice(-84), [heatmap.days]);
+
   if (loading) {
     return (
       <section className="learning-heatmap profile-dashboard__section" data-testid="learning-heatmap-loading">
@@ -138,7 +140,7 @@ export function LearningHeatmap() {
       <div className="section-heading learning-heatmap__heading">
         <div>
           <p className="eyebrow eyebrow--accent">有效学习</p>
-          <h2 id="learning-heatmap-title">学习活动热力图</h2>
+          <h2 id="learning-heatmap-title">最近 12 周活动</h2>
           <p>只记录前台且有近期活动的有效学习时间，不参与能力评分，也不惩罚中断。</p>
         </div>
         <div className="learning-heatmap__totals" aria-label="学习活动摘要">
@@ -147,12 +149,12 @@ export function LearningHeatmap() {
         </div>
       </div>
 
-      <div className="learning-heatmap__scroll" role="group" aria-label="最近 365 天学习活动">
+      <div className="learning-heatmap__scroll" role="group" aria-label="最近 12 周学习活动">
         <div className="learning-heatmap__weekdays" aria-hidden="true">
           <span>一</span><span>三</span><span>五</span>
         </div>
         <div className="learning-heatmap__grid">
-          {heatmap.days.map((day) => {
+          {visibleDays.map((day) => {
             const level = intensity(day.durationMinutes);
             return (
               <button

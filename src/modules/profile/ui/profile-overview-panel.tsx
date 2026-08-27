@@ -50,6 +50,13 @@ function formatPercent(value: number | null): string {
   return value === null ? "待验证" : `${Math.round(value * 100)}%`;
 }
 
+function formatAttemptDate(value: string): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
 function axisPoints(
   axes: readonly ProfileAxis[],
   radius: number,
@@ -172,6 +179,25 @@ export function ProfileOverviewPanel() {
     [overview.axes, selectedKey],
   );
 
+  const recentAttempts = useMemo(() => {
+    const seen = new Set<string>();
+    return overview.axes
+      .flatMap((axis) => axis.representativeAttempts.map((attempt) => ({ ...attempt, axisLabel: axis.label })))
+      .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+      .filter((attempt) => {
+        const key = `${attempt.occurredAt}:${attempt.modality}:${attempt.sceneLabel ?? ""}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 3);
+  }, [overview.axes]);
+
+  const hasEvidence = overview.summary.totalEvidence > 0;
+  const nextAxis = overview.axes.find((axis) => axis.status === "developing" || axis.status === "accumulating")
+    ?? overview.axes.find((axis) => axis.status === "data-insufficient");
+  const nextActionHref = nextAxis ? `/learn/practice?focus=${encodeURIComponent(nextAxis.key)}` : "/learn/practice";
+
   if (loading) {
     return (
       <div className="profile-dashboard" data-testid="profile-overview-loading">
@@ -190,9 +216,9 @@ export function ProfileOverviewPanel() {
       ) : null}
       <section className="profile-dashboard__summary" aria-label="能力总览摘要">
         <div>
-          <p className="eyebrow eyebrow--accent">能力总览</p>
-          <h2>看见哪些能力已经有证据</h2>
-          <p>掌握程度、可信度和口语覆盖分开显示，不把学习时长算进能力。</p>
+          <p className="eyebrow eyebrow--accent">{hasEvidence ? "你新获得的能力" : "你的第一步"}</p>
+          <h2>{hasEvidence && nextAxis?.mastery !== null ? `正在建立${nextAxis?.label ?? "口语能力"}` : "完成第一次口语练习，开始积累真实证据"}</h2>
+          <p>{hasEvidence ? "状态来自真实练习样本；掌握程度、可信度和口语覆盖分开显示。" : "完成一次完整表达后，这里会显示可追溯的能力变化，而不是虚构的分数。"}</p>
         </div>
         <div className="profile-dashboard__stats">
           <div>
@@ -201,13 +227,14 @@ export function ProfileOverviewPanel() {
           </div>
           <div>
             <strong>{overview.summary.totalEvidence}</strong>
-            <span>有效证据</span>
+            <span>能力证据</span>
           </div>
           <div>
             <strong>{overview.axes.filter((axis) => axis.oralCoverage !== null && axis.oralCoverage > 0).length}</strong>
             <span>有口语覆盖</span>
           </div>
         </div>
+        {hasEvidence ? <a className="profile-dashboard__primary-action" href={nextActionHref}>继续练习 <span aria-hidden="true">→</span></a> : null}
       </section>
 
       <section className="profile-dashboard__overview" aria-labelledby="profile-axis-title">
@@ -279,7 +306,33 @@ export function ProfileOverviewPanel() {
         </section>
       ) : null}
 
-      <section className="profile-axis-table" aria-labelledby="profile-axis-table-title">
+      <section className="profile-evidence" aria-labelledby="profile-evidence-title">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow eyebrow--accent">为什么这样判断</p>
+            <h2 id="profile-evidence-title">最近的证据</h2>
+            <p>来自真实练习的片段，不展示原始录音或完整转写。</p>
+          </div>
+          <a className="text-link" href="#profile-axis-detail-title">历史</a>
+        </div>
+        {recentAttempts.length > 0 ? (
+          <ol className="profile-evidence__timeline">
+            {recentAttempts.map((attempt) => (
+              <li key={`${attempt.occurredAt}:${attempt.modality}:${attempt.sceneLabel ?? ""}`}>
+                <time dateTime={attempt.occurredAt}>{formatAttemptDate(attempt.occurredAt)}{attempt.sceneLabel ? ` · ${attempt.sceneLabel}` : ""}</time>
+                <strong>{attempt.axisLabel}</strong>
+                <span>{attempt.modality === "speech" ? "自主开口" : attempt.modality === "typing" ? "打字草稿" : attempt.modality === "listening" ? "听力活动" : "阅读迁移"} · {attempt.hintLevel === null ? "无提示记录" : attempt.hintLevel === 0 ? "没有使用提示" : `使用 ${attempt.hintLevel} 级提示`}</span>
+                <em>{attempt.modality === "speech" ? "语境成功" : "待口语复核"}</em>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="profile-evidence__empty">完成可追溯表达后，这里会解释你的能力状态。</p>
+        )}
+      </section>
+
+      <details className="profile-axis-table">
+        <summary>查看完整证据明细</summary>
         <div className="section-heading">
           <div>
             <p className="eyebrow eyebrow--accent">可追溯明细</p>
@@ -304,7 +357,7 @@ export function ProfileOverviewPanel() {
             </tbody>
           </table>
         </div>
-      </section>
+      </details>
     </div>
   );
 }
