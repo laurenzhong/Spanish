@@ -43,7 +43,7 @@
 - 不包含：阶段 8 连续使用配额、周度复盘或全面主观体验；支付、完整内容后台、实时双向语音、大规模角色网络、任意外部来源抓取和其他 Alpha 延后范围。
 - 验收：核心路径可从入口走到完成或可恢复失败；P0/P1 缺陷清零；关键数据和角色安全不变量有自动化回归；`pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm test:e2e`、`pnpm build` 按发布候选范围通过；Flutter 公共检查通过，并记录 Mac/Xcode 真机验收缺口。
 - 当前切片：画像 Web `/me` 视觉与信息层级落地。首屏改为能力摘要、唯一真实继续练习入口（有证据时才显示）、八维状态条、最近证据时间线；雷达图与证据表降为可展开的次级明细；活动热力图默认展示最近 12 周；桌面/移动样式统一暖米白、赤陶与灰绿色编辑式主题，并补充暗色主题映射。实现 Commit：`c1f740c`。验证：画像/热力图/profile 页面 Vitest 5/5、画像 E2E 1/1、`pnpm exec tsc --noEmit`、受影响文件 ESLint 通过；浏览器检查桌面页面无横向溢出。限制：当前 profile API/heatmap API 未配置数据库时显示诚实不可用状态；本切片未改 Flutter 页面或新增 Dashboard DTO。下一步：补齐真实 profile Dashboard DTO 与 Flutter 同源渲染，再进入发布候选门禁。
-- 对话 UI 后置修复：所有消息新增头像、气泡和 `HH:mm` 时间；跨日分隔显示“今天/昨天/日期”，流式新消息和乐观发送消息补齐时间戳，保留右侧用户消息与长文本左对齐。实现 Commit：`30a140c`。修改 `src/modules/conversation/`、`app/globals.css` 与对话 Playwright 回归；相关 Vitest 20/20、完整对话 Playwright 单 worker 22/22、`pnpm exec tsc --noEmit` 和受影响文件 ESLint 通过。限制：头像继续使用首字母/本地用户标记，未接入远程头像资源；Flutter 页面尚未同步本次视觉改动。
+- 对话 UI 后置修复：所有消息新增头像、气泡和 `HH:mm` 时间；跨日分隔显示“今天/昨天/日期”，流式新消息和乐观发送消息补齐时间戳，保留右侧用户消息与长文本左对齐；移动端消息操作按钮与头像保持独立间距。实现 Commit：`30a140c`、`df135c5`。修改 `src/modules/conversation/`、`app/globals.css` 与对话 Playwright 回归；相关 Vitest 20/20、完整对话 Playwright 单 worker 22/22，追加桌面/移动布局与消息操作回归 4/4，`pnpm exec tsc --noEmit` 和受影响文件 ESLint 通过。限制：头像继续使用首字母/本地用户标记，未接入远程头像资源；Flutter 页面尚未同步本次视觉改动。
 - 下一项：阶段 8 个人 Alpha 连续使用与人工体验复核，仅在本任务退出条件满足并经产品本人确认后启动。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
