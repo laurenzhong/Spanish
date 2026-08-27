@@ -12,6 +12,30 @@
     }
   ],
   "paths": {
+    "/conversations": {
+      "get": {
+        "summary": "List the authenticated user's persisted conversations",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Conversation summaries" },
+          "401": { "description": "Authentication required" },
+          "503": { "description": "Conversation list unavailable" }
+        }
+      }
+    },
+    "/transcriptions": {
+      "post": {
+        "summary": "Transcribe ephemeral conversation audio",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "required": ["audio"], "properties": { "audio": { "type": "string", "format": "binary" }, "languageTag": { "type": "string" } } } } } },
+        "responses": {
+          "200": { "description": "Editable transcript" },
+          "400": { "description": "Invalid audio" },
+          "401": { "description": "Authentication required" },
+          "503": { "description": "Transcription unavailable" }
+        }
+      }
+    },
     "/content/articles": {
       "get": {
         "summary": "List published article cards",
@@ -118,6 +142,25 @@
           "400": { "description": "Invalid source ID", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
       }
+    },
+    "/read/generated-stories": {
+      "get": {
+        "summary": "List the authenticated user's private AI drafts",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "search", "in": "query", "schema": { "type": "string" } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } }, { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 24 } }],
+        "responses": { "200": { "description": "Private generated story cards", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/generated-story-list-response.schema.json" } } } }, "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } }
+      },
+      "post": {
+        "summary": "Generate and save a private Spanish reading draft",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/generated-story-request.schema.json" } } } },
+        "responses": { "201": { "description": "Private generated draft", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/generated-story-detail-response.schema.json" } } } }, "400": { "description": "Invalid generation input", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }, "409": { "description": "Idempotency conflict", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }, "503": { "description": "Generation unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } }
+      }
+    },
+    "/read/generated-stories/{articleId}": {
+      "get": { "summary": "Read one private generated draft", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Private generated article", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/generated-story-detail-response.schema.json" } } } }, "404": { "description": "Not found or not owned", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } } },
+      "delete": { "summary": "Delete one private generated draft", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Draft deleted" }, "404": { "description": "Not found or not owned", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } } }
     },
     "/auth/session": {
       "get": {

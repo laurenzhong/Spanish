@@ -1,4 +1,5 @@
 export type ArticleFormat = "news" | "essay" | "dialogue" | "guide" | "story";
+export type ArticleOrigin = "public" | "generated";
 export type ArticleOralTransferType = "none" | "summary" | "opinion" | "personal_transfer";
 export type ArticleSort = "hot" | "newest" | "shortest";
 export type ArticleReadingLength = "short" | "medium" | "long";
@@ -26,6 +27,7 @@ export type ArticleCardProjection = Readonly<{
     image: boolean;
   }>;
   oralTransferType: ArticleOralTransferType;
+  origin?: ArticleOrigin;
 }>;
 
 export type ArticleReaderSegment = Readonly<{

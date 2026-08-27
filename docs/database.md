@@ -94,12 +94,14 @@ pnpm db:migrate
 
 - 用户私有表包含 `user_id`、`created_at` 和 `updated_at`；`profiles.id` 本身就是用户 ID。
 - `0012` 新增四张阅读私有表：`user_reading_progress`、`user_article_saves`、`user_article_highlights`、`user_saved_article_sources`。前三张通过 `article_version_id` 关联已发布内容版本，来源表只保存用户提交的外部 URL 元数据，不保存正文。
+- `0014` 新增 `user_generated_articles`。每行绑定一个内部文章版本和一个用户，保存生成参数、MiniMax provider/model/request 元数据、内容哈希、幂等键和 `ready` 状态；用户只能读取、插入和删除自己的行。关联的文章载体使用级联删除，账号删除会先由 profile 外键清理生成记录及其内部版本，公共文章不受影响。重复的 `(user_id, idempotency_key)` 且参数一致时返回原文章，参数不一致返回 `409 CONFLICT`。
 - `evidence_events` 只追加。首版迁移在 Supabase 角色存在时撤销 `anon` 和 `authenticated` 的 `UPDATE` / `DELETE` 权限。
 - `user_skill_states` 与 `user_scene_states` 是可重算快照，不能替代原始证据。
 - 尝试、证据和角色消息包含稳定客户端 ID、幂等键或 generation 标识，后续重试不能重复写入事实。
 - `practice_session_activity_events` 只保存服务端接收时间、客户端实例不透明 ID、序号和生命周期事件；`(session_id, client_instance_id, sequence)` 幂等，活动间隔由服务端领域函数保守聚合。
 - 内容和人物设定保存版本；已经产生学习证据的版本不得静默覆盖。
 - 普通录音使用 `audio_assets.retention_policy` 表达生命周期，真正的存储删除流程在语音任务中实现。
+- 对话语音输入走一次性转写端点，不创建 `audio_assets` 或消息媒体记录；provider 输入按 `ephemeral` 生命周期处理，只有用户确认后的文本才进入 `messages`。
 - 关系记忆只保存抽取后的短事实值及来源 ID，不保存完整私聊正文；完整 `done` 消息轮之外不得创建记忆候选。
 - 介绍提议拒绝或过期不创建联系人；每个角色独立维护关系阶段和揭示状态，介绍不会自动共享教学画像或其他角色的私密记忆。
 
@@ -113,6 +115,7 @@ pnpm db:migrate
 - 7.4b 只向用户展示非 `ephemeral` 的 `audio_assets` 和 speech 尝试中的转写文本；录音删除使用 `deleted_at` 软删除，转写删除清空 `practice_attempts.response_text`，两者都保留证据历史。账号级删除的 Storage 对象清理由 7.4c 的专用 storage deleter 和可重试任务负责。
 - 7.4c 的账号数据删除由服务端事务执行：先删除 `evidence_events` 解除 `practice_attempts` 的 restrict 引用，再删除 `profiles` 触发用户私有表级联；`provider_calls` 在 profile 删除前置空 `user_id` 并替换 metadata 为匿名标记。`privacy_cleanup_tasks` 不含 `user_id`，只保存待清理的 bucket/path、状态、尝试次数和脱敏错误，RLS 对客户端完全关闭。
 - `0012` 的阅读表启用 RLS。`authenticated` 仅能按 `user_id = auth.uid()` 读写自己的阅读行；`anon` 没有表权限。删除账号时由 `profiles` 外键级联清理阅读进度、收藏、高亮、笔记和外部来源元数据，公共文章和文章版本不受影响。
+- `0014` 的生成文章表启用同样的用户级 RLS；内部文章版本只有在生成记录的用户所有权条件下才可被阅读状态 repository 解析，防止通过稳定文章 ID 横向读取其他用户的 draft。公共文章查询不 join 生成表。
 - `diagnostic_events` 不开放客户端读写；内部查询只返回去掉 `user_id` 和 `dedupe_key` 的诊断投影。
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
 - 变体、任务和内容片段通过可见的父内容继承读取权限。

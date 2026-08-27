@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/generated-story-detail-response.schema.json",
+  "title": "Generated story detail response v1",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": { "type": "object", "required": ["id", "origin", "generatedAt", "segments"], "additionalProperties": true, "properties": { "id": { "type": "string" }, "origin": { "const": "generated" }, "generatedAt": { "type": "string", "format": "date-time" }, "segments": { "type": "array", "minItems": 1 } } }
+  }
+}

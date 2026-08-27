@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/generated-story-list-response.schema.json",
+  "title": "Generated story list response v1",
+  "type": "object",
+  "required": ["apiVersion", "data", "page"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": { "type": "object", "required": ["articles"], "additionalProperties": false, "properties": { "articles": { "type": "array", "items": { "$ref": "#/$defs/article" } } } },
+    "page": { "type": "object", "required": ["nextCursor", "hasMore"], "additionalProperties": false, "properties": { "nextCursor": { "type": ["string", "null"] }, "hasMore": { "type": "boolean" } } }
+  },
+  "$defs": {
+    "article": { "type": "object", "required": ["id", "stableKey", "version", "locale", "title", "summary", "cefr", "topics", "region", "register", "format", "estimatedReadingMinutes", "sourceName", "author", "publicationDate", "assets", "oralTransferType", "origin", "generatedAt"], "additionalProperties": true, "properties": { "id": { "type": "string" }, "origin": { "const": "generated" }, "generatedAt": { "type": "string", "format": "date-time" } } }
+  }
+}

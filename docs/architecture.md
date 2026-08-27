@@ -140,12 +140,16 @@ UI / Route Handler → Application → Domain
 
 角色对话通过 `CharacterReplyProvider` 走同一服务端 provider 边界。配置 `MINIMAX_API_KEY` 后，`POST /api/v1/conversations/:characterId/stream` 将服务端隐私过滤后的角色事实、关系摘要、可读记忆、最近消息和当前用户消息发送给 MiniMax M3；模型只返回自然语言消息，应用层继续负责 NDJSON `meta/delta/done`、generation 竞态、取消、完整消息持久化和记忆提取。MiniMax 超时、限流、鉴权、响应损坏或网络失败时回退到确定性 Lucía 回复，并为两次 provider 结果写入脱敏观测；没有配置密钥时直接使用确定性回复。供应商不会写入证据、画像或关系记忆，日志不保存 prompt、原始响应或私密正文。
 
+对话工作区通过 `GET /api/v1/conversations` 返回当前用户实际拥有的会话摘要（角色、最后一条已完成消息和时间），不再用角色目录冒充历史。无会话、数据库未配置和请求失败分别呈现为空状态或可重试状态；未读数没有可靠数据来源时不展示。语音消息使用 `POST /api/v1/transcriptions` 一次性转写为可编辑草稿，音频仅在 provider 请求生命周期内使用并以 `ephemeral` 策略处理，确认发送后仍复用文字对话流，不产生学习证据。
+
 已发送用户消息的上下文操作通过 `DELETE/PATCH /api/v1/conversations/:characterId/messages/:messageId` 进入 conversation repository，并再次执行用户所有权、角色和消息状态校验。删除只移除用户历史；撤回将消息置为 `withdrawn`，历史正文不再进入搜索或角色回复上下文，并删除其来源关系记忆。流式回复完成时还会重新检查用户消息状态，防止回复期间撤回的消息产生介绍候选或记忆；撤回不会生成学习证据。
 
 - `user_reading_progress` 保存版本化断点、完成状态和个人笔记；`user_article_saves` 保存文章收藏；`user_article_highlights` 保存短语/高亮文本及段落位置。
 - `/api/v1/read/articles/:articleId/state` 使用内容哈希做乐观版本检查。哈希过期返回 `409 CONFLICT`，客户端保留本地状态并提示重新定位，不静默覆盖标注。
 - `/api/v1/read/saved` 和 `/api/v1/read/sources` 只返回当前用户的明确 DTO。外部来源接口目前只保存规范化 URL、标题、作者、许可和版权状态等元数据，绝不抓取 URL 或保存未经验证的全文。
 - 阅读、TTS、词语查询、笔记和保存操作不会写入 `evidence_events`、`mastery` 或 `confidence`；只有显式口语迁移才进入 training/evidence 链路。
+
+Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。`POST /api/v1/read/generated-stories` 要求当前会话和 `Idempotency-Key`，输入经 Zod 校验后生成私有 AI draft；文章正文写入内部 `article_*` 版本载体，并由 `user_generated_articles` 按用户所有权关联。`GET/DELETE /api/v1/read/generated-stories/:articleId` 只返回或删除当前用户的记录，公共内容列表与公开内容 API 永不包含这些文章。生成文章可以复用阅读器的版本哈希、断点、标注和 TTS，但这些操作仍不会写入口语证据、画像或角色记忆。供应商请求只记录模型、延迟、请求 ID 等脱敏元数据，不保存 prompt 或原始响应。
 
 ### 6.1 训练完成不等于能力掌握
 

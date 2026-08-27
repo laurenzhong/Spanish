@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -33,7 +33,7 @@ function itemRows(
 export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>(
   database: ReadingDatabase<TResult>,
 ): ReadingRepository {
-  async function findArticleVersion(articleIdValue: string) {
+  async function findArticleVersion(userId: string, articleIdValue: string) {
     const reference = articleReference(articleIdValue);
     const [row] = await database
       .select({
@@ -45,11 +45,13 @@ export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>
       })
       .from(schema.articleVersions)
       .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
+      .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
       .where(
         and(
           eq(schema.articles.stableKey, reference.stableKey),
           eq(schema.articleVersions.version, reference.version),
           eq(schema.articleVersions.status, "published"),
+          or(isNull(schema.userGeneratedArticles.id), eq(schema.userGeneratedArticles.userId, userId)),
         ),
       )
       .limit(1);
@@ -107,7 +109,7 @@ export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>
 
   return {
     async getState(userId, articleIdValue) {
-      const version = await findArticleVersion(articleIdValue);
+      const version = await findArticleVersion(userId, articleIdValue);
       return version ? projectState(userId, version) : null;
     },
 
@@ -134,7 +136,7 @@ export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>
     },
 
     async upsertState(userId, articleIdValue, patch) {
-      const version = await findArticleVersion(articleIdValue);
+      const version = await findArticleVersion(userId, articleIdValue);
       if (!version) throw new Error("ARTICLE_NOT_FOUND");
       if (patch.contentHash !== version.contentHash) throw new Error("ARTICLE_VERSION_CONFLICT");
       await database.transaction(async (transaction) => {
@@ -195,7 +197,7 @@ export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>
     },
 
     async setSaved(userId, articleIdValue, saved) {
-      const version = await findArticleVersion(articleIdValue);
+      const version = await findArticleVersion(userId, articleIdValue);
       if (!version) throw new Error("ARTICLE_NOT_FOUND");
       if (saved) {
         const inserted = await database

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
+import type { GeneratedStoryCard } from "@/src/modules/reading/domain/generated-story";
 
 type ReadSort = "hot" | "newest" | "shortest";
 type ReadSource = "public" | "web";
@@ -21,6 +22,7 @@ type ReadShelfProps = Readonly<{
   sort: ReadSort;
   savedOnly: boolean;
   initialReaderProgress?: Readonly<Record<string, ReaderProgressSummary>>;
+  generatedArticles?: readonly GeneratedStoryCard[];
 }>;
 
 type ReaderProgressSummary = Readonly<{
@@ -78,7 +80,7 @@ function withParams(params: Readonly<Record<string, string | undefined>>): strin
   return serialized ? `/read?${serialized}` : "/read";
 }
 
-export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, savedOnly, initialReaderProgress }: ReadShelfProps) {
+export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, savedOnly, initialReaderProgress, generatedArticles = [] }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
   const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(() => savedOnly
     ? result.savedFilterAvailable ? new Set(result.articles.map((article) => article.id)) : null
@@ -87,6 +89,7 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
   const [readerStates, setReaderStates] = useState<Readonly<Record<string, StoredReaderState>>>({});
   const [readerProgress] = useState<Readonly<Record<string, ReaderProgressSummary>>>(initialReaderProgress ?? {});
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
+  const [privateArticles, setPrivateArticles] = useState<readonly GeneratedStoryCard[]>(generatedArticles);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
   const hasFilters = Boolean(search || topic || cefr || minutes);
   const router = useRouter();
@@ -110,8 +113,9 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
 
   const visibleArticles = useMemo(() => {
     if (source === "web") return [];
-    return savedOnly && !result.savedFilterAvailable ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles;
-  }, [result.articles, result.savedFilterAvailable, savedArticleIds, savedOnly, source]);
+    const publicArticles = savedOnly && !result.savedFilterAvailable ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles;
+    return savedOnly ? [...publicArticles, ...privateArticles] : publicArticles;
+  }, [privateArticles, result.articles, result.savedFilterAvailable, savedArticleIds, savedOnly, source]);
 
   useEffect(() => {
     const nextStates = Object.fromEntries(
@@ -192,6 +196,19 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
     }
   }, [router, savingArticleIds]);
 
+  const deleteGenerated = useCallback(async (articleId: string) => {
+    try {
+      const response = await fetch(`/api/v1/read/generated-stories/${encodeURIComponent(articleId)}`, { method: "DELETE", credentials: "same-origin" });
+      if (!response.ok) throw new Error("delete-unavailable");
+      const stableKey = articleId.slice(0, articleId.lastIndexOf("@"));
+      if (stableKey) window.localStorage.removeItem(`${readerStoragePrefix}${stableKey}`);
+      setPrivateArticles((previous) => previous.filter((item) => item.id !== articleId));
+      setToolNotice("文章已从 My Texts 删除。");
+    } catch {
+      setToolNotice("文章暂时无法删除，请稍后重试。");
+    }
+  }, []);
+
   return (
     <div className="read-library">
       <nav className="read-library__source-tabs" aria-label="Reading sources">
@@ -216,7 +233,7 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
           </div>
         </form>
         <div className="read-library__toolbar-actions">
-          <button className="read-tool-button" type="button" onClick={() => setToolNotice("Generate Story 当前仅保留入口；生成内容需要经过内容审核后才会进入文章库。")}>✣ <span>Generate Story</span></button>
+          <Link className="read-tool-button" href="/read/generate">✣ <span>Generate Story</span></Link>
           <button className="read-tool-button" type="button" onClick={() => setToolNotice("Upload Text or Audio 当前仅保留入口；上传解析和版权检查将在后续 Alpha 增量开放。")}>↑ <span>Upload Text or Audio</span></button>
           <label className="read-sort">
             <span>Sort</span>
@@ -247,7 +264,7 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
       <section className="read-results" aria-label="文章列表">
         {visibleArticles.length > 0 ? (
           <div className="read-article-list">
-            {visibleArticles.map((article) => <ArticleListItem article={article} isSaved={savedArticleIds?.has(article.id) ?? false} isSaving={savingArticleIds.has(article.id)} onToggleSaved={toggleSaved} readerState={readerStates[article.stableKey]} key={article.id} />)}
+            {visibleArticles.map((article) => <ArticleListItem article={article} isSaved={article.origin === "generated" || savedArticleIds?.has(article.id) === true} isSaving={savingArticleIds.has(article.id)} onToggleSaved={toggleSaved} onDeleteGenerated={article.origin === "generated" ? deleteGenerated : undefined} readerState={readerStates[article.stableKey]} key={article.id} />)}
           </div>
         ) : (
           <div className="surface-state read-empty" role="status">
@@ -280,13 +297,13 @@ function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, mi
   );
 }
 
-function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, readerState }: Readonly<{ article: ArticleCardProjection; isSaved: boolean; isSaving: boolean; onToggleSaved: (articleId: string, currentlySaved: boolean) => void; readerState?: StoredReaderState }>) {
+function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, onDeleteGenerated, readerState }: Readonly<{ article: ArticleCardProjection; isSaved: boolean; isSaving: boolean; onToggleSaved: (articleId: string, currentlySaved: boolean) => void; onDeleteGenerated?: (articleId: string) => void; readerState?: StoredReaderState }>) {
   return (
     <article className={`read-article-row read-article-row--${article.format}`}>
       <div className="read-article-row__type" aria-hidden="true"><span>{formatLabel(article.format)}</span><i /></div>
       <div className="read-article-row__body">
         <div className="read-article-row__heading">
-          <div className="read-article-row__meta"><span>{article.sourceName}</span>{article.author ? <span>作者 {article.author}</span> : null}<span>{article.cefr} · {article.estimatedReadingMinutes} 分钟</span></div>
+          <div className="read-article-row__meta"><span>{article.sourceName}</span>{article.origin === "generated" ? <span className="read-article-row__draft">AI draft</span> : null}{article.author ? <span>作者 {article.author}</span> : null}<span>{article.cefr} · {article.estimatedReadingMinutes} 分钟</span></div>
           <span className="read-article-row__state">{readingStatus(readerState)}</span>
         </div>
         <h3><Link href={`/read/article/${encodeURIComponent(article.id)}`}>{article.title}</Link></h3>
@@ -294,7 +311,7 @@ function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, readerStat
         <div className="read-article-row__rule" aria-hidden="true"><span /></div>
         <div className="read-article-row__footer">
           <div className="read-article-row__topics">{article.topics.map((value) => <span key={value}>{topicLabel(value)}</span>)}</div>
-          <Link className="read-article-row__read-link" href={`/read/article/${encodeURIComponent(article.id)}`}>打开文章 <span aria-hidden="true">＋</span></Link>
+          <div className="read-article-row__footer-actions"><Link className="read-article-row__read-link" href={`/read/article/${encodeURIComponent(article.id)}`}>打开文章 <span aria-hidden="true">＋</span></Link>{article.origin === "generated" && onDeleteGenerated ? <button className="read-article-row__delete" type="button" onClick={() => onDeleteGenerated(article.id)}>删除</button> : null}</div>
         </div>
       </div>
       <button className={`read-article-row__save${isSaved ? " is-saved" : ""}`} type="button" aria-label={isSaved ? `从 My Texts 移除：${article.title}` : `保存到 My Texts：${article.title}`} title={isSaved ? "从 My Texts 移除" : "保存到 My Texts"} aria-pressed={isSaved} aria-busy={isSaving} disabled={isSaving} onClick={() => onToggleSaved(article.id, isSaved)}><span aria-hidden="true">{isSaved ? "★" : "☆"}</span></button>

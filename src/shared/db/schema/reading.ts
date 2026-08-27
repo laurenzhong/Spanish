@@ -21,6 +21,43 @@ import {
 import { articleVersions } from "./content";
 import { profiles } from "./users";
 
+export const userGeneratedArticles = pgTable(
+  "user_generated_articles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    articleVersionId: uuid("article_version_id")
+      .notNull()
+      .references(() => articleVersions.id, { onDelete: "cascade" }),
+    prompt: text("prompt").notNull(),
+    cefr: text("cefr").notNull(),
+    length: text("length").notNull(),
+    format: text("format").notNull(),
+    keywords: text("keywords").array().default(sql`ARRAY[]::text[]`).notNull(),
+    provider: text("provider").notNull(),
+    modelVersion: text("model_version").notNull(),
+    providerRequestId: text("provider_request_id"),
+    requestId: text("request_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    contentHash: text("content_hash").notNull(),
+    status: text("status").default("ready").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("user_generated_articles_article_version_uidx").on(table.articleVersionId),
+    uniqueIndex("user_generated_articles_user_idempotency_uidx").on(table.userId, table.idempotencyKey),
+    index("user_generated_articles_user_created_idx").on(table.userId, table.createdAt),
+    check("user_generated_articles_prompt_length_check", sql`char_length(${table.prompt}) between 1 and 500`),
+    check("user_generated_articles_cefr_check", sql`${table.cefr} in ('A1', 'A2', 'B1', 'B2')`),
+    check("user_generated_articles_length_check", sql`${table.length} in ('short', 'medium', 'long')`),
+    check("user_generated_articles_format_check", sql`${table.format} in ('story', 'dialogue', 'guide')`),
+    check("user_generated_articles_status_check", sql`${table.status} = 'ready'`),
+  ],
+);
+
 export const userReadingProgress = pgTable(
   "user_reading_progress",
   {

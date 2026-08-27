@@ -351,8 +351,7 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await page.getByRole("link", { name: "Next page" }).click();
   await expect(page).toHaveURL(/\/read\?page=2$/);
   await expect(page.getByRole("link", { name: "Previous page" })).toBeVisible();
-  await page.getByRole("button", { name: /Generate Story/ }).click();
-  await expect(page.getByText(/Generate Story 当前仅保留入口/)).toBeVisible();
+  await expect(page.getByRole("link", { name: /Generate Story/ })).toHaveAttribute("href", "/read/generate");
   await page.locator("summary").filter({ hasText: "Filters" }).click();
   await expect(page.locator(".read-filter-menu__panel")).toBeVisible();
   await page.goto("/read");

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/generated-story-request.schema.json",
+  "title": "Generated story request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["prompt", "cefr", "length", "format", "keywords"],
+  "properties": {
+    "prompt": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "cefr": { "enum": ["A1", "A2", "B1", "B2"] },
+    "length": { "enum": ["short", "medium", "long"] },
+    "format": { "enum": ["story", "dialogue", "guide"] },
+    "keywords": { "type": "array", "maxItems": 8, "items": { "type": "string", "minLength": 1, "maxLength": 40 } }
+  }
+}
