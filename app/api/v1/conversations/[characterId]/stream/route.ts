@@ -21,6 +21,7 @@ import {
   createDrizzleIntroductionRepository,
   proposeIntroduction,
 } from "@/src/modules/character-network";
+import { createMiniMaxConversationProvider } from "@/src/modules/providers/conversation/server";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 import {
@@ -95,6 +96,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const readableMemoryRepository = memoryRepository && typeof memoryRepository.listReadableMemories === "function"
     ? memoryRepository
     : undefined;
+  let recentMessages: readonly Readonly<{ role: "user" | "character"; content: string }>[] = [];
+  if (repository) {
+    try {
+      recentMessages = (await repository.listMessages(user.id, characterId, 20)).map((message) => ({
+        role: message.role,
+        content: message.content,
+      }));
+    } catch {
+      // Conversation history is helpful context, but a read failure must not block a reply.
+    }
+  }
   let replyContext;
   try {
     replyContext = await buildReplyContext({
@@ -102,6 +114,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       userId: user.id,
       userMessage: text.trim(),
       character: luciaReplyCharacter,
+      recentMessages,
       memoryRepository: readableMemoryRepository,
     });
   } catch {
@@ -111,6 +124,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       userId: user.id,
       userMessage: text.trim(),
       character: luciaReplyCharacter,
+      recentMessages,
     });
   }
   const replyInput: StreamReplyInput = {
@@ -121,6 +135,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     generationId,
     messageId: randomUUID(),
     replyContext,
+    replyProvider: process.env.MINIMAX_API_KEY?.trim()
+      ? createMiniMaxConversationProvider()
+      : undefined,
+    providerModelVersion: "MiniMax-M3",
     signal: request.signal,
   };
   let conversationId: string | null = null;
@@ -142,9 +160,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return jsonError("CONVERSATION_UNAVAILABLE", "The conversation could not be saved.", 503);
     }
   }
-  const iterator = streamReply(replyInput);
   const correlation = createCorrelationIds({ requestId, generationId });
-  const providerStartedAt = Date.now();
+  const streamStartedAt = Date.now();
+  const iterator = streamReply({
+    ...replyInput,
+    onProviderResult: async (observation) => {
+      await recordProviderCallSafely(providerCallObserver, {
+        userId: user.id,
+        correlation: createCorrelationIds({
+          requestId,
+          conversationId: conversationId ?? undefined,
+          generationId,
+        }),
+        providerType: "conversation",
+        provider: observation.provider,
+        modelVersion: observation.modelVersion,
+        providerRequestId: observation.providerRequestId,
+        status: observation.status,
+        latencyMs: observation.latencyMs,
+        estimatedCostMicros: observation.estimatedCostMicros,
+        errorType: observation.errorType ?? null,
+      });
+    },
+  });
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -228,19 +266,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
           }
           controller.enqueue(encoder.encode(encodeConversationEvent(event)));
         }
-        await recordProviderCallSafely(providerCallObserver, {
-          userId: user.id,
-          correlation: createCorrelationIds({
-            requestId,
-            conversationId: conversationId ?? undefined,
-            generationId,
-          }),
-          providerType: "conversation",
-          provider: "deterministic-fake",
-          modelVersion: "lucia-reply-v1",
-          status: "succeeded",
-          latencyMs: Date.now() - providerStartedAt,
-        });
         controller.close();
       } catch {
         await recordDiagnosticEventSafely(diagnostics, {
@@ -262,10 +287,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
             conversationId: conversationId ?? undefined,
           }),
           providerType: "conversation",
-          provider: "deterministic-fake",
-          modelVersion: "lucia-reply-v1",
+          provider: "conversation-stream",
+          modelVersion: "protocol-v1",
           status: request.signal.aborted ? "cancelled" : "failed",
-          latencyMs: Date.now() - providerStartedAt,
+          latencyMs: Date.now() - streamStartedAt,
           errorType: request.signal.aborted ? "provider-cancelled" : "stream-failed",
         });
         controller.enqueue(

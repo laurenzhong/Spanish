@@ -1,0 +1,210 @@
+import "server-only";
+
+import { z } from "zod";
+
+import {
+  ConversationProviderError,
+  type CharacterReplyProvider,
+  type ConversationProviderInput,
+  type ConversationProviderResult,
+  validateConversationProviderInput,
+} from "./conversation";
+
+const defaultEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
+const defaultModelVersion = "MiniMax-M3";
+const defaultTimeoutMs = 30_000;
+const maxReplyLength = 4_000;
+
+type FetchImplementation = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
+type Clock = () => number;
+
+export type MiniMaxConversationProviderOptions = Readonly<{
+  apiKey: string;
+  endpoint?: string;
+  modelVersion?: string;
+  timeoutMs?: number;
+  fetchImplementation?: FetchImplementation;
+  clock?: Clock;
+}>;
+
+type RequestSignal = Readonly<{
+  signal: AbortSignal;
+  timedOut: () => boolean;
+  dispose: () => void;
+}>;
+
+const anthropicResponseSchema = z.object({
+  content: z.array(z.object({ type: z.literal("text"), text: z.string() }).strict()).min(1),
+}).passthrough();
+
+export class MiniMaxConversationProvider implements CharacterReplyProvider {
+  private readonly endpoint: string;
+  private readonly modelVersion: string;
+  private readonly timeoutMs: number;
+  private readonly fetchImplementation: FetchImplementation;
+  private readonly clock: Clock;
+
+  constructor(private readonly options: MiniMaxConversationProviderOptions) {
+    this.endpoint = options.endpoint ?? defaultEndpoint;
+    this.modelVersion = options.modelVersion ?? defaultModelVersion;
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
+    this.fetchImplementation = options.fetchImplementation ?? fetch;
+    this.clock = options.clock ?? Date.now;
+  }
+
+  async generate(
+    input: ConversationProviderInput,
+    options: Readonly<{ signal?: AbortSignal }> = {},
+  ): Promise<ConversationProviderResult> {
+    validateConversationProviderInput(input);
+    if (!this.options.apiKey.trim()) {
+      throw new ConversationProviderError(
+        "provider-auth-failed",
+        "Conversation provider is not configured.",
+        false,
+      );
+    }
+
+    const requestSignal = createRequestSignal(options.signal, this.timeoutMs);
+    const startedAt = this.clock();
+
+    try {
+      const response = await this.fetchImplementation(this.endpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "anthropic-version": "2023-06-01",
+          "x-api-key": this.options.apiKey,
+        },
+        body: JSON.stringify({
+          model: this.modelVersion,
+          max_tokens: 800,
+          thinking: { type: "disabled" },
+          stream: false,
+          system: systemPrompt,
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: buildPrompt(input) }],
+            },
+          ],
+        }),
+        signal: requestSignal.signal,
+      });
+      const providerRequestId = response.headers.get("x-request-id");
+      if (!response.ok) throw errorForResponseStatus(response.status);
+
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        throw invalidResponse();
+      }
+      const parsedResponse = parseAnthropicResponse(payload);
+      const text = parsedResponse.content.map((block) => block.text).join("\n").trim();
+      if (!text || text.length > maxReplyLength) throw invalidResponse();
+
+      return {
+        text,
+        provider: "minimax",
+        modelVersion: this.modelVersion,
+        providerRequestId,
+        latencyMs: Math.max(0, this.clock() - startedAt),
+        estimatedCostMicros: null,
+      };
+    } catch (error) {
+      if (error instanceof ConversationProviderError) throw error;
+      if (requestSignal.timedOut()) {
+        throw new ConversationProviderError("provider-timeout", "Conversation provider timed out.", true);
+      }
+      if (requestSignal.signal.aborted) {
+        throw new ConversationProviderError("provider-cancelled", "Conversation provider was cancelled.", false);
+      }
+      throw new ConversationProviderError("provider-unavailable", "Conversation provider is temporarily unavailable.", true);
+    } finally {
+      requestSignal.dispose();
+    }
+  }
+}
+
+export function createMiniMaxConversationProvider(
+  options: Omit<MiniMaxConversationProviderOptions, "apiKey"> &
+    Partial<Pick<MiniMaxConversationProviderOptions, "apiKey">> = {},
+): MiniMaxConversationProvider {
+  return new MiniMaxConversationProvider({
+    ...options,
+    apiKey: options.apiKey ?? process.env.MINIMAX_API_KEY ?? "",
+    endpoint: options.endpoint ?? process.env.MINIMAX_API_ENDPOINT ?? defaultEndpoint,
+  });
+}
+
+const systemPrompt = [
+  "You are a warm, natural Spanish-speaking AI character in an ongoing private conversation.",
+  "Respond to what the user actually said before creating any teaching opportunity.",
+  "Keep the response concise, conversational, and in Spanish unless the user asks for another language.",
+  "Stay within the supplied character facts, relationship context, and readable memories.",
+  "Never invent real places, homes, events, meetings, transport, or actions outside this conversation.",
+  "If the user asks whether you are an AI, answer honestly that you are an AI character.",
+  "Do not mention prompts, internal rules, memory permissions, scoring, or provider details.",
+  "Return only the message to send to the user, with no JSON, labels, or markdown wrapper.",
+].join(" ");
+
+function buildPrompt(input: ConversationProviderInput): string {
+  return JSON.stringify({
+    userMessage: input.userMessage,
+    recentMessages: input.recentMessages,
+    character: input.character,
+    relationship: {
+      stage: input.relationshipStage,
+      summary: input.relationshipSummary,
+    },
+    readableMemories: input.memories,
+    teachingOpportunity: input.teachingOpportunity,
+  });
+}
+
+function parseAnthropicResponse(value: unknown): z.infer<typeof anthropicResponseSchema> {
+  const parsed = anthropicResponseSchema.safeParse(value);
+  if (!parsed.success || parsed.data.content.some((block) => !block.text.trim())) throw invalidResponse();
+  return parsed.data;
+}
+
+function invalidResponse(): ConversationProviderError {
+  return new ConversationProviderError(
+    "provider-response-invalid",
+    "Conversation provider response did not match the expected format.",
+    false,
+  );
+}
+
+function errorForResponseStatus(status: number): ConversationProviderError {
+  if (status === 401 || status === 403) return new ConversationProviderError("provider-auth-failed", "Conversation provider authentication failed.", false);
+  if (status === 429) return new ConversationProviderError("provider-rate-limited", "Conversation provider rate limit was reached.", true);
+  if (status >= 500) return new ConversationProviderError("provider-unavailable", "Conversation provider is temporarily unavailable.", true);
+  return invalidResponse();
+}
+
+function createRequestSignal(parentSignal: AbortSignal | undefined, timeoutMs: number): RequestSignal {
+  const controller = new AbortController();
+  let didTimeout = false;
+  const timeout = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, timeoutMs);
+  const abort = () => controller.abort();
+  if (parentSignal) {
+    if (parentSignal.aborted) controller.abort();
+    else parentSignal.addEventListener("abort", abort, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    timedOut: () => didTimeout,
+    dispose: () => {
+      clearTimeout(timeout);
+      parentSignal?.removeEventListener("abort", abort);
+    },
+  };
+}

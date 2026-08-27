@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   ConversationNdjsonParser,
   createConversationState,
   encodeConversationEvent,
   streamReply,
+  type StreamReplyProviderObservation,
   transitionConversationState,
   findRetryableUserMessage,
 } from "@/src/modules/conversation";
@@ -134,6 +135,89 @@ describe("conversation state", () => {
 });
 
 describe("fake conversation reply", () => {
+  it("uses a configured character provider and preserves stream framing", async () => {
+    const events = [];
+    const provider = {
+      generate: vi.fn().mockResolvedValue({
+        text: "Respuesta generada por MiniMax.",
+        provider: "minimax" as const,
+        modelVersion: "MiniMax-M3",
+        providerRequestId: "request-1",
+        latencyMs: 12,
+        estimatedCostMicros: null,
+      }),
+    };
+    const observations: StreamReplyProviderObservation[] = [];
+    for await (const event of streamReply({
+      characterKey: "lucia",
+      characterVersion: 1,
+      text: "Hola",
+      clientMessageId: "client-1",
+      generationId: "generation-1",
+      messageId: "message-1",
+      replyProvider: provider,
+      onProviderResult: (observation) => { observations.push(observation); },
+      wait: async () => {},
+    })) events.push(event);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toBe("Respuesta generada por MiniMax.");
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+    expect(observations).toEqual([expect.objectContaining({ provider: "minimax", status: "succeeded" })]);
+  });
+
+  it("falls back to the deterministic reply when the provider is unavailable", async () => {
+    const events = [];
+    const observations: StreamReplyProviderObservation[] = [];
+    const provider = {
+      generate: vi.fn().mockRejectedValue(new Error("network")),
+    };
+    for await (const event of streamReply({
+      characterKey: "lucia",
+      characterVersion: 1,
+      text: "Hola",
+      clientMessageId: "client-1",
+      generationId: "generation-1",
+      messageId: "message-1",
+      replyProvider: provider,
+      onProviderResult: (observation) => { observations.push(observation); },
+      wait: async () => {},
+    })) events.push(event);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toBe("¡Hola! Qué alegría leerte. Yo estoy bien; ¿cómo va todo por tu lado?");
+    expect(observations).toEqual([
+      expect.objectContaining({ provider: "minimax", status: "failed" }),
+      expect.objectContaining({ provider: "deterministic-fake", status: "succeeded", errorType: "fallback" }),
+    ]);
+  });
+
+  it("rejects a generated identity answer that is not honest", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({
+        text: "Soy una persona real.",
+        provider: "minimax" as const,
+        modelVersion: "MiniMax-M3",
+        providerRequestId: null,
+        latencyMs: 1,
+        estimatedCostMicros: null,
+      }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia",
+      characterVersion: 1,
+      text: "¿Eres una inteligencia artificial?",
+      clientMessageId: "client-1",
+      generationId: "generation-1",
+      messageId: "message-1",
+      replyProvider: provider,
+      wait: async () => {},
+    })) events.push(event);
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toContain("personaje de IA");
+  });
+
   it("answers a wellbeing question instead of using the generic greeting", async () => {
     const events = [];
     for await (const event of streamReply({

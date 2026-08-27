@@ -138,6 +138,8 @@ UI / Route Handler → Application → Domain
 
 词语解释通过 `WordExplanationProvider` 走服务端 provider 边界。`POST /api/v1/read/word-explanation` 接受选中的词语或句子、当前段落上下文、文章语言和 `selectionType`（`word`/`sentence`）；服务端使用 `MINIMAX_API_KEY` 调用 MiniMax M3 并校验结构化 JSON。浏览器不会接触供应商密钥，阅读器只渲染固定解释字段；句子选择通过拖选正文后显式触发，不在 Explain 面板重复展示上下文。解释结果是临时阅读辅助，不写入 `evidence_events`、`mastery`、`confidence` 或角色记忆；超时、限流和供应商失败只返回稳定 API 错误，正文阅读与本地 glossary fallback 不受影响。
 
+角色对话通过 `CharacterReplyProvider` 走同一服务端 provider 边界。配置 `MINIMAX_API_KEY` 后，`POST /api/v1/conversations/:characterId/stream` 将服务端隐私过滤后的角色事实、关系摘要、可读记忆、最近消息和当前用户消息发送给 MiniMax M3；模型只返回自然语言消息，应用层继续负责 NDJSON `meta/delta/done`、generation 竞态、取消、完整消息持久化和记忆提取。MiniMax 超时、限流、鉴权、响应损坏或网络失败时回退到确定性 Lucía 回复，并为两次 provider 结果写入脱敏观测；没有配置密钥时直接使用确定性回复。供应商不会写入证据、画像或关系记忆，日志不保存 prompt、原始响应或私密正文。
+
 - `user_reading_progress` 保存版本化断点、完成状态和个人笔记；`user_article_saves` 保存文章收藏；`user_article_highlights` 保存短语/高亮文本及段落位置。
 - `/api/v1/read/articles/:articleId/state` 使用内容哈希做乐观版本检查。哈希过期返回 `409 CONFLICT`，客户端保留本地状态并提示重新定位，不静默覆盖标注。
 - `/api/v1/read/saved` 和 `/api/v1/read/sources` 只返回当前用户的明确 DTO。外部来源接口目前只保存规范化 URL、标题、作者、许可和版权状态等元数据，绝不抓取 URL 或保存未经验证的全文。

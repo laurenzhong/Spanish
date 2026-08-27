@@ -10,6 +10,10 @@ vi.mock("@/src/shared/auth/server", () => ({
   verifyRequestUser: vi.fn(),
 }));
 
+vi.mock("@/src/modules/providers/conversation/server", () => ({
+  createMiniMaxConversationProvider: vi.fn(),
+}));
+
 const mockedVerifyRequestUser = vi.mocked(verifyRequestUser);
 const mockedGetCurrentUser = vi.mocked(getCurrentUser);
 

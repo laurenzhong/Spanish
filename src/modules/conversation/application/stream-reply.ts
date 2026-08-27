@@ -2,8 +2,27 @@ import {
   type ConversationErrorEvent,
   type ConversationStreamEvent,
 } from "../domain/stream-protocol";
-import { generateCharacterReply } from "./generate-character-reply";
+import type {
+  CharacterReplyProvider,
+  ConversationProviderResult,
+} from "@/src/modules/providers/conversation";
+import { ConversationProviderError } from "@/src/modules/providers/conversation";
+import {
+  generateCharacterReply,
+  ReplyGenerationAbortedError,
+} from "./generate-character-reply";
 import type { ReplyContext } from "./build-reply-context";
+import { planReply } from "../domain/reply-plan";
+
+export type StreamReplyProviderObservation = Readonly<{
+  provider: ConversationProviderResult["provider"];
+  modelVersion: string;
+  providerRequestId: string | null;
+  status: "succeeded" | "failed" | "cancelled";
+  latencyMs: number;
+  estimatedCostMicros: number | null;
+  errorType?: string | null;
+}>;
 
 export type StreamReplyInput = Readonly<{
   characterKey: string;
@@ -13,6 +32,9 @@ export type StreamReplyInput = Readonly<{
   generationId: string;
   messageId: string;
   replyContext?: ReplyContext;
+  replyProvider?: CharacterReplyProvider;
+  providerModelVersion?: string;
+  onProviderResult?: (observation: StreamReplyProviderObservation) => Promise<void> | void;
   signal?: AbortSignal;
   wait?: (milliseconds: number) => Promise<void>;
 }>;
@@ -93,7 +115,80 @@ export async function* streamReply(
     memories: [],
     teachingOpportunity: null,
   };
-  const reply = generateCharacterReply({ context, signal: input.signal }).text;
+  let replyResult: ConversationProviderResult;
+  if (input.replyProvider) {
+    try {
+      replyResult = await input.replyProvider.generate(context, { signal: input.signal });
+      if (!isGeneratedReplySafe(context, replyResult.text)) {
+        throw new ConversationProviderError(
+          "provider-response-invalid",
+          "Conversation provider response failed safety validation.",
+          false,
+        );
+      }
+      await notifyProviderResult(input, {
+        provider: replyResult.provider,
+        modelVersion: replyResult.modelVersion,
+        providerRequestId: replyResult.providerRequestId,
+        status: "succeeded",
+        latencyMs: replyResult.latencyMs,
+        estimatedCostMicros: replyResult.estimatedCostMicros,
+      });
+    } catch (error) {
+      const providerErrorType = errorCode(error);
+      if (input.signal?.aborted || providerErrorType === "provider-cancelled") {
+        await notifyProviderResult(input, {
+          provider: "minimax",
+          modelVersion: input.providerModelVersion ?? "MiniMax-M3",
+          providerRequestId: null,
+          status: "cancelled",
+          latencyMs: 0,
+          estimatedCostMicros: null,
+          errorType: "provider-cancelled",
+        });
+        yield errorEvent(input, "stream-aborted", true);
+        return;
+      }
+      await notifyProviderResult(input, {
+        provider: "minimax",
+        modelVersion: input.providerModelVersion ?? "MiniMax-M3",
+        providerRequestId: null,
+        status: "failed",
+        latencyMs: 0,
+        estimatedCostMicros: null,
+        errorType: providerErrorType,
+      });
+      try {
+        replyResult = deterministicResult(context, input.signal);
+      } catch (fallbackError) {
+        if (fallbackError instanceof ReplyGenerationAbortedError || input.signal?.aborted) {
+          yield errorEvent(input, "stream-aborted", true);
+          return;
+        }
+        throw fallbackError;
+      }
+      await notifyProviderResult(input, {
+        provider: replyResult.provider,
+        modelVersion: replyResult.modelVersion,
+        providerRequestId: replyResult.providerRequestId,
+        status: "succeeded",
+        latencyMs: replyResult.latencyMs,
+        estimatedCostMicros: replyResult.estimatedCostMicros,
+        errorType: "fallback",
+      });
+    }
+  } else {
+    replyResult = deterministicResult(context, input.signal);
+    await notifyProviderResult(input, {
+      provider: replyResult.provider,
+      modelVersion: replyResult.modelVersion,
+      providerRequestId: replyResult.providerRequestId,
+      status: "succeeded",
+      latencyMs: replyResult.latencyMs,
+      estimatedCostMicros: replyResult.estimatedCostMicros,
+    });
+  }
+  const reply = replyResult.text;
   for (const chunk of splitReply(reply)) {
     if (input.signal?.aborted) {
       yield errorEvent(input, "stream-aborted", true);
@@ -116,4 +211,52 @@ export async function* streamReply(
     return;
   }
   yield { type: "done", generationId: input.generationId, messageId: input.messageId };
+}
+
+async function notifyProviderResult(
+  input: StreamReplyInput,
+  observation: StreamReplyProviderObservation,
+): Promise<void> {
+  try {
+    await input.onProviderResult?.(observation);
+  } catch {
+    // Provider observability must never change the user-visible reply.
+  }
+}
+
+function errorCode(error: unknown): string {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string" && /^[A-Za-z0-9._-]{1,96}$/u.test(code)) return code;
+  }
+  return "provider-unavailable";
+}
+
+function deterministicResult(context: ReplyContext, signal?: AbortSignal): ConversationProviderResult {
+  return {
+    ...generateCharacterReply({ context, signal }),
+    provider: "deterministic-fake",
+    modelVersion: "lucia-reply-v1",
+    providerRequestId: null,
+    latencyMs: 0,
+    estimatedCostMicros: 0,
+  };
+}
+
+function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES");
+  if (!normalized.trim() || /\b(?:system prompt|memory permissions|provider details|mastery|confidence|evidence_events)\b/iu.test(normalized)) {
+    return false;
+  }
+  const plan = planReply({
+    userMessage: context.userMessage,
+    relationshipStage: context.relationshipStage,
+    characterInitiative: context.character.initiative,
+    characterTopics: context.character.topics,
+    teachingOpportunity: context.teachingOpportunity ?? undefined,
+  });
+  return plan.intent !== "identity-disclosure" || /\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized);
 }

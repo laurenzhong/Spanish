@@ -35,6 +35,8 @@ export default defineConfig({
       AUTH_E2E_ENABLED: "1",
       // Keep E2E deterministic and prevent accidental writes to the local .env database.
       DATABASE_URL: "",
+      // Never call a real or billable conversation provider from browser tests.
+      MINIMAX_API_KEY: "",
       NEXT_DIST_DIR: ".next/e2e",
     },
     url: e2eBaseURL,

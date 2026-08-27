@@ -52,6 +52,10 @@ vi.mock("@/src/shared/db/client", () => ({
   getDatabase: vi.fn(() => ({})),
 }));
 
+vi.mock("@/src/modules/providers/conversation/server", () => ({
+  createMiniMaxConversationProvider: vi.fn(),
+}));
+
 vi.mock("@/src/modules/conversation", async () => {
   const actual = await vi.importActual<typeof import("@/src/modules/conversation")>("@/src/modules/conversation");
   return {
