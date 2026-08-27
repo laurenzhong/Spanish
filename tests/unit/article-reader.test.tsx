@@ -178,7 +178,7 @@ describe("normalized article reader", () => {
     const selection = {
       anchorNode: tokens[0]?.firstChild,
       focusNode: tokens[2]?.firstChild,
-      toString: () => "Después de clase, Marta",
+      toString: () => "clase, Marta entra en",
       removeAllRanges: vi.fn(),
     } as unknown as Selection;
     vi.spyOn(window, "getSelection").mockReturnValue(selection);
@@ -188,7 +188,7 @@ describe("normalized article reader", () => {
     await user.click(screen.getByRole("button", { name: "解析所选句子" }));
     await waitFor(() => expect(screen.getByText("这句话交代了人物进入咖啡馆的时间、地点和原因。")).toBeInTheDocument());
     const requestBody = JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input).includes("word-explanation"))?.[1]?.body)) as { word?: string; selectionType?: string };
-    expect(requestBody).toMatchObject({ word: "Después de clase, Marta", selectionType: "sentence" });
+    expect(requestBody).toMatchObject({ word: "clase, Marta entra en", selectionType: "sentence" });
   });
 
   it("moves focus into the assist dialog and restores it on Escape", async () => {

@@ -159,19 +159,23 @@ test("explains a selected sentence", async ({ page }) => {
   await page.goto("/read/article/article.sueno-first-cafe@1");
   await page.locator(".article-reader__assist-toggle").click();
   const paragraph = page.locator('[data-reader-position="0"]');
-  await paragraph.evaluate((node) => {
-    const buttons = [...node.querySelectorAll<HTMLButtonElement>(".reader-token")];
-    const start = buttons[0]?.firstChild;
-    const end = buttons[2]?.firstChild;
-    if (!start || !end) throw new Error("sentence tokens missing");
-    const range = document.createRange();
-    range.setStart(start, 0);
-    range.setEnd(end, end.textContent?.length ?? 0);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-    node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  const tokens = paragraph.locator(".reader-token");
+  const start = await tokens.nth(1).boundingBox();
+  const end = await tokens.nth(3).boundingBox();
+  expect(start).not.toBeNull();
+  expect(end).not.toBeNull();
+  if (!start || !end) throw new Error("sentence tokens missing");
+  await page.evaluate(() => {
+    document.addEventListener("mouseup", () => {
+      document.body.dataset.lastReaderSelection = window.getSelection()?.toString() ?? "";
+    }, { capture: true, once: true });
   });
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 8 });
+  await page.mouse.up();
+  const selectedText = await page.locator("body").getAttribute("data-last-reader-selection");
+  expect(selectedText).toContain("clase");
   await expect(page.getByRole("button", { name: "解析所选句子" })).toBeVisible();
   await page.getByRole("button", { name: "解析所选句子" }).click();
   await expect(page.getByRole("dialog", { name: "阅读辅助" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
