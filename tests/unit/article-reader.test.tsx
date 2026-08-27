@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import bundle from "@/content/bundles/alpha-core-v1.json";
 import { ArticleReader } from "@/app/(product)/read/article/[articleId]/article-reader";
@@ -23,6 +23,7 @@ describe("normalized article reader", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it("returns only published article versions with ordered segments", async () => {
@@ -49,7 +50,7 @@ describe("normalized article reader", () => {
     expect(screen.getByRole("link", { name: /返回文章库/ })).toHaveAttribute("href", "/read");
     expect(screen.getByRole("tab", { name: "Dictionary" })).toBeInTheDocument();
     expect(document.querySelector(".article-reader__layout")?.children).toHaveLength(2);
-    expect(screen.getByRole("complementary", { name: "阅读辅助" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "阅读辅助" })).toBeInTheDocument();
     expect(screen.getAllByText("阅读辅助").length).toBeGreaterThan(0);
     expect(screen.queryByText(result.article.cefr)).not.toBeInTheDocument();
     expect(screen.queryByText(result.article.estimatedReadingMinutes + " 分钟")).not.toBeInTheDocument();
@@ -64,7 +65,7 @@ describe("normalized article reader", () => {
     await user.click(screen.getByRole("tab", { name: "Settings" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "字号" }), "large");
     expect(screen.getByRole("combobox", { name: "字号" })).toHaveValue("large");
-    expect(screen.queryByRole("textbox", { name: "文章个人笔记" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "文章个人笔记" })).toBeInTheDocument();
   });
 
   it("keeps the reader focused on the article workbench", async () => {
@@ -72,9 +73,9 @@ describe("normalized article reader", () => {
     const result = await getArticle(new BundleArticleRepository(source), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
     render(<ArticleReader article={result.article} />);
-    expect(screen.queryByTestId("article-transfer")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "朗读本段" })).not.toBeInTheDocument();
-    expect(screen.queryByText("西语原文 · 点击词语查看辅助")).not.toBeInTheDocument();
+    expect(screen.getByTestId("article-transfer")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "朗读本段" })).toBeInTheDocument();
+    expect(screen.getByText("西语原文", { exact: true })).toBeInTheDocument();
   });
 
   it("opens the assist panel on demand and shows the context-aware Explain and Dictionary states", async () => {
@@ -105,5 +106,54 @@ describe("normalized article reader", () => {
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(document.querySelector(".article-reader")?.className).not.toContain("article-reader--tools-open");
+  });
+
+  it("requests a MiniMax explanation when a word is selected and renders the response", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).includes("word-explanation")) {
+        return new Response(JSON.stringify({ apiVersion: "v1", data: {
+          partOfSpeech: "名词",
+          meaning: "咖啡",
+          contextualMeaning: "这里指见面的咖啡馆。",
+          example: "Nos vemos en el café.",
+          provider: "minimax",
+          modelVersion: "MiniMax-M3",
+          providerRequestId: "request-1",
+          latencyMs: 20,
+          estimatedCostMicros: null,
+        } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      void init;
+      return new Response(null, { status: 401 });
+    });
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+    const café = screen.getAllByRole("button").find((button) => button.textContent?.startsWith("café"));
+    expect(café).toBeDefined();
+    if (!café) throw new Error("word token missing");
+    await user.click(café);
+    await waitFor(() => expect(screen.getByText("这里指见面的咖啡馆。"))
+      .toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/read/word-explanation",
+      expect.objectContaining({ method: "POST", body: expect.stringContaining("café") }),
+    );
+  });
+
+  it("moves focus into the assist dialog and restores it on Escape", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+    const toggle = screen.getByRole("button", { name: "打开阅读辅助" });
+    await user.click(toggle);
+    const close = document.querySelector<HTMLButtonElement>(".article-reader__tools-close");
+    expect(close).not.toBeNull();
+    expect(close).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(toggle).toHaveFocus();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 });

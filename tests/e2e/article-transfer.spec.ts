@@ -37,6 +37,25 @@ test("moves an explicit article transfer into the oral practice context", async 
 
 test("opens reader tools on demand and explains a selected word", async ({ page }) => {
   await authenticate(page);
+  await page.route("**/api/v1/read/word-explanation", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().postDataJSON()).toMatchObject({ word: "café", locale: "es-ES" });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiVersion: "v1", data: {
+        partOfSpeech: "名词",
+        meaning: "咖啡；也可以指喝咖啡的场所",
+        contextualMeaning: "这里指见面的咖啡馆。",
+        example: "Nos vemos en el café.",
+        provider: "minimax",
+        modelVersion: "MiniMax-M3",
+        providerRequestId: "e2e-word-explanation",
+        latencyMs: 1,
+        estimatedCostMicros: null,
+      } }),
+    });
+  });
   await page.goto("/read/article/article.sueno-first-cafe@1");
 
   const topbar = page.locator(".article-reader__topbar");
@@ -50,7 +69,7 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   await expect(actions).toHaveCSS("gap", "2px");
 
   const toggle = page.locator(".article-reader__assist-toggle");
-  const tools = page.getByRole("complementary", { name: "阅读辅助" });
+  const tools = page.getByRole("dialog", { name: "阅读辅助" });
   await expect(toggle).toHaveAccessibleName("打开阅读辅助");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(tools).not.toBeVisible();
@@ -103,7 +122,7 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
     await expect(tools).not.toBeVisible();
   }
   await page.getByRole("button", { name: /^café/ }).click();
-  await expect(tools).toContainText("咖啡；也可以指喝咖啡的场所");
+  await expect(tools).toContainText("这里指见面的咖啡馆。");
 
   await page.getByRole("tab", { name: "Dictionary" }).click();
   await expect(page.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
