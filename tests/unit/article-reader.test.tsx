@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -136,6 +136,13 @@ describe("normalized article reader", () => {
     await user.click(café);
     await waitFor(() => expect(screen.getByText("这里指见面的咖啡馆。"))
       .toBeInTheDocument());
+    expect(screen.getByText("词性")).toBeInTheDocument();
+    expect(screen.getByText("基本释义")).toBeInTheDocument();
+    expect(screen.getByText("本句语境义")).toBeInTheDocument();
+    expect(screen.getByText("例句")).toBeInTheDocument();
+    expect(screen.queryByText(/^上下文：/u)).not.toBeInTheDocument();
+    expect(screen.queryByText("正在使用 MiniMax M3 生成解释……")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog", { name: "阅读辅助" })).queryByRole("button", { name: "朗读全文" })).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/read/word-explanation",
       expect.objectContaining({ method: "POST", body: expect.stringContaining("café") }),
