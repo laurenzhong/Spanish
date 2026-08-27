@@ -3601,6 +3601,45 @@ button {
 }
 
 /* Profile overview: evidence stays readable before the dataset is complete. */
+.profile-page__section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-page__section-nav a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.profile-page__section-nav a:hover,
+.profile-page__section-nav a:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.profile-page__group {
+  display: grid;
+  gap: 24px;
+  scroll-margin-top: 24px;
+}
+
+.profile-page__group--privacy {
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
 .profile-dashboard {
   display: grid;
   gap: 24px;

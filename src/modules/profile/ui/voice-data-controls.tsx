@@ -38,6 +38,8 @@ function formatDuration(durationMs: number | null): string {
 export function VoiceDataControls() {
   const [data, setData] = useState<VoiceData>({ audio: [], transcripts: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -52,16 +54,21 @@ export function VoiceDataControls() {
             audio: payload.data?.audio ?? [],
             transcripts: payload.data?.transcripts ?? [],
           });
+          setLoadError(false);
+          setMessage(null);
         }
       })
       .catch(() => {
-        if (active) setMessage("暂时无法读取已保存的语音资料。");
+        if (active) {
+          setLoadError(true);
+          setMessage("暂时无法读取已保存的语音资料。");
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, []);
+  }, [reloadToken]);
 
   async function remove(kind: "audio" | "transcript", id: string) {
     const label = kind === "audio" ? "这段录音" : "这条转写";
@@ -95,6 +102,7 @@ export function VoiceDataControls() {
         <p>普通练习录音不会出现在这里；这里的删除只影响原始语音资料，不删除能力证据。</p>
       </header>
       {loading ? <p className="surface-state__message">正在读取语音资料……</p> : null}
+      {!loading && loadError ? <div className="profile-data-warning" role="alert"><span>已保存的语音资料暂时不可用。</span><button type="button" onClick={() => { setLoading(true); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
       {!loading && !hasData ? <p className="surface-state__message">目前没有已保存的录音或转写。</p> : null}
       {data.audio.map((audio) => (
         <article className="privacy-permission-card" key={`audio:${audio.id}`}>

@@ -33,4 +33,17 @@ describe("MemoryDataControls", () => {
     ));
     await waitFor(() => expect(screen.queryByText("喜欢摄影")).not.toBeInTheDocument());
   });
+
+  it("offers a retry when the private memory list is unavailable", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { memories: [] } }) });
+    globalThis.fetch = fetchMock;
+
+    render(<MemoryDataControls />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(screen.getByText("目前没有保存的关系记忆。")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

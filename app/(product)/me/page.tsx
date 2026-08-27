@@ -22,12 +22,29 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <ProfileOverviewPanel />
-      <LearningHeatmap />
-      <SharedMemoryPermissions />
-      <MemoryDataControls />
-      <VoiceDataControls />
-      <AccountDataControls />
+      <nav className="profile-page__section-nav" aria-label="我的页面分区">
+        <a href="#profile-progress">能力与活动</a>
+        <a href="#profile-relationships">关系隐私</a>
+        <a href="#profile-data">数据与隐私</a>
+      </nav>
+
+      <section id="profile-progress" className="profile-page__group" aria-labelledby="profile-progress-title">
+        <h2 id="profile-progress-title" className="sr-only">能力与活动</h2>
+        <ProfileOverviewPanel />
+        <LearningHeatmap />
+      </section>
+
+      <section id="profile-relationships" className="profile-page__group profile-page__group--privacy" aria-labelledby="profile-relationships-title">
+        <h2 id="profile-relationships-title" className="sr-only">关系隐私</h2>
+        <SharedMemoryPermissions />
+        <MemoryDataControls />
+      </section>
+
+      <section id="profile-data" className="profile-page__group profile-page__group--privacy" aria-labelledby="profile-data-title">
+        <h2 id="profile-data-title" className="sr-only">数据与隐私</h2>
+        <VoiceDataControls />
+        <AccountDataControls />
+      </section>
     </div>
   );
 }

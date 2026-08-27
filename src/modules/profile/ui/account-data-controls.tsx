@@ -16,20 +16,31 @@ export function AccountDataControls() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<AccountDataSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let active = true;
     void fetch("/api/v1/me/data", { cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) return;
+        if (!response.ok) throw new Error("ACCOUNT_DATA_SUMMARY_UNAVAILABLE");
         const payload = (await response.json()) as { data?: AccountDataSummary };
-        if (active && payload.data) setSummary(payload.data);
+        if (active && payload.data) {
+          setSummary(payload.data);
+          setSummaryError(false);
+        }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setSummaryError(true);
+      })
+      .finally(() => {
+        if (active) setSummaryLoading(false);
+      });
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadToken]);
 
   async function deleteData() {
     if (!window.confirm("这会删除你的训练、画像、对话、关系记忆和保存的语音资料，且无法恢复。确定继续吗？")) return;
@@ -65,6 +76,8 @@ export function AccountDataControls() {
         <p className="eyebrow eyebrow--accent">账号数据</p>
         <h2 id="account-data-controls-title">删除我的账号数据</h2>
         <p>删除训练、画像、对话、关系记忆和保存的语音资料；共享内容和人物设定不受影响。</p>
+        {summaryLoading ? <p className="surface-state__message">正在读取账号数据概览……</p> : null}
+        {!summaryLoading && summaryError ? <div className="profile-data-warning" role="alert"><span>账号数据概览暂时不可用。</span><button type="button" onClick={() => { setSummaryLoading(true); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
         {summary ? <p>当前包含 {summary.sessions} 次训练、{summary.conversations} 个对话、{summary.relationshipMemories} 条关系记忆和 {summary.savedAudio + summary.savedTranscripts} 条保存的语音资料。</p> : null}
       </header>
       <button type="button" className="button--quiet" onClick={() => void deleteData()} disabled={busy}>
