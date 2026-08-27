@@ -45,6 +45,8 @@ UI-011 已完成；当前下一项为阶段 8：个人 Alpha 预览与人工体�
 
 UI-011 后置修复：阅读器 Explain 面板已收敛为词语、词性、基本释义、本句语境义和西语例句；移除原句重复、供应商提示、内部说明和 Explain 内全文朗读控件。实现 Commit：`83c4eb1`；相关 Vitest 14/14、Playwright 2/2、lint、typecheck 通过。
 
+UI-011 后置修复（二）：Explain 支持在正文同一段内拖选多个词语后解析整句；单词与句子请求分别携带 `selectionType`，句子面板只显示所选句子、中文翻译、句子解析和可选参考表达，不重复展示上下文。实现 Commit：`6661703`；修改阅读器、词语解释 API/ MiniMax provider、相关单元测试与 Playwright 测试，并同步架构与测试策略文档。验证：相关 Vitest 16/16、Playwright 3/3、`pnpm lint`、`pnpm typecheck` 通过。限制：当前句子解析依赖服务端 `MINIMAX_API_KEY` 和 MiniMax M3，供应商失败时只提供可重试错误，不写入口语能力证据；全量 Vitest 仍受既有 PGlite fixture/Windows worker 资源问题影响。下一项仍为阶段 8 个人 Alpha 人工体验复核。
+
 每批只完成一个任务 ID；产品本人在批次结束后进行视觉和行为确认，协调者再更新状态页。
 
 ### READ-001：文章内容契约与版权字段
