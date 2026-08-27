@@ -126,7 +126,11 @@ test("keeps the page height stable while the message history grows", async ({ pa
   }));
   const composer = page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
 
-  for (const text of ["Hola, mensaje uno", "Hola, mensaje dos", "Hola, mensaje tres"]) {
+  for (const text of [
+    "Hola, este es un mensaje bastante largo para comprobar que el historial mantiene una zona de desplazamiento estable.",
+    "Hola, sigo conversando sobre mi día y añado suficiente contexto para que la lista de mensajes pueda crecer de forma visible.",
+    "Hola, este tercer mensaje continúa la conversación con otra frase larga para validar el comportamiento cuando el historial se desborda.",
+  ]) {
     await composer.fill(text);
     await page.getByRole("button", { name: "发送消息" }).click();
     await expect(page.locator('[data-status="completed"]')).toBeVisible({ timeout: 5_000 });
