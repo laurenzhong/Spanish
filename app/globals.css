@@ -4215,7 +4215,6 @@ button {
 }
 
 .conversation-message__bubble {
-  position: relative;
   width: fit-content;
   max-width: 100%;
   padding: 9px 13px;
