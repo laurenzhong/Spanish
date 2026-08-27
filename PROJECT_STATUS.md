@@ -4,7 +4,7 @@
 
 - 最后更新：2026-08-27
 - 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
-- 总体状态：READ-005、UI-009、UI-010、UI-011 已完成；阶段 8 人工体验待人工确认
+- 总体状态：READ-005、UI-009、UI-010、UI-011、ALPHA-032 已完成；阶段 8 人工体验待人工确认
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
@@ -19,6 +19,19 @@
 - 验证：相关 Vitest 26/26、`pnpm lint`、`pnpm typecheck`、`pnpm build`、对话 Playwright 12/12 通过；全量 Vitest 仍有既有 article-content fixture 与 article-reader `user` 作用域失败；全量 E2E 首次运行受本机 MiniMax key 污染，清空 key 后对话路径通过，剩余失败为既有移动 UI 回归。
 - 限制：当前只有 Lucía@1 接入；需要在服务端配置 `MINIMAX_API_KEY` 才会调用真实 MiniMax，未配置或 provider 失败时使用确定性回复；未做真实收费 provider 回归或 iOS 真机验证。
 - 下一项：阶段 8 个人 Alpha 人工体验复核。
+
+### ALPHA-032：对话搜索与三角色目录
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 前置依赖：ALPHA-031，已完成
+- 实现 Commit：`c5b7106`
+- 范围：新增当前用户私有的对话历史搜索；搜索结果支持角色名、消息摘要、消息 ID 和时间，并可深链跳转到目标消息、自动滚动和短暂高亮；对话联系人扩展为 Lucía、Mateo、Inés，使用动态角色路由、角色目录和对应回复上下文；保留既有左侧产品导航和 Lucía 介绍请求流程。
+- 修改：`app/(product)/chat/`、`app/api/v1/conversations/`、`src/modules/conversation/`、`tests/e2e/conversation.spec.ts`、`docs/superpowers/specs/2026-08-27-conversation-search-and-character-catalog-design.md`。
+- 验证：对话 Playwright `9/9`、对话相关 Vitest `17/17`、`pnpm lint`、`pnpm typecheck`、`pnpm build` 均通过；浏览器已验证历史消息搜索跳转、Mateo/Inés 角色切换及无控制台错误。
+- 限制：搜索依赖数据库；未配置 `DATABASE_URL` 时只显示明确的不可用状态，不伪造搜索结果。Mateo/Inés 仍受角色 API 记录可用性约束，真实 provider 质量不在本切片内重新校准。
+- 下一项：阶段 8 个人 Alpha 人工体验复核，由产品本人确认角色内容与搜索体验。
 
 ## 新模型快速接手
 
@@ -1315,6 +1328,7 @@ UI-011 后置修复（六）：修复阅读辅助侧栏在窄宽度下标签、�
 | ALPHA-029 | done | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
 | ALPHA-030 | done | `fix/login-redirect-after-otp` | Codex | 好友介绍与角色网络 | ALPHA-029 |
 | ALPHA-031 | done | `fix/login-redirect-after-otp` | Codex | MiniMax M3 生成式角色对话 | ALPHA-030 |
+| ALPHA-032 | done | `fix/login-redirect-after-otp` | Codex | 对话搜索与三角色目录 | ALPHA-031 |
 | UI-001 | done | `fix/login-redirect-after-otp` | Codex | 认证回跳、四栏导航和学习入口功能闭环 | 阶段 8 |
 | UI-002 | done | `fix/login-redirect-after-otp` | Codex | 探索内容包功能闭环 | UI-001 |
 | UI-003 | done | `fix/login-redirect-after-otp` | Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |
@@ -1425,6 +1439,7 @@ UI-011 后置修复（六）：修复阅读辅助侧栏在窄宽度下标签、�
 | 2026-08-27 | 对齐双板块顶部起始位置 | `e3702ea` | 桌面端侧栏从顶部栏同一水平线开始，正文列与侧栏不再重叠；验证 1280px 桌面无横向溢出，移动端抽屉无横向溢出 |
 | 2026-08-27 | 完成 UI-010 我的进步与隐私控制 | `d59a617` | `/me` 分组导航、能力/活动/关系/数据隐私层级和加载失败重试完成；下一项 UI-011 |
 | 2026-08-27 | 完成 UI-011 跨视口、可访问性与行为回归 | `7a54b85` | 阅读器迁移/笔记恢复、移动抽屉焦点和 6 档视口回归完成；下一步阶段 8 人工体验 |
+| 2026-08-27 | 完成 ALPHA-032 对话搜索与三角色目录 | `c5b7106` | 当前用户私有历史搜索、消息深链高亮、Lucía/Mateo/Inés 动态角色页完成；下一步产品本人确认角色内容与搜索体验 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
 
