@@ -83,7 +83,7 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
       }
       const content = page.locator(".article-reader__content");
       await expect(content).toHaveCSS("padding-right", "24px");
-      await expect(content).toHaveCSS("margin-right", "-160px");
+      await expect(content).toHaveCSS("margin-right", "0px");
       const firstTab = tabs.getByRole("tab").first();
       const firstTabBox = await firstTab.boundingBox();
       expect(firstTabBox).not.toBeNull();
