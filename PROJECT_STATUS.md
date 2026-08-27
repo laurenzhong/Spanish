@@ -80,6 +80,8 @@ UI-011 后置修复（五）：新增已审核的常用西语词典，命中词�
 
 UI-011 后置修复（六）：修复阅读辅助侧栏在窄宽度下标签、长词和解释内容被裁切的问题；侧栏内容、标签和操作按钮允许自然换行并禁止横向溢出，不改变侧栏位置。实现 Commit：`78f2fb4`；修改 `app/globals.css` 与阅读器 E2E 回归断言。验证：阅读器 Vitest 8/8、桌面 Playwright 3/3、`pnpm typecheck` 通过；移动 Playwright 2/3，剩余失败为既有句子拖选坐标问题。
 
+UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guide、Words、Settings 标签按钮单行显示，窄宽度下通过标签栏横向滚动避免换行；解释内容继续允许自然换行。实现 Commit：`e8b4a6a`；修改 `app/globals.css` 与阅读器 E2E 断言。验证：阅读器 Vitest 8/8、桌面 Playwright 3/3、`pnpm typecheck` 通过。
+
 每批只完成一个任务 ID；产品本人在批次结束后进行视觉和行为确认，协调者再更新状态页。
 
 ### READ-001：文章内容契约与版权字段
