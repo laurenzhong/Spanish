@@ -73,6 +73,11 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
       const toggleBox = await toggle.boundingBox();
       expect(toggleBox).not.toBeNull();
       if (toggleBox) expect(toggleBox.x).toBeGreaterThanOrEqual(toolsBox.x);
+      const content = page.locator(".article-reader__content");
+      await expect(content).toHaveCSS("padding-right", "24px");
+      const topbarColor = await topbar.evaluate((node) => getComputedStyle(node).backgroundColor);
+      const tabsColor = await tabs.evaluate((node) => getComputedStyle(node).backgroundColor);
+      expect(topbarColor).toBe(tabsColor);
     }
   }
 
