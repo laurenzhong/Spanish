@@ -32,6 +32,7 @@ export type MemoryRepository = Readonly<{
   listMemories(userId: string, characterKey: string): Promise<readonly MemoryRecord[]>;
   listReadableMemories(userId: string, characterKey: string): Promise<readonly MemoryRecord[]>;
   deleteMemory(userId: string, memoryId: string): Promise<boolean>;
+  deleteBySourceMessage?(userId: string, sourceMessageId: string): Promise<number>;
   grantPermission(userId: string, memoryId: string, targetCharacterKey: string): Promise<void>;
   revokePermission(userId: string, memoryId: string, targetCharacterKey: string): Promise<void>;
 }>;

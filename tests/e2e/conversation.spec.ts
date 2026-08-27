@@ -201,3 +201,34 @@ test("renders the selected character identity for Mateo and Inés", async ({ pag
     await expect(page.getByRole("textbox", { name: `写下你想对 ${character.name} 说的话` })).toBeVisible();
   }
 });
+
+test("opens sent-message actions and marks a withdrawn message without memory text", async ({ page }) => {
+  await authenticate(page);
+  const messageId = "00000000-0000-4000-8000-000000000123";
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { characterKey: "lucia", messages: [{ id: messageId, role: "user", text: "Me gusta el senderismo", complete: true, status: "completed" }] } }),
+    });
+  });
+  await page.route(`**/api/v1/conversations/lucia/messages/${messageId}`, async (route) => {
+    if (route.request().method() === "PATCH") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { withdrawn: true } }) });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto("/chat/lucia");
+  const message = page.locator(`[data-message-id="${messageId}"]`);
+  await message.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "复制" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "引用回复" }).click();
+  await expect(page.getByTestId("conversation-composer-quote")).toContainText("Me gusta el senderismo");
+  await message.click({ button: "right" });
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("menuitem", { name: "撤回" }).click();
+  await expect(message).toHaveAttribute("data-withdrawn", "true");
+  await expect(message).toContainText("你撤回了一条消息");
+  await expect(page.getByText("不会用于记忆或学习数据")).toBeVisible();
+});

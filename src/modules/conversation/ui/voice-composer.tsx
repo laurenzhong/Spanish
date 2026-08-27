@@ -15,6 +15,8 @@ type VoiceComposerProps = Readonly<{
   onChange: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
+  quotedText?: string | null;
+  onClearQuote?: () => void;
 }>;
 
 export function VoiceComposer({
@@ -24,6 +26,8 @@ export function VoiceComposer({
   onChange,
   onSubmit,
   onCancel,
+  quotedText = null,
+  onClearQuote,
 }: VoiceComposerProps) {
   const recorderRef = useRef<BrowserAudioRecorder | null>(null);
   const [recording, setRecording] = useState(false);
@@ -100,6 +104,12 @@ export function VoiceComposer({
         if (!disabled && value.trim()) onSubmit();
       }}
     >
+      {quotedText ? (
+        <div className="conversation-composer__quote" data-testid="conversation-composer-quote">
+          <span><strong>引用回复</strong><br />{quotedText}</span>
+          <button aria-label="取消引用" type="button" onClick={onClearQuote}>×</button>
+        </div>
+      ) : null}
       <div className="conversation-composer__shell">
         <button
           aria-label={recording ? "取消录音" : "使用语音输入"}

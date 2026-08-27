@@ -90,6 +90,7 @@ export const messageStatusEnum = pgEnum("message_status", [
   "completed",
   "failed",
   "cancelled",
+  "withdrawn",
 ]);
 
 export const providerStatusEnum = pgEnum("provider_call_status", [

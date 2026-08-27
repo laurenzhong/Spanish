@@ -132,6 +132,18 @@ describe("conversation state", () => {
 
     expect(findRetryableUserMessage(state)?.id).toBe("client-1");
   });
+
+  it("withdraws a user message into a non-contextual placeholder", () => {
+    const state = transitionConversationState(submitted(), { type: "withdraw-message", messageId: "client-1" });
+    expect(state.messages[0]).toMatchObject({ withdrawn: true, status: "withdrawn", text: "", complete: true });
+  });
+
+  it("removes only the selected message for a local delete", () => {
+    let state = submitted();
+    state = transitionConversationState(state, { type: "withdraw-message", messageId: "missing" });
+    state = transitionConversationState(state, { type: "remove-message", messageId: "client-1" });
+    expect(state.messages).toHaveLength(0);
+  });
 });
 
 describe("fake conversation reply", () => {

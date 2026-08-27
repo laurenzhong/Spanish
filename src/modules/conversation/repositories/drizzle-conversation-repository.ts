@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike } from "drizzle-orm";
+import { and, desc, eq, gte, ilike } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -149,6 +149,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
         .where(and(
           eq(schema.messages.userId, userId),
+          eq(schema.messages.status, "completed"),
           ilike(schema.messages.content, `%${escapedQuery}%`),
         ))
         .orderBy(desc(schema.messages.createdAt))
@@ -158,6 +159,54 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         characterKey: row.character.stableKey,
         characterName: row.character.displayName,
       }));
+    },
+
+    async deleteMessage(userId, characterKey, messageId) {
+      const [message] = await database.select({ id: schema.messages.id })
+        .from(schema.messages)
+        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .where(and(
+          eq(schema.messages.id, messageId),
+          eq(schema.messages.userId, userId),
+          eq(schema.characters.stableKey, characterKey),
+          eq(schema.messages.role, "user"),
+        )).limit(1);
+      if (!message) return false;
+      const deleted = await database.delete(schema.messages)
+        .where(and(eq(schema.messages.id, message.id), eq(schema.messages.userId, userId)))
+        .returning({ id: schema.messages.id });
+      return deleted.length > 0;
+    },
+
+    async withdrawMessage(userId, characterKey, messageId) {
+      const cutoff = new Date(Date.now() - 2 * 60 * 1000);
+      const [message] = await database.select({ id: schema.messages.id })
+        .from(schema.messages)
+        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .where(and(
+          eq(schema.messages.id, messageId),
+          eq(schema.messages.userId, userId),
+          eq(schema.characters.stableKey, characterKey),
+          eq(schema.messages.role, "user"),
+          eq(schema.messages.status, "completed"),
+          gte(schema.messages.createdAt, cutoff),
+        )).limit(1);
+      if (!message) return false;
+      const updated = await database.update(schema.messages)
+        .set({ status: "withdrawn", updatedAt: new Date() })
+        .where(and(eq(schema.messages.id, message.id), eq(schema.messages.userId, userId)))
+        .returning({ id: schema.messages.id });
+      return updated.length > 0;
+    },
+
+    async isMessageWithdrawn(userId, messageId) {
+      const [message] = await database.select({ status: schema.messages.status })
+        .from(schema.messages)
+        .where(and(eq(schema.messages.userId, userId), eq(schema.messages.id, messageId)))
+        .limit(1);
+      return message?.status === "withdrawn";
     },
   };
 }

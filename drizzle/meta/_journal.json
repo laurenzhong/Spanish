@@ -92,6 +92,13 @@
       "when": 1787739802282,
       "tag": "0012_wakeful_spiral",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787836975325,
+      "tag": "0013_smart_stick",
+      "breakpoints": true
     }
   ]
 }

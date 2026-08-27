@@ -12,6 +12,8 @@ export type ConversationMessage = Readonly<{
   text: string;
   generationId?: string;
   complete: boolean;
+  status?: "completed" | "withdrawn";
+  withdrawn?: boolean;
 }>;
 
 export type ConversationState = Readonly<{
@@ -28,6 +30,8 @@ export type ConversationAction =
   | Readonly<{ type: "retry"; userMessageId: string; generationId: string }>
   | Readonly<{ type: "stream-event"; event: ConversationStreamEvent }>
   | Readonly<{ type: "cancel"; generationId: string }>
+  | Readonly<{ type: "remove-message"; messageId: string }>
+  | Readonly<{ type: "withdraw-message"; messageId: string }>
   | Readonly<{ type: "reset" }>;
 
 export function createConversationState(): ConversationState {
@@ -116,6 +120,23 @@ export function transitionConversationState(
   if (action.type === "cancel") {
     if (!isCurrent(state, action.generationId)) return state;
     return { ...state, status: "cancelled", error: null };
+  }
+
+  if (action.type === "remove-message") {
+    return { ...state, messages: state.messages.filter((message) => message.id !== action.messageId) };
+  }
+
+  if (action.type === "withdraw-message") {
+    return {
+      ...state,
+      messages: withMessage(state.messages, action.messageId, (message) => ({
+        ...message,
+        text: "",
+        complete: true,
+        status: "withdrawn",
+        withdrawn: true,
+      })),
+    };
   }
 
   const event = action.event;

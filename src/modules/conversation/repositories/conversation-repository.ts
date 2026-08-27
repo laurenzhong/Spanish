@@ -1,5 +1,5 @@
 export type ConversationRole = "user" | "character";
-export type ConversationMessageStatus = "streaming" | "completed" | "failed" | "cancelled";
+export type ConversationMessageStatus = "streaming" | "completed" | "failed" | "cancelled" | "withdrawn";
 
 export type ConversationMessageRecord = Readonly<{
   id: string;
@@ -41,4 +41,7 @@ export type ConversationRepository = Readonly<{
   findAssistantMessage(userId: string, conversationId: string, clientMessageId: string): Promise<ConversationMessageRecord | null>;
   listMessages(userId: string, characterKey: string, limit?: number): Promise<readonly ConversationMessageRecord[]>;
   searchMessages(userId: string, query: string, limit?: number): Promise<readonly ConversationSearchResultRecord[]>;
+  deleteMessage(userId: string, characterKey: string, messageId: string): Promise<boolean>;
+  withdrawMessage(userId: string, characterKey: string, messageId: string): Promise<boolean>;
+  isMessageWithdrawn?(userId: string, messageId: string): Promise<boolean>;
 }>;

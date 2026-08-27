@@ -71,6 +71,10 @@ export function deleteRelationshipMemory(repository: MemoryRepository, userId: s
   return repository.deleteMemory(userId, memoryId);
 }
 
+export function deleteMemoriesForSourceMessage(repository: MemoryRepository, userId: string, sourceMessageId: string) {
+  return repository.deleteBySourceMessage?.(userId, sourceMessageId) ?? Promise.resolve(0);
+}
+
 export function grantRelationshipMemoryPermission(repository: MemoryRepository, userId: string, memoryId: string, targetCharacterKey: string) {
   return repository.grantPermission(userId, memoryId, targetCharacterKey);
 }

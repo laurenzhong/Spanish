@@ -113,6 +113,16 @@ export function createDrizzleMemoryRepository<TResult extends PgQueryResultHKT>(
       return deleted.length > 0;
     },
 
+    async deleteBySourceMessage(userId, sourceMessageId) {
+      const deleted = await database.delete(schema.relationshipMemories)
+        .where(and(
+          eq(schema.relationshipMemories.userId, userId),
+          eq(schema.relationshipMemories.sourceMessageId, sourceMessageId),
+        ))
+        .returning({ id: schema.relationshipMemories.id });
+      return deleted.length;
+    },
+
     async grantPermission(userId, memoryId, targetCharacterKey) {
       const targetId = await characterId(database, targetCharacterKey);
       const owned = await database.select({ id: schema.relationshipMemories.id }).from(schema.relationshipMemories)

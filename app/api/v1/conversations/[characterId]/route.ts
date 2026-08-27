@@ -19,8 +19,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       clientMessageId: message.role === "user" ? message.clientMessageId : undefined,
       generationId: message.generationId ?? undefined,
       role: message.role,
-      text: message.content,
-      complete: message.status === "completed",
+      text: message.status === "withdrawn" ? "" : message.content,
+      complete: message.status === "completed" || message.status === "withdrawn",
+      status: message.status === "withdrawn" ? "withdrawn" : "completed",
+      withdrawn: message.status === "withdrawn",
     })) } }, { headers: { "x-conversation-persistence": "available" } });
   } catch {
     return NextResponse.json(

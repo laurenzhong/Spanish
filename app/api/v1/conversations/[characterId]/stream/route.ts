@@ -100,10 +100,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
   let recentMessages: readonly Readonly<{ role: "user" | "character"; content: string }>[] = [];
   if (repository) {
     try {
-      recentMessages = (await repository.listMessages(user.id, characterId, 20)).map((message) => ({
-        role: message.role,
-        content: message.content,
-      }));
+      const history = await repository.listMessages(user.id, characterId, 20);
+      const withdrawnIds = new Set(history.filter((message) => message.status === "withdrawn").map((message) => message.id));
+      recentMessages = history
+        .filter((message) => message.status !== "withdrawn" && !(message.role === "character" && message.replyToMessageId && withdrawnIds.has(message.replyToMessageId)))
+        .map((message) => ({ role: message.role, content: message.content }));
     } catch {
       // Conversation history is helpful context, but a read failure must not block a reply.
     }
@@ -202,6 +203,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
               content: assistantText,
               replyToMessageId: userMessageId,
             });
+            const userMessageWithdrawn = repository.isMessageWithdrawn
+              ? await repository.isMessageWithdrawn(user.id, userMessageId)
+              : false;
+            if (userMessageWithdrawn) {
+              controller.enqueue(encoder.encode(encodeConversationEvent(event)));
+              continue;
+            }
             // Introduction offers are derived only from a durable, completed Lucía turn.
             // A failed character import or offer write must not change chat success.
             if (characterId === "lucia") {
