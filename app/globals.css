@@ -1821,6 +1821,8 @@ body { background: var(--background); }
   .article-reader__content { width: auto; padding-right: 24px; }
   .article-reader__tools { position: fixed; top: 0; right: 0; display: none; width: var(--reader-tools-width); height: 100vh; min-height: 100vh; padding-top: 0; }
   .article-reader__tools.is-open { display: grid; z-index: 50; }
+  .article-reader.article-reader--tools-open .article-reader__topbar { z-index: 60; background: transparent; box-shadow: none; pointer-events: none; }
+  .article-reader.article-reader--tools-open .article-reader__topbar > * { pointer-events: auto; }
   .article-reader.article-reader--tools-open .article-reader__assist-toggle { position: fixed; z-index: 60; top: 10px; right: calc(var(--reader-tools-width) - 68px); }
   .article-reader.article-reader--tools-open .article-reader__tools { pointer-events: none; }
   .article-reader.article-reader--tools-open .article-reader__tools > * { pointer-events: auto; }

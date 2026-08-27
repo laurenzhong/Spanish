@@ -72,7 +72,15 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
       expect(toolsBox.width).toBeCloseTo(425, 0);
       const toggleBox = await toggle.boundingBox();
       expect(toggleBox).not.toBeNull();
-      if (toggleBox) expect(toggleBox.x).toBeGreaterThanOrEqual(toolsBox.x);
+      if (toggleBox) {
+        expect(toggleBox.x).toBeGreaterThanOrEqual(toolsBox.x);
+        const toggleIsTopmost = await toggle.evaluate((node) => {
+          const rect = node.getBoundingClientRect();
+          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+          return hit === node || node.contains(hit);
+        });
+        expect(toggleIsTopmost).toBe(true);
+      }
       const content = page.locator(".article-reader__content");
       await expect(content).toHaveCSS("padding-right", "24px");
     }
