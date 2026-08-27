@@ -169,7 +169,6 @@ describe("normalized article reader", () => {
       void init;
       return new Response(null, { status: 401 });
     });
-    const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
     const paragraph = document.querySelector<HTMLElement>('[data-reader-position="0"]');
     expect(paragraph).not.toBeNull();
@@ -184,8 +183,7 @@ describe("normalized article reader", () => {
     vi.spyOn(window, "getSelection").mockReturnValue(selection);
     if (!paragraph) throw new Error("article paragraph missing");
     fireEvent.mouseUp(paragraph);
-    expect(screen.getByRole("button", { name: "解析所选句子" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "解析所选句子" }));
+    expect(screen.queryByRole("button", { name: "解析所选句子" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("这句话交代了人物进入咖啡馆的时间、地点和原因。")).toBeInTheDocument());
     const requestBody = JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input).includes("word-explanation"))?.[1]?.body)) as { word?: string; selectionType?: string };
     expect(requestBody).toMatchObject({ word: "clase, Marta entra en", selectionType: "sentence" });

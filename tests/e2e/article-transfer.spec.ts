@@ -176,7 +176,6 @@ test("explains a selected sentence", async ({ page }) => {
   await page.mouse.up();
   const selectedText = await page.locator("body").getAttribute("data-last-reader-selection");
   expect(selectedText).toContain("clase");
-  await expect(page.getByRole("button", { name: "解析所选句子" })).toBeVisible();
-  await page.getByRole("button", { name: "解析所选句子" }).click();
+  await expect(page.getByRole("button", { name: "解析所选句子" })).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: "阅读辅助" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
 });
