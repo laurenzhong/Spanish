@@ -63,7 +63,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
 
       <p className="conversation-contact-rail__label">最近</p>
       <nav className="conversation-contact-rail__list" aria-label="好友列表">
-        {status === "loading" ? <p className="conversation-contact-rail__state">正在加载会话……</p> : null}
+        {status === "loading" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">正在加载会话……</p> : null}
         {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表，先显示好友目录。</p><button type="button" onClick={() => { setStatus("loading"); void loadConversationList(true).then(() => { setConversations(cachedConversations ?? []); setStatus(cachedStatus); }); }}>重试</button></div> : null}
         {visibleConversations.map((conversation) => (
           <Link
