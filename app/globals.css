@@ -4227,6 +4227,8 @@ button {
 
 .conversation-message--character .conversation-message__bubble {
   border-top-left-radius: 5px;
+  color: var(--conversation-ink);
+  background: var(--conversation-paper);
 }
 
 .conversation-message--user .conversation-message__bubble {

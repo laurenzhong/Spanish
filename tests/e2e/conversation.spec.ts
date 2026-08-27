@@ -168,8 +168,9 @@ test("keeps sent messages right anchored while their text stays left aligned", a
         data: {
           characterKey: "lucia",
           messages: [
-            { id: "layout-short", role: "user", text: "Hola", complete: true },
-            { id: "layout-multiline", role: "user", text: "Primera línea\nSegunda línea", complete: true },
+            { id: "layout-character", role: "character", text: "¡Hola!", complete: true, createdAt: "2026-08-28T01:01:00.000Z" },
+            { id: "layout-short", role: "user", text: "Hola", complete: true, createdAt: "2026-08-28T01:02:00.000Z" },
+            { id: "layout-multiline", role: "user", text: "Primera línea\nSegunda línea", complete: true, createdAt: "2026-08-28T01:03:00.000Z" },
           ],
         },
       }),
@@ -179,6 +180,9 @@ test("keeps sent messages right anchored while their text stays left aligned", a
   await page.goto("/chat/lucia");
   const sent = page.locator(".conversation-message--user");
   await expect(sent).toHaveCount(2);
+  await expect(page.locator(".conversation-message__avatar")).toHaveCount(3);
+  await expect(page.locator(".conversation-message__bubble")).toHaveCount(3);
+  await expect(page.locator(".conversation-message__time")).toHaveCount(3);
 
   const metrics = await sent.evaluateAll((elements) => elements.map((element) => {
     const message = element as HTMLElement;

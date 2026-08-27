@@ -177,18 +177,27 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         if (result.done) break;
         for (const event of parser.push(decoder.decode(result.value, { stream: true }))) {
           const normalized = event.generationId === "unknown" ? { ...event, generationId } : event;
-          if (normalized.type === "done") receivedDone = true;
-          apply({ type: "stream-event", event: normalized });
+          const timestamped = normalized.type === "meta" && !normalized.createdAt
+            ? { ...normalized, createdAt: new Date().toISOString() }
+            : normalized;
+          if (timestamped.type === "done") receivedDone = true;
+          apply({ type: "stream-event", event: timestamped });
         }
       }
       for (const event of parser.push(decoder.decode())) {
         const normalized = event.generationId === "unknown" ? { ...event, generationId } : event;
-        if (normalized.type === "done") receivedDone = true;
-        apply({ type: "stream-event", event: normalized });
+        const timestamped = normalized.type === "meta" && !normalized.createdAt
+          ? { ...normalized, createdAt: new Date().toISOString() }
+          : normalized;
+        if (timestamped.type === "done") receivedDone = true;
+        apply({ type: "stream-event", event: timestamped });
       }
       for (const event of parser.finish()) {
         const normalized = event.generationId === "unknown" ? { ...event, generationId } : event;
-        apply({ type: "stream-event", event: normalized });
+        const timestamped = normalized.type === "meta" && !normalized.createdAt
+          ? { ...normalized, createdAt: new Date().toISOString() }
+          : normalized;
+        apply({ type: "stream-event", event: timestamped });
       }
       if (!receivedDone && !controller.signal.aborted) {
         apply({
@@ -217,7 +226,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     const generationId = createId("generation");
     setDraft("");
     setQuotedMessage(null);
-    apply({ type: "submit", text, clientMessageId, generationId });
+    apply({ type: "submit", text, clientMessageId, generationId, createdAt: new Date().toISOString() });
     void consume(text, clientMessageId, generationId);
   }
 
@@ -367,10 +376,23 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             onKeyDown={(event) => openMessageMenuFromKeyboard(event, message)}
             tabIndex={message.role === "user" && !message.withdrawn ? 0 : undefined}
           >
-            <span className="conversation-message__author">{message.role === "user" ? "你" : characterName}</span>
-            <div className="conversation-message__text">{message.withdrawn ? "你撤回了一条消息" : message.text || "…"}</div>
-            {message.role === "user" && !message.withdrawn ? <button className="conversation-message__more" type="button" aria-label="消息操作" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) }); }}>•••</button> : null}
-            {message.role === "character" && !message.complete && state.status !== "streaming" ? <span className="conversation-message__hint">这条回复没有完整送达</span> : null}
+            <div
+              className={`avatar conversation-message__avatar ${message.role === "user" ? "conversation-message__avatar--user" : avatarClassName}`}
+              aria-hidden="true"
+            >
+              {message.role === "user" ? "你" : characterName.slice(0, 1)}
+            </div>
+            <div className="conversation-message__content">
+              <div className="conversation-message__meta">
+                <span className="conversation-message__author">{message.role === "user" ? "你" : characterName}</span>
+                {message.createdAt ? <time className="conversation-message__time" dateTime={message.createdAt}>{formatMessageTime(message.createdAt)}</time> : null}
+              </div>
+              <div className="conversation-message__bubble">
+                <div className="conversation-message__text">{message.withdrawn ? "你撤回了一条消息" : message.text || "…"}</div>
+                {message.role === "user" && !message.withdrawn ? <button className="conversation-message__more" type="button" aria-label="消息操作" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) }); }}>•••</button> : null}
+              </div>
+              {message.role === "character" && !message.complete && state.status !== "streaming" ? <span className="conversation-message__hint">这条回复没有完整送达</span> : null}
+            </div>
           </article>
           </Fragment>;
         })}
@@ -417,5 +439,21 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 function formatDateLabel(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayDifference = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000);
+  if (dayDifference === 0) return "今天";
+  if (dayDifference === 1) return "昨天";
   return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric" }).format(date);
+}
+
+function formatMessageTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }

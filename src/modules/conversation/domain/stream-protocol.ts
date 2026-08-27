@@ -20,6 +20,8 @@ export type ConversationMetaEvent = Readonly<{
   characterVersion: 1;
   generationId: string;
   messageId: string;
+  /** Optional for backwards-compatible stream clients; the UI fills it when absent. */
+  createdAt?: string;
 }>;
 
 export type ConversationDeltaEvent = Readonly<{

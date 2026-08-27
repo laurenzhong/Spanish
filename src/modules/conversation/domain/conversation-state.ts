@@ -27,7 +27,7 @@ export type ConversationState = Readonly<{
 
 export type ConversationAction =
   | Readonly<{ type: "hydrate"; messages: readonly ConversationMessage[] }>
-  | Readonly<{ type: "submit"; text: string; clientMessageId: string; generationId: string }>
+  | Readonly<{ type: "submit"; text: string; clientMessageId: string; generationId: string; createdAt?: string }>
   | Readonly<{ type: "retry"; userMessageId: string; generationId: string }>
   | Readonly<{ type: "stream-event"; event: ConversationStreamEvent }>
   | Readonly<{ type: "cancel"; generationId: string }>
@@ -97,6 +97,7 @@ export function transitionConversationState(
               role: "user",
               text: action.text,
               complete: true,
+              createdAt: action.createdAt,
             },
           ],
       activeGenerationId: action.generationId,
@@ -159,6 +160,7 @@ export function transitionConversationState(
               text: "",
               generationId: event.generationId,
               complete: false,
+              createdAt: event.createdAt,
             },
           ],
     };
