@@ -1,4 +1,7 @@
+import type { ConversationCharacterKey } from "./character-catalog";
+
 export const conversationProtocolVersion = "v1" as const;
+export const conversationCharacterKeys = ["lucia", "mateo", "ines"] as const;
 
 export const conversationStreamErrorCodes = [
   "stream-aborted",
@@ -13,7 +16,7 @@ export type ConversationStreamErrorCode =
 export type ConversationMetaEvent = Readonly<{
   type: "meta";
   protocolVersion: typeof conversationProtocolVersion;
-  characterKey: "lucia";
+  characterKey: ConversationCharacterKey;
   characterVersion: 1;
   generationId: string;
   messageId: string;
@@ -60,7 +63,7 @@ export function parseConversationEvent(value: unknown): ConversationStreamEvent 
 
   if (event.type === "meta") {
     return event.protocolVersion === conversationProtocolVersion &&
-        event.characterKey === "lucia" &&
+        conversationCharacterKeys.includes(event.characterKey as ConversationCharacterKey) &&
         event.characterVersion === 1 &&
         isNonEmptyString(event.generationId) &&
         isNonEmptyString(event.messageId)

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ilike } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -136,6 +136,28 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         .where(and(eq(schema.messages.userId, userId), eq(schema.characters.stableKey, characterKey)))
         .orderBy(desc(schema.messages.createdAt)).limit(Math.max(1, Math.min(limit, 200)));
       return rows.map((row) => toMessage(row.message)).reverse();
+    },
+
+    async searchMessages(userId, query, limit = 50) {
+      const normalizedQuery = query.trim();
+      if (!normalizedQuery) return [];
+      const escapedQuery = normalizedQuery.replace(/[\\%_]/gu, (value) => `\\${value}`);
+      const rows = await database
+        .select({ message: schema.messages, character: schema.characters })
+        .from(schema.messages)
+        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .where(and(
+          eq(schema.messages.userId, userId),
+          ilike(schema.messages.content, `%${escapedQuery}%`),
+        ))
+        .orderBy(desc(schema.messages.createdAt))
+        .limit(Math.max(1, Math.min(limit, 50)));
+      return rows.map((row) => ({
+        ...toMessage(row.message),
+        characterKey: row.character.stableKey,
+        characterName: row.character.displayName,
+      }));
     },
   };
 }

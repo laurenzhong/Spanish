@@ -165,3 +165,39 @@ test("keeps the mobile back link accessible and actionable", async ({ page }) =>
   await expect(page).toHaveURL(/\/chat$/);
   await expect(page.getByRole("heading", { name: "Lucía Martín" })).toBeVisible();
 });
+
+test("searches conversation history and opens the matching message", async ({ page }) => {
+  await authenticate(page);
+  const messageId = "00000000-0000-4000-8000-000000000099";
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { characterKey: "lucia", messages: [{ id: messageId, role: "character", text: "Hablamos del café de Madrid.", complete: true }] } }),
+    });
+  });
+  await page.route("**/api/v1/conversations/search?q=caf%C3%A9", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { query: "café", results: [{ messageId, characterKey: "lucia", characterName: "Lucía Martín", role: "character", snippet: "Hablamos del café de Madrid.", createdAt: "2026-08-27T00:00:00.000Z" }] } }),
+    });
+  });
+
+  await page.goto("/chat");
+  await page.getByRole("searchbox", { name: "搜索对话" }).fill("café");
+  await page.getByRole("button", { name: "提交对话搜索" }).click();
+  await expect(page.getByRole("link", { name: /Hablamos del café/ })).toBeVisible();
+  await page.getByRole("link", { name: /Hablamos del café/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/chat/lucia\\?message=${messageId}`));
+  await expect(page.locator(`[data-message-id="${messageId}"]`)).toHaveAttribute("data-highlighted", "true");
+});
+
+test("renders the selected character identity for Mateo and Inés", async ({ page }) => {
+  await authenticate(page);
+  for (const character of [{ key: "mateo", name: "Mateo Ruiz" }, { key: "ines", name: "Inés García" }]) {
+    await page.goto(`/chat/${character.key}`);
+    await expect(page.getByRole("heading", { name: character.name })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: `写下你想对 ${character.name} 说的话` })).toBeVisible();
+  }
+});

@@ -13,6 +13,7 @@ import {
 } from "./generate-character-reply";
 import type { ReplyContext } from "./build-reply-context";
 import { planReply } from "../domain/reply-plan";
+import { getConversationCharacter } from "../domain/character-catalog";
 
 export type StreamReplyProviderObservation = Readonly<{
   provider: ConversationProviderResult["provider"];
@@ -77,7 +78,7 @@ export async function* streamReply(
     yield errorEvent(input, "input-invalid", false);
     return;
   }
-  if (input.characterKey !== "lucia" || input.characterVersion !== 1) {
+  if (!getConversationCharacterSafe(input.characterKey) || input.characterVersion !== 1) {
     yield errorEvent(input, "character-unavailable", false);
     return;
   }
@@ -89,7 +90,7 @@ export async function* streamReply(
   yield {
     type: "meta",
     protocolVersion: "v1",
-    characterKey: "lucia",
+    characterKey: input.characterKey as "lucia" | "mateo" | "ines",
     characterVersion: 1,
     generationId: input.generationId,
     messageId: input.messageId,
@@ -100,16 +101,7 @@ export async function* streamReply(
     userId: "anonymous",
     userMessage: trimmed,
     recentMessages: [],
-    character: {
-      characterKey: input.characterKey,
-      characterVersion: input.characterVersion,
-      displayName: "Lucía Martín",
-      homeLocation: "Madrid",
-      initiative: "balanced" as const,
-      tone: ["cercana", "natural"],
-      topics: ["fotografía urbana", "comida local", "Madrid"],
-      facts: [],
-    },
+    character: getConversationCharacter(input.characterKey).snapshot,
     relationshipStage: "new_contact" as const,
     relationshipSummary: null,
     memories: [],
@@ -211,6 +203,15 @@ export async function* streamReply(
     return;
   }
   yield { type: "done", generationId: input.generationId, messageId: input.messageId };
+}
+
+function getConversationCharacterSafe(key: string): boolean {
+  try {
+    getConversationCharacter(key);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function notifyProviderResult(

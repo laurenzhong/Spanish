@@ -6,7 +6,8 @@ import {
   buildReplyContext,
   encodeConversationEvent,
   createDrizzleConversationRepository,
-  luciaReplyCharacter,
+  findConversationCharacter,
+  getConversationCharacter,
   persistCompletedAssistantMessage,
   persistUserMessage,
   streamReply,
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const clientMessageId = typeof input.clientMessageId === "string" ? input.clientMessageId : "";
   const generationId = typeof input.generationId === "string" ? input.generationId : "";
   if (
-    characterId !== "lucia" ||
+    !findConversationCharacter(characterId) ||
     characterVersion !== 1 ||
     !text.trim() ||
     text.length > 2_000 ||
@@ -78,11 +79,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     !generationId.trim()
   ) {
     return jsonError(
-      characterId !== "lucia" || characterVersion !== 1
+      !findConversationCharacter(characterId) || characterVersion !== 1
         ? "CHARACTER_UNAVAILABLE"
         : "INPUT_INVALID",
       "This conversation request cannot be started.",
-      characterId !== "lucia" || characterVersion !== 1 ? 404 : 400,
+      !findConversationCharacter(characterId) || characterVersion !== 1 ? 404 : 400,
     );
   }
 
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       generationId,
       userId: user.id,
       userMessage: text.trim(),
-      character: luciaReplyCharacter,
+      character: getConversationCharacter(characterId).snapshot,
       recentMessages,
       memoryRepository: readableMemoryRepository,
     });
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       generationId,
       userId: user.id,
       userMessage: text.trim(),
-      character: luciaReplyCharacter,
+      character: getConversationCharacter(characterId).snapshot,
       recentMessages,
     });
   }
@@ -203,7 +204,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
             });
             // Introduction offers are derived only from a durable, completed Lucía turn.
             // A failed character import or offer write must not change chat success.
-            try {
+            if (characterId === "lucia") {
+              try {
               const normalizedText = text
                 .normalize("NFD")
                 .replace(/[\u0300-\u036f]/gu, "")
@@ -222,8 +224,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
                   recentMessages: [{ role: "user", content: text.trim() }],
                 },
               });
-            } catch {
-              // Offers are best-effort and never turn a completed reply into a failure.
+              } catch {
+                // Offers are best-effort and never turn a completed reply into a failure.
+              }
             }
             if (memoryRepository) {
               const candidates = extractMemories({

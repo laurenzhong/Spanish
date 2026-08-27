@@ -10,6 +10,7 @@ import {
 
 type VoiceComposerProps = Readonly<{
   disabled?: boolean;
+  characterName?: string;
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -18,6 +19,7 @@ type VoiceComposerProps = Readonly<{
 
 export function VoiceComposer({
   disabled = false,
+  characterName = "Lucía Martín",
   value,
   onChange,
   onSubmit,
@@ -122,7 +124,7 @@ export function VoiceComposer({
           </div>
         ) : (
           <textarea
-            aria-label="写下你想对 Lucía 说的话"
+            aria-label={`写下你想对 ${characterName === "Lucía Martín" ? "Lucía" : characterName} 说的话`}
             disabled={disabled}
             maxLength={2_000}
             onChange={(event) => onChange(event.target.value)}

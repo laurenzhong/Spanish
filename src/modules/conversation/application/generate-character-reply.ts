@@ -34,15 +34,23 @@ function renderReply(context: ReplyContext, plan: ReplyPlan): string {
     return "¡Hola! Qué alegría leerte. Yo estoy bien; ¿cómo va todo por tu lado?";
   }
   if (/\b(?:comida|comer|cafe|café|cocina|sabor)\b/iu.test(normalized)) {
-    return "La comida siempre da para una buena charla. ¿Qué sabor te apetece descubrir hoy?";
+    return context.character.characterKey === "mateo"
+      ? "La comida y la música siempre se cruzan en mis planes. ¿Qué sabor o canción te ha acompañado últimamente?"
+      : "La comida siempre da para una buena charla. ¿Qué sabor te apetece descubrir hoy?";
   }
   if (/\b(?:madrid|foto|fotografia|fotografía|paseo|ciudad)\b/iu.test(normalized)) {
+    if (context.character.characterKey === "mateo") return "Me gusta salir con la cámara y escuchar cómo cambia una ciudad. ¿Qué escena o sonido te llamó la atención?";
+    if (context.character.characterKey === "ines") return "Las ciudades cambian mucho según el barrio y la rutina. ¿Qué lugar de tu día te gustaría entender mejor?";
     return "Me encanta fijarme en los detalles de la ciudad. ¿Qué escena te llamó la atención últimamente?";
   }
   if (plan.intent === "emotional-support") {
-    return "Siento que estés pasando por eso. Si te apetece, cuéntame qué es lo que más te preocupa ahora.";
+    return context.character.characterKey === "ines"
+      ? "Siento que estés pasando por eso. Podemos ordenar lo que ocurre paso a paso; ¿qué es lo más urgente ahora?"
+      : "Siento que estés pasando por eso. Si te apetece, cuéntame qué es lo que más te preocupa ahora.";
   }
   if (plan.shouldShareExperience) {
+    if (context.character.characterKey === "mateo") return "Te entiendo. A mí me gusta convertir las ideas en algo concreto; ¿qué parte de lo que cuentas te importa más?";
+    if (context.character.characterKey === "ines") return "Te escucho. En los proyectos del barrio casi siempre ayuda empezar por lo cotidiano; ¿qué parte de tu día pesa más?";
     return "Te entiendo. A mí me gusta fijarme en las pequeñas historias del día; ¿qué parte de lo que cuentas te importa más?";
   }
   return "Te leo. Cuéntame un poco más; me interesa saber qué tienes en mente.";

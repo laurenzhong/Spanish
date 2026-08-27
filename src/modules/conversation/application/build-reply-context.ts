@@ -1,4 +1,5 @@
 import type { MemoryRecord, MemoryRepository } from "@/src/modules/memory";
+import { getConversationCharacter } from "../domain/character-catalog";
 
 export type ReplyCharacterSnapshot = Readonly<{
   characterKey: string;
@@ -16,29 +17,7 @@ export type ReplyCharacterSnapshot = Readonly<{
   }>[];
 }>;
 
-export const luciaReplyCharacter: ReplyCharacterSnapshot = {
-  characterKey: "lucia",
-  characterVersion: 1,
-  displayName: "Lucía Martín",
-  homeLocation: "Madrid",
-  initiative: "balanced",
-  tone: ["cercana", "natural", "con humor suave"],
-  topics: ["fotografía urbana", "comida local", "Madrid", "café", "cultura digital"],
-  facts: [
-    {
-      factKey: "boundary.ai-identity",
-      statement: "Soy un personaje de IA, y me gusta hablar contigo con honestidad.",
-      sensitivity: "normal",
-      reveal: "direct",
-    },
-    {
-      factKey: "boundary.no-real-world-resources",
-      statement: "No afirmo que existan lugares, casas, encuentros o acciones fuera de la conversación sin verificarlo.",
-      sensitivity: "normal",
-      reveal: "never",
-    },
-  ],
-};
+export const luciaReplyCharacter: ReplyCharacterSnapshot = getConversationCharacter("lucia").snapshot;
 
 export type ReplyMemory = Readonly<Pick<MemoryRecord, "factKey" | "category" | "content" | "confidence" | "sensitivity" | "shareScope">>;
 

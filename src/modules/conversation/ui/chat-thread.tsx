@@ -11,11 +11,15 @@ import {
   type ConversationState,
 } from "@/src/modules/conversation";
 import { VoiceComposer } from "./voice-composer";
+import { ConversationSearch } from "./conversation-search";
 
 type ChatThreadProps = Readonly<{
-  characterKey: "lucia";
+  characterKey: "lucia" | "mateo" | "ines";
   characterName: string;
+  roleLabel?: string;
   characterVersion: 1;
+  avatarClassName?: string;
+  initialMessageId?: string;
 }>;
 
 function createId(prefix: string): string {
@@ -23,7 +27,10 @@ function createId(prefix: string): string {
   return `${prefix}-${uuid}`;
 }
 
-export function ChatThread({ characterKey, characterName, characterVersion }: ChatThreadProps) {
+export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, avatarClassName = "avatar--lucia" }: ChatThreadProps) {
+  const targetMessageId = initialMessageId ?? (typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("message") ?? undefined
+    : undefined);
   const [state, setState] = useState<ConversationState>(() => createConversationState());
   const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">("loading");
   const [draft, setDraft] = useState("");
@@ -36,6 +43,32 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   }, [state.messages]);
+
+  useEffect(() => {
+    if (!targetMessageId || state.messages.length === 0) return;
+    const container = messagesRef.current;
+    if (!container) return;
+    let cancelled = false;
+    let highlightTimeout: number | undefined;
+    const locate = (attempt: number) => {
+      if (cancelled) return;
+      const target = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]")).find(
+        (element) => element.dataset.messageId === targetMessageId,
+      );
+      if (!target) {
+        if (attempt < 4) window.setTimeout(() => locate(attempt + 1), 80);
+        return;
+      }
+      container.scrollTop = Math.max(0, target.offsetTop - container.clientHeight / 2 + target.offsetHeight / 2);
+      target.dataset.highlighted = "true";
+      highlightTimeout = window.setTimeout(() => { delete target.dataset.highlighted; }, 2_400);
+    };
+    locate(0);
+    return () => {
+      cancelled = true;
+      if (highlightTimeout !== undefined) window.clearTimeout(highlightTimeout);
+    };
+  }, [targetMessageId, state.messages.length]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -161,12 +194,13 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
           <span>返回对话列表</span>
         </Link>
         <div className="conversation-thread__identity">
-          <div className="avatar avatar--lucia" aria-hidden="true">L</div>
+          <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
           <div>
             <h1 id="conversation-title">{characterName}</h1>
-            <p>主要好友 · 文字和语音都可以</p>
+            <p>{roleLabel} · 文字和语音都可以</p>
           </div>
         </div>
+        <ConversationSearch compact />
         <span className="conversation-thread__status" data-status={state.status} role="status">
           {state.status === "streaming" ? "正在回复" : state.status === "completed" ? "已完成" : state.status === "failed" ? "需要重试" : state.status === "cancelled" ? "已停止" : ""}
         </span>
@@ -180,7 +214,7 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
         ) : null}
         {state.messages.length === 0 ? (
           <div className="conversation-thread__welcome">
-            <p className="eyebrow eyebrow--accent">Lucía 的消息</p>
+            <p className="eyebrow eyebrow--accent">{characterName} 的消息</p>
             <p>¡Hola! Cuéntame algo de tu día. Yo te sigo la conversación.</p>
           </div>
         ) : null}
@@ -188,6 +222,8 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
           <article
             aria-label={message.role === "user" ? "你的消息" : `${characterName} 的消息`}
             className={`conversation-message conversation-message--${message.role}`}
+            data-message-id={message.id}
+            data-highlighted={targetMessageId === message.id ? "true" : undefined}
             key={message.id}
             data-complete={message.complete}
           >
@@ -204,7 +240,7 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
           {retryMessage ? <button className="secondary-action" onClick={retry} type="button">重新发送</button> : null}
         </div>
       ) : null}
-      <VoiceComposer disabled={state.status === "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} value={draft} />
+      <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} value={draft} />
     </section>
   );
 }

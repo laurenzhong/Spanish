@@ -13,6 +13,11 @@ export type ConversationMessageRecord = Readonly<{
   completedAt: Date | null;
 }>;
 
+export type ConversationSearchResultRecord = Readonly<ConversationMessageRecord & {
+  characterKey: string;
+  characterName: string;
+}>;
+
 export type ConversationRepository = Readonly<{
   getOrCreateConversation(userId: string, characterKey: string, characterVersion: number): Promise<string>;
   appendUserMessage(input: Readonly<{
@@ -35,4 +40,5 @@ export type ConversationRepository = Readonly<{
   }>): Promise<ConversationMessageRecord>;
   findAssistantMessage(userId: string, conversationId: string, clientMessageId: string): Promise<ConversationMessageRecord | null>;
   listMessages(userId: string, characterKey: string, limit?: number): Promise<readonly ConversationMessageRecord[]>;
+  searchMessages(userId: string, query: string, limit?: number): Promise<readonly ConversationSearchResultRecord[]>;
 }>;
