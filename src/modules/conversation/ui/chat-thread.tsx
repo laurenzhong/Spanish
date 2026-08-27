@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
@@ -317,10 +316,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   return (
     <section className="conversation-thread" aria-labelledby="conversation-title" data-testid="conversation-thread">
       <header className="conversation-thread__header">
-        <Link aria-label="返回对话列表" className="conversation-thread__back" href="/chat">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>
-          <span>返回对话列表</span>
-        </Link>
         <div className="conversation-thread__identity">
           <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
           <div>

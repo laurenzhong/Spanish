@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ConversationSearch } from "./conversation-search";
 import { conversationCharacters } from "../domain/character-catalog";
+import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
 
 type ConversationContactRailProps = Readonly<{
   activeCharacterKey?: string;
@@ -36,6 +37,7 @@ function loadConversationList(force = false): Promise<void> {
 export function ConversationContactRail({ activeCharacterKey }: ConversationContactRailProps) {
   const [conversations, setConversations] = useState<readonly ConversationPreview[]>(cachedConversations ?? []);
   const [status, setStatus] = useState(cachedStatus);
+  const [showIntroductions, setShowIntroductions] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -78,18 +80,25 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
               <small>{conversation.roleLabel}</small>
               {conversation.lastMessage ? <span className="conversation-contact-row__preview">{conversation.lastMessage.snippet}</span> : null}
             </span>
+            {conversation.characterKey === "lucia" ? <span className="conversation-contact-row__marker" aria-label="已置顶">置顶</span> : null}
             {conversation.lastMessageAt ? <time className="conversation-contact-row__time" dateTime={conversation.lastMessageAt}>{formatConversationTime(conversation.lastMessageAt)}</time> : <span className="conversation-contact-row__new">开始对话</span>}
           </Link>
         ))}
       </nav>
 
       <div className="conversation-contact-rail__footer">
-        <Link href="/chat#introductions" className="conversation-contact-rail__request">
+        <button type="button" className="conversation-contact-rail__request" onClick={() => setShowIntroductions(true)}>
           <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0M17 8v6M14 11h6" /></svg>
           <span>查看介绍请求</span>
-        </Link>
+        </button>
         <p>会话记录会在发送第一条消息后保存。</p>
       </div>
+      {showIntroductions ? <div className="conversation-introductions-dialog" role="dialog" aria-modal="true" aria-labelledby="conversation-introductions-dialog-title">
+        <div className="conversation-introductions-dialog__panel">
+          <div className="conversation-introductions-dialog__heading"><h2 id="conversation-introductions-dialog-title">介绍请求</h2><button type="button" aria-label="关闭介绍请求" onClick={() => setShowIntroductions(false)}>×</button></div>
+          <IntroductionInbox alwaysVisible />
+        </div>
+      </div> : null}
     </aside>
   );
 }

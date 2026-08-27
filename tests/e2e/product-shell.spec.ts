@@ -145,10 +145,11 @@ test("shows a contextual friend introduction and requires explicit consent", asy
   });
 
   await page.goto("/chat");
+  await page.getByRole("button", { name: "查看介绍请求" }).click();
   await expect(page.getByRole("heading", { name: "认识一个新朋友" })).toBeVisible();
-  await expect(page.getByText("Mateo Ruiz")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mateo Ruiz" })).toBeVisible();
   await page.getByRole("button", { name: "同意介绍" }).click();
-  await expect(page.getByRole("status")).toContainText("已同意介绍");
+  await expect(page.locator(".conversation-introductions").getByRole("status")).toContainText("已同意介绍");
 });
 
 test("recovers the friend introduction inbox after a failed request", async ({ page }) => {
@@ -169,10 +170,11 @@ test("recovers the friend introduction inbox after a failed request", async ({ p
   });
 
   await page.goto("/chat");
+  await page.getByRole("button", { name: "查看介绍请求" }).click();
   await expect(page.locator(".conversation-introductions [role=alert]")).toContainText("暂时无法读取好友介绍");
   allowSuccess = true;
-  await page.getByRole("button", { name: "重试" }).click();
-  await expect(page.getByText("Mateo Ruiz")).toBeVisible();
+  await page.getByRole("dialog", { name: "介绍请求" }).getByRole("button", { name: "重试" }).click();
+  await expect(page.getByRole("heading", { name: "Mateo Ruiz" })).toBeVisible();
   expect(attempts).toBeGreaterThanOrEqual(2);
 });
 
@@ -191,11 +193,12 @@ test("shares only the memory explicitly selected in an introduction", async ({ p
   });
 
   await page.goto("/chat");
+  await page.getByRole("button", { name: "查看介绍请求" }).click();
   const memory = page.getByRole("checkbox", { name: /喜欢摄影/ });
   await expect(memory).not.toBeChecked();
   await memory.check();
   await page.getByRole("button", { name: "同意介绍" }).click();
-  await expect(page.getByRole("status")).toContainText("已同意介绍");
+  await expect(page.locator(".conversation-introductions").getByRole("status")).toContainText("已同意介绍");
 });
 
 test("lets the user revoke a target-specific memory permission", async ({ page }) => {

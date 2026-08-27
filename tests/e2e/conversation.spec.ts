@@ -154,16 +154,14 @@ test("keeps the conversation thread within a phone viewport", async ({ page }) =
   expect(width.scroll).toBeLessThanOrEqual(width.client);
 });
 
-test("keeps the mobile back link accessible and actionable", async ({ page }) => {
+test("opens the mobile conversation list without a redundant back link", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/chat/lucia");
 
-  const backLink = page.getByRole("link", { name: "返回对话列表" });
-  await expect(backLink).toHaveAttribute("href", "/chat");
-  await backLink.click();
-  await expect(page).toHaveURL(/\/chat$/);
-  await expect(page.getByRole("heading", { name: "Lucía Martín" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "返回对话列表" })).toHaveCount(0);
+  await page.getByRole("button", { name: "会话列表" }).click();
+  await expect(page.getByRole("dialog", { name: "会话列表" })).toBeVisible();
 });
 
 test("searches conversation history and opens the matching message", async ({ page }) => {
