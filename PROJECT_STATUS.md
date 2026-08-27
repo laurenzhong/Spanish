@@ -47,6 +47,8 @@ UI-011 后置修复：阅读器 Explain 面板已收敛为词语、词性、基�
 
 UI-011 后置修复（二）：Explain 支持在正文同一段内拖选多个词语后解析整句；单词与句子请求分别携带 `selectionType`，句子面板只显示所选句子、中文翻译、句子解析和可选参考表达，不重复展示上下文。实现 Commit：`6661703`；修改阅读器、词语解释 API/ MiniMax provider、相关单元测试与 Playwright 测试，并同步架构与测试策略文档。验证：相关 Vitest 16/16、Playwright 3/3、`pnpm lint`、`pnpm typecheck` 通过。限制：当前句子解析依赖服务端 `MINIMAX_API_KEY` 和 MiniMax M3，供应商失败时只提供可重试错误，不写入口语能力证据；全量 Vitest 仍受既有 PGlite fixture/Windows worker 资源问题影响。下一项仍为阶段 8 个人 Alpha 人工体验复核。
 
+UI-011 后置修复（三）：修复正文词语按钮阻断原生文本选择的问题。词语改为可选中的行内控件并保留键盘激活；拖选回归使用真实鼠标从段落中间词开始，确认不会退化为首个词解析。实现 Commit：`46ade5e`；相关 Vitest 16/16、Playwright 3/3、`pnpm lint`、`pnpm typecheck` 通过。限制与下一项不变。
+
 每批只完成一个任务 ID；产品本人在批次结束后进行视觉和行为确认，协调者再更新状态页。
 
 ### READ-001：文章内容契约与版权字段
