@@ -154,6 +154,51 @@ test("keeps the conversation thread within a phone viewport", async ({ page }) =
   expect(width.scroll).toBeLessThanOrEqual(width.client);
 });
 
+test("keeps sent messages right anchored while their text stays left aligned", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          characterKey: "lucia",
+          messages: [
+            { id: "layout-short", role: "user", text: "Hola", complete: true },
+            { id: "layout-multiline", role: "user", text: "Primera línea\nSegunda línea", complete: true },
+          ],
+        },
+      }),
+    });
+  });
+
+  await page.goto("/chat/lucia");
+  const sent = page.locator(".conversation-message--user");
+  await expect(sent).toHaveCount(2);
+
+  const metrics = await sent.evaluateAll((elements) => elements.map((element) => {
+    const message = element as HTMLElement;
+    const text = message.querySelector<HTMLElement>(".conversation-message__text");
+    const messageRect = message.getBoundingClientRect();
+    const threadRect = message.parentElement?.getBoundingClientRect();
+    const threadStyle = message.parentElement ? getComputedStyle(message.parentElement) : null;
+    const contentRight = threadRect && threadStyle
+      ? threadRect.right - Number.parseFloat(threadStyle.paddingRight)
+      : Number.POSITIVE_INFINITY;
+    return {
+      rightGap: Math.abs(contentRight - messageRect.right),
+      width: messageRect.width,
+      textAlign: text ? getComputedStyle(text).textAlign : "",
+      whiteSpace: text ? getComputedStyle(text).whiteSpace : "",
+    };
+  }));
+
+  expect(metrics[0].rightGap).toBeLessThanOrEqual(1);
+  expect(metrics[0].width).toBeLessThan(metrics[1].width);
+  expect(metrics[1].textAlign).toBe("left");
+  expect(metrics[1].whiteSpace).toBe("pre-wrap");
+});
+
 test("opens the mobile conversation list without a redundant back link", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });

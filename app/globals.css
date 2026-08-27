@@ -4166,6 +4166,8 @@ button {
 
 .conversation-message--user {
   align-self: flex-end;
+  width: fit-content;
+  max-width: 76%;
   color: #6b392e;
   text-align: left;
 }
