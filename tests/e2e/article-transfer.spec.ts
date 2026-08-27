@@ -112,11 +112,10 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   expect(explanationApiCalled).toBe(false);
   const sidebarOverflow = await tools.evaluate((node) => ({
     panel: node.scrollWidth <= node.clientWidth,
-    tabs: node.querySelector<HTMLElement>(".article-reader__tool-tabs")?.scrollWidth ?? 0,
-    tabsClientWidth: node.querySelector<HTMLElement>(".article-reader__tool-tabs")?.clientWidth ?? 0,
+    tabRows: new Set([...node.querySelectorAll<HTMLElement>(".article-reader__tool-tabs button")].map((button) => button.getBoundingClientRect().top)).size,
   }));
   expect(sidebarOverflow.panel).toBe(true);
-  expect(sidebarOverflow.tabs).toBeLessThanOrEqual(sidebarOverflow.tabsClientWidth);
+  expect(sidebarOverflow.tabRows).toBe(1);
 
   await page.getByRole("tab", { name: "Dictionary" }).click();
   await expect(page.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
