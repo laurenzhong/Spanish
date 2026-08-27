@@ -234,6 +234,25 @@ locale            es-ES 或 es-MX
 - `prefers-reduced-motion` 下关闭消息滑入和自动滚动动画。
 - Spanish 内容保持原文优先；中文说明、释义和反馈只能按需展开。
 
+### 10.1 Composer v6 组件规范
+
+视觉版图：`.superpowers/brainstorm/1164-1787816318/content/conversation-composer-study-v6.html`。
+
+Composer 是一个连续的编辑工作面，不由多个独立彩色按钮拼成。桌面默认高度 64px，移动端 58px；整体圆角 8px，内部左右控制区各 44-48px，图标视觉尺寸 20px，线性图标笔画约 1.75-1.8px。默认结构固定为：左侧 Mic 工具、中间可编辑文本、右侧 Send 主动作。图标按钮必须使用统一线性图标集，不使用 emoji、中文单字或 Unicode 箭头作为控件图形。
+
+| 状态 | 左侧 | 中间 | 右侧 | 交互语义 |
+| --- | --- | --- | --- | --- |
+| `idle` | Mic | 输入占位/草稿 | Send | 发送文本或开始录音 |
+| `recording` | X（取消） | 计时 + 短波形 | Stop | 取消或结束录音；不扩展高度 |
+| `transcribing` | 保持禁用 | 处理中状态 | Cancel/禁用 | 不写消息、不写证据 |
+| `draft-review` | Play | 可编辑转写文本 | Send | 支持播放、编辑、重录后再发送 |
+| `streaming` | 保持可用 | 已发送文本上下文 | Stop | 与 Send 同位互换，停止不产生完成回合 |
+| `failed` | 保持可用 | 恢复说明/草稿 | Retry | 错误靠文字和边框表达，不依赖红色填充 |
+
+颜色采用三层令牌：primitive `#141715 / #737D76 / #D8DED9 / #944C3B / #49665A`，semantic `text / text-muted / border / action / focus`，component `composer-height / composer-radius / composer-control / icon-size / icon-stroke`。砖红只用于 Send、Stop、录音和 Retry；Mic、Play、X 使用中性墨灰。焦点状态使用青绿色 2-3px 外圈，hover/pressed 只改变背景或透明度，不改变布局尺寸。
+
+桌面在 composer 下显示 `Enter 发送 · Shift + Enter 换行` 的辅助提示；移动端隐藏快捷键提示但保留安全区 padding。所有 icon-only 控件提供 `aria-label`、tooltip 和键盘焦点；命中区不小于 44px，控件之间至少 8px 间距。状态切换通过同一 shell 内部替换完成，禁止新增 status 行、弹出大卡片或产生布局跳动。
+
 ## 11. 测试验收矩阵
 
 ### 11.1 Domain/Application
