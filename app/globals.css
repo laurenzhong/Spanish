@@ -3896,7 +3896,11 @@ button {
   overflow-y: auto;
   padding: 24px clamp(18px, 4vw, 36px) 16px;
   background: var(--conversation-canvas);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+
+.conversation-thread__messages::-webkit-scrollbar { display: none; }
 
 .conversation-thread__persistence-notice {
   width: min(100%, 720px);
@@ -4181,6 +4185,7 @@ button {
 
   .conversation-page--workspace .conversation-workspace,
   .conversation-page--detail .conversation-workspace { height: 100svh; }
+  .conversation-page--detail { height: 100svh; overflow: hidden; }
 }
 
 .conversation-introductions-anchor {
