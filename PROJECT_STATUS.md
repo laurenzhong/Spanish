@@ -50,10 +50,10 @@
 - 状态：`done`
 - 负责人：Codex
 - 目标分支：`fix/login-redirect-after-otp`
-- 实现 Commit：`fb4e9c0`
+- 实现 Commit：`fb4e9c0`；兼容 MiniMax M3 reasoning 区块修复：`7f90cec`
 - 范围：接入服务端 MiniMax M3 StoryGenerationProvider；新增私有 `user_generated_articles` 及 RLS、幂等生成/读取/删除 API；Web `/read/generate` 表单、My Texts 草稿卡片、私有文章阅读器复用与删除；公共内容 API 排除生成文章，不写入口语证据、画像或角色记忆。
 - 修改：`src/modules/providers/story-generation/`、`src/modules/reading/`、`app/api/v1/read/generated-stories/`、`app/(product)/read/generate/`、阅读书架/阅读器、`drizzle/0014_parallel_liz_osborn.sql`、契约 Schema/OpenAPI、相关文档与测试。
-- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、Generate Story 相关 Vitest 19/19、Generate Story Playwright 1/1 通过；全量 `pnpm test --run` 仍受既有 PGlite/Windows worker OOM、article fixture 漂移和 `server-only` 测试隔离失败影响；`pnpm build` 在 Windows 静态生成阶段因 worker OOM（3221226505）退出。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、Generate Story 相关 Vitest 20/20、Generate Story Playwright 1/1 通过；全量 `pnpm test --run` 仍受既有 PGlite/Windows worker OOM、article fixture 漂移和 `server-only` 测试隔离失败影响；`pnpm build` 在 Windows 静态生成阶段因 worker OOM（3221226505）退出。
 - 限制：需要服务端 `MINIMAX_API_KEY` 和 `DATABASE_URL` 才能生成并持久化；当前不提供公开发布、音频生成、流式写作或外部 URL 抓取。未做 Flutter/iOS 真机验证。
 - 下一项：继续 `ALPHA-033` 发布候选门禁，清理全量测试 fixture/worker 稳定性后再进入阶段 8 人工体验。
 
