@@ -170,7 +170,7 @@ test("keeps sent messages right anchored while their text stays left aligned", a
           messages: [
             { id: "layout-character", role: "character", text: "¡Hola!", complete: true, createdAt: "2026-08-28T01:01:00.000Z" },
             { id: "layout-short", role: "user", text: "Hola", complete: true, createdAt: "2026-08-28T01:02:00.000Z" },
-            { id: "layout-multiline", role: "user", text: "Primera línea\nSegunda línea", complete: true, createdAt: "2026-08-28T01:03:00.000Z" },
+            { id: "layout-multiline", role: "user", text: "Primera línea\nSegunda línea", complete: true, createdAt: "2026-08-28T01:08:00.000Z" },
           ],
         },
       }),
@@ -182,7 +182,8 @@ test("keeps sent messages right anchored while their text stays left aligned", a
   await expect(sent).toHaveCount(2);
   await expect(page.locator(".conversation-message__avatar")).toHaveCount(3);
   await expect(page.locator(".conversation-message__bubble")).toHaveCount(3);
-  await expect(page.locator(".conversation-message__time")).toHaveCount(3);
+  await expect(page.locator(".conversation-thread__timestamp")).toHaveCount(2);
+  await expect(page.locator(".conversation-message__time")).toHaveCount(0);
 
   const metrics = await sent.evaluateAll((elements) => elements.map((element) => {
     const message = element as HTMLElement;
@@ -205,6 +206,9 @@ test("keeps sent messages right anchored while their text stays left aligned", a
   expect(metrics[0].width).toBeLessThan(metrics[1].width);
   expect(metrics[1].textAlign).toBe("left");
   expect(metrics[1].whiteSpace).toBe("pre-wrap");
+
+  await sent.nth(0).click();
+  await expect(page.locator(".conversation-thread__timestamp--exact")).toHaveCount(1);
 });
 
 test("opens the mobile conversation list without a redundant back link", async ({ page }) => {

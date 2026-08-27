@@ -40,6 +40,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<ConversationState["messages"][number] | null>(null);
+  const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showMobileConversations, setShowMobileConversations] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -261,6 +262,28 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     }
   }
 
+  function toggleMessageTimestamp(messageId: string) {
+    setExpandedTimestampId((current) => current === messageId ? null : messageId);
+  }
+
+  function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
+    if (message.role === "user") {
+      openMessageMenu(event, message);
+      return;
+    }
+    if (!message.createdAt) return;
+    event.preventDefault();
+    toggleMessageTimestamp(message.id);
+  }
+
+  function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
+    openMessageMenuFromKeyboard(event, message);
+    if ((event.key === "Enter" || event.key === " ") && message.createdAt) {
+      event.preventDefault();
+      toggleMessageTimestamp(message.id);
+    }
+  }
+
   function selectedMessage() {
     return contextMenu ? state.messages.find((message) => message.id === contextMenu.messageId) ?? null : null;
   }
@@ -361,9 +384,19 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         ) : null}
         {state.messages.map((message, index) => {
           const previous = state.messages[index - 1];
-          const showDate = message.createdAt && (!previous?.createdAt || new Date(message.createdAt).toDateString() !== new Date(previous.createdAt).toDateString());
+          const messageDate = message.createdAt ? new Date(message.createdAt) : null;
+          const previousDate = previous?.createdAt ? new Date(previous.createdAt) : null;
+          const validMessageDate = messageDate && !Number.isNaN(messageDate.getTime());
+          const validPreviousDate = previousDate && !Number.isNaN(previousDate.getTime());
+          const dayChanged = Boolean(validMessageDate && (!validPreviousDate || messageDate.toDateString() !== previousDate.toDateString()));
+          const gapExceeded = Boolean(validMessageDate && validPreviousDate && messageDate.getTime() - previousDate.getTime() > 5 * 60 * 1000);
+          const showTimestamp = Boolean(message.createdAt && (dayChanged || gapExceeded));
+          const timestampExpanded = expandedTimestampId === message.id;
+          const timestampValue = message.createdAt;
           return <Fragment key={message.id}>
-          {showDate ? <time className="conversation-thread__date" dateTime={message.createdAt}>{formatDateLabel(message.createdAt)}</time> : null}
+          {(showTimestamp || timestampExpanded) && timestampValue ? <time className={`conversation-thread__timestamp${timestampExpanded ? " conversation-thread__timestamp--exact" : ""}`} dateTime={timestampValue}>
+            {timestampExpanded ? formatFullTimestamp(timestampValue) : formatConversationTimestamp(timestampValue, dayChanged)}
+          </time> : null}
           <article
             aria-label={message.role === "user" ? "你的消息" : `${characterName} 的消息`}
             className={`conversation-message conversation-message--${message.role}`}
@@ -372,9 +405,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             data-complete={message.complete}
             data-withdrawn={message.withdrawn ? "true" : undefined}
             aria-live={message.role === "character" && message.id === state.activeMessageId ? "polite" : undefined}
-            onContextMenu={(event) => openMessageMenu(event, message)}
-            onKeyDown={(event) => openMessageMenuFromKeyboard(event, message)}
-            tabIndex={message.role === "user" && !message.withdrawn ? 0 : undefined}
+            onClick={() => { if (message.createdAt) toggleMessageTimestamp(message.id); }}
+            onContextMenu={(event) => handleMessageContextMenu(event, message)}
+            onKeyDown={(event) => handleMessageKeyDown(event, message)}
+            tabIndex={message.createdAt ? 0 : undefined}
           >
             <div
               className={`avatar conversation-message__avatar ${message.role === "user" ? "conversation-message__avatar--user" : avatarClassName}`}
@@ -383,10 +417,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
               {message.role === "user" ? "你" : characterName.slice(0, 1)}
             </div>
             <div className="conversation-message__content">
-              <div className="conversation-message__meta">
-                <span className="conversation-message__author">{message.role === "user" ? "你" : characterName}</span>
-                {message.createdAt ? <time className="conversation-message__time" dateTime={message.createdAt}>{formatMessageTime(message.createdAt)}</time> : null}
-              </div>
               <div className="conversation-message__bubble">
                 <div className="conversation-message__text">{message.withdrawn ? "你撤回了一条消息" : message.text || "…"}</div>
                 {message.role === "user" && !message.withdrawn ? <button className="conversation-message__more" type="button" aria-label="消息操作" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) }); }}>•••</button> : null}
@@ -436,24 +466,45 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   );
 }
 
-function formatDateLabel(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const today = new Date();
-  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayDifference = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000);
-  if (dayDifference === 0) return "今天";
-  if (dayDifference === 1) return "昨天";
-  return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric" }).format(date);
-}
-
-function formatMessageTime(value: string): string {
+function formatClockTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function formatConversationTimestamp(value: string, includeDate: boolean): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = formatClockTime(value);
+  if (!includeDate) return time;
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayDifference = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000);
+  if (dayDifference === 0) return `今天 ${time}`;
+  if (dayDifference === 1) return `昨天 ${time}`;
+  if (dayDifference > 1 && dayDifference < 7) {
+    const weekday = new Intl.DateTimeFormat("zh-CN", { weekday: "short" }).format(date);
+    return `${weekday} ${time}`;
+  }
+  const dateLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric" }).format(date);
+  return `${dateLabel} ${time}`;
+}
+
+function formatFullTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
     hour12: false,
   }).format(date);
 }
