@@ -35,14 +35,27 @@
 
 ### ALPHA-033：Alpha 功能缺口收敛与发布候选准备
 
-- 状态：`ready`
-- 负责人：待协调分配
-- 目标分支：待分配
+- 状态：`in_progress`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
 - 前置依赖：阶段 7、UI-006 至 UI-011、READ-001 至 READ-005
 - 范围：对照产品设计和 Alpha 范围盘点未完成能力与已知缺陷；补齐核心训练、初次诊断、阅读、对话、画像、隐私和 Web/Flutter 跨端闭环；修复阻塞级/高优先级流程、状态机、取消/竞态、数据隔离、证据污染和角色一致性问题；清理全量测试与 fixture 漂移；准备发布候选质量门禁。
 - 不包含：阶段 8 连续使用配额、周度复盘或全面主观体验；支付、完整内容后台、实时双向语音、大规模角色网络、任意外部来源抓取和其他 Alpha 延后范围。
 - 验收：核心路径可从入口走到完成或可恢复失败；P0/P1 缺陷清零；关键数据和角色安全不变量有自动化回归；`pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm test:e2e`、`pnpm build` 按发布候选范围通过；Flutter 公共检查通过，并记录 Mac/Xcode 真机验收缺口。
+- 当前切片：除引用与转发外，收敛对话 P0/P1 缺陷；语音按钮接入一次性转写与可编辑确认；新增真实会话列表、长对话滚动/加载体验和移动端消息操作入口。实现与测试完成后回填 Commit、门禁结果和已知限制。
 - 下一项：阶段 8 个人 Alpha 连续使用与人工体验复核，仅在本任务退出条件满足并经产品本人确认后启动。
+
+### READ-006：Generate Story 私有 AI 草稿文章
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 实现 Commit：`fb4e9c0`
+- 范围：接入服务端 MiniMax M3 StoryGenerationProvider；新增私有 `user_generated_articles` 及 RLS、幂等生成/读取/删除 API；Web `/read/generate` 表单、My Texts 草稿卡片、私有文章阅读器复用与删除；公共内容 API 排除生成文章，不写入口语证据、画像或角色记忆。
+- 修改：`src/modules/providers/story-generation/`、`src/modules/reading/`、`app/api/v1/read/generated-stories/`、`app/(product)/read/generate/`、阅读书架/阅读器、`drizzle/0014_parallel_liz_osborn.sql`、契约 Schema/OpenAPI、相关文档与测试。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、Generate Story 相关 Vitest 19/19、Generate Story Playwright 1/1 通过；全量 `pnpm test --run` 仍受既有 PGlite/Windows worker OOM、article fixture 漂移和 `server-only` 测试隔离失败影响；`pnpm build` 在 Windows 静态生成阶段因 worker OOM（3221226505）退出。
+- 限制：需要服务端 `MINIMAX_API_KEY` 和 `DATABASE_URL` 才能生成并持久化；当前不提供公开发布、音频生成、流式写作或外部 URL 抓取。未做 Flutter/iOS 真机验证。
+- 下一项：继续 `ALPHA-033` 发布候选门禁，清理全量测试 fixture/worker 稳定性后再进入阶段 8 人工体验。
 
 ## 新模型快速接手
 
