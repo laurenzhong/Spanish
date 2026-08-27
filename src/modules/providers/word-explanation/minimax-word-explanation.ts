@@ -10,7 +10,7 @@ import {
   type WordExplanationProvider,
 } from "./word-explanation";
 
-const defaultEndpoint = "https://api.minimax.io/anthropic/v1/messages";
+const defaultEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
 const defaultModelVersion = "MiniMax-M3";
 const defaultTimeoutMs = 30_000;
 
