@@ -110,6 +110,13 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   await page.getByRole("button", { name: /^café/ }).click();
   await expect(tools).toContainText("咖啡这种饮料；咖啡馆");
   expect(explanationApiCalled).toBe(false);
+  const sidebarOverflow = await tools.evaluate((node) => ({
+    panel: node.scrollWidth <= node.clientWidth,
+    tabs: node.querySelector<HTMLElement>(".article-reader__tool-tabs")?.scrollWidth ?? 0,
+    tabsClientWidth: node.querySelector<HTMLElement>(".article-reader__tool-tabs")?.clientWidth ?? 0,
+  }));
+  expect(sidebarOverflow.panel).toBe(true);
+  expect(sidebarOverflow.tabs).toBeLessThanOrEqual(sidebarOverflow.tabsClientWidth);
 
   await page.getByRole("tab", { name: "Dictionary" }).click();
   await expect(page.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
