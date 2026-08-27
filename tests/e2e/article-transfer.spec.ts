@@ -68,7 +68,12 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   expect(tabsBox).not.toBeNull();
   if (toolsBox && tabsBox) {
     expect(tabsBox.y - toolsBox.y).toBeLessThan(80);
-    if ((page.viewportSize()?.width ?? 0) >= 960) expect(toolsBox.width).toBeCloseTo(425, 0);
+    if ((page.viewportSize()?.width ?? 0) >= 960) {
+      expect(toolsBox.width).toBeCloseTo(425, 0);
+      const toggleBox = await toggle.boundingBox();
+      expect(toggleBox).not.toBeNull();
+      if (toggleBox) expect(toggleBox.x).toBeGreaterThanOrEqual(toolsBox.x);
+    }
   }
 
   if ((page.viewportSize()?.width ?? 0) < 800) {
