@@ -27,6 +27,10 @@ export async function listSavedArticles(repository: ReadingRepository, userId: s
   return repository.listSavedArticleIds(userId);
 }
 
+export async function listReadingProgress(repository: ReadingRepository, userId: string) {
+  return repository.listProgress(userId);
+}
+
 export async function saveExternalSource(repository: ReadingRepository, userId: string, input: SavedArticleSourceInput) {
   return repository.saveSource(userId, savedArticleSourceInputSchema.parse(input));
 }

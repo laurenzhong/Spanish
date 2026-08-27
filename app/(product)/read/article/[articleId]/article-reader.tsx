@@ -56,16 +56,22 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const setToolsOpen = (open: boolean) => setToolsOpenState((current) => open ? !current : false);
   const [speakingPosition, setSpeakingPosition] = useState<number | "full" | null>(null);
   const [ttsError, setTtsError] = useState(false);
-  const [online, setOnline] = useState(true);
+  const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [serverSync, setServerSync] = useState<"pending" | "available" | "unauthenticated" | "unavailable" | "conflict">("pending");
   const [status, setStatus] = useState("");
   const restoredPositionRef = useRef<number | null>(null);
+  const previousOnlineRef = useRef(online);
   const contentRef = useRef<HTMLElement>(null);
   const tts = useMemo(() => createBrowserTextToSpeech(), []);
   const settings = state.settings ?? defaultSettings;
 
   useEffect(() => () => tts.stop(), [tts]);
   useEffect(() => {
+    const recoveredFromOffline = !previousOnlineRef.current && online;
+    previousOnlineRef.current = online;
+    if (serverSync === "available" || serverSync === "unauthenticated" || serverSync === "conflict") return;
+    if (serverSync === "unavailable" && !recoveredFromOffline) return;
+    let cancelled = false;
     try {
       const raw = window.localStorage.getItem(storageKey(article));
       if (raw) {
@@ -75,7 +81,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       }
     } catch { queueMicrotask(() => setStatus("暂时无法读取上次的阅读位置，本次阅读仍可继续。")); }
     queueMicrotask(() => { setOnline(navigator.onLine); setHydrated(true); });
-    let cancelled = false;
+    if (!navigator.onLine) return () => { cancelled = true; };
     void fetch("/api/v1/read/articles/" + encodeURIComponent(article.id) + "/state", { credentials: "same-origin" }).then(async (response) => {
       if (response.status === 401) { if (!cancelled) setServerSync("unauthenticated"); return; }
       if (!response.ok) throw new Error("state-unavailable");
@@ -88,7 +94,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       if (!cancelled) setServerSync("available");
     }).catch(() => { if (!cancelled) setServerSync("unavailable"); });
     return () => { cancelled = true; };
-  }, [article]);
+  }, [article, online, serverSync]);
   useEffect(() => { if (!hydrated) return; try { window.localStorage.setItem(storageKey(article), JSON.stringify({ ...state, status: state.position >= article.segments.length - 1 ? "completed" : "in_progress", lastOpenedAt: new Date().toISOString() })); } catch { /* local state remains usable */ } }, [article, hydrated, state]);
   useEffect(() => {
     if (!hydrated || !online || serverSync !== "available") return;

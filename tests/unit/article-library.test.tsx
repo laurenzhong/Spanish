@@ -7,7 +7,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { ReadShelf } from "@/app/(product)/read/read-shelf";
-import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
+import { filterArticles, type ArticleCardProjection, type ArticleListResult } from "@/src/modules/content/domain";
 
 const result: ArticleListResult = {
   articles: [],
@@ -91,5 +91,24 @@ describe("article library shelf", () => {
     expect(screen.getByRole("link", { name: "Previous page" })).toHaveAttribute("href", "/read?search=vida&topic=topic.daily-life&cefr=A2&minutes=short&sort=newest");
     expect(screen.getByRole("link", { name: "Next page" })).toHaveAttribute("href", "/read?page=3&search=vida&topic=topic.daily-life&cefr=A2&minutes=short&sort=newest");
     expect(screen.getByText("2")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps server-filtered My Texts paginated", () => {
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 25, hasMore: true, savedFilterAvailable: true }} page={2} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly initialReaderProgress={{}} />);
+
+    expect(screen.getByRole("link", { name: "Previous page" })).toHaveAttribute("href", "/read?saved=1");
+    expect(screen.getByRole("link", { name: "Next page" })).toHaveAttribute("href", "/read?page=3&saved=1");
+  });
+
+  it("filters saved IDs before applying pagination", () => {
+    const filtered = filterArticles([article, { ...article, id: "article.other@1", stableKey: "article.other", title: "Otra historia" }], {
+      savedOnly: true,
+      savedArticleIds: [article.id],
+      pageSize: 12,
+    });
+
+    expect(filtered.articles.map((item) => item.id)).toEqual([article.id]);
+    expect(filtered.totalCount).toBe(1);
+    expect(filtered.savedFilterAvailable).toBe(true);
   });
 });

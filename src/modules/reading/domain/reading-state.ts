@@ -32,6 +32,13 @@ export type ReadingState = Readonly<{
   status: ReadingProgressStatus;
 }>;
 
+export type ReadingProgressSummary = Readonly<{
+  articleId: string;
+  lastOpenedAt: Date;
+  position: number;
+  status: ReadingProgressStatus;
+}>;
+
 export type SavedArticleSource = Readonly<{
   author: string | null;
   copyrightStatus: "unverified" | "cleared" | "restricted";

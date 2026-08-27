@@ -111,6 +111,28 @@ export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>
       return version ? projectState(userId, version) : null;
     },
 
+    async listProgress(userId) {
+      const rows = await database
+        .select({
+          stableKey: schema.articles.stableKey,
+          version: schema.articleVersions.version,
+          position: schema.userReadingProgress.position,
+          status: schema.userReadingProgress.status,
+          lastOpenedAt: schema.userReadingProgress.lastOpenedAt,
+        })
+        .from(schema.userReadingProgress)
+        .innerJoin(schema.articleVersions, eq(schema.userReadingProgress.articleVersionId, schema.articleVersions.id))
+        .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
+        .where(and(eq(schema.userReadingProgress.userId, userId), eq(schema.articleVersions.status, "published")))
+        .orderBy(desc(schema.userReadingProgress.lastOpenedAt));
+      return rows.map((row) => ({
+        articleId: articleId(row.stableKey, row.version),
+        lastOpenedAt: row.lastOpenedAt,
+        position: row.position,
+        status: row.status,
+      }));
+    },
+
     async upsertState(userId, articleIdValue, patch) {
       const version = await findArticleVersion(articleIdValue);
       if (!version) throw new Error("ARTICLE_NOT_FOUND");

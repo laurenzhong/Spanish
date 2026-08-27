@@ -131,6 +131,9 @@ describe("reading persistence", () => {
     await expect(database.select({ value: count() }).from(schema.userReadingProgress)).resolves.toEqual([{ value: 1 }]);
     await expect(database.select({ value: count() }).from(schema.userArticleHighlights)).resolves.toEqual([{ value: 2 }]);
     await expect(database.select({ value: count() }).from(schema.userArticleSaves)).resolves.toEqual([{ value: 1 }]);
+    await expect(repository.listProgress(userA)).resolves.toMatchObject([
+      { articleId: "article.reading-test@1", position: 1, status: "in_progress" },
+    ]);
   });
 
   it("keeps user data isolated and rejects a stale article version", async () => {

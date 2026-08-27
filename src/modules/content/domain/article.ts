@@ -47,6 +47,8 @@ export type ArticleListQuery = Readonly<{
   minutes?: ArticleReadingLength;
   sort?: ArticleSort;
   savedOnly?: boolean;
+  /** Versioned article IDs supplied by the authenticated reading projection. */
+  savedArticleIds?: readonly string[];
   cursor?: string;
   pageSize?: number;
 }>;
@@ -152,10 +154,14 @@ export function filterArticles(
   query: ArticleListQuery,
 ): ArticleListResult {
   const allTopics = [...new Set(articles.flatMap((article) => article.topics))].sort();
-  if (query.savedOnly) return { articles: [], totalCount: 0, topics: allTopics, nextCursor: null, hasMore: false, savedFilterAvailable: false };
+  const savedIds = query.savedArticleIds ? new Set(query.savedArticleIds) : null;
+  if (query.savedOnly && !savedIds) {
+    return { articles: [], totalCount: 0, topics: allTopics, nextCursor: null, hasMore: false, savedFilterAvailable: false };
+  }
 
   const term = query.search?.trim().toLocaleLowerCase() ?? "";
   const filtered = articles.filter((article) => {
+    if (query.savedOnly && !savedIds?.has(article.id)) return false;
     const matchesTopic = !query.topic || article.topics.includes(query.topic);
     const matchesCefr = !query.cefr || article.cefr === query.cefr;
     const matchesMinutes = !query.minutes || (
@@ -181,6 +187,6 @@ export function filterArticles(
     topics: allTopics,
     nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
     hasMore: nextOffset < sorted.length,
-    savedFilterAvailable: false,
+    savedFilterAvailable: Boolean(query.savedOnly && savedIds),
   };
 }

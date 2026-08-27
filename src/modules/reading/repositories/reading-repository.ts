@@ -1,4 +1,5 @@
 import type {
+  ReadingProgressSummary,
   ReadingState,
   ReadingStatePatch,
   SavedArticleSource,
@@ -8,6 +9,7 @@ import type {
 export type ReadingRepository = Readonly<{
   deleteSavedSource(userId: string, sourceId: string): Promise<boolean>;
   getState(userId: string, articleId: string): Promise<ReadingState | null>;
+  listProgress(userId: string): Promise<readonly ReadingProgressSummary[]>;
   listSavedArticleIds(userId: string): Promise<readonly string[]>;
   listSavedSources(userId: string): Promise<readonly SavedArticleSource[]>;
   saveSource(userId: string, input: SavedArticleSourceInput): Promise<SavedArticleSource>;

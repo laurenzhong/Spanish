@@ -20,6 +20,13 @@ type ReadShelfProps = Readonly<{
   source: ReadSource;
   sort: ReadSort;
   savedOnly: boolean;
+  initialReaderProgress?: Readonly<Record<string, ReaderProgressSummary>>;
+}>;
+
+type ReaderProgressSummary = Readonly<{
+  position: number;
+  status: "in_progress" | "completed";
+  lastOpenedAt: string;
 }>;
 
 type StoredReaderState = Readonly<{
@@ -71,11 +78,14 @@ function withParams(params: Readonly<Record<string, string | undefined>>): strin
   return serialized ? `/read?${serialized}` : "/read";
 }
 
-export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, savedOnly }: ReadShelfProps) {
+export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, savedOnly, initialReaderProgress }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
-  const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(savedOnly ? null : new Set());
+  const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(() => savedOnly
+    ? result.savedFilterAvailable ? new Set(result.articles.map((article) => article.id)) : null
+    : new Set());
   const [savingArticleIds, setSavingArticleIds] = useState<ReadonlySet<string>>(new Set());
   const [readerStates, setReaderStates] = useState<Readonly<Record<string, StoredReaderState>>>({});
+  const [readerProgress] = useState<Readonly<Record<string, ReaderProgressSummary>>>(initialReaderProgress ?? {});
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
   const hasFilters = Boolean(search || topic || cefr || minutes);
@@ -100,18 +110,20 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
 
   const visibleArticles = useMemo(() => {
     if (source === "web") return [];
-    return savedOnly ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles;
-  }, [result.articles, savedArticleIds, savedOnly, source]);
+    return savedOnly && !result.savedFilterAvailable ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles;
+  }, [result.articles, result.savedFilterAvailable, savedArticleIds, savedOnly, source]);
 
   useEffect(() => {
     const nextStates = Object.fromEntries(
       visibleArticles.flatMap((article) => {
         const state = readStoredState(article.stableKey);
-        return state ? [[article.stableKey, state] as const] : [];
+        if (state) return [[article.stableKey, state] as const];
+        const summary = readerProgress[article.id];
+        return summary ? [[article.stableKey, { ...summary, stableKey: article.stableKey, version: article.version, contentHash: "", position: summary.position } as StoredReaderState] as const] : [];
       }),
     );
     queueMicrotask(() => setReaderStates(nextStates));
-  }, [visibleArticles]);
+  }, [readerProgress, visibleArticles]);
 
   useEffect(() => {
     if (!toolNotice) return;
@@ -245,15 +257,15 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
             {source === "web" ? <button className="text-link" type="button" onClick={() => setToolNotice("请先在文章阅读器中使用真实的来源保存入口。")}>了解来源保存</button> : hasFilters ? <Link className="text-link" href="/read">View Public Texts <span aria-hidden="true">→</span></Link> : null}
           </div>
         )}
-        {source === "public" && !savedOnly && result.totalCount > 0 ? <ArticlePagination page={page} pageSize={pageSize} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} /> : null}
+        {source === "public" && result.totalCount > 0 && (!savedOnly || result.savedFilterAvailable) ? <ArticlePagination page={page} pageSize={pageSize} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} savedOnly={savedOnly} /> : null}
       </section>
     </div>
   );
 }
 
-function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, minutes, sort }: Readonly<{ page: number; pageSize: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort }>) {
+function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, minutes, sort, savedOnly }: Readonly<{ page: number; pageSize: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort; savedOnly: boolean }>) {
   const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
-  const hrefFor = (targetPage: number) => withParams({ page: targetPage > 1 ? String(targetPage) : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
+  const hrefFor = (targetPage: number) => withParams({ page: targetPage > 1 ? String(targetPage) : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
   return (
     <nav className="read-pagination" aria-label="Article pages">
