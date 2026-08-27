@@ -3,10 +3,10 @@
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
 - 最后更新：2026-08-27
-- 当前里程碑：个人 Alpha 阶段 8——连续使用与人工体验复核
-- 总体状态：READ-005、UI-009、UI-010、UI-011、ALPHA-032 已完成；阶段 8 人工体验待人工确认
+- 当前里程碑：个人 Alpha 阶段 7.7——功能缺口收敛与发布候选准备
+- 总体状态：READ-005、UI-009、UI-010、UI-011、ALPHA-032 已完成；阶段 8 尚未启动，等待发布候选门禁
 - 协调分支：`main`
-- 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
+- 当前阻塞：发布候选尚未形成；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
@@ -18,7 +18,7 @@
 - 修改：`src/modules/providers/conversation/`、`src/modules/conversation/application/stream-reply.ts`、`app/api/v1/conversations/[characterId]/stream/route.ts`、`.env.example`、`playwright.config.ts`、相关测试与架构/测试文档。
 - 验证：相关 Vitest 26/26、`pnpm lint`、`pnpm typecheck`、`pnpm build`、对话 Playwright 12/12 通过；全量 Vitest 仍有既有 article-content fixture 与 article-reader `user` 作用域失败；全量 E2E 首次运行受本机 MiniMax key 污染，清空 key 后对话路径通过，剩余失败为既有移动 UI 回归。
 - 限制：当前只有 Lucía@1 接入；需要在服务端配置 `MINIMAX_API_KEY` 才会调用真实 MiniMax，未配置或 provider 失败时使用确定性回复；未做真实收费 provider 回归或 iOS 真机验证。
-- 下一项：阶段 8 个人 Alpha 人工体验复核。
+- 下一项：`ALPHA-033` Alpha 功能缺口收敛与发布候选准备。
 
 ### ALPHA-032：对话搜索与三角色目录
 
@@ -31,7 +31,18 @@
 - 修改：`app/(product)/chat/`、`app/api/v1/conversations/`、`src/modules/conversation/`、`tests/e2e/conversation.spec.ts`、`docs/superpowers/specs/2026-08-27-conversation-search-and-character-catalog-design.md`。
 - 验证：对话 Playwright `9/9`、对话相关 Vitest `17/17`、`pnpm lint`、`pnpm typecheck`、`pnpm build` 均通过；浏览器已验证历史消息搜索跳转、Mateo/Inés 角色切换及无控制台错误。
 - 限制：搜索依赖数据库；未配置 `DATABASE_URL` 时只显示明确的不可用状态，不伪造搜索结果。Mateo/Inés 仍受角色 API 记录可用性约束，真实 provider 质量不在本切片内重新校准。
-- 下一项：阶段 8 个人 Alpha 人工体验复核，由产品本人确认角色内容与搜索体验。
+- 下一项：`ALPHA-033` Alpha 功能缺口收敛与发布候选准备。
+
+### ALPHA-033：Alpha 功能缺口收敛与发布候选准备
+
+- 状态：`ready`
+- 负责人：待协调分配
+- 目标分支：待分配
+- 前置依赖：阶段 7、UI-006 至 UI-011、READ-001 至 READ-005
+- 范围：对照产品设计和 Alpha 范围盘点未完成能力与已知缺陷；补齐核心训练、初次诊断、阅读、对话、画像、隐私和 Web/Flutter 跨端闭环；修复阻塞级/高优先级流程、状态机、取消/竞态、数据隔离、证据污染和角色一致性问题；清理全量测试与 fixture 漂移；准备发布候选质量门禁。
+- 不包含：阶段 8 连续使用配额、周度复盘或全面主观体验；支付、完整内容后台、实时双向语音、大规模角色网络、任意外部来源抓取和其他 Alpha 延后范围。
+- 验收：核心路径可从入口走到完成或可恢复失败；P0/P1 缺陷清零；关键数据和角色安全不变量有自动化回归；`pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm test:e2e`、`pnpm build` 按发布候选范围通过；Flutter 公共检查通过，并记录 Mac/Xcode 真机验收缺口。
+- 下一项：阶段 8 个人 Alpha 连续使用与人工体验复核，仅在本任务退出条件满足并经产品本人确认后启动。
 
 ## 新模型快速接手
 
@@ -47,17 +58,17 @@
 
 ## 当前任务
 
-UI-011 已完成；当前下一项为阶段 8：个人 Alpha 预览与人工体验复核。
+UI-011 已完成；当前下一项为 `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备。
 
-当前任务 **UI-009：阅读库与规范化阅读器** 已完成交接；下一项为 READ-005：个人保存和外部来源增量。UI-010 至 UI-011 仍在实施计划中拆分，必须逐项领取。阶段 8 个人 Alpha 人工体验暂缓。当前只做模块级局部测试和回归，待所有 UI 与功能落地后再启动阶段记录。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等候选版本门禁通过后再启动。当前只做功能补齐、缺陷修复、跨端闭环和局部/全量质量回归；阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 当前工作边界
 
-上方 UI-009 句子是历史交接记录；当前任务和下一项以本页新增 READ-005 状态及任务表为准。
+上方 UI-009 句子是历史交接记录；当前任务和下一项以本页 `ALPHA-033` 状态及任务表为准。
 
 - UI-001 至 UI-005 已完成，但不代表整个产品已经达到人工体验条件。
-- 在剩余 UI 和功能模块全部落地前，只验证按钮、状态流转、错误恢复和局部用户路径；不启动阶段 8 的连续使用配额、周度复盘或全面主观体验。
-- 后续 UI 切片完成后，先更新本状态页和对应测试，再由产品本人确认是否进入阶段 8 人工体验。
+- 在 Alpha 功能缺口和已知缺陷收敛前，只验证按钮、状态流转、错误恢复和局部用户路径；不启动阶段 8 的连续使用配额、周度复盘或全面主观体验。
+- `ALPHA-033` 完成后，先形成发布候选并通过质量门禁，再由产品本人确认是否进入阶段 8 人工体验。
 
 ### 待执行 UI 批次
 
@@ -68,15 +79,20 @@ UI-011 已完成；当前下一项为阶段 8：个人 Alpha 预览与人工体�
 - `UI-010`：我的进步与隐私控制（done；`d59a617`；依赖 UI-006）
 - `UI-011`：跨视口、可访问性与行为回归（done；依赖 UI-006 至 UI-010）
 
+### 当前 Alpha 收敛任务
+
+- `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备（ready；依赖阶段 7、UI-006 至 UI-011、READ-001 至 READ-005）。
+- 阶段 8：个人 Alpha 连续使用与人工体验复核（ready；仅在 `ALPHA-033` 退出条件满足后启动）。
+
 UI-011 后置修复：阅读器 Explain 面板已收敛为词语、词性、基本释义、本句语境义和西语例句；移除原句重复、供应商提示、内部说明和 Explain 内全文朗读控件。实现 Commit：`83c4eb1`；相关 Vitest 14/14、Playwright 2/2、lint、typecheck 通过。
 
-UI-011 后置修复（二）：Explain 支持在正文同一段内拖选多个词语后解析整句；单词与句子请求分别携带 `selectionType`，句子面板只显示所选句子、中文翻译、句子解析和可选参考表达，不重复展示上下文。实现 Commit：`6661703`；修改阅读器、词语解释 API/ MiniMax provider、相关单元测试与 Playwright 测试，并同步架构与测试策略文档。验证：相关 Vitest 16/16、Playwright 3/3、`pnpm lint`、`pnpm typecheck` 通过。限制：当前句子解析依赖服务端 `MINIMAX_API_KEY` 和 MiniMax M3，供应商失败时只提供可重试错误，不写入口语能力证据；全量 Vitest 仍受既有 PGlite fixture/Windows worker 资源问题影响。下一项仍为阶段 8 个人 Alpha 人工体验复核。
+UI-011 后置修复（二）：Explain 支持在正文同一段内拖选多个词语后解析整句；单词与句子请求分别携带 `selectionType`，句子面板只显示所选句子、中文翻译、句子解析和可选参考表达，不重复展示上下文。实现 Commit：`6661703`；修改阅读器、词语解释 API/ MiniMax provider、相关单元测试与 Playwright 测试，并同步架构与测试策略文档。验证：相关 Vitest 16/16、Playwright 3/3、`pnpm lint`、`pnpm typecheck` 通过。限制：当前句子解析依赖服务端 `MINIMAX_API_KEY` 和 MiniMax M3，供应商失败时只提供可重试错误，不写入口语能力证据；全量 Vitest 仍受既有 PGlite fixture/Windows worker 资源问题影响。历史交接曾将阶段 8 列为下一项，当前已改为先执行 `ALPHA-033`。
 
 UI-011 后置修复（三）：修复正文词语按钮阻断原生文本选择的问题。词语改为可选中的行内控件并保留键盘激活；拖选回归使用真实鼠标从段落中间词开始，确认不会退化为首个词解析。实现 Commit：`46ade5e`；相关 Vitest 16/16、Playwright 3/3、`pnpm lint`、`pnpm typecheck` 通过。限制与下一项不变。
 
 UI-011 后置修复（四）：词语本身显示文本选择光标，拖选可直接从词语内容开始；句子选区成立后立即请求 MiniMax 解析，移除“解析所选句子”按钮。实现 Commit：`44e8657`；相关 Vitest 16/16、真实鼠标 Playwright 3/3 和阅读器局部 lint 通过。全量 `pnpm typecheck` 当前被其他代理新增的 `tests/unit/minimax-conversation.test.ts` 类型错误阻断；全量 lint 的既有聊天文件警告同样不属于本次阅读器改动。限制与下一项不变。
 
-UI-011 后置修复（五）：新增已审核的常用西语词典，命中词条时本地立即展示完整义项、用法、搭配、例句和 CEFR，不调用供应商；未命中词语或句子通过 MiniMax M3 流式 NDJSON 返回，前端按 `delta` 增量渲染并在 `done` 时完成 Schema 校验；补充流式 provider、Route 和阅读器测试。实现 Commit：`ee707a7`；修改 `content/glossary/`、阅读器、词语解释 provider/Route、相关测试与架构/测试策略文档。验证：Explain/阅读器相关 Vitest 21/21；真实鼠标 Playwright 3/3；阅读器与 provider 局部 lint、`pnpm typecheck` 通过。限制：流式显示依赖 MiniMax 返回可解析的 JSON 文本增量，最终字段仍需完整 `done`；未配置 key 时未命中词语仍显示可重试错误。下一项仍为阶段 8 个人 Alpha 人工体验复核。
+UI-011 后置修复（五）：新增已审核的常用西语词典，命中词条时本地立即展示完整义项、用法、搭配、例句和 CEFR，不调用供应商；未命中词语或句子通过 MiniMax M3 流式 NDJSON 返回，前端按 `delta` 增量渲染并在 `done` 时完成 Schema 校验；补充流式 provider、Route 和阅读器测试。实现 Commit：`ee707a7`；修改 `content/glossary/`、阅读器、词语解释 provider/Route、相关测试与架构/测试策略文档。验证：Explain/阅读器相关 Vitest 21/21；真实鼠标 Playwright 3/3；阅读器与 provider 局部 lint、`pnpm typecheck` 通过。限制：流式显示依赖 MiniMax 返回可解析的 JSON 文本增量，最终字段仍需完整 `done`；未配置 key 时未命中词语仍显示可重试错误。历史交接曾将阶段 8 列为下一项，当前已改为先执行 `ALPHA-033`。
 
 UI-011 后置修复（六）：修复阅读辅助侧栏在窄宽度下标签、长词和解释内容被裁切的问题；侧栏内容、标签和操作按钮允许自然换行并禁止横向溢出，不改变侧栏位置。实现 Commit：`78f2fb4`；修改 `app/globals.css` 与阅读器 E2E 回归断言。验证：阅读器 Vitest 8/8、桌面 Playwright 3/3、`pnpm typecheck` 通过；移动 Playwright 2/3，剩余失败为既有句子拖选坐标问题。
 
@@ -692,7 +708,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 - 本次未改变 profile、memory、media 或 account data application；全量 Web E2E 和跨视口/屏幕阅读器回归留给 UI-011。
 - 当前没有 Mac/Xcode，未进行 Flutter iOS 编译或真机验证。
-- 下一项：阶段 8 个人 Alpha 预览与人工体验复核。
+- 下一项：`ALPHA-033` Alpha 功能缺口收敛与发布候选准备。
 
 ### UI-011：跨视口、可访问性与行为回归
 
@@ -719,7 +735,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 - 全量 Vitest 的 2 条 `article-content` 失败来自现有 bundle 文章计数与版权 fixture 断言过期，不是 UI-011 改动；默认并行全量测试仍可能触发 Windows 资源限制。
 - 当前没有 Mac/Xcode，未进行 Flutter iOS 编译、签名或真机验证。
-- 下一步：产品本人进行阶段 8 预览和人工体验复核；不在本任务中实现外部来源抓取、RSS、Newsletter 或 Flutter 服务端阅读同步。
+- 下一步：先执行 `ALPHA-033`，完成剩余功能、缺陷修复和发布候选门禁；阶段 8 仅在候选版本通过后启动。不在本任务中实现外部来源抓取、RSS、Newsletter 或 Flutter 服务端阅读同步。
 
 ### ALPHA-029：角色回复规划
 
@@ -1337,7 +1353,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-004 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
 | UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
-| 阶段 8 | ready | `fix/login-redirect-after-otp` | 产品本人 / Codex | 个人 Alpha 使用周期与人工体验复核；等待所有 UI 与功能模块落地 | UI-005 及后续 UI/READ 切片 |
+| ALPHA-033 | ready | 待分配 | 待协调分配 | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
+| 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -1345,13 +1362,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | READ-002 | 阅读导航与文章书架 | READ-001 |
-| 2 | READ-003 | 规范化阅读器 | READ-002 |
-| 3 | READ-004 | 阅读到口语迁移 | READ-003 |
-| 4 | READ-005 | 个人保存和外部来源增量 | READ-004 |
-| 5 | UI-010 | 我的进步与隐私控制 | UI-006 |
-| 6 | UI-011 | 跨视口、可访问性与行为回归 | UI-006 至 UI-010 |
-| 7 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | 所有 UI/READ 功能切片完成 |
+| 1 | ALPHA-033 | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
+| 2 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
@@ -1440,7 +1452,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 2026-08-27 | 修正阅读器双板块布局 | `6585e83` | 正文与侧栏改为并列双列面板；侧栏固定 425px、取消卡片阴影并与 Readlang 的 tabs 面板边界对齐；移动端继续使用抽屉；阅读器单测、lint、typecheck、build 通过 |
 | 2026-08-27 | 对齐双板块顶部起始位置 | `e3702ea` | 桌面端侧栏从顶部栏同一水平线开始，正文列与侧栏不再重叠；验证 1280px 桌面无横向溢出，移动端抽屉无横向溢出 |
 | 2026-08-27 | 完成 UI-010 我的进步与隐私控制 | `d59a617` | `/me` 分组导航、能力/活动/关系/数据隐私层级和加载失败重试完成；下一项 UI-011 |
-| 2026-08-27 | 完成 UI-011 跨视口、可访问性与行为回归 | `7a54b85` | 阅读器迁移/笔记恢复、移动抽屉焦点和 6 档视口回归完成；下一步阶段 8 人工体验 |
+| 2026-08-27 | 完成 UI-011 跨视口、可访问性与行为回归 | `7a54b85` | 阅读器迁移/笔记恢复、移动抽屉焦点和 6 档视口回归完成；下一步改为 ALPHA-033 功能收敛与发布候选准备 |
 | 2026-08-27 | 完成 ALPHA-032 对话搜索与三角色目录 | `c5b7106` | 当前用户私有历史搜索、消息深链高亮、Lucía/Mateo/Inés 动态角色页完成；下一步产品本人确认角色内容与搜索体验 |
 
 最近完成只保留约 10–15 项。更早历史通过 `git log` 和实施计划查询。
