@@ -4167,7 +4167,7 @@ button {
 .conversation-message--user {
   align-self: flex-end;
   color: #6b392e;
-  text-align: right;
+  text-align: left;
 }
 
 .conversation-message__author {
@@ -4178,6 +4178,7 @@ button {
 }
 
 .conversation-message--user .conversation-message__author { color: var(--conversation-action); }
+.conversation-message--user .conversation-message__author { align-self: flex-end; }
 
 .conversation-message__text {
   white-space: pre-wrap;

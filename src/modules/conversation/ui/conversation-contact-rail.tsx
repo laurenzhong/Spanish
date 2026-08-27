@@ -55,8 +55,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     <aside className="conversation-contact-rail" aria-label="联系人">
       <div className="conversation-contact-rail__heading">
         <div>
-          <p className="eyebrow eyebrow--accent">私信</p>
-          <h2>对话</h2>
+          <h2>好友</h2>
         </div>
         <span className="conversation-contact-rail__count">{visibleConversations.length} 位好友</span>
       </div>

@@ -320,7 +320,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
           <div>
             <h1 id="conversation-title">{characterName}</h1>
-            <p>{roleLabel} · 文字和语音都可以</p>
+            <p>{roleLabel}</p>
           </div>
         </div>
         <ConversationSearch compact />
