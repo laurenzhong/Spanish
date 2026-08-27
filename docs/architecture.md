@@ -136,7 +136,7 @@ UI / Route Handler → Application → Domain
 
 `reading` 模块拥有用户阅读私有数据，Route Handler 只负责会话验证、Zod 输入校验和协议转换，application 调用 `ReadingRepository` 完成事务写入。文章正文仍由 `content` 模块的已发布版本提供；阅读表只引用 `article_versions.id` 和内容哈希，不复制公共正文。
 
-词语解释通过 `WordExplanationProvider` 走服务端 provider 边界。`POST /api/v1/read/word-explanation` 只接受词语、当前段落上下文和文章语言，服务端使用 `MINIMAX_API_KEY` 调用 MiniMax M3 并校验结构化 JSON；浏览器不会接触供应商密钥。解释结果是临时阅读辅助，不写入 `evidence_events`、`mastery`、`confidence` 或角色记忆；超时、限流和供应商失败只返回稳定 API 错误，正文阅读与本地 glossary fallback 不受影响。
+词语解释通过 `WordExplanationProvider` 走服务端 provider 边界。`POST /api/v1/read/word-explanation` 接受选中的词语或句子、当前段落上下文、文章语言和 `selectionType`（`word`/`sentence`）；服务端使用 `MINIMAX_API_KEY` 调用 MiniMax M3 并校验结构化 JSON。浏览器不会接触供应商密钥，阅读器只渲染固定解释字段；句子选择通过拖选正文后显式触发，不在 Explain 面板重复展示上下文。解释结果是临时阅读辅助，不写入 `evidence_events`、`mastery`、`confidence` 或角色记忆；超时、限流和供应商失败只返回稳定 API 错误，正文阅读与本地 glossary fallback 不受影响。
 
 - `user_reading_progress` 保存版本化断点、完成状态和个人笔记；`user_article_saves` 保存文章收藏；`user_article_highlights` 保存短语/高亮文本及段落位置。
 - `/api/v1/read/articles/:articleId/state` 使用内容哈希做乐观版本检查。哈希过期返回 `409 CONFLICT`，客户端保留本地状态并提示重新定位，不静默覆盖标注。

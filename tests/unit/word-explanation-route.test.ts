@@ -71,7 +71,7 @@ describe("word explanation route", () => {
     expect(response.headers.get("x-request-id")).toBe("word_12345678");
     await expect(response.json()).resolves.toMatchObject({ apiVersion: "v1", data: { modelVersion: "MiniMax-M3", contextualMeaning: "这里指咖啡馆。" } });
     expect(mocks.explain).toHaveBeenCalledWith(
-      { word: "café", context: "Nos vemos en el café.", locale: "es-ES" },
+      { word: "café", context: "Nos vemos en el café.", locale: "es-ES", selectionType: "word" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });

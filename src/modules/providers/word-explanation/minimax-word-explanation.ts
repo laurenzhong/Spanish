@@ -147,7 +147,8 @@ export function createMiniMaxWordExplanationProvider(
 
 const systemPrompt = [
   "You are a Spanish-learning dictionary assistant.",
-  "Explain only the supplied Spanish word in the supplied sentence context.",
+  "Explain only the supplied Spanish selection in the supplied sentence context.",
+  "When selectionType is word, explain the word. When selectionType is sentence, translate and explain the whole selected sentence; do not focus on one word.",
   "Return JSON only with partOfSpeech, meaning, contextualMeaning, and example.",
   "Write the explanations in Simplified Chinese and keep the example in Spanish.",
   "Do not invent facts about the learner, the article, or the world.",
@@ -155,7 +156,8 @@ const systemPrompt = [
 
 function buildPrompt(input: WordExplanationInput): string {
   return JSON.stringify({
-    task: "explain_word_in_context",
+    task: input.selectionType === "sentence" ? "explain_sentence" : "explain_word_in_context",
+    selectionType: input.selectionType ?? "word",
     word: input.word,
     context: input.context,
     locale: input.locale,

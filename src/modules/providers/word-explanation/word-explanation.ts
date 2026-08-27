@@ -14,6 +14,7 @@ export type WordExplanationInput = Readonly<{
   word: string;
   context: string;
   locale: string;
+  selectionType?: "word" | "sentence";
 }>;
 
 export type WordExplanation = Readonly<{
@@ -52,9 +53,11 @@ export class WordExplanationError extends Error {
 }
 
 export function validateWordExplanationInput(input: WordExplanationInput): void {
+  const selectionType = input.selectionType ?? "word";
   if (
     !input.word.trim() ||
-    input.word.length > 120 ||
+    (selectionType === "word" && input.word.length > 120) ||
+    (selectionType === "sentence" && input.word.length > 2_000) ||
     !input.context.trim() ||
     input.context.length > 2_000 ||
     !input.locale.trim() ||

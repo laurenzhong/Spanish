@@ -14,6 +14,13 @@ const input: WordExplanationInput = {
   locale: "es-ES",
 };
 
+const sentenceInput: WordExplanationInput = {
+  word: "Después de clase, Marta entra en una cafetería.",
+  context: "Después de clase, Marta entra en una cafetería.",
+  locale: "es-ES",
+  selectionType: "sentence",
+};
+
 function response(body: unknown, status = 200, headers: HeadersInit = { "x-request-id": "mmx-word-123" }): Response {
   return new Response(JSON.stringify(body), { status, headers });
 }
@@ -69,6 +76,24 @@ describe("MiniMaxWordExplanationProvider", () => {
       fetchImplementation: vi.fn(async () => response({ content: [{ type: "text", text: "not json" }] })),
     });
     await expect(malformed.explain(input)).rejects.toMatchObject({ code: "provider-response-invalid", retryable: false });
+  });
+
+  it("marks sentence selections in the prompt", async () => {
+    let request: RequestInit | undefined;
+    const provider = new MiniMaxWordExplanationProvider({
+      apiKey: "test-minimax-key",
+      endpoint: "https://minimax.test/anthropic/v1/messages",
+      fetchImplementation: vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+        request = init;
+        return response(successResponse());
+      }),
+    });
+
+    await provider.explain(sentenceInput);
+    const body = JSON.parse(String(request?.body)) as { messages?: Array<{ content?: Array<{ text?: string }> }> };
+    const prompt = body.messages?.[0]?.content?.[0]?.text ?? "";
+    expect(prompt).toContain('"selectionType":"sentence"');
+    expect(prompt).toContain('"task":"explain_sentence"');
   });
 
   it.each([

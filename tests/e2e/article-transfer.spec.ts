@@ -39,7 +39,7 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   await authenticate(page);
   await page.route("**/api/v1/read/word-explanation", async (route) => {
     expect(route.request().method()).toBe("POST");
-    expect(route.request().postDataJSON()).toMatchObject({ word: "café", locale: "es-ES" });
+    expect(route.request().postDataJSON()).toMatchObject({ word: "café", locale: "es-ES", selectionType: "word" });
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -134,4 +134,45 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(toggle).toHaveAccessibleName("打开阅读辅助");
   await expect(tools).not.toBeVisible();
+});
+
+test("explains a selected sentence", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/read/word-explanation", async (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({ selectionType: "sentence" });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiVersion: "v1", data: {
+        partOfSpeech: "句子",
+        meaning: "下课后，玛尔塔走进校园里的咖啡馆。",
+        contextualMeaning: "这句话交代了人物进入咖啡馆的时间、地点和原因。",
+        example: "Después de clase, voy a una cafetería.",
+        provider: "minimax",
+        modelVersion: "MiniMax-M3",
+        providerRequestId: "e2e-sentence-explanation",
+        latencyMs: 1,
+        estimatedCostMicros: null,
+      } }),
+    });
+  });
+  await page.goto("/read/article/article.sueno-first-cafe@1");
+  await page.locator(".article-reader__assist-toggle").click();
+  const paragraph = page.locator('[data-reader-position="0"]');
+  await paragraph.evaluate((node) => {
+    const buttons = [...node.querySelectorAll<HTMLButtonElement>(".reader-token")];
+    const start = buttons[0]?.firstChild;
+    const end = buttons[2]?.firstChild;
+    if (!start || !end) throw new Error("sentence tokens missing");
+    const range = document.createRange();
+    range.setStart(start, 0);
+    range.setEnd(end, end.textContent?.length ?? 0);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  });
+  await expect(page.getByRole("button", { name: "解析所选句子" })).toBeVisible();
+  await page.getByRole("button", { name: "解析所选句子" }).click();
+  await expect(page.getByRole("dialog", { name: "阅读辅助" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
 });

@@ -12,9 +12,10 @@ import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 
 const inputSchema = z.object({
-  word: z.string().trim().min(1).max(120),
+  word: z.string().trim().min(1).max(2_000),
   context: z.string().trim().min(1).max(2_000),
   locale: z.string().trim().min(1).max(32),
+  selectionType: z.enum(["word", "sentence"]).default("word"),
 }).strict();
 
 function errorResponse(
