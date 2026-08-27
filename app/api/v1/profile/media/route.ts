@@ -10,7 +10,7 @@ import {
   listSavedTranscripts,
 } from "@/src/modules/privacy";
 import { createDrizzlePrivacyRepository } from "@/src/modules/privacy/repositories";
-import { verifyRequestUser } from "@/src/shared/auth/server";
+import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -34,7 +34,8 @@ function errorResponse(
 
 export async function GET(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = await verifyRequestUser(request);
+  const user = (await verifyRequestUser(request)) ??
+    (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
   if (!user) {
     return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
   }
@@ -78,7 +79,8 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = await verifyRequestUser(request);
+  const user = (await verifyRequestUser(request)) ??
+    (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
   if (!user) {
     return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
   }

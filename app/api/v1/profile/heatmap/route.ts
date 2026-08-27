@@ -5,13 +5,14 @@ import { NextResponse } from "next/server";
 
 import { getLearningHeatmap } from "@/src/modules/profile/application";
 import { createDrizzleProfileRepository } from "@/src/modules/profile/repositories";
-import { verifyRequestUser } from "@/src/shared/auth/server";
+import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
 
 export async function GET(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = await verifyRequestUser(request);
+  const user = (await verifyRequestUser(request)) ??
+    (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
 
   if (!user) {
     return NextResponse.json(
