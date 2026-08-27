@@ -1731,11 +1731,11 @@ body { background: var(--background); }
 /* READ-003 normalized article reader, rebuilt as a two-panel reading workbench. */
 .article-reader { width: min(100%, 1180px); min-height: 100vh; margin-inline: auto; padding: 0 24px 72px; color: var(--foreground); --reader-tools-width: 425px; }
 .article-reader__topbar, .article-reader__header, .article-reader__layout, .article-reader__notes { width: min(100%, 1120px); margin-inline: auto; }
-.article-reader__topbar { position: sticky; z-index: 20; top: 0; display: grid; min-height: 64px; grid-template-columns: minmax(0, 1fr) minmax(200px, 1fr) minmax(0, 1fr); align-items: center; gap: 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--background) 94%, transparent); backdrop-filter: blur(12px); }
+.article-reader__topbar { position: sticky; z-index: 20; top: 12px; display: grid; min-height: 64px; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--background) 94%, transparent); box-shadow: 0 8px 24px rgb(31 50 81 / 8%); backdrop-filter: blur(12px); }
 .article-reader__topbar-left { display: flex; min-width: 0; align-items: center; }
 .article-reader__back { min-width: 0; }
-.article-reader__topbar-title { overflow: hidden; color: var(--foreground); font-size: 1.12rem; font-weight: 520; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.article-reader__topbar-actions { display: flex; gap: 6px; align-items: center; justify-content: end; }
+.article-reader__topbar-title { min-width: 0; overflow: visible; color: var(--foreground); font-size: 1.12rem; font-weight: 520; line-height: 1.25; text-align: center; text-overflow: clip; overflow-wrap: anywhere; }
+.article-reader__topbar-actions { display: flex; gap: 2px; align-items: center; justify-self: end; justify-content: end; }
 .article-reader__streak { display: inline-flex; min-height: 44px; gap: 4px; align-items: center; color: var(--muted); font-size: 1rem; }
 .article-reader__streak svg { width: 28px; height: 28px; color: #8b8a7f; }
 .article-reader__menu { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; }
@@ -1855,7 +1855,7 @@ body { background: var(--background); }
   .read-pagination__arrow span { display: none; }
   .article-reader { padding-inline: 16px; padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
   .article-reader__topbar, .article-reader__header, .article-reader__layout, .article-reader__notes, .article-reader__notice { width: 100%; }
-  .article-reader__topbar { min-height: 60px; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 6px; }
+  .article-reader__topbar { top: 8px; min-height: 60px; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px; padding: 6px 8px; }
   .article-reader__topbar-title { font-size: .94rem; }
   .article-reader__layout { display: block; }
   .article-reader__mobile-tools-link { display: inline-flex; }
