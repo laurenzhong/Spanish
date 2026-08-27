@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "locale": "es-ES",
+  "status": "published",
+  "entries": [
+    {
+      "headword": "café",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "咖啡这种饮料", "usage": "指饮品时通常和 tomar、beber 搭配" },
+        { "meaning": "咖啡馆", "usage": "在 ir a、estar en 等地点表达中常指场所" }
+      ],
+      "collocations": ["tomar un café", "ir al café", "café con leche"],
+      "examples": ["Tomamos un café después de clase.", "Nos vemos en el café de la esquina."],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "mañana",
+      "partOfSpeech": "名词 / 副词",
+      "meanings": [
+        { "meaning": "明天", "usage": "表示未来一天，常置于句首或句末" },
+        { "meaning": "早晨", "usage": "作名词时常和 por la 连用" }
+      ],
+      "collocations": ["hasta mañana", "mañana por la mañana", "por la mañana"],
+      "examples": ["Mañana tengo tiempo.", "Trabajo por la mañana."],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "aprender",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "学习、掌握新的知识或技能", "usage": "常接名词或不定式，强调获得能力" }
+      ],
+      "collocations": ["aprender español", "aprender a cocinar", "aprender de memoria"],
+      "examples": ["Quiero aprender algo nuevo.", "Estoy aprendiendo a cocinar."],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "palabra",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "单词、词语", "usage": "谈论语言单位时使用" },
+        { "meaning": "承诺、诺言", "usage": "dar la palabra 表示作出承诺" }
+      ],
+      "collocations": ["una palabra nueva", "dar la palabra", "en una palabra"],
+      "examples": ["Esta palabra aparece varias veces.", "Te doy mi palabra."],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "conversación",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "谈话、对话", "usage": "指两人或多人围绕话题进行的交流" }
+      ],
+      "collocations": ["tener una conversación", "una conversación natural", "seguir la conversación"],
+      "examples": ["La conversación fue muy natural.", "Tuvimos una conversación breve."],
+      "cefr": "A2",
+      "reviewStatus": "reviewed"
+    }
+  ]
+}

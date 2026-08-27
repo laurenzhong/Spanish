@@ -29,7 +29,7 @@
 - Flutter integration test：移动客户端关键路径。
 - Supabase CLI 或隔离测试数据库：迁移、RLS 和事务测试。
 - 固定 fake adapters：默认测试不调用收费供应商。
-- 词语解释 provider 必须用 fake fetch 覆盖词语/句子 `selectionType` 请求字段、MiniMax M3 响应 Schema、鉴权/限流/超时/取消和无效 JSON；阅读器 E2E 通过本站接口拦截验证单词点击、拖选句子、loading、成功和可恢复失败状态，不能触发真实收费调用。
+- 词语解释 provider 必须用 fake fetch 覆盖词语/句子 `selectionType` 请求字段、MiniMax M3 响应 Schema、`stream: true`、多段 `delta`、最终 `done`、鉴权/限流/超时/取消、异常断流和无效 JSON；阅读器组件/E2E 通过本站接口拦截验证常用词命中时不调用 API、未命中词和拖选句子的 loading、增量预览、成功和可恢复失败状态，不能触发真实收费调用。
 - 角色对话 provider 必须用 fake fetch 覆盖隐私过滤上下文、MiniMax M3 响应解析、鉴权/限流/超时/取消、无效响应和 provider 失败后的确定性 fallback；对话流测试必须确认真实 provider 文本仍只在 `done` 后持久化，且失败/取消不会产生完整消息或记忆。
 - OpenAPI/JSON Schema 与共同 JSON fixtures：TypeScript/Dart 协议和状态语义一致性。
 

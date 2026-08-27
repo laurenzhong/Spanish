@@ -29,11 +29,19 @@ export type WordExplanation = Readonly<{
   estimatedCostMicros: number | null;
 }>;
 
+export type WordExplanationStreamEvent =
+  | Readonly<{ type: "delta"; text: string }>
+  | Readonly<{ type: "done"; explanation: WordExplanation }>;
+
 export interface WordExplanationProvider {
   explain(
     input: WordExplanationInput,
     options?: Readonly<{ signal?: AbortSignal }>,
   ): Promise<WordExplanation>;
+  explainStream?(
+    input: WordExplanationInput,
+    options?: Readonly<{ signal?: AbortSignal }>,
+  ): AsyncIterable<WordExplanationStreamEvent>;
 }
 
 export class WordExplanationError extends Error {

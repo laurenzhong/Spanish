@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   verifyRequestUser: vi.fn(),
   getCurrentUser: vi.fn(),
   explain: vi.fn(),
+  explainStream: undefined as unknown,
 }));
 
 vi.mock("@/src/shared/auth/server", () => ({
@@ -12,7 +13,7 @@ vi.mock("@/src/shared/auth/server", () => ({
   getCurrentUser: mocks.getCurrentUser,
 }));
 vi.mock("@/src/modules/providers/word-explanation/server", () => ({
-  createMiniMaxWordExplanationProvider: () => ({ explain: mocks.explain }),
+  createMiniMaxWordExplanationProvider: () => ({ explain: mocks.explain, explainStream: mocks.explainStream }),
   WordExplanationError: class WordExplanationError extends Error {
     code: string;
     retryable: boolean;
@@ -40,6 +41,7 @@ function request(body: unknown, init: { headers?: HeadersInit } = {}) {
 describe("word explanation route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.explainStream = undefined;
     mocks.verifyRequestUser.mockResolvedValue(user);
     mocks.explain.mockResolvedValue({
       partOfSpeech: "名词",
@@ -74,5 +76,19 @@ describe("word explanation route", () => {
       { word: "café", context: "Nos vemos en el café.", locale: "es-ES", selectionType: "word" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("returns NDJSON deltas and a done event when the provider streams", async () => {
+    mocks.explainStream = async function* () {
+      yield { type: "delta", text: '{"meaning":"咖' } as const;
+      yield { type: "delta", text: '啡"}' } as const;
+      yield { type: "done", explanation: { meaning: "咖啡" } } as const;
+    };
+    const response = await POST(request({ word: "café", context: "Nos vemos en el café.", locale: "es-ES" }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/x-ndjson");
+    const lines = (await response.text()).trim().split("\n").map((line) => JSON.parse(line) as { type?: string });
+    expect(lines.map((line) => line.type)).toEqual(["delta", "delta", "done"]);
+    expect(mocks.explain).not.toHaveBeenCalled();
   });
 });

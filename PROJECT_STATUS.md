@@ -63,6 +63,8 @@ UI-011 后置修复（三）：修复正文词语按钮阻断原生文本选择�
 
 UI-011 后置修复（四）：词语本身显示文本选择光标，拖选可直接从词语内容开始；句子选区成立后立即请求 MiniMax 解析，移除“解析所选句子”按钮。实现 Commit：`44e8657`；相关 Vitest 16/16、真实鼠标 Playwright 3/3 和阅读器局部 lint 通过。全量 `pnpm typecheck` 当前被其他代理新增的 `tests/unit/minimax-conversation.test.ts` 类型错误阻断；全量 lint 的既有聊天文件警告同样不属于本次阅读器改动。限制与下一项不变。
 
+UI-011 后置修复（五）：新增已审核的常用西语词典，命中词条时本地立即展示完整义项、用法、搭配、例句和 CEFR，不调用供应商；未命中词语或句子通过 MiniMax M3 流式 NDJSON 返回，前端按 `delta` 增量渲染并在 `done` 时完成 Schema 校验；补充流式 provider、Route 和阅读器测试。实现 Commit：待提交；修改 `content/glossary/`、阅读器、词语解释 provider/Route、相关测试与架构/测试策略文档。验证：Explain/阅读器相关 Vitest 20/20；真实鼠标 Playwright 待执行；阅读器局部 lint 待执行。限制：流式显示依赖 MiniMax 返回可解析的 JSON 文本增量，最终字段仍需完整 `done`；未配置 key 时未命中词语仍显示可重试错误。下一项仍为阶段 8 个人 Alpha 人工体验复核。
+
 每批只完成一个任务 ID；产品本人在批次结束后进行视觉和行为确认，协调者再更新状态页。
 
 ### READ-001：文章内容契约与版权字段

@@ -96,7 +96,7 @@ describe("normalized article reader", () => {
     expect(café).toBeDefined();
     if (!café) throw new Error("glossary token missing");
     await user.click(café);
-    expect(screen.getByText("咖啡；也可以指喝咖啡的场所")).toBeInTheDocument();
+    expect(screen.getByText("咖啡这种饮料；咖啡馆")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Dictionary" }));
     expect(screen.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
@@ -130,10 +130,10 @@ describe("normalized article reader", () => {
     });
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
-    const café = screen.getAllByRole("button").find((button) => button.textContent?.startsWith("café"));
-    expect(café).toBeDefined();
-    if (!café) throw new Error("word token missing");
-    await user.click(café);
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("word token missing");
+    await user.click(token);
     await waitFor(() => expect(screen.getByText("这里指见面的咖啡馆。"))
       .toBeInTheDocument());
     expect(screen.getByText("词性")).toBeInTheDocument();
@@ -143,10 +143,35 @@ describe("normalized article reader", () => {
     expect(screen.queryByText(/^上下文：/u)).not.toBeInTheDocument();
     expect(screen.queryByText("正在使用 MiniMax M3 生成解释……")).not.toBeInTheDocument();
     expect(within(screen.getByRole("dialog", { name: "阅读辅助" })).queryByRole("button", { name: "朗读全文" })).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/read/word-explanation",
-      expect.objectContaining({ method: "POST", body: expect.stringContaining("café") }),
+      expect.objectContaining({ method: "POST", body: expect.stringContaining("cafetería") }),
     );
+  });
+
+  it("renders streamed explanation text before the final done event", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const encoder = new TextEncoder();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (!String(input).includes("word-explanation")) return new Response(null, { status: 401 });
+      const stream = new ReadableStream<Uint8Array>({ start(next) { controller = next; } });
+      return new Response(stream, { status: 200, headers: { "content-type": "application/x-ndjson" } });
+    });
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("word token missing");
+    await user.click(token);
+    await waitFor(() => expect(controller).toBeDefined());
+    controller?.enqueue(encoder.encode(JSON.stringify({ type: "delta", text: '{"meaning":"咖' }) + "\n"));
+    await waitFor(() => expect(screen.getByText("咖")).toBeInTheDocument());
+    controller?.enqueue(encoder.encode(JSON.stringify({ type: "delta", text: '啡","partOfSpeech":"名词","contextualMeaning":"这里指咖啡馆。","example":"Voy a la cafetería."' }) + "\n"));
+    controller?.enqueue(encoder.encode(JSON.stringify({ type: "done", explanation: { partOfSpeech: "名词", meaning: "咖啡", contextualMeaning: "这里指咖啡馆。", example: "Voy a la cafetería.", provider: "minimax", modelVersion: "MiniMax-M3", providerRequestId: null, latencyMs: 1, estimatedCostMicros: null } }) + "\n"));
+    controller?.close();
+    await waitFor(() => expect(screen.getByText("这里指咖啡馆。")).toBeInTheDocument());
   });
 
   it("offers sentence explanation for a dragged text selection", async () => {

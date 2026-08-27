@@ -8,6 +8,7 @@ import {
   type WordExplanation,
   type WordExplanationInput,
   type WordExplanationProvider,
+  type WordExplanationStreamEvent,
 } from "./word-explanation";
 
 const defaultEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
@@ -131,6 +132,61 @@ export class MiniMaxWordExplanationProvider implements WordExplanationProvider {
     } finally {
       requestSignal.dispose();
     }
+  }
+
+  async *explainStream(
+    input: WordExplanationInput,
+    options: Readonly<{ signal?: AbortSignal }> = {},
+  ): AsyncIterable<WordExplanationStreamEvent> {
+    validateWordExplanationInput(input);
+    if (!this.options.apiKey.trim()) throw new WordExplanationError("provider-auth-failed", "Word explanation is not configured.", false);
+    const requestSignal = createRequestSignal(options.signal, this.timeoutMs);
+    const startedAt = this.clock();
+    try {
+      const response = await this.fetchImplementation(this.endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": this.options.apiKey },
+        body: JSON.stringify({
+          model: this.modelVersion,
+          max_tokens: 500,
+          thinking: { type: "disabled" },
+          stream: true,
+          system: systemPrompt,
+          messages: [{ role: "user", content: [{ type: "text", text: buildPrompt(input) }] }],
+        }),
+        signal: requestSignal.signal,
+      });
+      if (!response.ok) throw errorForResponseStatus(response.status);
+      if (!response.body) throw invalidResponse();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let text = "";
+      const emitLine = function* (line: string): Generator<WordExplanationStreamEvent> {
+        const data = line.startsWith("data:") ? line.slice(5).trim() : line.trim();
+        if (!data || data === "[DONE]") return;
+        let event: unknown;
+        try { event = JSON.parse(data); } catch { return; }
+        const delta = event && typeof event === "object" && "delta" in event ? (event as { delta?: { text?: unknown } }).delta?.text : undefined;
+        if (typeof delta === "string" && delta) { text += delta; yield { type: "delta", text: delta }; }
+      };
+      while (true) {
+        const result = await reader.read();
+        buffer += decoder.decode(result.value ?? new Uint8Array(), { stream: !result.done });
+        const lines = buffer.split(/\r?\n/u);
+        buffer = lines.pop() ?? "";
+        for (const line of lines) yield* emitLine(line);
+        if (result.done) break;
+      }
+      if (buffer.trim()) yield* emitLine(buffer);
+      const explanation = parseExplanationPayload(text);
+      yield { type: "done", explanation: { ...explanation, provider: "minimax", modelVersion: this.modelVersion, providerRequestId: response.headers.get("x-request-id"), latencyMs: Math.max(0, this.clock() - startedAt), estimatedCostMicros: null } };
+    } catch (error) {
+      if (error instanceof WordExplanationError) throw error;
+      if (requestSignal.timedOut()) throw new WordExplanationError("provider-timeout", "Word explanation timed out.", true);
+      if (requestSignal.signal.aborted) throw new WordExplanationError("provider-cancelled", "Word explanation was cancelled.", false);
+      throw new WordExplanationError("provider-unavailable", "Word explanation is temporarily unavailable.", true);
+    } finally { requestSignal.dispose(); }
   }
 }
 

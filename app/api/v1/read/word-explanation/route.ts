@@ -55,11 +55,25 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return errorResponse(requestId, "VALIDATION_FAILED", 400, "词语解释请求格式无效。");
 
   try {
-    const explanation = await explainWord(
-      createMiniMaxWordExplanationProvider(),
-      parsed.data,
-      { signal: request.signal },
-    );
+    const provider = createMiniMaxWordExplanationProvider();
+    if (provider.explainStream) {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          try {
+            for await (const event of provider.explainStream!(parsed.data, { signal: request.signal })) controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+            controller.close();
+          } catch (error) {
+            const mapped = error instanceof WordExplanationError ? providerErrorResponse(requestId, error) : errorResponse(requestId, "INTERNAL_ERROR", 503, "词语解释暂时无法生成，请稍后重试。");
+            const payload = await mapped.json() as { error?: { code?: string; message?: string; retryable?: boolean; requestId?: string } };
+            controller.enqueue(encoder.encode(JSON.stringify({ type: "error", error: payload.error ?? { code: "INTERNAL_ERROR", message: "词语解释暂时无法生成，请稍后重试。", retryable: true, requestId } }) + "\n"));
+            controller.close();
+          }
+        },
+      });
+      return new NextResponse(stream, { headers: { "cache-control": "no-store", "content-type": "application/x-ndjson; charset=utf-8", "x-request-id": requestId } });
+    }
+    const explanation = await explainWord(provider, parsed.data, { signal: request.signal });
     return NextResponse.json(
       { apiVersion: API_VERSION, data: explanation },
       { headers: { "cache-control": "no-store", "x-request-id": requestId } },

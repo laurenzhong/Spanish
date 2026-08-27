@@ -7,6 +7,7 @@ import { articleTransferTask, articleTransferTypes, recommendedArticleTransferTy
 import { readingStatePatchSchema } from "@/src/modules/reading/domain/reading-state";
 import { createBrowserTextToSpeech } from "@/src/modules/providers/tts";
 import type { WordExplanation } from "@/src/modules/providers/word-explanation";
+import { getCommonGlossaryEntry, type CommonGlossaryEntry } from "@/src/modules/reading/domain/common-glossary";
 
 type SavedPhrase = Readonly<{ id: string; text: string; position: number }>;
 type Highlight = Readonly<{ id: string; text: string; position: number }>;
@@ -19,14 +20,6 @@ type ArticleReaderProps = Readonly<{ article: ArticleReaderProjection }>;
 
 const readerStoragePrefix = "reading-reader:v1:";
 const defaultSettings: ReaderSettings = { fontSize: "default", lineHeight: "default", width: "narrow", theme: "light", ttsRate: 0.88 };
-const glossary: Readonly<Record<string, { partOfSpeech: string; meaning: string; example: string }>> = {
-  aprender: { partOfSpeech: "动词", meaning: "学习、掌握新的知识或技能", example: "Quiero aprender algo nuevo." },
-  café: { partOfSpeech: "名词", meaning: "咖啡；也可以指喝咖啡的场所", example: "Nos vemos en el café." },
-  mañana: { partOfSpeech: "名词 / 副词", meaning: "明天；早晨", example: "Mañana tengo tiempo." },
-  palabra: { partOfSpeech: "名词", meaning: "单词、词语；也可指一句承诺", example: "Esta palabra aparece varias veces." },
-  conversación: { partOfSpeech: "名词", meaning: "谈话、对话", example: "La conversación fue muy natural." },
-};
-
 function initialState(article: ArticleReaderProjection): ReaderState {
   return { stableKey: article.stableKey, version: article.version, contentHash: article.contentHash, position: 0, savedPhrases: [], highlights: [], note: "", saved: false, settings: defaultSettings, transferDraft: "", transferType: null };
 }
@@ -52,6 +45,8 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [activePosition, setActivePosition] = useState(0);
   const [selectedToken, setSelectedToken] = useState<SelectedToken | null>(null);
   const [wordExplanation, setWordExplanation] = useState<WordExplanation | null>(null);
+  const [streamPreview, setStreamPreview] = useState<Partial<Pick<WordExplanation, "partOfSpeech" | "meaning" | "contextualMeaning" | "example">>>({});
+  const [commonEntry, setCommonEntry] = useState<CommonGlossaryEntry | null>(null);
   const [wordExplanationStatus, setWordExplanationStatus] = useState<WordExplanationStatus>("idle");
   const [wordExplanationError, setWordExplanationError] = useState("");
   const [activeTab, setActiveTab] = useState<ReaderTab>("explain");
@@ -139,7 +134,6 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const updatePosition = useCallback(() => { const nodes = [...document.querySelectorAll<HTMLElement>("[data-reader-position]")]; const anchor = window.scrollY + window.innerHeight * 0.32; const current = nodes.reduce((candidate, node) => node.offsetTop <= anchor ? Number(node.dataset.readerPosition) : candidate, 0); if (current !== activePosition) setActivePosition(current); setState((previous) => previous.position === current ? previous : { ...previous, position: current }); }, [activePosition]);
   useEffect(() => { let frame = 0; const onScroll = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(updatePosition); }; window.addEventListener("scroll", onScroll, { passive: true }); return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", onScroll); }; }, [updatePosition]);
   const speak = useCallback(async (text: string, position: number | "full") => { if (!tts.isSupported) { setTtsError(true); return; } setSpeakingPosition(position); setTtsError(false); try { await tts.speak(text, { languageTag: article.locale, rate: settings.ttsRate }); } catch { setTtsError(true); } finally { setSpeakingPosition(null); } }, [article.locale, settings.ttsRate, tts]);
-  const selectedGloss = selectedToken ? glossary[normalizeToken(selectedToken.text)] : null;
   const transferTask = activeTransfer ? articleTransferTask(article, activeTransfer) : null;
   const recommendedTransfer = recommendedArticleTransferType(article.oralTransferType);
   const fullText = article.segments.map((segment) => segment.text).join(" ");
@@ -167,11 +161,67 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       body: JSON.stringify({ word: selectedText, context: token.context, locale: article.locale, selectionType: token.selectionType }),
       signal: controller.signal,
     }).then(async (response) => {
-      const payload = (await response.json().catch(() => null)) as { data?: WordExplanation; error?: { message?: string } } | null;
-      if (!response.ok || !payload?.data) throw new Error(payload?.error?.message || "解释暂时无法生成，请稍后重试。");
+      if (!response.ok || !response.body) {
+        const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(payload?.error?.message || "解释暂时无法生成，请稍后重试。");
+      }
+      if (!response.headers.get("content-type")?.includes("application/x-ndjson")) {
+        const payload = (await response.json()) as { data?: WordExplanation; error?: { message?: string } };
+        if (!payload.data) throw new Error(payload.error?.message || "解释暂时无法生成，请稍后重试。");
+        if (explanationRequestRef.current?.generation !== generation) return;
+        setWordExplanation(payload.data);
+        setWordExplanationStatus("success");
+        return;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let generated = "";
+      const decodePartialJsonString = (raw: string): string | null => {
+        let candidate = raw;
+        const trailingBackslashes = candidate.match(/\\+$/u)?.[0].length ?? 0;
+        if (trailingBackslashes % 2 === 1) candidate = candidate.slice(0, -1);
+        candidate = candidate.replace(/\\u[0-9a-fA-F]{0,3}$/u, "");
+        try { return JSON.parse('"' + candidate + '"') as string; } catch { return null; }
+      };
+      const updatePreview = (text: string) => {
+        const fields = ["partOfSpeech", "meaning", "contextualMeaning", "example"] as const;
+        const next: Partial<Record<(typeof fields)[number], string>> = {};
+        for (const field of fields) {
+          const keyStart = text.indexOf('"' + field + '"');
+          if (keyStart < 0) continue;
+          const valueStart = text.indexOf('"', text.indexOf(":", keyStart) + 1);
+          if (valueStart < 0) continue;
+          let escaped = false;
+          let valueEnd = text.length;
+          for (let index = valueStart + 1; index < text.length; index += 1) {
+            const character = text[index];
+            if (escaped) { escaped = false; continue; }
+            if (character === "\\") { escaped = true; continue; }
+            if (character === '"') { valueEnd = index; break; }
+          }
+          const value = decodePartialJsonString(text.slice(valueStart + 1, valueEnd));
+          if (value) next[field] = value;
+        }
+        if (Object.keys(next).length) setStreamPreview((previous) => ({ ...previous, ...next }));
+      };
+      const consume = (line: string) => {
+        if (!line.trim()) return;
+        const event = JSON.parse(line) as { type?: string; text?: string; explanation?: WordExplanation; error?: { message?: string } };
+        if (event.type === "delta" && event.text) { generated += event.text; updatePreview(generated); }
+        if (event.type === "done" && event.explanation) { setWordExplanation(event.explanation); setWordExplanationStatus("success"); }
+        if (event.error?.message) throw new Error(event.error.message);
+      };
+      while (true) {
+        const result = await reader.read();
+        buffer += decoder.decode(result.value ?? new Uint8Array(), { stream: !result.done });
+        const lines = buffer.split(/\r?\n/u);
+        buffer = lines.pop() ?? "";
+        for (const line of lines) consume(line);
+        if (result.done) break;
+      }
+      if (buffer.trim()) consume(buffer);
       if (explanationRequestRef.current?.generation !== generation) return;
-      setWordExplanation(payload.data);
-      setWordExplanationStatus("success");
     }).catch((error: unknown) => {
       if (controller.signal.aborted || explanationRequestRef.current?.generation !== generation) return;
       setWordExplanationStatus("error");
@@ -181,11 +231,18 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const selectToken = useCallback((text: string, position: number, context: string) => {
     if (selectionHandledRef.current) return;
     const token = { text, position, context, selectionType: "word" as const };
+    const entry = getCommonGlossaryEntry(normalizeToken(text));
+    setCommonEntry(entry);
     setSelectedToken(token);
     setActiveTab("explain");
     previouslyFocusedRef.current = assistToggleRef.current;
     setToolsOpenState(true);
-    requestWordExplanation(token);
+    setStreamPreview({});
+    if (entry) {
+      setWordExplanationStatus("success");
+    } else {
+      requestWordExplanation(token);
+    }
   }, [requestWordExplanation]);
   const handleTextSelection = useCallback((segment: ArticleReaderProjection["segments"][number], event: MouseEvent<HTMLParagraphElement>) => {
     const selection = window.getSelection();
@@ -197,8 +254,10 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     selection.removeAllRanges();
     explanationRequestRef.current?.controller.abort();
     const token = { text: selectedText, position: segment.position, context: segment.text, selectionType: "sentence" as const };
+    setCommonEntry(null);
     setSelectedToken(token);
     setWordExplanation(null);
+    setStreamPreview({});
     setWordExplanationError("");
     setWordExplanationStatus("idle");
     setActiveTab("explain");
@@ -216,10 +275,13 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       const phraseSaved = state.savedPhrases.some((item) => item.id === id);
       const highlighted = state.highlights.some((item) => item.id === id);
       const isSentence = selectedToken.selectionType === "sentence";
-      const meaning = wordExplanation?.meaning ?? (isSentence ? undefined : selectedGloss?.meaning);
-      const partOfSpeech = wordExplanation?.partOfSpeech ?? (isSentence ? undefined : selectedGloss?.partOfSpeech);
-      const example = wordExplanation?.example ?? (isSentence ? undefined : selectedGloss?.example);
-      const contextualMeaning = wordExplanation?.contextualMeaning;
+      const localMeaning = commonEntry?.meanings.map((item) => item.meaning).join("；");
+      const localUsage = commonEntry?.meanings.map((item) => item.usage).join("；");
+      const localExample = commonEntry?.examples.join(" / ");
+      const meaning = wordExplanation?.meaning ?? streamPreview.meaning ?? (isSentence ? undefined : localMeaning);
+      const partOfSpeech = wordExplanation?.partOfSpeech ?? streamPreview.partOfSpeech ?? (isSentence ? undefined : commonEntry?.partOfSpeech);
+      const example = wordExplanation?.example ?? streamPreview.example ?? (isSentence ? undefined : localExample);
+      const contextualMeaning = wordExplanation?.contextualMeaning ?? streamPreview.contextualMeaning ?? (isSentence ? undefined : localUsage);
       return <>
         <div className="article-reader__selected-word"><span>{selectedToken.text}</span><button type="button" aria-label={"朗读 " + selectedToken.text} onClick={() => void speak(selectedToken.text, selectedToken.position)}>🔊</button></div>
         <div className="article-reader__explanation-fields">
@@ -232,6 +294,8 @@ export function ArticleReader({ article }: ArticleReaderProps) {
             <div><p className="article-reader__tool-kicker">基本释义</p><p>{meaning ?? (wordExplanationStatus === "loading" ? "正在生成解释……" : "暂未生成")}</p></div>
             <div><p className="article-reader__tool-kicker">本句语境义</p><p><strong>{contextualMeaning ?? (wordExplanationStatus === "loading" ? "正在生成语境义……" : "暂未生成")}</strong></p></div>
             {example ? <div><p className="article-reader__tool-kicker">例句</p><p>{example}</p></div> : null}
+            {commonEntry?.collocations.length ? <div><p className="article-reader__tool-kicker">常见搭配</p><p>{commonEntry.collocations.join("、")}</p></div> : null}
+            {commonEntry?.cefr ? <div><p className="article-reader__tool-kicker">难度</p><p>{commonEntry.cefr}</p></div> : null}
           </>}
         </div>
         {wordExplanationStatus === "loading" ? <p className="article-reader__tool-note" role="status" aria-live="polite">正在生成解释……</p> : null}

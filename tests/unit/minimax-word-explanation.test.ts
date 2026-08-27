@@ -25,6 +25,17 @@ function response(body: unknown, status = 200, headers: HeadersInit = { "x-reque
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+function streamResponse(chunks: string[], headers: HeadersInit = { "x-request-id": "mmx-stream-123" }): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+      controller.close();
+    },
+  });
+  return new Response(body, { status: 200, headers });
+}
+
 function successResponse() {
   return {
     content: [{ type: "text", text: JSON.stringify({
@@ -94,6 +105,61 @@ describe("MiniMaxWordExplanationProvider", () => {
     const prompt = body.messages?.[0]?.content?.[0]?.text ?? "";
     expect(prompt).toContain('"selectionType":"sentence"');
     expect(prompt).toContain('"task":"explain_sentence"');
+  });
+
+  it("streams MiniMax deltas and validates the final explanation", async () => {
+    let request: RequestInit | undefined;
+    const json = JSON.stringify({
+      partOfSpeech: "名词",
+      meaning: "咖啡",
+      contextualMeaning: "这里指咖啡馆。",
+      example: "Nos vemos en el café.",
+    });
+    const provider = new MiniMaxWordExplanationProvider({
+      apiKey: "test-key",
+      fetchImplementation: vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+        request = init;
+        return streamResponse([
+          `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", delta: { text: json.slice(0, 28) } })}\n\n`,
+          `data: ${JSON.stringify({ type: "content_block_delta", delta: { text: json.slice(28) } })}\n\n`,
+          "data: [DONE]\n\n",
+        ]);
+      }),
+    });
+
+    const events = [];
+    for await (const event of provider.explainStream(input)) events.push(event);
+    expect((JSON.parse(String(request?.body)) as { stream?: boolean }).stream).toBe(true);
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toBe(json);
+    expect(events.at(-1)).toMatchObject({ type: "done", explanation: { meaning: "咖啡", provider: "minimax" } });
+  });
+
+  it("rejects malformed streams after collecting deltas", async () => {
+    const provider = new MiniMaxWordExplanationProvider({
+      apiKey: "test-key",
+      fetchImplementation: vi.fn(async () => streamResponse(["data: {\"delta\":{\"text\":\"not-json\"}}\n\n"])),
+    });
+    const consume = async () => {
+      for await (const event of provider.explainStream(input)) void event;
+    };
+    await expect(consume()).rejects.toMatchObject({ code: "provider-response-invalid" });
+  });
+
+  it("maps timeout and caller cancellation for streaming requests", async () => {
+    const pendingFetch = (signal?: AbortSignal) => new Promise<Response>((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    });
+    const timeoutProvider = new MiniMaxWordExplanationProvider({ apiKey: "test-key", timeoutMs: 5, fetchImplementation: (_url, init) => pendingFetch(init?.signal ?? undefined) });
+    const consumeTimeout = async () => { for await (const event of timeoutProvider.explainStream(input)) void event; };
+    await expect(consumeTimeout()).rejects.toMatchObject({ code: "provider-timeout" });
+
+    const caller = new AbortController();
+    const cancelledProvider = new MiniMaxWordExplanationProvider({ apiKey: "test-key", timeoutMs: 1000, fetchImplementation: (_url, init) => pendingFetch(init?.signal ?? undefined) });
+    const consumeCancelled = async () => { for await (const event of cancelledProvider.explainStream(input, { signal: caller.signal })) void event; };
+    const promise = consumeCancelled();
+    caller.abort();
+    await expect(promise).rejects.toMatchObject({ code: "provider-cancelled" });
   });
 
   it.each([
