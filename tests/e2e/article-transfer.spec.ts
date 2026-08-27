@@ -42,8 +42,9 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   const topbar = page.locator(".article-reader__topbar");
   const title = page.locator(".article-reader__topbar-title");
   const actions = page.locator(".article-reader__topbar-actions");
-  await expect(topbar).toHaveCSS("position", "sticky");
-  await expect(topbar).toHaveCSS("border-top-width", "1px");
+  await expect(topbar).toHaveCSS("position", "fixed");
+  await expect(topbar).toHaveCSS("top", "0px");
+  await expect(topbar).toHaveCSS("border-bottom-width", "1px");
   await expect(title).toContainText("Una conversación que empieza con un café");
   await expect(title).toHaveCSS("text-overflow", "clip");
   await expect(actions).toHaveCSS("gap", "2px");
