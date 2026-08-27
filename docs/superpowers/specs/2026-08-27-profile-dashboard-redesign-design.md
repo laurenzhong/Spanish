@@ -1,7 +1,7 @@
 # Profile Dashboard 重设计切片
 
 - 日期：2026-08-27
-- 状态：待产品审阅
+- 状态：视觉方向已确认，Web 首版已实现（`c1f740c`）
 - 关联任务：`ALPHA-033`
 - 关联页面：Web `/me`、Flutter `ProfilePage`
 - 关联规范：[产品设计](2026-08-20-spanish-speaking-learning-platform-design.md)、[Web UI 研究](2026-08-26-web-ui-design-research-and-scheme.md)
@@ -140,4 +140,3 @@ idle → loading → ready
 ## 7. 交付边界
 
 实现仅涉及 profile 模块的 DTO/application/API、Web `/me` 页面和组件、Flutter Profile 页面、共享契约 fixture、相关测试与必要文档。不修改训练评分算法、数据库表结构或角色记忆权限模型。
-
