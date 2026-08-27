@@ -8,6 +8,18 @@
 - 协调分支：`main`
 - 当前阻塞：未配置针对真人视频的外部 provider 凭据和第三方处理授权；继续使用本地诊断，不上传视频
 
+### ALPHA-031：MiniMax M3 生成式角色对话
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`fix/login-redirect-after-otp`
+- 实现 Commit：`8e2c335`
+- 范围：为角色对话新增服务端 `CharacterReplyProvider` 与 MiniMax-M3 适配器；将隐私过滤后的角色事实、关系摘要、可读记忆、最近消息和当前用户消息送入生成模型；保留 NDJSON 流、取消/竞态、完整消息持久化和记忆提取；provider 失败时回退 deterministic reply；新增 provider 观测、契约测试与 E2E 防收费配置。
+- 修改：`src/modules/providers/conversation/`、`src/modules/conversation/application/stream-reply.ts`、`app/api/v1/conversations/[characterId]/stream/route.ts`、`.env.example`、`playwright.config.ts`、相关测试与架构/测试文档。
+- 验证：相关 Vitest 26/26、`pnpm lint`、`pnpm typecheck`、`pnpm build`、对话 Playwright 12/12 通过；全量 Vitest 仍有既有 article-content fixture 与 article-reader `user` 作用域失败；全量 E2E 首次运行受本机 MiniMax key 污染，清空 key 后对话路径通过，剩余失败为既有移动 UI 回归。
+- 限制：当前只有 Lucía@1 接入；需要在服务端配置 `MINIMAX_API_KEY` 才会调用真实 MiniMax，未配置或 provider 失败时使用确定性回复；未做真实收费 provider 回归或 iOS 真机验证。
+- 下一项：阶段 8 个人 Alpha 人工体验复核。
+
 ## 新模型快速接手
 
 进入仓库后按顺序执行：
@@ -1298,6 +1310,7 @@ UI-011 后置修复（四）：词语本身显示文本选择光标，拖选可�
 | ALPHA-028 | done | `fix/login-redirect-after-otp` | Codex | 关系记忆与共享权限 | ALPHA-027 |
 | ALPHA-029 | done | `fix/login-redirect-after-otp` | Codex | 角色回复规划 | ALPHA-028 |
 | ALPHA-030 | done | `fix/login-redirect-after-otp` | Codex | 好友介绍与角色网络 | ALPHA-029 |
+| ALPHA-031 | done | `fix/login-redirect-after-otp` | Codex | MiniMax M3 生成式角色对话 | ALPHA-030 |
 | UI-001 | done | `fix/login-redirect-after-otp` | Codex | 认证回跳、四栏导航和学习入口功能闭环 | 阶段 8 |
 | UI-002 | done | `fix/login-redirect-after-otp` | Codex | 探索内容包功能闭环 | UI-001 |
 | UI-003 | done | `fix/login-redirect-after-otp` | Codex | Lucía 对话发送、停止、断流和重试闭环 | UI-002 |

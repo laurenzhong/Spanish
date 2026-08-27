@@ -633,6 +633,13 @@ Lucía 初始事实固定为：24 岁、马德里长大并生活、数字传播�
 - 没有 `done` 的回复不进入长期记忆提取。
 - 消息生成使用 generation token，旧流不能覆盖新消息。
 
+任务 6.2 后续 provider 切片（ALPHA-031）：
+
+- 通过服务端 `CharacterReplyProvider` 接入 MiniMax-M3；provider 只接收服务端隐私过滤后的角色与关系上下文。
+- 保持现有 NDJSON 流协议、取消、重试、generation 边界、完整 `done` 后持久化和记忆提取。
+- MiniMax 未配置或调用失败时回退确定性回复；provider 调用记录稳定状态、模型和延迟，不记录 prompt、原始响应或私密正文。
+- 默认测试使用 fake fetch 和清空 MiniMax key 的 E2E 环境，禁止收费调用。
+
 ### 任务 6.3：角色回复规划
 
 计划文件：
