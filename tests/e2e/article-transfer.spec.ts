@@ -83,6 +83,17 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
       }
       const content = page.locator(".article-reader__content");
       await expect(content).toHaveCSS("padding-right", "24px");
+      const firstTab = tabs.getByRole("tab").first();
+      const firstTabBox = await firstTab.boundingBox();
+      expect(firstTabBox).not.toBeNull();
+      if (firstTabBox) {
+        const tabIsTopmost = await firstTab.evaluate((node) => {
+          const rect = node.getBoundingClientRect();
+          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+          return hit === node || node.contains(hit);
+        });
+        expect(tabIsTopmost).toBe(true);
+      }
     }
   }
 
