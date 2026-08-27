@@ -35,7 +35,9 @@ type RequestSignal = Readonly<{
 }>;
 
 const anthropicResponseSchema = z.object({
-  content: z.array(z.object({ type: z.literal("text"), text: z.string() }).strict()).min(1),
+  // MiniMax M3 may include non-text reasoning blocks even with thinking disabled.
+  // They are intentionally ignored; only text blocks can become article content.
+  content: z.array(z.object({ type: z.string(), text: z.string().optional() }).passthrough()).min(1),
 }).passthrough();
 
 export class MiniMaxStoryGenerationProvider implements StoryGenerationProvider {
@@ -93,7 +95,12 @@ export class MiniMaxStoryGenerationProvider implements StoryGenerationProvider {
       }
       const parsedResponse = anthropicResponseSchema.safeParse(payload);
       if (!parsedResponse.success) throw invalidResponse();
-      const text = parsedResponse.data.content.map((block) => block.text).join("\n");
+      const text = parsedResponse.data.content
+        .filter((block) => block.type === "text" && typeof block.text === "string")
+        .map((block) => block.text as string)
+        .join("\n")
+        .trim();
+      if (!text) throw invalidResponse();
       const parsedStory = parseStoryPayload(text);
       return {
         ...parsedStory,

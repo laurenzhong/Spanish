@@ -74,6 +74,14 @@ describe("MiniMaxStoryGenerationProvider", () => {
     await expect(malformed.generate(input)).rejects.toMatchObject({ code: "provider-response-invalid", retryable: false });
   });
 
+  it("ignores non-text reasoning blocks returned by M3", async () => {
+    const provider = new MiniMaxStoryGenerationProvider({
+      apiKey: "test-key",
+      fetchImplementation: vi.fn(async () => response({ content: [{ type: "thinking", thinking: "internal" }, { type: "text", text: JSON.stringify(story) }] })),
+    });
+    await expect(provider.generate(input)).resolves.toMatchObject({ title: story.title, segments: story.segments });
+  });
+
   it.each([
     [401, "provider-auth-failed", false],
     [429, "provider-rate-limited", true],
