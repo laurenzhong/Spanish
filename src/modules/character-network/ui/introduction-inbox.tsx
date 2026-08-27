@@ -20,7 +20,7 @@ type MemoryPreview = Readonly<{
 
 const names: Record<string, string> = { mateo: "Mateo Ruiz", ines: "Inés García" };
 
-export function IntroductionInbox() {
+export function IntroductionInbox({ alwaysVisible = false }: Readonly<{ alwaysVisible?: boolean }>) {
   const [offers, setOffers] = useState<readonly Offer[]>([]);
   const [selectedMemoryIds, setSelectedMemoryIds] = useState<Readonly<Record<string, readonly string[]>>>({});
   const [loading, setLoading] = useState(true);
@@ -82,7 +82,7 @@ export function IntroductionInbox() {
     }
   }
 
-  if (offers.length === 0 && !message && !loading && !loadError) return null;
+  if (offers.length === 0 && !message && !loading && !loadError && !alwaysVisible) return null;
 
   function toggleMemory(offerKey: string, memoryId: string, checked: boolean) {
     setSelectedMemoryIds((current) => {
@@ -101,6 +101,7 @@ export function IntroductionInbox() {
         <p>只有在聊天中出现真实理由时才会出现介绍。你可以先同意建立关系，之后再单独授权资料。</p>
       </div>
       {loading ? <p className="surface-state__message">正在读取介绍……</p> : null}
+      {!loading && !loadError && offers.length === 0 && !message ? <p className="surface-state__message">目前没有新的介绍请求。</p> : null}
       {!loading && loadError ? (
         <div className="surface-state__message" role="alert">
           <p>暂时无法读取好友介绍。</p>

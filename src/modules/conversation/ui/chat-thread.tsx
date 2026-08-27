@@ -28,11 +28,13 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
   const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">("loading");
   const [draft, setDraft] = useState("");
   const abortRef = useRef<AbortController | null>(null);
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const container = messagesRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
   }, [state.messages]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -170,9 +172,9 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
         </span>
       </header>
 
-      <div className="conversation-thread__messages" aria-live="polite">
+      <div ref={messagesRef} className="conversation-thread__messages" aria-live="polite">
         {persistenceStatus === "unavailable" ? (
-          <p className="conversation-thread__persistence-notice" role="status" data-testid="conversation-persistence-status">
+          <p className="conversation-thread__persistence-notice" aria-live="polite" data-testid="conversation-persistence-status">
             聊天记录暂未保存：当前环境未连接消息数据库。配置 DATABASE_URL 后，切换页面仍可恢复记录。
           </p>
         ) : null}
@@ -194,7 +196,6 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
             {message.role === "character" && !message.complete && state.status !== "streaming" ? <span className="conversation-message__hint">这条回复没有完整送达</span> : null}
           </article>
         ))}
-        <div ref={endRef} />
       </div>
 
       {state.status === "failed" || state.status === "cancelled" ? (

@@ -4161,14 +4161,45 @@ button {
 .conversation-index > #introductions { width: min(100%, 760px); margin-top: 28px; }
 
 @media (min-width: 960px) {
-  .conversation-page--detail .conversation-workspace { height: min(760px, calc(100svh - 120px)); }
+  .product-content:has(.conversation-page) {
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+
+  .conversation-page--workspace,
+  .conversation-page--detail {
+    min-height: 100svh;
+  }
+
+  .conversation-page--workspace .conversation-workspace,
+  .conversation-page--detail .conversation-workspace {
+    min-height: 100svh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .conversation-page--workspace .conversation-workspace,
+  .conversation-page--detail .conversation-workspace { height: 100svh; }
+}
+
+.conversation-introductions-anchor {
+  width: min(100%, 760px);
+  margin: 28px auto 44px;
+  padding: 0 24px;
+}
+
+.conversation-introductions-anchor .conversation-introductions {
+  margin: 0;
 }
 
 @media (max-width: 959px) {
   .conversation-workspace { display: block; min-height: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; }
   .conversation-contact-rail { display: none; }
-  .conversation-page--detail { margin-inline: -20px; }
-  .conversation-page--detail .conversation-thread { height: calc(100svh - 154px); min-height: 0; }
+  .conversation-page--detail,
+  .conversation-page--workspace { margin-inline: -20px; }
+  .conversation-page--detail .conversation-thread,
+  .conversation-page--workspace .conversation-thread { height: calc(100svh - 154px); min-height: 0; }
   .conversation-thread__header { min-height: 64px; padding: 0 16px; }
   .conversation-thread__back { grid-column: 1; grid-row: 1; margin: 0; }
   .conversation-thread__back span { display: none; }
@@ -4194,6 +4225,7 @@ button {
   .conversation-index__empty { padding-inline: 18px; }
   .conversation-index__header { padding-inline: 2px; }
   .conversation-index__header h1 { font-size: 28px; }
+  .conversation-introductions-anchor { margin: 24px 0 36px; padding: 0 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

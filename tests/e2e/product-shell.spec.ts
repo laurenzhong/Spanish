@@ -59,7 +59,7 @@ test("navigates between all four product areas", async ({ page }) => {
 
   for (const destination of [
     { name: "探索", path: "/explore", heading: "探索真实表达" },
-    { name: "对话", path: "/chat", heading: "你的西语好友" },
+    { name: "对话", path: "/chat", heading: "Lucía Martín" },
     { name: "我的", path: "/me", heading: "我的进步" },
     { name: "学习", path: "/learn", heading: "从一句真实表达开始" },
   ]) {
@@ -103,8 +103,7 @@ test("keeps discovery and conversation entry points actionable", async ({
   await expect(page).toHaveURL(/\/learn\?focus=start$/);
 
   await page.goto("/chat");
-  await page.getByRole("link", { name: "先练一句" }).click();
-  await expect(page).toHaveURL(/\/learn\/practice$/);
+  await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeVisible();
 });
 
 test("separates communication goals from unpublished content packs", async ({ page }) => {
