@@ -154,17 +154,19 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
   return (
     <section className="conversation-thread" aria-labelledby="conversation-title" data-testid="conversation-thread">
       <header className="conversation-thread__header">
-        <Link className="text-link" href="/chat">返回好友列表</Link>
+        <Link className="conversation-thread__back" href="/chat">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>
+          <span>返回对话列表</span>
+        </Link>
         <div className="conversation-thread__identity">
           <div className="avatar avatar--lucia" aria-hidden="true">L</div>
           <div>
-            <p className="eyebrow eyebrow--accent">正在对话</p>
             <h1 id="conversation-title">{characterName}</h1>
-            <p>Madrid · 文字交流</p>
+            <p>主要好友 · 文字和语音都可以</p>
           </div>
         </div>
         <span className="conversation-thread__status" data-status={state.status} role="status">
-          {state.status === "streaming" ? "正在回复" : state.status === "completed" ? "回复已完成" : state.status === "failed" ? "发送失败，可重试" : state.status === "cancelled" ? "已停止" : "可以发送"}
+          {state.status === "streaming" ? "正在回复" : state.status === "completed" ? "已完成" : state.status === "failed" ? "需要重试" : state.status === "cancelled" ? "已停止" : ""}
         </span>
       </header>
 
@@ -177,12 +179,18 @@ export function ChatThread({ characterKey, characterName, characterVersion }: Ch
         {state.messages.length === 0 ? (
           <div className="conversation-thread__welcome">
             <p className="eyebrow eyebrow--accent">Lucía 的消息</p>
-            <p>¡Hola! Puedes contarme lo que quieras. Yo te sigo la conversación.</p>
+            <p>¡Hola! Cuéntame algo de tu día. Yo te sigo la conversación.</p>
           </div>
         ) : null}
         {state.messages.map((message) => (
-          <article className={`conversation-message conversation-message--${message.role}`} key={message.id} data-complete={message.complete}>
-            <div className="conversation-message__bubble">{message.text || "…"}</div>
+          <article
+            aria-label={message.role === "user" ? "你的消息" : `${characterName} 的消息`}
+            className={`conversation-message conversation-message--${message.role}`}
+            key={message.id}
+            data-complete={message.complete}
+          >
+            <span className="conversation-message__author">{message.role === "user" ? "你" : characterName}</span>
+            <div className="conversation-message__text">{message.text || "…"}</div>
             {message.role === "character" && !message.complete && state.status !== "streaming" ? <span className="conversation-message__hint">这条回复没有完整送达</span> : null}
           </article>
         ))}

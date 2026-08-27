@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { SurfaceState } from "@/src/shared/ui/surface-state";
 import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
+import { ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
 
 export const metadata: Metadata = {
   title: "对话",
@@ -10,62 +11,34 @@ export const metadata: Metadata = {
 
 export default function ChatPage() {
   return (
-    <div className="page-stack chat-page">
-      <header className="page-header page-header--simple chat-page__header">
-        <div>
-          <p className="eyebrow">长期陪伴</p>
-          <h1>你的西语好友</h1>
-          <p>聊天首先是自然交流，学习目标只在后台创造合适的话题机会。</p>
-        </div>
-      </header>
+    <div className="page-stack chat-page conversation-page conversation-page--index">
+      <div className="conversation-workspace conversation-workspace--index">
+        <ConversationContactRail activeCharacterKey="lucia" />
+        <main className="conversation-index" aria-labelledby="conversation-index-title">
+          <header className="conversation-index__header">
+            <p className="eyebrow eyebrow--accent">长期陪伴</p>
+            <h1 id="conversation-index-title">你的西语好友</h1>
+            <p>聊天首先是自然交流，学习目标只在后台创造合适的话题机会。</p>
+          </header>
 
-      <div className="chat-workspace">
-        <aside className="contact-rail" aria-label="联系人">
-          <div className="contact-rail__header">
-            <p className="eyebrow eyebrow--accent">私信</p>
-            <h2>联系人</h2>
-          </div>
-          <nav className="contact-list" aria-label="好友列表">
-            <Link className="contact-row contact-row--active" href="/chat/lucia" aria-current="page">
-              <span className="avatar avatar--lucia" aria-hidden="true">L</span>
-              <span className="contact-row__body">
-                <strong>Lucía Martín</strong>
-                <span>主要好友 · 马德里</span>
-              </span>
-              <span className="contact-row__pin" aria-label="已置顶">置顶</span>
-            </Link>
-          </nav>
-          <p className="contact-rail__note">新的角色会在真实介绍发生后出现在这里。</p>
-        </aside>
-
-        <main className="chat-workspace__main">
-          <section className="conversation-hero" aria-labelledby="lucia-name">
-            <div className="avatar avatar--lucia" aria-hidden="true">L</div>
-            <div className="conversation-hero__body">
-              <div className="conversation-hero__heading">
+          <section className="conversation-index__feature" aria-labelledby="lucia-name">
+            <div className="conversation-index__feature-head">
+              <div className="avatar avatar--lucia" aria-hidden="true">L</div>
+              <div>
                 <h2 id="lucia-name">Lucía Martín</h2>
-                <span className="presence-dot">马德里</span>
-              </div>
-              <p className="conversation-hero__message">今天想聊聊你到西班牙后最期待的事。</p>
-              <div className="conversation-hero__meta">
-                <span>主要好友</span>
-                <span>文字和语音都可以</span>
+                <p>主要好友 · 文字和语音都可以</p>
               </div>
             </div>
-            <div className="conversation-hero__actions">
-              <Link className="conversation-hero__action" href="/chat/lucia">
-                打开对话
-                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-              </Link>
-              <Link className="conversation-hero__action conversation-hero__action--secondary" href="/learn/practice">
-                先练一句
-                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-              </Link>
-            </div>
+            <p className="conversation-index__message">今天想聊聊你到西班牙后最期待的事。</p>
+            <Link className="conversation-index__open" href="/chat/lucia">
+              打开对话
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+            </Link>
+            <Link className="conversation-index__practice" href="/learn/practice">先练一句</Link>
           </section>
 
-          <section className="chat-preview" aria-labelledby="chat-preview-title">
-            <div className="chat-preview__topline">
+          <section className="conversation-index__empty" aria-labelledby="chat-preview-title">
+            <div className="conversation-index__empty-topline">
               <p className="eyebrow eyebrow--accent">最近的话题</p>
               <span>还没有消息</span>
             </div>
@@ -74,7 +47,7 @@ export default function ChatPage() {
             <SurfaceState description="完成第一次学习后，这里会出现与你有关的共同经历。" state="empty" />
           </section>
 
-          <IntroductionInbox />
+          <div id="introductions"><IntroductionInbox /></div>
         </main>
       </div>
     </div>

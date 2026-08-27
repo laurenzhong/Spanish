@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
+import { ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
 
 type CharacterPageProps = Readonly<{
   params: Promise<{ characterId: string }>;
@@ -14,8 +15,11 @@ export default async function CharacterChatPage({ params }: CharacterPageProps) 
   if (characterId !== "lucia") notFound();
 
   return (
-    <div className="page-stack conversation-page">
-      <ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />
+    <div className="page-stack conversation-page conversation-page--detail">
+      <div className="conversation-workspace">
+        <ConversationContactRail activeCharacterKey="lucia" />
+        <ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />
+      </div>
     </div>
   );
 }
