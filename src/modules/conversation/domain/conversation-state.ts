@@ -14,6 +14,7 @@ export type ConversationMessage = Readonly<{
   complete: boolean;
   status?: "completed" | "withdrawn";
   withdrawn?: boolean;
+  createdAt?: string;
 }>;
 
 export type ConversationState = Readonly<{

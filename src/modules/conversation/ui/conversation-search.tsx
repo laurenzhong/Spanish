@@ -20,6 +20,11 @@ export function ConversationSearch({ compact = false }: Readonly<{ compact?: boo
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setSubmittedQuery(value), 350);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+
+  useEffect(() => {
     const query = submittedQuery.trim();
     if (!query) {
       return;
@@ -61,6 +66,7 @@ export function ConversationSearch({ compact = false }: Readonly<{ compact?: boo
           type="search"
           value={value}
         />
+        {value ? <button aria-label="清空对话搜索" className="conversation-search__clear" onClick={() => { setValue(""); setSubmittedQuery(""); setResults([]); setError(false); }} type="button">×</button> : null}
         <button aria-label="提交对话搜索" className="conversation-search__submit" type="submit">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 5 5L19 8" /></svg>
         </button>
@@ -76,7 +82,7 @@ export function ConversationSearch({ compact = false }: Readonly<{ compact?: boo
               href={`/chat/${encodeURIComponent(result.characterKey)}?message=${encodeURIComponent(result.messageId)}`}
               key={`${result.characterKey}-${result.messageId}`}
             >
-              <span className="conversation-search__result-meta">{result.characterName} · {result.role === "user" ? "你" : "对方"}</span>
+              <span className="conversation-search__result-meta">{result.characterName} · {result.role === "user" ? "你" : "对方"} · {formatSearchTime(result.createdAt)}</span>
               <span>{result.snippet}</span>
             </Link>
           )) : null}
@@ -84,4 +90,10 @@ export function ConversationSearch({ compact = false }: Readonly<{ compact?: boo
       ) : null}
     </div>
   );
+}
+
+function formatSearchTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }

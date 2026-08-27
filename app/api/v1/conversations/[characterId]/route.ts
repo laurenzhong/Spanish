@@ -23,6 +23,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       complete: message.status === "completed" || message.status === "withdrawn",
       status: message.status === "withdrawn" ? "withdrawn" : "completed",
       withdrawn: message.status === "withdrawn",
+      createdAt: message.createdAt.toISOString(),
     })) } }, { headers: { "x-conversation-persistence": "available" } });
   } catch {
     return NextResponse.json(

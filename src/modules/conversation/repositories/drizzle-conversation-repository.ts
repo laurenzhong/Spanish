@@ -3,6 +3,7 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
 import type {
+  ConversationListRecord,
   ConversationMessageRecord,
   ConversationRepository,
 } from "./conversation-repository";
@@ -136,6 +137,41 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         .where(and(eq(schema.messages.userId, userId), eq(schema.characters.stableKey, characterKey)))
         .orderBy(desc(schema.messages.createdAt)).limit(Math.max(1, Math.min(limit, 200)));
       return rows.map((row) => toMessage(row.message)).reverse();
+    },
+
+    async listConversations(userId): Promise<readonly ConversationListRecord[]> {
+      const rows = await database
+        .select({
+          conversation: schema.conversations,
+          character: schema.characters,
+        })
+        .from(schema.conversations)
+        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .where(eq(schema.conversations.userId, userId))
+        .orderBy(desc(schema.conversations.lastMessageAt), desc(schema.conversations.updatedAt));
+
+      return Promise.all(rows.map(async ({ conversation, character }) => {
+        const [lastMessage] = await database
+          .select({
+            role: schema.messages.role,
+            content: schema.messages.content,
+            createdAt: schema.messages.createdAt,
+          })
+          .from(schema.messages)
+          .where(and(eq(schema.messages.conversationId, conversation.id), eq(schema.messages.status, "completed")))
+          .orderBy(desc(schema.messages.createdAt))
+          .limit(1);
+        return {
+          conversationId: conversation.id,
+          characterKey: character.stableKey,
+          characterName: character.displayName,
+          avatarUrl: character.avatarUrl,
+          lastMessageAt: conversation.lastMessageAt,
+          lastMessage: lastMessage
+            ? { role: lastMessage.role === "character" ? "character" : "user", content: lastMessage.content, createdAt: lastMessage.createdAt }
+            : null,
+        } satisfies ConversationListRecord;
+      }));
     },
 
     async searchMessages(userId, query, limit = 50) {

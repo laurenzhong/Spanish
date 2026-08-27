@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -13,6 +13,7 @@ import {
 } from "@/src/modules/conversation";
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
+import { ConversationContactRail } from "./conversation-contact-rail";
 
 type ChatThreadProps = Readonly<{
   characterKey: "lucia" | "mateo" | "ines";
@@ -40,15 +41,34 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<ConversationState["messages"][number] | null>(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const [showMobileConversations, setShowMobileConversations] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const shouldFollowRef = useRef(true);
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
 
   useEffect(() => {
     const container = messagesRef.current;
     if (!container) return;
-    container.scrollTop = container.scrollHeight;
+    if (shouldFollowRef.current) container.scrollTop = container.scrollHeight;
   }, [state.messages]);
+
+  function handleMessagesScroll() {
+    const container = messagesRef.current;
+    if (!container) return;
+    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 96;
+    shouldFollowRef.current = nearBottom;
+    setIsNearBottom(nearBottom);
+  }
+
+  function scrollToBottom() {
+    const container = messagesRef.current;
+    if (!container) return;
+    shouldFollowRef.current = true;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    setIsNearBottom(true);
+  }
 
   useEffect(() => {
     if (!targetMessageId || state.messages.length === 0) return;
@@ -309,42 +329,58 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         </div>
         <ConversationSearch compact />
+        <button className="conversation-thread__mobile-list" type="button" onClick={() => setShowMobileConversations(true)}>会话列表</button>
         <span className="conversation-thread__status" data-status={state.status} role="status">
           {state.status === "streaming" ? "正在回复" : state.status === "completed" ? "已完成" : state.status === "failed" ? "需要重试" : state.status === "cancelled" ? "已停止" : ""}
         </span>
       </header>
 
-      <div ref={messagesRef} className="conversation-thread__messages" aria-live="polite">
+      {showMobileConversations ? <div className="conversation-mobile-list" role="dialog" aria-modal="true" aria-label="会话列表">
+        <div className="conversation-mobile-list__header"><strong>会话列表</strong><button type="button" aria-label="关闭会话列表" onClick={() => setShowMobileConversations(false)}>×</button></div>
+        <ConversationContactRail activeCharacterKey={characterKey} />
+      </div> : null}
+
+      <div ref={messagesRef} className="conversation-thread__messages" onScroll={handleMessagesScroll}>
         {persistenceStatus === "unavailable" ? (
           <p className="conversation-thread__persistence-notice" aria-live="polite" data-testid="conversation-persistence-status">
             聊天记录暂未保存：当前环境未连接消息数据库。配置 DATABASE_URL 后，切换页面仍可恢复记录。
           </p>
         ) : null}
-        {state.messages.length === 0 ? (
+        {persistenceStatus === "loading" && state.messages.length === 0 ? (
+          <div className="conversation-thread__loading" role="status" aria-live="polite"><span /><span /><span />正在加载聊天记录……</div>
+        ) : null}
+        {persistenceStatus !== "loading" && state.messages.length === 0 ? (
           <div className="conversation-thread__welcome">
             <p className="eyebrow eyebrow--accent">{characterName} 的消息</p>
             <p>¡Hola! Cuéntame algo de tu día. Yo te sigo la conversación.</p>
           </div>
         ) : null}
-        {state.messages.map((message) => (
+        {state.messages.map((message, index) => {
+          const previous = state.messages[index - 1];
+          const showDate = message.createdAt && (!previous?.createdAt || new Date(message.createdAt).toDateString() !== new Date(previous.createdAt).toDateString());
+          return <Fragment key={message.id}>
+          {showDate ? <time className="conversation-thread__date" dateTime={message.createdAt}>{formatDateLabel(message.createdAt)}</time> : null}
           <article
             aria-label={message.role === "user" ? "你的消息" : `${characterName} 的消息`}
             className={`conversation-message conversation-message--${message.role}`}
             data-message-id={message.id}
             data-highlighted={targetMessageId === message.id ? "true" : undefined}
-            key={message.id}
             data-complete={message.complete}
             data-withdrawn={message.withdrawn ? "true" : undefined}
+            aria-live={message.role === "character" && message.id === state.activeMessageId ? "polite" : undefined}
             onContextMenu={(event) => openMessageMenu(event, message)}
             onKeyDown={(event) => openMessageMenuFromKeyboard(event, message)}
             tabIndex={message.role === "user" && !message.withdrawn ? 0 : undefined}
           >
             <span className="conversation-message__author">{message.role === "user" ? "你" : characterName}</span>
             <div className="conversation-message__text">{message.withdrawn ? "你撤回了一条消息" : message.text || "…"}</div>
+            {message.role === "user" && !message.withdrawn ? <button className="conversation-message__more" type="button" aria-label="消息操作" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) }); }}>•••</button> : null}
             {message.role === "character" && !message.complete && state.status !== "streaming" ? <span className="conversation-message__hint">这条回复没有完整送达</span> : null}
           </article>
-        ))}
+          </Fragment>;
+        })}
       </div>
+      {!isNearBottom && state.messages.length > 0 ? <button className="conversation-thread__jump-bottom" type="button" onClick={scrollToBottom}>回到底部 ↓</button> : null}
 
       {contextMenu && selectedMessage() ? (
         <div className="conversation-message-menu" role="menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
@@ -381,4 +417,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
     </section>
   );
+}
+
+function formatDateLabel(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric" }).format(date);
 }
