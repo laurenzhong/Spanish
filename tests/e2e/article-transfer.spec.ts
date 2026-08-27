@@ -61,6 +61,16 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   await expect(tools).toBeVisible();
   await expect(tools).toContainText("Click any word on the left for a context-aware explanation.");
 
+  const tabs = page.locator(".article-reader__tool-tabs");
+  const toolsBox = await tools.boundingBox();
+  const tabsBox = await tabs.boundingBox();
+  expect(toolsBox).not.toBeNull();
+  expect(tabsBox).not.toBeNull();
+  if (toolsBox && tabsBox) {
+    expect(tabsBox.y - toolsBox.y).toBeLessThan(80);
+    if ((page.viewportSize()?.width ?? 0) >= 960) expect(toolsBox.width).toBeCloseTo(425, 0);
+  }
+
   if ((page.viewportSize()?.width ?? 0) < 800) {
     await page.locator(".article-reader__tools-close").click();
     await expect(tools).not.toBeVisible();
