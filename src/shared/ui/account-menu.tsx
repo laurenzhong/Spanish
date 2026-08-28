@@ -31,8 +31,11 @@ const avatarPresetColors: Record<string, string> = {
 };
 
 function Avatar({ profile, size = "sm" }: Readonly<{ profile: AccountProfileDto | null; size?: "sm" | "lg" }>) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const style = profile ? { "--avatar-index": profile.avatar.colorIndex, ...(profile.avatar.kind === "preset" && profile.avatar.presetId && avatarPresetColors[profile.avatar.presetId] ? { backgroundColor: avatarPresetColors[profile.avatar.presetId] } : {}) } as React.CSSProperties : undefined;
-  if (profile?.avatar.url) return <span className={`account-avatar account-avatar--${size}`} role="img" aria-label="账户头像" style={{ ...style, backgroundImage: `url(${profile.avatar.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />;
+  const imageFailed = Boolean(profile?.avatar.url && failedUrl === profile.avatar.url);
+  // eslint-disable-next-line @next/next/no-img-element
+  if (profile?.avatar.url && !imageFailed) return <img className={`account-avatar account-avatar--${size}`} src={profile.avatar.url} alt="账户头像" style={{ ...style, objectFit: "cover" }} onError={() => setFailedUrl(profile.avatar.url)} />;
   return <span className={`account-avatar account-avatar--${size}`} aria-hidden="true" style={style}>{profile?.avatar.initials ?? "你"}</span>;
 }
 

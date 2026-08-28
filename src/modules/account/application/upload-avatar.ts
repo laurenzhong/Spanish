@@ -12,5 +12,6 @@ export async function uploadAvatar(repository: AccountRepository, storage: Avata
     return { kind: "conflict" as const };
   }
   if (current.avatarPath && current.avatarPath !== stored.path) await storage.remove(current.avatarPath).catch(() => undefined);
+  if (storage.cleanup) await storage.cleanup(userId, stored.path).catch(() => undefined);
   return { kind: "ok" as const, profile: await getAccountProfile(repository, userId) };
 }

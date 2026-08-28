@@ -37,6 +37,13 @@ export function createSupabaseAvatarStorage(): AvatarStorage | null {
       const { error } = await client.storage.from(BUCKET).remove([path]);
       if (error) throw new Error("avatar-storage-failed");
     },
+    async cleanup(userId, keepPath) {
+      const ownerHash = createHash("sha256").update(userId).digest("hex").slice(0, 24);
+      const { data, error } = await client.storage.from(BUCKET).list(ownerHash, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
+      if (error || !data) return;
+      const stale = data.map((entry) => `${ownerHash}/${entry.name}`).filter((path) => path !== keepPath);
+      if (stale.length > 0) await client.storage.from(BUCKET).remove(stale);
+    },
     async publicUrl(path) {
       const { data, error } = await client.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
       return error ? null : data.signedUrl;

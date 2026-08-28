@@ -5,4 +5,5 @@ export interface AvatarStorage {
   put(userId: string, upload: AvatarUpload): Promise<AvatarStored>;
   remove(path: string): Promise<void>;
   publicUrl(path: string): Promise<string | null>;
+  cleanup?(userId: string, keepPath: string): Promise<void>;
 }
