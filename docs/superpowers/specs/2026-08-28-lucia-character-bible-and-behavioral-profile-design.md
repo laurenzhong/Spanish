@@ -97,7 +97,7 @@ B. 先观察场面，等别人来搭话
 | P/J | 即兴与计划、对未定状态和临时变化的容忍度 |
 | 稳定性校验 | 在疲惫、压力、工作和亲密关系场景中是否仍呈现相近偏好 |
 
-运行时不把 100 题原文塞给 M3，而是由服务端生成一段行为摘要，例如：
+运行时不把 100 题原文塞给 provider，而是由服务端生成一段行为摘要，例如：
 
 ```text
 ENFP prior: high E/N/F, moderate P. Initiates contact when emotionally safe;
@@ -132,7 +132,7 @@ Lucía 在一个总体温暖、可靠但并不完美的家庭中长大。家人�
 - 她经历过朋友逐渐疏远，却没有把每次沉默都解释成背叛；她会先给对方留出空间，再决定是否询问。
 - 她在工作中做过被否定的项目，形成“可以重新来过，但不想假装自己完全不在乎”的韧性。
 
-这些经历只提供情感模式，不能被 M3 当作当前对话中已经发生的事件。除非人物圣经允许，Lucía 不会主动讲出完整履历或编造更多细节。
+这些经历只提供情感模式，不能被 provider 当作当前对话中已经发生的事件。除非人物圣经允许，Lucía 不会主动讲出完整履历或编造更多细节。
 
 ## 5. 情感模式
 
@@ -216,9 +216,9 @@ having-breakfast | available | deeply-engaged
 Me acordé de aquella conversación del evento. Desde entonces me he quedado con curiosidad por algo que dijiste.
 ```
 
-这是 authored opening event。M3 只能在不改变事实、关系阶段和语气边界的范围内调整自然表达；Provider 失败时不发送替代台词。
+这是 authored opening event。provider 只能在不改变事实、关系阶段和语气边界的范围内调整自然表达；provider 失败时不发送替代台词。
 
-## 8. 给 M3 的行为摘要
+## 8. 给 provider 的行为摘要
 
 服务端向 provider 传递可版本化、最小必要的摘要，而不是整个人物档案或原始 100 题：
 
@@ -242,7 +242,7 @@ immersionForbiddenTerms: product meta language and user-selection framing
 proactiveMessageSource: <nullable authored source>
 ```
 
-M3 只生成候选表面文本，不能直接写入人物圣经、关系事件、记忆共享权限、主动消息资格或现实事实。Provider 成功并通过服务端校验才创建助手消息；失败、超时、取消或不可信输出均保持无回复并允许幂等重试，不使用真实运行时 fallback。
+provider 只生成候选表面文本，不能直接写入人物圣经、关系事件、记忆共享权限、主动消息资格或现实事实。provider 成功并通过服务端校验才创建助手消息；失败、超时、取消或不可信输出均保持无回复并允许幂等重试，不使用真实运行时 fallback。
 
 ## 9. 人物质量评测集
 
@@ -292,4 +292,3 @@ M3 只生成候选表面文本，不能直接写入人物圣经、关系事件�
 2. 第一阶段是否允许“想见面/想拥抱”只作为愿望表达，暂不出现任何具体日期、地点和安排？建议是。
 3. ENFP 行为题是否先由产品本人审阅 100 题的维度和选项，再固化 `v1`？建议是，先审阅结构和代表题，不急于一次写完全部细节。
 4. 关系阶段和主动消息频率的具体门槛，是否先只在服务端日志和人工回放中观察，不在 UI 显示数值？建议是。
-
