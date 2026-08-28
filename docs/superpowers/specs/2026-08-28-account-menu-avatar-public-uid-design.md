@@ -86,7 +86,11 @@
 | `id` | UUID | 内部所有权 ID，仅用于服务端关联和 RLS，不对外展示 |
 | `public_uid` | text | 服务端随机生成、公开、唯一、不可变的 UID |
 | `display_name` | text | 可编辑的显示名 |
-| `avatar_path` | text/null | 受保护存储中的头像对象路径 |
+| `avatar_kind` | text | `upload`、`preset` 或 `initials`，决定头像来源 |
+| `avatar_preset_id` | text/null | `avatar_kind=preset` 时的稳定 Sueño 预设 ID |
+| `avatar_path` | text/null | `avatar_kind=upload` 时受保护存储中的头像对象路径 |
+
+为兑现“账号删除后 UID 不回收”，增加仅服务端可访问的 `reserved_public_uids` 登记表（`public_uid` 唯一、`reserved_at`、`reason`）。账号删除事务先把 UID 写入登记表，再删除或匿名化 `profiles`；后续生成器同时检查 `profiles` 和登记表。
 
 建议 UID 形态为 `SN-7K4M-9Q2P`：固定前缀、分组显示、易于口述和复制。字符集排除易混淆字符（如 `O/0`、`I/1`），生成不包含时间、邮箱、UUID 或递增信息。
 
