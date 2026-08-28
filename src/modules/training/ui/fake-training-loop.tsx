@@ -482,15 +482,15 @@ export function FakeTrainingLoop({
   } as const;
 
   const evidenceSummary =
-    state.outputMode === "typing"
+    state.status === "recoverable-error"
       ? {
-          label: "文字路径",
-          detail: "文字回答只记录交际任务结果，不进入发音、语流或口头反应证据。",
+          label: "无负面能力记录",
+          detail: "技术步骤未完成，本轮不会改变你的能力画像。",
         }
-      : state.status === "recoverable-error"
+      : state.outputMode === "typing"
         ? {
-            label: "无负面能力记录",
-            detail: "技术步骤未完成，本轮不会改变你的能力画像。",
+            label: "文字路径",
+            detail: "文字回答只记录交际任务结果，不进入发音、语流或口头反应证据。",
           }
         : state.evaluation
           ? {
