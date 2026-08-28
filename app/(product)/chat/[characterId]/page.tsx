@@ -3,9 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
 import { ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
-import { createDrizzleConversationRepository, findConversationCharacter, listConversationHistory } from "@/src/modules/conversation";
-import { getCurrentUser } from "@/src/shared/auth/server";
-import { getDatabase } from "@/src/shared/db/client";
+import { findConversationCharacter } from "@/src/modules/conversation";
 
 type CharacterPageProps = Readonly<{
   params: Promise<{ characterId: string }>;
@@ -24,16 +22,6 @@ export default async function CharacterChatPage({ params, searchParams }: Charac
   if (!character) notFound();
   const paramsValue = await searchParams;
   const messageId = typeof paramsValue.message === "string" ? paramsValue.message : undefined;
-  const user = await getCurrentUser();
-  let initialMessages;
-  if (user && process.env.DATABASE_URL) {
-    try {
-      initialMessages = await listConversationHistory(createDrizzleConversationRepository(getDatabase()), user.id, character.key);
-    } catch {
-      initialMessages = undefined;
-    }
-  }
-
   return (
     <div className="page-stack conversation-page conversation-page--detail">
       <div className="conversation-workspace">
@@ -46,7 +34,6 @@ export default async function CharacterChatPage({ params, searchParams }: Charac
           characterVersion={character.version}
           avatarClassName={character.avatarClass}
           initialMessageId={messageId}
-          initialMessages={initialMessages}
         />
       </div>
     </div>
