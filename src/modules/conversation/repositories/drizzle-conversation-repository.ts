@@ -134,7 +134,14 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const rows = await database.select({ message: schema.messages }).from(schema.messages)
         .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
         .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
-        .where(and(eq(schema.messages.userId, userId), eq(schema.characters.stableKey, characterKey)))
+        // Filter through the owning conversation first so PostgreSQL can use
+        // conversations_user_character_uidx, then walk the conversation's
+        // messages via messages_conversation_created_idx.
+        .where(and(
+          eq(schema.conversations.userId, userId),
+          eq(schema.messages.userId, userId),
+          eq(schema.characters.stableKey, characterKey),
+        ))
         .orderBy(desc(schema.messages.createdAt)).limit(Math.max(1, Math.min(limit, 200)));
       return rows.map((row) => toMessage(row.message)).reverse();
     },
