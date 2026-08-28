@@ -447,6 +447,65 @@ export function FakeTrainingLoop({
     void clearAndLoad();
   }
 
+  const activeTimelineKey =
+    state.status === "presenting-input"
+      ? "listen"
+      : state.status === "transitioning" || state.status === "completed"
+        ? "vary"
+        : "express";
+  const trainingTimeline = [
+    {
+      key: "listen",
+      label: "听懂情境",
+      detail: "听清语气和关键信息。",
+      status: activeTimelineKey === "listen" ? "current" : "completed",
+    },
+    {
+      key: "express",
+      label: "自己表达",
+      detail: "完整说完，再结束这一轮。",
+      status: activeTimelineKey === "express" ? "current" : activeTimelineKey === "vary" ? "completed" : "locked",
+    },
+    {
+      key: "vary",
+      label: "换一种说法",
+      detail: "完成当前步骤后解锁，保留真实交际意图。",
+      status: activeTimelineKey === "vary" ? "current" : "locked",
+    },
+  ] as const;
+
+  const evidenceStrengthLabel = {
+    none: "尚未形成证据",
+    weak: "轻量交际证据",
+    moderate: "中等交际证据",
+    strong: "明确交际证据",
+  } as const;
+
+  const evidenceSummary =
+    state.outputMode === "typing"
+      ? {
+          label: "文字路径",
+          detail: "文字回答只记录交际任务结果，不进入发音、语流或口头反应证据。",
+        }
+      : state.status === "recoverable-error"
+        ? {
+            label: "无负面能力记录",
+            detail: "技术步骤未完成，本轮不会改变你的能力画像。",
+          }
+        : state.evaluation
+          ? {
+              label: state.evaluation.contextualSuccess
+                ? evidenceStrengthLabel[state.evaluation.evidenceStrength]
+                : "仍需一次完整表达",
+              detail: state.evaluation.contextualSuccess
+                ? "已确认对方可以接住这次表达。"
+                : "这次还没有完成沟通任务，可以换一种说法再试。",
+            }
+          : {
+              label: "等待本轮完成",
+              detail: "完成完整表达后，才会显示已确认的沟通结果。",
+            };
+
   return (
     <div
       className="training-loop"
@@ -485,47 +544,79 @@ export function FakeTrainingLoop({
         </p>
       ) : null}
 
-      {articleTransfer ? (
-        <aside className="training-loop__article-context" data-testid="article-transfer-context">
-          <p className="eyebrow eyebrow--accent">来自阅读</p>
-          <strong>{articleTransfer.label}</strong>
-          <p>{articleTransfer.prompt}</p>
-          <small>只有你主动用声音回答时，才会进入口语评估。</small>
-        </aside>
-      ) : null}
+      <div className="training-loop__layout">
+        <div className="training-loop__primary-column">
+          <nav
+            className="training-loop__timeline"
+            aria-label="训练任务时间线"
+            data-testid="training-timeline"
+          >
+            <div className="training-loop__timeline-heading">
+              <span>本轮任务</span>
+              <span>{current.variantIndex > 0 ? "变式练习" : "沟通表达"}</span>
+            </div>
+            <ol>
+              {trainingTimeline.map((node) => (
+                <li
+                  className={`training-loop__timeline-node training-loop__timeline-node--${node.status}`}
+                  data-status={node.status}
+                  key={node.key}
+                  aria-current={node.status === "current" ? "step" : undefined}
+                >
+                  <span className="training-loop__timeline-marker" aria-hidden="true">
+                    {node.status === "completed" ? "✓" : node.status === "current" ? "•" : ""}
+                  </span>
+                  <div>
+                    <strong>{node.label}</strong>
+                    <span>{node.status === "completed" ? "已完成" : node.status === "current" ? "当前步骤" : "完成当前步骤后解锁"}</span>
+                    <p>{node.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </nav>
 
-      <section className="training-loop__context" aria-labelledby="training-expression">
-        <div className="training-loop__status" aria-live="polite">
-          <span className="training-loop__status-dot" aria-hidden="true" />
-          {statusLabel(state)}
-        </div>
-        <p className="eyebrow eyebrow--accent">
-          {current.variantIndex > 0 ? "变式情境" : expression.goalKey}
-        </p>
-        <h2 id="training-expression">{expression.text}</h2>
-        <p className="training-loop__translation">{expression.translations["zh-CN"]}</p>
-        <p className="training-loop__intent">{expression.communicativeIntent["zh-CN"]}</p>
-        <div
-          className="training-loop__audio-line"
-          data-playing={state.status === "presenting-input"}
-          aria-label="西班牙语输入音频"
-        >
-          <span className="training-loop__audio-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M5 10v4h3l4 4V6l-4 4H5Z" />
-              <path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10" />
-            </svg>
-          </span>
-          <span className="training-loop__audio-bars" aria-hidden="true">
-            <i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i />
-          </span>
-          <span className="training-loop__audio-label">
-            {state.status === "presenting-input" ? "正在播放" : "已听过一遍"}
-          </span>
-        </div>
-      </section>
+          {articleTransfer ? (
+            <aside className="training-loop__article-context" data-testid="article-transfer-context">
+              <p className="eyebrow eyebrow--accent">来自阅读</p>
+              <strong>{articleTransfer.label}</strong>
+              <p>{articleTransfer.prompt}</p>
+              <small>只有你主动用声音回答时，才会进入口语评估。</small>
+            </aside>
+          ) : null}
 
-      <section className="training-loop__workbench" aria-label="训练操作">
+          <section className="training-loop__context" aria-labelledby="training-expression">
+            <div className="training-loop__status" aria-live="polite">
+              <span className="training-loop__status-dot" aria-hidden="true" />
+              {statusLabel(state)}
+            </div>
+            <p className="eyebrow eyebrow--accent">
+              {current.variantIndex > 0 ? "变式情境" : expression.goalKey}
+            </p>
+            <h2 id="training-expression">{expression.text}</h2>
+            <p className="training-loop__translation">{expression.translations["zh-CN"]}</p>
+            <p className="training-loop__intent">{expression.communicativeIntent["zh-CN"]}</p>
+            <div
+              className="training-loop__audio-line"
+              data-playing={state.status === "presenting-input"}
+              aria-label="西班牙语输入音频"
+            >
+              <span className="training-loop__audio-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 10v4h3l4 4V6l-4 4H5Z" />
+                  <path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10" />
+                </svg>
+              </span>
+              <span className="training-loop__audio-bars" aria-hidden="true">
+                <i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i />
+              </span>
+              <span className="training-loop__audio-label">
+                {state.status === "presenting-input" ? "正在播放" : "已听过一遍"}
+              </span>
+            </div>
+          </section>
+
+          <section className="training-loop__workbench" aria-label="训练操作">
         <div className="training-loop__progress">
           <div className="training-loop__progress-copy">
             <span className="training-loop__progress-label">本轮节奏</span>
@@ -766,7 +857,39 @@ export function FakeTrainingLoop({
             ) : null}
           </div>
         ) : null}
-      </section>
+          </section>
+        </div>
+
+        <aside
+          className="training-loop__detail-rail"
+          aria-label="训练详情"
+          data-testid="training-detail-rail"
+        >
+          <div className="training-loop__detail-heading">
+            <p className="eyebrow eyebrow--accent">当前详情</p>
+            <h2>把注意力放在沟通上</h2>
+          </div>
+          <div className="training-loop__detail-section">
+            <span className="training-loop__detail-label">输出方式</span>
+            <strong>{state.outputMode === "typing" ? "文字回答" : "口语回答"}</strong>
+            <p>{state.outputMode === "typing" ? "安静环境下完成，不计入口语证据。" : "完整说完后再结束，保留真实口头反应。"}</p>
+          </div>
+          <div className="training-loop__detail-section">
+            <span className="training-loop__detail-label">提示级别</span>
+            <strong>{state.hintLevel === 0 ? "未打开" : `提示 ${state.hintLevel} / 3`}</strong>
+            <p>{state.hintLevel === 0 ? "需要时再打开，不会打断当前表达。" : "提示已记录在本轮进度中。"}</p>
+          </div>
+          <div className="training-loop__detail-section" data-testid="training-evidence-summary">
+            <span className="training-loop__detail-label">证据说明</span>
+            <strong>{evidenceSummary.label}</strong>
+            <p>{evidenceSummary.detail}</p>
+          </div>
+          <div className="training-loop__detail-section training-loop__detail-section--privacy">
+            <span aria-hidden="true">⌁</span>
+            <p><strong>录音隐私</strong>普通录音评估完成后删除。</p>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

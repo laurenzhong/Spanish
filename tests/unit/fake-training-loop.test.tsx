@@ -34,6 +34,11 @@ describe("FakeTrainingLoop", () => {
   it("loads the first expression and reaches output selection", async () => {
     render(<FakeTrainingLoop />);
 
+    expect(screen.getByTestId("training-timeline")).toBeInTheDocument();
+    expect(screen.getByTestId("training-timeline")).toHaveTextContent("听懂情境");
+    expect(screen.getByTestId("training-timeline")).toHaveTextContent("自己表达");
+    expect(screen.getByTestId("training-timeline")).toHaveTextContent("换一种说法");
+    expect(screen.getByTestId("training-detail-rail")).toBeInTheDocument();
     expect(screen.getByText("先听一遍")).toBeInTheDocument();
     expect(await screen.findByText("轮到你了")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "用文字回答" })).toBeInTheDocument();
@@ -45,6 +50,8 @@ describe("FakeTrainingLoop", () => {
 
     await screen.findByText("轮到你了");
     await user.click(screen.getByRole("button", { name: "用文字回答" }));
+    expect(screen.getByTestId("training-detail-rail")).toHaveTextContent("文字回答");
+    expect(screen.getByTestId("training-evidence-summary")).toHaveTextContent("文字路径");
     await user.type(screen.getByLabelText("写下你的回应"), "¿Qué tal todo?");
     await user.click(screen.getByRole("button", { name: "提交文字回答" }));
 
@@ -88,5 +95,29 @@ describe("FakeTrainingLoop", () => {
       "data-status",
       "awaiting-output",
     );
+  });
+
+  it("keeps technical recording failures out of evidence", async () => {
+    const user = userEvent.setup();
+    const audio = {
+      recorder: {
+        start: async () => undefined,
+        stop: () => Promise.reject(new SpeechCapabilityError("recording-failed", "failed")),
+        cancel: async () => undefined,
+      },
+      textToSpeech: {
+        isSupported: false,
+        speak: async () => undefined,
+        stop: () => undefined,
+      },
+    };
+    render(<FakeTrainingLoop audio={audio} />);
+
+    await screen.findByText("轮到你了");
+    await user.click(screen.getByRole("button", { name: "开始录音" }));
+    await user.click(await screen.findByRole("button", { name: "完成录音" }));
+
+    expect(await screen.findByText("这次技术步骤没有完成")).toBeInTheDocument();
+    expect(screen.getByTestId("training-evidence-summary")).toHaveTextContent("无负面能力记录");
   });
 });

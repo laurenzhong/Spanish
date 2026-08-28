@@ -32,6 +32,20 @@ test("completes a typed natural alternative and moves to the next expression", a
   await expect(loop).toHaveAttribute("data-status", "presenting-input");
 });
 
+test("shows the desktop task timeline and detail rail without horizontal overflow", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/learn/practice");
+
+  await expect(page.getByTestId("training-timeline")).toContainText("听懂情境");
+  await expect(page.getByTestId("training-timeline")).toContainText("自己表达");
+  await expect(page.getByTestId("training-timeline")).toContainText("换一种说法");
+  await expect(page.getByTestId("training-detail-rail")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => window.innerWidth),
+  );
+});
+
 test("keeps the training workbench inside a narrow viewport", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
