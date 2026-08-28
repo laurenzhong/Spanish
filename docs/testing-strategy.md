@@ -214,6 +214,8 @@ tests/fixtures/evaluation/pronunciation-v1/
 
 ## 7. AI 角色质量评测
 
+Lucía 的 provider A/B 回放基线位于 `tests/fixtures/evaluation/lucia-provider-v1/`。`manifest.json` 和 `cases.json` 固定人物版本、关系阶段、当天状态、用户输入、语义计划、问题预算和情绪上限；回放不得把具体 provider 名称写入场景。每个 provider 的输出另行记录延迟、费用、人工评分和硬门禁结果，不能把某个 provider 的措辞当作标准答案。
+
 固定对话集至少覆盖：
 
 - 用户开心、焦虑、抱怨和不想学习。

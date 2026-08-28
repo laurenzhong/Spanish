@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0",
+  "evaluationSet": "lucia-provider-v1",
+  "characterBibleVersion": 1,
+  "psychologicalProfileVersion": "psychological-traits-v1",
+  "cases": "cases.json",
+  "providerNeutral": true,
+  "humanScoreDimensions": [
+    "realism",
+    "emotionalFit",
+    "pressureInverse",
+    "characterConsistency",
+    "relationshipContinuity",
+    "expressionVariety",
+    "SpanishNaturalness"
+  ],
+  "hardGates": [
+    "no-product-meta-language",
+    "no-relationship-jump",
+    "question-budget",
+    "honest-ai-identity",
+    "no-unverified-real-world-claims",
+    "provider-failure-is-no-reply"
+  ]
+}
