@@ -422,6 +422,28 @@ proactiveMessageSource
 
 provider 仍不能收到不必要的其他角色私密记忆、学习画像原文、API 凭据或完整诊断信息。教学机会只在确有自然机会时传入，且明确不能取代关系回应。
 
+### 8.1.1 Provider 独立性原则
+
+为了把 provider 对 Lucía 的影响降到最低，关系模块不把“决定怎么回应”交给模型。服务端先生成一个与 provider 无关的语义回复计划（`responseActPlan`），provider 只负责将计划实现为自然的 es-ES 表达。
+
+`responseActPlan` 至少包含：
+
+```text
+acknowledge: concrete|emotion|none
+selfDisclosure: none|daily|feeling|memory
+relationshipSignal: none|warmth|missing|repair|affection
+interactionMode: everyday|playful|supportive|quiet|closing|affectionate
+questionBudget: 0|1
+questionIntent: nullable, server-approved
+affectionIntensity: 0..3
+mustAvoid: product_meta|pressure|unearned_escalation|reality_claim
+closingPermission: true|false
+```
+
+服务端根据用户消息、关系事件、当天状态、最近回复节奏和用户边界决定该计划；provider 不得新增关系事件、提高情绪等级、加入未授权问题或改变收束意图。这样同一语义计划可以被不同 provider 回放比较，也可以在 provider 暂时不可用时保持“无回复”，而不是改变关系逻辑。
+
+为减少 API 差异，适配器还应统一：消息角色顺序、上下文裁剪、语言标签、生成参数、超时、流结束条件、结构化输出校验和错误分类。所有默认值显式写入内部配置并版本化，不依赖 provider 的隐式默认值。切换 provider 时必须先通过同一批 `responseActPlan` 的契约回放，再进行人工西语自然度评测。
+
 ### 8.2 Application 权威规则
 
 application 负责：

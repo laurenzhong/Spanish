@@ -270,7 +270,7 @@ immersionForbiddenTerms: product meta language and user-selection framing
 proactiveMessageSource: <nullable authored source>
 ```
 
-provider 只生成候选表面文本，不能直接写入人物圣经、关系事件、记忆共享权限、主动消息资格或现实事实。provider 成功并通过服务端校验才创建助手消息；失败、超时、取消或不可信输出均保持无回复并允许幂等重试，不使用真实运行时 fallback。
+在调用 provider 前，服务端先决定 provider 不能改变的语义回复计划：承接哪一部分、是否分享一件自己的小事、允许的关系信号、情绪上限、问题预算和是否自然收束。provider 只生成候选表面文本，不能直接写入人物圣经、关系事件、记忆共享权限、主动消息资格或现实事实。provider 成功并通过服务端校验才创建助手消息；失败、超时、取消或不可信输出均保持无回复并允许幂等重试，不使用真实运行时 fallback。
 
 ## 9. 人物质量评测集
 
