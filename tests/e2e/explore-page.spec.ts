@@ -25,12 +25,26 @@ test("opens and closes the content detail rail without inventing a route", async
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/explore");
 
-  await page.getByRole("button", { name: /查看.*内容整理中/ }).click();
+  const packButton = page.getByRole("button", { name: /查看.*内容整理中/ });
+  await packButton.focus();
+  await page.keyboard.press("Enter");
   await expect(page.getByTestId("explore-detail-rail")).toContainText("内容整理中");
   await expect(page.getByText("这组内容完成审核后会出现在这里。")).toBeVisible();
   await expect(page.getByRole("link", { name: "开始这组内容" })).toHaveCount(0);
   await page.getByRole("button", { name: "关闭内容详情" }).click();
   await expect(page.getByTestId("explore-detail-rail")).toHaveCount(0);
+  await expect(packButton).toBeFocused();
+});
+
+test("restores the detail rail from a deep link and keeps the query visible", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/explore?pack=immersive.first-cafe-conversation&q=咖啡馆");
+
+  await expect(page.getByRole("searchbox")).toHaveValue("咖啡馆");
+  await expect(page.getByTestId("explore-detail-rail")).toContainText("咖啡馆里的新朋友");
+  await page.getByRole("button", { name: "关闭内容详情" }).click();
+  await expect(page).toHaveURL(/\/explore\?q=%E5%92%96%E5%95%A1%E9%A6%86/);
 });
 
 test("keeps search and layout usable across desktop and mobile widths", async ({ page }) => {

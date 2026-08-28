@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { ExploreDashboardDto } from "@/src/modules/explore/domain";
@@ -15,6 +15,34 @@ const dashboard: ExploreDashboardDto = {
     { id: "pack-2", stableKey: "draft-pack", title: "周末市场", summary: "内容仍在整理。", level: "A2", skills: ["read"], durationLabel: "约 4 分钟", status: "draft", version: "v1", updatedAt: null },
   ],
   resume: [],
+};
+
+const progressPack: ExploreDashboardDto["packs"][number] = {
+  id: "pack-progress",
+  stableKey: "progress-pack",
+  title: "办公室里的寒暄",
+  summary: "继续完成一轮自然回应。",
+  level: "B1",
+  skills: ["listen", "speak"],
+  durationLabel: "约 8 分钟",
+  status: "in_progress",
+  version: "v2",
+  updatedAt: "2026-08-28T00:00:00.000Z",
+  route: "/explore/packs/progress-pack",
+  progress: { completedSteps: 2, totalSteps: 5 },
+};
+
+const unavailablePack: ExploreDashboardDto["packs"][number] = {
+  id: "pack-unavailable",
+  stableKey: "unavailable-pack",
+  title: "地铁站问路",
+  summary: "来源暂时不可用。",
+  level: "A2",
+  skills: ["listen"],
+  durationLabel: "约 5 分钟",
+  status: "unavailable",
+  version: "v1",
+  updatedAt: null,
 };
 
 describe("ExplorePageContent", () => {
@@ -47,5 +75,20 @@ describe("ExplorePageContent", () => {
     expect(screen.getByTestId("explore-detail-rail")).toHaveTextContent("完成审核后开放");
     expect(screen.getByText("这组内容完成审核后会出现在这里。")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "开始这组内容" })).not.toBeInTheDocument();
+  });
+
+  it("renders the resume rail for in-progress content and keeps unavailable content blocked", async () => {
+    const statefulDashboard = { ...dashboard, packs: [...dashboard.packs, progressPack, unavailablePack], resume: [progressPack] };
+    render(<ExplorePageContent dashboard={statefulDashboard} />);
+
+    expect(screen.getByRole("heading", { name: "从上次停下的地方回来" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看办公室里的寒暄详情，继续中" }));
+    expect(screen.getByRole("link", { name: "继续这组内容" })).toHaveAttribute("href", "/explore/packs/progress-pack");
+    fireEvent.click(screen.getByRole("button", { name: "关闭内容详情" }));
+    await waitFor(() => expect(document.activeElement).toHaveAttribute("aria-label", "查看办公室里的寒暄详情，继续中"));
+
+    fireEvent.click(screen.getByRole("button", { name: "查看地铁站问路详情，暂不可用" }));
+    expect(screen.getByTestId("explore-detail-rail")).toHaveTextContent("暂不可用");
+    expect(screen.getByText("这组内容完成审核后会出现在这里。")).toBeInTheDocument();
   });
 });
