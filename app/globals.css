@@ -3862,6 +3862,15 @@ button {
   border-bottom: 1px solid var(--border);
 }
 
+/* Keep Explore's workspace as one full-width row; its inner grid owns the rail. */
+@media (min-width: 960px) {
+  .explore-page { grid-template-columns: minmax(0, 1fr); }
+  .explore-page__header,
+  .explore-intent,
+  .explore-resume,
+  .explore-workspace { grid-column: 1 / -1; }
+}
+
 /* Conversation workspace: quiet editorial communication surface. */
 .conversation-page {
   --conversation-ink: #141715;
