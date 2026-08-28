@@ -23,6 +23,11 @@ type ChatThreadProps = Readonly<{
   initialMessageId?: string;
 }>;
 
+type UserAvatarProfile = Readonly<{
+  displayName: string | null;
+  avatar: Readonly<{ url: string | null; initials: string; colorIndex: number }>;
+}>;
+
 function createId(prefix: string): string {
   const uuid = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `${prefix}-${uuid}`;
@@ -43,10 +48,26 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showMobileConversations, setShowMobileConversations] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowRef = useRef(true);
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
+
+  useEffect(() => {
+    const load = () => {
+      void fetch("/api/v1/me", { cache: "no-store", credentials: "same-origin", headers: { accept: "application/json" } })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("unavailable");
+          const payload = await response.json() as { data?: UserAvatarProfile };
+          if (payload.data) setUserProfile(payload.data);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    window.addEventListener("account-profile-updated", load);
+    return () => window.removeEventListener("account-profile-updated", load);
+  }, []);
 
   useEffect(() => {
     const container = messagesRef.current;
@@ -418,8 +439,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             <div
               className={`avatar conversation-message__avatar ${message.role === "user" ? "conversation-message__avatar--user" : avatarClassName}`}
               aria-hidden="true"
+              style={message.role === "user" && userProfile?.avatar.url ? { backgroundImage: `url(${userProfile.avatar.url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
             >
-              {message.role === "user" ? "你" : characterName.slice(0, 1)}
+              {message.role === "user" ? (userProfile?.avatar.url ? null : userProfile?.avatar.initials ?? "你") : characterName.slice(0, 1)}
             </div>
             <div className="conversation-message__content">
               <div className="conversation-message__bubble">

@@ -12,15 +12,19 @@ const presets = [
   ["quiet-cafe", "安静咖啡馆", "#9b775f"],
 ] as const;
 
+const presetColor = (id: string | null) => presets.find(([presetId]) => presetId === id)?.[2];
+
 type Profile = { displayName: string | null; publicUid: string; targetLanguage: string; avatar: { kind: "upload" | "preset" | "initials"; presetId: string | null; initials: string; colorIndex: number; url: string | null }; updatedAt: string };
 
 export function ProfileEditor() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState("");
-  const [avatarKind, setAvatarKind] = useState<"preset" | "initials">("initials");
+  const [avatarKind, setAvatarKind] = useState<"upload" | "preset" | "initials">("initials");
   const [presetId, setPresetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -33,8 +37,9 @@ export function ProfileEditor() {
         if (!payload.data) throw new Error("invalid");
         setProfile(payload.data);
         setName(payload.data.displayName ?? "");
-        setAvatarKind(payload.data.avatar.kind === "preset" ? "preset" : "initials");
-        setPresetId(payload.data.avatar.presetId);
+        setAvatarKind(payload.data.avatar.kind);
+      setPresetId(payload.data.avatar.presetId);
+      setAvatarPreview(payload.data.avatar.url);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -53,9 +58,25 @@ export function ProfileEditor() {
       const response = await fetch("/api/v1/me", { method: "PATCH", credentials: "same-origin", headers: { "content-type": "application/json", "if-unmodified-since": profile.updatedAt }, body: JSON.stringify({ displayName: name, avatarKind, avatarPresetId: avatarKind === "preset" ? presetId : null }) });
       const payload = await response.json() as { data?: Profile; error?: { message?: string } };
       if (!response.ok || !payload.data) throw new Error(payload.error?.message ?? "保存失败");
-      setProfile(payload.data); setNotice("资料已保存");
+      setProfile(payload.data); setAvatarPreview(payload.data.avatar.url); setNotice("资料已保存");
+      window.dispatchEvent(new Event("account-profile-updated"));
     } catch (error) { setNotice(error instanceof Error ? error.message : "保存失败，请重试"); }
     finally { setSaving(false); }
+  }
+
+  async function uploadAvatar(file: File) {
+    if (!profile || uploading) return;
+    setUploading(true); setNotice(null);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch("/api/v1/me/avatar", { method: "POST", credentials: "same-origin", body: form });
+      const payload = await response.json() as { data?: Profile; error?: { message?: string } };
+      if (!response.ok || !payload.data) throw new Error(payload.error?.message ?? "头像保存失败，请重试");
+      setProfile(payload.data); setAvatarKind("upload"); setPresetId(null); setAvatarPreview(payload.data.avatar.url); setNotice("头像已更新");
+      window.dispatchEvent(new Event("account-profile-updated"));
+    } catch (error) { setNotice(error instanceof Error ? error.message : "头像保存失败，请重试"); }
+    finally { setUploading(false); }
   }
 
   return (
@@ -64,12 +85,12 @@ export function ProfileEditor() {
       <header className="profile-editor-page__header"><span className="eyebrow">账户资料</span><h1>让别人认出你</h1><p>头像和显示名只用于账户身份。学习证据、关系记忆和私密对话仍然独立保存。</p></header>
       {loading ? <div className="surface-state">正在读取账户资料…</div> : profile ? <>
         <section className="profile-editor-card">
-          <div className="profile-editor-card__preview"><span className="account-avatar account-avatar--lg" aria-hidden="true">{initials}</span><div><strong>{name.trim() || "我的 Sueño"}</strong><small>{profile.targetLanguage === "es-ES" ? "西班牙语" : profile.targetLanguage}学习者 · {profile.publicUid}</small></div></div>
+          <div className="profile-editor-card__preview">{avatarPreview ? <span className="account-avatar account-avatar--lg" role="img" aria-label="当前账户头像" style={{ backgroundImage: `url(${avatarPreview})`, backgroundSize: "cover", backgroundPosition: "center" }} /> : <span className="account-avatar account-avatar--lg" aria-hidden="true" style={avatarKind === "preset" && presetColor(presetId) ? { backgroundColor: presetColor(presetId) } : undefined}>{initials}</span>}<div><strong>{name.trim() || "我的 Sueño"}</strong><small>{profile.targetLanguage === "es-ES" ? "西班牙语" : profile.targetLanguage}学习者 · {profile.publicUid}</small></div></div>
           <label className="profile-editor-field"><span>显示名</span><input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} placeholder="输入你的显示名" /></label>
         </section>
         <section className="profile-editor-card"><div className="profile-editor-card__title"><h2>选择头像</h2><p>你可以随时切换，不会影响 UID。</p></div>
-          <div className="profile-editor-options"><button type="button" className={avatarKind === "initials" ? "is-selected" : ""} onClick={() => setAvatarKind("initials")}><span className="avatar-option avatar-option--initials">{initials}</span><span>首字母</span></button>{presets.map(([id, label, color]) => <button type="button" key={id} className={avatarKind === "preset" && presetId === id ? "is-selected" : ""} onClick={() => { setAvatarKind("preset"); setPresetId(id); }}><span className="avatar-option" style={{ background: color }}>{label.slice(0, 1)}</span><span>{label}</span></button>)}</div>
-          <p className="profile-editor-hint">照片上传入口会在存储服务配置完成后开放；当前可先使用 Sueño 插画或首字母。</p>
+          <div className="profile-editor-options"><button type="button" className={avatarKind === "initials" ? "is-selected" : ""} onClick={() => { setAvatarKind("initials"); setAvatarPreview(null); }}><span className="avatar-option avatar-option--initials">{initials}</span><span>首字母</span></button>{presets.map(([id, label, color]) => <button type="button" key={id} className={avatarKind === "preset" && presetId === id ? "is-selected" : ""} onClick={() => { setAvatarKind("preset"); setPresetId(id); setAvatarPreview(null); }}><span className="avatar-option" style={{ background: color }}>{label.slice(0, 1)}</span><span>{label}</span></button>)}<label className={`profile-editor-upload${avatarKind === "upload" ? " is-selected" : ""}`}><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAvatar(file); event.currentTarget.value = ""; }} disabled={uploading} /><span className="avatar-option avatar-option--upload">↑</span><span>{uploading ? "上传中…" : "上传照片"}</span></label></div>
+          <p className="profile-editor-hint">支持 JPG、PNG、WebP 等图片，服务端会自动裁剪并转换为 WebP。照片仅用于你的账户头像。</p>
         </section>
         <div className="profile-editor-actions"><Link href="/me" className="button button--quiet">取消</Link><button type="button" className="button button--primary" onClick={save} disabled={saving}>{saving ? "保存中…" : "保存资料"}</button></div>
         {notice ? <p className="profile-editor-notice" role="status">{notice}</p> : null}

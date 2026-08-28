@@ -21,8 +21,17 @@ type AccountProfileDto = Readonly<{
   }>;
 }>;
 
+const avatarPresetColors: Record<string, string> = {
+  "sunlit-window": "#d67d5d",
+  "terracotta-scarf": "#a95845",
+  "green-notebook": "#547466",
+  "paper-collage": "#b79870",
+  "evening-studio": "#405d58",
+  "quiet-cafe": "#9b775f",
+};
+
 function Avatar({ profile, size = "sm" }: Readonly<{ profile: AccountProfileDto | null; size?: "sm" | "lg" }>) {
-  const style = profile ? { "--avatar-index": profile.avatar.colorIndex } as React.CSSProperties : undefined;
+  const style = profile ? { "--avatar-index": profile.avatar.colorIndex, ...(profile.avatar.kind === "preset" && profile.avatar.presetId && avatarPresetColors[profile.avatar.presetId] ? { backgroundColor: avatarPresetColors[profile.avatar.presetId] } : {}) } as React.CSSProperties : undefined;
   if (profile?.avatar.url) return <span className={`account-avatar account-avatar--${size}`} role="img" aria-label="账户头像" style={{ ...style, backgroundImage: `url(${profile.avatar.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />;
   return <span className={`account-avatar account-avatar--${size}`} aria-hidden="true" style={style}>{profile?.avatar.initials ?? "你"}</span>;
 }
@@ -42,6 +51,22 @@ export function AccountMenu() {
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => { document.removeEventListener("pointerdown", onPointerDown); document.removeEventListener("keydown", onKeyDown); };
+  }, [open]);
+
+  useEffect(() => {
+    const refreshProfile = () => {
+      if (!open) return;
+      void fetch("/api/v1/me", { cache: "no-store", credentials: "same-origin", headers: { accept: "application/json" } })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("unavailable");
+          const payload = await response.json() as { data?: AccountProfileDto };
+          if (!payload.data) throw new Error("invalid");
+          setProfile(payload.data);
+        })
+        .catch(() => undefined);
+    };
+    window.addEventListener("account-profile-updated", refreshProfile);
+    return () => window.removeEventListener("account-profile-updated", refreshProfile);
   }, [open]);
 
   useEffect(() => {

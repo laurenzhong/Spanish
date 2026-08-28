@@ -8,6 +8,7 @@ export async function updateAccountProfile(repository: AccountRepository, userId
     ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
     ...(patch.avatarKind === undefined ? {} : { avatarKind: patch.avatarKind }),
     ...(patch.avatarPresetId === undefined ? {} : { avatarPresetId: patch.avatarPresetId }),
+    ...(patch.avatarKind && patch.avatarKind !== "upload" ? { avatarPath: null } : {}),
     ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
   });
   if (result === "conflict") return { kind: "conflict" as const };
