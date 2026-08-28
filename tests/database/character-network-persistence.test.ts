@@ -17,6 +17,7 @@ import {
 import {
   createDrizzleIntroductionRepository,
   createDrizzleLuciaContactRepository,
+  getLuciaContact,
   proposeIntroduction,
   respondToIntroduction,
 } from "@/src/modules/character-network";
@@ -117,6 +118,9 @@ describe("character network persistence", () => {
     const [opening] = await database.select().from(schema.messages).where(eq(schema.messages.conversationId, accepted.conversationId!));
     expect(opening).toMatchObject({ role: "character", clientMessageId: "lucia-authored-opening-v1", content: "Me acordé de aquella conversación del evento. Desde entonces me he quedado con curiosidad por algo que dijiste." });
     await repository.transaction((tx) => tx.respond(userId, "accept").then(() => tx.ensureAuthoredOpeningMessage(userId)));
+    expect((await database.select().from(schema.messages))).toHaveLength(1);
+    await database.delete(schema.messages).where(eq(schema.messages.clientMessageId, "lucia-authored-opening-v1"));
+    await getLuciaContact({ repository, userId });
     expect((await database.select().from(schema.messages))).toHaveLength(1);
   });
 
