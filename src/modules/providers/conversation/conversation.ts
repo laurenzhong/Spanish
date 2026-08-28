@@ -50,7 +50,7 @@ export type ConversationProviderInput = Readonly<{
 
 export type ConversationProviderResult = Readonly<{
   text: string;
-  provider: "minimax" | "deterministic-fake";
+  provider: "minimax" | "openai" | "deterministic-fake";
   modelVersion: string;
   providerRequestId: string | null;
   latencyMs: number;

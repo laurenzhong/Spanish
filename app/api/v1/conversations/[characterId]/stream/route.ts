@@ -23,7 +23,7 @@ import {
   createDrizzleLuciaContactRepository,
   proposeIntroduction,
 } from "@/src/modules/character-network";
-import { createMiniMaxConversationProvider } from "@/src/modules/providers/conversation/server";
+import { createMiniMaxConversationProvider, createOpenAIConversationProvider } from "@/src/modules/providers/conversation/server";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 import {
@@ -140,6 +140,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       recentMessages,
     });
   }
+  const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();
+  const useOpenAI = configuredProvider === "openai" && Boolean(process.env.OPENAI_API_KEY?.trim());
+  const useMiniMax = !useOpenAI && Boolean(process.env.MINIMAX_API_KEY?.trim());
   const replyInput: StreamReplyInput = {
     characterKey: characterId,
     characterVersion: 1,
@@ -148,10 +151,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
     generationId,
     messageId: randomUUID(),
     replyContext,
-    replyProvider: process.env.MINIMAX_API_KEY?.trim()
-      ? createMiniMaxConversationProvider()
-      : undefined,
-    providerModelVersion: "MiniMax-M3",
+    replyProvider: useOpenAI
+      ? createOpenAIConversationProvider()
+      : useMiniMax
+        ? createMiniMaxConversationProvider()
+        : undefined,
+    providerName: useOpenAI ? "openai" : useMiniMax ? "minimax" : "deterministic-fake",
+    providerModelVersion: useOpenAI
+      ? (process.env.OPENAI_CONVERSATION_MODEL?.trim() || "gpt-5.6sol")
+      : "MiniMax-M3",
     signal: request.signal,
   };
   let conversationId: string | null = null;

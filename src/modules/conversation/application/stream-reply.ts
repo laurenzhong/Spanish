@@ -34,6 +34,7 @@ export type StreamReplyInput = Readonly<{
   messageId: string;
   replyContext?: ReplyContext;
   replyProvider?: CharacterReplyProvider;
+  providerName?: ConversationProviderResult["provider"];
   providerModelVersion?: string;
   onProviderResult?: (observation: StreamReplyProviderObservation) => Promise<void> | void;
   signal?: AbortSignal;
@@ -130,7 +131,7 @@ export async function* streamReply(
       const providerErrorType = errorCode(error);
       if (input.signal?.aborted || providerErrorType === "provider-cancelled") {
         await notifyProviderResult(input, {
-          provider: "minimax",
+          provider: input.providerName ?? "minimax",
           modelVersion: input.providerModelVersion ?? "MiniMax-M3",
           providerRequestId: null,
           status: "cancelled",
@@ -142,7 +143,7 @@ export async function* streamReply(
         return;
       }
       await notifyProviderResult(input, {
-        provider: "minimax",
+        provider: input.providerName ?? "minimax",
         modelVersion: input.providerModelVersion ?? "MiniMax-M3",
         providerRequestId: null,
         status: "failed",
