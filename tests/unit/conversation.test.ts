@@ -197,7 +197,7 @@ describe("fake conversation reply", () => {
     expect(observations).toEqual([expect.objectContaining({ provider: "minimax", status: "succeeded" })]);
   });
 
-  it("falls back to the deterministic reply when the provider is unavailable", async () => {
+  it("emits a recoverable error without a fake reply when the provider is unavailable", async () => {
     const events = [];
     const observations: StreamReplyProviderObservation[] = [];
     const provider = {
@@ -214,12 +214,10 @@ describe("fake conversation reply", () => {
       onProviderResult: (observation) => { observations.push(observation); },
       wait: async () => {},
     })) events.push(event);
-    expect(events.at(-1)).toMatchObject({ type: "done" });
-    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
-      .toBe("¡Hola! Qué alegría leerte. Yo estoy bien; ¿cómo va todo por tu lado?");
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "stream-failed", retryable: true });
+    expect(events.some((event) => event.type === "delta")).toBe(false);
     expect(observations).toEqual([
       expect.objectContaining({ provider: "minimax", status: "failed" }),
-      expect.objectContaining({ provider: "deterministic-fake", status: "succeeded", errorType: "fallback" }),
     ]);
   });
 
@@ -245,8 +243,8 @@ describe("fake conversation reply", () => {
       replyProvider: provider,
       wait: async () => {},
     })) events.push(event);
-    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
-      .toContain("personaje de IA");
+    expect(events.some((event) => event.type === "delta")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "stream-failed", retryable: false });
   });
 
   it("answers a wellbeing question instead of using the generic greeting", async () => {

@@ -9,7 +9,6 @@ import type {
 import { ConversationProviderError } from "@/src/modules/providers/conversation";
 import {
   generateCharacterReply,
-  ReplyGenerationAbortedError,
 } from "./generate-character-reply";
 import type { ReplyContext } from "./build-reply-context";
 import { planReply } from "../domain/reply-plan";
@@ -151,24 +150,8 @@ export async function* streamReply(
         estimatedCostMicros: null,
         errorType: providerErrorType,
       });
-      try {
-        replyResult = deterministicResult(context, input.signal);
-      } catch (fallbackError) {
-        if (fallbackError instanceof ReplyGenerationAbortedError || input.signal?.aborted) {
-          yield errorEvent(input, "stream-aborted", true);
-          return;
-        }
-        throw fallbackError;
-      }
-      await notifyProviderResult(input, {
-        provider: replyResult.provider,
-        modelVersion: replyResult.modelVersion,
-        providerRequestId: replyResult.providerRequestId,
-        status: "succeeded",
-        latencyMs: replyResult.latencyMs,
-        estimatedCostMicros: replyResult.estimatedCostMicros,
-        errorType: "fallback",
-      });
+      yield errorEvent(input, "stream-failed", isRetryableProviderError(error));
+      return;
     }
   } else {
     replyResult = deterministicResult(context, input.signal);
@@ -232,6 +215,10 @@ function errorCode(error: unknown): string {
     if (typeof code === "string" && /^[A-Za-z0-9._-]{1,96}$/u.test(code)) return code;
   }
   return "provider-unavailable";
+}
+
+function isRetryableProviderError(error: unknown): boolean {
+  return error instanceof ConversationProviderError ? error.retryable : true;
 }
 
 function deterministicResult(context: ReplyContext, signal?: AbortSignal): ConversationProviderResult {
