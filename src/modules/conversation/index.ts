@@ -5,5 +5,6 @@ export * from "./domain/stream-protocol";
 export * from "./domain/reply-plan";
 export * from "./domain/character-catalog";
 export * from "./application/build-reply-context";
+export * from "./application/list-history";
 export * from "./application/generate-character-reply";
 export * from "./repositories";

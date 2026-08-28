@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 
@@ -102,7 +103,7 @@ export function createSupabaseAccessTokenVerifier(): AccessTokenVerifier | null 
   };
 }
 
-export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
+async function readCurrentUser(): Promise<AuthenticatedUser | null> {
   const cookieStore = await cookies();
   const testUser = testUserFromCookie(
     cookieStore.get("spanish-e2e-user")?.value,
@@ -139,6 +140,11 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
 
   return { id: data.user.id, email: data.user.email ?? null };
 }
+
+// Layouts and server pages in the same render frequently need the current
+// user independently. React's request-scoped cache prevents duplicate remote
+// Supabase lookups without weakening the authoritative auth check.
+export const getCurrentUser = cache(readCurrentUser);
 
 export async function verifyRequestUser(
   request: NextRequest,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createDrizzleConversationRepository } from "@/src/modules/conversation";
+import { createDrizzleConversationRepository, listConversationHistory } from "@/src/modules/conversation";
 import { findConversationCharacter } from "@/src/modules/conversation";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
@@ -29,18 +29,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   );
   const databaseStartedAt = Date.now();
   try {
-    const messages = await createDrizzleConversationRepository(getDatabase()).listMessages(user.id, characterId);
-    return NextResponse.json({ data: { characterKey: characterId, messages: messages.map((message) => ({
-      id: message.id,
-      clientMessageId: message.role === "user" ? message.clientMessageId : undefined,
-      generationId: message.generationId ?? undefined,
-      role: message.role,
-      text: message.status === "withdrawn" ? "" : message.content,
-      complete: message.status === "completed" || message.status === "withdrawn",
-      status: message.status === "withdrawn" ? "withdrawn" : "completed",
-      withdrawn: message.status === "withdrawn",
-      createdAt: message.createdAt.toISOString(),
-    })) } }, { headers: {
+    const messages = await listConversationHistory(createDrizzleConversationRepository(getDatabase()), user.id, characterId);
+    return NextResponse.json({ data: { characterKey: characterId, messages } }, { headers: {
       "cache-control": "no-store",
       "server-timing": serverTiming({ auth: authMs, database: Date.now() - databaseStartedAt, total: Date.now() - startedAt }),
       "x-conversation-persistence": "available",

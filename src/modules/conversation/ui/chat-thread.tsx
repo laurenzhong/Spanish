@@ -26,6 +26,7 @@ type ChatThreadProps = Readonly<{
   characterVersion: 1;
   avatarClassName?: string;
   initialMessageId?: string;
+  initialMessages?: readonly ConversationState["messages"][number][];
 }>;
 
 type UserAvatarProfile = Readonly<{
@@ -38,13 +39,15 @@ function createId(prefix: string): string {
   return `${prefix}-${uuid}`;
 }
 
-export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, avatarClassName = "avatar--lucia" }: ChatThreadProps) {
+export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, avatarClassName = "avatar--lucia" }: ChatThreadProps) {
   const router = useRouter();
   const targetMessageId = initialMessageId ?? (typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("message") ?? undefined
     : undefined);
-  const [state, setState] = useState<ConversationState>(() => createConversationState());
-  const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">("loading");
+  const [state, setState] = useState<ConversationState>(() => initialMessages
+    ? transitionConversationState(createConversationState(), { type: "hydrate", messages: initialMessages })
+    : createConversationState());
+  const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">(initialMessages ? "available" : "loading");
   const [draft, setDraft] = useState("");
   const [quotedMessage, setQuotedMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
