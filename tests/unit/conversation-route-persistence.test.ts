@@ -64,6 +64,14 @@ vi.mock("@/src/modules/conversation", async () => {
   };
 });
 
+vi.mock("@/src/modules/character-network", async () => {
+  const actual = await vi.importActual<typeof import("@/src/modules/character-network")>("@/src/modules/character-network");
+  return {
+    ...actual,
+    createDrizzleLuciaContactRepository: vi.fn(() => ({ get: vi.fn().mockResolvedValue({ status: "active" }) })),
+  };
+});
+
 vi.mock("@/src/modules/memory", async () => {
   const actual = await vi.importActual<typeof import("@/src/modules/memory")>("@/src/modules/memory");
   return {

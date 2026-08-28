@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sueno.local/contracts/v1/lucia-contact-response.schema.json",
+  "title": "Lucía contact response",
+  "type": "object",
+  "required": ["data"],
+  "properties": {
+    "data": {
+      "type": "object",
+      "required": ["characterKey", "status", "relationshipStage", "conversationId", "source"],
+      "properties": {
+        "characterKey": { "const": "lucia" },
+        "status": { "enum": ["pending", "active", "declined"] },
+        "relationshipStage": { "enum": ["new_contact", "getting_to_know_you", "familiar", "close_friend"] },
+        "conversationId": { "type": ["string", "null"] },
+        "source": {
+          "type": "object",
+          "required": ["kind", "city", "topic"],
+          "properties": {
+            "kind": { "const": "cultural-event" },
+            "city": { "const": "Madrid" },
+            "topic": { "const": "urban-photography" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

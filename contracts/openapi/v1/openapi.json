@@ -34,6 +34,28 @@
         }
       }
     },
+    "/character-network/lucia-contact": {
+      "get": {
+        "summary": "Read the authenticated user's Lucía friend-request state",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Lucía contact state", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lucia-contact-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Contact state unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      },
+      "post": {
+        "summary": "Accept or decline Lucía's friend request",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["decision"], "properties": { "decision": { "enum": ["accept", "decline"] } }, "additionalProperties": false } } } },
+        "responses": {
+          "200": { "description": "Updated Lucía contact state", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lucia-contact-response.schema.json" } } } },
+          "400": { "description": "Invalid decision", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Contact state unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/transcriptions": {
       "post": {
         "summary": "Transcribe ephemeral conversation audio",

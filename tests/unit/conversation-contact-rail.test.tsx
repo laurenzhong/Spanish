@@ -12,18 +12,20 @@ describe("ConversationContactRail", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("keeps all three friends visible even when only one has a persisted conversation", async () => {
+  it("only shows friends with a persisted conversation", async () => {
     render(<ConversationContactRail activeCharacterKey="lucia" />);
-    await waitFor(() => expect(screen.getByRole("link", { name: /Mateo Ruiz/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Inés García/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Mateo Ruiz/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Inés García/ })).not.toBeInTheDocument();
   });
 
   it("reuses the cached list when the active friend changes", async () => {
     const first = render(<ConversationContactRail activeCharacterKey="lucia" />);
-    await waitFor(() => expect(screen.getByRole("link", { name: /Mateo Ruiz/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
     first.unmount();
     render(<ConversationContactRail activeCharacterKey="mateo" />);
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
+
 });

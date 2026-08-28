@@ -20,6 +20,7 @@ import {
 } from "@/src/modules/memory";
 import {
   createDrizzleIntroductionRepository,
+  createDrizzleLuciaContactRepository,
   proposeIntroduction,
 } from "@/src/modules/character-network";
 import { createMiniMaxConversationProvider } from "@/src/modules/providers/conversation/server";
@@ -88,6 +89,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   const database = process.env.DATABASE_URL ? getDatabase() : null;
+  if (database && characterId === "lucia") {
+    try {
+      const contact = await createDrizzleLuciaContactRepository(database).get(user.id);
+      if (contact.status !== "active") {
+        return jsonError("CONTACT_REQUIRED", "Accept Lucia's friend request before starting this conversation.", 403);
+      }
+    } catch {
+      return jsonError("CONTACT_UNAVAILABLE", "Lucia's contact status is temporarily unavailable.", 503);
+    }
+  }
   const repository = database ? createDrizzleConversationRepository(database) : null;
   const memoryRepository = database ? createDrizzleMemoryRepository(database) : null;
   const providerCallObserver = database

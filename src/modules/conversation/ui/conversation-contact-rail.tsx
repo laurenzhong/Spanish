@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ConversationSearch } from "./conversation-search";
-import { conversationCharacters } from "../domain/character-catalog";
 import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
 import { prefetchConversationHistory } from "./conversation-history-cache";
 
@@ -14,6 +13,8 @@ type ConversationContactRailProps = Readonly<{
 let cachedConversations: readonly ConversationPreview[] | null = null;
 let cachedStatus: "loading" | "available" | "unavailable" = "loading";
 let listRequest: Promise<void> | null = null;
+let cachedLuciaContact: LuciaContactPreview | null = null;
+let luciaContactRequest: Promise<void> | null = null;
 
 function loadConversationList(force = false): Promise<void> {
   if (listRequest) return listRequest;
@@ -35,9 +36,21 @@ function loadConversationList(force = false): Promise<void> {
   return listRequest;
 }
 
+function loadLuciaContact(): Promise<void> {
+  if (luciaContactRequest) return luciaContactRequest;
+  if (cachedLuciaContact !== null) return Promise.resolve();
+  luciaContactRequest = fetch("/api/v1/character-network/lucia-contact", { cache: "no-store" })
+    .then((response) => { if (!response.ok) throw new Error("CONTACT_UNAVAILABLE"); return response.json() as Promise<{ data?: LuciaContactPreview }>; })
+    .then((payload) => { cachedLuciaContact = payload.data ?? null; })
+    .catch(() => { cachedLuciaContact = null; })
+    .finally(() => { luciaContactRequest = null; });
+  return luciaContactRequest;
+}
+
 export function ConversationContactRail({ activeCharacterKey }: ConversationContactRailProps) {
   const [conversations, setConversations] = useState<readonly ConversationPreview[]>(cachedConversations ?? []);
   const [status, setStatus] = useState(cachedStatus);
+  const [luciaContact, setLuciaContact] = useState<LuciaContactPreview | null>(cachedLuciaContact);
   const [showIntroductions, setShowIntroductions] = useState(false);
 
   useEffect(() => {
@@ -47,10 +60,11 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       setConversations(cachedConversations ?? []);
       setStatus(cachedStatus);
     });
+    void loadLuciaContact().then(() => setLuciaContact(cachedLuciaContact));
     return () => { active = false; };
   }, []);
 
-  const visibleConversations = mergeCharacterDirectory(conversations);
+  const visibleConversations = conversations;
 
   return (
     <aside className="conversation-contact-rail" aria-label="联系人">
@@ -66,7 +80,8 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       <p className="conversation-contact-rail__label">最近</p>
       <nav className="conversation-contact-rail__list" aria-label="好友列表">
         {status === "loading" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">正在加载会话……</p> : null}
-        {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表，先显示好友目录。</p><button type="button" onClick={() => { setStatus("loading"); void loadConversationList(true).then(() => { setConversations(cachedConversations ?? []); setStatus(cachedStatus); }); }}>重试</button></div> : null}
+        {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表。</p><button type="button" onClick={() => { setStatus("loading"); void loadConversationList(true).then(() => { setConversations(cachedConversations ?? []); setStatus(cachedStatus); }); }}>重试</button></div> : null}
+        {status === "available" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">还没有联系人。你可以先查看新的好友申请。</p> : null}
         {visibleConversations.map((conversation) => (
           <Link
             className={`conversation-contact-row ${activeCharacterKey === conversation.characterKey ? "conversation-contact-row--active" : ""}`}
@@ -91,7 +106,8 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       <div className="conversation-contact-rail__footer">
         <button type="button" className="conversation-contact-rail__request" onClick={() => setShowIntroductions(true)}>
           <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0M17 8v6M14 11h6" /></svg>
-          <span>查看介绍请求</span>
+          <span>查看好友申请和介绍</span>
+          {luciaContact?.status === "pending" ? <span className="conversation-contact-rail__request-dot" aria-label="有新的好友申请" /> : null}
         </button>
         <p>会话记录会在发送第一条消息后保存。</p>
       </div>
@@ -116,19 +132,13 @@ type ConversationPreview = Readonly<{
   lastMessage: { snippet: string } | null;
 }>;
 
-function mergeCharacterDirectory(persisted: readonly ConversationPreview[]): readonly ConversationPreview[] {
-  const byKey = new Map(persisted.map((conversation) => [conversation.characterKey, conversation]));
-  return conversationCharacters.map((character) => byKey.get(character.key) ?? {
-    conversationId: `directory-${character.key}`,
-    characterKey: character.key,
-    characterName: character.displayName,
-    avatarClass: character.avatarClass,
-    roleLabel: character.roleLabel,
-    homeLocation: character.homeLocation,
-    lastMessageAt: null,
-    lastMessage: null,
-  });
-}
+type LuciaContactPreview = Readonly<{
+  characterKey: "lucia";
+  status: "pending" | "active" | "declined";
+  relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
+  conversationId: string | null;
+  source: Readonly<{ kind: "cultural-event"; city: "Madrid"; topic: "urban-photography" }>;
+}>;
 
 function formatConversationTime(value: string): string {
   const date = new Date(value);

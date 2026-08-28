@@ -10,6 +10,14 @@ type Offer = Readonly<{
   shareableMemories?: readonly MemoryPreview[];
 }>;
 
+type LuciaContact = Readonly<{
+  characterKey: "lucia";
+  status: "pending" | "active" | "declined";
+  relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
+  conversationId: string | null;
+  source: Readonly<{ kind: "cultural-event"; city: "Madrid"; topic: "urban-photography" }>;
+}>;
+
 type MemoryPreview = Readonly<{
   id: string;
   category: string;
@@ -18,10 +26,11 @@ type MemoryPreview = Readonly<{
   alreadyShared: boolean;
 }>;
 
-const names: Record<string, string> = { mateo: "Mateo Ruiz", ines: "Inés García" };
+const names: Record<string, string> = { lucia: "Lucía Martín", mateo: "Mateo Ruiz", ines: "Inés García" };
 
 export function IntroductionInbox({ alwaysVisible = false }: Readonly<{ alwaysVisible?: boolean }>) {
   const [offers, setOffers] = useState<readonly Offer[]>([]);
+  const [luciaContact, setLuciaContact] = useState<LuciaContact | null>(null);
   const [selectedMemoryIds, setSelectedMemoryIds] = useState<Readonly<Record<string, readonly string[]>>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -31,19 +40,25 @@ export function IntroductionInbox({ alwaysVisible = false }: Readonly<{ alwaysVi
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/v1/character-network/introductions", { cache: "no-store" })
+    void Promise.resolve(fetch("/api/v1/character-network/introductions", { cache: "no-store" }))
       .then((response) => {
-        if (!response.ok) throw new Error("INTRODUCTIONS_UNAVAILABLE");
-        return response.json();
+        if (!response || !response.ok) throw new Error("INTRODUCTIONS_UNAVAILABLE");
+        return response.json() as Promise<{ data?: { offers?: Offer[] } }>;
       })
-      .then((payload: { data?: { offers?: Offer[] } }) => {
+      .then((offersPayload) => {
         if (!active) return;
-        const nextOffers = payload.data?.offers ?? [];
+        const nextOffers = offersPayload.data?.offers ?? [];
         setOffers(nextOffers);
         setSelectedMemoryIds(Object.fromEntries(nextOffers.map((offer) => [
           offer.offerKey,
           (offer.shareableMemories ?? []).filter((memory) => memory.alreadyShared).map((memory) => memory.id),
         ])));
+        return Promise.resolve(fetch("/api/v1/character-network/lucia-contact", { cache: "no-store" }))
+          .then((response) => {
+            if (!response || !response.ok) return { data: undefined };
+            return response.json() as Promise<{ data?: LuciaContact }>;
+          })
+          .then((contactPayload) => { if (active) setLuciaContact(contactPayload.data ?? null); });
       })
       .catch(() => {
         if (active) {
@@ -82,7 +97,27 @@ export function IntroductionInbox({ alwaysVisible = false }: Readonly<{ alwaysVi
     }
   }
 
-  if (offers.length === 0 && !message && !loading && !loadError && !alwaysVisible) return null;
+  async function respondToLucia(decision: "accept" | "decline") {
+    setBusy("lucia");
+    setMessage(null);
+    try {
+      const response = await fetch("/api/v1/character-network/lucia-contact", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      if (!response.ok) throw new Error("CONTACT_RESPONSE_FAILED");
+      const payload = await response.json() as { data?: LuciaContact };
+      setLuciaContact(payload.data ?? null);
+      setMessage(decision === "accept" ? "已通过 Lucía 的好友申请，现在可以开始聊天了。" : "已暂不接受 Lucía 的好友申请。你之后仍可以重新考虑。" );
+    } catch {
+      setMessage("暂时无法处理这次好友申请，请稍后再试。");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (offers.length === 0 && luciaContact?.status !== "pending" && !message && !loading && !loadError && !alwaysVisible) return null;
 
   function toggleMemory(offerKey: string, memoryId: string, checked: boolean) {
     setSelectedMemoryIds((current) => {
@@ -101,7 +136,7 @@ export function IntroductionInbox({ alwaysVisible = false }: Readonly<{ alwaysVi
         <p>只有在聊天中出现真实理由时才会出现介绍。你可以先同意建立关系，之后再单独授权资料。</p>
       </div>
       {loading ? <p className="surface-state__message">正在读取介绍……</p> : null}
-      {!loading && !loadError && offers.length === 0 && !message ? <p className="surface-state__message">目前没有新的介绍请求。</p> : null}
+      {!loading && !loadError && offers.length === 0 && luciaContact?.status !== "pending" && !message ? <p className="surface-state__message">目前没有新的介绍请求。</p> : null}
       {!loading && loadError ? (
         <div className="surface-state__message" role="alert">
           <p>暂时无法读取好友介绍。</p>
@@ -109,6 +144,19 @@ export function IntroductionInbox({ alwaysVisible = false }: Readonly<{ alwaysVi
             重试
           </button>
         </div>
+      ) : null}
+      {!loading && !loadError && luciaContact?.status === "pending" ? (
+        <article className="introduction-card" data-testid="lucia-contact-request">
+          <div>
+            <h3>Lucía Martín</h3>
+            <p>你们在一场马德里的文化活动中聊到了城市摄影。活动结束后，她记住了你提到的一句话，后来想继续和你聊天，所以向你发来了好友申请。</p>
+            <p className="introduction-card__hint">来源：Madrid · 城市摄影</p>
+          </div>
+          <div className="introduction-card__actions">
+            <button type="button" onClick={() => void respondToLucia("accept")} disabled={busy !== null}>通过申请</button>
+            <button type="button" className="button--quiet" onClick={() => void respondToLucia("decline")} disabled={busy !== null}>暂不接受</button>
+          </div>
+        </article>
       ) : null}
       {offers.map((offer) => (
         <article className="introduction-card" key={offer.offerKey}>

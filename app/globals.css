@@ -4182,6 +4182,7 @@ button {
 }
 
 .conversation-contact-rail__request svg { color: var(--conversation-action); }
+.conversation-contact-rail__request-dot { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--conversation-action); box-shadow: 0 0 0 2px var(--conversation-paper); }
 .conversation-contact-rail__request:hover { color: var(--conversation-action); }
 
 .conversation-contact-rail__footer p {

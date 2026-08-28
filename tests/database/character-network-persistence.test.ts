@@ -16,6 +16,7 @@ import {
 } from "@/src/modules/characters";
 import {
   createDrizzleIntroductionRepository,
+  createDrizzleLuciaContactRepository,
   proposeIntroduction,
   respondToIntroduction,
 } from "@/src/modules/character-network";
@@ -101,6 +102,28 @@ describe("character network persistence", () => {
     expect((second as { status: string }).status).toBe("accepted");
     expect((await database.select().from(schema.characterRelationships))).toHaveLength(1);
     expect((await database.select().from(schema.conversations))).toHaveLength(2);
+  });
+
+  it("starts Lucía as a pending request and creates the contact only after acceptance", async () => {
+    await database.delete(schema.conversations).where(eq(schema.conversations.id, conversationId));
+    const repository = createDrizzleLuciaContactRepository(database);
+    expect((await repository.get(userId)).status).toBe("pending");
+    const accepted = await repository.transaction((tx) => tx.respond(userId, "accept"));
+    expect(accepted).toMatchObject({ status: "active", relationshipStage: "new_contact" });
+    expect(accepted.conversationId).toBeTruthy();
+    expect((await repository.get(userId)).status).toBe("active");
+    expect((await database.select().from(schema.characterRelationships))).toHaveLength(1);
+    expect((await database.select().from(schema.conversations))).toHaveLength(1);
+  });
+
+  it("records a declined Lucía request without creating a conversation", async () => {
+    await database.delete(schema.conversations).where(eq(schema.conversations.id, conversationId));
+    const repository = createDrizzleLuciaContactRepository(database);
+    const declined = await repository.respond(userId, "decline");
+    expect(declined.status).toBe("declined");
+    expect(declined.conversationId).toBeNull();
+    expect((await database.select().from(schema.characterRelationships))).toHaveLength(1);
+    expect((await database.select().from(schema.conversations))).toHaveLength(0);
   });
 
   it("publishes a character and records the three temporary review decisions", async () => {
