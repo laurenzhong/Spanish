@@ -44,6 +44,9 @@ test("shows the desktop task timeline and detail rail without horizontal overflo
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     await page.evaluate(() => window.innerWidth),
   );
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(
+    await page.evaluate(() => window.innerHeight),
+  );
 });
 
 test("keeps the training workbench inside a narrow viewport", async ({ page }) => {
