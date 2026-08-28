@@ -8,15 +8,19 @@ type VoicePreference = "preferred" | "optional" | "silent";
 const CORRECTION_KEY = "sueno-correction-mode";
 const VOICE_KEY = "sueno-voice-preference";
 
+function readPreference(key: string): string | null {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+
 export function PreferencesPanel() {
   const [correctionMode, setCorrectionMode] = useState<CorrectionMode>(() => {
     if (typeof window === "undefined") return "balanced";
-    const value = window.localStorage.getItem(CORRECTION_KEY);
+    const value = readPreference(CORRECTION_KEY);
     return value === "strict" ? "strict" : "balanced";
   });
   const [voicePreference, setVoicePreference] = useState<VoicePreference>(() => {
     if (typeof window === "undefined") return "preferred";
-    const value = window.localStorage.getItem(VOICE_KEY);
+    const value = readPreference(VOICE_KEY);
     return value === "optional" || value === "silent" ? value : "preferred";
   });
   const [saved, setSaved] = useState(false);
@@ -24,8 +28,12 @@ export function PreferencesPanel() {
   function save(nextCorrection: CorrectionMode, nextVoice: VoicePreference) {
     setCorrectionMode(nextCorrection);
     setVoicePreference(nextVoice);
-    window.localStorage.setItem(CORRECTION_KEY, nextCorrection);
-    window.localStorage.setItem(VOICE_KEY, nextVoice);
+    try {
+      window.localStorage.setItem(CORRECTION_KEY, nextCorrection);
+      window.localStorage.setItem(VOICE_KEY, nextVoice);
+    } catch {
+      // Private browsing can deny storage; the in-memory selection still applies.
+    }
     setSaved(true);
   }
 
