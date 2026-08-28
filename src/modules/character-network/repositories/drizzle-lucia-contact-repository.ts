@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
@@ -14,6 +15,12 @@ const source = {
   kind: "cultural-event" as const,
   city: "Madrid" as const,
   topic: "urban-photography" as const,
+};
+
+const authoredOpening = {
+  clientMessageId: "lucia-authored-opening-v1",
+  generationId: "lucia-authored-opening-v1",
+  content: "Me acordé de aquella conversación del evento. Desde entonces me he quedado con curiosidad por algo que dijiste.",
 };
 
 async function findLucia<TResult extends PgQueryResultHKT>(database: NetworkDatabase<TResult>) {
@@ -74,8 +81,10 @@ export function createDrizzleLuciaContactRepository<TResult extends PgQueryResul
           await database.insert(schema.conversations)
             .values({ userId, characterId: character.id })
             .onConflictDoNothing({ target: [schema.conversations.userId, schema.conversations.characterId] });
+          await repository.ensureAuthoredOpeningMessage(userId);
           return this.get(userId);
         }
+        if (decision === "accept") await repository.ensureAuthoredOpeningMessage(userId);
         return current;
       }
       if (current.status === "declined" && decision === "decline") return current;
@@ -97,8 +106,40 @@ export function createDrizzleLuciaContactRepository<TResult extends PgQueryResul
         await database.insert(schema.conversations)
           .values({ userId, characterId: character.id })
           .onConflictDoNothing({ target: [schema.conversations.userId, schema.conversations.characterId] });
+        await repository.ensureAuthoredOpeningMessage(userId);
       }
       return this.get(userId);
+    },
+
+    async ensureAuthoredOpeningMessage(userId) {
+      const character = await findLucia(database);
+      const [conversation] = await database
+        .select({ id: schema.conversations.id })
+        .from(schema.conversations)
+        .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.characterId, character.id)))
+        .limit(1);
+      if (!conversation) throw new Error("CONVERSATION_UNAVAILABLE");
+      const [existing] = await database
+        .select({ id: schema.messages.id })
+        .from(schema.messages)
+        .where(and(eq(schema.messages.conversationId, conversation.id), eq(schema.messages.clientMessageId, authoredOpening.clientMessageId)))
+        .limit(1);
+      if (existing) return;
+      const [message] = await database.insert(schema.messages).values({
+        id: randomUUID(),
+        userId,
+        conversationId: conversation.id,
+        characterId: character.id,
+        clientMessageId: authoredOpening.clientMessageId,
+        generationId: authoredOpening.generationId,
+        role: "character",
+        status: "completed",
+        content: authoredOpening.content,
+        completedAt: new Date(),
+      }).onConflictDoNothing({ target: [schema.messages.conversationId, schema.messages.clientMessageId] }).returning({ id: schema.messages.id, createdAt: schema.messages.createdAt });
+      if (message) {
+        await database.update(schema.conversations).set({ lastMessageAt: message.createdAt, updatedAt: new Date() }).where(eq(schema.conversations.id, conversation.id));
+      }
     },
   };
   return repository;

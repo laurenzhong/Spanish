@@ -16,4 +16,5 @@ export type LuciaContactRepository = Readonly<{
   transaction<T>(work: (repository: LuciaContactRepository) => Promise<T>): Promise<T>;
   get(userId: string): Promise<LuciaContactRecord>;
   respond(userId: string, decision: "accept" | "decline"): Promise<LuciaContactRecord>;
+  ensureAuthoredOpeningMessage(userId: string): Promise<void>;
 }>;

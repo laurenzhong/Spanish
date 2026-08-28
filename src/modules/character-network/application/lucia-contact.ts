@@ -9,5 +9,11 @@ export async function respondToLuciaContact(input: Readonly<{
   userId: string;
   decision: "accept" | "decline";
 }>): Promise<LuciaContactRecord> {
-  return input.repository.transaction((repository) => repository.respond(input.userId, input.decision));
+  return input.repository.transaction(async (repository) => {
+    const result = await repository.respond(input.userId, input.decision);
+    if (input.decision === "accept" && result.status === "active") {
+      await repository.ensureAuthoredOpeningMessage(input.userId);
+    }
+    return result;
+  });
 }

@@ -114,6 +114,10 @@ describe("character network persistence", () => {
     expect((await repository.get(userId)).status).toBe("active");
     expect((await database.select().from(schema.characterRelationships))).toHaveLength(1);
     expect((await database.select().from(schema.conversations))).toHaveLength(1);
+    const [opening] = await database.select().from(schema.messages).where(eq(schema.messages.conversationId, accepted.conversationId!));
+    expect(opening).toMatchObject({ role: "character", clientMessageId: "lucia-authored-opening-v1", content: "Me acordé de aquella conversación del evento. Desde entonces me he quedado con curiosidad por algo que dijiste." });
+    await repository.transaction((tx) => tx.respond(userId, "accept").then(() => tx.ensureAuthoredOpeningMessage(userId)));
+    expect((await database.select().from(schema.messages))).toHaveLength(1);
   });
 
   it("records a declined Lucía request without creating a conversation", async () => {
