@@ -169,7 +169,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         setPersistenceStatus("available");
       })
       .catch(() => {
-        if (!cancelled) setPersistenceStatus("unavailable");
+        // A cached snapshot is still usable while the server is temporarily
+        // unreachable; only show the unavailable state when there is no view
+        // to fall back to.
+        if (!cancelled && !cached?.length) setPersistenceStatus("unavailable");
       });
     return () => { cancelled = true; };
   }, [characterKey]);
