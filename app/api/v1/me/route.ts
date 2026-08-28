@@ -62,16 +62,22 @@ export async function PATCH(request: NextRequest) {
   if (!user) return errorResponse(requestId, "AUTH_REQUIRED", "A valid user session is required.", 401);
   try {
     const input = await request.json();
+    const repository = createDrizzleAccountRepository(getDatabase());
+    const previous = await getAccountProfile(repository, user.id);
     const expectedHeader = request.headers.get("if-unmodified-since");
     const expectedUpdatedAt = expectedHeader ? new Date(expectedHeader) : undefined;
     const result = await updateAccountProfile(
-      createDrizzleAccountRepository(getDatabase()),
+      repository,
       user.id,
       input,
       expectedUpdatedAt && !Number.isNaN(expectedUpdatedAt.valueOf()) ? expectedUpdatedAt : undefined,
     );
     if (result.kind === "conflict") return errorResponse(requestId, "CONFLICT", "Account data changed in another session.", 409);
     if (result.kind === "not-found" || !result.profile) return errorResponse(requestId, "RESOURCE_NOT_FOUND", "Account profile was not found.", 404);
+    if (previous?.avatar.path && input && typeof input === "object" && (input as { avatarKind?: string }).avatarKind !== "upload") {
+      const storage = createSupabaseAvatarStorage();
+      if (storage) await storage.remove(previous.avatar.path).catch(() => undefined);
+    }
     return NextResponse.json({ apiVersion: API_VERSION, data: await toDto(result.profile) });
   } catch (error) {
     if (error instanceof SyntaxError) return errorResponse(requestId, "VALIDATION_FAILED", "Request body must be valid JSON.", 400);
