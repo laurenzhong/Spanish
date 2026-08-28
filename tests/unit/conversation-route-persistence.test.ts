@@ -74,7 +74,8 @@ vi.mock("@/src/modules/memory", async () => {
   };
 });
 
-import { POST } from "@/app/api/v1/conversations/[characterId]/stream/route";
+import { GET } from "@/app/api/v1/conversations/[characterId]/route";
+import { POST as STREAM_POST } from "@/app/api/v1/conversations/[characterId]/stream/route";
 
 describe("conversation stream persistence", () => {
   afterEach(() => {
@@ -95,7 +96,7 @@ describe("conversation stream persistence", () => {
       }),
     });
 
-    const response = await POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
+    const response = await STREAM_POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
     const body = await response.text();
     expect(body).toContain('"type":"done"');
     expect(mocks.repository.completeAssistantMessage).toHaveBeenCalledWith(expect.objectContaining({
@@ -109,5 +110,15 @@ describe("conversation stream persistence", () => {
       completed: true,
       candidates: [mocks.memoryCandidate],
     }));
+  });
+
+  it("exposes auth and database timings without message content", async () => {
+    process.env.DATABASE_URL = "postgresql://test.invalid/db";
+    mocks.repository.listMessages.mockResolvedValue([]);
+    const response = await GET(new NextRequest("http://localhost/api/v1/conversations/lucia"), { params: Promise.resolve({ characterId: "lucia" }) });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("server-timing")).toMatch(/^auth;dur=\d+, database;dur=\d+, total;dur=\d+$/);
+    expect(response.headers.get("server-timing")).not.toContain("Hola");
   });
 });
