@@ -22,9 +22,11 @@ export function ProfileEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    fetch("/api/v1/me", { headers: { accept: "application/json" } })
+    const controller = new AbortController();
+    fetch("/api/v1/me", { cache: "no-store", credentials: "same-origin", signal: controller.signal, headers: { accept: "application/json" } })
       .then(async (response) => {
         if (!response.ok) throw new Error("unavailable");
         const payload = await response.json() as { data?: Profile };
@@ -34,9 +36,13 @@ export function ProfileEditor() {
         setAvatarKind(payload.data.avatar.kind === "preset" ? "preset" : "initials");
         setPresetId(payload.data.avatar.presetId);
       })
-      .catch(() => setNotice("账户资料暂时不可用，请稍后重试"))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setNotice("账户资料暂时不可用，请检查网络后重试");
+      })
       .finally(() => setLoading(false));
-  }, []);
+    return () => controller.abort();
+  }, [reloadToken]);
 
   const initials = useMemo(() => Array.from(name.trim())[0] ?? "你", [name]);
 
@@ -44,7 +50,7 @@ export function ProfileEditor() {
     if (!profile) return;
     setSaving(true); setNotice(null);
     try {
-      const response = await fetch("/api/v1/me", { method: "PATCH", headers: { "content-type": "application/json", "if-unmodified-since": profile.updatedAt }, body: JSON.stringify({ displayName: name, avatarKind, avatarPresetId: avatarKind === "preset" ? presetId : null }) });
+      const response = await fetch("/api/v1/me", { method: "PATCH", credentials: "same-origin", headers: { "content-type": "application/json", "if-unmodified-since": profile.updatedAt }, body: JSON.stringify({ displayName: name, avatarKind, avatarPresetId: avatarKind === "preset" ? presetId : null }) });
       const payload = await response.json() as { data?: Profile; error?: { message?: string } };
       if (!response.ok || !payload.data) throw new Error(payload.error?.message ?? "保存失败");
       setProfile(payload.data); setNotice("资料已保存");
@@ -67,7 +73,7 @@ export function ProfileEditor() {
         </section>
         <div className="profile-editor-actions"><Link href="/me" className="button button--quiet">取消</Link><button type="button" className="button button--primary" onClick={save} disabled={saving}>{saving ? "保存中…" : "保存资料"}</button></div>
         {notice ? <p className="profile-editor-notice" role="status">{notice}</p> : null}
-      </> : <div className="surface-state">{notice ?? "账户资料暂时不可用"}</div>}
+      </> : <div className="surface-state"><p>{notice ?? "账户资料暂时不可用"}</p><button type="button" className="button button--quiet" onClick={() => { setLoading(true); setReloadToken((value) => value + 1); }} disabled={loading}>{loading ? "正在重试…" : "重试读取"}</button></div>}
     </div>
   );
 }
