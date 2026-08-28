@@ -272,6 +272,14 @@ describe("account data deletion", () => {
       memoryPermissionsRevoked: 1,
       relationshipSnapshotsDeleted: 1,
     });
+    await expect(deleteLuciaData(createDrizzlePrivacyRepository(database), userA)).resolves.toEqual({
+      characterKey: "lucia",
+      conversationsDeleted: 0,
+      messagesDeleted: 0,
+      relationshipMemoriesDeleted: 0,
+      memoryPermissionsRevoked: 0,
+      relationshipSnapshotsDeleted: 0,
+    });
     await expect(
       database.select().from(schema.conversations).where(eq(schema.conversations.userId, userA)),
     ).resolves.toHaveLength(0);
