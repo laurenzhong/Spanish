@@ -38,14 +38,26 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   let initialReaderProgress: Record<string, { position: number; status: "in_progress" | "completed"; lastOpenedAt: string }> = {};
   let savedFilterAvailable = false;
   let initialGeneratedArticles: Awaited<ReturnType<typeof listPrivateStories>>["articles"] = [];
-  if (process.env.DATABASE_URL) {
+  // The Web Sites tab is intentionally an honest empty state and does not need
+  // any user-specific database reads. Avoid blocking it on auth/DB round trips.
+  if (process.env.DATABASE_URL && source !== "web") {
     try {
       const user = await getCurrentUser();
       if (user) {
-        const readingRepository = createDrizzleReadingRepository(getDatabase());
-        initialGeneratedArticles = (await listPrivateStories(createDrizzleGeneratedArticleRepository(getDatabase()), user.id)).articles;
-        savedArticleIds = savedOnly ? await listSavedArticles(readingRepository, user.id) : undefined;
-        const progress = await listReadingProgress(readingRepository, user.id);
+        const database = getDatabase();
+        const readingRepository = createDrizzleReadingRepository(database);
+        const progressPromise = listReadingProgress(readingRepository, user.id);
+        const savedPromise = savedOnly ? listSavedArticles(readingRepository, user.id) : null;
+        const generatedPromise = savedOnly
+          ? listPrivateStories(createDrizzleGeneratedArticleRepository(database), user.id)
+          : null;
+        const [progress, saved, generated] = await Promise.all([
+          progressPromise,
+          savedPromise,
+          generatedPromise,
+        ]);
+        initialGeneratedArticles = generated?.articles ?? [];
+        savedArticleIds = saved ?? undefined;
         initialReaderProgress = Object.fromEntries(progress.map((item) => [item.articleId, {
           position: item.position,
           status: item.status,
