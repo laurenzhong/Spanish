@@ -8,13 +8,15 @@ import { LearningHeatmap } from "./learning-heatmap";
 import { MemoryDataControls } from "./memory-data-controls";
 import { ProfileOverviewPanel } from "./profile-overview-panel";
 import { VoiceDataControls } from "./voice-data-controls";
+import { PreferencesPanel } from "./preferences-panel";
 
-type ProfileSectionKey = "progress" | "relationships" | "data";
+type ProfileSectionKey = "progress" | "relationships" | "data" | "preferences";
 
 const sections: readonly { key: ProfileSectionKey; id: string; label: string }[] = [
   { key: "progress", id: "profile-progress", label: "能力与活动" },
   { key: "relationships", id: "profile-relationships", label: "关系隐私" },
   { key: "data", id: "profile-data", label: "数据与隐私" },
+  { key: "preferences", id: "preferences", label: "偏好设置" },
 ];
 
 function sectionFromHash(hash: string): ProfileSectionKey {
@@ -77,6 +79,11 @@ export function ProfileSections() {
         <h2 id="profile-data-title" className="sr-only">数据与隐私</h2>
         <VoiceDataControls />
         <AccountDataControls />
+      </section>
+
+      <section id="preferences" className="profile-page__group profile-page__group--privacy" aria-labelledby="preferences-section-title" hidden={activeSection !== "preferences"}>
+        <h2 id="preferences-section-title" className="sr-only">偏好设置</h2>
+        <PreferencesPanel />
       </section>
     </>
   );

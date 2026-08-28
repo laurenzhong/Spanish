@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { createSupabaseBrowserClient } from "@/src/shared/auth/browser";
 import { ThemeToggle } from "./theme-toggle";
 
 type AccountProfileDto = Readonly<{
@@ -26,9 +28,11 @@ function Avatar({ profile, size = "sm" }: Readonly<{ profile: AccountProfileDto 
 }
 
 export function AccountMenu() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<AccountProfileDto | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,8 +64,42 @@ export function AccountMenu() {
 
   async function copyUid() {
     if (!profile?.publicUid) return;
-    try { await navigator.clipboard.writeText(profile.publicUid); setNotice("UID 已复制"); }
-    catch { setNotice("复制失败，请手动选择 UID"); }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(profile.publicUid);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = profile.publicUid;
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        const copied = document.execCommand("copy");
+        input.remove();
+        if (!copied) throw new Error("copy-failed");
+      }
+      setNotice("UID 已复制");
+    } catch { setNotice("复制失败，请手动选择 UID"); }
+  }
+
+  async function signOut() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    setNotice(null);
+    try {
+      const client = createSupabaseBrowserClient();
+      if (client) {
+        const { error } = await client.auth.signOut();
+        if (error) throw error;
+      }
+      setOpen(false);
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setLoggingOut(false);
+      setNotice("退出失败，请检查网络后重试");
+    }
   }
 
   const displayName = profile?.displayName?.trim() || "我的 Sueño";
@@ -87,7 +125,7 @@ export function AccountMenu() {
           <Link href="/help" role="menuitem" onClick={() => setOpen(false)}>帮助与反馈 <span aria-hidden="true">↗</span></Link>
           <div className="account-menu__divider" />
           <ThemeToggle />
-          <button className="account-menu__logout" type="button" role="menuitem" onClick={() => setNotice("请从登录页退出当前会话")}>退出登录</button>
+          <button className="account-menu__logout" type="button" role="menuitem" onClick={() => void signOut()} disabled={loggingOut}>{loggingOut ? "正在退出…" : "退出登录"}</button>
         </div>
       ) : null}
     </div>

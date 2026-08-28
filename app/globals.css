@@ -4705,6 +4705,17 @@ button {
   border-top: 1px solid var(--border);
 }
 
+.preferences-panel { display: grid; gap: 18px; padding: 22px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.preferences-panel__heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.preferences-panel__heading h2 { margin: 4px 0 0; font-family: var(--font-display); font-size: 1.35rem; }
+.preferences-panel__saved { color: var(--profile-sage, var(--accent)); font-size: .74rem; font-weight: 750; }
+.preferences-panel__intro { margin: 0; color: var(--muted); font-size: .8rem; }
+.preferences-panel__field { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; }
+.preferences-panel__field legend { margin-bottom: 2px; color: var(--foreground); font-size: .8rem; font-weight: 750; }
+.preferences-panel__field label { display: flex; gap: 9px; min-height: 38px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); font-size: .78rem; cursor: pointer; }
+.preferences-panel__field label:has(input:checked) { border-color: var(--accent); color: var(--foreground); background: var(--surface-soft); }
+.preferences-panel__field input { accent-color: var(--accent); }
+
 .profile-dashboard {
   display: grid;
   gap: 24px;
@@ -6593,7 +6604,15 @@ body {
 .account-menu__divider { height: 1px; margin: 5px 4px; background: var(--border); }
 .account-menu__logout { width: 100%; border: 0; color: var(--terracotta); background: transparent; cursor: pointer; text-align: left; }
 .account-menu__logout:hover { background: color-mix(in srgb, var(--terracotta) 9%, transparent); }
+.account-menu__logout:disabled { cursor: wait; opacity: .6; }
 .account-menu__trigger:hover, .account-menu__trigger[aria-expanded="true"] { border-color: var(--border); color: var(--foreground); background: var(--surface-soft); }
+
+.help-page__grid { display: grid; gap: 16px; }
+.help-page__card { display: grid; gap: 9px; padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.help-page__card h2 { margin: 0; font-family: var(--font-display); font-size: 1.1rem; }
+.help-page__card p { margin: 0 0 6px; color: var(--muted); font-size: .82rem; line-height: 1.65; }
+.help-page__card .button { width: fit-content; min-height: 40px; align-items: center; padding: 0 13px; border-radius: 8px; font-size: .78rem; font-weight: 700; text-decoration: none; }
+@media (min-width: 760px) { .help-page__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 @media (max-width: 959px) {
   .mobile-product-header { display: flex; min-height: 62px; padding: 10px 16px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
