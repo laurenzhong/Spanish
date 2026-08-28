@@ -135,18 +135,23 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }, [notice]);
 
   useEffect(() => {
+    abortRef.current?.abort();
     let cancelled = false;
     void fetch(`/api/v1/conversations/${characterKey}`)
-      .then((response) => {
+      .then(async (response) => {
         if (!response.ok) {
           setPersistenceStatus("unavailable");
           return null;
         }
+        // Keep the loading state until the body has been parsed and applied.
+        // `fetch().then(response => ...)` runs as soon as headers arrive; if we
+        // mark persistence available there, the empty-state welcome briefly
+        // renders before the history JSON has hydrated the conversation.
+        const payload = await response.json() as { data?: { messages?: ConversationState["messages"] } };
+        if (cancelled) return null;
+        if (payload?.data?.messages) apply({ type: "hydrate", messages: payload.data.messages });
         setPersistenceStatus("available");
-        return response.json() as Promise<{ data?: { messages?: ConversationState["messages"] } }>;
-      })
-      .then((payload) => {
-        if (!cancelled && payload?.data?.messages) apply({ type: "hydrate", messages: payload.data.messages });
+        return null;
       })
       .catch(() => {
         if (!cancelled) setPersistenceStatus("unavailable");

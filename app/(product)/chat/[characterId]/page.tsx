@@ -28,6 +28,7 @@ export default async function CharacterChatPage({ params, searchParams }: Charac
       <div className="conversation-workspace">
         <ConversationContactRail activeCharacterKey={character.key} />
         <ChatThread
+          key={character.key}
           characterKey={character.key}
           characterName={character.displayName}
           roleLabel={character.roleLabel}
