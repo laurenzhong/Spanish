@@ -1,7 +1,8 @@
 import bundle from "@/content/bundles/alpha-core-v1.json";
 
-import { projectContentPack, type ContentBundle } from "@/src/modules/content";
+import { projectContentPack } from "@/src/modules/content/domain";
 import { validateContentBundle } from "@/src/modules/content/import";
+import type { ContentBundle } from "@/src/modules/content/schemas";
 import type { ExploreContentPackRecord, ExploreGoalRecord, ExploreRepository } from "../domain";
 
 const validatedBundle = validateContentBundle(bundle) as ContentBundle;
@@ -56,4 +57,3 @@ export class BundleExploreRepository implements ExploreRepository {
     });
   }
 }
-
