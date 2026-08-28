@@ -7,13 +7,16 @@ import { getAccountProfile, updateAccountProfile } from "@/src/modules/account";
 import { initialsForDisplayName } from "@/src/modules/account/domain/avatar";
 import { publicUidColorIndex } from "@/src/modules/account/domain/public-uid";
 import { createDrizzleAccountRepository } from "@/src/modules/account/repositories";
+import { createSupabaseAvatarStorage } from "@/src/modules/account/storage";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
 
 const AVATAR_PALETTE_SIZE = 5;
 
-function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>>>) {
+async function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>>>) {
+  const storage = profile.avatar.path ? createSupabaseAvatarStorage() : null;
+  const url = profile.avatar.path && storage ? await storage.publicUrl(profile.avatar.path) : null;
   return {
     publicUid: profile.publicUid,
     displayName: profile.displayName,
@@ -24,7 +27,7 @@ function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>
     avatar: {
       kind: profile.avatar.kind,
       presetId: profile.avatar.presetId,
-      url: null,
+      url,
       initials: initialsForDisplayName(profile.displayName),
       colorIndex: publicUidColorIndex(profile.publicUid, AVATAR_PALETTE_SIZE),
     },
@@ -47,7 +50,7 @@ export async function GET(request: NextRequest) {
   try {
     const profile = await getAccountProfile(createDrizzleAccountRepository(getDatabase()), user.id);
     if (!profile) return errorResponse(requestId, "RESOURCE_NOT_FOUND", "Account profile was not found.", 404);
-    return NextResponse.json({ apiVersion: API_VERSION, data: toDto(profile) });
+    return NextResponse.json({ apiVersion: API_VERSION, data: await toDto(profile) });
   } catch {
     return errorResponse(requestId, "INTERNAL_ERROR", "Account data is temporarily unavailable.", 503, true);
   }
@@ -69,7 +72,7 @@ export async function PATCH(request: NextRequest) {
     );
     if (result.kind === "conflict") return errorResponse(requestId, "CONFLICT", "Account data changed in another session.", 409);
     if (result.kind === "not-found" || !result.profile) return errorResponse(requestId, "RESOURCE_NOT_FOUND", "Account profile was not found.", 404);
-    return NextResponse.json({ apiVersion: API_VERSION, data: toDto(result.profile) });
+    return NextResponse.json({ apiVersion: API_VERSION, data: await toDto(result.profile) });
   } catch (error) {
     if (error instanceof SyntaxError) return errorResponse(requestId, "VALIDATION_FAILED", "Request body must be valid JSON.", 400);
     if (error instanceof Error && error.message.startsWith("invalid-")) return errorResponse(requestId, "VALIDATION_FAILED", "Account profile input is invalid.", 400);

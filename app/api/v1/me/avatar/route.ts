@@ -20,7 +20,9 @@ async function authenticatedUser(request: NextRequest) {
   return (await verifyRequestUser(request)) ?? (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
 }
 
-function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>>>) {
+async function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>>>) {
+  const storage = profile.avatar.path ? createSupabaseAvatarStorage() : null;
+  const url = profile.avatar.path && storage ? await storage.publicUrl(profile.avatar.path) : null;
   return {
     publicUid: profile.publicUid,
     displayName: profile.displayName,
@@ -28,7 +30,7 @@ function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>
     interfaceLanguage: profile.interfaceLanguage,
     targetLanguage: profile.targetLanguage,
     updatedAt: profile.updatedAt.toISOString(),
-    avatar: { kind: profile.avatar.kind, presetId: profile.avatar.presetId, url: null, initials: initialsForDisplayName(profile.displayName), colorIndex: publicUidColorIndex(profile.publicUid, 5) },
+    avatar: { kind: profile.avatar.kind, presetId: profile.avatar.presetId, url, initials: initialsForDisplayName(profile.displayName), colorIndex: publicUidColorIndex(profile.publicUid, 5) },
   };
 }
 
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
     const result = await uploadAvatar(createDrizzleAccountRepository(getDatabase()), storage, user.id, new Uint8Array(await file.arrayBuffer()), file.type, form.get("attemptId")?.toString() ?? randomUUID());
     if (result.kind === "not-found") return errorResponse(requestId, "RESOURCE_NOT_FOUND", "Account profile was not found.", 404);
     if (result.kind === "conflict" || !result.profile) return errorResponse(requestId, "CONFLICT", "Account data changed in another session.", 409);
-    return NextResponse.json({ apiVersion: API_VERSION, data: toDto(result.profile) });
+    return NextResponse.json({ apiVersion: API_VERSION, data: await toDto(result.profile) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "avatar-too-large") return errorResponse(requestId, "VALIDATION_FAILED", "头像文件不能超过 8 MB。", 400);
@@ -64,7 +66,7 @@ export async function DELETE(request: NextRequest) {
     const result = await deleteAvatar(createDrizzleAccountRepository(getDatabase()), storage, user.id);
     if (result.kind === "not-found") return errorResponse(requestId, "RESOURCE_NOT_FOUND", "Account profile was not found.", 404);
     if (result.kind === "conflict" || !result.profile) return errorResponse(requestId, "CONFLICT", "Account data changed in another session.", 409);
-    return NextResponse.json({ apiVersion: API_VERSION, data: toDto(result.profile) });
+    return NextResponse.json({ apiVersion: API_VERSION, data: await toDto(result.profile) });
   } catch {
     return errorResponse(requestId, "INTERNAL_ERROR", "头像删除失败，请稍后重试。", 503, true);
   }

@@ -30,6 +30,9 @@ export function createSupabaseAvatarStorage(): AvatarStorage | null {
       const { error } = await client.storage.from(BUCKET).remove([path]);
       if (error) throw new Error("avatar-storage-failed");
     },
-    async publicUrl() { return null; },
+    async publicUrl(path) {
+      const { data, error } = await client.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
+      return error ? null : data.signedUrl;
+    },
   };
 }
