@@ -11,7 +11,7 @@ import {
 } from "./conversation";
 
 const defaultEndpoint = "https://api.openai.com/v1/responses";
-const defaultModelVersion = "gpt-5.6sol";
+const defaultModelVersion = "gpt-5.6-sol";
 const defaultTimeoutMs = 30_000;
 const maxReplyLength = 4_000;
 
@@ -38,7 +38,7 @@ type RequestSignal = Readonly<{
 
 const responseSchema = z.object({
   output: z.array(z.object({
-    content: z.array(z.object({ type: z.literal("output_text"), text: z.string() }).strict()).optional(),
+    content: z.array(z.object({ type: z.literal("output_text"), text: z.string() }).passthrough()).optional(),
   }).passthrough()).optional(),
   output_text: z.string().optional(),
 }).passthrough();

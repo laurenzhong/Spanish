@@ -40,12 +40,12 @@ describe("OpenAIConversationProvider", () => {
       return response({ output_text: "Lo siento. ¿Quieres contarme qué ha pasado?" });
     });
     const clock = vi.fn<() => number>().mockReturnValueOnce(1000).mockReturnValueOnce(1042);
-    const provider = new OpenAIConversationProvider({ apiKey: "test-openai-key", modelVersion: "gpt-5.6sol", endpoint: "https://openai.test/v1/responses", fetchImplementation, clock });
+    const provider = new OpenAIConversationProvider({ apiKey: "test-openai-key", modelVersion: "gpt-5.6-sol", endpoint: "https://openai.test/v1/responses", fetchImplementation, clock });
 
     await expect(provider.generate(input)).resolves.toEqual({
       text: "Lo siento. ¿Quieres contarme qué ha pasado?",
       provider: "openai",
-      modelVersion: "gpt-5.6sol",
+      modelVersion: "gpt-5.6-sol",
       providerRequestId: "oa-chat-123",
       latencyMs: 42,
       estimatedCostMicros: null,
@@ -53,7 +53,7 @@ describe("OpenAIConversationProvider", () => {
     const body = JSON.parse(String(request?.body)) as Record<string, unknown>;
     expect(request?.method).toBe("POST");
     expect((request?.headers as Record<string, string>).authorization).toBe("Bearer test-openai-key");
-    expect(body.model).toBe("gpt-5.6sol");
+    expect(body.model).toBe("gpt-5.6-sol");
     expect(body.stream).toBe(false);
     expect(JSON.stringify(body)).toContain(input.userMessage);
     expect(JSON.stringify(body)).toContain("la fotografía");
@@ -63,7 +63,7 @@ describe("OpenAIConversationProvider", () => {
   it("extracts text blocks when output_text is absent", async () => {
     const provider = new OpenAIConversationProvider({
       apiKey: "test-key",
-      fetchImplementation: vi.fn(async () => response({ output: [{ type: "message", content: [{ type: "output_text", text: "Hola." }] }] })),
+      fetchImplementation: vi.fn(async () => response({ output: [{ type: "message", content: [{ type: "output_text", text: "Hola.", annotations: [], logprobs: [], phase: "final_answer" }] }] })),
     });
     await expect(provider.generate(input)).resolves.toMatchObject({ text: "Hola.", provider: "openai" });
   });
@@ -101,7 +101,7 @@ describe("OpenAIConversationProvider", () => {
   it("loads server configuration through its factory", async () => {
     vi.stubEnv("OPENAI_API_KEY", "env-key");
     vi.stubEnv("OPENAI_API_ENDPOINT", "https://env.test/responses");
-    vi.stubEnv("OPENAI_CONVERSATION_MODEL", "gpt-5.6sol");
+    vi.stubEnv("OPENAI_CONVERSATION_MODEL", "gpt-5.6-sol");
     const fetchImplementation = vi.fn(async (url: RequestInfo | URL) => {
       void url;
       return response({ output_text: "Hola." });
