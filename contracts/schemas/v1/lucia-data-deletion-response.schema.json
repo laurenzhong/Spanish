@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sueno.local/contracts/v1/lucia-data-deletion-response.schema.json",
+  "title": "Lucía character data deletion response",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": [
+        "characterKey",
+        "conversationsDeleted",
+        "messagesDeleted",
+        "relationshipMemoriesDeleted",
+        "memoryPermissionsRevoked",
+        "relationshipSnapshotsDeleted"
+      ],
+      "properties": {
+        "characterKey": { "const": "lucia" },
+        "conversationsDeleted": { "type": "integer", "minimum": 0 },
+        "messagesDeleted": { "type": "integer", "minimum": 0 },
+        "relationshipMemoriesDeleted": { "type": "integer", "minimum": 0 },
+        "memoryPermissionsRevoked": { "type": "integer", "minimum": 0 },
+        "relationshipSnapshotsDeleted": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

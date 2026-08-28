@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   deleteAccountData,
+  deleteLuciaData,
   createDrizzlePrivacyRepository,
   type StorageObjectDeleter,
 } from "@/src/modules/privacy";
@@ -23,6 +24,8 @@ const attemptA = "30000000-0000-4000-0000-000000000091";
 const conversationA = "40000000-0000-4000-0000-000000000091";
 const memoryA = "50000000-0000-4000-0000-000000000091";
 const audioA = "60000000-0000-4000-0000-000000000091";
+const messageUserA = "70000000-0000-4000-0000-000000000091";
+const messageCharacterA = "70000000-0000-4000-0000-000000000092";
 
 async function migration(name: string) {
   return (await readFile(path.join(process.cwd(), "drizzle", name), "utf8"))
@@ -150,6 +153,33 @@ describe("account data deletion", () => {
       userId: userA,
       characterId,
     });
+    await database.insert(schema.messages).values([
+      {
+        id: messageUserA,
+        userId: userA,
+        conversationId: conversationA,
+        characterId,
+        clientMessageId: "client-lucia-reset-1",
+        generationId: "generation-lucia-reset-1",
+        role: "user",
+        status: "completed",
+        content: "Hola, Lucía.",
+        completedAt: new Date(),
+      },
+      {
+        id: messageCharacterA,
+        userId: userA,
+        conversationId: conversationA,
+        characterId,
+        clientMessageId: "assistant-lucia-reset-1",
+        generationId: "generation-lucia-reset-1",
+        role: "character",
+        status: "completed",
+        content: "¡Hola!",
+        replyToMessageId: messageUserA,
+        completedAt: new Date(),
+      },
+    ]);
     await database.insert(schema.relationshipMemories).values({
       id: memoryA,
       userId: userA,
@@ -159,6 +189,17 @@ describe("account data deletion", () => {
       content: "Valencia",
       confidence: 0.9,
       status: "confirmed",
+    });
+    await database.insert(schema.characterRelationships).values({
+      userId: userA,
+      characterId,
+      relationshipStage: "familiar",
+    });
+    await database.insert(schema.memorySharingPermissions).values({
+      userId: userA,
+      memoryId: memoryA,
+      targetCharacterId: characterId,
+      isAllowed: true,
     });
   });
 
@@ -214,6 +255,46 @@ describe("account data deletion", () => {
     expect(second).toMatchObject({ alreadyDeleted: true, cleanupDeferred: 0 });
     await expect(
       database.select().from(schema.profiles).where(eq(schema.profiles.id, userB)),
+    ).resolves.toHaveLength(1);
+  });
+
+  it("deletes only Lucía conversation and relationship data", async () => {
+    const result = await deleteLuciaData(
+      createDrizzlePrivacyRepository(database),
+      userA,
+    );
+
+    expect(result).toEqual({
+      characterKey: "lucia",
+      conversationsDeleted: 1,
+      messagesDeleted: 2,
+      relationshipMemoriesDeleted: 1,
+      memoryPermissionsRevoked: 1,
+      relationshipSnapshotsDeleted: 1,
+    });
+    await expect(
+      database.select().from(schema.conversations).where(eq(schema.conversations.userId, userA)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      database.select().from(schema.messages).where(eq(schema.messages.userId, userA)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      database.select().from(schema.relationshipMemories).where(eq(schema.relationshipMemories.userId, userA)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      database.select().from(schema.characterRelationships).where(eq(schema.characterRelationships.userId, userA)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      database.select().from(schema.memorySharingPermissions).where(eq(schema.memorySharingPermissions.userId, userA)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      database.select().from(schema.evidenceEvents).where(eq(schema.evidenceEvents.userId, userA)),
+    ).resolves.toHaveLength(1);
+    await expect(
+      database.select().from(schema.practiceAttempts).where(eq(schema.practiceAttempts.userId, userA)),
+    ).resolves.toHaveLength(1);
+    await expect(
+      database.select().from(schema.characters).where(eq(schema.characters.id, characterId)),
     ).resolves.toHaveLength(1);
   });
 });

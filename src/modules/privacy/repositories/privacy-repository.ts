@@ -37,12 +37,22 @@ export type AccountDataSummary = Readonly<{
   sessions: number;
 }>;
 
+export type CharacterDataDeletionResult = Readonly<{
+  characterKey: string;
+  conversationsDeleted: number;
+  messagesDeleted: number;
+  relationshipMemoriesDeleted: number;
+  memoryPermissionsRevoked: number;
+  relationshipSnapshotsDeleted: number;
+}>;
+
 export type StorageCleanupStatus = "completed" | "failed" | "pending";
 
 export type PrivacyRepository = Readonly<{
   transaction<T>(work: (repository: PrivacyRepository) => Promise<T>): Promise<T>;
   getAccountDataSummary(userId: string): Promise<AccountDataSummary>;
   deleteAccountData(userId: string): Promise<AccountDataDeletionResult>;
+  deleteCharacterData(userId: string, characterKey: string): Promise<CharacterDataDeletionResult>;
   deleteSavedAudio(userId: string, audioAssetId: string): Promise<boolean>;
   deleteTranscript(userId: string, attemptId: string): Promise<boolean>;
   listSavedAudio(userId: string): Promise<readonly SavedAudioRecord[]>;

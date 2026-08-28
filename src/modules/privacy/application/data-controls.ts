@@ -23,3 +23,11 @@ export function deleteSavedTranscript(
 ) {
   return repository.deleteTranscript(userId, attemptId);
 }
+
+export const LUCIA_DATA_RESET_CONFIRMATION = "RESET_LUCIA_DATA" as const;
+
+export function deleteLuciaData(repository: PrivacyRepository, userId: string) {
+  return repository.transaction((transaction) =>
+    transaction.deleteCharacterData(userId, "lucia"),
+  );
+}

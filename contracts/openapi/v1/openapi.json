@@ -506,6 +506,69 @@
         }
       }
     },
+    "/me/characters/lucia/data": {
+      "delete": {
+        "summary": "Delete the authenticated user's Lucía conversation and private relationship data",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 128 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["confirmation"],
+                "properties": {
+                  "confirmation": { "const": "RESET_LUCIA_DATA" }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lucía data deletion result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/lucia-data-deletion-response.schema.json" }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing explicit reset confirmation",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          },
+          "503": {
+            "description": "Lucía data reset is temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "../../schemas/v1/error-response.schema.json" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "summary": "Read the authenticated user's account profile",

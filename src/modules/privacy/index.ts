@@ -1,6 +1,8 @@
 export {
   deleteSavedAudio,
   deleteSavedTranscript,
+  deleteLuciaData,
+  LUCIA_DATA_RESET_CONFIRMATION,
   listSavedAudio,
   listSavedTranscripts,
 } from "./application/data-controls";
