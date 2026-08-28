@@ -21,6 +21,10 @@ describe("LearnPage", () => {
     );
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(/最近获得的能力/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("learn-timeline")).toBeInTheDocument();
+    expect(screen.getByTestId("learn-timeline")).toHaveTextContent("听懂情境");
+    expect(screen.getByTestId("learn-timeline")).toHaveTextContent("当前步骤");
+    expect(screen.queryByTestId("learn-detail-rail")).not.toBeInTheDocument();
   });
 
   it("restores the real expression position from a stable checkpoint", async () => {
@@ -57,5 +61,8 @@ describe("LearnPage", () => {
       "2",
     );
     expect(screen.getByText("2 / 4")).toBeInTheDocument();
+    expect(screen.getByTestId("learn-detail-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("learn-detail-rail")).toHaveTextContent("录音隐私");
+    expect(screen.getAllByTestId("learn-timeline")[1]).toHaveTextContent("自己表达");
   });
 });

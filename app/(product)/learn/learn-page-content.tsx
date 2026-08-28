@@ -23,6 +23,13 @@ type LearnProgress = Readonly<{
   status: string;
 }>;
 
+type LearnTimelineNode = Readonly<{
+  key: string;
+  label: string;
+  detail: string;
+  status: "completed" | "current" | "locked";
+}>;
+
 function readFocus(value: string | string[] | undefined): LearnFocus | null {
   const focus = Array.isArray(value) ? value[0] : value;
   return focus === "start" || focus === "needs" || focus === "maintain" || focus === "silent" ? focus : null;
@@ -42,7 +49,8 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setFocus(readFocus(new URLSearchParams(window.location.search).get("focus") ?? undefined));
+      const requestedFocus = readFocus(new URLSearchParams(window.location.search).get("focus") ?? undefined);
+      setFocus((current) => current ?? requestedFocus);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -84,6 +92,12 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
       : focus && focus !== "start"
         ? selectedContent.title
         : "从一句真实表达开始";
+  const feedbackVisible = progress?.status === "showing-feedback" || progress?.status === "completed";
+  const timeline: readonly LearnTimelineNode[] = [
+    { key: "listen", label: "听懂情境", detail: "先听一遍，抓住语气和关键信息。", status: hasProgress ? "completed" : "current" },
+    { key: "express", label: "自己表达", detail: "用你自己的话回应，不需要先选模式或时长。", status: hasProgress ? (feedbackVisible ? "completed" : "current") : "locked" },
+    { key: "vary", label: "换一种说法", detail: "完成当前步骤后解锁，保留真实交际意图。", status: feedbackVisible ? "current" : "locked" },
+  ];
 
   return (
     <div className="page-stack learn-page">
@@ -92,15 +106,24 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
         <Link className="icon-button" href="/me" aria-label="打开我的进步"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6" /></svg></Link>
       </header>
 
-      <section className="focus-card" aria-labelledby="next-goal-title" data-focus={focus ?? "default"} data-has-progress={hasProgress}>
+      <section className="focus-card" aria-labelledby="next-goal-title" data-focus={focus ?? "default"} data-has-progress={hasProgress} data-testid="learn-focus-card">
         <div className="focus-card__halo" aria-hidden="true" />
         <div className="focus-card__main">
           <p className="eyebrow eyebrow--accent">{isSilent ? "安静学习" : hasProgress ? "继续上次练习" : selectedContent.eyebrow}</p>
           <h1 id="next-goal-title">{title}</h1>
           <p className="focus-card__reason">{isSilent ? "阅读、听力和打字内容正在整理中；完成后仍需通过一次口语复核，才会进入能力画像。" : hasProgress ? `${selectedContent.reason} 从第 ${(progress?.expressionIndex ?? 0) + 1} 句接着说。` : selectedContent.reason}</p>
-          {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" href="/learn/practice"><span>{primaryLabel}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
+          {!isSilent ? <div className="learn-timeline" aria-label="学习任务时间线" data-testid="learn-timeline">
+            <div className="learn-timeline__heading"><span>当前沟通目标</span><span>{hasProgress ? `第 ${(progress?.expressionIndex ?? 0) + 1} / ${progress?.totalExpressions ?? 4} 句` : "从第 1 句开始"}</span></div>
+            <ol>
+              {timeline.map((node) => <li className={`learn-timeline__node learn-timeline__node--${node.status}`} key={node.key}>
+                <span className="learn-timeline__marker" aria-hidden="true">{node.status === "completed" ? "✓" : node.status === "current" ? "•" : ""}</span>
+                <div><strong>{node.label}</strong><span>{node.status === "completed" ? "已完成" : node.status === "current" ? "当前步骤" : "完成当前步骤后解锁"}</span><p>{node.detail}</p></div>
+              </li>)}
+            </ol>
+          </div> : null}
+          {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" data-testid="learn-primary-action" href="/learn/practice"><span>{primaryLabel}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
         </div>
-        {hasProgress ? <div className="focus-card__side" aria-label="当前学习进度"><div className="focus-card__side-head"><span>这组表达</span><strong>{(progress?.expressionIndex ?? 0) + 1} / {progress?.totalExpressions}</strong></div><div className="progress-track" role="progressbar" aria-label="这组表达进度" aria-valuemin={0} aria-valuemax={progress?.totalExpressions} aria-valuenow={(progress?.expressionIndex ?? 0) + 1}><span style={{ width: `${(((progress?.expressionIndex ?? 0) + 1) / (progress?.totalExpressions || 1)) * 100}%` }} /></div><p>每句完成后都会保存，下一次打开就从这里继续。</p></div> : null}
+        {hasProgress ? <aside className="focus-card__side learn-detail-rail" aria-label="学习详情" data-testid="learn-detail-rail"><div className="learn-detail-rail__section"><span className="learn-detail-rail__label">这组表达</span><strong>{(progress?.expressionIndex ?? 0) + 1} / {progress?.totalExpressions}</strong><div className="progress-track" role="progressbar" aria-label="这组表达进度" aria-valuemin={0} aria-valuemax={progress?.totalExpressions} aria-valuenow={(progress?.expressionIndex ?? 0) + 1}><span style={{ width: `${(((progress?.expressionIndex ?? 0) + 1) / (progress?.totalExpressions || 1)) * 100}%` }} /></div><p>每句完成后都会保存，下一次打开就从这里继续。</p></div><div className="learn-detail-rail__section"><span className="learn-detail-rail__label">本次规则</span><p>完整表达前不纠错；技术失败不会产生负面能力记录。</p></div><div className="learn-detail-rail__section learn-detail-rail__section--privacy"><span aria-hidden="true">⌁</span><p><strong>录音隐私</strong>普通录音评估完成后删除。</p></div></aside> : null}
       </section>
 
       <section className="learn-support" aria-label="继续探索">
