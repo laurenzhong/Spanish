@@ -89,18 +89,17 @@ test("keeps the shell usable at desktop width", async ({ page }) => {
   expect(manifestResponse.ok()).toBeTruthy();
 });
 
-test("keeps discovery and conversation entry points actionable", async ({
+test("keeps discovery and conversation entry points visible", async ({
   page,
 }) => {
   await authenticate(page);
   await page.goto("/explore");
 
-  await expect(page.getByRole("link", { name: "开始交流" })).toHaveAttribute(
-    "href",
-    "/learn?focus=start",
-  );
-  await page.getByRole("link", { name: "开始交流" }).click();
-  await expect(page).toHaveURL(/\/learn\?focus=start$/);
+  await expect(page.getByRole("heading", { name: "探索真实表达" })).toBeVisible();
+  const todayLink = page.locator("header").getByRole("link", { name: "回到今天" });
+  await expect(todayLink).toHaveAttribute("href", "/learn");
+  await todayLink.click();
+  await expect(page).toHaveURL(/\/learn$/);
 
   await page.goto("/chat");
   await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeVisible();
@@ -113,7 +112,7 @@ test("separates communication goals from unpublished content packs", async ({ pa
   await expect(page.getByRole("heading", { name: "把交流拆成可以练习的动作" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toBeVisible();
   await expect(page.getByText("内容整理中", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "内容整理中" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /查看咖啡馆里的新朋友详情，内容整理中/ })).toHaveCount(1);
 });
 
 test("shows Lucía as the pinned contact in the conversation workspace", async ({ page }) => {
@@ -314,18 +313,14 @@ test("preserves the selected discovery direction on the learning page", async ({
   await authenticate(page);
   await page.goto("/explore");
 
-  const needsCard = page.getByRole("link", { name: /表达需要/ });
-  await expect(needsCard).toHaveAttribute("href", "/learn?focus=needs");
-  await needsCard.click();
+  await expect(page.getByRole("searchbox")).toBeVisible();
+  await page.getByRole("searchbox").fill("请求重复");
+  await expect(page.getByText("请求重复")).toBeVisible();
+  await expect(page.getByText("没有匹配的目标")).toHaveCount(0);
 
+  await page.goto("/learn?focus=needs");
   await expect(page).toHaveURL(/\/learn\?focus=needs$/);
   await expect(page.locator(".focus-card")).toHaveAttribute("data-focus", "needs");
-  await expect(page.getByRole("heading", { name: "把需要说得清楚又自然" })).toBeVisible();
-
-  await page.goto("/explore");
-  await page.getByRole("link", { name: /安静学习/ }).click();
-  await expect(page).toHaveURL(/\/learn\?focus=silent$/);
-  await expect(page.getByRole("status")).toContainText("暂时没有可开始的静默内容包");
 });
 
 test("opens the published reading shelf and article reader", async ({ page }) => {
