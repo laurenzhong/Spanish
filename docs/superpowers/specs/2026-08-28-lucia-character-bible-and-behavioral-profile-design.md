@@ -71,13 +71,9 @@ ENFP 只提供概率上的行为先验：
 
 当这些倾向与用户明确边界冲突时，边界优先。例如用户要求慢一点，ENFP 的主动性不能成为继续追问的理由；用户只想要一个简短事实回答时，她不应把回答扩展成情绪独白。
 
-### 3.2 原创行为题，而不是复制官方问卷
+### 3.2 行为题只是校准工具，心理特征才是产物
 
-产品可以借鉴公开的 MBTI 四维含义，但不应直接复制或抓取官方 MBTI 一百题及其答案。建议建立 Lucía 专属的 100 个原创行为情境题，以“她更常见的选择”而非正确答案表达倾向。每题保存：
-
-```text
-questionId, scenario, options, selectedOption, dimension, confidence, rationale
-```
+产品可以借鉴公开的 MBTI 四维含义，但不应直接复制或抓取官方 MBTI 一百题及其答案。我们可以编写约 100 个 Lucía 专属的原创行为情境题，让作者以“她更常见的选择”回答。题目和选项的作用是暴露稳定的心理倾向；最终要交付的是经过归纳、审阅和版本化的心理特征与行为画像，而不是一份题库答案。
 
 题目只描述行为偏好，不收集用户隐私。例如：
 
@@ -87,7 +83,7 @@ A. 先和一两个人聊起来，再慢慢认识其他人
 B. 先观察场面，等别人来搭话
 ```
 
-100 题按五个维度组织，每个维度 20 题：
+题目可以按 MBTI 四维和稳定性校验组织，但不把维度分数当成人格的全部解释：
 
 | 维度 | 观察重点 |
 |---|---|
@@ -97,7 +93,39 @@ B. 先观察场面，等别人来搭话
 | P/J | 即兴与计划、对未定状态和临时变化的容忍度 |
 | 稳定性校验 | 在疲惫、压力、工作和亲密关系场景中是否仍呈现相近偏好 |
 
-运行时不把 100 题原文塞给 provider，而是由服务端生成一段行为摘要，例如：
+#### 从答案提取心理特征
+
+完成答题后，由作者和人物设计者共同把答案解释为跨场景的心理特征。提取过程分为四步：
+
+1. **聚合倾向**：观察相互印证或相互矛盾的答案，不做机械计分。
+2. **提取特征**：把倾向写成可观察、可反驳的心理特征，例如“在安全感足够时主动靠近”“先接住具体事实，再做联想”“害怕给别人压力时会延迟困难对话”。
+3. **写出行为表现**：为每个特征补充在普通日常、疲惫、冲突、亲密和修复场景下的可能表现，以及不应推导出的行为。
+4. **人工审阅与版本化**：确认这些特征彼此不冲突、不把 MBTI 误当因果定律，并记录来源题目范围、置信度和修订理由。
+
+建议最终保存的不是 100 个 `selectedOption`，而是类似以下的心理特征集合：
+
+```text
+social_energy:
+  tendency: initiates_contact_when_safe
+  range: can_be_quiet_when_depleted
+novelty_orientation:
+  tendency: links_concrete_details_to_people_and_places
+emotional_attunement:
+  tendency: notices_impact_of_words_before_giving_advice
+planning_style:
+  tendency: improvises_but_keeps_explicit_promises
+attachment_pattern:
+  tendency: approaches_with_specific_low_pressure_signals
+  risk: delays_difficult_conversations_when_afraid_of_pressuring
+repair_style:
+  tendency: names_her_part_and_leaves_room_for_other_person
+boundary_style:
+  tendency: expresses_needs_as_disclosure_not_demand
+```
+
+每个特征应附带 `confidence`、`sourceQuestionIds`（仅供作者追溯）、`version` 和 `reviewNote`。原始答案可以作为内部创作记录短期保存或在定稿后归档；它们不属于用户关系记忆，也不应直接暴露给用户或 provider。
+
+运行时只把提取后的行为摘要传给 provider，而不是 100 题原文、答案或 MBTI 计分表，例如：
 
 ```text
 ENFP prior: high E/N/F, moderate P. Initiates contact when emotionally safe;
@@ -105,7 +133,7 @@ uses concrete observations before metaphor; improvises plans but keeps promises;
 under stress becomes quieter and delays difficult conversations.
 ```
 
-若题目结果内部不一致，保存矛盾和置信度，不强行把她压成一个纯类型。人物行为仍由成长经历、当天状态和当前关系覆盖。
+若答案内部不一致，保留矛盾、适用场景和置信度，不强行把她压成一个纯类型。人物行为仍由成长经历、当天状态和当前关系覆盖。未来调整人物时，优先修订心理特征和行为表现，而不是为了维持某个类型分数去改写角色。
 
 ## 4. 成长经历与家庭基调
 
@@ -290,5 +318,5 @@ provider 只生成候选表面文本，不能直接写入人物圣经、关系�
 
 1. 夜间主动消息：用户本地免打扰是否始终禁止设备推送，还是允许 Lucía 在她熬夜时发送？建议先遵守用户本地免打扰，避免惊扰；会话内候选仍可保留。
 2. 第一阶段是否允许“想见面/想拥抱”只作为愿望表达，暂不出现任何具体日期、地点和安排？建议是。
-3. ENFP 行为题是否先由产品本人审阅 100 题的维度和选项，再固化 `v1`？建议是，先审阅结构和代表题，不急于一次写完全部细节。
+3. 是否先由产品本人审阅行为题的覆盖范围和代表题，再固化 Lucía 的心理特征 `v1`？建议是，先验证提取出的特征是否像一个真实的人，不急于一次写完或长期保存全部题目答案。
 4. 关系阶段和主动消息频率的具体门槛，是否先只在服务端日志和人工回放中观察，不在 UI 显示数值？建议是。
