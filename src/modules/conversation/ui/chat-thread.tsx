@@ -13,6 +13,11 @@ import {
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
 import { ConversationContactRail } from "./conversation-contact-rail";
+import {
+  getCachedConversationHistory,
+  loadConversationHistory,
+  setCachedConversationHistory,
+} from "./conversation-history-cache";
 
 type ChatThreadProps = Readonly<{
   characterKey: "lucia" | "mateo" | "ines";
@@ -137,27 +142,42 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   useEffect(() => {
     abortRef.current?.abort();
     let cancelled = false;
-    void fetch(`/api/v1/conversations/${characterKey}`)
-      .then(async (response) => {
-        if (!response.ok) {
-          setPersistenceStatus("unavailable");
-          return null;
-        }
-        // Keep the loading state until the body has been parsed and applied.
-        // `fetch().then(response => ...)` runs as soon as headers arrive; if we
-        // mark persistence available there, the empty-state welcome briefly
-        // renders before the history JSON has hydrated the conversation.
-        const payload = await response.json() as { data?: { messages?: ConversationState["messages"] } };
-        if (cancelled) return null;
-        if (payload?.data?.messages) apply({ type: "hydrate", messages: payload.data.messages });
+    const cached = getCachedConversationHistory(characterKey);
+    if (cached && cached.length > 0) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        apply({ type: "hydrate", messages: cached });
         setPersistenceStatus("available");
-        return null;
+      });
+    }
+    void loadConversationHistory(characterKey)
+      .then((result) => {
+        if (cancelled) return;
+        // Keep the loading state until the body has been parsed and applied.
+        // Replace the cached snapshot while preserving anything submitted
+        // after the snapshot was read.
+        if (cached?.length) {
+          apply({
+            type: "replace-hydrate",
+            messages: result.messages,
+            staleMessageKeys: cached.map((message) => message.clientMessageId ?? message.id),
+          });
+        } else {
+          apply({ type: "hydrate", messages: result.messages });
+        }
+        setCachedConversationHistory(characterKey, result.messages);
+        setPersistenceStatus("available");
       })
       .catch(() => {
         if (!cancelled) setPersistenceStatus("unavailable");
       });
     return () => { cancelled = true; };
   }, [characterKey]);
+
+  useEffect(() => {
+    if (state.messages.length === 0) return;
+    setCachedConversationHistory(characterKey, state.messages);
+  }, [characterKey, state.messages]);
 
   useEffect(() => {
     const forwarded = sessionStorage.getItem("conversation-forward-draft");

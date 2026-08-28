@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ConversationSearch } from "./conversation-search";
 import { conversationCharacters } from "../domain/character-catalog";
 import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
+import { prefetchConversationHistory } from "./conversation-history-cache";
 
 type ConversationContactRailProps = Readonly<{
   activeCharacterKey?: string;
@@ -70,6 +71,8 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
           <Link
             className={`conversation-contact-row ${activeCharacterKey === conversation.characterKey ? "conversation-contact-row--active" : ""}`}
             href={`/chat/${conversation.characterKey}`}
+            onMouseEnter={() => prefetchConversationHistory(conversation.characterKey)}
+            onFocus={() => prefetchConversationHistory(conversation.characterKey)}
             aria-current={activeCharacterKey === conversation.characterKey ? "page" : undefined}
             key={conversation.conversationId}
           >

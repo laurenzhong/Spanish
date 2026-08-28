@@ -64,6 +64,25 @@ describe("conversation state", () => {
     expect(state.messages[0]).toMatchObject({ text: "Hola, Lucía" });
   });
 
+  it("replaces a cached snapshot while preserving messages submitted afterward", () => {
+    let state = transitionConversationState(createConversationState(), {
+      type: "hydrate",
+      messages: [{ id: "cached", role: "character", text: "旧消息", complete: true }],
+    });
+    state = transitionConversationState(state, {
+      type: "submit",
+      text: "新消息",
+      clientMessageId: "new-client",
+      generationId: "generation-new",
+    });
+    state = transitionConversationState(state, {
+      type: "replace-hydrate",
+      messages: [{ id: "server", role: "character", text: "服务器消息", complete: true }],
+      staleMessageKeys: ["cached"],
+    });
+    expect(state.messages.map((message) => message.text)).toEqual(["服务器消息", "新消息"]);
+  });
+
   it("only marks a reply complete after done", () => {
     let state = submitted();
     state = transitionConversationState(state, { type: "stream-event", event: meta });

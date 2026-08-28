@@ -104,6 +104,7 @@ export function AccountMenu() {
         const { error } = await client.auth.signOut();
         if (error) throw error;
       }
+      window.dispatchEvent(new Event("account-signed-out"));
       setOpen(false);
       router.replace("/login");
       router.refresh();

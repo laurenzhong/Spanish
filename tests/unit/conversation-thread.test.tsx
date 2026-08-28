@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
+import { clearConversationHistoryCache, getCachedConversationHistory } from "@/src/modules/conversation/ui/conversation-history-cache";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
@@ -13,6 +14,7 @@ describe("ChatThread persistence status", () => {
 
   afterEach(() => {
     cleanup();
+    clearConversationHistoryCache();
     vi.unstubAllGlobals();
   });
 
@@ -45,6 +47,31 @@ describe("ChatThread persistence status", () => {
 
     expect(await screen.findByText("Hola, Mateo")).toBeInTheDocument();
     expect(screen.queryByText("¡Hola! Cuéntame algo de tu día. Yo te sigo la conversación.")).not.toBeInTheDocument();
+  });
+
+  it("shows the cached history immediately while revalidating", async () => {
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "cached-1", role: "user", text: "缓存消息", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => String(input) === "/api/v1/me"
+      ? ({ ok: false, status: 404 } as Response)
+      : historyResponse);
+    const first = render(<ChatThread characterKey="mateo" characterName="Mateo Ruiz" characterVersion={1} />);
+    expect(await screen.findByText("缓存消息")).toBeInTheDocument();
+    await waitFor(() => expect(getCachedConversationHistory("mateo")).not.toBeNull());
+    first.unmount();
+
+    let resolveRefresh: ((value: unknown) => void) | undefined;
+    const refreshBody = new Promise((resolve) => { resolveRefresh = resolve; });
+    vi.mocked(fetch).mockImplementation(async (input) => String(input) === "/api/v1/me"
+      ? ({ ok: false, status: 404 } as Response)
+      : ({ ok: true, headers: new Headers(), json: () => refreshBody } as Response));
+    render(<ChatThread characterKey="mateo" characterName="Mateo Ruiz" characterVersion={1} />);
+    expect(await screen.findByText("缓存消息")).toBeInTheDocument();
+    resolveRefresh?.({ data: { messages: [{ id: "fresh-1", role: "character", text: "最新消息", complete: true }] } });
+    expect(await screen.findByText("最新消息")).toBeInTheDocument();
   });
 
   it("opens the sent-message menu and copies only the visible text", async () => {

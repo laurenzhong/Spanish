@@ -27,6 +27,7 @@ export type ConversationState = Readonly<{
 
 export type ConversationAction =
   | Readonly<{ type: "hydrate"; messages: readonly ConversationMessage[] }>
+  | Readonly<{ type: "replace-hydrate"; messages: readonly ConversationMessage[]; staleMessageKeys: readonly string[] }>
   | Readonly<{ type: "submit"; text: string; clientMessageId: string; generationId: string; createdAt?: string }>
   | Readonly<{ type: "retry"; userMessageId: string; generationId: string }>
   | Readonly<{ type: "stream-event"; event: ConversationStreamEvent }>
@@ -69,6 +70,21 @@ export function transitionConversationState(
     );
     const currentOnly = state.messages.filter(
       (message) => !persistedKeys.has(message.clientMessageId ?? message.id),
+    );
+    return {
+      ...state,
+      messages: [...action.messages, ...currentOnly],
+      status: state.status === "streaming" ? state.status : "idle",
+      activeGenerationId: state.activeGenerationId,
+      activeMessageId: state.activeMessageId,
+      error: state.error,
+    };
+  }
+
+  if (action.type === "replace-hydrate") {
+    const staleKeys = new Set(action.staleMessageKeys);
+    const currentOnly = state.messages.filter(
+      (message) => !staleKeys.has(message.clientMessageId ?? message.id),
     );
     return {
       ...state,
