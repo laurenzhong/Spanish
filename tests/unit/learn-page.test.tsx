@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { LearnPageContent } from "@/app/(product)/learn/learn-page-content";
 
 describe("LearnPage", () => {
   beforeEach(() => {
+    cleanup();
     window.localStorage.clear();
   });
 
@@ -19,6 +20,7 @@ describe("LearnPage", () => {
       "href",
       "/learn/practice",
     );
+    expect(screen.getAllByTestId("learn-primary-action")).toHaveLength(1);
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(/最近获得的能力/)).not.toBeInTheDocument();
     expect(screen.getByTestId("learn-timeline")).toBeInTheDocument();
@@ -63,6 +65,23 @@ describe("LearnPage", () => {
     expect(screen.getByText("2 / 4")).toBeInTheDocument();
     expect(screen.getByTestId("learn-detail-rail")).toBeInTheDocument();
     expect(screen.getByTestId("learn-detail-rail")).toHaveTextContent("录音隐私");
-    expect(screen.getAllByTestId("learn-timeline")[1]).toHaveTextContent("自己表达");
+    expect(screen.getByTestId("learn-timeline")).toHaveTextContent("自己表达");
+  });
+
+  it("clears an invalid checkpoint instead of showing phantom progress", async () => {
+    window.localStorage.setItem(
+      "spanish.training.checkpoint.v1:invalid-user",
+      JSON.stringify({ schemaVersion: 999, status: "completed" }),
+    );
+
+    render(<LearnPageContent userId="invalid-user" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "从一句真实表达开始" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: "开始第一次练习" })).toBeInTheDocument();
+    expect(screen.queryByTestId("learn-detail-rail")).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", { name: "这组表达进度" })).not.toBeInTheDocument();
   });
 });

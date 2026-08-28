@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
+const viewportWidths = [320, 375, 414, 768, 1024, 1280, 1440];
 
 async function authenticate(page: Page) {
   await page.context().addCookies([
@@ -61,4 +62,24 @@ test("shows the checkpoint timeline and detail rail for a returning learner", as
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     await page.evaluate(() => window.innerWidth),
   );
+});
+
+test("keeps the learning entry usable across the viewport matrix", async ({ page }) => {
+  await authenticate(page);
+  await page.addInitScript(() => window.localStorage.clear());
+
+  for (const width of viewportWidths) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/learn");
+
+    await expect(page.getByTestId("learn-focus-card")).toBeVisible();
+    await expect(page.getByTestId("learn-primary-action")).toHaveCount(1);
+    const dimensions = await page.evaluate(() => ({
+      client: document.documentElement.clientWidth,
+      scroll: document.documentElement.scrollWidth,
+    }));
+    expect(dimensions.scroll, `learning page overflows at ${width}px`).toBeLessThanOrEqual(
+      dimensions.client + 1,
+    );
+  }
 });
