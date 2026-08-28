@@ -64,30 +64,14 @@ export function AccountMenu() {
           const payload = await response.json() as { data?: AccountProfileDto };
           if (!payload.data) throw new Error("invalid");
           setProfile(payload.data);
+          setNotice(null);
         })
-        .catch(() => undefined);
+        .catch(() => setNotice("账户资料暂时不可用"));
     };
+    refreshProfile();
     window.addEventListener("account-profile-updated", refreshProfile);
     return () => window.removeEventListener("account-profile-updated", refreshProfile);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const controller = new AbortController();
-    void fetch("/api/v1/me", { signal: controller.signal, headers: { accept: "application/json" } })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("unavailable");
-        const payload = await response.json() as { data?: AccountProfileDto };
-        if (!payload.data) throw new Error("invalid");
-        setProfile(payload.data);
-        setNotice(null);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setNotice("账户资料暂时不可用");
-      });
-    return () => controller.abort();
-  }, [open]);
+  }, []);
 
   async function copyUid() {
     if (!profile?.publicUid) return;
