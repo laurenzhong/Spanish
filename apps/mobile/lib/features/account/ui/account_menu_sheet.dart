@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'account_profile_page.dart';
 
 class AccountMenuSheet extends StatelessWidget {
   const AccountMenuSheet({this.displayName, this.publicUid, this.targetLanguage = '西班牙语', super.key});
@@ -30,7 +31,10 @@ class AccountMenuSheet extends StatelessWidget {
         const SizedBox(height: 16),
         Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)), child: Row(children: <Widget>[const Expanded(child: Text('公开 UID', style: TextStyle(fontWeight: FontWeight.w700))), Text(publicUid ?? '暂不可用', style: Theme.of(context).textTheme.bodySmall)])),
         const SizedBox(height: 10),
-        _item(context, Icons.edit_outlined, '编辑个人资料', () => Navigator.pop(context)),
+        _item(context, Icons.edit_outlined, '编辑个人资料', () {
+          Navigator.pop(context);
+          Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<void>(builder: (_) => AccountProfilePage(displayName: displayName, publicUid: publicUid)));
+        }),
         _item(context, Icons.insights_outlined, '我的进步与隐私', () => Navigator.pop(context)),
         _item(context, Icons.tune_rounded, '偏好设置', () => Navigator.pop(context)),
         _item(context, Icons.help_outline_rounded, '帮助与反馈', () => Navigator.pop(context)),
