@@ -57,6 +57,7 @@ type TestArticle = {
   contentHash: string;
   status: string;
   segments: Array<{ position: number; text: string }>;
+  assets: Array<unknown>;
   relatedGoalKeys: string[];
   [key: string]: unknown;
 };
@@ -79,15 +80,23 @@ describe("article content contract", () => {
       const input = await fixture();
       await expect(importContentBundle(database, input)).resolves.toMatchObject({
         status: "imported",
-        counts: { articles: 1 },
+        counts: { articles: input.articles.length },
       });
       await expect(importContentBundle(database, input)).resolves.toMatchObject({
         status: "unchanged",
       });
-      await expect(database.select({ value: count() }).from(schema.articles)).resolves.toEqual([{ value: 1 }]);
-      await expect(database.select({ value: count() }).from(schema.articleVersions)).resolves.toEqual([{ value: 1 }]);
-      await expect(database.select({ value: count() }).from(schema.articleSegments)).resolves.toEqual([{ value: 3 }]);
-      await expect(database.select({ value: count() }).from(schema.articleAssets)).resolves.toEqual([{ value: 4 }]);
+      await expect(database.select({ value: count() }).from(schema.articles)).resolves.toEqual([
+        { value: input.articles.length },
+      ]);
+      await expect(database.select({ value: count() }).from(schema.articleVersions)).resolves.toEqual([
+        { value: input.articles.length },
+      ]);
+      await expect(database.select({ value: count() }).from(schema.articleSegments)).resolves.toEqual([
+        { value: input.articles.reduce((total, item) => total + item.segments.length, 0) },
+      ]);
+      await expect(database.select({ value: count() }).from(schema.articleAssets)).resolves.toEqual([
+        { value: input.articles.reduce((total, item) => total + item.assets.length, 0) },
+      ]);
     } finally {
       await client.close();
     }
@@ -108,6 +117,7 @@ describe("article content contract", () => {
 
     const published = structuredClone(input);
     published.articles[0].status = "published";
+    delete published.articles[0].publishedAt;
     expect(() => validateContentBundle(published)).toThrow(/Published articles require publishedAt/);
 
     const html = structuredClone(input);
