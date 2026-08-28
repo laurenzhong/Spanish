@@ -14,9 +14,9 @@ export function normalizeAvatar(bytes: Uint8Array): Promise<Buffer> {
 
 export function createSupabaseAvatarStorage(): AvatarStorage | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!url || !serviceRoleKey) return null;
-  const client = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const secretKey = (process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
+  if (!url || !secretKey) return null;
+  const client = createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false } });
   return {
     async put(userId: string, upload: AvatarUpload): Promise<AvatarStored> {
       const ownerHash = createHash("sha256").update(userId).digest("hex").slice(0, 24);
