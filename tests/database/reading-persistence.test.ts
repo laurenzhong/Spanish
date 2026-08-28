@@ -6,7 +6,9 @@ import path from "node:path";
 import { count, eq } from "drizzle-orm";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 
 import {
   createDrizzleReadingRepository,
@@ -52,6 +54,8 @@ async function setup() {
     "0010_watery_ogun.sql",
     "0011_early_colleen_wing.sql",
     "0012_wakeful_spiral.sql",
+    "0013_smart_stick.sql",
+    "0014_parallel_liz_osborn.sql",
   ]) {
     await client.exec(await migration(name));
   }

@@ -5,9 +5,12 @@ import userEvent from "@testing-library/user-event";
 import { BottomNavigation } from "@/src/shared/ui/bottom-navigation";
 
 const usePathname = vi.fn();
+const replace = vi.fn();
+const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => usePathname(),
+  useRouter: () => ({ replace, refresh }),
 }));
 
 describe("BottomNavigation", () => {
