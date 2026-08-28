@@ -55,7 +55,6 @@ export function AccountMenu() {
 
   useEffect(() => {
     const refreshProfile = () => {
-      if (!open) return;
       void fetch("/api/v1/me", { cache: "no-store", credentials: "same-origin", headers: { accept: "application/json" } })
         .then(async (response) => {
           if (!response.ok) throw new Error("unavailable");

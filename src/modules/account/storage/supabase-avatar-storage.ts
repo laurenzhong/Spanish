@@ -19,6 +19,13 @@ export function createSupabaseAvatarStorage(): AvatarStorage | null {
   const client = createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false } });
   return {
     async put(userId: string, upload: AvatarUpload): Promise<AvatarStored> {
+      // Keep local/self-hosted projects usable even when the bucket was not
+      // provisioned yet. A secret key is required for this server-only call.
+      await client.storage.createBucket(BUCKET, {
+        public: false,
+        fileSizeLimit: `${MAX_BYTES}`,
+        allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+      }).catch(() => undefined);
       const ownerHash = createHash("sha256").update(userId).digest("hex").slice(0, 24);
       const path = `${ownerHash}/${randomUUID()}.webp`;
       const normalized = await normalizeAvatar(upload.bytes);
