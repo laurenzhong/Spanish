@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/explore-dashboard-response.schema.json",
+  "title": "Explore dashboard response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goals", "packs", "resume", "userState"],
+      "properties": {
+        "goals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "title", "description", "position", "status", "expressionCount"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "title": { "type": "string", "minLength": 1 },
+              "description": { "type": "string", "minLength": 1 },
+              "position": { "type": "integer", "minimum": 0 },
+              "status": { "enum": ["draft", "published"] },
+              "expressionCount": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "packs": { "$ref": "#/$defs/cards" },
+        "resume": { "$ref": "#/$defs/cards" },
+        "userState": { "enum": ["available", "unavailable"] }
+      }
+    }
+  },
+  "$defs": {
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "stableKey", "title", "summary", "level", "skills", "durationLabel", "status", "version", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "stableKey": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "summary": { "type": "string", "minLength": 1 },
+          "level": { "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
+          "skills": { "type": "array", "items": { "enum": ["listen", "read", "speak", "write"] }, "uniqueItems": true },
+          "durationLabel": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["published", "in_progress", "draft", "unavailable"] },
+          "version": { "type": "string", "pattern": "^v[1-9][0-9]*$" },
+          "updatedAt": { "type": ["string", "null"] },
+          "route": { "type": "string", "minLength": 1 },
+          "progress": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["completedSteps", "totalSteps"],
+            "properties": {
+              "completedSteps": { "type": "integer", "minimum": 0 },
+              "totalSteps": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "saved": { "type": "boolean" },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "copyrightStatus"],
+            "properties": {
+              "title": { "type": "string", "minLength": 1 },
+              "copyrightStatus": { "enum": ["unverified", "cleared", "restricted"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

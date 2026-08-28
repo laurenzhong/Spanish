@@ -10,6 +10,7 @@ export const API_ERROR_CODES = [
   "PROTOCOL_VERSION_UNSUPPORTED",
   "PROVIDER_TIMEOUT",
   "PROVIDER_UNAVAILABLE",
+  "EXPLORE_DASHBOARD_UNAVAILABLE",
   "INTERNAL_ERROR",
 ] as const;
 
@@ -90,6 +91,7 @@ const retryableByDefault: Readonly<Record<ApiErrorCode, boolean>> = {
   PROTOCOL_VERSION_UNSUPPORTED: false,
   PROVIDER_TIMEOUT: true,
   PROVIDER_UNAVAILABLE: true,
+  EXPLORE_DASHBOARD_UNAVAILABLE: true,
   INTERNAL_ERROR: true,
 };
 
