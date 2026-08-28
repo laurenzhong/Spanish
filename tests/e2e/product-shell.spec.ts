@@ -214,7 +214,7 @@ test("lets the user revoke a target-specific memory permission", async ({ page }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { revoked: true } }) });
   });
 
-  await page.goto("/me");
+  await page.goto("/me#profile-relationships");
   await expect(page.getByRole("heading", { name: "已授权给角色的资料" })).toBeVisible();
   const revokeButton = page.getByRole("button", { name: "撤销授权" });
   await revokeButton.scrollIntoViewIfNeeded();
@@ -239,13 +239,13 @@ test("lets the user delete an owned relationship memory", async ({ page }) => {
   });
   page.on("dialog", (dialog) => void dialog.accept());
 
-  await page.goto("/me");
+  await page.goto("/me#profile-relationships");
   await expect(page.getByRole("heading", { name: "我的关系记忆" })).toBeVisible();
   await expect(page.getByText("喜欢摄影")).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "删除记忆" });
   await deleteButton.scrollIntoViewIfNeeded();
   await deleteButton.click({ force: true });
-  await expect(page.getByRole("status")).toContainText("已删除");
+  await expect(page.getByTestId("memory-data-controls").getByRole("status")).toContainText("已删除");
   await expect(page.getByText("喜欢摄影")).not.toBeVisible();
 });
 
@@ -267,13 +267,13 @@ test("lets the user delete a saved speech transcript", async ({ page }) => {
   });
   page.on("dialog", (dialog) => void dialog.accept());
 
-  await page.goto("/me");
+  await page.goto("/me#profile-data");
   await expect(page.getByRole("heading", { name: "已保存的录音与转写" })).toBeVisible();
   await expect(page.getByText("¿Cómo va todo?")).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "删除转写" });
   await deleteButton.scrollIntoViewIfNeeded();
   await deleteButton.click({ force: true });
-  await expect(page.getByRole("status")).toContainText("已删除");
+  await expect(page.getByTestId("voice-data-controls").getByRole("status")).toContainText("已删除");
   await expect(page.getByText("¿Cómo va todo?")).not.toBeVisible();
 });
 
@@ -299,12 +299,12 @@ test("requires explicit confirmation before deleting account data", async ({ pag
   });
   page.on("dialog", (dialog) => void dialog.accept());
 
-  await page.goto("/me");
+  await page.goto("/me#profile-data");
   await expect(page.getByRole("heading", { name: "删除我的账号数据" })).toBeVisible();
   const deleteAccountButton = page.getByRole("button", { name: "删除账号数据" });
   await deleteAccountButton.scrollIntoViewIfNeeded();
   await deleteAccountButton.click({ force: true });
-  await expect(page.getByRole("status")).toHaveText("账号数据已删除。");
+  await expect(page.getByTestId("account-data-controls").getByRole("status")).toHaveText("账号数据已删除。");
 });
 
 test("preserves the selected discovery direction on the learning page", async ({
