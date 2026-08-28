@@ -1,5 +1,6 @@
 allowBuilds:
   esbuild: true
+  sharp: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@vitejs/plugin-react@6.1.0'

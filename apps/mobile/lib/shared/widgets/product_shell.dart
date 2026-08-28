@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/features/account/ui/account_menu_sheet.dart';
 import 'package:spanish_mobile/features/character_network/fake_character_network.dart';
 import 'package:spanish_mobile/features/chat/chat_page.dart';
 import 'package:spanish_mobile/features/explore/explore_page.dart';
@@ -87,6 +88,7 @@ class _ProductShellState extends State<ProductShell> {
                     destinations: _destinations,
                     selectedIndex: _selectedIndex,
                     onSelected: _select,
+                    onAccountTap: () => AccountMenuSheet.show(context),
                   ),
                   const VerticalDivider(width: 1),
                   Expanded(
@@ -102,10 +104,10 @@ class _ProductShellState extends State<ProductShell> {
         }
 
         return Scaffold(
-          body: SafeArea(
-            bottom: false,
-            child: IndexedStack(index: _selectedIndex, children: _pages),
-          ),
+          body: SafeArea(bottom: false, child: Column(children: <Widget>[
+            Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 4), child: IconButton(tooltip: '打开账户菜单', onPressed: () => AccountMenuSheet.show(context), icon: const CircleAvatar(radius: 17, child: Text('你'))))),
+            Expanded(child: IndexedStack(index: _selectedIndex, children: _pages)),
+          ])),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _selectedIndex,
             onDestinationSelected: _select,
@@ -130,11 +132,13 @@ class _DesktopNavigation extends StatelessWidget {
     required this.destinations,
     required this.selectedIndex,
     required this.onSelected,
+    required this.onAccountTap,
   });
 
   final List<_ProductDestination> destinations;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
+  final VoidCallback onAccountTap;
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +185,7 @@ class _DesktopNavigation extends StatelessWidget {
                   .toList(),
             ),
           ),
+          ListTile(leading: const CircleAvatar(radius: 16, child: Text('你')), title: const Text('我的 Sueño'), subtitle: const Text('账户资料'), onTap: onAccountTap),
         ],
       ),
     );

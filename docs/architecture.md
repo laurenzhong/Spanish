@@ -290,6 +290,8 @@ READ-003 的文章 detail 端点只接受稳定 `stableKey@version`，并在服�
 
 7.4c 的账号级数据控制通过 `DELETE /api/v1/me/data` 提供。请求必须来自已验证会话、携带 `Idempotency-Key` 和 `DELETE_MY_DATA` 明确确认；服务端事务先删除用户证据，再删除用户 profile 触发其余私有数据级联，同时将 `provider_calls.user_id` 置空并清理 metadata。音频 Storage 路径先登记到无用户外键的 `privacy_cleanup_tasks`，提交后由内部 deleter 清理；供应商未配置或清理失败时保留可重试任务，不阻止私有数据库数据删除。
 
+账户身份通过独立 `account` 模块维护。`GET/PATCH /api/v1/me` 只返回显示名、不可变 `publicUid`、目标语言和头像最小 DTO；照片头像通过 `POST/DELETE /api/v1/me/avatar` 进入服务端校验与私有 Storage。`profiles.id` 不进入客户端 DTO，UID 查找能力预留给阶段 9 的 `/api/v1/friends/*`，不支持邮箱搜索或公开目录。账号删除事务会把 UID 写入 `reserved_public_uids` 后再删除 profile，保证 UID 不回收。
+
 练习活动接口只接受客户端实例 ID、单调序号和 `active`/`inactive`/`ended` 生命周期事件。服务端写入接收时间并以 `(session_id, client_instance_id, sequence)` 幂等；热力图仅消费相邻活动心跳形成的有效秒数，超过 45 秒的间隔、后台/失焦区间和未完成尾部不计入学习时长。
 
 API 错误使用稳定代码，不让前端解析供应商原始错误文本。

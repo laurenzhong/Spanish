@@ -105,6 +105,35 @@ export function createDrizzlePrivacyRepository<
         .where(eq(schema.providerCalls.userId, userId))
         .returning({ id: schema.providerCalls.id });
 
+      let profile: { publicUid: string; avatarPath: string | null } | undefined;
+      const accountColumns = await database.execute<{ column_name: string }>(sql`
+        select column_name
+        from information_schema.columns
+        where table_schema = 'public' and table_name = 'profiles'
+          and column_name in ('public_uid', 'avatar_path')
+      `);
+      if ((accountColumns as unknown as readonly unknown[]).length === 2) {
+        [profile] = await database
+          .select({ publicUid: schema.profiles.publicUid, avatarPath: schema.profiles.avatarPath })
+          .from(schema.profiles)
+          .where(eq(schema.profiles.id, userId))
+          .limit(1);
+      }
+      if (profile) {
+        await database
+          .insert(schema.reservedPublicUids)
+          .values({ publicUid: profile.publicUid, reason: "account-deleted" })
+          .onConflictDoNothing({ target: schema.reservedPublicUids.publicUid });
+        if (profile.avatarPath) {
+          const [task] = await database
+            .insert(schema.privacyCleanupTasks)
+            .values({ storageBucket: "profile-avatars", storagePath: profile.avatarPath, status: "pending", nextAttemptAt: new Date() })
+            .onConflictDoNothing({ target: [schema.privacyCleanupTasks.storageBucket, schema.privacyCleanupTasks.storagePath] })
+            .returning({ id: schema.privacyCleanupTasks.id, storageBucket: schema.privacyCleanupTasks.storageBucket, storagePath: schema.privacyCleanupTasks.storagePath });
+          if (task) cleanupTasks.push(task);
+        }
+      }
+
       const evidence = await database
         .delete(schema.evidenceEvents)
         .where(eq(schema.evidenceEvents.userId, userId))

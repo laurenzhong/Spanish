@@ -9,8 +9,8 @@ const sql = postgres(connectionString, { prepare: false, connect_timeout: 10 });
 try {
   const result = await sql.begin(async (transaction) => {
     const profiles = await transaction.unsafe(`
-      insert into public.profiles (id)
-      select users.id from auth.users users
+      insert into public.profiles (id, public_uid)
+      select users.id, public.generate_public_uid() from auth.users users
       left join public.profiles existing on existing.id = users.id
       where existing.id is null
       on conflict (id) do nothing
@@ -28,4 +28,3 @@ try {
 } finally {
   await sql.end();
 }
-

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/account-profile-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publicUid", "displayName", "nativeLanguage", "interfaceLanguage", "targetLanguage", "updatedAt", "avatar"],
+      "properties": {
+        "publicUid": { "type": "string", "pattern": "^SN-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$" },
+        "displayName": { "type": ["string", "null"], "maxLength": 80 },
+        "nativeLanguage": { "type": "string" },
+        "interfaceLanguage": { "type": "string" },
+        "targetLanguage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "avatar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "presetId", "url", "initials", "colorIndex"],
+          "properties": {
+            "kind": { "enum": ["upload", "preset", "initials"] },
+            "presetId": { "type": ["string", "null"] },
+            "url": { "type": ["string", "null"] },
+            "initials": { "type": "string", "minLength": 1 },
+            "colorIndex": { "type": "integer", "minimum": 0, "maximum": 4 }
+          }
+        }
+      }
+    }
+  }
+}

@@ -494,6 +494,44 @@
           }
         }
       }
+    },
+    "/me": {
+      "get": {
+        "summary": "Read the authenticated user's account profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Account profile", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/account-profile-response.schema.json" } } } },
+          "401": { "description": "Authentication required" },
+          "503": { "description": "Account profile unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      },
+      "patch": {
+        "summary": "Update the authenticated user's account profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/account-profile-patch.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Updated account profile", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/account-profile-response.schema.json" } } } },
+          "400": { "description": "Invalid profile input" },
+          "409": { "description": "Concurrent profile update" }
+        }
+      }
+    },
+    "/me/avatar": {
+      "post": {
+        "summary": "Upload a normalized account avatar",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "required": ["file"], "properties": { "file": { "type": "string", "format": "binary" }, "attemptId": { "type": "string" } } } } } },
+        "responses": {
+          "200": { "description": "Updated account profile", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/avatar-upload-response.schema.json" } } } },
+          "400": { "description": "Invalid image" },
+          "503": { "description": "Avatar storage unavailable" }
+        }
+      },
+      "delete": {
+        "summary": "Remove the authenticated user's uploaded avatar",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Initials avatar restored", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/avatar-upload-response.schema.json" } } } } }
+      }
     }
   },
   "components": {

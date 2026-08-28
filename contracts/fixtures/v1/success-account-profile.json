@@ -1,0 +1,12 @@
+{
+  "apiVersion": "v1",
+  "data": {
+    "publicUid": "SN-7K4M-9Q2P",
+    "displayName": "Ana",
+    "nativeLanguage": "zh-CN",
+    "interfaceLanguage": "zh-CN",
+    "targetLanguage": "es-ES",
+    "updatedAt": "2026-08-28T08:00:00.000Z",
+    "avatar": { "kind": "initials", "presetId": null, "url": null, "initials": "A", "colorIndex": 2 }
+  }
+}

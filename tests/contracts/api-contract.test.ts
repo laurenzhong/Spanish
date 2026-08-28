@@ -11,6 +11,7 @@ import {
   ContractParseError,
   defaultRetryable,
   parseAuthSessionResponse,
+  parseAccountProfileResponse,
   parseErrorResponse,
   parseSuccessResponse,
   type ApiErrorCode,
@@ -169,5 +170,10 @@ describe("v1 API contracts", () => {
       userId: "00000000-0000-4000-8000-000000000001",
       email: "learner@example.test",
     });
+  });
+
+  it("parses the shared account profile identity", () => {
+    const fixture = readJson<unknown>(path.join(fixturesDirectory, "success-account-profile.json"));
+    expect(parseAccountProfileResponse(fixture)).toMatchObject({ publicUid: "SN-7K4M-9Q2P", avatar: { kind: "initials", initials: "A" } });
   });
 });

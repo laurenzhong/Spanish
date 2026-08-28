@@ -5,50 +5,89 @@ import { useEffect, useRef, useState } from "react";
 
 import { ThemeToggle } from "./theme-toggle";
 
+type AccountProfileDto = Readonly<{
+  publicUid: string;
+  displayName: string | null;
+  targetLanguage: string;
+  updatedAt: string;
+  avatar: Readonly<{
+    kind: "upload" | "preset" | "initials";
+    presetId: string | null;
+    url: string | null;
+    initials: string;
+    colorIndex: number;
+  }>;
+}>;
+
+function Avatar({ profile, size = "sm" }: Readonly<{ profile: AccountProfileDto | null; size?: "sm" | "lg" }>) {
+  const style = profile ? { "--avatar-index": profile.avatar.colorIndex } as React.CSSProperties : undefined;
+  if (profile?.avatar.url) return <span className={`account-avatar account-avatar--${size}`} role="img" aria-label="账户头像" style={{ ...style, backgroundImage: `url(${profile.avatar.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />;
+  return <span className={`account-avatar account-avatar--${size}`} aria-hidden="true" style={style}>{profile?.avatar.initials ?? "你"}</span>;
+}
+
 export function AccountMenu() {
   const [open, setOpen] = useState(false);
+  const [profile, setProfile] = useState<AccountProfileDto | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-
+    const onPointerDown = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setOpen(false); };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+    return () => { document.removeEventListener("pointerdown", onPointerDown); document.removeEventListener("keydown", onKeyDown); };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    void fetch("/api/v1/me", { signal: controller.signal, headers: { accept: "application/json" } })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("unavailable");
+        const payload = await response.json() as { data?: AccountProfileDto };
+        if (!payload.data) throw new Error("invalid");
+        setProfile(payload.data);
+        setNotice(null);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setNotice("账户资料暂时不可用");
+      });
+    return () => controller.abort();
+  }, [open]);
+
+  async function copyUid() {
+    if (!profile?.publicUid) return;
+    try { await navigator.clipboard.writeText(profile.publicUid); setNotice("UID 已复制"); }
+    catch { setNotice("复制失败，请手动选择 UID"); }
+  }
+
+  const displayName = profile?.displayName?.trim() || "我的 Sueño";
+  const language = profile?.targetLanguage === "es-ES" ? "西班牙语" : profile?.targetLanguage ?? "西班牙语";
 
   return (
     <div className="account-menu" ref={menuRef}>
-      <button
-        className="account-menu__trigger"
-        type="button"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-label="打开账户菜单"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span className="account-avatar" aria-hidden="true">你</span>
+      <button className="account-menu__trigger" type="button" aria-expanded={open} aria-haspopup="menu" aria-label="打开账户菜单" onClick={() => setOpen((current) => !current)}>
+        <Avatar profile={profile} />
+        <span className="account-menu__trigger-copy"><strong>{displayName}</strong><small>{language}</small></span>
+        <span className="account-menu__chevron" aria-hidden="true">↗</span>
       </button>
       {open ? (
         <div className="account-menu__popover" role="menu" aria-label="账户菜单">
           <div className="account-menu__identity">
-            <span className="eyebrow">当前账户</span>
-            <strong>我的 Sueño</strong>
+            <div className="account-menu__identity-head"><Avatar profile={profile} size="lg" /><div><span className="eyebrow">当前账户</span><strong>{displayName}</strong><small>{language}学习者</small></div></div>
+              <div className="account-menu__uid"><span><small>公开 UID</small><code>{profile?.publicUid ?? (notice ? "暂不可用" : "读取中…")}</code></span><button type="button" onClick={copyUid} disabled={!profile?.publicUid} aria-label="复制公开 UID">复制</button></div>
+            {notice ? <p className="account-menu__notice" role="status">{notice}</p> : null}
           </div>
-          <Link href="/me" role="menuitem" onClick={() => setOpen(false)}>
-            我的进步与隐私
-          </Link>
+          <Link href="/me/profile" role="menuitem" onClick={() => setOpen(false)}>编辑个人资料 <span aria-hidden="true">↗</span></Link>
+          <Link href="/me" role="menuitem" onClick={() => setOpen(false)}>我的进步与隐私 <span aria-hidden="true">↗</span></Link>
+          <Link href="/me#preferences" role="menuitem" onClick={() => setOpen(false)}>偏好设置 <span aria-hidden="true">↗</span></Link>
+          <Link href="/help" role="menuitem" onClick={() => setOpen(false)}>帮助与反馈 <span aria-hidden="true">↗</span></Link>
+          <div className="account-menu__divider" />
           <ThemeToggle />
+          <button className="account-menu__logout" type="button" role="menuitem" onClick={() => setNotice("请从登录页退出当前会话")}>退出登录</button>
         </div>
       ) : null}
     </div>

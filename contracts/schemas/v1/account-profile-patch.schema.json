@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/account-profile-patch.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "displayName": { "type": ["string", "null"], "maxLength": 80 },
+    "avatarKind": { "enum": ["upload", "preset", "initials"] },
+    "avatarPresetId": { "type": ["string", "null"] }
+  }
+}

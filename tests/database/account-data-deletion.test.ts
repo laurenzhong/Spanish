@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { eq } from "drizzle-orm";
@@ -68,8 +68,16 @@ describe("account data deletion", () => {
       "0008_broad_chronomancer.sql",
       "0009_oval_namora.sql",
       "0010_watery_ogun.sql",
+      "0011_*.sql",
+      "0012_*.sql",
+      "0013_*.sql",
+      "0014_*.sql",
+      "0015_flaky_havok.sql",
     ]) {
-      await client.exec(await migration(name));
+      const migrationName = name.includes("*")
+        ? (await readdir(path.join(process.cwd(), "drizzle"))).find((file) => new RegExp(`^${name.replace("*", ".*")}$`, "u").test(file))
+        : name;
+      if (migrationName) await client.exec(await migration(migrationName));
     }
     database = drizzle(client, { schema });
     await client.exec(`

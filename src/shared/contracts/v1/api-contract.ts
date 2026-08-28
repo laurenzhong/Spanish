@@ -44,6 +44,42 @@ export type AuthSessionIdentity = Readonly<{
   email: string | null;
 }>;
 
+export type AccountProfileAvatar = Readonly<{
+  kind: "upload" | "preset" | "initials";
+  presetId: string | null;
+  url: string | null;
+  initials: string;
+  colorIndex: number;
+}>;
+
+export type AccountProfileDto = Readonly<{
+  publicUid: string;
+  displayName: string | null;
+  nativeLanguage: string;
+  interfaceLanguage: string;
+  targetLanguage: string;
+  updatedAt: string;
+  avatar: AccountProfileAvatar;
+}>;
+
+export function parseAccountProfileResponse(input: unknown): AccountProfileDto {
+  const response = parseSuccessResponse(input);
+  const data = requireRecord(response.data, "Account profile response must include a data object.");
+  requireAllowedKeys(data, ["publicUid", "displayName", "nativeLanguage", "interfaceLanguage", "targetLanguage", "updatedAt", "avatar"]);
+  if (typeof data.publicUid !== "string" || !/^SN-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/u.test(data.publicUid)) throw new ContractParseError("VALIDATION_FAILED", "Account profile publicUid is invalid.");
+  if (data.displayName !== null && typeof data.displayName !== "string") throw new ContractParseError("VALIDATION_FAILED", "Account profile displayName is invalid.");
+  for (const field of ["nativeLanguage", "interfaceLanguage", "targetLanguage", "updatedAt"] as const) if (typeof data[field] !== "string") throw new ContractParseError("VALIDATION_FAILED", `Account profile ${field} is invalid.`);
+  const avatar = requireRecord(data.avatar, "Account profile avatar is required.");
+  requireAllowedKeys(avatar, ["kind", "presetId", "url", "initials", "colorIndex"]);
+  if (!AVATAR_KINDS_CONTRACT.includes(avatar.kind as (typeof AVATAR_KINDS_CONTRACT)[number])) throw new ContractParseError("VALIDATION_FAILED", "Account profile avatar kind is invalid.");
+  if (avatar.presetId !== null && typeof avatar.presetId !== "string") throw new ContractParseError("VALIDATION_FAILED", "Account profile avatar presetId is invalid.");
+  if (avatar.url !== null && typeof avatar.url !== "string") throw new ContractParseError("VALIDATION_FAILED", "Account profile avatar url is invalid.");
+  if (typeof avatar.initials !== "string" || typeof avatar.colorIndex !== "number") throw new ContractParseError("VALIDATION_FAILED", "Account profile avatar fallback is invalid.");
+  return { publicUid: data.publicUid, displayName: data.displayName as string | null, nativeLanguage: data.nativeLanguage as string, interfaceLanguage: data.interfaceLanguage as string, targetLanguage: data.targetLanguage as string, updatedAt: data.updatedAt as string, avatar: { kind: avatar.kind as AccountProfileAvatar["kind"], presetId: avatar.presetId as string | null, url: avatar.url as string | null, initials: avatar.initials as string, colorIndex: avatar.colorIndex as number } };
+}
+
+const AVATAR_KINDS_CONTRACT = ["upload", "preset", "initials"] as const;
+
 const retryableByDefault: Readonly<Record<ApiErrorCode, boolean>> = {
   VALIDATION_FAILED: false,
   AUTH_REQUIRED: false,

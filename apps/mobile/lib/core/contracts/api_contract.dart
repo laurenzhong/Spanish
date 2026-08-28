@@ -227,6 +227,43 @@ class AuthSessionIdentity {
   final String? email;
 }
 
+class AccountProfileAvatar {
+  const AccountProfileAvatar({required this.kind, required this.presetId, required this.url, required this.initials, required this.colorIndex});
+
+  final String kind;
+  final String? presetId;
+  final String? url;
+  final String initials;
+  final int colorIndex;
+}
+
+class AccountProfileDto {
+  const AccountProfileDto({required this.publicUid, required this.displayName, required this.nativeLanguage, required this.interfaceLanguage, required this.targetLanguage, required this.updatedAt, required this.avatar});
+
+  factory AccountProfileDto.fromResponse(Object? input) {
+    final response = SuccessResponse.fromJson(input);
+    final data = _requireMap(response.data, 'Account profile response must include a data object.');
+    _requireAllowedKeys(data, const <String>{'publicUid', 'displayName', 'nativeLanguage', 'interfaceLanguage', 'targetLanguage', 'updatedAt', 'avatar'});
+    final uid = data['publicUid'];
+    if (uid is! String || !RegExp(r'^SN-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$').hasMatch(uid)) throw ContractFormatException(ApiErrorCode.validationFailed, 'Account profile publicUid is invalid.');
+    final avatar = _requireMap(data['avatar'], 'Account profile avatar is required.');
+    _requireAllowedKeys(avatar, const <String>{'kind', 'presetId', 'url', 'initials', 'colorIndex'});
+    final kind = avatar['kind'];
+    if (kind is! String || !const <String>{'upload', 'preset', 'initials'}.contains(kind)) throw ContractFormatException(ApiErrorCode.validationFailed, 'Account profile avatar kind is invalid.');
+    if (data['displayName'] != null && data['displayName'] is! String) throw ContractFormatException(ApiErrorCode.validationFailed, 'Account profile displayName is invalid.');
+    if (data['nativeLanguage'] is! String || data['interfaceLanguage'] is! String || data['targetLanguage'] is! String || data['updatedAt'] is! String || avatar['initials'] is! String || avatar['colorIndex'] is! int) throw ContractFormatException(ApiErrorCode.validationFailed, 'Account profile contains invalid fields.');
+    return AccountProfileDto(publicUid: uid, displayName: data['displayName'] as String?, nativeLanguage: data['nativeLanguage'] as String, interfaceLanguage: data['interfaceLanguage'] as String, targetLanguage: data['targetLanguage'] as String, updatedAt: data['updatedAt'] as String, avatar: AccountProfileAvatar(kind: kind, presetId: avatar['presetId'] as String?, url: avatar['url'] as String?, initials: avatar['initials'] as String, colorIndex: avatar['colorIndex'] as int));
+  }
+
+  final String publicUid;
+  final String? displayName;
+  final String nativeLanguage;
+  final String interfaceLanguage;
+  final String targetLanguage;
+  final String updatedAt;
+  final AccountProfileAvatar avatar;
+}
+
 class ContractFormatException extends FormatException {
   ContractFormatException(this.code, super.message);
 
