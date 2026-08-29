@@ -9,6 +9,7 @@ import {
   type ConversationProviderInput,
   type ConversationProviderResult,
 } from "../src/modules/providers/conversation/server";
+import { questionPolicyForReply } from "../src/modules/conversation/domain/reply-plan";
 
 type ReplayCase = Readonly<{
   caseId: string;
@@ -76,6 +77,7 @@ function buildInput(item: ReplayCase): ConversationProviderInput {
     ].join(" "),
     memories: [],
     teachingOpportunity: null,
+    questionPolicy: questionPolicyForReply({ userMessage: item.userMessage }),
   };
 }
 

@@ -1,5 +1,6 @@
 import type { MemoryRecord, MemoryRepository } from "@/src/modules/memory";
 import { getConversationCharacter } from "../domain/character-catalog";
+import { questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 
 export type ReplyCharacterSnapshot = Readonly<{
   characterKey: string;
@@ -34,6 +35,7 @@ export type ReplyContext = Readonly<{
     skillKey: string;
     preferredStyle?: "follow-up" | "recast" | "clarification";
   }> | null;
+  questionPolicy?: QuestionPolicy;
 }>;
 
 export type BuildReplyContextInput = Readonly<{
@@ -84,5 +86,6 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
     relationshipSummary: input.relationshipSummary ?? null,
     memories: readableMemories(memories, character.characterKey),
     teachingOpportunity: input.teachingOpportunity ?? null,
+    questionPolicy: questionPolicyForReply({ userMessage: input.userMessage }),
   };
 }

@@ -17,6 +17,29 @@ export type LearningOpportunity = Readonly<{
   reason: "natural-opening";
 }>;
 
+export type QuestionPolicy = Readonly<{
+  maxSubstantiveQuestions: number;
+  allowReciprocalQuestion: boolean;
+  maxQuestionPressure: "none" | "low" | "medium";
+}>;
+
+export function questionPolicyForReply(input: Readonly<{ userMessage: string }>): QuestionPolicy {
+  const text = normalized(input.userMessage);
+  if (/(?:eres|es)\s+(?:una?\s+)?(?:ia|bot|persona real)|inteligencia artificial|eres real/iu.test(text)) {
+    return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
+  }
+  if (/\b(?:triste|preocupad[oa]|ansios[oa]|cansad[oa]|fatal|mal|problema|dif[ií]cil|queja|agobiad[oa])\b/iu.test(text)) {
+    return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
+  }
+  if (/\b(?:me voy|nos vemos|hasta luego|hasta manana|hasta mañana|buenas noches)\b/iu.test(text)) {
+    return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
+  }
+  if (text.includes("?") || /^(?:hola|hey|buenas)\b/iu.test(text)) {
+    return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: true, maxQuestionPressure: "low" };
+  }
+  return { maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" };
+}
+
 export type ReplyPlan = Readonly<{
   intent: ReplyIntent;
   emotion: ReplyEmotion;

@@ -106,6 +106,7 @@ export async function* streamReply(
     relationshipSummary: null,
     memories: [],
     teachingOpportunity: null,
+    questionPolicy: undefined,
   };
   let replyResult: ConversationProviderResult;
   if (input.replyProvider) {

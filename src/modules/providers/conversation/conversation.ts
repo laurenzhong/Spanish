@@ -46,6 +46,11 @@ export type ConversationProviderInput = Readonly<{
     skillKey: string;
     preferredStyle?: "follow-up" | "recast" | "clarification";
   }> | null;
+  questionPolicy?: Readonly<{
+    maxSubstantiveQuestions: number;
+    allowReciprocalQuestion: boolean;
+    maxQuestionPressure: "none" | "low" | "medium";
+  }>;
 }>;
 
 export type ConversationProviderResult = Readonly<{
