@@ -467,7 +467,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function clearTranslation(messageId: string) {
-    setContextMenu(null);
     translationRequestIdRef.current += 1;
     translationAbortRef.current?.abort();
     setTranslations((current) => {
@@ -475,6 +474,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       delete next[messageId];
       return next;
     });
+    // Close after clearing the item so the menu cannot render one more frame
+    // with the stale “取消翻译” action.
+    setContextMenu(null);
   }
 
   function beginForward(message: ConversationState["messages"][number]) {
@@ -617,7 +619,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {selectedMessage()?.role === "character" ? (() => {
             const selected = selectedMessage()!;
             const translation = translations[selected.id];
-            return <button type="button" role="menuitem" disabled={translation?.status === "loading"} onClick={() => translation?.status === "success" ? clearTranslation(selected.id) : void translateMessage(selected)}>{translation?.status === "success" ? "取消翻译" : translation?.status === "loading" ? "正在翻译……" : "翻译"}</button>;
+            return <button type="button" role="menuitem" disabled={translation?.status === "loading"} onClick={(event) => { event.stopPropagation(); if (translation?.status === "success") clearTranslation(selected.id); else void translateMessage(selected); }}>{translation?.status === "success" ? "取消翻译" : translation?.status === "loading" ? "正在翻译……" : "翻译"}</button>;
           })() : null}
           <button type="button" role="menuitem" onClick={() => quoteMessage(selectedMessage()!)}>引用回复</button>
           {selectedMessage()?.role === "user" ? <>
