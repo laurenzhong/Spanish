@@ -67,6 +67,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const abortRef = useRef<AbortController | null>(null);
   const translationAbortRef = useRef<AbortController | null>(null);
   const translationRequestIdRef = useRef(0);
+  const translationCharacterKeyRef = useRef(characterKey);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowRef = useRef(true);
   const isNearBottomRef = useRef(true);
@@ -155,6 +156,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     abortRef.current?.abort();
     translationAbortRef.current?.abort();
   }, []);
+
+  useEffect(() => {
+    translationAbortRef.current?.abort();
+    translationRequestIdRef.current += 1;
+    translationCharacterKeyRef.current = characterKey;
+  }, [characterKey]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -437,6 +444,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     const controller = new AbortController();
     translationAbortRef.current = controller;
     const requestId = ++translationRequestIdRef.current;
+    translationCharacterKeyRef.current = characterKey;
     setTranslations((current) => ({ ...current, [message.id]: { status: "loading" } }));
     try {
       const response = await fetch("/api/v1/read/word-explanation", {
@@ -560,7 +568,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           const showTimestamp = Boolean(message.createdAt && (dayChanged || gapExceeded));
           const timestampExpanded = expandedTimestampId === message.id;
           const timestampValue = message.createdAt;
-          const translation = message.role === "character" ? translations[message.id] : undefined;
+          const translation = message.role === "character" && translationCharacterKeyRef.current === characterKey ? translations[message.id] : undefined;
           return <Fragment key={message.id}>
           {(showTimestamp || timestampExpanded) && timestampValue ? <time className={`conversation-thread__timestamp${timestampExpanded ? " conversation-thread__timestamp--exact" : ""}`} dateTime={timestampValue}>
             {timestampExpanded ? formatFullTimestamp(timestampValue) : formatConversationTimestamp(timestampValue, dayChanged)}
