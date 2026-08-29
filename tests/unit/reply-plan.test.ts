@@ -162,6 +162,20 @@ describe("reply context and deterministic generation", () => {
     ]));
   });
 
+  it("captures an ordinary user plan so a later return can connect to its details", async () => {
+    const context = await buildReplyContext({
+      generationId: "generation-port-plan",
+      userId: "user-1",
+      userMessage: "Ya he vuelto.",
+      recentMessages: [
+        { role: "user", content: "Esta tarde voy al puerto a hacer fotos.", sentAt: "2026-08-29T12:00:00.000Z" },
+      ],
+    });
+    expect(context.openCommitments).toEqual([
+      expect.objectContaining({ owner: "user", statement: "Esta tarde voy al puerto a hacer fotos.", dueHint: "later-today", status: "open" }),
+    ]);
+  });
+
   it("uses the readable memory projection and excludes rejected or conflicting facts", async () => {
     const listReadableMemories = vi.fn().mockResolvedValue([
       memory(),

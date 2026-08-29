@@ -239,10 +239,13 @@ export function deriveReplyCommitments(messages: readonly ReplyContextMessage[])
   const commitments = new Map<string, ReplyCommitment>();
   for (const message of messages) {
     const normalized = normalizedTopicText(message.content);
-    if (!/(?:te cuento|te digo|te escribo|te aviso|te mando|te paso)/u.test(normalized)) continue;
-    if (!/(?:luego|despues|esta tarde|esta noche|manana|cuando vuelva|cuando termine|mas tarde)/u.test(normalized)) continue;
+    const explicitCommitment = /(?:te cuento|te digo|te escribo|te aviso|te mando|te paso)/u.test(normalized)
+      && /(?:luego|despues|esta tarde|esta noche|manana|cuando vuelva|cuando termine|mas tarde)/u.test(normalized);
+    const ordinaryUserPlan = message.role === "user"
+      && /(?:voy a|me voy a|salgo a|salgo para|ire a|pienso ir|esta tarde voy|esta noche voy)/u.test(normalized);
+    if (!explicitCommitment && !ordinaryUserPlan) continue;
     const owner = message.role === "user" ? "user" : "character";
-    const commitmentKey = `${owner}:${normalized.slice(0, 96)}`;
+    const commitmentKey = `${owner}:${ordinaryUserPlan ? "plan" : "promise"}:${normalized.slice(0, 96)}`;
     commitments.set(commitmentKey, {
       commitmentKey,
       owner,

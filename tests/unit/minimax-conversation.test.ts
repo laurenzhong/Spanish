@@ -14,6 +14,7 @@ const input: ConversationProviderInput = {
   recentMessages: [{ role: "character", content: "¿Cómo te ha ido?" }],
   rollingSummary: "Hablamos de fotografía y de los planes de esta semana.",
   openTopics: [{ topicKey: "daily:meal", label: "¿Qué comiste?", status: "answered", lastMentionedBy: "user", lastAnswer: "Una ensalada." }],
+  openCommitments: [{ commitmentKey: "user:plan:puerto", owner: "user", statement: "Esta tarde voy al puerto a hacer fotos.", dueHint: "later-today", status: "open" }],
   character: {
     characterKey: "lucia",
     characterVersion: 1,
@@ -77,6 +78,7 @@ describe("MiniMaxConversationProvider", () => {
     expect(JSON.stringify(body)).toContain(input.userMessage);
     expect(JSON.stringify(body)).toContain("la fotografía");
     expect(JSON.stringify(body)).toContain("daily:meal");
+    expect(JSON.stringify(body)).toContain("puerto");
     expect(JSON.stringify(body)).not.toContain("test-minimax-key");
   });
 
