@@ -83,7 +83,6 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   const dragOverCharacterKeyRef = useRef<string | null>(null);
   const [preferenceError, setPreferenceError] = useState(false);
   const [preferenceNotice, setPreferenceNotice] = useState<string | null>(null);
-  const [isManagingOrder, setIsManagingOrder] = useState(false);
   const [draggedCharacterKey, setDraggedCharacterKey] = useState<string | null>(null);
   const [dragOverCharacterKey, setDragOverCharacterKey] = useState<string | null>(null);
 
@@ -191,36 +190,23 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     });
   }
 
-  async function applyOrder(nextConversations: readonly ConversationPreview[]) {
+  async function applyOrder(nextConversations: readonly ConversationPreview[], preferenceOverrides: ConversationPreferences = {}) {
     const order = nextConversations.map((conversation) => conversation.characterKey);
     const previous = preferences;
-    setPreferences((current) => Object.fromEntries(order.map((characterKey, sortRank) => [characterKey, { ...(current[characterKey] ?? { isPinned: characterKey === "lucia", isMuted: false, sortRank: null }), sortRank }])))
+    setPreferences((current) => Object.fromEntries(order.map((characterKey, sortRank) => [characterKey, { ...(current[characterKey] ?? { isPinned: characterKey === "lucia", isMuted: false, sortRank: null }), ...(preferenceOverrides[characterKey] ?? {}), sortRank }])))
     try {
+      for (const [characterKey, patch] of Object.entries(preferenceOverrides)) {
+        const response = await fetch("/api/v1/conversations/preferences", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ characterKey, ...patch }) });
+        if (!response.ok) throw new Error("PREFERENCE_SAVE_FAILED");
+      }
       const response = await fetch("/api/v1/conversations/preferences", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderedCharacterKeys: order }) });
       if (!response.ok) throw new Error("ORDER_SAVE_FAILED");
       setPreferenceError(false);
-      setPreferenceNotice("好友顺序已保存");
+      setPreferenceNotice(Object.values(preferenceOverrides).some((patch) => patch.isPinned !== undefined) ? "好友已移动，置顶状态已同步调整" : "好友顺序已保存");
     } catch {
       setPreferences(previous);
       setPreferenceError(true);
     }
-  }
-
-  function moveCharacter(characterKey: string, direction: -1 | 1) {
-    const index = visibleConversations.findIndex((conversation) => conversation.characterKey === characterKey);
-    if (index < 0) return;
-    const currentPinned = preferenceFor(visibleConversations[index]!).isPinned;
-    let target = index + direction;
-    while (target >= 0 && target < visibleConversations.length && preferenceFor(visibleConversations[target]!).isPinned !== currentPinned) target += direction;
-    if (target < 0 || target >= visibleConversations.length) {
-      setPreferenceNotice(direction < 0 ? "该好友已经在此分组最前面" : "该好友已经在此分组最后面");
-      return;
-    }
-    const next = [...visibleConversations];
-    const [moved] = next.splice(index, 1);
-    if (!moved) return;
-    next.splice(target, 0, moved);
-    void applyOrder(next);
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>, characterKey: string) {
@@ -252,13 +238,15 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     if (current.active && dropTarget) {
       const from = visibleConversations.findIndex((item) => item.characterKey === current.characterKey);
       const to = visibleConversations.findIndex((item) => item.characterKey === dropTarget);
-      if (from >= 0 && to >= 0 && preferenceFor(visibleConversations[from]!).isPinned === preferenceFor(visibleConversations[to]!).isPinned) {
+      if (from >= 0 && to >= 0) {
         const next = [...visibleConversations];
         const [moved] = next.splice(from, 1);
-        if (moved) next.splice(to, 0, moved);
-        void applyOrder(next);
-      } else if (from >= 0 && to >= 0) {
-        setPreferenceNotice("置顶好友和普通好友分组排序，请在同一分组内拖动");
+        if (moved) {
+          next.splice(to, 0, moved);
+          const sourcePinned = preferenceFor(visibleConversations[from]!).isPinned;
+          const targetPinned = preferenceFor(visibleConversations[to]!).isPinned;
+          void applyOrder(next, sourcePinned === targetPinned ? {} : { [moved.characterKey]: { isPinned: targetPinned } });
+        }
       }
     }
     dragState.current = null;
@@ -279,8 +267,6 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
 
       <ConversationSearch />
       {preferenceError ? <p className="conversation-contact-rail__preference-error" role="status">好友设置暂未保存，请稍后重试。</p> : preferenceNotice ? <p className="conversation-contact-rail__preference-notice" role="status">{preferenceNotice}</p> : null}
-      {isManagingOrder ? <div className="conversation-contact-rail__manage-bar" role="status"><span>正在调整顺序</span><button type="button" onClick={() => { setIsManagingOrder(false); setDraggedCharacterKey(null); }}>完成</button></div> : <button type="button" className="conversation-contact-rail__manage-trigger" onClick={() => setIsManagingOrder(true)}>管理好友顺序</button>}
-
       <p className="conversation-contact-rail__label">最近</p>
       <nav className="conversation-contact-rail__list" aria-label="好友列表">
         {status === "loading" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">正在加载会话……</p> : null}
@@ -300,24 +286,6 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
-              onDragOver={(event) => { if (isManagingOrder) event.preventDefault(); }}
-              onDrop={(event) => {
-                event.preventDefault();
-                if (!draggedCharacterKey || draggedCharacterKey === conversation.characterKey) return;
-                const from = visibleConversations.findIndex((item) => item.characterKey === draggedCharacterKey);
-                const to = visibleConversations.findIndex((item) => item.characterKey === conversation.characterKey);
-                if (from < 0 || to < 0) return;
-                if (preferenceFor(visibleConversations[from]!).isPinned !== preferenceFor(visibleConversations[to]!).isPinned) {
-                  setPreferenceNotice("置顶好友和普通好友分组排序，请在同一分组内拖动");
-                  setDraggedCharacterKey(null);
-                  return;
-                }
-                const next = [...visibleConversations];
-                const [moved] = next.splice(from, 1);
-                if (moved) next.splice(to, 0, moved);
-                setDraggedCharacterKey(null);
-                void applyOrder(next);
-              }}
               onContextMenu={(event) => openContextMenu(event, conversation.characterKey)}
               onTouchStart={(event) => {
                 if (event.touches.length !== 1) return;
@@ -359,11 +327,6 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
                 {preference.isMuted ? <span className="conversation-contact-row__muted" aria-label="已静音">静音</span> : null}
                 {conversation.lastMessageAt ? <time className="conversation-contact-row__time" dateTime={conversation.lastMessageAt}>{formatConversationTime(conversation.lastMessageAt)}</time> : <span className="conversation-contact-row__new">开始对话</span>}
               </Link>
-              {isManagingOrder ? <div className="conversation-contact-row__reorder-controls">
-                <span className="conversation-contact-row__reorder-hint">拖动好友行调整顺序</span>
-                <button type="button" aria-label={`上移 ${conversation.characterName}`} onClick={() => moveCharacter(conversation.characterKey, -1)}>↑</button>
-                <button type="button" aria-label={`下移 ${conversation.characterName}`} onClick={() => moveCharacter(conversation.characterKey, 1)}>↓</button>
-              </div> : null}
             </div>
           );
         })}
@@ -382,7 +345,6 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
           </button>
           <div className="conversation-contact-context-menu__separator" role="separator" />
           <Link role="menuitem" href={`/chat/${contextConversation.characterKey}`} onClick={() => setContextMenu(null)}>打开好友对话</Link>
-          <button type="button" role="menuitem" onClick={() => { setIsManagingOrder(true); setContextMenu(null); }}>管理好友顺序</button>
         </div>
       ) : null}
 

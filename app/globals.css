@@ -4096,34 +4096,6 @@ button {
   line-height: 1.4;
 }
 
-.conversation-contact-rail__manage-trigger,
-.conversation-contact-rail__manage-bar button {
-  min-height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--conversation-line);
-  border-radius: 4px;
-  color: var(--conversation-action);
-  background: transparent;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.conversation-contact-rail__manage-trigger { justify-self: start; margin: 0 5px 8px; }
-.conversation-contact-rail__manage-trigger:hover,
-.conversation-contact-rail__manage-trigger:focus-visible,
-.conversation-contact-rail__manage-bar button:hover,
-.conversation-contact-rail__manage-bar button:focus-visible { background: color-mix(in srgb, var(--conversation-line) 35%, transparent); }
-
-.conversation-contact-rail__manage-bar {
-  display: flex;
-  min-height: 32px;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 5px 8px;
-  color: var(--conversation-muted);
-  font-size: 10px;
-}
-
 .conversation-contact-rail__list {
   display: grid;
   gap: 4px;
@@ -4234,36 +4206,6 @@ button {
   color: var(--conversation-faint);
   font-size: 9px;
 }
-
-.conversation-contact-row__reorder-controls {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding-right: 3px;
-}
-
-.conversation-contact-row__reorder-hint {
-  align-self: center;
-  margin-right: 3px;
-  color: var(--conversation-faint);
-  font-size: 9px;
-  white-space: nowrap;
-}
-
-.conversation-contact-row__reorder-controls button {
-  width: 28px;
-  min-width: 28px;
-  min-height: 36px;
-  padding: 0;
-  border: 0;
-  color: var(--conversation-faint);
-  background: transparent;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.conversation-contact-row__reorder-controls button:hover,
-.conversation-contact-row__reorder-controls button:focus-visible { color: var(--conversation-action); background: color-mix(in srgb, var(--conversation-line) 35%, transparent); outline: none; }
 
 .conversation-contact-context-menu {
   position: absolute;

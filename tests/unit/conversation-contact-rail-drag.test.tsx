@@ -16,7 +16,7 @@ describe("ConversationContactRail direct dragging", () => {
       return Promise.resolve({
         ok: true,
         json: async () => ({ data: { conversations: [
-          { conversationId: "c1", characterKey: "lucia", characterName: "Lucía Martín", avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null, isPinned: false },
+          { conversationId: "c1", characterKey: "lucia", characterName: "Lucía Martín", avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null, isPinned: true },
           { conversationId: "c2", characterKey: "mateo", characterName: "Mateo Ruiz", avatarClass: "avatar--mateo", roleLabel: "兴趣好友", lastMessageAt: null, lastMessage: null, isPinned: false },
         ] } }),
       });
@@ -40,6 +40,7 @@ describe("ConversationContactRail direct dragging", () => {
     fireEvent.pointerUp(firstRow!, { pointerType: "mouse", button: 0, pointerId: 1, clientX: 20, clientY: 70 });
 
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([, init]) => typeof init?.body === "string" && init.body.includes('"orderedCharacterKeys":["mateo","lucia"]'))).toBe(true));
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => typeof init?.body === "string" && init.body.includes('"isPinned":false'))).toBe(true);
     expect(screen.getAllByRole("link").map((link) => link.textContent).join(" ")).toContain("Mateo Ruiz");
   });
 });
