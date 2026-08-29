@@ -292,12 +292,14 @@ describe("fake conversation reply", () => {
     expect(reciprocalEvents.at(-1)).toMatchObject({ type: "done" });
 
     const supportEvents = [];
+    const supportObservations: StreamReplyProviderObservation[] = [];
     for await (const event of streamReply({
       characterKey: "lucia", characterVersion: 1, text: "Hoy he tenido un día difícil.", clientMessageId: "client-2", generationId: "generation-2", messageId: "message-2",
-      replyProvider: makeProvider("Lo siento. ¿Quieres contarme qué pasó?"), wait: async () => {},
+      replyProvider: makeProvider("Lo siento. ¿Quieres contarme qué pasó?"), onProviderResult: (observation) => { supportObservations.push(observation); }, wait: async () => {},
     })) supportEvents.push(event);
     expect(supportEvents.some((event) => event.type === "delta")).toBe(false);
     expect(supportEvents.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });
+    expect(supportObservations).toEqual([expect.objectContaining({ status: "failed", errorType: "safety-gate" })]);
   });
 
   it("answers a wellbeing question instead of using the generic greeting", async () => {

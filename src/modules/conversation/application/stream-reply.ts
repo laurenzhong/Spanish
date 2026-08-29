@@ -49,6 +49,19 @@ export class StreamReplyError extends Error {
     this.event = event;
   }
 }
+
+class ReplySafetyGateError extends ConversationProviderError {
+  readonly safetyGate = true;
+
+  constructor() {
+    super(
+      "provider-response-invalid",
+      "Conversation provider response failed safety validation.",
+      false,
+    );
+    this.name = "ReplySafetyGateError";
+  }
+}
 function splitReply(text: string): readonly string[] {
   return text.match(/.{1,18}(?:\s+|$)/gu)?.map((part) =>
     /\s$/u.test(part) ? part.replace(/\s+$/u, " ") : part,
@@ -113,11 +126,7 @@ export async function* streamReply(
     try {
       replyResult = await input.replyProvider.generate(context, { signal: input.signal });
       if (!isGeneratedReplySafe(context, replyResult.text)) {
-        throw new ConversationProviderError(
-          "provider-response-invalid",
-          "Conversation provider response failed safety validation.",
-          false,
-        );
+        throw new ReplySafetyGateError();
       }
       await notifyProviderResult(input, {
         provider: replyResult.provider,
@@ -149,7 +158,7 @@ export async function* streamReply(
         status: "failed",
         latencyMs: 0,
         estimatedCostMicros: null,
-        errorType: providerErrorType,
+        errorType: error instanceof ReplySafetyGateError ? "safety-gate" : providerErrorType,
       });
       yield errorEvent(input, "stream-failed", isRetryableProviderError(error));
       return;
