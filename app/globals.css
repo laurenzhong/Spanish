@@ -4586,9 +4586,9 @@ button {
   width: 176px;
   gap: 2px;
   padding: 5px;
-  border: 1px solid var(--conversation-line);
+  border: 1px solid var(--conversation-line, #d8ded9);
   border-radius: 7px;
-  background: var(--conversation-paper);
+  background: var(--conversation-paper, #fff);
   box-shadow: 0 12px 32px rgb(31 45 38 / 18%);
 }
 
@@ -4597,7 +4597,7 @@ button {
   padding: 7px 10px;
   border: 0;
   border-radius: 4px;
-  color: var(--conversation-ink);
+  color: var(--conversation-ink, #141715);
   background: transparent;
   font: inherit;
   font-size: 12px;
@@ -4606,7 +4606,7 @@ button {
 }
 
 .conversation-message-menu button:hover,
-.conversation-message-menu button:focus-visible { background: var(--conversation-action-soft); outline: 0; }
+.conversation-message-menu button:focus-visible { background: var(--conversation-action-soft, #f2e7e3); outline: 0; }
 .conversation-message-menu .conversation-message-menu__danger { color: #a14032; }
 
 .conversation-forward-dialog {
