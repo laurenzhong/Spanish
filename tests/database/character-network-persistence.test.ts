@@ -48,7 +48,7 @@ describe("character network persistence", () => {
       grant usage on schema auth, public to anon, authenticated;
       grant execute on function auth.uid() to anon, authenticated;
     `);
-    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0004_calm_iron_monger.sql", "0005_kind_character_network.sql"]) {
+    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0004_calm_iron_monger.sql", "0005_kind_character_network.sql", "0016_proactive_messages.sql"]) {
       await client.exec(await migration(name));
     }
     database = drizzle(client, { schema });

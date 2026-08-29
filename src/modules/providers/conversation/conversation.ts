@@ -12,6 +12,7 @@ export type ConversationProviderErrorCode =
   (typeof conversationProviderErrorCodes)[number];
 
 export type ConversationProviderInput = Readonly<{
+  inputKind?: "conversation" | "proactive";
   userMessage: string;
   recentMessages: readonly Readonly<{
     role: "user" | "character";
@@ -51,6 +52,15 @@ export type ConversationProviderInput = Readonly<{
     allowReciprocalQuestion: boolean;
     maxQuestionPressure: "none" | "low" | "medium";
   }>;
+  proactiveMessageSource?:
+    | "spontaneous_affection"
+    | "memory_callback"
+    | "follow_up_commitment"
+    | "daily_share"
+    | "relationship_milestone"
+    | "quiet_presence";
+  interactionMode?: "everyday" | "quiet" | "affectionate" | "closing" | "playful" | "supportive";
+  affectionIntensityCeiling?: 0 | 1 | 2 | 3;
 }>;
 
 export type ConversationProviderResult = Readonly<{
@@ -86,7 +96,8 @@ export class ConversationProviderError extends Error {
 }
 
 export function validateConversationProviderInput(input: ConversationProviderInput): void {
-  if (!input.userMessage.trim() || input.userMessage.length > 2_000) {
+  const missingMessage = input.inputKind !== "proactive" && !input.userMessage.trim();
+  if (missingMessage || input.userMessage.length > 2_000) {
     throw new ConversationProviderError(
       "input-invalid",
       "Conversation input is invalid.",

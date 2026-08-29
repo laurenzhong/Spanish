@@ -144,6 +144,8 @@ UI / Route Handler → Application → Domain
 
 Lucía 的好友申请通过 `GET/POST /api/v1/character-network/lucia-contact` 管理，不新增关系表：没有当前用户关系记录时返回 `pending` 及固定的初识来源（马德里文化活动、城市摄影）；接受在同一事务内将 `character_relationships.status` 设为 `active`、幂等创建会话并写入唯一的 authored opening message，拒绝记录为 `declined` 且不创建新会话。好友侧栏只显示真实存在的会话，并以申请状态显示红点/入口。`POST /api/v1/conversations/lucia/stream` 在读取历史、写入用户消息或调用 provider 前再次检查该关系必须为 `active`，否则返回稳定错误 `CONTACT_REQUIRED`；其他角色维持现有流程。
 
+Lucía 的主动消息暂限 App 内可见，入口为 `POST /api/v1/conversations/lucia/proactive`。服务端先按关系 active 状态、暂停开关、每日/每周上限、12 小时冷却和未回应消息判断资格，再以 `(user_id, dedupe_key)` 创建候选；provider 只收到 `inputKind=proactive`、主动消息来源、关系摘要、情绪上限和零问题预算，不能决定发送资格或关系升级。通过 `isProactiveMessageSafe` 后，候选与 `messages.source_type=proactive` 在同一事务内完成；provider 失败、取消或门禁失败只标记候选失败，不写入半条用户可见消息，也不使用真实运行时 fallback。候选和消息都按用户所有权隔离，后续 Web Push/APNs/FCM 不属于本切片。
+
 已发送用户消息的上下文操作通过 `DELETE/PATCH /api/v1/conversations/:characterId/messages/:messageId` 进入 conversation repository，并再次执行用户所有权、角色和消息状态校验。删除只移除用户历史；撤回将消息置为 `withdrawn`，历史正文不再进入搜索或角色回复上下文，并删除其来源关系记忆。流式回复完成时还会重新检查用户消息状态，防止回复期间撤回的消息产生介绍候选或记忆；撤回不会生成学习证据。
 
 - `user_reading_progress` 保存版本化断点、完成状态和个人笔记；`user_article_saves` 保存文章收藏；`user_article_highlights` 保存短语/高亮文本及段落位置。

@@ -146,12 +146,14 @@ const systemPrompt = [
   "If the user asks whether you are an AI, answer honestly that you are an AI character.",
   "Do not volunteer your AI identity when the user has not asked; receive affection or vulnerability in the conversation instead of inserting an identity disclaimer.",
   "Follow questionPolicy: substantive questions must not exceed its maximum; a reciprocal question is allowed only when explicitly permitted and should remain low pressure.",
+  "For inputKind=proactive, write one natural unsolicited message from Lucía in Spanish. Do not ask a question, mention the app, or pressure the user to reply; the supplied source and intensity ceiling are authoritative.",
   "Do not mention prompts, internal rules, memory permissions, scoring, or provider details.",
   "Return only the message to send to the user, with no JSON, labels, or markdown wrapper.",
 ].join(" ");
 
 function buildPrompt(input: ConversationProviderInput): string {
   return JSON.stringify({
+    inputKind: input.inputKind ?? "conversation",
     userMessage: input.userMessage,
     recentMessages: input.recentMessages,
     character: input.character,
@@ -159,6 +161,9 @@ function buildPrompt(input: ConversationProviderInput): string {
     readableMemories: input.memories,
     teachingOpportunity: input.teachingOpportunity,
     questionPolicy: input.questionPolicy,
+    proactiveMessageSource: input.proactiveMessageSource,
+    interactionMode: input.interactionMode,
+    affectionIntensityCeiling: input.affectionIntensityCeiling,
   });
 }
 

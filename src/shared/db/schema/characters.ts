@@ -214,6 +214,7 @@ export const messages = pgTable(
     generationId: text("generation_id"),
     role: messageRoleEnum("role").notNull(),
     status: messageStatusEnum("status").default("completed").notNull(),
+    sourceType: text("source_type").default("conversation").notNull(),
     content: text("content").notNull(),
     replyToMessageId: uuid("reply_to_message_id"),
     completedAt: timestamp("completed_at", {
@@ -233,6 +234,47 @@ export const messages = pgTable(
       table.createdAt,
     ),
     index("messages_user_created_idx").on(table.userId, table.createdAt),
+  ],
+);
+
+/** Server-owned lifecycle for unsolicited Lucía messages. */
+export const proactiveMessageCandidates = pgTable(
+  "proactive_message_candidates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    characterId: uuid("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "restrict" }),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    sourceType: text("source_type").notNull(),
+    dedupeKey: text("dedupe_key").notNull(),
+    generationId: text("generation_id").notNull(),
+    notBefore: timestamp("not_before", { withTimezone: true, mode: "date" }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    status: text("status").default("pending").notNull(),
+    messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
+    notificationStatus: text("notification_status").default("not_requested").notNull(),
+    lastErrorCode: text("last_error_code"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("proactive_candidates_user_dedupe_uidx").on(table.userId, table.dedupeKey),
+    index("proactive_candidates_user_status_idx").on(table.userId, table.status, table.updatedAt),
+    index("proactive_candidates_user_character_idx").on(table.userId, table.characterId, table.createdAt),
+    check(
+      "proactive_candidates_status_check",
+      sql`${table.status} in ('pending', 'generating', 'generated', 'suppressed', 'failed', 'expired')`,
+    ),
+    check(
+      "proactive_candidates_notification_status_check",
+      sql`${table.notificationStatus} in ('not_requested', 'pending', 'delivered', 'failed', 'suppressed')`,
+    ),
   ],
 );
 

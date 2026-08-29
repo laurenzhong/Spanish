@@ -17,5 +17,6 @@ export async function listConversationHistory(
     status: message.status === "withdrawn" ? "withdrawn" : "completed",
     withdrawn: message.status === "withdrawn",
     createdAt: message.createdAt.toISOString(),
+    sourceType: message.sourceType,
   }));
 }

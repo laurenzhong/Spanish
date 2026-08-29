@@ -76,6 +76,7 @@ describe("account data deletion", () => {
       "0013_*.sql",
       "0014_*.sql",
       "0015_flaky_havok.sql",
+      "0016_proactive_messages.sql",
     ]) {
       const migrationName = name.includes("*")
         ? (await readdir(path.join(process.cwd(), "drizzle"))).find((file) => new RegExp(`^${name.replace("*", ".*")}$`, "u").test(file))

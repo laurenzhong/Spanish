@@ -134,6 +134,7 @@ export function createDrizzleLuciaContactRepository<TResult extends PgQueryResul
         generationId: authoredOpening.generationId,
         role: "character",
         status: "completed",
+        sourceType: "authored_opening",
         content: authoredOpening.content,
         completedAt: new Date(),
       }).onConflictDoNothing({ target: [schema.messages.conversationId, schema.messages.clientMessageId] }).returning({ id: schema.messages.id, createdAt: schema.messages.createdAt });

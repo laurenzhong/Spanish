@@ -21,6 +21,7 @@ function toMessage(row: typeof schema.messages.$inferSelect): ConversationMessag
     replyToMessageId: row.replyToMessageId,
     createdAt: row.createdAt,
     completedAt: row.completedAt,
+    sourceType: row.sourceType,
   };
 }
 
@@ -74,6 +75,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           generationId: input.generationId,
           role: "user",
           status: "completed",
+          sourceType: "conversation",
           content: input.content,
           completedAt: new Date(),
         })
@@ -107,6 +109,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         generationId: input.generationId,
         role: "character",
         status: "completed",
+        sourceType: "conversation",
         content: input.content,
         replyToMessageId: input.replyToMessageId,
         completedAt: new Date(),

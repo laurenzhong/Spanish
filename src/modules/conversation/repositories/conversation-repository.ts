@@ -11,6 +11,7 @@ export type ConversationMessageRecord = Readonly<{
   replyToMessageId: string | null;
   createdAt: Date;
   completedAt: Date | null;
+  sourceType?: "conversation" | "authored_opening" | "proactive" | string;
 }>;
 
 export type ConversationSearchResultRecord = Readonly<ConversationMessageRecord & {
