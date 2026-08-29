@@ -88,6 +88,8 @@
 - 限制：需要服务端 `MINIMAX_API_KEY` 和 `DATABASE_URL` 才能生成并持久化；当前不提供公开发布、音频生成、流式写作或外部 URL 抓取。未做 Flutter/iOS 真机验证。
 - 下一项：继续 `ALPHA-033` 发布候选门禁，清理全量测试 fixture/worker 稳定性后再进入阶段 8 人工体验。
 
+> 后置语气调整实现 Commit：`2865dca`（报备型主动消息默认；`waking` 状态允许单句 `Te echo de menos.`）。
+
 ## 新模型快速接手
 
 进入仓库后按顺序执行：
