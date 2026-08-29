@@ -496,6 +496,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         ) : null}
         {state.messages.map((message, index) => {
+          if (message.role === "character" && !message.complete && !message.text && state.status !== "streaming") return null;
           const previous = state.messages[index - 1];
           const messageDate = message.createdAt ? new Date(message.createdAt) : null;
           const previousDate = previous?.createdAt ? new Date(previous.createdAt) : null;

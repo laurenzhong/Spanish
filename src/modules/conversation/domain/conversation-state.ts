@@ -51,6 +51,12 @@ function isCurrent(state: ConversationState, generationId: string): boolean {
   return state.activeGenerationId === generationId;
 }
 
+function statusAfterHydrate(state: ConversationState): ConversationStatus {
+  return state.status === "streaming" || state.status === "failed" || state.status === "cancelled"
+    ? state.status
+    : "idle";
+}
+
 function withMessage(
   messages: readonly ConversationMessage[],
   id: string,
@@ -75,7 +81,7 @@ export function transitionConversationState(
     return {
       ...state,
       messages: [...action.messages, ...currentOnly],
-      status: state.status === "streaming" ? state.status : "idle",
+      status: statusAfterHydrate(state),
       activeGenerationId: state.activeGenerationId,
       activeMessageId: state.activeMessageId,
       error: state.error,
@@ -90,7 +96,7 @@ export function transitionConversationState(
     return {
       ...state,
       messages: [...action.messages, ...currentOnly],
-      status: state.status === "streaming" ? state.status : "idle",
+      status: statusAfterHydrate(state),
       activeGenerationId: state.activeGenerationId,
       activeMessageId: state.activeMessageId,
       error: state.error,

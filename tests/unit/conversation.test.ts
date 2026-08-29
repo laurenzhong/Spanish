@@ -83,6 +83,19 @@ describe("conversation state", () => {
     expect(state.messages.map((message) => message.text)).toEqual(["服务器消息", "新消息"]);
   });
 
+  it("preserves a failed status while history revalidation completes", () => {
+    let state = submitted();
+    state = transitionConversationState(state, {
+      type: "stream-event",
+      event: { type: "error", generationId: ids.generationId, messageId: null, code: "stream-failed", retryable: true },
+    });
+    const hydrated = transitionConversationState(state, {
+      type: "hydrate",
+      messages: state.messages,
+    });
+    expect(hydrated.status).toBe("failed");
+  });
+
   it("only marks a reply complete after done", () => {
     let state = submitted();
     state = transitionConversationState(state, { type: "stream-event", event: meta });

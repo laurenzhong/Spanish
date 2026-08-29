@@ -254,4 +254,29 @@ describe("ChatThread persistence status", () => {
     expect(screen.getAllByText("Gracias, me ha hecho ilusión leerte.")).toHaveLength(1);
     expect(screen.getAllByText("Estoy aquí.")).toHaveLength(1);
   });
+
+  it("hides an empty incomplete reply after a stream failure", async () => {
+    const initialMessages = [] as const;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (init?.method === "POST") {
+        const request = JSON.parse(String(init.body)) as { generationId: string };
+        const lines = [
+          { type: "meta", protocolVersion: "v1", characterKey: "lucia", characterVersion: 1, generationId: request.generationId, messageId: "assistant-failed" },
+          { type: "error", generationId: request.generationId, messageId: "assistant-failed", code: "stream-failed", retryable: true },
+        ].map((event) => `${JSON.stringify(event)}\n`).join("");
+        const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(lines)); controller.close(); } });
+        return { ok: true, headers: new Headers([["x-conversation-persistence", "available"]]), body } as Response;
+      }
+      return { ok: true, headers: new Headers(), json: async () => ({ data: { messages: initialMessages } }) } as Response;
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={initialMessages} />);
+    const composer = screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+    fireEvent.change(composer, { target: { value: "Suena muy bien, ¿lo comes a menudo?" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+    expect(await screen.findByText("Suena muy bien, ¿lo comes a menudo?")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("没有完整送达");
+    expect(screen.queryByText("…")).not.toBeInTheDocument();
+  });
 });
