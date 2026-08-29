@@ -65,6 +65,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const knownMessageKeysRef = useRef(new Set(
     (initialMessages ?? []).map((message) => message.clientMessageId ?? message.id),
   ));
+  const serverMessageKeysRef = useRef(new Set(
+    (initialMessages ?? []).map((message) => message.clientMessageId ?? message.id),
+  ));
   const serverHistoryLoadedRef = useRef(Boolean(initialMessages));
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
 
@@ -156,10 +159,13 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     abortRef.current?.abort();
     let cancelled = false;
     const cached = getCachedConversationHistory(characterKey);
+    knownMessageKeysRef.current = new Set((initialMessages ?? []).map((message) => message.clientMessageId ?? message.id));
+    serverMessageKeysRef.current = new Set((initialMessages ?? []).map((message) => message.clientMessageId ?? message.id));
     if (cached && cached.length > 0) {
       queueMicrotask(() => {
         if (cancelled) return;
         knownMessageKeysRef.current = new Set(cached.map((message) => message.clientMessageId ?? message.id));
+        serverMessageKeysRef.current = new Set(cached.map((message) => message.clientMessageId ?? message.id));
         apply({ type: "hydrate", messages: cached });
         setPersistenceStatus("available");
       });
@@ -179,15 +185,17 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
         // Keep the loading state until the body has been parsed and applied.
         // Hydration preserves optimistic messages and an active stream.
-        if (initialLoad && cached?.length) {
+        const staleMessageKeys = Array.from(serverMessageKeysRef.current);
+        if (staleMessageKeys.length > 0) {
           apply({
             type: "replace-hydrate",
             messages: result.messages,
-            staleMessageKeys: cached.map((message) => message.clientMessageId ?? message.id),
+            staleMessageKeys,
           });
         } else {
           apply({ type: "hydrate", messages: result.messages });
         }
+        serverMessageKeysRef.current = new Set(result.messages.map((message) => message.clientMessageId ?? message.id));
         setCachedConversationHistory(characterKey, result.messages);
         setPersistenceStatus("available");
         serverHistoryLoadedRef.current = true;
@@ -215,7 +223,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.clearInterval(interval);
     };
-  }, [characterKey]);
+  }, [characterKey, initialMessages]);
 
   useEffect(() => {
     if (state.messages.length === 0) return;
