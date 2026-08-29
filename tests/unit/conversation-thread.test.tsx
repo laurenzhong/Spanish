@@ -95,6 +95,23 @@ describe("ChatThread persistence status", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("Hola desde el chat"));
   });
 
+  it("aligns my message menu to the bubble edge instead of the right-click point", async () => {
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "position-1", role: "user", text: "位置测试", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => String(input) === "/api/v1/me"
+      ? ({ ok: false, status: 404 } as Response)
+      : historyResponse);
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    const message = (await screen.findByText("位置测试")).closest("article")!;
+    vi.spyOn(message, "getBoundingClientRect").mockReturnValue({ left: 300, right: 500, top: 100, bottom: 200, width: 200, height: 100, x: 300, y: 100, toJSON: () => ({}) });
+    fireEvent.contextMenu(message, { clientX: 20, clientY: 20 });
+    const menu = screen.getByRole("menu");
+    expect(menu).toHaveStyle({ left: "324px", top: "208px" });
+  });
+
   it("shows the quote in the composer without sending it", async () => {
     const historyResponse = {
       ok: true,

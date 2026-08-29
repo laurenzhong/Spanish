@@ -375,9 +375,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     if (message.withdrawn || !message.text || !message.complete) return;
     event.preventDefault();
     event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
     const menuWidth = 176;
     const menuHeight = message.role === "character" ? 140 : 230;
-    setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8)) });
+    const preferredX = message.role === "user" ? rect.right - menuWidth : rect.left;
+    const preferredY = rect.bottom + 8;
+    setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(preferredX, window.innerWidth - menuWidth - 8)), y: Math.max(8, Math.min(preferredY, window.innerHeight - menuHeight - 8)) });
   }
 
   function openMessageMenuFromKeyboard(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
@@ -385,7 +388,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       event.preventDefault();
       const rect = event.currentTarget.getBoundingClientRect();
       const menuHeight = message.role === "character" ? 140 : 240;
-      setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.left, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menuHeight)) });
+      const preferredX = message.role === "user" ? rect.right - 176 : rect.left;
+      setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(preferredX, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menuHeight)) });
     }
   }
 
