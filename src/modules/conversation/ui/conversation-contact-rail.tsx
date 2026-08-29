@@ -70,6 +70,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const suppressClick = useRef(false);
+  const [preferenceError, setPreferenceError] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -112,6 +113,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       ...current,
       [characterKey]: next,
     }));
+    setPreferenceError(false);
     try {
       const response = await fetch("/api/v1/conversations/preferences", {
         method: "PATCH",
@@ -121,6 +123,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       if (!response.ok) throw new Error("PREFERENCE_SAVE_FAILED");
     } catch {
       setPreferences((current) => ({ ...current, [characterKey]: previous }));
+      setPreferenceError(true);
     }
   }
 
@@ -163,6 +166,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       </div>
 
       <ConversationSearch />
+      {preferenceError ? <p className="conversation-contact-rail__preference-error" role="status">好友设置暂未保存，请稍后重试。</p> : null}
 
       <p className="conversation-contact-rail__label">最近</p>
       <nav className="conversation-contact-rail__list" aria-label="好友列表">

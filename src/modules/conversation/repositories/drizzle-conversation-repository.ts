@@ -195,6 +195,10 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const [character] = await database
         .select({ id: schema.characters.id, stableKey: schema.characters.stableKey })
         .from(schema.characters)
+        .innerJoin(schema.conversations, and(
+          eq(schema.conversations.characterId, schema.characters.id),
+          eq(schema.conversations.userId, userId),
+        ))
         .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.status, "published")))
         .limit(1);
       if (!character) throw new Error("CHARACTER_UNAVAILABLE");

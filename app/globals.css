@@ -4081,6 +4081,13 @@ button {
   text-transform: uppercase;
 }
 
+.conversation-contact-rail__preference-error {
+  margin: 0 5px 8px;
+  color: var(--conversation-action);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 .conversation-contact-rail__list {
   display: grid;
   gap: 4px;
