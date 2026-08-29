@@ -39,6 +39,13 @@ export type ReplyOpenTopic = Readonly<{
   sameLocalDay?: boolean;
 }>;
 
+export type ReplyCharacterClaim = Readonly<{
+  claimKey: string;
+  statement: string;
+  assertedAt?: string;
+  sameLocalDay?: boolean;
+}>;
+
 export const defaultRecentMessageCharBudget = 8_000;
 export const luciaConversationTimeZone = "Europe/Madrid";
 
@@ -49,6 +56,7 @@ export type ReplyContext = Readonly<{
   recentMessages: readonly ReplyContextMessage[];
   rollingSummary: string | null;
   openTopics: readonly ReplyOpenTopic[];
+  characterClaims: readonly ReplyCharacterClaim[];
   conversationTimeZone: string;
   currentLocalDate: string;
   continuityInstruction?: string | null;
@@ -73,6 +81,7 @@ export type BuildReplyContextInput = Readonly<{
   recentMessages?: readonly ReplyContextMessage[];
   rollingSummary?: string | null;
   openTopics?: readonly ReplyOpenTopic[];
+  characterClaims?: readonly ReplyCharacterClaim[];
   recentMessageCharBudget?: number;
   now?: Date;
   conversationTimeZone?: string;
@@ -112,6 +121,14 @@ function topicKeyForQuestion(value: string): string {
   if (/\b(?:hacer|haces|haciendo|dia|tarde|manana|noche)\b/iu.test(normalized)) return "daily:activity";
   if (/\b(?:estar|estas|estado|bien|tal)\b/iu.test(normalized)) return "wellbeing";
   return `question:${normalized.slice(0, 96)}`;
+}
+
+function characterClaimKey(value: string): string | null {
+  const normalized = normalizedTopicText(value);
+  if (/\b(?:comer|comida|almuerzo|mediodia|cena|desayuno|arroz|patatas|tortilla|ensalada|pasta|sopa)\b/iu.test(normalized)) return "daily:meal";
+  if (/\b(?:cafe|te|desayunar|beber|tomar)\b/iu.test(normalized)) return "daily:drink";
+  if (/\b(?:dormir|despertar|despierta|cansada|cansado|acostar)\b/iu.test(normalized)) return "daily:energy";
+  return null;
 }
 
 function topicLabel(value: string): string {
@@ -164,6 +181,30 @@ export function deriveReplyOpenTopics(
   return [...topics.values()].slice(-12);
 }
 
+/** Extracts short-lived facts Lucía has stated about her own current day. */
+export function deriveReplyCharacterClaims(
+  messages: readonly ReplyContextMessage[],
+  options: Readonly<{ now?: Date; timeZone?: string }> = {},
+): readonly ReplyCharacterClaim[] {
+  const timeZone = options.timeZone ?? luciaConversationTimeZone;
+  const currentLocalDate = localDateFor(options.now ?? new Date(), timeZone);
+  const claims = new Map<string, ReplyCharacterClaim>();
+  for (const message of messages) {
+    if (message.role !== "character" || !message.content.trim()) continue;
+    const claimKey = characterClaimKey(message.content);
+    if (!claimKey) continue;
+    claims.set(claimKey, {
+      claimKey,
+      statement: message.content.trim().slice(0, 280),
+      ...(message.sentAt ? { assertedAt: message.sentAt } : {}),
+      ...(message.sentAt && currentLocalDate
+        ? { sameLocalDay: localDateFor(message.sentAt, timeZone) === currentLocalDate }
+        : {}),
+    });
+  }
+  return [...claims.values()].slice(-8);
+}
+
 function budgetRecentMessages(
   messages: readonly ReplyContextMessage[],
   budget: number,
@@ -203,6 +244,7 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
     recentMessages: budgetRecentMessages(input.recentMessages ?? [], input.recentMessageCharBudget ?? defaultRecentMessageCharBudget),
     rollingSummary: input.rollingSummary?.trim() || null,
     openTopics: input.openTopics ?? deriveReplyOpenTopics(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
+    characterClaims: input.characterClaims ?? deriveReplyCharacterClaims(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
     conversationTimeZone,
     currentLocalDate,
     character,

@@ -30,6 +30,12 @@ export type ConversationProviderInput = Readonly<{
     lastAnsweredAt?: string;
     sameLocalDay?: boolean;
   }>[];
+  characterClaims?: readonly Readonly<{
+    claimKey: string;
+    statement: string;
+    assertedAt?: string;
+    sameLocalDay?: boolean;
+  }>[];
   conversationTimeZone?: string;
   currentLocalDate?: string;
   continuityInstruction?: string | null;

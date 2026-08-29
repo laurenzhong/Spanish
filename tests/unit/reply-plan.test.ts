@@ -114,6 +114,23 @@ describe("reply context and deterministic generation", () => {
     ]);
   });
 
+  it("keeps Lucía's recent same-day self-report separate from user memories", async () => {
+    const context = await buildReplyContext({
+      generationId: "generation-claim",
+      userId: "user-1",
+      userMessage: "¿Qué vas a comer?",
+      now: new Date("2026-08-29T12:30:00.000Z"),
+      recentMessages: [
+        { role: "user", content: "¿Qué vas a comer?", sentAt: "2026-08-29T10:00:00.000Z" },
+        { role: "character", content: "Creo que comeré puré de patatas.", sentAt: "2026-08-29T10:01:00.000Z" },
+      ],
+    });
+    expect(context.characterClaims).toEqual([
+      expect.objectContaining({ claimKey: "daily:meal", statement: "Creo que comeré puré de patatas.", sameLocalDay: true }),
+    ]);
+    expect(context.memories).toEqual([]);
+  });
+
   it("uses the readable memory projection and excludes rejected or conflicting facts", async () => {
     const listReadableMemories = vi.fn().mockResolvedValue([
       memory(),

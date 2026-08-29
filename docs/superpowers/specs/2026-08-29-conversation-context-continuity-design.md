@@ -75,6 +75,12 @@ type ConversationContextSnapshot = {
     lastMessageId: string;
     lastAnswer?: string;
   }>;
+  characterClaims: Array<{
+    claimKey: string;
+    statement: string;
+    assertedAt?: string;
+    sameLocalDay?: boolean;
+  }>;
   relationship: {
     stage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
     summary: string | null;
@@ -114,7 +120,13 @@ type ConversationContextSnapshot = {
 
 这层是“减少机械重复”的服务端信号，不是要求每次回复都显式提及记忆。
 
-### 5.6 关系状态注入
+### 5.6 角色自述状态
+
+用户问题的连续性之外，还要保留 Lucía 自己最近说过的短期日常事实。第一阶段从已完成的角色回复中确定性提取有限主题（例如当天饮食、饮品和精力状态），形成 `characterClaims` 投影。它不是人物圣经，也不是长期关系记忆；默认只在近期窗口和当前本地日内作为弱事实参考，并带有原始消息时间。
+
+如果新回复提出与同日角色自述冲突的具体日常内容，服务端最多触发一次重生成，要求自然说明“改变了主意”或延续之前的说法。没有足够明确的主题值时不做强行判断，避免把正常的状态变化误判为矛盾。
+
+### 5.7 关系状态注入
 
 普通聊天 route 必须读取当前 Lucía contact/relationship 记录，把真实 `relationshipStage` 和西语 `relationshipSummary` 注入 `buildReplyContext`。没有记录时仍使用安全默认值，但 active Lucía 不得静默回退到 `new_contact`。
 
@@ -185,6 +197,7 @@ provider 的 system prompt 只说明如何表达：
 - 将近期上下文改为预算化，并增加开放话题的最小投影。
 - 保留消息时间并加入同一本地日判断，防止日常话题在同一天被重置。
 - 对同日同主题的高度重复答案执行一次服务端重生成。
+- 提取 Lucía 的短期角色自述，并阻止同日具体日常事实被无解释地改写。
 - 增加重复问答门禁/提示信号和固定回放测试。
 - 保持现有消息表和 provider adapter 接口兼容。
 

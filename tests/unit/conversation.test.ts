@@ -361,6 +361,7 @@ describe("fake conversation reply", () => {
         recentMessages: [],
         rollingSummary: null,
         openTopics: [{ topicKey: "daily:meal", label: "¿Qué vas a comer?", status: "answered", lastMentionedBy: "user", lastAnswer: "Todavía no lo he decidido del todo; quizá algo de arroz con verduras.", sameLocalDay: true }],
+        characterClaims: [],
         conversationTimeZone: "Europe/Madrid",
         currentLocalDate: "2026-08-29",
         character: luciaReplyCharacter,
@@ -377,6 +378,27 @@ describe("fake conversation reply", () => {
     expect(events.at(-1)).toMatchObject({ type: "done" });
     expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
       .toContain("Al final creo");
+  });
+
+  it("does not silently change a same-day character meal claim", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Creo que prepararé arroz con verduras.", provider: "openai" as const, modelVersion: "test", providerRequestId: "claim-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "He cambiado de idea; al final prepararé arroz con verduras.", provider: "openai" as const, modelVersion: "test", providerRequestId: "claim-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué vas a comer?", clientMessageId: "client-claim", generationId: "generation-claim", messageId: "message-claim",
+      replyContext: {
+        generationId: "generation-claim", userId: "user-1", userMessage: "¿Qué vas a comer?", recentMessages: [], rollingSummary: null, openTopics: [],
+        characterClaims: [{ claimKey: "daily:meal", statement: "Creo que comeré puré de patatas.", sameLocalDay: true }], conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-29",
+        character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
+      },
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("cambi") });
+    expect(events.at(-1)).toMatchObject({ type: "done" });
   });
 
   it("answers a wellbeing question instead of using the generic greeting", async () => {

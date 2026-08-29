@@ -116,6 +116,7 @@ export async function* streamReply(
     recentMessages: [],
     rollingSummary: null,
     openTopics: [],
+    characterClaims: [],
     conversationTimeZone: "Europe/Madrid",
     currentLocalDate: new Date().toISOString().slice(0, 10),
     character: getConversationCharacter(input.characterKey).snapshot,
@@ -151,7 +152,7 @@ export async function* streamReply(
             allowReciprocalQuestion: false,
             maxQuestionPressure: "none",
           },
-          continuityInstruction: "La respuesta anterior repetía un tema tratado hoy. Reformula sin repetir la misma respuesta y añade un detalle nuevo o reconoce de forma natural lo que ya dijiste.",
+          continuityInstruction: "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.",
         };
       }
       await notifyProviderResult(input, {
@@ -286,6 +287,7 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   if (plan.intent === "identity-disclosure" && !/\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
   if (plan.intent !== "identity-disclosure" && /\b(?:soy|somos|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
   if (isRepeatedSameDayTopicReply(context, text)) return false;
+  if (isUnexplainedSameDayClaimChange(context, text)) return false;
   return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: context.userMessage }));
 }
 
@@ -316,6 +318,27 @@ function isRepeatedSameDayTopicReply(context: ReplyContext, text: string): boole
   for (const token of previousTokens) if (generatedTokens.has(token)) intersection += 1;
   const overlap = intersection / Math.min(previousTokens.size, generatedTokens.size);
   return overlap >= 0.82 || (previousTokens.size === generatedTokens.size && overlap >= 0.7);
+}
+
+function mealSignature(value: string): string | null {
+  const normalized = normalizedReplyTokens(value);
+  if (normalized.has("pure") && normalized.has("patatas")) return "pure-patatas";
+  if (normalized.has("arroz")) return "arroz";
+  if (normalized.has("tortilla")) return "tortilla";
+  if (normalized.has("pasta")) return "pasta";
+  if (normalized.has("ensalada")) return "ensalada";
+  return null;
+}
+
+function isUnexplainedSameDayClaimChange(context: ReplyContext, text: string): boolean {
+  const currentTopic = deriveReplyOpenTopics([{ role: "user", content: context.userMessage }])[0];
+  if (currentTopic?.topicKey !== "daily:meal") return false;
+  const claim = context.characterClaims.find((item) => item.claimKey === "daily:meal" && item.sameLocalDay);
+  if (!claim) return false;
+  const previousMeal = mealSignature(claim.statement);
+  const currentMeal = mealSignature(text);
+  if (!previousMeal || !currentMeal || previousMeal === currentMeal) return false;
+  return !/\b(?:al final|he cambiado|cambie|cambi[eé] de idea|ahora|luego|en cambio|me he decidido por|prefiero)\b/iu.test(text.normalize("NFD").replace(/[\u0300-\u036f]/gu, ""));
 }
 
 function questionPolicyAllows(text: string, policy: QuestionPolicy): boolean {
