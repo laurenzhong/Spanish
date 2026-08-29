@@ -90,6 +90,7 @@
 
 > 后置语气调整实现 Commit：`2865dca`（报备型主动消息默认；`waking` 状态允许单句 `Te echo de menos.`）。
 > 开发预览实现 Commit：`e24b97b`（`preview: true` 只调用 provider 和安全门禁，不落库、不消耗主动消息额度）。
+> `waking` 文案自然度修正 Commit：`0f50941`（优先具体起床/咖啡/早餐报备，避免把无关意象硬拼在一句话里）。
 
 ## 新模型快速接手
 
