@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   evaluateProactiveEligibility,
   generateLuciaProactiveMessage,
+  previewLuciaProactiveMessage,
   isProactiveMessageSafe,
   proactiveReplyPlan,
   type ProactiveMessageCandidateRecord,
@@ -50,6 +51,21 @@ describe("proactive message policy", () => {
 });
 
 describe("generateLuciaProactiveMessage", () => {
+  it("supports a non-persisting preview for development voice checks", async () => {
+    const repository: ProactiveMessageRepository = {
+      getConversationId: vi.fn(),
+      getEligibilityState: vi.fn().mockResolvedValue(state()),
+      createCandidate: vi.fn(),
+      completeCandidate: vi.fn(),
+      failCandidate: vi.fn(),
+    };
+    const provider = { generate: vi.fn().mockResolvedValue({ text: "Te echo de menos.", provider: "openai", modelVersion: "gpt-5.6-sol", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }) };
+    const result = await previewLuciaProactiveMessage({ userId: "user-1", source: "spontaneous_affection", dailyState: "waking", repository, provider });
+    expect(result).toEqual({ status: "preview", text: "Te echo de menos." });
+    expect(repository.createCandidate).not.toHaveBeenCalled();
+    expect(repository.completeCandidate).not.toHaveBeenCalled();
+  });
+
   it("passes a provider-neutral proactive context and persists only safe output", async () => {
     const candidate: ProactiveMessageCandidateRecord = {
       id: "candidate-1",

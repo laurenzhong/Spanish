@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   generateLuciaProactiveMessage,
+  previewLuciaProactiveMessage,
   proactiveMessageSources,
   proactiveDailyStates,
   createDrizzleProactiveMessageRepository,
@@ -55,6 +56,17 @@ export async function POST(request: NextRequest) {
         : undefined;
     const memoryRepository = createDrizzleMemoryRepository(database);
     const memories = await memoryRepository.listReadableMemories(user.id, "lucia");
+    if (input.preview === true && process.env.NODE_ENV !== "production") {
+      const preview = await previewLuciaProactiveMessage({
+        userId: user.id,
+        source: source as (typeof proactiveMessageSources)[number],
+        dailyState: dailyState as (typeof proactiveDailyStates)[number],
+        repository: createDrizzleProactiveMessageRepository(database),
+        provider,
+        memories,
+      });
+      return NextResponse.json({ data: preview }, { status: preview.status === "preview" ? 200 : 422, headers: { "cache-control": "no-store" } });
+    }
     const result = await generateLuciaProactiveMessage({
       userId: user.id,
       source: source as (typeof proactiveMessageSources)[number],

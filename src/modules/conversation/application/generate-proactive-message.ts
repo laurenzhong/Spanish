@@ -20,6 +20,57 @@ export type GenerateProactiveMessageResult = Readonly<{
   message: ConversationMessageRecord | null;
 }>;
 
+export type PreviewProactiveMessageResult = Readonly<{
+  status: "preview" | "failed";
+  reason?: string;
+  text: string | null;
+}>;
+
+/** Generates a candidate without touching cooldowns, candidates or messages. */
+export async function previewLuciaProactiveMessage(input: Readonly<{
+  userId: string;
+  source: ProactiveMessageSource;
+  dailyState?: ProactiveDailyState;
+  repository: ProactiveMessageRepository;
+  provider?: CharacterReplyProvider;
+  memories?: readonly Readonly<{
+    factKey: string;
+    category: string;
+    content: string;
+    confidence: number;
+    sensitivity: "normal" | "sensitive" | "private";
+    shareScope: "private" | "character" | "explicit";
+  }>[];
+}>): Promise<PreviewProactiveMessageResult> {
+  const state = await input.repository.getEligibilityState(input.userId, new Date());
+  if (state.relationshipStatus !== "active") return { status: "failed", reason: "relationship-inactive", text: null };
+  if (!input.provider) return { status: "failed", reason: "provider-unavailable", text: null };
+  const plan = proactiveReplyPlan(input.source, state.relationshipStage, input.dailyState);
+  try {
+    const result = await input.provider.generate({
+      inputKind: "proactive",
+      userMessage: "",
+      recentMessages: [],
+      character: getConversationCharacter("lucia").snapshot,
+      relationshipStage: state.relationshipStage,
+      relationshipSummary: state.relationshipSummary,
+      relationshipSignalsSummary: state.relationshipSummary,
+      memories: input.memories ?? [],
+      teachingOpportunity: null,
+      questionPolicy: plan.questionPolicy,
+      proactiveMessageSource: input.source,
+      interactionMode: plan.interactionMode,
+      affectionIntensityCeiling: plan.affectionIntensityCeiling,
+      dailyState: input.dailyState ?? "available",
+      preferredLength: plan.preferredLength,
+    });
+    if (!isProactiveMessageSafe(result.text, plan)) return { status: "failed", reason: "safety-gate", text: null };
+    return { status: "preview", text: result.text.trim() };
+  } catch (error) {
+    return { status: "failed", reason: error instanceof Error ? error.message : "provider-unavailable", text: null };
+  }
+}
+
 export async function generateLuciaProactiveMessage(input: Readonly<{
   userId: string;
   source: ProactiveMessageSource;
