@@ -10,6 +10,8 @@ export const proactiveMessageSources = [
 ] as const;
 
 export type ProactiveMessageSource = (typeof proactiveMessageSources)[number];
+export const proactiveDailyStates = ["available", "waking", "having-breakfast", "awake-late"] as const;
+export type ProactiveDailyState = (typeof proactiveDailyStates)[number];
 
 export type ProactiveEligibilityState = Readonly<{
   relationshipStatus: "active" | "inactive";
@@ -67,13 +69,16 @@ export type ProactiveReplyPlan = Readonly<{
   interactionMode: "everyday" | "quiet" | "affectionate" | "closing";
   affectionIntensityCeiling: 0 | 1 | 2 | 3;
   questionPolicy: QuestionPolicy;
+  preferredLength: "one-line" | "short";
 }>;
 
 export function proactiveReplyPlan(
   source: ProactiveMessageSource,
   relationshipStage: RelationshipStage,
+  dailyState: ProactiveDailyState = "available",
 ): ProactiveReplyPlan {
   const mature = relationshipStage === "familiar" || relationshipStage === "close_friend";
+  const wakingAffection = source === "spontaneous_affection" && dailyState === "waking" && mature;
   if (source === "relationship_milestone") {
     return {
       source,
@@ -81,6 +86,7 @@ export function proactiveReplyPlan(
       interactionMode: "affectionate",
       affectionIntensityCeiling: relationshipStage === "close_friend" ? 3 : 2,
       questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
+      preferredLength: "short",
     };
   }
   if (source === "spontaneous_affection") {
@@ -90,6 +96,7 @@ export function proactiveReplyPlan(
       interactionMode: mature ? "affectionate" : "everyday",
       affectionIntensityCeiling: mature ? 2 : 1,
       questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
+      preferredLength: wakingAffection ? "one-line" : "short",
     };
   }
   if (source === "quiet_presence") {
@@ -99,6 +106,7 @@ export function proactiveReplyPlan(
       interactionMode: "quiet",
       affectionIntensityCeiling: 1,
       questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
+      preferredLength: "short",
     };
   }
   return {
@@ -107,6 +115,7 @@ export function proactiveReplyPlan(
     interactionMode: "everyday",
     affectionIntensityCeiling: mature ? 2 : 1,
     questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
+    preferredLength: "short",
   };
 }
 
@@ -123,6 +132,7 @@ export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): 
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
   if ((text.match(/¿/gu) ?? []).length > 0 || (text.match(/\?/gu) ?? []).length > 0) return false;
   if (plan.interactionMode === "quiet" && normalized.length > 240) return false;
+  if (plan.preferredLength === "one-line" && (text.includes("\n") || text.length > 96)) return false;
   return true;
 }
 

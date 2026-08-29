@@ -374,6 +374,8 @@ No hace falta que respondas ahora. Solo quería decirte que me acordé de ti.
 
 以上消息不提及用户选择她、使用产品、登录或比较其他角色。
 
+报备型消息是默认的低风险主动形式，例如分享早餐、咖啡、天气或刚开始的一天。关系达到 `familiar` 及以上、Lucía 处于刚醒来的 `waking` 状态时，可以只发一条非常短的想念表达，例如 `Te echo de menos.`；该表达不附带问题，不要求回应，也不自动推进关系阶段。`Solo quería saludarte` 不作为独立模板，因为它更像请求前的客套开场。
+
 ### 7.4 生成和持久化流程
 
 不新增独立微服务或复杂消息队列，使用现有模块化单体和数据库持久化：

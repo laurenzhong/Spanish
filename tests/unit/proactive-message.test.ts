@@ -41,6 +41,11 @@ describe("proactive message policy", () => {
     expect(isProactiveMessageSafe("Me has venido a la cabeza de repente. Solo quería saludarte.", plan)).toBe(true);
     expect(isProactiveMessageSafe("¿Me echas de menos?", plan)).toBe(false);
     expect(isProactiveMessageSafe("Me gusta cuando me eliges para hablar.", plan)).toBe(false);
+    const morningPlan = proactiveReplyPlan("spontaneous_affection", "familiar", "waking");
+    expect(morningPlan.preferredLength).toBe("one-line");
+    expect(isProactiveMessageSafe("Te echo de menos.", morningPlan)).toBe(true);
+    expect(isProactiveMessageSafe("Te echo de menos. Ojalá tengas un día tranquilo y bonito.", morningPlan)).toBe(true);
+    expect(isProactiveMessageSafe("Te echo de menos. ¿Cómo has dormido?", morningPlan)).toBe(false);
   });
 });
 
@@ -78,9 +83,9 @@ describe("generateLuciaProactiveMessage", () => {
     const provider = {
       generate: vi.fn().mockResolvedValue({ text: "Me acordé de ti esta mañana.", provider: "openai", modelVersion: "gpt-5.6-sol", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }),
     };
-    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "spontaneous_affection", now, repository, provider });
+    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "spontaneous_affection", dailyState: "waking", now, repository, provider });
     expect(result.status).toBe("generated");
-    expect(provider.generate).toHaveBeenCalledWith(expect.objectContaining({ inputKind: "proactive", userMessage: "", proactiveMessageSource: "spontaneous_affection", questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" } }));
+    expect(provider.generate).toHaveBeenCalledWith(expect.objectContaining({ inputKind: "proactive", userMessage: "", dailyState: "waking", preferredLength: "one-line", proactiveMessageSource: "spontaneous_affection", questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" } }));
     expect(repository.completeCandidate).toHaveBeenCalledTimes(1);
   });
 

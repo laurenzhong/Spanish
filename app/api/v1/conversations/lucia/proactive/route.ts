@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   generateLuciaProactiveMessage,
   proactiveMessageSources,
+  proactiveDailyStates,
   createDrizzleProactiveMessageRepository,
 } from "@/src/modules/conversation";
 import { createDrizzleMemoryRepository } from "@/src/modules/memory";
@@ -37,6 +38,10 @@ export async function POST(request: NextRequest) {
       ? input.sourceEventId
       : "__invalid__";
   if (sourceEventId === "__invalid__") return NextResponse.json({ error: { code: "INPUT_INVALID" } }, { status: 400 });
+  const dailyState = input.dailyState === undefined ? "available" : input.dailyState;
+  if (!proactiveDailyStates.includes(dailyState as (typeof proactiveDailyStates)[number])) {
+    return NextResponse.json({ error: { code: "INPUT_INVALID" } }, { status: 400 });
+  }
 
   try {
     const database = getDatabase();
@@ -54,6 +59,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       source: source as (typeof proactiveMessageSources)[number],
       sourceEventId,
+      dailyState: dailyState as (typeof proactiveDailyStates)[number],
       repository: createDrizzleProactiveMessageRepository(database),
       provider,
       memories,

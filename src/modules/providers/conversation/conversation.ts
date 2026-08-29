@@ -62,6 +62,8 @@ export type ConversationProviderInput = Readonly<{
     | "quiet_presence";
   interactionMode?: "everyday" | "quiet" | "affectionate" | "closing" | "playful" | "supportive";
   affectionIntensityCeiling?: 0 | 1 | 2 | 3;
+  dailyState?: "available" | "waking" | "having-breakfast" | "awake-late";
+  preferredLength?: "one-line" | "short";
 }>;
 
 export type ConversationProviderResult = Readonly<{

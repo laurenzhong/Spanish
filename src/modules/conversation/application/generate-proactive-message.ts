@@ -7,6 +7,7 @@ import {
   isProactiveMessageSafe,
   proactiveDedupeKey,
   proactiveReplyPlan,
+  type ProactiveDailyState,
   type ProactiveMessageSource,
 } from "../domain/proactive-message";
 import type { ConversationMessageRecord } from "../repositories/conversation-repository";
@@ -23,6 +24,7 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
   userId: string;
   source: ProactiveMessageSource;
   sourceEventId?: string | null;
+  dailyState?: ProactiveDailyState;
   now?: Date;
   repository: ProactiveMessageRepository;
   provider?: CharacterReplyProvider;
@@ -62,7 +64,7 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
     return { status: "in-progress", reason: "candidate-in-progress", candidate, message: null };
   }
 
-  const plan = proactiveReplyPlan(input.source, state.relationshipStage);
+  const plan = proactiveReplyPlan(input.source, state.relationshipStage, input.dailyState);
   if (!input.provider) {
     await input.repository.failCandidate({ userId: input.userId, candidateId: candidate.id, errorCode: "provider-unavailable" });
     return { status: "failed", reason: "provider-unavailable", candidate, message: null };
@@ -83,6 +85,8 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
       proactiveMessageSource: input.source,
       interactionMode: plan.interactionMode,
       affectionIntensityCeiling: plan.affectionIntensityCeiling,
+      dailyState: input.dailyState ?? "available",
+      preferredLength: plan.preferredLength,
     });
     if (!isProactiveMessageSafe(result.text, plan)) {
       await input.repository.failCandidate({ userId: input.userId, candidateId: candidate.id, errorCode: "safety-gate" });
