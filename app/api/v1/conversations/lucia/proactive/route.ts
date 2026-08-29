@@ -43,6 +43,18 @@ export async function POST(request: NextRequest) {
   if (!proactiveDailyStates.includes(dailyState as (typeof proactiveDailyStates)[number])) {
     return NextResponse.json({ error: { code: "INPUT_INVALID" } }, { status: 400 });
   }
+  let testNow: Date | undefined;
+  if (input.testNow !== undefined) {
+    if (process.env.NODE_ENV === "production" || typeof input.testNow !== "string") {
+      return NextResponse.json({ error: { code: "INPUT_INVALID" } }, { status: 400 });
+    }
+    const parsed = new Date(input.testNow);
+    const maxFutureMs = 8 * 24 * 60 * 60 * 1_000;
+    if (Number.isNaN(parsed.getTime()) || parsed.getTime() < Date.now() || parsed.getTime() > Date.now() + maxFutureMs) {
+      return NextResponse.json({ error: { code: "INPUT_INVALID" } }, { status: 400 });
+    }
+    testNow = parsed;
+  }
 
   try {
     const database = getDatabase();
@@ -72,6 +84,7 @@ export async function POST(request: NextRequest) {
       source: source as (typeof proactiveMessageSources)[number],
       sourceEventId,
       dailyState: dailyState as (typeof proactiveDailyStates)[number],
+      now: testNow,
       repository: createDrizzleProactiveMessageRepository(database),
       provider,
       memories,
