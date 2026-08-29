@@ -197,6 +197,26 @@ export const conversations = pgTable(
   ],
 );
 
+export const conversationPreferences = pgTable(
+  "conversation_preferences",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    characterId: uuid("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "restrict" }),
+    isPinned: boolean("is_pinned").default(false).notNull(),
+    isMuted: boolean("is_muted").default(false).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("conversation_preferences_user_character_uidx").on(table.userId, table.characterId),
+    index("conversation_preferences_user_idx").on(table.userId, table.updatedAt),
+  ],
+);
+
 export const messages = pgTable(
   "messages",
   {

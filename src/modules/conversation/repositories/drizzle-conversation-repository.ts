@@ -154,13 +154,18 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         .select({
           conversation: schema.conversations,
           character: schema.characters,
+          conversationPreferences: schema.conversationPreferences,
         })
         .from(schema.conversations)
         .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .leftJoin(schema.conversationPreferences, and(
+          eq(schema.conversationPreferences.userId, userId),
+          eq(schema.conversationPreferences.characterId, schema.characters.id),
+        ))
         .where(eq(schema.conversations.userId, userId))
         .orderBy(desc(schema.conversations.lastMessageAt), desc(schema.conversations.updatedAt));
 
-      return Promise.all(rows.map(async ({ conversation, character }) => {
+      return Promise.all(rows.map(async ({ conversation, character, conversationPreferences }) => {
         const [lastMessage] = await database
           .select({
             role: schema.messages.role,
@@ -180,8 +185,46 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           lastMessage: lastMessage
             ? { role: lastMessage.role === "character" ? "character" : "user", content: lastMessage.content, createdAt: lastMessage.createdAt }
             : null,
+          isPinned: conversationPreferences?.isPinned ?? character.stableKey === "lucia",
+          isMuted: conversationPreferences?.isMuted ?? false,
         } satisfies ConversationListRecord;
       }));
+    },
+
+    async updateConversationPreference(userId, characterKey, patch) {
+      const [character] = await database
+        .select({ id: schema.characters.id, stableKey: schema.characters.stableKey })
+        .from(schema.characters)
+        .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.status, "published")))
+        .limit(1);
+      if (!character) throw new Error("CHARACTER_UNAVAILABLE");
+
+      const [existing] = await database
+        .select()
+        .from(schema.conversationPreferences)
+        .where(and(
+          eq(schema.conversationPreferences.userId, userId),
+          eq(schema.conversationPreferences.characterId, character.id),
+        ))
+        .limit(1);
+      const values = {
+        userId,
+        characterId: character.id,
+        isPinned: patch.isPinned ?? existing?.isPinned ?? character.stableKey === "lucia",
+        isMuted: patch.isMuted ?? existing?.isMuted ?? false,
+        updatedAt: new Date(),
+      };
+      const [preference] = existing
+        ? await database.update(schema.conversationPreferences).set(values).where(and(
+          eq(schema.conversationPreferences.userId, userId),
+          eq(schema.conversationPreferences.characterId, character.id),
+        )).returning()
+        : await database.insert(schema.conversationPreferences).values(values).onConflictDoUpdate({
+          target: [schema.conversationPreferences.userId, schema.conversationPreferences.characterId],
+          set: values,
+        }).returning();
+      if (!preference) throw new Error("CONVERSATION_PREFERENCE_UNAVAILABLE");
+      return { characterKey: character.stableKey, isPinned: preference.isPinned, isMuted: preference.isMuted };
     },
 
     async searchMessages(userId, query, limit = 50) {

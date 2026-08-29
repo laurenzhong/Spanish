@@ -75,7 +75,9 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     let active = true;
     void loadConversationList().then(() => {
       if (!active) return;
-      setConversations(cachedConversations ?? []);
+      const nextConversations = cachedConversations ?? [];
+      setConversations(nextConversations);
+      setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false }])))
       setStatus(cachedStatus);
     });
     void loadLuciaContact().then(() => setLuciaContact(cachedLuciaContact));
@@ -98,19 +100,28 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
 
   function preferenceFor(conversation: ConversationPreview): ConversationPreference {
     return preferences[conversation.characterKey] ?? {
-      isPinned: conversation.characterKey === "lucia",
+      isPinned: conversation.isPinned ?? conversation.characterKey === "lucia",
       isMuted: false,
     };
   }
 
-  function updatePreference(characterKey: string, patch: Partial<ConversationPreference>) {
+  async function updatePreference(characterKey: string, patch: Partial<ConversationPreference>) {
+    const previous = preferences[characterKey] ?? { isPinned: characterKey === "lucia", isMuted: false };
+    const next = { ...previous, ...patch };
     setPreferences((current) => ({
       ...current,
-      [characterKey]: {
-        ...(current[characterKey] ?? { isPinned: characterKey === "lucia", isMuted: false }),
-        ...patch,
-      },
+      [characterKey]: next,
     }));
+    try {
+      const response = await fetch("/api/v1/conversations/preferences", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ characterKey, ...patch }),
+      });
+      if (!response.ok) throw new Error("PREFERENCE_SAVE_FAILED");
+    } catch {
+      setPreferences((current) => ({ ...current, [characterKey]: previous }));
+    }
   }
 
   const visibleConversations = [...conversations].sort((left, right) => {
@@ -156,7 +167,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       <p className="conversation-contact-rail__label">最近</p>
       <nav className="conversation-contact-rail__list" aria-label="好友列表">
         {status === "loading" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">正在加载会话……</p> : null}
-        {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表。</p><button type="button" onClick={() => { setStatus("loading"); void loadConversationList(true).then(() => { setConversations(cachedConversations ?? []); setStatus(cachedStatus); }); }}>重试</button></div> : null}
+        {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表。</p><button type="button" onClick={() => { setStatus("loading"); void loadConversationList(true).then(() => { const nextConversations = cachedConversations ?? []; setConversations(nextConversations); setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false }]))); setStatus(cachedStatus); }); }}>重试</button></div> : null}
         {status === "available" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">还没有联系人。你可以先查看新的好友申请。</p> : null}
         {visibleConversations.map((conversation) => {
           const preference = preferenceFor(conversation);
@@ -257,6 +268,8 @@ type ConversationPreview = Readonly<{
   homeLocation?: string;
   lastMessageAt: string | null;
   lastMessage: { snippet: string } | null;
+  isPinned?: boolean;
+  isMuted?: boolean;
 }>;
 
 type LuciaContactPreview = Readonly<{

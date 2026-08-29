@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
             avatarClass: character?.avatarClass ?? "avatar--lucia",
             roleLabel: character?.roleLabel ?? "角色",
             lastMessageAt: record.lastMessageAt?.toISOString() ?? null,
+            isPinned: record.isPinned,
+            isMuted: record.isMuted,
             lastMessage: record.lastMessage
               ? {
                   role: record.lastMessage.role,
