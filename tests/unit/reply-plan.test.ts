@@ -126,9 +126,24 @@ describe("reply context and deterministic generation", () => {
       ],
     });
     expect(context.characterClaims).toEqual([
-      expect.objectContaining({ claimKey: "daily:meal", statement: "Creo que comeré puré de patatas.", sameLocalDay: true }),
+      expect.objectContaining({ claimKey: "daily:meal", claimKind: "daily_observation", statement: "Creo que comeré puré de patatas.", sameLocalDay: true, repeatableOnLaterDays: true }),
     ]);
     expect(context.memories).toEqual([]);
+  });
+
+  it("allows a repeatable daily observation to recur on a later local day", async () => {
+    const context = await buildReplyContext({
+      generationId: "generation-next-day",
+      userId: "user-1",
+      userMessage: "¿Qué vas a desayunar?",
+      now: new Date("2026-08-30T08:30:00.000Z"),
+      recentMessages: [
+        { role: "character", content: "Esta mañana he tomado café.", sentAt: "2026-08-29T07:30:00.000Z" },
+      ],
+    });
+    expect(context.characterClaims).toEqual([
+      expect.objectContaining({ claimKey: "daily:drink", repeatableOnLaterDays: true, sameLocalDay: false }),
+    ]);
   });
 
   it("uses the readable memory projection and excludes rejected or conflicting facts", async () => {

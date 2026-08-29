@@ -32,9 +32,11 @@ export type ConversationProviderInput = Readonly<{
   }>[];
   characterClaims?: readonly Readonly<{
     claimKey: string;
+    claimKind: "daily_observation" | "short_plan" | "current_state";
     statement: string;
     assertedAt?: string;
     sameLocalDay?: boolean;
+    repeatableOnLaterDays: boolean;
   }>[];
   conversationTimeZone?: string;
   currentLocalDate?: string;

@@ -41,9 +41,11 @@ export type ReplyOpenTopic = Readonly<{
 
 export type ReplyCharacterClaim = Readonly<{
   claimKey: string;
+  claimKind: "daily_observation" | "short_plan" | "current_state";
   statement: string;
   assertedAt?: string;
   sameLocalDay?: boolean;
+  repeatableOnLaterDays: boolean;
 }>;
 
 export const defaultRecentMessageCharBudget = 8_000;
@@ -125,10 +127,17 @@ function topicKeyForQuestion(value: string): string {
 
 function characterClaimKey(value: string): string | null {
   const normalized = normalizedTopicText(value);
+  if (/\b(?:voy a|tengo pensado|pienso|esta tarde|esta noche)\b/iu.test(normalized) || (normalized.includes("manana") && !normalized.includes("esta manana"))) return "daily:plan";
   if (/\b(?:comer|comida|almuerzo|mediodia|cena|desayuno|arroz|patatas|tortilla|ensalada|pasta|sopa)\b/iu.test(normalized)) return "daily:meal";
   if (/\b(?:cafe|te|desayunar|beber|tomar)\b/iu.test(normalized)) return "daily:drink";
   if (/\b(?:dormir|despertar|despierta|cansada|cansado|acostar)\b/iu.test(normalized)) return "daily:energy";
   return null;
+}
+
+function characterClaimKind(claimKey: string): ReplyCharacterClaim["claimKind"] {
+  if (claimKey === "daily:plan") return "short_plan";
+  if (claimKey === "daily:energy") return "current_state";
+  return "daily_observation";
 }
 
 function topicLabel(value: string): string {
@@ -195,11 +204,13 @@ export function deriveReplyCharacterClaims(
     if (!claimKey) continue;
     claims.set(claimKey, {
       claimKey,
+      claimKind: characterClaimKind(claimKey),
       statement: message.content.trim().slice(0, 280),
       ...(message.sentAt ? { assertedAt: message.sentAt } : {}),
       ...(message.sentAt && currentLocalDate
         ? { sameLocalDay: localDateFor(message.sentAt, timeZone) === currentLocalDate }
         : {}),
+      repeatableOnLaterDays: claimKey === "daily:meal" || claimKey === "daily:drink",
     });
   }
   return [...claims.values()].slice(-8);

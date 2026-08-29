@@ -391,13 +391,31 @@ describe("fake conversation reply", () => {
       characterKey: "lucia", characterVersion: 1, text: "¿Qué vas a comer?", clientMessageId: "client-claim", generationId: "generation-claim", messageId: "message-claim",
       replyContext: {
         generationId: "generation-claim", userId: "user-1", userMessage: "¿Qué vas a comer?", recentMessages: [], rollingSummary: null, openTopics: [],
-        characterClaims: [{ claimKey: "daily:meal", statement: "Creo que comeré puré de patatas.", sameLocalDay: true }], conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-29",
+        characterClaims: [{ claimKey: "daily:meal", claimKind: "daily_observation", statement: "Creo que comeré puré de patatas.", sameLocalDay: true, repeatableOnLaterDays: true }], conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-29",
         character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
       },
       replyProvider: provider, wait: async () => {},
     })) events.push(event);
     expect(provider.generate).toHaveBeenCalledTimes(2);
     expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("cambi") });
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("allows a repeatable meal claim to recur on a later day", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "Hoy también me apetece puré de patatas.", provider: "openai" as const, modelVersion: "test", providerRequestId: "claim-next-day", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué vas a comer?", clientMessageId: "client-next-day", generationId: "generation-next-day", messageId: "message-next-day",
+      replyContext: {
+        generationId: "generation-next-day", userId: "user-1", userMessage: "¿Qué vas a comer?", recentMessages: [], rollingSummary: null, openTopics: [],
+        characterClaims: [{ claimKey: "daily:meal", claimKind: "daily_observation", statement: "Ayer comí puré de patatas.", sameLocalDay: false, repeatableOnLaterDays: true }], conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-30",
+        character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
+      },
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(1);
     expect(events.at(-1)).toMatchObject({ type: "done" });
   });
 
