@@ -12,6 +12,8 @@ import {
 const input: ConversationProviderInput = {
   userMessage: "Hoy he tenido un día difícil.",
   recentMessages: [{ role: "character", content: "¿Cómo te ha ido?" }],
+  rollingSummary: "Hablamos de fotografía y de los planes de esta semana.",
+  openTopics: [{ topicKey: "daily:meal", label: "¿Qué comiste?", status: "answered", lastMentionedBy: "user", lastAnswer: "Una ensalada." }],
   character: {
     characterKey: "lucia",
     characterVersion: 1,
@@ -74,6 +76,7 @@ describe("MiniMaxConversationProvider", () => {
     expect(body.stream).toBe(false);
     expect(JSON.stringify(body)).toContain(input.userMessage);
     expect(JSON.stringify(body)).toContain("la fotografía");
+    expect(JSON.stringify(body)).toContain("daily:meal");
     expect(JSON.stringify(body)).not.toContain("test-minimax-key");
   });
 

@@ -22,6 +22,7 @@ import {
   createDrizzleIntroductionRepository,
   createDrizzleLuciaContactRepository,
   proposeIntroduction,
+  type LuciaContactRecord,
 } from "@/src/modules/character-network";
 import { createMiniMaxConversationProvider, createOpenAIConversationProvider } from "@/src/modules/providers/conversation/server";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
@@ -89,10 +90,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   const database = process.env.DATABASE_URL ? getDatabase() : null;
+  let luciaContact: LuciaContactRecord | null = null;
   if (database && characterId === "lucia") {
     try {
-      const contact = await createDrizzleLuciaContactRepository(database).get(user.id);
-      if (contact.status !== "active") {
+      luciaContact = await createDrizzleLuciaContactRepository(database).get(user.id);
+      if (luciaContact.status !== "active") {
         return jsonError("CONTACT_REQUIRED", "Accept Lucia's friend request before starting this conversation.", 403);
       }
     } catch {
@@ -111,7 +113,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   let recentMessages: readonly Readonly<{ role: "user" | "character"; content: string }>[] = [];
   if (repository) {
     try {
-      const history = await repository.listMessages(user.id, characterId, 20);
+      const history = await repository.listMessages(user.id, characterId, 100);
       const withdrawnIds = new Set(history.filter((message) => message.status === "withdrawn").map((message) => message.id));
       recentMessages = history
         .filter((message) => message.status !== "withdrawn" && !(message.role === "character" && message.replyToMessageId && withdrawnIds.has(message.replyToMessageId)))
@@ -128,6 +130,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       userMessage: text.trim(),
       character: getConversationCharacter(characterId).snapshot,
       recentMessages,
+      relationshipStage: luciaContact?.relationshipStage,
+      relationshipSummary: luciaContact?.relationshipSummary,
       memoryRepository: readableMemoryRepository,
     });
   } catch {
@@ -138,6 +142,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       userMessage: text.trim(),
       character: getConversationCharacter(characterId).snapshot,
       recentMessages,
+      relationshipStage: luciaContact?.relationshipStage,
+      relationshipSummary: luciaContact?.relationshipSummary,
     });
   }
   const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();

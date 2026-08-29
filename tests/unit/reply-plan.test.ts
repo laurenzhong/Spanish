@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildReplyContext,
+  deriveReplyOpenTopics,
   generateCharacterReply,
   planReply,
 } from "@/src/modules/conversation";
@@ -73,6 +74,28 @@ describe("reply planning", () => {
 });
 
 describe("reply context and deterministic generation", () => {
+  it("keeps a bounded recent window while exposing answered and open topics", async () => {
+    const history = [
+      { role: "user" as const, content: "¿Qué comiste al mediodía?" },
+      { role: "character" as const, content: "Comí una ensalada con tomate." },
+      { role: "user" as const, content: "¿Qué haces ahora?" },
+    ];
+    const context = await buildReplyContext({
+      generationId: "generation-1",
+      userId: "user-1",
+      userMessage: "¿Qué vas a comer al mediodía?",
+      recentMessages: history,
+      recentMessageCharBudget: 60,
+    });
+
+    expect(context.recentMessages.length).toBeLessThan(history.length);
+    expect(context.openTopics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ topicKey: "daily:meal", status: "answered", lastAnswer: "Comí una ensalada con tomate." }),
+      expect.objectContaining({ topicKey: "daily:activity", status: "open" }),
+    ]));
+    expect(deriveReplyOpenTopics(history)).toHaveLength(2);
+  });
+
   it("uses the readable memory projection and excludes rejected or conflicting facts", async () => {
     const listReadableMemories = vi.fn().mockResolvedValue([
       memory(),

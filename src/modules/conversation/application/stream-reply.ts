@@ -114,6 +114,8 @@ export async function* streamReply(
     userId: "anonymous",
     userMessage: trimmed,
     recentMessages: [],
+    rollingSummary: null,
+    openTopics: [],
     character: getConversationCharacter(input.characterKey).snapshot,
     relationshipStage: "new_contact" as const,
     relationshipSummary: null,

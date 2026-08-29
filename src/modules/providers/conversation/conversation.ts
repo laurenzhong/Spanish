@@ -18,6 +18,14 @@ export type ConversationProviderInput = Readonly<{
     role: "user" | "character";
     content: string;
   }>[];
+  rollingSummary?: string | null;
+  openTopics?: readonly Readonly<{
+    topicKey: string;
+    label: string;
+    status: "open" | "answered" | "closed";
+    lastMentionedBy: "user" | "character";
+    lastAnswer?: string;
+  }>[];
   character: Readonly<{
     characterKey: string;
     characterVersion: number;

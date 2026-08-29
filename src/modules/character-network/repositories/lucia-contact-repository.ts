@@ -4,6 +4,7 @@ export type LuciaContactRecord = Readonly<{
   characterKey: "lucia";
   status: LuciaContactStatus;
   relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
+  relationshipSummary: string | null;
   conversationId: string | null;
   source: Readonly<{
     kind: "cultural-event";

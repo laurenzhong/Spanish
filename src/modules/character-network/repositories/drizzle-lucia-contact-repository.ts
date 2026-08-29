@@ -44,7 +44,7 @@ export function createDrizzleLuciaContactRepository<TResult extends PgQueryResul
     async get(userId) {
       const character = await findLucia(database);
       const [relationship] = await database
-        .select({ id: schema.characterRelationships.id, status: schema.characterRelationships.status, relationshipStage: schema.characterRelationships.relationshipStage })
+        .select({ id: schema.characterRelationships.id, status: schema.characterRelationships.status, relationshipStage: schema.characterRelationships.relationshipStage, relationshipSummary: schema.characterRelationships.relationshipSummary })
         .from(schema.characterRelationships)
         .where(and(eq(schema.characterRelationships.userId, userId), eq(schema.characterRelationships.characterId, character.id)))
         .limit(1);
@@ -60,6 +60,7 @@ export function createDrizzleLuciaContactRepository<TResult extends PgQueryResul
           characterKey: "lucia",
           status: conversation ? "active" : "pending",
           relationshipStage: "new_contact",
+          relationshipSummary: null,
           conversationId: conversation?.id ?? null,
           source,
         };
@@ -68,6 +69,7 @@ export function createDrizzleLuciaContactRepository<TResult extends PgQueryResul
         characterKey: "lucia",
         status: relationship.status as LuciaContactStatus,
         relationshipStage: relationship.relationshipStage as LuciaContactRecord["relationshipStage"],
+        relationshipSummary: relationship.relationshipSummary?.es ?? null,
         conversationId: conversation?.id ?? null,
         source,
       };

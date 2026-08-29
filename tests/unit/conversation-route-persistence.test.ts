@@ -40,6 +40,16 @@ const mocks = vi.hoisted(() => {
       shareScope: "private",
     },
     commitMemories: vi.fn().mockResolvedValue([]),
+    provider: {
+      generate: vi.fn().mockResolvedValue({
+        text: "Estoy bien, gracias.",
+        provider: "minimax" as const,
+        modelVersion: "test-provider",
+        providerRequestId: "provider-request-1",
+        latencyMs: 1,
+        estimatedCostMicros: null,
+      }),
+    },
   };
 });
 
@@ -53,7 +63,7 @@ vi.mock("@/src/shared/db/client", () => ({
 }));
 
 vi.mock("@/src/modules/providers/conversation/server", () => ({
-  createMiniMaxConversationProvider: vi.fn(),
+  createMiniMaxConversationProvider: vi.fn(() => mocks.provider),
 }));
 
 vi.mock("@/src/modules/conversation", async () => {
@@ -68,7 +78,7 @@ vi.mock("@/src/modules/character-network", async () => {
   const actual = await vi.importActual<typeof import("@/src/modules/character-network")>("@/src/modules/character-network");
   return {
     ...actual,
-    createDrizzleLuciaContactRepository: vi.fn(() => ({ get: vi.fn().mockResolvedValue({ status: "active" }) })),
+    createDrizzleLuciaContactRepository: vi.fn(() => ({ get: vi.fn().mockResolvedValue({ status: "active", relationshipStage: "familiar", relationshipSummary: "Hablamos de fotografía." }) })),
   };
 });
 
@@ -89,6 +99,7 @@ describe("conversation stream persistence", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.DATABASE_URL;
+    delete process.env.MINIMAX_API_KEY;
   });
 
   it("associates the assistant with the persisted user UUID before sending done", async () => {
@@ -118,6 +129,25 @@ describe("conversation stream persistence", () => {
       completed: true,
       candidates: [mocks.memoryCandidate],
     }));
+  });
+
+  it("passes the active Lucia relationship state into ordinary provider context", async () => {
+    process.env.DATABASE_URL = "postgresql://test.invalid/db";
+    process.env.MINIMAX_API_KEY = "test-key";
+    mocks.repository.listMessages.mockResolvedValue([]);
+    const request = new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ characterVersion: 1, text: "Hola", clientMessageId: "client-context", generationId: "generation-context" }),
+    });
+
+    const response = await STREAM_POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
+    await response.text();
+    expect(mocks.provider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      relationshipStage: "familiar",
+      relationshipSummary: "Hablamos de fotografía.",
+      openTopics: [],
+    }), expect.anything());
   });
 
   it("exposes auth and database timings without message content", async () => {

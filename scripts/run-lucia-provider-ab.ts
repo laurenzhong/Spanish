@@ -117,6 +117,8 @@ async function runOne(
       userId: "lucia-provider-replay",
       userMessage: providerInput.userMessage,
       recentMessages: providerInput.recentMessages,
+      rollingSummary: null,
+      openTopics: [],
       character: providerInput.character,
       relationshipStage: providerInput.relationshipStage,
       relationshipSummary: providerInput.relationshipSummary,
