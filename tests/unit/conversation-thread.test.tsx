@@ -207,4 +207,51 @@ describe("ChatThread persistence status", () => {
     await waitFor(() => expect(historyCalls).toBeGreaterThanOrEqual(2));
     expect(screen.getByText("这条消息要保留")).toBeInTheDocument();
   });
+
+  it("deduplicates streamed messages once the server history confirms them", async () => {
+    let historyCalls = 0;
+    let sentClientMessageId = "";
+    let sentGenerationId = "";
+    const initialMessages = [{ id: "history-1", role: "character", text: "之前的消息", complete: true }] as const;
+    const historyResponse = (messages: readonly object[]) => ({
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages } }),
+    }) as Response;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (init?.method === "POST") {
+        const request = JSON.parse(String(init.body)) as { clientMessageId: string; generationId: string };
+        sentClientMessageId = request.clientMessageId;
+        sentGenerationId = request.generationId;
+        const lines = [
+          { type: "meta", protocolVersion: "v1", characterKey: "lucia", characterVersion: 1, generationId: sentGenerationId, messageId: "assistant-1" },
+          { type: "delta", generationId: sentGenerationId, messageId: "assistant-1", text: "Estoy aquí." },
+          { type: "done", generationId: sentGenerationId, messageId: "assistant-1" },
+        ].map((event) => `${JSON.stringify(event)}\n`).join("");
+        const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(lines)); controller.close(); } });
+        return { ok: true, headers: new Headers([["x-conversation-persistence", "available"]]), body } as Response;
+      }
+      historyCalls += 1;
+      return historyCalls === 1
+        ? historyResponse(initialMessages)
+        : historyResponse([
+            ...initialMessages,
+            { id: "server-user-1", clientMessageId: sentClientMessageId, generationId: sentGenerationId, role: "user", text: "Gracias, me ha hecho ilusión leerte.", complete: true },
+            { id: "assistant-1", generationId: sentGenerationId, role: "character", text: "Estoy aquí.", complete: true },
+          ]);
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={initialMessages} />);
+    const composer = screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+    fireEvent.change(composer, { target: { value: "Gracias, me ha hecho ilusión leerte." } });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+    expect(await screen.findByText("Estoy aquí.")).toBeInTheDocument();
+    expect(screen.getAllByText("Gracias, me ha hecho ilusión leerte.")).toHaveLength(1);
+
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(historyCalls).toBeGreaterThanOrEqual(2));
+    expect(screen.getAllByText("Gracias, me ha hecho ilusión leerte.")).toHaveLength(1);
+    expect(screen.getAllByText("Estoy aquí.")).toHaveLength(1);
+  });
 });

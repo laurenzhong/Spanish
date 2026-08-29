@@ -62,6 +62,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowRef = useRef(true);
   const isNearBottomRef = useRef(true);
+  const currentMessagesRef = useRef(state.messages);
   const knownMessageKeysRef = useRef(new Set(
     (initialMessages ?? []).map((message) => message.clientMessageId ?? message.id),
   ));
@@ -70,6 +71,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   ));
   const serverHistoryLoadedRef = useRef(Boolean(initialMessages));
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
+
+  useEffect(() => {
+    currentMessagesRef.current = state.messages;
+  }, [state.messages]);
 
   useEffect(() => {
     const load = () => {
@@ -184,7 +189,14 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
         // Keep the loading state until the body has been parsed and applied.
         // Hydration preserves optimistic messages and an active stream.
-        const staleMessageKeys = Array.from(serverMessageKeysRef.current);
+        const serverKeys = new Set(result.messages.map((message) => message.clientMessageId ?? message.id));
+        const confirmedCurrentKeys = currentMessagesRef.current
+          .map((message) => message.clientMessageId ?? message.id)
+          .filter((key) => serverKeys.has(key));
+        const staleMessageKeys = Array.from(new Set([
+          ...serverMessageKeysRef.current,
+          ...confirmedCurrentKeys,
+        ]));
         if (staleMessageKeys.length > 0) {
           apply({
             type: "replace-hydrate",
