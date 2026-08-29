@@ -30,6 +30,12 @@ type ContextMenuState = Readonly<{
   y: number;
 }>;
 
+type DragState = Readonly<{
+  characterKey: string;
+  startY: number;
+  active: boolean;
+}>;
+
 function loadConversationList(force = false): Promise<void> {
   if (listRequest) return listRequest;
   if (!force && (cachedConversations !== null || cachedStatus === "unavailable")) return Promise.resolve();
@@ -72,9 +78,12 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   const longPressTimer = useRef<number | null>(null);
   const suppressClick = useRef(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLElement>(null);
+  const dragState = useRef<DragState | null>(null);
   const [preferenceError, setPreferenceError] = useState(false);
   const [isManagingOrder, setIsManagingOrder] = useState(false);
   const [draggedCharacterKey, setDraggedCharacterKey] = useState<string | null>(null);
+  const [dragOverCharacterKey, setDragOverCharacterKey] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -106,8 +115,11 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   useEffect(() => {
     if (!contextMenu || !contextMenuRef.current) return;
     const rect = contextMenuRef.current.getBoundingClientRect();
-    const x = Math.max(8, Math.min(contextMenu.x, window.innerWidth - rect.width - 8));
-    const y = Math.max(8, Math.min(contextMenu.y, window.innerHeight - rect.height - 8));
+    const railRect = railRef.current?.getBoundingClientRect();
+    const maxX = railRect ? railRect.width - rect.width - 8 : window.innerWidth - rect.width - 8;
+    const maxY = railRect ? (railRef.current?.scrollHeight ?? railRect.height) - rect.height - 8 : window.innerHeight - rect.height - 8;
+    const x = Math.max(8, Math.min(contextMenu.x, maxX));
+    const y = Math.max(8, Math.min(contextMenu.y, maxY));
     if (x !== contextMenu.x || y !== contextMenu.y) setContextMenu({ ...contextMenu, x, y });
   }, [contextMenu]);
 
@@ -159,7 +171,8 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   function openContextMenu(event: React.MouseEvent, characterKey: string) {
     event.preventDefault();
     event.stopPropagation();
-    openContextMenuAt(characterKey, event.clientX, event.clientY);
+    const railRect = railRef.current?.getBoundingClientRect();
+    openContextMenuAt(characterKey, railRect ? event.clientX - railRect.left : event.clientX, railRect ? event.clientY - railRect.top + (railRef.current?.scrollTop ?? 0) : event.clientY);
   }
 
   function openContextMenuAt(characterKey: string, clientX: number, clientY: number) {
@@ -198,8 +211,47 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     void applyOrder(next);
   }
 
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>, characterKey: string) {
+    if (event.pointerType !== "mouse" || event.button !== 0) return;
+    dragState.current = { characterKey, startY: event.clientY, active: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const current = dragState.current;
+    if (!current || event.pointerType !== "mouse") return;
+    if (!current.active && Math.abs(event.clientY - current.startY) < 6) return;
+    if (!current.active) {
+      dragState.current = { ...current, active: true };
+      setDraggedCharacterKey(current.characterKey);
+      suppressClick.current = true;
+    }
+    event.preventDefault();
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-character-key]")?.dataset.characterKey;
+    if (target && target !== current.characterKey) setDragOverCharacterKey(target);
+  }
+
+  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    const current = dragState.current;
+    if (!current) return;
+    if (current.active && dragOverCharacterKey) {
+      const from = visibleConversations.findIndex((item) => item.characterKey === current.characterKey);
+      const to = visibleConversations.findIndex((item) => item.characterKey === dragOverCharacterKey);
+      if (from >= 0 && to >= 0 && preferenceFor(visibleConversations[from]!).isPinned === preferenceFor(visibleConversations[to]!).isPinned) {
+        const next = [...visibleConversations];
+        const [moved] = next.splice(from, 1);
+        if (moved) next.splice(to, 0, moved);
+        void applyOrder(next);
+      }
+    }
+    dragState.current = null;
+    setDraggedCharacterKey(null);
+    setDragOverCharacterKey(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
   return (
-    <aside className="conversation-contact-rail" aria-label="联系人">
+    <aside ref={railRef} className="conversation-contact-rail" aria-label="联系人">
       <div className="conversation-contact-rail__heading">
         <div>
           <h2>好友</h2>
@@ -223,9 +275,12 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
             <div
               className="conversation-contact-row-shell"
               key={conversation.conversationId}
-              draggable
-              onDragStart={() => setDraggedCharacterKey(conversation.characterKey)}
-              onDragEnd={() => setDraggedCharacterKey(null)}
+              data-character-key={conversation.characterKey}
+              data-drag-over={dragOverCharacterKey === conversation.characterKey ? "true" : undefined}
+              onPointerDown={(event) => handlePointerDown(event, conversation.characterKey)}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
               onDragOver={(event) => { if (isManagingOrder) event.preventDefault(); }}
               onDrop={(event) => {
                 event.preventDefault();
@@ -243,7 +298,11 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
               onTouchStart={(event) => {
                 if (event.touches.length !== 1) return;
                 const touch = event.touches[0];
-                longPressTimer.current = window.setTimeout(() => { suppressClick.current = true; openContextMenuAt(conversation.characterKey, touch.clientX, touch.clientY); }, 450);
+                longPressTimer.current = window.setTimeout(() => {
+                  suppressClick.current = true;
+                  const railRect = railRef.current?.getBoundingClientRect();
+                  openContextMenuAt(conversation.characterKey, railRect ? touch.clientX - railRect.left : touch.clientX, railRect ? touch.clientY - railRect.top + (railRef.current?.scrollTop ?? 0) : touch.clientY);
+                }, 450);
               }}
               onTouchEnd={() => { if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }}
               onTouchCancel={() => { if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }}
