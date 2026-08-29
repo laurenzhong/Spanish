@@ -129,6 +129,7 @@ export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): 
   if (!normalized || normalized.length > 480) return false;
   if (/[*_`#<>]/u.test(text)) return false;
   if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return false;
+  if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return false;
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
   if ((text.match(/¿/gu) ?? []).length > 0 || (text.match(/\?/gu) ?? []).length > 0) return false;
   if (plan.interactionMode === "quiet" && normalized.length > 240) return false;

@@ -39,7 +39,9 @@ describe("proactive message policy", () => {
 
   it("keeps unsolicited text low-pressure and rejects product meta or questions", () => {
     const plan = proactiveReplyPlan("spontaneous_affection", "familiar");
-    expect(isProactiveMessageSafe("Me has venido a la cabeza de repente. Solo quería saludarte.", plan)).toBe(true);
+    expect(isProactiveMessageSafe("Me has venido a la cabeza de repente. Solo quería saludarte.", plan)).toBe(false);
+    expect(isProactiveMessageSafe("Me apetecía saludarte y sacarte una sonrisa.", plan)).toBe(true);
+    expect(isProactiveMessageSafe("Me alegra mucho; me apetecía dejarte una sonrisa pequeña.", plan)).toBe(false);
     expect(isProactiveMessageSafe("¿Me echas de menos?", plan)).toBe(false);
     expect(isProactiveMessageSafe("Me gusta cuando me eliges para hablar.", plan)).toBe(false);
     const morningPlan = proactiveReplyPlan("spontaneous_affection", "familiar", "waking");
