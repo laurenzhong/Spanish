@@ -25,7 +25,7 @@ describe("ConversationContactRail direct dragging", () => {
 
   it("persists the new order when the row is dragged directly", async () => {
     const { ConversationContactRail } = await import("@/src/modules/conversation/ui/conversation-contact-rail");
-    render(<ConversationContactRail activeCharacterKey="lucia" />);
+    const view = render(<ConversationContactRail activeCharacterKey="lucia" />);
     await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
 
     const firstRow = screen.getByRole("link", { name: /Lucía Martín/ }).closest("[data-character-key]");
@@ -42,5 +42,13 @@ describe("ConversationContactRail direct dragging", () => {
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([, init]) => typeof init?.body === "string" && init.body.includes('"orderedCharacterKeys":["mateo","lucia"]'))).toBe(true));
     expect(vi.mocked(fetch).mock.calls.some(([, init]) => typeof init?.body === "string" && init.body.includes('"isPinned":false'))).toBe(true);
     expect(screen.getAllByRole("link").map((link) => link.textContent).join(" ")).toContain("Mateo Ruiz");
+
+    view.unmount();
+    render(<ConversationContactRail activeCharacterKey="mateo" />);
+    await waitFor(() => {
+      const links = screen.getAllByRole("link");
+      expect(links[0]).toHaveAccessibleName(/Mateo Ruiz/);
+      expect(links[1]).toHaveAccessibleName(/Lucía Martín/);
+    });
   });
 });

@@ -67,6 +67,14 @@ function loadLuciaContact(): Promise<void> {
   return luciaContactRequest;
 }
 
+function syncCachedConversationPreferences(updates: Readonly<Record<string, Partial<ConversationPreference>>>): void {
+  if (!cachedConversations) return;
+  cachedConversations = cachedConversations.map((conversation) => {
+    const update = updates[conversation.characterKey];
+    return update ? { ...conversation, ...update } : conversation;
+  });
+}
+
 export function ConversationContactRail({ activeCharacterKey }: ConversationContactRailProps) {
   const [conversations, setConversations] = useState<readonly ConversationPreview[]>(cachedConversations ?? []);
   const [status, setStatus] = useState(cachedStatus);
@@ -152,6 +160,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
         body: JSON.stringify({ characterKey, ...patch }),
       });
       if (!response.ok) throw new Error("PREFERENCE_SAVE_FAILED");
+      syncCachedConversationPreferences({ [characterKey]: next });
       setPreferenceNotice(patch.isPinned !== undefined ? (patch.isPinned ? "已置顶好友" : "已取消置顶") : patch.isMuted !== undefined ? (patch.isMuted ? "已静音通知" : "已开启通知") : "好友设置已保存");
     } catch {
       setPreferences((current) => ({ ...current, [characterKey]: previous }));
@@ -190,7 +199,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     });
   }
 
-  async function applyOrder(nextConversations: readonly ConversationPreview[], preferenceOverrides: ConversationPreferences = {}) {
+  async function applyOrder(nextConversations: readonly ConversationPreview[], preferenceOverrides: Readonly<Record<string, Partial<ConversationPreference>>> = {}) {
     const order = nextConversations.map((conversation) => conversation.characterKey);
     const previous = preferences;
     setPreferences((current) => Object.fromEntries(order.map((characterKey, sortRank) => [characterKey, { ...(current[characterKey] ?? { isPinned: characterKey === "lucia", isMuted: false, sortRank: null }), ...(preferenceOverrides[characterKey] ?? {}), sortRank }])))
@@ -201,6 +210,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       }
       const response = await fetch("/api/v1/conversations/preferences", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderedCharacterKeys: order }) });
       if (!response.ok) throw new Error("ORDER_SAVE_FAILED");
+      syncCachedConversationPreferences(Object.fromEntries(order.map((characterKey, sortRank) => [characterKey, { ...(preferenceOverrides[characterKey] ?? {}), sortRank }])))
       setPreferenceError(false);
       setPreferenceNotice(Object.values(preferenceOverrides).some((patch) => patch.isPinned !== undefined) ? "好友已移动，置顶状态已同步调整" : "好友顺序已保存");
     } catch {
