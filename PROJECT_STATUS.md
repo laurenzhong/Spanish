@@ -82,6 +82,7 @@
 - ALPHA-033 好友栏偏好同步：新增 `conversation_preferences` 表、用户所有权 RLS、会话列表 `isPinned/isMuted` 字段与 `PATCH /api/v1/conversations/preferences`；好友栏在置顶/静音操作时乐观更新并回写服务端，列表刷新后恢复用户偏好。实现 Commit：`0227eab`；迁移 `drizzle/0017_sudden_betty_brant.sql` 已通过 `pnpm db:migrate` 应用。验证：对话好友栏/列表/偏好路由/Schema Vitest 11/11、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`pnpm db:check`、`git diff --check` 通过。限制：未读标记仍为当前页面状态；自由拖动排序和 `sort_rank` 留待 P1。下一步：实现“管理好友顺序”拖放及键盘上移/下移，并补跨刷新未读语义。
 - 偏好失败与所有权修复：偏好更新失败时回滚乐观状态并显示可恢复提示；服务端更新偏好前确认该角色属于当前用户已有会话。实现 Commit：`a8076de`；验证：好友栏/偏好路由 Vitest 6/6、受影响文件 ESLint、`pnpm exec tsc --noEmit` 通过。
 - ALPHA-033 好友栏 P1 排序：新增 `sort_rank` 字段和批量顺序保存，好友栏增加“管理好友顺序”模式，支持桌面拖放、键盘上移/下移和移动端同一排序模式；排序限制在置顶/未置顶分组内，不改变置顶语义。实现 Commit：`eb0e956`；迁移 `drizzle/0018_dusty_sue_storm.sql` 已通过 `pnpm db:migrate` 应用。验证：好友栏/偏好路由/Schema Vitest 11/11、`pnpm db:check`、`pnpm exec tsc --noEmit`、受影响文件 ESLint、`git diff --check` 通过。限制：未读标记仍未持久化；尚未补充 Playwright 的拖放和真实触摸长按回归。下一步：补跨刷新未读语义和桌面/移动排序 E2E。
+- ALPHA-033 好友栏交互修正：移除好友行右侧三个点，普通状态保持干净；排序模式改为整行直接拖动，继续提供键盘上移/下移；右键菜单增加基于实际菜单尺寸的视口边界校正，避免滚动容器中定位偏移。实现 Commit：`d89faf2`；验证：好友栏 Vitest 5/5、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过。限制：尚未补充浏览器端真实拖动和触摸长按回归。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
