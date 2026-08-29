@@ -357,7 +357,7 @@ Hoy me acordé de lo que me contaste de tu entrevista. ¿Cómo ha ido?
 无具体外部原因：
 
 ```text
-Me has venido a la cabeza de repente. Solo quería saludarte.
+Me has venido a la cabeza de repente. Me apetecía saludarte y sacarte una sonrisa.
 ```
 
 轻微失落：

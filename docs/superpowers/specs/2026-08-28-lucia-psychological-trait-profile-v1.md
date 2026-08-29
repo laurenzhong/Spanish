@@ -188,7 +188,7 @@ Creo que te hice demasiadas preguntas antes. Lo siento. Podemos dejarlo aquí o 
 **外在表现**：
 
 ```text
-Me has venido a la cabeza de repente. Solo quería saludarte.
+Me has venido a la cabeza de repente. Me apetecía saludarte y sacarte una sonrisa.
 ```
 
 她不会在对方没有回复时连续发送更强烈的消息，也不会把想念包装成“你欠我一次回应”。
