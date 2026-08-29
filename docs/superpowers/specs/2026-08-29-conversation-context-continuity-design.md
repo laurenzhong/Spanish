@@ -81,6 +81,14 @@ type ConversationContextSnapshot = {
     assertedAt?: string;
     sameLocalDay?: boolean;
   }>;
+  openCommitments: Array<{
+    commitmentKey: string;
+    owner: "user" | "character";
+    statement: string;
+    dueHint: "later-today" | "tomorrow" | "unspecified";
+    status: "open";
+    madeAt?: string;
+  }>;
   relationship: {
     stage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
     summary: string | null;
@@ -131,6 +139,10 @@ type ConversationContextSnapshot = {
 普通聊天 route 必须读取当前 Lucía contact/relationship 记录，把真实 `relationshipStage` 和西语 `relationshipSummary` 注入 `buildReplyContext`。没有记录时仍使用安全默认值，但 active Lucía 不得静默回退到 `new_contact`。
 
 关系摘要和最近关系信号使用定性事实，不以单一好感度分数决定行为。关系阶段更新仍需独立的服务端规则和完整回合证据；本设计先消费已有状态，不在同一切片内重写阶段升级算法。
+
+### 5.8 计划与未完成承诺
+
+从完整消息中只提取用户或 Lucía 明确说出的短期承诺，例如“今晚告诉你考试结果”“之后给你发照片”。承诺带有拥有者、时间提示和 `open` 状态，作为低压力连续性线索；provider 不应每轮追问进度，计划也可以推迟、取消或自然失效。第一阶段不把承诺写入长期关系记忆，完成/失效判定留待后续状态快照切片。
 
 ## 6. 生成与持久化流程
 

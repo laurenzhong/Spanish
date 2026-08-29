@@ -117,6 +117,7 @@ export async function* streamReply(
     rollingSummary: null,
     openTopics: [],
     characterClaims: [],
+    openCommitments: [],
     conversationTimeZone: "Europe/Madrid",
     currentLocalDate: new Date().toISOString().slice(0, 10),
     character: getConversationCharacter(input.characterKey).snapshot,

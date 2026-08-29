@@ -38,6 +38,14 @@ export type ConversationProviderInput = Readonly<{
     sameLocalDay?: boolean;
     repeatableOnLaterDays: boolean;
   }>[];
+  openCommitments?: readonly Readonly<{
+    commitmentKey: string;
+    owner: "user" | "character";
+    statement: string;
+    dueHint: "later-today" | "tomorrow" | "unspecified";
+    status: "open";
+    madeAt?: string;
+  }>[];
   conversationTimeZone?: string;
   currentLocalDate?: string;
   continuityInstruction?: string | null;

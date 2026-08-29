@@ -146,6 +146,22 @@ describe("reply context and deterministic generation", () => {
     ]);
   });
 
+  it("captures explicit user and character commitments without turning them into questions", async () => {
+    const context = await buildReplyContext({
+      generationId: "generation-commitment",
+      userId: "user-1",
+      userMessage: "Ya he vuelto.",
+      recentMessages: [
+        { role: "user", content: "Esta noche te cuento cómo ha ido el examen.", sentAt: "2026-08-29T10:00:00.000Z" },
+        { role: "character", content: "Luego te escribo cuando termine de ordenar las fotos.", sentAt: "2026-08-29T10:01:00.000Z" },
+      ],
+    });
+    expect(context.openCommitments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ owner: "user", dueHint: "later-today", status: "open" }),
+      expect.objectContaining({ owner: "character", dueHint: "later-today", status: "open" }),
+    ]));
+  });
+
   it("uses the readable memory projection and excludes rejected or conflicting facts", async () => {
     const listReadableMemories = vi.fn().mockResolvedValue([
       memory(),

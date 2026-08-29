@@ -362,6 +362,7 @@ describe("fake conversation reply", () => {
         rollingSummary: null,
         openTopics: [{ topicKey: "daily:meal", label: "¿Qué vas a comer?", status: "answered", lastMentionedBy: "user", lastAnswer: "Todavía no lo he decidido del todo; quizá algo de arroz con verduras.", sameLocalDay: true }],
         characterClaims: [],
+        openCommitments: [],
         conversationTimeZone: "Europe/Madrid",
         currentLocalDate: "2026-08-29",
         character: luciaReplyCharacter,
@@ -391,7 +392,7 @@ describe("fake conversation reply", () => {
       characterKey: "lucia", characterVersion: 1, text: "¿Qué vas a comer?", clientMessageId: "client-claim", generationId: "generation-claim", messageId: "message-claim",
       replyContext: {
         generationId: "generation-claim", userId: "user-1", userMessage: "¿Qué vas a comer?", recentMessages: [], rollingSummary: null, openTopics: [],
-        characterClaims: [{ claimKey: "daily:meal", claimKind: "daily_observation", statement: "Creo que comeré puré de patatas.", sameLocalDay: true, repeatableOnLaterDays: true }], conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-29",
+        characterClaims: [{ claimKey: "daily:meal", claimKind: "daily_observation", statement: "Creo que comeré puré de patatas.", sameLocalDay: true, repeatableOnLaterDays: true }], openCommitments: [], conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-29",
         character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
       },
       replyProvider: provider, wait: async () => {},
@@ -410,7 +411,7 @@ describe("fake conversation reply", () => {
       characterKey: "lucia", characterVersion: 1, text: "¿Qué vas a comer?", clientMessageId: "client-next-day", generationId: "generation-next-day", messageId: "message-next-day",
       replyContext: {
         generationId: "generation-next-day", userId: "user-1", userMessage: "¿Qué vas a comer?", recentMessages: [], rollingSummary: null, openTopics: [],
-        characterClaims: [{ claimKey: "daily:meal", claimKind: "daily_observation", statement: "Ayer comí puré de patatas.", sameLocalDay: false, repeatableOnLaterDays: true }], conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-30",
+        characterClaims: [{ claimKey: "daily:meal", claimKind: "daily_observation", statement: "Ayer comí puré de patatas.", sameLocalDay: false, repeatableOnLaterDays: true }], openCommitments: [], conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-30",
         character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
       },
       replyProvider: provider, wait: async () => {},

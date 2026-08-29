@@ -48,6 +48,15 @@ export type ReplyCharacterClaim = Readonly<{
   repeatableOnLaterDays: boolean;
 }>;
 
+export type ReplyCommitment = Readonly<{
+  commitmentKey: string;
+  owner: "user" | "character";
+  statement: string;
+  dueHint: "later-today" | "tomorrow" | "unspecified";
+  status: "open";
+  madeAt?: string;
+}>;
+
 export const defaultRecentMessageCharBudget = 8_000;
 export const luciaConversationTimeZone = "Europe/Madrid";
 
@@ -59,6 +68,7 @@ export type ReplyContext = Readonly<{
   rollingSummary: string | null;
   openTopics: readonly ReplyOpenTopic[];
   characterClaims: readonly ReplyCharacterClaim[];
+  openCommitments: readonly ReplyCommitment[];
   conversationTimeZone: string;
   currentLocalDate: string;
   continuityInstruction?: string | null;
@@ -84,6 +94,7 @@ export type BuildReplyContextInput = Readonly<{
   rollingSummary?: string | null;
   openTopics?: readonly ReplyOpenTopic[];
   characterClaims?: readonly ReplyCharacterClaim[];
+  openCommitments?: readonly ReplyCommitment[];
   recentMessageCharBudget?: number;
   now?: Date;
   conversationTimeZone?: string;
@@ -216,6 +227,34 @@ export function deriveReplyCharacterClaims(
   return [...claims.values()].slice(-8);
 }
 
+function commitmentDueHint(value: string): ReplyCommitment["dueHint"] {
+  const normalized = normalizedTopicText(value);
+  if (normalized.includes("manana")) return "tomorrow";
+  if (/(?:luego|despues|esta tarde|esta noche|cuando vuelva)/u.test(normalized)) return "later-today";
+  return "unspecified";
+}
+
+/** Extracts explicit, low-pressure promises that can be followed up later. */
+export function deriveReplyCommitments(messages: readonly ReplyContextMessage[]): readonly ReplyCommitment[] {
+  const commitments = new Map<string, ReplyCommitment>();
+  for (const message of messages) {
+    const normalized = normalizedTopicText(message.content);
+    if (!/(?:te cuento|te digo|te escribo|te aviso|te mando|te paso)/u.test(normalized)) continue;
+    if (!/(?:luego|despues|esta tarde|esta noche|manana|cuando vuelva|cuando termine|mas tarde)/u.test(normalized)) continue;
+    const owner = message.role === "user" ? "user" : "character";
+    const commitmentKey = `${owner}:${normalized.slice(0, 96)}`;
+    commitments.set(commitmentKey, {
+      commitmentKey,
+      owner,
+      statement: message.content.trim().slice(0, 240),
+      dueHint: commitmentDueHint(message.content),
+      status: "open",
+      ...(message.sentAt ? { madeAt: message.sentAt } : {}),
+    });
+  }
+  return [...commitments.values()].slice(-8);
+}
+
 function budgetRecentMessages(
   messages: readonly ReplyContextMessage[],
   budget: number,
@@ -256,6 +295,7 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
     rollingSummary: input.rollingSummary?.trim() || null,
     openTopics: input.openTopics ?? deriveReplyOpenTopics(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
     characterClaims: input.characterClaims ?? deriveReplyCharacterClaims(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
+    openCommitments: input.openCommitments ?? deriveReplyCommitments(input.recentMessages ?? []),
     conversationTimeZone,
     currentLocalDate,
     character,

@@ -120,6 +120,7 @@ async function runOne(
       rollingSummary: null,
       openTopics: [],
       characterClaims: [],
+      openCommitments: [],
       conversationTimeZone: "Europe/Madrid",
       currentLocalDate: "2026-08-29",
       character: providerInput.character,
