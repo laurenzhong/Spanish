@@ -180,4 +180,31 @@ describe("ChatThread persistence status", () => {
     expect(await screen.findByText("Claro, te leo.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "有一条新消息" })).not.toBeInTheDocument();
   });
+
+  it("keeps an optimistic message when history revalidation races its persistence", async () => {
+    let historyCalls = 0;
+    const initialMessages = [{ id: "history-1", role: "character", text: "之前的消息", complete: true }] as const;
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: initialMessages } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (init?.method === "POST") return { ok: false, status: 503 } as Response;
+      historyCalls += 1;
+      return historyResponse;
+    });
+
+    const view = render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={initialMessages} />);
+    expect(await screen.findByText("之前的消息")).toBeInTheDocument();
+    const composer = screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+    fireEvent.change(composer, { target: { value: "这条消息要保留" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+    expect(await screen.findByText("这条消息要保留")).toBeInTheDocument();
+
+    view.rerender(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[...initialMessages]} />);
+    await waitFor(() => expect(historyCalls).toBeGreaterThanOrEqual(2));
+    expect(screen.getByText("这条消息要保留")).toBeInTheDocument();
+  });
 });
