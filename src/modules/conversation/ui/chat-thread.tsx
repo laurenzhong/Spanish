@@ -165,7 +165,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       queueMicrotask(() => {
         if (cancelled) return;
         knownMessageKeysRef.current = new Set(cached.map((message) => message.clientMessageId ?? message.id));
-        serverMessageKeysRef.current = new Set(cached.map((message) => message.clientMessageId ?? message.id));
         apply({ type: "hydrate", messages: cached });
         setPersistenceStatus("available");
       });
