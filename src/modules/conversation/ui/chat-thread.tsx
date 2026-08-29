@@ -55,11 +55,17 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [forwardingMessage, setForwardingMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [hasNewProactiveMessage, setHasNewProactiveMessage] = useState(false);
   const [showMobileConversations, setShowMobileConversations] = useState(false);
   const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowRef = useRef(true);
+  const isNearBottomRef = useRef(true);
+  const knownMessageKeysRef = useRef(new Set(
+    (initialMessages ?? []).map((message) => message.clientMessageId ?? message.id),
+  ));
+  const serverHistoryLoadedRef = useRef(Boolean(initialMessages));
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
 
   useEffect(() => {
@@ -88,15 +94,19 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     if (!container) return;
     const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 96;
     shouldFollowRef.current = nearBottom;
+    isNearBottomRef.current = nearBottom;
     setIsNearBottom(nearBottom);
+    if (nearBottom) setHasNewProactiveMessage(false);
   }
 
   function scrollToBottom() {
     const container = messagesRef.current;
     if (!container) return;
     shouldFollowRef.current = true;
+    isNearBottomRef.current = true;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
     setIsNearBottom(true);
+    setHasNewProactiveMessage(false);
   }
 
   useEffect(() => {
@@ -149,17 +159,27 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     if (cached && cached.length > 0) {
       queueMicrotask(() => {
         if (cancelled) return;
+        knownMessageKeysRef.current = new Set(cached.map((message) => message.clientMessageId ?? message.id));
         apply({ type: "hydrate", messages: cached });
         setPersistenceStatus("available");
       });
     }
-    void loadConversationHistory(characterKey)
-      .then((result) => {
+
+    const refresh = async (initialLoad = false) => {
+      try {
+        const result = await loadConversationHistory(characterKey);
         if (cancelled) return;
+        const knownKeys = knownMessageKeysRef.current;
+        const newlyArrivedProactive = result.messages.some((message) => {
+          const key = message.clientMessageId ?? message.id;
+          return !knownKeys.has(key) && message.role === "character" && message.sourceType === "proactive" && message.complete;
+        });
+        if (newlyArrivedProactive && !isNearBottomRef.current) setHasNewProactiveMessage(true);
+        for (const message of result.messages) knownKeys.add(message.clientMessageId ?? message.id);
+
         // Keep the loading state until the body has been parsed and applied.
-        // Replace the cached snapshot while preserving anything submitted
-        // after the snapshot was read.
-        if (cached?.length) {
+        // Hydration preserves optimistic messages and an active stream.
+        if (initialLoad && cached?.length) {
           apply({
             type: "replace-hydrate",
             messages: result.messages,
@@ -170,14 +190,31 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         }
         setCachedConversationHistory(characterKey, result.messages);
         setPersistenceStatus("available");
-      })
-      .catch(() => {
+        serverHistoryLoadedRef.current = true;
+      } catch {
         // A cached snapshot is still usable while the server is temporarily
         // unreachable; only show the unavailable state when there is no view
         // to fall back to.
-        if (!cancelled && !cached?.length) setPersistenceStatus("unavailable");
-      });
-    return () => { cancelled = true; };
+        if (!cancelled && initialLoad && !cached?.length) setPersistenceStatus("unavailable");
+      }
+    };
+
+    void refresh(true);
+    const onFocus = () => { if (serverHistoryLoadedRef.current) void refresh(); };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible" && serverHistoryLoadedRef.current) void refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "hidden" && serverHistoryLoadedRef.current) void refresh();
+    }, 45_000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.clearInterval(interval);
+    };
   }, [characterKey]);
 
   useEffect(() => {
@@ -486,6 +523,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         })}
       </div>
       {!isNearBottom && state.messages.length > 0 ? <button className="conversation-thread__jump-bottom" type="button" onClick={scrollToBottom}>回到底部 ↓</button> : null}
+      {hasNewProactiveMessage && !isNearBottom ? <button className="conversation-thread__new-proactive" type="button" onClick={scrollToBottom}>有一条新消息</button> : null}
 
       {contextMenu && selectedMessage() ? (
         <div className="conversation-message-menu" role="menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>

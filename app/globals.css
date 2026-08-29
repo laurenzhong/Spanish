@@ -4438,6 +4438,9 @@ button {
 .conversation-thread__loading span:nth-child(2) { width: min(220px, 48vw); margin-inline: auto; }
 .conversation-thread__loading span:nth-child(3) { width: min(160px, 36vw); margin-inline: auto; }
 .conversation-thread__jump-bottom { position: absolute; right: 24px; bottom: 96px; z-index: 4; min-height: 36px; padding: 0 12px; border: 1px solid var(--conversation-action); border-radius: 999px; color: var(--conversation-action); background: var(--conversation-paper); font-size: 11px; cursor: pointer; box-shadow: 0 5px 16px rgb(31 45 38 / 12%); }
+.conversation-thread__new-proactive { position: absolute; right: 24px; bottom: 138px; z-index: 4; min-height: 32px; padding: 0 12px; border: 1px solid var(--conversation-accent); border-radius: 999px; color: var(--conversation-ink); background: var(--conversation-paper); font-size: 11px; cursor: pointer; box-shadow: 0 5px 16px rgb(31 45 38 / 12%); }
+.conversation-thread__new-proactive:hover,
+.conversation-thread__new-proactive:focus-visible { color: var(--conversation-action); outline: 2px solid var(--conversation-focus); outline-offset: 2px; }
 
 .conversation-message__hint {
   color: var(--conversation-muted);
@@ -4802,6 +4805,7 @@ button {
   .conversation-thread__messages { padding: 22px 16px 14px; }
   .conversation-message__more { display: block; }
   .conversation-thread__jump-bottom { right: 16px; bottom: 86px; }
+  .conversation-thread__new-proactive { right: 16px; bottom: 128px; }
   .conversation-message { max-width: 88%; font-size: 13px; }
   .conversation-thread__recovery { align-items: stretch; flex-direction: column; padding: 10px 16px; }
   .conversation-thread__recovery .secondary-action { width: 100%; }

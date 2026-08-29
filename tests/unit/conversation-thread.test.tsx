@@ -10,6 +10,7 @@ describe("ChatThread persistence status", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
     HTMLElement.prototype.scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollTo = vi.fn();
   });
 
   afterEach(() => {
@@ -109,5 +110,74 @@ describe("ChatThread persistence status", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "引用回复" }));
     expect(screen.getByTestId("conversation-composer-quote")).toHaveTextContent("引用这条");
     expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
+  });
+
+  it("refreshes on focus and shows a prompt for a new proactive message when reading older messages", async () => {
+    let historyCalls = 0;
+    const historyResponse = (messages: readonly object[]) => ({
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages } }),
+    }) as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      historyCalls += 1;
+      return historyResponse(historyCalls === 1
+        ? [{ id: "history-1", role: "user", text: "Mensaje anterior", complete: true }]
+        : [
+            { id: "history-1", role: "user", text: "Mensaje anterior", complete: true },
+            { id: "proactive-1", role: "character", text: "Me acordé de ti esta mañana.", sourceType: "proactive", complete: true },
+          ]);
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    expect(await screen.findByText("Mensaje anterior")).toBeInTheDocument();
+    const messages = screen.getByTestId("conversation-thread").querySelector<HTMLElement>(".conversation-thread__messages")!;
+    Object.defineProperties(messages, {
+      scrollHeight: { configurable: true, value: 1_000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    fireEvent.scroll(messages);
+    expect(screen.getByRole("button", { name: "回到底部 ↓" })).toBeInTheDocument();
+
+    fireEvent(window, new Event("focus"));
+    expect(await screen.findByText("Me acordé de ti esta mañana.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "有一条新消息" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "有一条新消息" }));
+    expect(screen.queryByRole("button", { name: "有一条新消息" })).not.toBeInTheDocument();
+  });
+
+  it("does not label an ordinary character reply as a proactive message", async () => {
+    let historyCalls = 0;
+    const historyResponse = (messages: readonly object[]) => ({
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages } }),
+    }) as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      historyCalls += 1;
+      return historyResponse(historyCalls === 1
+        ? [{ id: "history-1", role: "user", text: "Mensaje anterior", complete: true }]
+        : [
+            { id: "history-1", role: "user", text: "Mensaje anterior", complete: true },
+            { id: "reply-1", role: "character", text: "Claro, te leo.", sourceType: "conversation", complete: true },
+          ]);
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    expect(await screen.findByText("Mensaje anterior")).toBeInTheDocument();
+    const messages = screen.getByTestId("conversation-thread").querySelector<HTMLElement>(".conversation-thread__messages")!;
+    Object.defineProperties(messages, {
+      scrollHeight: { configurable: true, value: 1_000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    fireEvent.scroll(messages);
+    fireEvent(window, new Event("focus"));
+    expect(await screen.findByText("Claro, te leo.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "有一条新消息" })).not.toBeInTheDocument();
   });
 });
