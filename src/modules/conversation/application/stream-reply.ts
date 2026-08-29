@@ -146,14 +146,21 @@ export async function* streamReply(
           estimatedCostMicros: replyResult.estimatedCostMicros,
           errorType: "safety-gate",
         });
+        const returnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && commitment.status === "returned");
         generationContext = {
           ...context,
-          questionPolicy: {
-            maxSubstantiveQuestions: 0,
-            allowReciprocalQuestion: false,
-            maxQuestionPressure: "none",
-          },
-          continuityInstruction: "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.",
+          ...(returnedPlan || (context.questionPolicy && context.questionPolicy.maxQuestionPressure !== "none")
+            ? {}
+            : {
+                questionPolicy: {
+                  maxSubstantiveQuestions: 0,
+                  allowReciprocalQuestion: false,
+                  maxQuestionPressure: "none" as const,
+                },
+              }),
+          continuityInstruction: returnedPlan
+            ? "La persona ya ha vuelto o ha terminado el plan mencionado. Responde desde después de la actividad: no uses deseos propios de antes de salir (por ejemplo, 'que lo pases bien' o 'espero que disfrutes'). Puedes preguntar una sola cosa concreta sobre cómo fue, o responder con calidez sin preguntar; no inventes el resultado."
+            : "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.",
         };
       }
       await notifyProviderResult(input, {
@@ -289,7 +296,18 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   if (plan.intent !== "identity-disclosure" && /\b(?:soy|somos|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
   if (isRepeatedSameDayTopicReply(context, text)) return false;
   if (isUnexplainedSameDayClaimChange(context, text)) return false;
+  if (isPreReturnWishAfterReturn(context, text)) return false;
   return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: context.userMessage }));
+}
+
+function isPreReturnWishAfterReturn(context: ReplyContext, text: string): boolean {
+  const hasReturnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && commitment.status === "returned");
+  if (!hasReturnedPlan) return false;
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES");
+  return /\b(?:que\s+lo\s+pas(?:es|e)|que\s+disfrut(?:es|e)|que\s+te\s+vaya\s+bien|disfruta(?:s|r)?|te\s+deseo\s+que|espero\s+que).{0,140}\b(?:actividad|tarde|salida|fotos?|puerto|haya\s+ido|hayas\s+captado|te\s+haya\s+sentado)\b/iu.test(normalized);
 }
 
 function normalizedReplyTokens(value: string): Set<string> {

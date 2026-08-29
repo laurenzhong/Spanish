@@ -172,7 +172,21 @@ describe("reply context and deterministic generation", () => {
       ],
     });
     expect(context.openCommitments).toEqual([
-      expect.objectContaining({ owner: "user", statement: "Esta tarde voy al puerto a hacer fotos.", dueHint: "later-today", status: "open" }),
+      expect.objectContaining({ owner: "user", statement: "Esta tarde voy al puerto a hacer fotos.", dueHint: "later-today", status: "returned" }),
+    ]);
+  });
+
+  it("does not mark a plan returned before the user reports coming back", async () => {
+    const context = await buildReplyContext({
+      generationId: "generation-port-pending",
+      userId: "user-1",
+      userMessage: "¿Qué tal tu mañana?",
+      recentMessages: [
+        { role: "user", content: "Esta tarde voy al puerto a hacer fotos.", sentAt: "2026-08-29T12:00:00.000Z" },
+      ],
+    });
+    expect(context.openCommitments).toEqual([
+      expect.objectContaining({ owner: "user", status: "open" }),
     ]);
   });
 

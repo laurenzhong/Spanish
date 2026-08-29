@@ -53,7 +53,8 @@ export type ReplyCommitment = Readonly<{
   owner: "user" | "character";
   statement: string;
   dueHint: "later-today" | "tomorrow" | "unspecified";
-  status: "open";
+  /** `open` means the plan is pending; `returned` means the user reported coming back/finishing. */
+  status: "open" | "returned";
   madeAt?: string;
 }>;
 
@@ -258,6 +259,27 @@ export function deriveReplyCommitments(messages: readonly ReplyContextMessage[])
   return [...commitments.values()].slice(-8);
 }
 
+const returnSignalPattern = /\b(?:ya\s+(?:he\s+)?vuelto|ya\s+volvi|he\s+vuelto|estoy\s+de\s+vuelta|ya\s+termine|he\s+terminado|acabo\s+de\s+terminar)\b/iu;
+
+/** Advances the most recent pending user plan when the current message reports a return/completion. */
+export function advanceReplyCommitments(
+  commitments: readonly ReplyCommitment[],
+  currentUserMessage: string,
+): readonly ReplyCommitment[] {
+  if (!returnSignalPattern.test(normalizedTopicText(currentUserMessage))) return commitments;
+  let targetIndex = -1;
+  for (let index = commitments.length - 1; index >= 0; index -= 1) {
+    const commitment = commitments[index];
+    if (!commitment || commitment.owner !== "user" || commitment.status !== "open" || !commitment.commitmentKey.includes(":plan:")) continue;
+    if (/\b(?:voy|salgo|ire|pienso\s+ir|me\s+voy|hago|hacer|visitar|visito|examen|fotos?|puerto|evento|reunion)\b/iu.test(normalizedTopicText(commitment.statement))) {
+      targetIndex = index;
+      break;
+    }
+  }
+  if (targetIndex < 0) return commitments;
+  return commitments.map((commitment, index) => index === targetIndex ? { ...commitment, status: "returned" } : commitment);
+}
+
 function budgetRecentMessages(
   messages: readonly ReplyContextMessage[],
   budget: number,
@@ -298,7 +320,10 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
     rollingSummary: input.rollingSummary?.trim() || null,
     openTopics: input.openTopics ?? deriveReplyOpenTopics(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
     characterClaims: input.characterClaims ?? deriveReplyCharacterClaims(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
-    openCommitments: input.openCommitments ?? deriveReplyCommitments(input.recentMessages ?? []),
+    openCommitments: advanceReplyCommitments(
+      input.openCommitments ?? deriveReplyCommitments(input.recentMessages ?? []),
+      input.userMessage,
+    ),
     conversationTimeZone,
     currentLocalDate,
     character,

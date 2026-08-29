@@ -27,6 +27,12 @@ function renderReply(context: ReplyContext, plan: ReplyPlan): string {
   if (plan.intent === "identity-disclosure") {
     return "Soy un personaje de IA, y me gusta hablar contigo con honestidad. ¿Qué te gustaría contarme?";
   }
+  if (
+    context.openCommitments.some((commitment) => commitment.owner === "user" && commitment.status === "returned")
+    && /\b(?:ya\s+(?:he\s+)?vuelto|ya\s+volvi|he\s+vuelto|estoy\s+de\s+vuelta|ya\s+termine|he\s+terminado)\b/iu.test(normalized)
+  ) {
+    return "Qué bien verte de vuelta 😊 ¿Qué tal ha ido la tarde haciendo fotos por el puerto?";
+  }
   if (/\b(?:como estas|cómo estás|que tal estas|qué tal estás|como te va|cómo te va)\b/iu.test(normalized)) {
     return "Estoy bien, gracias. Me alegra leerte; ¿y tú, cómo estás?";
   }

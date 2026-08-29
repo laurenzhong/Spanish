@@ -381,6 +381,30 @@ describe("fake conversation reply", () => {
       .toContain("Al final creo");
   });
 
+  it("rejects a pre-activity wish after the user has already returned", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Qué bien verte de vuelta 😊 Espero que la tarde haciendo fotos por el puerto te haya sentado bien y que hayas captado alguna imagen bonita.", provider: "openai" as const, modelVersion: "test", providerRequestId: "return-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Qué bien verte de vuelta 😊 ¿Has conseguido alguna foto del puerto que te guste?", provider: "openai" as const, modelVersion: "test", providerRequestId: "return-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Ya he vuelto.", clientMessageId: "client-return", generationId: "generation-return", messageId: "message-return",
+      replyContext: {
+        generationId: "generation-return", userId: "user-1", userMessage: "Ya he vuelto.", recentMessages: [], rollingSummary: null, openTopics: [], characterClaims: [],
+        openCommitments: [{ commitmentKey: "user:plan:port", owner: "user", statement: "Esta tarde voy al puerto a hacer fotos.", dueHint: "later-today", status: "returned" }],
+        conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-08-29", character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
+      },
+      replyProvider: provider,
+      wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("ya ha vuelto") });
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toContain("¿Has conseguido alguna foto");
+  });
+
   it("does not silently change a same-day character meal claim", async () => {
     const provider = {
       generate: vi.fn()
