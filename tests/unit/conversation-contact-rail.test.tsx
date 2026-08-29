@@ -61,6 +61,7 @@ describe("ConversationContactRail", () => {
     render(<ConversationContactRail activeCharacterKey="lucia" />);
     await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /管理 Lucía Martín/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Lucía Martín/ }).parentElement).toHaveAttribute("draggable", "true");
     await user.click(screen.getByRole("button", { name: "管理好友顺序" }));
     expect(screen.getByRole("button", { name: "上移 Lucía Martín" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "下移 Lucía Martín" })).toBeInTheDocument();

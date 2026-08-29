@@ -223,12 +223,13 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
             <div
               className="conversation-contact-row-shell"
               key={conversation.conversationId}
-              draggable={isManagingOrder}
-              onDragStart={() => { if (isManagingOrder) setDraggedCharacterKey(conversation.characterKey); }}
+              draggable
+              onDragStart={() => setDraggedCharacterKey(conversation.characterKey)}
+              onDragEnd={() => setDraggedCharacterKey(null)}
               onDragOver={(event) => { if (isManagingOrder) event.preventDefault(); }}
               onDrop={(event) => {
                 event.preventDefault();
-                if (!isManagingOrder || !draggedCharacterKey || draggedCharacterKey === conversation.characterKey) return;
+                if (!draggedCharacterKey || draggedCharacterKey === conversation.characterKey) return;
                 const from = visibleConversations.findIndex((item) => item.characterKey === draggedCharacterKey);
                 const to = visibleConversations.findIndex((item) => item.characterKey === conversation.characterKey);
                 if (from < 0 || to < 0 || preferenceFor(visibleConversations[from]!).isPinned !== preferenceFor(visibleConversations[to]!).isPinned) return;

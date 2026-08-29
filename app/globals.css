@@ -4126,7 +4126,10 @@ button {
   display: flex;
   min-width: 0;
   align-items: stretch;
+  cursor: grab;
 }
+
+.conversation-contact-row-shell:active { cursor: grabbing; }
 
 .conversation-contact-row {
   flex: 1 1 auto;
