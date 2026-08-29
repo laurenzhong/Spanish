@@ -25,7 +25,10 @@ export async function POST(request: NextRequest) {
   }
   const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
   const source = typeof input.sourceType === "string" ? input.sourceType : "";
-  if (!proactiveMessageSources.includes(source as (typeof proactiveMessageSources)[number])) {
+  // Milestones are emitted only by a future relationship-event application
+  // flow, never by a client-controlled trigger.
+  const clientTriggerSources = proactiveMessageSources.filter((value) => value !== "relationship_milestone");
+  if (!clientTriggerSources.includes(source as (typeof clientTriggerSources)[number])) {
     return NextResponse.json({ error: { code: "INPUT_INVALID" } }, { status: 400 });
   }
   const sourceEventId = input.sourceEventId === undefined || input.sourceEventId === null
