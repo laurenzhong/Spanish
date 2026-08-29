@@ -79,6 +79,7 @@
 - ALPHA-033 D01 开发测试时钟：主动消息接口新增仅非生产环境接受的 `testNow`，限制在未来 8 天内，用于在不修改正式频率规则、不删除真实历史的情况下推进资格计算并验证真实消息写入与聊天刷新；生产环境拒绝该字段。实现 Commit：`bb18e80`；修改 `app/api/v1/conversations/lucia/proactive/route.ts`；验证：受影响文件 ESLint、`pnpm typecheck`、`git diff --check` 通过。限制：测试时钟仍会写入当前开发数据库一条真实会话消息，只能在本地/开发环境使用；不接推送服务。下一步：使用 `testNow` 生成一条测试主动消息并完成浏览器端刷新验证。
 - ALPHA-033 好友栏 P0 交互：联系人 rail 新增桌面右键/操作按钮与移动长按等价菜单，支持置顶/取消置顶、标记已读/未读、静音/开启通知和打开好友对话；Lucía 保留默认置顶但可取消，未读和静音仅为当前页面状态，不改变学习画像、关系记忆或角色事实。实现 Commit：`ff15273`；修改 `src/modules/conversation/ui/conversation-contact-rail.tsx`、`app/globals.css`、`tests/unit/conversation-contact-rail.test.tsx`。验证：好友栏 Vitest 4/4、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过；对话/产品壳层 Playwright 运行受现有数据库不可用与消息流失败路径影响（19/26 通过），未新增服务端偏好同步。限制：置顶/静音/未读尚未跨刷新或跨客户端持久化；自由拖动排序留待后续 P1。下一步：新增用户级 conversation preferences API/迁移，再实现“管理好友顺序”拖放模式。
 - ALPHA-033 好友栏偏好同步：新增 `conversation_preferences` 表、用户所有权 RLS、会话列表 `isPinned/isMuted` 字段与 `PATCH /api/v1/conversations/preferences`；好友栏在置顶/静音操作时乐观更新并回写服务端，列表刷新后恢复用户偏好。实现 Commit：`0227eab`；迁移 `drizzle/0017_sudden_betty_brant.sql` 已通过 `pnpm db:migrate` 应用。验证：对话好友栏/列表/偏好路由/Schema Vitest 11/11、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`pnpm db:check`、`git diff --check` 通过。限制：未读标记仍为当前页面状态；自由拖动排序和 `sort_rank` 留待 P1。下一步：实现“管理好友顺序”拖放及键盘上移/下移，并补跨刷新未读语义。
+- 偏好失败与所有权修复：偏好更新失败时回滚乐观状态并显示可恢复提示；服务端更新偏好前确认该角色属于当前用户已有会话。实现 Commit：`a8076de`；验证：好友栏/偏好路由 Vitest 6/6、受影响文件 ESLint、`pnpm exec tsc --noEmit` 通过。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
