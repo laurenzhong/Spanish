@@ -36,6 +36,9 @@ function renderReply(context: ReplyContext, plan: ReplyPlan): string {
   if (/\b(?:como estas|cómo estás|que tal estas|qué tal estás|como te va|cómo te va)\b/iu.test(normalized)) {
     return "Estoy bien, gracias. Me alegra leerte; ¿y tú, cómo estás?";
   }
+  if (/\b(?:has estado|estuviste|conoces)\b.{0,48}\b(?:puerto|madrid|lugar|sitio)\b/iu.test(normalized)) {
+    return "No he estado en ese puerto, pero me intriga cómo cambia con la luz. ¿Qué fue lo que más te llamó la atención?";
+  }
   if (/^(?:hola|hey|buenas|que tal|qué tal|como va|cómo va)\b/iu.test(normalized)) {
     return "¡Hola! Qué alegría leerte. Yo estoy bien; ¿cómo va todo por tu lado?";
   }

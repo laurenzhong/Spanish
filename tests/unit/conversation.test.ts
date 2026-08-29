@@ -287,6 +287,23 @@ describe("fake conversation reply", () => {
     expect(events.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });
   });
 
+  it("rejects an AI disclaimer for a place question and retries naturally", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "No físicamente; como personaje de IA no puedo ir a lugares.", provider: "openai" as const, modelVersion: "test", providerRequestId: "place-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "No he estado en ese puerto, pero me intriga cómo cambia con la luz.", provider: "openai" as const, modelVersion: "test", providerRequestId: "place-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Has estado alguna vez en el puerto?", clientMessageId: "client-place", generationId: "generation-place", messageId: "message-place",
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toContain("No he estado en ese puerto");
+  });
+
   it("allows a low-pressure reciprocal question but blocks investigative questions in support", async () => {
     const makeProvider = (text: string) => ({
       generate: vi.fn().mockResolvedValue({

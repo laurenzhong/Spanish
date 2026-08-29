@@ -293,7 +293,11 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
     teachingOpportunity: context.teachingOpportunity ?? undefined,
   });
   if (plan.intent === "identity-disclosure" && !/\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
-  if (plan.intent !== "identity-disclosure" && /\b(?:soy|somos|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
+  if (
+    plan.intent !== "identity-disclosure"
+    && (/(?:(?:soy|somos|recuerda que soy)\b.{0,48}|\bcomo\s+(?:personaje\s+de\s+)?|\ben\s+cuanto\s+a\s+)\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)
+      || /\bcomo\s+personaje\s+de\s+ia\b/iu.test(normalized))
+  ) return false;
   if (isRepeatedSameDayTopicReply(context, text)) return false;
   if (isUnexplainedSameDayClaimChange(context, text)) return false;
   if (isPreReturnWishAfterReturn(context, text)) return false;
