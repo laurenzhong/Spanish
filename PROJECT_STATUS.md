@@ -74,7 +74,7 @@
 - ALPHA-033 发布候选后置回归：修正产品壳层隐私数据 E2E 对新分段 Profile 页面缺失 hash 深链、以及全局 `role=status` 与 Explore 空状态冲突的问题；关系/数据测试现在显式打开 `#profile-relationships` 或 `#profile-data` 并限定组件内状态。实现 Commit：`452a9da`。验证：Profile 隐私桌面 Chromium 4/4；移动端仍有 2/4 状态消息未出现，待移动布局/组件可见性归属确认。其他未提交对话与角色网络改动保持原样。
 - 下一项：阶段 8 个人 Alpha 连续使用与人工体验复核，仅在本任务退出条件满足并经产品本人确认后启动。
 
-- ALPHA-033 D01 主动消息 Slice B（App 内第一阶段）：新增 Lucía 主动消息资格领域规则（关系 active、暂停、每日/每周上限、12 小时冷却、未回应抑制）、provider-neutral 主动上下文和文本硬门禁；新增 `proactive_message_candidates` 表、`messages.source_type`、原子候选/消息持久化 repository，以及 `POST /api/v1/conversations/lucia/proactive` 手动触发入口。当前只生成并写入 App 内会话历史，不接 Web Push/APNs/FCM；provider 失败或门禁失败不发送、不 fallback。实现待提交；验证：主动消息领域/application Vitest 4/4、PGlite 持久化 1/1、provider 相关回归通过，`pnpm typecheck`、`pnpm db:check` 和受影响文件 ESLint 通过。下一步：在聊天 UI 增加主动消息到达后的轻量刷新/未读呈现，并进行 Lucía 连续人工体验。
+- ALPHA-033 D01 主动消息 Slice B（App 内第一阶段）：新增 Lucía 主动消息资格领域规则（关系 active、暂停、每日/每周上限、12 小时冷却、未回应抑制）、provider-neutral 主动上下文和文本硬门禁；新增 `proactive_message_candidates` 表、`messages.source_type`、原子候选/消息持久化 repository，以及 `POST /api/v1/conversations/lucia/proactive` 手动触发入口。当前只生成并写入 App 内会话历史，不接 Web Push/APNs/FCM；provider 失败或门禁失败不发送、不 fallback。实现 Commit：`8d22014`；验证：主动消息领域/application Vitest 4/4、PGlite 持久化 1/1、provider 相关回归通过，`pnpm typecheck`、`pnpm db:check` 和受影响文件 ESLint 通过。下一步：在聊天 UI 增加主动消息到达后的轻量刷新/未读呈现，并进行 Lucía 连续人工体验。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 

@@ -76,6 +76,7 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
       character,
       relationshipStage: state.relationshipStage,
       relationshipSummary: state.relationshipSummary,
+      relationshipSignalsSummary: state.relationshipSummary,
       memories: input.memories ?? [],
       teachingOpportunity: null,
       questionPolicy: plan.questionPolicy,

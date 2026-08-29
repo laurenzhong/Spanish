@@ -165,6 +165,7 @@ function buildPrompt(input: ConversationProviderInput): string {
       stage: input.relationshipStage,
       summary: input.relationshipSummary,
     },
+    relationshipSignalsSummary: input.relationshipSignalsSummary,
     readableMemories: input.memories,
     teachingOpportunity: input.teachingOpportunity,
     questionPolicy: input.questionPolicy,

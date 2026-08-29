@@ -158,6 +158,7 @@ function buildPrompt(input: ConversationProviderInput): string {
     recentMessages: input.recentMessages,
     character: input.character,
     relationship: { stage: input.relationshipStage, summary: input.relationshipSummary },
+    relationshipSignalsSummary: input.relationshipSignalsSummary,
     readableMemories: input.memories,
     teachingOpportunity: input.teachingOpportunity,
     questionPolicy: input.questionPolicy,

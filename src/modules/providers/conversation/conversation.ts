@@ -35,6 +35,7 @@ export type ConversationProviderInput = Readonly<{
   }>;
   relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
   relationshipSummary: string | null;
+  relationshipSignalsSummary?: string | null;
   memories: readonly Readonly<{
     factKey: string;
     category: string;
