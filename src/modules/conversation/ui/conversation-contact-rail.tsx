@@ -212,7 +212,6 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>, characterKey: string) {
     if (event.pointerType !== "mouse" || event.button !== 0) return;
     dragState.current = { characterKey, startY: event.clientY, active: false };
-    if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
@@ -223,6 +222,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       dragState.current = { ...current, active: true };
       setDraggedCharacterKey(current.characterKey);
       suppressClickFor.current = current.characterKey;
+      if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
     }
     event.preventDefault();
     const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-character-key]")?.dataset.characterKey;
