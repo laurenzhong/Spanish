@@ -34,6 +34,9 @@ export function questionPolicyForReply(input: Readonly<{ userMessage: string }>)
   if (/\b(?:me voy|nos vemos|hasta luego|hasta manana|hasta mañana|buenas noches)\b/iu.test(text)) {
     return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
   }
+  if (/\b(?:me gustas|me encantas|creo que me gustas|me he enamorado|me estoy enamorando)\b/iu.test(text)) {
+    return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
+  }
   if (text.includes("?") || /^(?:hola|hey|buenas)\b/iu.test(text)) {
     return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: true, maxQuestionPressure: "low" };
   }

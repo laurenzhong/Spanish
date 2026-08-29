@@ -295,7 +295,7 @@ describe("fake conversation reply", () => {
     const supportObservations: StreamReplyProviderObservation[] = [];
     for await (const event of streamReply({
       characterKey: "lucia", characterVersion: 1, text: "Hoy he tenido un día difícil.", clientMessageId: "client-2", generationId: "generation-2", messageId: "message-2",
-      replyProvider: makeProvider("Lo siento. ¿Quieres contarme qué pasó?"), onProviderResult: (observation) => { supportObservations.push(observation); }, wait: async () => {},
+      replyProvider: makeProvider("Lo siento. Cuéntame qué pasó, si te apetece."), onProviderResult: (observation) => { supportObservations.push(observation); }, wait: async () => {},
     })) supportEvents.push(event);
     expect(supportEvents.some((event) => event.type === "delta")).toBe(false);
     expect(supportEvents.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });

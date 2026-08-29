@@ -284,11 +284,14 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
 }
 
 function questionPolicyAllows(text: string, policy: QuestionPolicy): boolean {
+  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLocaleLowerCase("es-ES");
   const questions = text.match(/¿[^?]*\?/gu) ?? [];
   const reciprocal = questions.filter((question) => /\b(?:y tu|y tú|tu que|tú qué|y usted)\b/iu.test(question.normalize("NFD").replace(/[\u0300-\u036f]/gu, "")));
   const substantiveCount = questions.length - reciprocal.length;
+  const investigativeInvite = /\b(?:cuentame|dime|explicame|que te ha pasado|que es lo que mas te preocupa|si te apetece (?:contar|hablar)|puedo preguntarte)\b/iu.test(normalized);
   if (substantiveCount > policy.maxSubstantiveQuestions) return false;
   if (!policy.allowReciprocalQuestion && reciprocal.length > 0) return false;
   if (policy.maxQuestionPressure === "none" && questions.length > 0) return false;
+  if (policy.maxQuestionPressure === "none" && investigativeInvite) return false;
   return true;
 }
