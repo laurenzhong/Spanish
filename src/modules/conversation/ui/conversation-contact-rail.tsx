@@ -76,7 +76,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   const [markedUnread, setMarkedUnread] = useState<ReadonlySet<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const longPressTimer = useRef<number | null>(null);
-  const suppressClick = useRef(false);
+  const suppressClickFor = useRef<string | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLElement>(null);
   const dragState = useRef<DragState | null>(null);
@@ -222,7 +222,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     if (!current.active) {
       dragState.current = { ...current, active: true };
       setDraggedCharacterKey(current.characterKey);
-      suppressClick.current = true;
+      suppressClickFor.current = current.characterKey;
     }
     event.preventDefault();
     const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-character-key]")?.dataset.characterKey;
@@ -291,7 +291,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
                 if (event.touches.length !== 1) return;
                 const touch = event.touches[0];
                 longPressTimer.current = window.setTimeout(() => {
-                  suppressClick.current = true;
+                  suppressClickFor.current = conversation.characterKey;
                   const railRect = railRef.current?.getBoundingClientRect();
                   openContextMenuAt(conversation.characterKey, railRect ? touch.clientX - railRect.left : touch.clientX, railRect ? touch.clientY - railRect.top + (railRef.current?.scrollTop ?? 0) : touch.clientY);
                 }, 450);
@@ -304,9 +304,9 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
                 href={`/chat/${conversation.characterKey}`}
                 draggable={false}
                 onClick={(event) => {
-                  if (suppressClick.current) {
+                  if (suppressClickFor.current === conversation.characterKey) {
                     event.preventDefault();
-                    suppressClick.current = false;
+                    suppressClickFor.current = null;
                     return;
                   }
                   setMarkedUnread((current) => { const next = new Set(current); next.delete(conversation.characterKey); return next; });
