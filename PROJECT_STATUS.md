@@ -88,6 +88,7 @@
 - 好友栏交互可用性修复：拖动落点改用 ref 读取并补 Pointer Event 回归，整行拖动禁用链接原生拖拽；移除管理模式点状手柄，菜单置顶/静音/未读及顺序操作显示明确成功或边界反馈。实现 Commit：`07b5fea`；验证：联系人栏 Vitest 6/6、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过；仓库级 `pnpm lint` 通过。全量 `pnpm test --run` 首次因 Windows worker WebAssembly/ArrayBuffer 内存不足失败，单 worker 复跑未能在资源受限环境完成；不影响联系人栏局部回归。
 - 好友菜单点击事件修复：将外部关闭监听从 `pointerdown` 改为排除菜单内部目标的 `click`，确保置顶、静音、未读和管理顺序按钮先执行自身动作；真实浏览器验证置顶/静音状态和整行拖动排序均生效。实现 Commit：`42e4b3d`；验证：联系人栏 Vitest 6/6、受影响文件 ESLint、`pnpm exec tsc --noEmit` 通过。限制：尚未补充 Playwright 自动化菜单点击/拖动用例。
 - 好友拖动边界反馈：跨置顶/普通分组拖动时显示明确提示，避免因保护置顶语义而看似无响应；好友行默认显示可拖动光标。实现 Commit：`e22a60a`；验证：联系人栏 Vitest 6/6、受影响文件 ESLint 通过。当前仓库类型检查仍被其他代理对话 provider 改动中的既有错误阻断。
+- 好友排序入口收敛：移除“管理好友顺序”按钮、管理模式、上下箭头和菜单入口；整行拖动成为唯一排序方式，跨置顶/普通分组时自动同步拖动好友的置顶状态，确保位置变化可见。实现 Commit：`cd7169f`；验证：联系人栏 Vitest 6/6、真实浏览器跨分组拖动后顺序改变、受影响文件 ESLint 通过。限制：全量类型检查仍受其他代理对话 provider 未提交改动中的既有错误阻断。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
