@@ -467,6 +467,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function clearTranslation(messageId: string) {
+    setContextMenu(null);
     translationRequestIdRef.current += 1;
     translationAbortRef.current?.abort();
     setTranslations((current) => {

@@ -317,4 +317,5 @@ test("opens friend-message actions on double click and translates inline", async
   await message.dblclick();
   await page.getByRole("menuitem", { name: "取消翻译" }).click();
   await expect(message).not.toContainText("明天见。");
+  await expect(page.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toHaveCount(0);
 });

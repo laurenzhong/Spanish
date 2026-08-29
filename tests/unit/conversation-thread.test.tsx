@@ -162,6 +162,7 @@ describe("ChatThread persistence status", () => {
     fireEvent.contextMenu(message.closest("article")!);
     fireEvent.click(screen.getByRole("menuitem", { name: "取消翻译" }));
     expect(screen.queryByText("明天见。")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu", { name: "Lucía Martín 的消息操作" })).not.toBeInTheDocument();
   });
 
   it("refreshes on focus and shows a prompt for a new proactive message when reading older messages", async () => {
