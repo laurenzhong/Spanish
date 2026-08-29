@@ -238,15 +238,28 @@ function commitmentDueHint(value: string): ReplyCommitment["dueHint"] {
 /** Extracts explicit, low-pressure promises that can be followed up later. */
 export function deriveReplyCommitments(messages: readonly ReplyContextMessage[]): readonly ReplyCommitment[] {
   const commitments = new Map<string, ReplyCommitment>();
-  for (const message of messages) {
+  const userPlanKeys: string[] = [];
+  for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
+    const message = messages[messageIndex];
+    if (!message) continue;
     const normalized = normalizedTopicText(message.content);
+    if (message.role === "user" && returnSignalPattern.test(normalized)) {
+      for (let index = userPlanKeys.length - 1; index >= 0; index -= 1) {
+        const planKey = userPlanKeys[index];
+        const plan = planKey ? commitments.get(planKey) : undefined;
+        if (plan?.status === "open") {
+          commitments.set(planKey, { ...plan, status: "returned" });
+          break;
+        }
+      }
+    }
     const explicitCommitment = /(?:te cuento|te digo|te escribo|te aviso|te mando|te paso)/u.test(normalized)
       && /(?:luego|despues|esta tarde|esta noche|manana|cuando vuelva|cuando termine|mas tarde)/u.test(normalized);
     const ordinaryUserPlan = message.role === "user"
       && /(?:voy a|me voy a|salgo a|salgo para|ire a|pienso ir|esta tarde voy|esta noche voy)/u.test(normalized);
     if (!explicitCommitment && !ordinaryUserPlan) continue;
     const owner = message.role === "user" ? "user" : "character";
-    const commitmentKey = `${owner}:${ordinaryUserPlan ? "plan" : "promise"}:${normalized.slice(0, 96)}`;
+    const commitmentKey = `${owner}:${ordinaryUserPlan ? "plan" : "promise"}:${normalized.slice(0, 96)}:${message.sentAt ?? messageIndex}`;
     commitments.set(commitmentKey, {
       commitmentKey,
       owner,
@@ -255,6 +268,7 @@ export function deriveReplyCommitments(messages: readonly ReplyContextMessage[])
       status: "open",
       ...(message.sentAt ? { madeAt: message.sentAt } : {}),
     });
+    if (ordinaryUserPlan) userPlanKeys.push(commitmentKey);
   }
   return [...commitments.values()].slice(-8);
 }

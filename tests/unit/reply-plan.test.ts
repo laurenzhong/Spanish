@@ -190,6 +190,23 @@ describe("reply context and deterministic generation", () => {
     ]);
   });
 
+  it("keeps an older returned plan separate from a newer plan", async () => {
+    const context = await buildReplyContext({
+      generationId: "generation-plan-instances",
+      userId: "user-1",
+      userMessage: "Esta tarde vuelvo a salir al puerto a hacer fotos.",
+      recentMessages: [
+        { role: "user", content: "Esta tarde voy al puerto a hacer fotos.", sentAt: "2026-08-28T15:00:00.000Z" },
+        { role: "user", content: "Ya he vuelto.", sentAt: "2026-08-28T18:00:00.000Z" },
+        { role: "user", content: "Esta tarde voy al puerto a hacer fotos.", sentAt: "2026-08-29T12:00:00.000Z" },
+      ],
+    });
+    expect(context.openCommitments.filter((item) => item.owner === "user")).toEqual([
+      expect.objectContaining({ statement: "Esta tarde voy al puerto a hacer fotos.", status: "returned" }),
+      expect.objectContaining({ statement: "Esta tarde voy al puerto a hacer fotos.", status: "open" }),
+    ]);
+  });
+
   it("uses the readable memory projection and excludes rejected or conflicting facts", async () => {
     const listReadableMemories = vi.fn().mockResolvedValue([
       memory(),
