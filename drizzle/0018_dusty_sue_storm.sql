@@ -1,0 +1,1 @@
+ALTER TABLE "conversation_preferences" ADD COLUMN "sort_rank" integer;

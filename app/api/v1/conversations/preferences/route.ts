@@ -6,11 +6,16 @@ import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
 const preferenceSchema = z.object({
-  characterKey: z.string().trim().min(1).max(80),
+  characterKey: z.string().trim().min(1).max(80).optional(),
   isPinned: z.boolean().optional(),
   isMuted: z.boolean().optional(),
-}).refine((value) => value.isPinned !== undefined || value.isMuted !== undefined, {
-  message: "At least one preference must be provided",
+  sortRank: z.number().int().min(0).max(10_000).nullable().optional(),
+  orderedCharacterKeys: z.array(z.string().trim().min(1).max(80)).min(1).max(100).optional(),
+}).superRefine((value, context) => {
+  if (value.orderedCharacterKeys) return;
+  if (!value.characterKey || (value.isPinned === undefined && value.isMuted === undefined && value.sortRank === undefined)) {
+    context.addIssue({ code: "custom", message: "At least one preference must be provided" });
+  }
 });
 
 export async function PATCH(request: NextRequest) {
@@ -19,11 +24,16 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const input = preferenceSchema.parse(await request.json());
-    const preference = await createDrizzleConversationRepository(getDatabase()).updateConversationPreference(
-      user.id,
-      input.characterKey,
-      { isPinned: input.isPinned, isMuted: input.isMuted },
-    );
+    const repository = createDrizzleConversationRepository(getDatabase());
+    if (input.orderedCharacterKeys) {
+      await repository.reorderConversationPreferences(user.id, input.orderedCharacterKeys);
+      return NextResponse.json({ data: { orderedCharacterKeys: input.orderedCharacterKeys } }, { headers: { "cache-control": "no-store" } });
+    }
+    const preference = await repository.updateConversationPreference(user.id, input.characterKey!, {
+      ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),
+      ...(input.isMuted !== undefined ? { isMuted: input.isMuted } : {}),
+      ...(input.sortRank !== undefined ? { sortRank: input.sortRank } : {}),
+    });
     return NextResponse.json({ data: { preference } }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof z.ZodError) {

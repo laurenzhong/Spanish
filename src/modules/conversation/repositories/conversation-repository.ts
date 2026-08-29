@@ -32,11 +32,13 @@ export type ConversationListRecord = Readonly<{
   }> | null;
   isPinned: boolean;
   isMuted: boolean;
+  sortRank: number | null;
 }>;
 
 export type ConversationPreferencePatch = Readonly<{
   isPinned?: boolean;
   isMuted?: boolean;
+  sortRank?: number | null;
 }>;
 
 export type ConversationRepository = Readonly<{
@@ -62,7 +64,8 @@ export type ConversationRepository = Readonly<{
   findAssistantMessage(userId: string, conversationId: string, clientMessageId: string): Promise<ConversationMessageRecord | null>;
   listMessages(userId: string, characterKey: string, limit?: number): Promise<readonly ConversationMessageRecord[]>;
   listConversations(userId: string): Promise<readonly ConversationListRecord[]>;
-  updateConversationPreference(userId: string, characterKey: string, patch: ConversationPreferencePatch): Promise<Readonly<{ characterKey: string; isPinned: boolean; isMuted: boolean }>>;
+  updateConversationPreference(userId: string, characterKey: string, patch: ConversationPreferencePatch): Promise<Readonly<{ characterKey: string; isPinned: boolean; isMuted: boolean; sortRank: number | null }>>;
+  reorderConversationPreferences(userId: string, characterKeys: readonly string[]): Promise<void>;
   searchMessages(userId: string, query: string, limit?: number): Promise<readonly ConversationSearchResultRecord[]>;
   deleteMessage(userId: string, characterKey: string, messageId: string): Promise<boolean>;
   withdrawMessage(userId: string, characterKey: string, messageId: string): Promise<boolean>;

@@ -208,6 +208,7 @@ export const conversationPreferences = pgTable(
       .references(() => characters.id, { onDelete: "restrict" }),
     isPinned: boolean("is_pinned").default(false).notNull(),
     isMuted: boolean("is_muted").default(false).notNull(),
+    sortRank: integer("sort_rank"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

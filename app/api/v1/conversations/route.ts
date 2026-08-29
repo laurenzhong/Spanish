@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
             lastMessageAt: record.lastMessageAt?.toISOString() ?? null,
             isPinned: record.isPinned,
             isMuted: record.isMuted,
+            sortRank: record.sortRank,
             lastMessage: record.lastMessage
               ? {
                   role: record.lastMessage.role,

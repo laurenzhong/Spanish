@@ -187,6 +187,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
             : null,
           isPinned: conversationPreferences?.isPinned ?? character.stableKey === "lucia",
           isMuted: conversationPreferences?.isMuted ?? false,
+          sortRank: conversationPreferences?.sortRank ?? null,
         } satisfies ConversationListRecord;
       }));
     },
@@ -216,6 +217,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         characterId: character.id,
         isPinned: patch.isPinned ?? existing?.isPinned ?? character.stableKey === "lucia",
         isMuted: patch.isMuted ?? existing?.isMuted ?? false,
+        sortRank: patch.sortRank !== undefined ? patch.sortRank : existing?.sortRank ?? null,
         updatedAt: new Date(),
       };
       const [preference] = existing
@@ -228,7 +230,31 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           set: values,
         }).returning();
       if (!preference) throw new Error("CONVERSATION_PREFERENCE_UNAVAILABLE");
-      return { characterKey: character.stableKey, isPinned: preference.isPinned, isMuted: preference.isMuted };
+      return { characterKey: character.stableKey, isPinned: preference.isPinned, isMuted: preference.isMuted, sortRank: preference.sortRank };
+    },
+
+    async reorderConversationPreferences(userId, characterKeys) {
+      const uniqueKeys = [...new Set(characterKeys)];
+      const rows = await database
+        .select({ id: schema.characters.id, stableKey: schema.characters.stableKey })
+        .from(schema.characters)
+        .innerJoin(schema.conversations, and(
+          eq(schema.conversations.characterId, schema.characters.id),
+          eq(schema.conversations.userId, userId),
+        ))
+        .where(eq(schema.characters.status, "published"));
+      const ownedKeys = new Set(rows.map((row) => row.stableKey));
+      if (uniqueKeys.some((key) => !ownedKeys.has(key))) throw new Error("CONVERSATION_UNAVAILABLE");
+      await database.transaction(async (transaction) => {
+        for (const [sortRank, characterKey] of uniqueKeys.entries()) {
+          const character = rows.find((row) => row.stableKey === characterKey);
+          if (!character) continue;
+          await transaction.insert(schema.conversationPreferences).values({ userId, characterId: character.id, sortRank }).onConflictDoUpdate({
+            target: [schema.conversationPreferences.userId, schema.conversationPreferences.characterId],
+            set: { sortRank, updatedAt: new Date() },
+          });
+        }
+      });
     },
 
     async searchMessages(userId, query, limit = 50) {
