@@ -299,7 +299,31 @@ describe("fake conversation reply", () => {
     })) supportEvents.push(event);
     expect(supportEvents.some((event) => event.type === "delta")).toBe(false);
     expect(supportEvents.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });
-    expect(supportObservations).toEqual([expect.objectContaining({ status: "failed", errorType: "safety-gate" })]);
+    expect(supportObservations).toEqual([
+      expect.objectContaining({ status: "failed", errorType: "safety-gate" }),
+      expect.objectContaining({ status: "failed", errorType: "safety-gate" }),
+    ]);
+  });
+
+  it("uses at most one stricter retry after a safety-gate rejection", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Lo siento. ¿Quieres contarme qué pasó?", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "request-1", latencyMs: 10, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Lo siento. No tienes que explicar nada ahora; estoy aquí contigo.", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "request-2", latencyMs: 12, estimatedCostMicros: null }),
+    };
+    const observations: StreamReplyProviderObservation[] = [];
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Hoy he tenido un día difícil.", clientMessageId: "client-1", generationId: "generation-1", messageId: "message-1",
+      replyProvider: provider, onProviderResult: (observation) => { observations.push(observation); }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" } });
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(observations).toEqual([
+      expect.objectContaining({ status: "failed", errorType: "safety-gate", providerRequestId: "request-1" }),
+      expect.objectContaining({ status: "succeeded", providerRequestId: "request-2" }),
+    ]);
   });
 
   it("answers a wellbeing question instead of using the generic greeting", async () => {

@@ -124,9 +124,30 @@ export async function* streamReply(
   let replyResult: ConversationProviderResult;
   if (input.replyProvider) {
     try {
-      replyResult = await input.replyProvider.generate(context, { signal: input.signal });
-      if (!isGeneratedReplySafe(context, replyResult.text)) {
-        throw new ReplySafetyGateError();
+      let generationContext = context;
+      let safetyRetryUsed = false;
+      while (true) {
+        replyResult = await input.replyProvider.generate(generationContext, { signal: input.signal });
+        if (isGeneratedReplySafe(generationContext, replyResult.text)) break;
+        if (safetyRetryUsed) throw new ReplySafetyGateError();
+        safetyRetryUsed = true;
+        await notifyProviderResult(input, {
+          provider: replyResult.provider,
+          modelVersion: replyResult.modelVersion,
+          providerRequestId: replyResult.providerRequestId,
+          status: "failed",
+          latencyMs: replyResult.latencyMs,
+          estimatedCostMicros: replyResult.estimatedCostMicros,
+          errorType: "safety-gate",
+        });
+        generationContext = {
+          ...context,
+          questionPolicy: {
+            maxSubstantiveQuestions: 0,
+            allowReciprocalQuestion: false,
+            maxQuestionPressure: "none",
+          },
+        };
       }
       await notifyProviderResult(input, {
         provider: replyResult.provider,
