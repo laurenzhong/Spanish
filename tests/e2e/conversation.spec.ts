@@ -298,11 +298,11 @@ test("opens friend-message actions on double click and translates inline", async
       body: JSON.stringify({ data: { characterKey: "lucia", messages: [{ id: messageId, role: "character", text: "Nos vemos mañana.", complete: true }] } }),
     });
   });
-  await page.route("**/api/v1/read/word-explanation", async (route) => {
+  await page.route("**/api/v1/conversations/translation", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: { contextualMeaning: "明天见。" } }),
+      body: JSON.stringify({ data: { text: "明天见。" } }),
     });
   });
   await page.goto("/chat/lucia");
@@ -314,4 +314,7 @@ test("opens friend-message actions on double click and translates inline", async
   await expect(page.getByRole("menuitem", { name: "引用回复" })).toBeVisible();
   await page.getByRole("menuitem", { name: "翻译" }).click();
   await expect(message).toContainText("明天见。", { timeout: 5_000 });
+  await message.dblclick();
+  await page.getByRole("menuitem", { name: "取消翻译" }).click();
+  await expect(message).not.toContainText("明天见。");
 });

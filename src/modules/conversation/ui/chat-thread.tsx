@@ -447,26 +447,15 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     translationCharacterKeyRef.current = characterKey;
     setTranslations((current) => ({ ...current, [message.id]: { status: "loading" } }));
     try {
-      const response = await fetch("/api/v1/read/word-explanation", {
+      const response = await fetch("/api/v1/conversations/translation", {
         method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json, application/x-ndjson" },
-        body: JSON.stringify({ word: message.text, context: message.text, locale: "es-ES", selectionType: "sentence" }),
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ text: message.text, sourceLocale: "es-ES", targetLocale: "zh-CN" }),
         signal: controller.signal,
       });
       if (!response.ok) throw new Error("translation-failed");
-      const contentType = response.headers.get("content-type") ?? "";
-      let translated = "";
-      if (contentType.includes("ndjson") && response.body) {
-        const raw = await response.text();
-        for (const line of raw.split("\n")) {
-          if (!line.trim()) continue;
-          const event = JSON.parse(line) as { type?: string; explanation?: { contextualMeaning?: string; meaning?: string } };
-          if (event.type === "done") translated = event.explanation?.contextualMeaning ?? event.explanation?.meaning ?? "";
-        }
-      } else {
-        const payload = await response.json() as { data?: { contextualMeaning?: string; meaning?: string } };
-        translated = payload.data?.contextualMeaning ?? payload.data?.meaning ?? "";
-      }
+      const payload = await response.json() as { data?: { text?: string } };
+      const translated = payload.data?.text ?? "";
       if (!translated.trim()) throw new Error("translation-empty");
       if (requestId === translationRequestIdRef.current) setTranslations((current) => ({ ...current, [message.id]: { status: "success", text: translated } }));
     } catch {
@@ -475,6 +464,16 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     } finally {
       if (translationAbortRef.current === controller) translationAbortRef.current = null;
     }
+  }
+
+  function clearTranslation(messageId: string) {
+    translationRequestIdRef.current += 1;
+    translationAbortRef.current?.abort();
+    setTranslations((current) => {
+      const next = { ...current };
+      delete next[messageId];
+      return next;
+    });
   }
 
   function beginForward(message: ConversationState["messages"][number]) {
@@ -614,7 +613,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {contextMenu && selectedMessage() ? (
         <div className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
-          {selectedMessage()?.role === "character" ? <button type="button" role="menuitem" onClick={() => void translateMessage(selectedMessage()!)}>翻译</button> : null}
+          {selectedMessage()?.role === "character" ? (() => {
+            const selected = selectedMessage()!;
+            const translation = translations[selected.id];
+            return <button type="button" role="menuitem" disabled={translation?.status === "loading"} onClick={() => translation?.status === "success" ? clearTranslation(selected.id) : void translateMessage(selected)}>{translation?.status === "success" ? "取消翻译" : translation?.status === "loading" ? "正在翻译……" : "翻译"}</button>;
+          })() : null}
           <button type="button" role="menuitem" onClick={() => quoteMessage(selectedMessage()!)}>引用回复</button>
           {selectedMessage()?.role === "user" ? <>
             <button type="button" role="menuitem" onClick={() => beginForward(selectedMessage()!)}>转发</button>

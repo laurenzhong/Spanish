@@ -142,11 +142,11 @@ describe("ChatThread persistence status", () => {
     } as Response;
     vi.mocked(fetch).mockImplementation(async (input) => {
       if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
-      if (String(input) === "/api/v1/read/word-explanation") {
+      if (String(input) === "/api/v1/conversations/translation") {
         return {
           ok: true,
           headers: new Headers([["content-type", "application/json"]]),
-          json: async () => ({ data: { contextualMeaning: "明天见。" } }),
+          json: async () => ({ data: { text: "明天见。" } }),
         } as Response;
       }
       return historyResponse;
@@ -158,7 +158,10 @@ describe("ChatThread persistence status", () => {
     expect(screen.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "翻译" }));
     expect(await screen.findByText("明天见。")).toBeInTheDocument();
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith("/api/v1/read/word-explanation", expect.objectContaining({ method: "POST" }));
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith("/api/v1/conversations/translation", expect.objectContaining({ method: "POST" }));
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "取消翻译" }));
+    expect(screen.queryByText("明天见。")).not.toBeInTheDocument();
   });
 
   it("refreshes on focus and shows a prompt for a new proactive message when reading older messages", async () => {
