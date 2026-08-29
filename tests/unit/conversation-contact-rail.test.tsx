@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
@@ -26,6 +27,33 @@ describe("ConversationContactRail", () => {
     first.unmount();
     render(<ConversationContactRail activeCharacterKey="mateo" />);
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it("opens an accessible friend menu and toggles pin, mute, and unread state", async () => {
+    const user = userEvent.setup();
+    render(<ConversationContactRail activeCharacterKey="lucia" />);
+    await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "管理 Lucía Martín" }));
+    expect(screen.getByRole("menu", { name: "Lucía Martín 的好友操作" })).toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: "取消置顶" }));
+    expect(screen.queryByLabelText("已置顶")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "管理 Lucía Martín" }));
+    await user.click(screen.getByRole("menuitem", { name: "静音通知" }));
+    expect(screen.getByRole("link", { name: /Lucía Martín .*已静音/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "管理 Lucía Martín" }));
+    await user.click(screen.getByRole("menuitem", { name: "标记为未读" }));
+    expect(screen.getByRole("link", { name: /Lucía Martín .*未读.*已静音/ })).toBeInTheDocument();
+  });
+
+  it("supports the desktop context menu gesture", async () => {
+    const user = userEvent.setup();
+    render(<ConversationContactRail activeCharacterKey="lucia" />);
+    await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("link", { name: /Lucía Martín/ }) });
+    expect(screen.getByRole("menu", { name: "Lucía Martín 的好友操作" })).toBeInTheDocument();
   });
 
 });

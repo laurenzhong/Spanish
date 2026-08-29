@@ -4086,7 +4086,15 @@ button {
   gap: 4px;
 }
 
+.conversation-contact-row-shell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+}
+
 .conversation-contact-row {
+  flex: 1 1 auto;
   display: flex;
   min-width: 0;
   min-height: 56px;
@@ -4105,6 +4113,10 @@ button {
 .conversation-contact-row--active {
   border-left-color: var(--conversation-action);
   background: #f6f8f6;
+}
+
+.conversation-contact-row--unread .conversation-contact-row__body strong {
+  font-weight: 800;
 }
 
 .conversation-contact-row .avatar {
@@ -4156,6 +4168,89 @@ button {
   margin-left: auto;
   color: var(--conversation-faint);
   font-size: 9px;
+}
+
+.conversation-contact-row__unread {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--conversation-action);
+}
+
+.conversation-contact-row__muted {
+  color: var(--conversation-faint);
+  font-size: 9px;
+}
+
+.conversation-contact-row__menu-button {
+  width: 36px;
+  min-width: 36px;
+  min-height: 44px;
+  border: 0;
+  color: var(--conversation-faint);
+  background: transparent;
+  font-size: 14px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-fast) ease, background-color var(--motion-fast) ease;
+}
+
+.conversation-contact-row-shell:hover .conversation-contact-row__menu-button,
+.conversation-contact-row__menu-button:focus-visible {
+  opacity: 1;
+}
+
+.conversation-contact-row__menu-button:hover,
+.conversation-contact-row__menu-button:focus-visible {
+  color: var(--conversation-action);
+  background: color-mix(in srgb, var(--conversation-line) 35%, transparent);
+}
+
+.conversation-contact-context-menu {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  min-width: 208px;
+  padding: 5px;
+  border: 1px solid var(--conversation-line);
+  border-radius: 6px;
+  background: var(--conversation-paper);
+  box-shadow: 0 14px 36px rgb(20 23 21 / 16%);
+}
+
+.conversation-contact-context-menu button,
+.conversation-contact-context-menu a {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  padding: 0 10px;
+  border: 0;
+  color: var(--conversation-ink);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.conversation-contact-context-menu button:hover,
+.conversation-contact-context-menu button:focus-visible,
+.conversation-contact-context-menu a:hover,
+.conversation-contact-context-menu a:focus-visible {
+  outline: none;
+  color: var(--conversation-action);
+  background: color-mix(in srgb, var(--conversation-line) 35%, transparent);
+}
+
+.conversation-contact-context-menu__separator {
+  height: 1px;
+  margin: 4px 5px;
+  background: var(--conversation-line);
 }
 
 .conversation-contact-rail__footer {
