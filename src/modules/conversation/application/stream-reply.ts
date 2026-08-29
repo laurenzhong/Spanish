@@ -338,7 +338,7 @@ function isUnexplainedSameDayClaimChange(context: ReplyContext, text: string): b
   const previousMeal = mealSignature(claim.statement);
   const currentMeal = mealSignature(text);
   if (!previousMeal || !currentMeal || previousMeal === currentMeal) return false;
-  return !/\b(?:al final|he cambiado|cambie|cambi[eé] de idea|ahora|luego|en cambio|me he decidido por|prefiero)\b/iu.test(text.normalize("NFD").replace(/[\u0300-\u036f]/gu, ""));
+  return !/\b(?:antes|te dije|como te decia|habia pensado|he cambiado|cambie|cambie de idea|cambi[eé] de idea|mantengo|sigo con|me he decidido por)\b/iu.test(text.normalize("NFD").replace(/[\u0300-\u036f]/gu, ""));
 }
 
 function questionPolicyAllows(text: string, policy: QuestionPolicy): boolean {
