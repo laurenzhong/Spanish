@@ -10,7 +10,7 @@ import { ConversationProviderError } from "@/src/modules/providers/conversation"
 import {
   generateCharacterReply,
 } from "./generate-character-reply";
-import type { ReplyContext } from "./build-reply-context";
+import { deriveReplyOpenTopics, type ReplyContext } from "./build-reply-context";
 import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 import { getConversationCharacter } from "../domain/character-catalog";
 
@@ -116,6 +116,8 @@ export async function* streamReply(
     recentMessages: [],
     rollingSummary: null,
     openTopics: [],
+    conversationTimeZone: "Europe/Madrid",
+    currentLocalDate: new Date().toISOString().slice(0, 10),
     character: getConversationCharacter(input.characterKey).snapshot,
     relationshipStage: "new_contact" as const,
     relationshipSummary: null,
@@ -149,6 +151,7 @@ export async function* streamReply(
             allowReciprocalQuestion: false,
             maxQuestionPressure: "none",
           },
+          continuityInstruction: "La respuesta anterior repetía un tema tratado hoy. Reformula sin repetir la misma respuesta y añade un detalle nuevo o reconoce de forma natural lo que ya dijiste.",
         };
       }
       await notifyProviderResult(input, {
@@ -282,7 +285,37 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   });
   if (plan.intent === "identity-disclosure" && !/\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
   if (plan.intent !== "identity-disclosure" && /\b(?:soy|somos|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
+  if (isRepeatedSameDayTopicReply(context, text)) return false;
   return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: context.userMessage }));
+}
+
+function normalizedReplyTokens(value: string): Set<string> {
+  return new Set(
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/gu, "")
+      .toLocaleLowerCase("es-ES")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim()
+      .split(/\s+/u)
+      .filter((token) => token.length > 2),
+  );
+}
+
+function isRepeatedSameDayTopicReply(context: ReplyContext, text: string): boolean {
+  const currentTopic = deriveReplyOpenTopics([{ role: "user", content: context.userMessage }])[0];
+  if (!currentTopic) return false;
+  const previous = context.openTopics.find((topic) =>
+    topic.topicKey === currentTopic.topicKey && topic.status === "answered" && topic.sameLocalDay && topic.lastAnswer,
+  )?.lastAnswer;
+  if (!previous || previous.length < 24 || text.trim().length < 24) return false;
+  const previousTokens = normalizedReplyTokens(previous);
+  const generatedTokens = normalizedReplyTokens(text);
+  if (previousTokens.size < 5 || generatedTokens.size < 5) return false;
+  let intersection = 0;
+  for (const token of previousTokens) if (generatedTokens.has(token)) intersection += 1;
+  const overlap = intersection / Math.min(previousTokens.size, generatedTokens.size);
+  return overlap >= 0.82 || (previousTokens.size === generatedTokens.size && overlap >= 0.7);
 }
 
 function questionPolicyAllows(text: string, policy: QuestionPolicy): boolean {

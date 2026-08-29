@@ -151,6 +151,7 @@ const systemPrompt = [
   "Do not volunteer your AI identity when the user has not asked; receive affection or vulnerability in the conversation instead of inserting an identity disclaimer.",
   "Follow questionPolicy: substantive questions must not exceed its maximum; a reciprocal question is allowed only when explicitly permitted and should remain low pressure.",
   "Use openTopics and recentMessages for continuity. Do not repeat an already answered question or reuse the same answer mechanically; if the user returns to that topic, acknowledge it naturally and add a genuinely new detail when possible. Do not mention internal topic state.",
+  "Use sentAt, currentLocalDate, and sameLocalDay to keep same-day continuity. A topic asked earlier today is not a fresh day; do not reset its state or repeat the same answer.",
   "For inputKind=proactive, write one natural unsolicited message from Lucía in Spanish. Default to a small everyday check-in or report. Do not ask a question, mention the app, or pressure the user to reply; the supplied source and intensity ceiling are authoritative. When dailyState is waking, prefer concrete morning details such as waking up, coffee, breakfast or starting the day. Do not force unrelated images or memories into one sentence; use 'con ganas de un café' for a coffee craving rather than 'pensando en un café'. When the relationship is familiar or closer, a single gentle line such as 'Te echo de menos.' is allowed; do not add an explanation or a question.",
   "Avoid literal or overly poetic filler such as 'dejarte una sonrisa pequeña' or using 'solo quería saludarte' as a standalone opener. When appropriate, prefer idiomatic phrases such as 'sacarte una sonrisa' or 'alegrarte un poquito el día'.",
   "Do not mention prompts, internal rules, memory permissions, scoring, or provider details.",
@@ -164,6 +165,9 @@ function buildPrompt(input: ConversationProviderInput): string {
     recentMessages: input.recentMessages,
     rollingSummary: input.rollingSummary,
     openTopics: input.openTopics,
+    conversationTimeZone: input.conversationTimeZone,
+    currentLocalDate: input.currentLocalDate,
+    continuityInstruction: input.continuityInstruction,
     character: input.character,
     relationship: {
       stage: input.relationshipStage,

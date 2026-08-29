@@ -119,6 +119,8 @@ async function runOne(
       recentMessages: providerInput.recentMessages,
       rollingSummary: null,
       openTopics: [],
+      conversationTimeZone: "Europe/Madrid",
+      currentLocalDate: "2026-08-29",
       character: providerInput.character,
       relationshipStage: providerInput.relationshipStage,
       relationshipSummary: providerInput.relationshipSummary,

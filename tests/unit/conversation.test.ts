@@ -8,6 +8,7 @@ import {
   type StreamReplyProviderObservation,
   transitionConversationState,
   findRetryableUserMessage,
+  luciaReplyCharacter,
 } from "@/src/modules/conversation";
 
 const ids = { generationId: "generation-1", messageId: "message-1" };
@@ -337,6 +338,45 @@ describe("fake conversation reply", () => {
       expect.objectContaining({ status: "failed", errorType: "safety-gate", providerRequestId: "request-1" }),
       expect.objectContaining({ status: "succeeded", providerRequestId: "request-2" }),
     ]);
+  });
+
+  it("retries a highly repetitive answer for a same-day topic", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Todavía no lo he decidido del todo; quizá algo de arroz con verduras.", provider: "openai" as const, modelVersion: "test", providerRequestId: "repeat-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Al final creo que prepararé arroz con verduras; me apetece algo sencillo.", provider: "openai" as const, modelVersion: "test", providerRequestId: "repeat-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia",
+      characterVersion: 1,
+      text: "¿Qué vas a comer para almorzar?",
+      clientMessageId: "client-repeat",
+      generationId: "generation-repeat",
+      messageId: "message-repeat",
+      replyContext: {
+        generationId: "generation-repeat",
+        userId: "user-1",
+        userMessage: "¿Qué vas a comer para almorzar?",
+        recentMessages: [],
+        rollingSummary: null,
+        openTopics: [{ topicKey: "daily:meal", label: "¿Qué vas a comer?", status: "answered", lastMentionedBy: "user", lastAnswer: "Todavía no lo he decidido del todo; quizá algo de arroz con verduras.", sameLocalDay: true }],
+        conversationTimeZone: "Europe/Madrid",
+        currentLocalDate: "2026-08-29",
+        character: luciaReplyCharacter,
+        relationshipStage: "familiar",
+        relationshipSummary: null,
+        memories: [],
+        teachingOpportunity: null,
+      },
+      replyProvider: provider,
+      wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("repetía un tema") });
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toContain("Al final creo");
   });
 
   it("answers a wellbeing question instead of using the generic greeting", async () => {

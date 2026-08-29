@@ -17,6 +17,7 @@ export type ConversationProviderInput = Readonly<{
   recentMessages: readonly Readonly<{
     role: "user" | "character";
     content: string;
+    sentAt?: string;
   }>[];
   rollingSummary?: string | null;
   openTopics?: readonly Readonly<{
@@ -25,7 +26,13 @@ export type ConversationProviderInput = Readonly<{
     status: "open" | "answered" | "closed";
     lastMentionedBy: "user" | "character";
     lastAnswer?: string;
+    lastAskedAt?: string;
+    lastAnsweredAt?: string;
+    sameLocalDay?: boolean;
   }>[];
+  conversationTimeZone?: string;
+  currentLocalDate?: string;
+  continuityInstruction?: string | null;
   character: Readonly<{
     characterKey: string;
     characterVersion: number;

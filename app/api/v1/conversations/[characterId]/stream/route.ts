@@ -117,7 +117,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const withdrawnIds = new Set(history.filter((message) => message.status === "withdrawn").map((message) => message.id));
       recentMessages = history
         .filter((message) => message.status !== "withdrawn" && !(message.role === "character" && message.replyToMessageId && withdrawnIds.has(message.replyToMessageId)))
-        .map((message) => ({ role: message.role, content: message.content }));
+        .map((message) => ({ role: message.role, content: message.content, sentAt: message.createdAt.toISOString() }));
     } catch {
       // Conversation history is helpful context, but a read failure must not block a reply.
     }
@@ -132,6 +132,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       recentMessages,
       relationshipStage: luciaContact?.relationshipStage,
       relationshipSummary: luciaContact?.relationshipSummary,
+      now: new Date(),
       memoryRepository: readableMemoryRepository,
     });
   } catch {
@@ -144,6 +145,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       recentMessages,
       relationshipStage: luciaContact?.relationshipStage,
       relationshipSummary: luciaContact?.relationshipSummary,
+      now: new Date(),
     });
   }
   const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();

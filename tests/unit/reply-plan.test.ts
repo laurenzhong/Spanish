@@ -96,6 +96,24 @@ describe("reply context and deterministic generation", () => {
     expect(deriveReplyOpenTopics(history)).toHaveLength(2);
   });
 
+  it("marks a previously answered topic as occurring on the same local day", async () => {
+    const context = await buildReplyContext({
+      generationId: "generation-time",
+      userId: "user-1",
+      userMessage: "¿Qué vas a comer para almorzar?",
+      now: new Date("2026-08-29T12:30:00.000Z"),
+      recentMessages: [
+        { role: "user", content: "¿Qué vas a comer para almorzar?", sentAt: "2026-08-29T10:00:00.000Z" },
+        { role: "character", content: "Todavía no lo he decidido.", sentAt: "2026-08-29T10:01:00.000Z" },
+      ],
+    });
+    expect(context.currentLocalDate).toBe("2026-08-29");
+    expect(context.conversationTimeZone).toBe("Europe/Madrid");
+    expect(context.openTopics).toEqual([
+      expect.objectContaining({ topicKey: "daily:meal", sameLocalDay: true, lastAskedAt: "2026-08-29T10:00:00.000Z" }),
+    ]);
+  });
+
   it("uses the readable memory projection and excludes rejected or conflicting facts", async () => {
     const listReadableMemories = vi.fn().mockResolvedValue([
       memory(),
