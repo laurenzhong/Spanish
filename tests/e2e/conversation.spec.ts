@@ -277,6 +277,13 @@ test("opens sent-message actions and marks a withdrawn message without memory te
   await page.goto("/chat/lucia");
   const message = page.locator(`[data-message-id="${messageId}"]`);
   await message.click({ button: "right" });
+  const messageMenu = page.getByRole("menu", { name: "你的消息操作" });
+  await expect(messageMenu).toBeVisible();
+  const menuBox = await messageMenu.boundingBox();
+  const viewport = page.viewportSize();
+  expect(menuBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect((menuBox?.x ?? 0) + (menuBox?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
   await expect(page.getByRole("menuitem", { name: "复制" })).toBeVisible();
   await page.getByRole("menuitem", { name: "引用回复" }).click();
   await expect(page.getByTestId("conversation-composer-quote")).toContainText("Me gusta el senderismo");

@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 import {
@@ -617,7 +618,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {!isNearBottom && state.messages.length > 0 ? <button className="conversation-thread__jump-bottom" type="button" onClick={scrollToBottom}>回到底部 ↓</button> : null}
       {hasNewProactiveMessage && !isNearBottom ? <button className="conversation-thread__new-proactive" type="button" onClick={scrollToBottom}>有一条新消息</button> : null}
 
-      {contextMenu && selectedMessage() ? (
+      {contextMenu && selectedMessage() && typeof document !== "undefined" ? createPortal(
         <div className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
           {selectedMessage()?.role === "character" ? (() => {
@@ -631,7 +632,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             <button type="button" role="menuitem" onClick={() => void withdrawMessage(selectedMessage()!)}>撤回</button>
             <button className="conversation-message-menu__danger" type="button" role="menuitem" onClick={() => void deleteMessage(selectedMessage()!)}>删除</button>
           </> : null}
-        </div>
+        </div>,
+        document.body,
       ) : null}
 
       {forwardingMessage ? (
