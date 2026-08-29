@@ -143,7 +143,12 @@ async function main(): Promise<void> {
   const cases = JSON.parse(await readFile(path.join(fixtureRoot, "cases.json"), "utf8")) as ReplayCase[];
   const limitArg = process.argv.find((arg) => arg.startsWith("--limit="));
   const limit = limitArg ? Math.max(1, Number(limitArg.slice("--limit=".length))) : cases.length;
-  const selectedCases = cases.slice(0, Number.isFinite(limit) ? limit : cases.length);
+  const casesArg = process.argv.find((arg) => arg.startsWith("--cases="));
+  const requestedIds = casesArg
+    ? new Set(casesArg.slice("--cases=".length).split(",").map((value) => value.trim()).filter(Boolean))
+    : null;
+  const selectedCases = (requestedIds ? cases.filter((item) => requestedIds.has(item.caseId)) : cases)
+    .slice(0, Number.isFinite(limit) ? limit : cases.length);
   const minimax = createMiniMaxConversationProvider();
   const openai = createOpenAIConversationProvider();
   const results: Result[] = [];
