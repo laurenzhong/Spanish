@@ -102,14 +102,18 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
 
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+    const close = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Node && contextMenuRef.current?.contains(target)) return;
+      setContextMenu(null);
     };
-    document.addEventListener("pointerdown", close);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
+    document.addEventListener("click", close);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("click", close);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [contextMenu]);
