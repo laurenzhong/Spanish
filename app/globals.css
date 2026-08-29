@@ -4220,20 +4220,6 @@ button {
   font-size: 9px;
 }
 
-.conversation-contact-row__menu-button {
-  width: 36px;
-  min-width: 36px;
-  min-height: 44px;
-  border: 0;
-  color: var(--conversation-faint);
-  background: transparent;
-  font-size: 14px;
-  letter-spacing: 2px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--motion-fast) ease, background-color var(--motion-fast) ease;
-}
-
 .conversation-contact-row__reorder-controls {
   display: flex;
   align-items: center;
@@ -4253,20 +4239,8 @@ button {
   cursor: pointer;
 }
 
-.conversation-contact-row__reorder-controls button:first-child { cursor: grab; font-size: 12px; letter-spacing: -2px; }
 .conversation-contact-row__reorder-controls button:hover,
 .conversation-contact-row__reorder-controls button:focus-visible { color: var(--conversation-action); background: color-mix(in srgb, var(--conversation-line) 35%, transparent); outline: none; }
-
-.conversation-contact-row-shell:hover .conversation-contact-row__menu-button,
-.conversation-contact-row__menu-button:focus-visible {
-  opacity: 1;
-}
-
-.conversation-contact-row__menu-button:hover,
-.conversation-contact-row__menu-button:focus-visible {
-  color: var(--conversation-action);
-  background: color-mix(in srgb, var(--conversation-line) 35%, transparent);
-}
 
 .conversation-contact-context-menu {
   position: fixed;

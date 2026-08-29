@@ -71,6 +71,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const suppressClick = useRef(false);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const [preferenceError, setPreferenceError] = useState(false);
   const [isManagingOrder, setIsManagingOrder] = useState(false);
   const [draggedCharacterKey, setDraggedCharacterKey] = useState<string | null>(null);
@@ -100,6 +101,14 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", handleKeyDown);
     };
+  }, [contextMenu]);
+
+  useEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+    const rect = contextMenuRef.current.getBoundingClientRect();
+    const x = Math.max(8, Math.min(contextMenu.x, window.innerWidth - rect.width - 8));
+    const y = Math.max(8, Math.min(contextMenu.y, window.innerHeight - rect.height - 8));
+    if (x !== contextMenu.x || y !== contextMenu.y) setContextMenu({ ...contextMenu, x, y });
   }, [contextMenu]);
 
   function preferenceFor(conversation: ConversationPreview): ConversationPreference {
@@ -161,11 +170,6 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     });
   }
 
-  function openContextMenuFromButton(event: React.MouseEvent<HTMLButtonElement>, characterKey: string) {
-    event.stopPropagation();
-    openContextMenu(event, characterKey);
-  }
-
   async function applyOrder(nextConversations: readonly ConversationPreview[]) {
     const order = nextConversations.map((conversation) => conversation.characterKey);
     const previous = preferences;
@@ -219,6 +223,8 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
             <div
               className="conversation-contact-row-shell"
               key={conversation.conversationId}
+              draggable={isManagingOrder}
+              onDragStart={() => { if (isManagingOrder) setDraggedCharacterKey(conversation.characterKey); }}
               onDragOver={(event) => { if (isManagingOrder) event.preventDefault(); }}
               onDrop={(event) => {
                 event.preventDefault();
@@ -273,21 +279,13 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
                 <button type="button" aria-label={`上移 ${conversation.characterName}`} onClick={() => moveCharacter(conversation.characterKey, -1)}>↑</button>
                 <button type="button" aria-label={`下移 ${conversation.characterName}`} onClick={() => moveCharacter(conversation.characterKey, 1)}>↓</button>
               </div> : null}
-              {!isManagingOrder ? <button
-                className="conversation-contact-row__menu-button"
-                type="button"
-                aria-label={`管理 ${conversation.characterName}`}
-                onClick={(event) => openContextMenuFromButton(event, conversation.characterKey)}
-              >
-                <span aria-hidden="true">•••</span>
-              </button> : null}
             </div>
           );
         })}
       </nav>
 
       {contextMenu && contextConversation && contextPreference ? (
-        <div className="conversation-contact-context-menu" role="menu" aria-label={`${contextConversation.characterName} 的好友操作`} style={{ left: contextMenu.x, top: contextMenu.y }} onPointerDown={(event) => event.stopPropagation()}>
+        <div ref={contextMenuRef} className="conversation-contact-context-menu" role="menu" aria-label={`${contextConversation.characterName} 的好友操作`} style={{ left: contextMenu.x, top: contextMenu.y }} onPointerDown={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => { updatePreference(contextConversation.characterKey, { isPinned: !contextPreference.isPinned }); setContextMenu(null); }}>
             {contextPreference.isPinned ? "取消置顶" : "置顶此好友"}
           </button>
