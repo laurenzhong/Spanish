@@ -4089,6 +4089,13 @@ button {
   line-height: 1.4;
 }
 
+.conversation-contact-rail__preference-notice {
+  margin: 0 5px 8px;
+  color: var(--conversation-focus);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 .conversation-contact-rail__manage-trigger,
 .conversation-contact-rail__manage-bar button {
   min-height: 32px;
@@ -4128,9 +4135,11 @@ button {
   min-width: 0;
   align-items: stretch;
   cursor: default;
+  user-select: none;
 }
 
 .conversation-contact-row-shell[data-drag-over="true"] { outline: 1px dashed var(--conversation-action); outline-offset: -2px; }
+.conversation-contact-row-shell[data-dragging="true"] { opacity: .72; }
 .conversation-contact-row-shell:active { cursor: grabbing; }
 
 .conversation-contact-row {
@@ -4230,6 +4239,14 @@ button {
   align-items: center;
   gap: 2px;
   padding-right: 3px;
+}
+
+.conversation-contact-row__reorder-hint {
+  align-self: center;
+  margin-right: 3px;
+  color: var(--conversation-faint);
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .conversation-contact-row__reorder-controls button {

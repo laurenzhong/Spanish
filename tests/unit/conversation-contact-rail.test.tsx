@@ -38,6 +38,8 @@ describe("ConversationContactRail", () => {
     expect(screen.getByRole("menu", { name: "Lucía Martín 的好友操作" })).toBeInTheDocument();
     await user.click(screen.getByRole("menuitem", { name: "取消置顶" }));
     expect(screen.queryByLabelText("已置顶")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("已取消置顶"));
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => typeof init?.body === "string" && init.body.includes('"isPinned":false'))).toBe(true);
 
     await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("link", { name: /Lucía Martín/ }) });
     await user.click(screen.getByRole("menuitem", { name: "静音通知" }));
@@ -46,6 +48,7 @@ describe("ConversationContactRail", () => {
     await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("link", { name: /Lucía Martín/ }) });
     await user.click(screen.getByRole("menuitem", { name: "标记为未读" }));
     expect(screen.getByRole("link", { name: /Lucía Martín .*未读.*已静音/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("已标记为未读"));
   });
 
   it("supports the desktop context menu gesture", async () => {

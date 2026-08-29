@@ -85,6 +85,7 @@
 - ALPHA-033 好友栏交互修正：移除好友行右侧三个点，普通状态保持干净；排序模式改为整行直接拖动，继续提供键盘上移/下移；右键菜单增加基于实际菜单尺寸的视口边界校正，避免滚动容器中定位偏移。实现 Commit：`d89faf2`；验证：好友栏 Vitest 5/5、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过。限制：尚未补充浏览器端真实拖动和触摸长按回归。
 - 好友栏直接拖动微调：好友行现在无需进入管理模式即可按住拖动，管理模式仍提供键盘上移/下移替代；移除右侧操作按钮后保持列表视觉简洁。实现 Commit：`7a39188`；验证：好友栏 Vitest 5/5、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过。
 - 好友栏拖动与菜单定位修复：改用 Pointer Events 处理整行鼠标拖动，避免链接元素拦截原生 draggable；右键/长按菜单改为联系人 rail 内部坐标，并依据实际尺寸和滚动位置校正边界。实现 Commit：`357dc65`；验证：好友栏 Vitest 5/5、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过。限制：浏览器端真实拖动/触摸长按仍需补充 E2E。
+- 好友栏交互可用性修复：拖动落点改用 ref 读取并补 Pointer Event 回归，整行拖动禁用链接原生拖拽；移除管理模式点状手柄，菜单置顶/静音/未读及顺序操作显示明确成功或边界反馈。实现 Commit：待提交；验证：联系人栏 Vitest 6/6、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过；仓库级 `pnpm lint` 通过。全量 `pnpm test --run` 首次因 Windows worker WebAssembly/ArrayBuffer 内存不足失败，单 worker 复跑未能在资源受限环境完成；不影响联系人栏局部回归。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
