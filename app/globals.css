@@ -4134,13 +4134,14 @@ button {
   display: flex;
   min-width: 0;
   align-items: stretch;
-  cursor: default;
+  cursor: grab;
   user-select: none;
 }
 
 .conversation-contact-row-shell[data-drag-over="true"] { outline: 1px dashed var(--conversation-action); outline-offset: -2px; }
 .conversation-contact-row-shell[data-dragging="true"] { opacity: .72; }
-.conversation-contact-row-shell:active { cursor: grabbing; }
+.conversation-contact-row-shell:active,
+.conversation-contact-row-shell[data-dragging="true"] { cursor: grabbing; }
 
 .conversation-contact-row {
   flex: 1 1 auto;

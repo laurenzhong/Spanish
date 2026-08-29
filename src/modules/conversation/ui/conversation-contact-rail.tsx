@@ -257,6 +257,8 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
         const [moved] = next.splice(from, 1);
         if (moved) next.splice(to, 0, moved);
         void applyOrder(next);
+      } else if (from >= 0 && to >= 0) {
+        setPreferenceNotice("置顶好友和普通好友分组排序，请在同一分组内拖动");
       }
     }
     dragState.current = null;
@@ -304,7 +306,12 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
                 if (!draggedCharacterKey || draggedCharacterKey === conversation.characterKey) return;
                 const from = visibleConversations.findIndex((item) => item.characterKey === draggedCharacterKey);
                 const to = visibleConversations.findIndex((item) => item.characterKey === conversation.characterKey);
-                if (from < 0 || to < 0 || preferenceFor(visibleConversations[from]!).isPinned !== preferenceFor(visibleConversations[to]!).isPinned) return;
+                if (from < 0 || to < 0) return;
+                if (preferenceFor(visibleConversations[from]!).isPinned !== preferenceFor(visibleConversations[to]!).isPinned) {
+                  setPreferenceNotice("置顶好友和普通好友分组排序，请在同一分组内拖动");
+                  setDraggedCharacterKey(null);
+                  return;
+                }
                 const next = [...visibleConversations];
                 const [moved] = next.splice(from, 1);
                 if (moved) next.splice(to, 0, moved);
