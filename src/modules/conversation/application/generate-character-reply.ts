@@ -28,7 +28,7 @@ function renderReply(context: ReplyContext, plan: ReplyPlan): string {
     return "Soy un personaje de IA, y me gusta hablar contigo con honestidad. ¿Qué te gustaría contarme?";
   }
   if (
-    context.openCommitments.some((commitment) => commitment.owner === "user" && commitment.status === "returned")
+    context.openCommitments.some((commitment) => commitment.owner === "user" && (commitment.status === "returned" || commitment.status === "completed"))
     && /\b(?:ya\s+(?:he\s+)?vuelto|ya\s+volvi|he\s+vuelto|estoy\s+de\s+vuelta|ya\s+termine|he\s+terminado)\b/iu.test(normalized)
   ) {
     return "Qué bien verte de vuelta 😊 ¿Qué tal ha ido la tarde haciendo fotos por el puerto?";

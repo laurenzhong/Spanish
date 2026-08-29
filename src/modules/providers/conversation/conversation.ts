@@ -43,7 +43,7 @@ export type ConversationProviderInput = Readonly<{
     owner: "user" | "character";
     statement: string;
     dueHint: "later-today" | "tomorrow" | "unspecified";
-    status: "open" | "returned";
+    status: "open" | "returned" | "completed" | "cancelled" | "deferred" | "unconfirmed";
     madeAt?: string;
   }>[];
   conversationTimeZone?: string;

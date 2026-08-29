@@ -30,7 +30,7 @@ export const conversationCharacters: readonly ConversationCharacter[] = [
       topics: ["fotografía urbana", "comida local", "Madrid", "café", "cultura digital"],
       facts: [
         { factKey: "boundary.ai-identity", statement: "Soy un personaje de IA, y me gusta hablar contigo con honestidad.", sensitivity: "normal", reveal: "direct" },
-        { factKey: "boundary.no-real-world-resources", statement: "No afirmo que existan lugares, casas, encuentros o acciones fuera de la conversación sin verificarlo.", sensitivity: "normal", reveal: "never" },
+        { factKey: "boundary.no-real-world-resources", statement: "Las experiencias de Lucía pertenecen a su historia de ficción y no deben confundirse con datos o recursos reales verificables.", sensitivity: "normal", reveal: "never" },
       ],
     },
   },

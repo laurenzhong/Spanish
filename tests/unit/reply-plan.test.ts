@@ -207,6 +207,40 @@ describe("reply context and deterministic generation", () => {
     ]);
   });
 
+  it.each([
+    ["Ya he terminado.", "completed"],
+    ["Al final no fui.", "cancelled"],
+    ["Lo dejo para mañana.", "deferred"],
+  ] as const)("maps an explicit plan outcome to %s", async (outcome, status) => {
+    const context = await buildReplyContext({
+      generationId: `generation-${status}`,
+      userId: "user-1",
+      userMessage: "¿Qué tal?",
+      recentMessages: [
+        { role: "user", content: "Esta tarde voy al puerto a hacer fotos.", sentAt: "2026-08-29T12:00:00.000Z" },
+        { role: "user", content: outcome, sentAt: "2026-08-29T18:00:00.000Z" },
+      ],
+    });
+    expect(context.openCommitments).toEqual([
+      expect.objectContaining({ status }),
+    ]);
+  });
+
+  it("marks an overdue plan unconfirmed without claiming it happened", async () => {
+    const context = await buildReplyContext({
+      generationId: "generation-unconfirmed",
+      userId: "user-1",
+      userMessage: "¿Qué tal?",
+      now: new Date("2026-08-30T12:00:00.000Z"),
+      recentMessages: [
+        { role: "user", content: "Esta tarde voy al puerto a hacer fotos.", sentAt: "2026-08-29T12:00:00.000Z" },
+      ],
+    });
+    expect(context.openCommitments).toEqual([
+      expect.objectContaining({ status: "unconfirmed" }),
+    ]);
+  });
+
   it("uses the readable memory projection and excludes rejected or conflicting facts", async () => {
     const listReadableMemories = vi.fn().mockResolvedValue([
       memory(),

@@ -53,8 +53,8 @@ export type ReplyCommitment = Readonly<{
   owner: "user" | "character";
   statement: string;
   dueHint: "later-today" | "tomorrow" | "unspecified";
-  /** `open` means the plan is pending; `returned` means the user reported coming back/finishing. */
-  status: "open" | "returned";
+  /** Lifecycle state; `unconfirmed` means its due window passed without a clear outcome. */
+  status: "open" | "returned" | "completed" | "cancelled" | "deferred" | "unconfirmed";
   madeAt?: string;
 }>;
 
@@ -235,23 +235,74 @@ function commitmentDueHint(value: string): ReplyCommitment["dueHint"] {
   return "unspecified";
 }
 
+const returnSignalPattern = /\b(?:ya\s+(?:he\s+)?vuelto|ya\s+volvi|he\s+vuelto|estoy\s+de\s+vuelta)\b/iu;
+const completionSignalPattern = /\b(?:ya\s+(?:lo\s+)?he\s+hecho|ya\s+termine|he\s+terminado|ya\s+esta\s+hecho|ya\s+estan\s+hechas?|ya\s+hice|he\s+podido\s+hacerlo)\b/iu;
+const cancellationSignalPattern = /\b(?:al\s+final\s+no\s+(?:fui|pude|lo\s+hice)|no\s+pude\s+(?:ir|hacerlo)|no\s+fui|lo\s+cancele|se\s+cancelo|lo\s+he\s+cancelado)\b/iu;
+const deferralSignalPattern = /\b(?:lo\s+dejo\s+para\s+manana|lo\s+pospongo|otro\s+dia|al\s+final\s+ire\s+manana|se\s+me\s+ha\s+hecho\s+tarde)\b/iu;
+
+function lifecycleSignal(value: string): ReplyCommitment["status"] | null {
+  const normalized = normalizedTopicText(value);
+  if (cancellationSignalPattern.test(normalized)) return "cancelled";
+  if (deferralSignalPattern.test(normalized)) return "deferred";
+  if (completionSignalPattern.test(normalized)) return "completed";
+  if (returnSignalPattern.test(normalized)) return "returned";
+  return null;
+}
+
+function markLatestOpenUserPlan(
+  commitments: Map<string, ReplyCommitment>,
+  userPlanKeys: readonly string[],
+  status: Exclude<ReplyCommitment["status"], "open" | "unconfirmed">,
+): void {
+  for (let index = userPlanKeys.length - 1; index >= 0; index -= 1) {
+    const planKey = userPlanKeys[index];
+    const plan = planKey ? commitments.get(planKey) : undefined;
+    if (plan?.status === "open") {
+      commitments.set(planKey, { ...plan, status });
+      return;
+    }
+  }
+}
+
+function dueWindowElapsed(commitment: ReplyCommitment, now: Date, timeZone: string): boolean {
+  if (commitment.status !== "open" || !commitment.madeAt) return false;
+  const madeAt = new Date(commitment.madeAt);
+  if (Number.isNaN(madeAt.getTime())) return false;
+  const nowMs = now.getTime();
+  if (nowMs <= madeAt.getTime()) return false;
+  const madeDate = localDateFor(madeAt, timeZone);
+  const currentDate = localDateFor(now, timeZone);
+  if (!madeDate || !currentDate) return false;
+  const elapsedHours = (nowMs - madeAt.getTime()) / 3_600_000;
+  if (commitment.dueHint === "later-today") return currentDate !== madeDate || elapsedHours >= 12;
+  if (commitment.dueHint === "tomorrow") return currentDate > madeDate || elapsedHours >= 36;
+  return elapsedHours >= 24;
+}
+
+function markUnconfirmedCommitments(
+  commitments: readonly ReplyCommitment[],
+  now: Date,
+  timeZone: string,
+): readonly ReplyCommitment[] {
+  return commitments.map((commitment) => dueWindowElapsed(commitment, now, timeZone)
+    ? { ...commitment, status: "unconfirmed" }
+    : commitment);
+}
+
 /** Extracts explicit, low-pressure promises that can be followed up later. */
-export function deriveReplyCommitments(messages: readonly ReplyContextMessage[]): readonly ReplyCommitment[] {
+export function deriveReplyCommitments(
+  messages: readonly ReplyContextMessage[],
+  options: Readonly<{ now?: Date; timeZone?: string }> = {},
+): readonly ReplyCommitment[] {
   const commitments = new Map<string, ReplyCommitment>();
   const userPlanKeys: string[] = [];
   for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
     const message = messages[messageIndex];
     if (!message) continue;
     const normalized = normalizedTopicText(message.content);
-    if (message.role === "user" && returnSignalPattern.test(normalized)) {
-      for (let index = userPlanKeys.length - 1; index >= 0; index -= 1) {
-        const planKey = userPlanKeys[index];
-        const plan = planKey ? commitments.get(planKey) : undefined;
-        if (plan?.status === "open") {
-          commitments.set(planKey, { ...plan, status: "returned" });
-          break;
-        }
-      }
+    if (message.role === "user") {
+      const status = lifecycleSignal(normalized);
+      if (status) markLatestOpenUserPlan(commitments, userPlanKeys, status as Exclude<ReplyCommitment["status"], "open" | "unconfirmed">);
     }
     const explicitCommitment = /(?:te cuento|te digo|te escribo|te aviso|te mando|te paso)/u.test(normalized)
       && /(?:luego|despues|esta tarde|esta noche|manana|cuando vuelva|cuando termine|mas tarde)/u.test(normalized);
@@ -270,17 +321,18 @@ export function deriveReplyCommitments(messages: readonly ReplyContextMessage[])
     });
     if (ordinaryUserPlan) userPlanKeys.push(commitmentKey);
   }
-  return [...commitments.values()].slice(-8);
+  const now = options.now ?? new Date();
+  const timeZone = options.timeZone ?? luciaConversationTimeZone;
+  return markUnconfirmedCommitments([...commitments.values()].slice(-8), now, timeZone);
 }
-
-const returnSignalPattern = /\b(?:ya\s+(?:he\s+)?vuelto|ya\s+volvi|he\s+vuelto|estoy\s+de\s+vuelta|ya\s+termine|he\s+terminado|acabo\s+de\s+terminar)\b/iu;
 
 /** Advances the most recent pending user plan when the current message reports a return/completion. */
 export function advanceReplyCommitments(
   commitments: readonly ReplyCommitment[],
   currentUserMessage: string,
 ): readonly ReplyCommitment[] {
-  if (!returnSignalPattern.test(normalizedTopicText(currentUserMessage))) return commitments;
+  const status = lifecycleSignal(currentUserMessage);
+  if (!status || status === "open" || status === "unconfirmed") return commitments;
   let targetIndex = -1;
   for (let index = commitments.length - 1; index >= 0; index -= 1) {
     const commitment = commitments[index];
@@ -291,7 +343,7 @@ export function advanceReplyCommitments(
     }
   }
   if (targetIndex < 0) return commitments;
-  return commitments.map((commitment, index) => index === targetIndex ? { ...commitment, status: "returned" } : commitment);
+  return commitments.map((commitment, index) => index === targetIndex ? { ...commitment, status } : commitment);
 }
 
 function budgetRecentMessages(
@@ -334,9 +386,13 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
     rollingSummary: input.rollingSummary?.trim() || null,
     openTopics: input.openTopics ?? deriveReplyOpenTopics(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
     characterClaims: input.characterClaims ?? deriveReplyCharacterClaims(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
-    openCommitments: advanceReplyCommitments(
-      input.openCommitments ?? deriveReplyCommitments(input.recentMessages ?? []),
-      input.userMessage,
+    openCommitments: markUnconfirmedCommitments(
+      advanceReplyCommitments(
+        input.openCommitments ?? deriveReplyCommitments(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
+        input.userMessage,
+      ),
+      now,
+      conversationTimeZone,
     ),
     conversationTimeZone,
     currentLocalDate,

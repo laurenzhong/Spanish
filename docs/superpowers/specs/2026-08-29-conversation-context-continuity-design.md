@@ -93,7 +93,7 @@ type ConversationContextSnapshot = {
     stage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
     summary: string | null;
     recentSignals: Array<"shared-detail" | "accepted-care" | "requested-space" | "repair-needed" | "affection-received">;
-    boundaries: Array<"low-pressure" | "no-investigative-questions" | "slow-affection" | "no-real-world-claims">;
+    boundaries: Array<"low-pressure" | "no-investigative-questions" | "slow-affection" | "no-unverified-real-world-resources">;
   };
 };
 ```
@@ -173,10 +173,10 @@ provider 的 system prompt 只说明如何表达：
 - 不重复 `answered` 话题的相同问答；
 - 关系状态和开放话题是上下文事实，不要把内部字段说给用户；
 - 用户未询问 AI 身份时不要主动插入身份声明，直接询问时如实回答。
-- 涉及角色是否亲自去过现实地点时，保持现实边界但不要用 AI 身份打断聊天；可以自然说“我没去过那里”，再接一个具体兴趣点。
+- 涉及角色是否亲自去过现实地点时，允许使用已建立的剧情经历或“听说过”的间接信息；没有对应人物事实时，可以自然说“我没去过那里”，再接一个具体兴趣点。不要把虚构经历包装成可验证的现实资源、地址或线下安排。
 - 私聊表达优先使用普通句号和问号，避免冒号引导的说明句与书面化分号串联。
 
-服务端安全门禁继续负责身份声明、问题压力、产品化用词、虚构现实行动和其他硬不变量。提示词不是安全边界。
+服务端安全门禁继续负责身份声明、问题压力、产品化用词、未经验证的现实资源/线下安排和其他硬不变量。剧情世界中的人物经历由人物圣经和关系记忆保持一致；提示词不是安全边界。
 
 ## 8. 错误、降级与隐私
 

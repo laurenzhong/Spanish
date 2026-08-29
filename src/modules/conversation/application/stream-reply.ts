@@ -146,7 +146,7 @@ export async function* streamReply(
           estimatedCostMicros: replyResult.estimatedCostMicros,
           errorType: "safety-gate",
         });
-        const returnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && commitment.status === "returned");
+        const returnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && (commitment.status === "returned" || commitment.status === "completed"));
         generationContext = {
           ...context,
           ...(returnedPlan || (context.questionPolicy && context.questionPolicy.maxQuestionPressure !== "none")
@@ -305,8 +305,8 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
 }
 
 function isPreReturnWishAfterReturn(context: ReplyContext, text: string): boolean {
-  const hasReturnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && commitment.status === "returned");
-  if (!hasReturnedPlan) return false;
+  const hasFinishedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && (commitment.status === "returned" || commitment.status === "completed"));
+  if (!hasFinishedPlan) return false;
   const normalized = text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/gu, "")
