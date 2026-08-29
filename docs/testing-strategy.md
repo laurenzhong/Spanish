@@ -34,6 +34,7 @@
 - 固定 fake adapters：默认测试不调用收费供应商。
 - 词语解释 provider 必须用 fake fetch 覆盖词语/句子 `selectionType` 请求字段、MiniMax M3 响应 Schema、`stream: true`、多段 `delta`、最终 `done`、鉴权/限流/超时/取消、异常断流和无效 JSON；阅读器组件/E2E 通过本站接口拦截验证常用词命中时不调用 API、未命中词和拖选句子的 loading、增量预览、成功和可恢复失败状态，不能触发真实收费调用。
 - 每个角色对话 provider adapter 必须用 fake fetch 覆盖隐私过滤上下文、各自响应 Schema、鉴权/限流/超时/取消、无效响应和请求 ID；契约只断言统一内部结果，不调用真实收费 API。对话流测试必须确认 provider 文本仍只在 `done` 后持久化；失败/取消只产生错误事件，不生成 fallback 角色文本、完整助手消息或关系记忆。
+- 对话流还必须覆盖 safety-gate 拦截：问题压力或身份声明越界时记录 `safety-gate` 观测并发送可恢复错误，不持久化被拒绝文本；低压力 reciprocal question 在策略允许时应通过。
 - 对话消息操作必须覆盖用户所有权校验、复制/引用菜单可访问性、删除与撤回的幂等和过期撤回；撤回后消息不得进入搜索、角色上下文、关系记忆或学习证据，回复流竞态也必须覆盖。
 - 对话工作区必须覆盖真实会话列表 DTO（只返回当前用户会话、最后消息摘要和时间）、无会话/数据库不可用状态、历史加载 skeleton、长列表上滑不被强制滚动和移动端可访问消息操作。语音 composer 必须覆盖录音取消、转写中止/超时、空转写、provider 失败、过期回调和“确认后才发送”；转写音频不得进入持久化或学习证据。
 - OpenAPI/JSON Schema 与共同 JSON fixtures：TypeScript/Dart 协议和状态语义一致性。

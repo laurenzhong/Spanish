@@ -440,6 +440,7 @@ Flutter 的 `AudioRecorder` 和 `TextToSpeech` 端口继续位于 `apps/mobile/l
 - 无 `done` 异常断流率。
 - 记忆冲突和越权共享拦截次数。
 - 每次有效训练和聊天的供应商成本。
+- 对话 provider 安全门禁拦截率（按 provider、关系阶段和回复意图统计），用于判断是否需要调整 prompt 或增加受控重生成；门禁结果只记录稳定错误分类，不保存被拒绝的完整文本。
 
 7.5a 已落地 `provider_calls` 的 `request_id`、`session_id`、`attempt_id`、`conversation_id`、`generation_id` 和 `error_type` 字段，并为 request/attempt 建立诊断查询索引。记录只保存结构化供应商元数据，不保存音频、完整对话或供应商响应正文。
 
