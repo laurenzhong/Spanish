@@ -11,7 +11,7 @@ import {
   generateCharacterReply,
 } from "./generate-character-reply";
 import type { ReplyContext } from "./build-reply-context";
-import { planReply } from "../domain/reply-plan";
+import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 import { getConversationCharacter } from "../domain/character-catalog";
 
 export type StreamReplyProviderObservation = Readonly<{
@@ -248,5 +248,17 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
     characterTopics: context.character.topics,
     teachingOpportunity: context.teachingOpportunity ?? undefined,
   });
-  return plan.intent !== "identity-disclosure" || /\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized);
+  if (plan.intent === "identity-disclosure" && !/\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
+  if (plan.intent !== "identity-disclosure" && /\b(?:soy|somos|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
+  return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: context.userMessage }));
+}
+
+function questionPolicyAllows(text: string, policy: QuestionPolicy): boolean {
+  const questions = text.match(/¿[^?]*\?/gu) ?? [];
+  const reciprocal = questions.filter((question) => /\b(?:y tu|y tú|tu que|tú qué|y usted)\b/iu.test(question.normalize("NFD").replace(/[\u0300-\u036f]/gu, "")));
+  const substantiveCount = questions.length - reciprocal.length;
+  if (substantiveCount > policy.maxSubstantiveQuestions) return false;
+  if (!policy.allowReciprocalQuestion && reciprocal.length > 0) return false;
+  if (policy.maxQuestionPressure === "none" && questions.length > 0) return false;
+  return true;
 }

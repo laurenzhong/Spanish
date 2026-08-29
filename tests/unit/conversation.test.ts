@@ -247,6 +247,59 @@ describe("fake conversation reply", () => {
     expect(events.at(-1)).toMatchObject({ type: "error", code: "stream-failed", retryable: false });
   });
 
+  it("rejects an unsolicited AI disclaimer during an affection disclosure", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({
+        text: "Me alegra que me lo digas, pero recuerda que soy un personaje de IA.",
+        provider: "openai" as const,
+        modelVersion: "gpt-5.6-sol",
+        providerRequestId: null,
+        latencyMs: 1,
+        estimatedCostMicros: null,
+      }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia",
+      characterVersion: 1,
+      text: "Creo que me gustas.",
+      clientMessageId: "client-1",
+      generationId: "generation-1",
+      messageId: "message-1",
+      replyProvider: provider,
+      wait: async () => {},
+    })) events.push(event);
+    expect(events.some((event) => event.type === "delta")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });
+  });
+
+  it("allows a low-pressure reciprocal question but blocks investigative questions in support", async () => {
+    const makeProvider = (text: string) => ({
+      generate: vi.fn().mockResolvedValue({
+        text,
+        provider: "openai" as const,
+        modelVersion: "gpt-5.6-sol",
+        providerRequestId: null,
+        latencyMs: 1,
+        estimatedCostMicros: null,
+      }),
+    });
+    const reciprocalEvents = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué haces?", clientMessageId: "client-1", generationId: "generation-1", messageId: "message-1",
+      replyProvider: makeProvider("Estoy desayunando tranquilamente. ¿Y tú qué?"), wait: async () => {},
+    })) reciprocalEvents.push(event);
+    expect(reciprocalEvents.at(-1)).toMatchObject({ type: "done" });
+
+    const supportEvents = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Hoy he tenido un día difícil.", clientMessageId: "client-2", generationId: "generation-2", messageId: "message-2",
+      replyProvider: makeProvider("Lo siento. ¿Quieres contarme qué pasó?"), wait: async () => {},
+    })) supportEvents.push(event);
+    expect(supportEvents.some((event) => event.type === "delta")).toBe(false);
+    expect(supportEvents.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });
+  });
+
   it("answers a wellbeing question instead of using the generic greeting", async () => {
     const events = [];
     for await (const event of streamReply({
