@@ -34,6 +34,11 @@ type UserAvatarProfile = Readonly<{
   avatar: Readonly<{ url: string | null; initials: string; colorIndex: number }>;
 }>;
 
+type MessageTranslation =
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "success"; text: string }>
+  | Readonly<{ status: "error"; message: string }>;
+
 function createId(prefix: string): string {
   const uuid = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `${prefix}-${uuid}`;
@@ -51,6 +56,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [draft, setDraft] = useState("");
   const [quotedMessage, setQuotedMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
+  const [translations, setTranslations] = useState<Record<string, MessageTranslation>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
@@ -59,6 +65,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [showMobileConversations, setShowMobileConversations] = useState(false);
   const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const translationAbortRef = useRef<AbortController | null>(null);
+  const translationRequestIdRef = useRef(0);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowRef = useRef(true);
   const isNearBottomRef = useRef(true);
@@ -143,7 +151,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     };
   }, [targetMessageId, state.messages.length]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    translationAbortRef.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -354,19 +365,20 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function openMessageMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (message.role !== "user" || message.withdrawn) return;
+    if (message.withdrawn || !message.text || !message.complete) return;
     event.preventDefault();
     event.stopPropagation();
     const menuWidth = 176;
-    const menuHeight = 230;
+    const menuHeight = message.role === "character" ? 140 : 230;
     setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8)) });
   }
 
   function openMessageMenuFromKeyboard(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if ((event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) && message.role === "user" && !message.withdrawn) {
+    if ((event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) && !message.withdrawn && message.text && message.complete) {
       event.preventDefault();
       const rect = event.currentTarget.getBoundingClientRect();
-      setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.left, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) });
+      const menuHeight = message.role === "character" ? 140 : 240;
+      setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.left, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menuHeight)) });
     }
   }
 
@@ -380,13 +392,16 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (message.role === "user") {
-      openMessageMenu(event, message);
-      return;
+    if (message.text && message.complete && !message.withdrawn) openMessageMenu(event, message);
+    else if (message.createdAt) {
+      event.preventDefault();
+      toggleMessageTimestamp(message.id);
     }
-    if (!message.createdAt) return;
-    event.preventDefault();
-    toggleMessageTimestamp(message.id);
+  }
+
+  function handleMessageDoubleClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
+    if (!message.text || !message.complete || message.withdrawn) return;
+    openMessageMenu(event, message);
   }
 
   function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
@@ -414,6 +429,44 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   function quoteMessage(message: ConversationState["messages"][number]) {
     setQuotedMessage(message);
     setContextMenu(null);
+  }
+
+  async function translateMessage(message: ConversationState["messages"][number]) {
+    setContextMenu(null);
+    translationAbortRef.current?.abort();
+    const controller = new AbortController();
+    translationAbortRef.current = controller;
+    const requestId = ++translationRequestIdRef.current;
+    setTranslations((current) => ({ ...current, [message.id]: { status: "loading" } }));
+    try {
+      const response = await fetch("/api/v1/read/word-explanation", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json, application/x-ndjson" },
+        body: JSON.stringify({ word: message.text, context: message.text, locale: "es-ES", selectionType: "sentence" }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error("translation-failed");
+      const contentType = response.headers.get("content-type") ?? "";
+      let translated = "";
+      if (contentType.includes("ndjson") && response.body) {
+        const raw = await response.text();
+        for (const line of raw.split("\n")) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as { type?: string; explanation?: { contextualMeaning?: string; meaning?: string } };
+          if (event.type === "done") translated = event.explanation?.contextualMeaning ?? event.explanation?.meaning ?? "";
+        }
+      } else {
+        const payload = await response.json() as { data?: { contextualMeaning?: string; meaning?: string } };
+        translated = payload.data?.contextualMeaning ?? payload.data?.meaning ?? "";
+      }
+      if (!translated.trim()) throw new Error("translation-empty");
+      if (requestId === translationRequestIdRef.current) setTranslations((current) => ({ ...current, [message.id]: { status: "success", text: translated } }));
+    } catch {
+      if (controller.signal.aborted || requestId !== translationRequestIdRef.current) return;
+      setTranslations((current) => ({ ...current, [message.id]: { status: "error", message: "翻译暂时不可用，请稍后重试。" } }));
+    } finally {
+      if (translationAbortRef.current === controller) translationAbortRef.current = null;
+    }
   }
 
   function beginForward(message: ConversationState["messages"][number]) {
@@ -507,6 +560,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           const showTimestamp = Boolean(message.createdAt && (dayChanged || gapExceeded));
           const timestampExpanded = expandedTimestampId === message.id;
           const timestampValue = message.createdAt;
+          const translation = message.role === "character" ? translations[message.id] : undefined;
           return <Fragment key={message.id}>
           {(showTimestamp || timestampExpanded) && timestampValue ? <time className={`conversation-thread__timestamp${timestampExpanded ? " conversation-thread__timestamp--exact" : ""}`} dateTime={timestampValue}>
             {timestampExpanded ? formatFullTimestamp(timestampValue) : formatConversationTimestamp(timestampValue, dayChanged)}
@@ -521,6 +575,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             aria-live={message.role === "character" && message.id === state.activeMessageId ? "polite" : undefined}
             onClick={() => handleMessageClick(message)}
             onContextMenu={(event) => handleMessageContextMenu(event, message)}
+            onDoubleClick={(event) => handleMessageDoubleClick(event, message)}
             onKeyDown={(event) => handleMessageKeyDown(event, message)}
             tabIndex={message.createdAt ? 0 : undefined}
           >
@@ -536,6 +591,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
                 <div className="conversation-message__text">{message.withdrawn ? "你撤回了一条消息" : message.text || "…"}</div>
                 {message.role === "user" && !message.withdrawn ? <button className="conversation-message__more" type="button" aria-label="消息操作" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) }); }}>•••</button> : null}
               </div>
+              {translation ? <div className="conversation-message__translation" aria-live="polite">
+                {translation.status === "loading" ? "正在翻译……" : translation.status === "error" ? <button type="button" onClick={() => void translateMessage(message)}>{translation.message}</button> : translation.text}
+              </div> : null}
               {message.role === "character" && !message.complete && state.status !== "streaming" ? <span className="conversation-message__hint">这条回复没有完整送达</span> : null}
             </div>
           </article>
@@ -546,12 +604,15 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {hasNewProactiveMessage && !isNearBottom ? <button className="conversation-thread__new-proactive" type="button" onClick={scrollToBottom}>有一条新消息</button> : null}
 
       {contextMenu && selectedMessage() ? (
-        <div className="conversation-message-menu" role="menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
+        <div className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
+          {selectedMessage()?.role === "character" ? <button type="button" role="menuitem" onClick={() => void translateMessage(selectedMessage()!)}>翻译</button> : null}
           <button type="button" role="menuitem" onClick={() => quoteMessage(selectedMessage()!)}>引用回复</button>
-          <button type="button" role="menuitem" onClick={() => beginForward(selectedMessage()!)}>转发</button>
-          <button type="button" role="menuitem" onClick={() => void withdrawMessage(selectedMessage()!)}>撤回</button>
-          <button className="conversation-message-menu__danger" type="button" role="menuitem" onClick={() => void deleteMessage(selectedMessage()!)}>删除</button>
+          {selectedMessage()?.role === "user" ? <>
+            <button type="button" role="menuitem" onClick={() => beginForward(selectedMessage()!)}>转发</button>
+            <button type="button" role="menuitem" onClick={() => void withdrawMessage(selectedMessage()!)}>撤回</button>
+            <button className="conversation-message-menu__danger" type="button" role="menuitem" onClick={() => void deleteMessage(selectedMessage()!)}>删除</button>
+          </> : null}
         </div>
       ) : null}
 

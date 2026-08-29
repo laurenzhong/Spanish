@@ -287,3 +287,31 @@ test("opens sent-message actions and marks a withdrawn message without memory te
   await expect(message).toContainText("你撤回了一条消息");
   await expect(page.getByText("不会用于记忆或学习数据")).toBeVisible();
 });
+
+test("opens friend-message actions on double click and translates inline", async ({ page }) => {
+  await authenticate(page);
+  const messageId = "00000000-0000-4000-8000-000000000124";
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { characterKey: "lucia", messages: [{ id: messageId, role: "character", text: "Nos vemos mañana.", complete: true }] } }),
+    });
+  });
+  await page.route("**/api/v1/read/word-explanation", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { contextualMeaning: "明天见。" } }),
+    });
+  });
+  await page.goto("/chat/lucia");
+  const message = page.locator(`[data-message-id="${messageId}"]`);
+  await message.dblclick();
+  await expect(page.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "复制" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "翻译" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "引用回复" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "翻译" }).click();
+  await expect(message).toContainText("明天见。", { timeout: 5_000 });
+});

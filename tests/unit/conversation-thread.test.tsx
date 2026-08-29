@@ -112,6 +112,55 @@ describe("ChatThread persistence status", () => {
     expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
   });
 
+  it("opens friend-message actions on right click with copy, translate, and quote only", async () => {
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "friend-1", role: "character", text: "¿Quieres tomar un café?", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      return historyResponse;
+    });
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+
+    const message = await screen.findByText("¿Quieres tomar un café?");
+    fireEvent.contextMenu(message.closest("article")!);
+    expect(screen.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "复制" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "翻译" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "引用回复" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "撤回" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "删除" })).not.toBeInTheDocument();
+  });
+
+  it("translates a friend message inline and opens the same menu on double click", async () => {
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "friend-2", role: "character", text: "Nos vemos mañana.", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (String(input) === "/api/v1/read/word-explanation") {
+        return {
+          ok: true,
+          headers: new Headers([["content-type", "application/json"]]),
+          json: async () => ({ data: { contextualMeaning: "明天见。" } }),
+        } as Response;
+      }
+      return historyResponse;
+    });
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+
+    const message = await screen.findByText("Nos vemos mañana.");
+    fireEvent.doubleClick(message.closest("article")!);
+    expect(screen.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "翻译" }));
+    expect(await screen.findByText("明天见。")).toBeInTheDocument();
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith("/api/v1/read/word-explanation", expect.objectContaining({ method: "POST" }));
+  });
+
   it("refreshes on focus and shows a prompt for a new proactive message when reading older messages", async () => {
     let historyCalls = 0;
     const historyResponse = (messages: readonly object[]) => ({

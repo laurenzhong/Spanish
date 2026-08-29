@@ -4494,6 +4494,28 @@ button {
   overflow-wrap: anywhere;
 }
 
+.conversation-message__translation {
+  margin-top: 6px;
+  padding: 7px 10px;
+  border-left: 2px solid var(--conversation-accent);
+  color: var(--conversation-ink-soft);
+  background: color-mix(in srgb, var(--conversation-action-soft) 45%, transparent);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.conversation-message__translation button {
+  padding: 0;
+  border: 0;
+  color: var(--conversation-action);
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .conversation-message__more {
   display: none;
   position: absolute;
