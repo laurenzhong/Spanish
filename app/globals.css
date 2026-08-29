@@ -4589,6 +4589,10 @@ button {
   border: 1px solid #d8ded9;
   border-radius: 7px;
   background: #fff;
+  background-color: #fff;
+  opacity: 1;
+  backdrop-filter: none;
+  isolation: isolate;
   box-shadow: 0 12px 32px rgb(31 45 38 / 18%);
 }
 
