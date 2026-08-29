@@ -102,7 +102,7 @@
 - 好友切换回归修复：拖动后的点击抑制标记改为按好友 key 隔离，避免拖动一行后误拦截其他好友的聊天切换；真实浏览器验证拖动后点击 Inés 可进入 `/chat/ines`。实现 Commit：`c778fc2`；验证：联系人栏 Vitest 6/6、受影响文件 ESLint 通过。限制：全量类型检查仍受其他代理未提交的对话 provider 改动阻断。
 - 好友普通点击兼容修复：仅在鼠标移动超过拖动阈值后调用 Pointer Capture，普通 `pointerdown` 不再抢占链接目标；真实浏览器验证直接点击 Inés 可进入 `/chat/ines`。实现 Commit：`5c01c41`；验证：联系人栏 Vitest 6/6、受影响文件 ESLint、`git diff --check` 通过。限制：全量类型检查仍受其他代理未提交的对话 provider 改动阻断。
 - 好友顺序缓存一致性修复：顺序/置顶保存成功后同步更新联系人列表缓存，避免切换聊天或组件重新挂载时旧缓存覆盖已保存顺序；新增卸载后重新渲染回归断言。实现 Commit：`c4896ed`；验证：联系人栏 Vitest 6/6、仓库级 `pnpm lint`、`pnpm exec tsc --noEmit`、`git diff --check` 通过。
-- 好友消息操作菜单：好友消息支持右键与双击打开独立菜单，仅提供复制、翻译、引用回复；翻译调用现有词语解释接口并在气泡下展开，支持加载、失败重试与取消/过期请求保护；自己的消息菜单保持复制、引用、转发、撤回、删除。实现 Commit：`a08ee0a`；修改 `src/modules/conversation/ui/chat-thread.tsx`、`app/globals.css`、对话单测与 Playwright 回归。验证：对话线程 Vitest 12/12、好友消息 Playwright 桌面/移动 2/2、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过。限制：翻译依赖服务端词语解释 provider 与登录会话，未配置 provider 时显示可重试错误；未同步 Flutter 消息操作 UI。下一步：发布候选门禁稳定后补 Flutter 对话操作和跨端一致性回归。
+- 好友消息操作菜单：好友消息支持右键与双击打开独立菜单，仅提供复制、翻译、引用回复；翻译调用现有词语解释接口并在气泡下展开，支持加载、失败重试与取消/过期请求保护；自己的消息菜单保持复制、引用、转发、撤回、删除。实现 Commit：`a08ee0a`、`5d9e40a`；修改 `src/modules/conversation/ui/chat-thread.tsx`、`app/globals.css`、对话单测与 Playwright 回归。验证：对话线程 Vitest 12/12、好友消息 Playwright 桌面/移动 2/2、受影响文件 ESLint、`pnpm exec tsc --noEmit`、`git diff --check` 通过。限制：翻译依赖服务端词语解释 provider 与登录会话，未配置 provider 时显示可重试错误；未同步 Flutter 消息操作 UI。下一步：发布候选门禁稳定后补 Flutter 对话操作和跨端一致性回归。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
