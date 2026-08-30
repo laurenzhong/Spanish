@@ -106,6 +106,7 @@
 - 聊天输入框语言标记：为 `VoiceComposer` 的文本输入框增加 `lang="es"`，让浏览器拼写检查使用西班牙语词典，避免中文词典误标西语单词。实现 Commit：`efd3eaf`；验证：VoiceComposer Vitest 2/2、受影响文件 ESLint、`tsc --noEmit` 通过。限制：最终是否显示波浪线仍取决于用户浏览器是否安装西语词典。
 - 验证码登录回跳修复：OTP 验证成功后在站内跳转同时调用 `router.refresh()`，使 Next.js 服务端组件和认证门禁重新读取刚写入的 Supabase 会话，避免从匿名 `/login?next=...` 进入产品页时复用未登录缓存再次跳回登录。实现 Commit：`c5fa2bf`；验证：认证相关 Vitest 20/20、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。限制：当前网络对 Supabase Auth 的 HTTPS 请求仍返回 `ECONNRESET`，服务端无法访问认证服务时需先恢复网络。
 - 认证服务暂时不可达的回跳循环修复：Proxy 标记 Auth 检查失败时，产品布局显示可恢复的“暂时无法验证登录”状态并保留目标路径；真正匿名请求仍重定向到 `/login`。实现 Commit：`e63123f`；验证：认证与布局相关 Vitest 21/21、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。
+- 匿名/故障边界修正：只有检测到 Supabase 会话 Cookie 时才显示认证故障状态，避免认证服务不可达时匿名用户停在产品页。实现 Commit：`bc15bd6`；验证：认证与布局相关 Vitest 22/22、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过；针对性 Playwright 因已有 3100 端口开发服务器占用未执行。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
