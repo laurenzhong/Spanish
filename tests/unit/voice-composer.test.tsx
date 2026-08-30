@@ -12,6 +12,7 @@ describe("VoiceComposer", () => {
     const onChange = vi.fn();
     render(<VoiceComposer onCancel={vi.fn()} onChange={onChange} onSubmit={vi.fn()} value="" />);
 
+    expect(screen.getByRole("textbox")).toHaveAttribute("lang", "es");
     expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
     await user.type(screen.getByRole("textbox"), "Hola");
     expect(onChange).toHaveBeenCalled();

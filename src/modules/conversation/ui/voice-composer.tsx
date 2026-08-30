@@ -186,6 +186,7 @@ export function VoiceComposer({
           <textarea
             aria-label={`写下你想对 ${characterName === "Lucía Martín" ? "Lucía" : characterName} 说的话`}
             disabled={disabled || transcribing}
+            lang="es"
             maxLength={2_000}
             ref={textareaRef}
             onChange={(event) => onChange(event.target.value)}
