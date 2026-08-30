@@ -113,6 +113,10 @@ export function EmailOtpForm({ repository, redirectTo = "/learn" }: EmailOtpForm
     try {
       await auth.verifyEmailOtp(normalizeEmailAddress(email), token.trim());
       router.replace(resolvePostLoginTarget(redirectTo));
+      // The page we came from may be cached as an anonymous RSC payload.
+      // Refresh after the auth cookie is written so the destination's server
+      // components and auth gate observe the newly verified session.
+      router.refresh();
     } catch (error) {
       setToken("");
       setError(getOtpVerifyErrorMessage(error));

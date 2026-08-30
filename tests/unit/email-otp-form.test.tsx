@@ -56,7 +56,7 @@ describe("EmailOtpForm", () => {
       "123456",
     );
     expect(replace).toHaveBeenCalledWith("/learn");
-    expect(refresh).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("returns to the requested internal page after verification", async () => {
