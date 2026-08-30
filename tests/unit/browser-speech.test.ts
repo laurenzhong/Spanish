@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BrowserAudioRecorder } from "@/src/modules/providers/speech";
-import { BrowserTextToSpeech } from "@/src/modules/providers/tts";
+import { BrowserTextToSpeech, defaultSpanishVoiceName, preferredSpanishVoice } from "@/src/modules/providers/tts";
 
 describe("browser speech capabilities", () => {
   it("maps denied microphone permission to a stable error", async () => {
@@ -110,5 +110,13 @@ describe("browser speech capabilities", () => {
 
     expect(recorder.isSupported).toBe(false);
     expect(tts.isSupported).toBe(false);
+  });
+
+  it("prefers a saved Spanish voice, then Elvira, then the first available voice", () => {
+    const elvira = { name: defaultSpanishVoiceName, lang: "es-ES", voiceURI: "elvira" } as SpeechSynthesisVoice;
+    const sofia = { name: "Microsoft Sofia Online (Natural)", lang: "es-BO", voiceURI: "sofia" } as SpeechSynthesisVoice;
+    expect(preferredSpanishVoice([sofia, elvira], "sofia")).toBe(sofia);
+    expect(preferredSpanishVoice([sofia, elvira], null)).toBe(elvira);
+    expect(preferredSpanishVoice([sofia], null)).toBe(sofia);
   });
 });

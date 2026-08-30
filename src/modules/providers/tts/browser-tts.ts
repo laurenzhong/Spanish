@@ -8,6 +8,7 @@ export type TextToSpeechOptions = Readonly<{
   rate?: number;
   pitch?: number;
   voiceName?: string;
+  voiceURI?: string;
 }>;
 
 type SpeechSynthesisLike = Pick<SpeechSynthesis, "speak" | "cancel" | "getVoices">;
@@ -93,12 +94,49 @@ export class BrowserTextToSpeech {
   private selectVoice(options: TextToSpeechOptions): SpeechSynthesisVoice | null {
     const voices = this.voices();
     return (
+      voices.find((voice) => options.voiceURI && voice.voiceURI === options.voiceURI) ??
       voices.find((voice) => voice.name === options.voiceName) ??
       voices.find((voice) => voice.lang.toLowerCase() === options.languageTag.toLowerCase()) ??
       voices.find((voice) => voice.lang.toLowerCase().startsWith(options.languageTag.slice(0, 2).toLowerCase())) ??
       null
     );
   }
+}
+
+export const defaultSpanishVoiceName = "Microsoft Elvira Online (Natural) - Spanish (Spain)";
+const spanishVoicePreferenceKey = "sueno-reader-tts-voice:es";
+
+export function listBrowserVoices(languageTag = "es-ES"): readonly SpeechSynthesisVoice[] {
+  if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return [];
+  const language = languageTag.toLowerCase();
+  const prefix = language.slice(0, 2);
+  return window.speechSynthesis
+    .getVoices()
+    .filter((voice) => voice.lang.toLowerCase() === language || voice.lang.toLowerCase().startsWith(prefix))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export function readSpanishVoicePreference(): string | null {
+  if (typeof window === "undefined") return null;
+  try { return window.localStorage.getItem(spanishVoicePreferenceKey); } catch { return null; }
+}
+
+export function writeSpanishVoicePreference(voiceURI: string): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(spanishVoicePreferenceKey, voiceURI); } catch { /* in-memory selection remains usable */ }
+}
+
+export function preferredSpanishVoice(voices: readonly SpeechSynthesisVoice[], storedVoiceURI?: string | null): SpeechSynthesisVoice | null {
+  return voices.find((voice) => storedVoiceURI && (voice.voiceURI === storedVoiceURI || voice.name === storedVoiceURI)) ??
+    voices.find((voice) => voice.name === defaultSpanishVoiceName) ??
+    voices.find((voice) => voice.name.toLowerCase().includes("elvira") && voice.lang.toLowerCase().startsWith("es")) ??
+    voices[0] ?? null;
+}
+
+export function subscribeToBrowserVoices(onChange: () => void): () => void {
+  if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return () => undefined;
+  window.speechSynthesis.addEventListener("voiceschanged", onChange);
+  return () => window.speechSynthesis.removeEventListener("voiceschanged", onChange);
 }
 
 export function createBrowserTextToSpeech(): BrowserTextToSpeech {

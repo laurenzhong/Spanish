@@ -19,10 +19,15 @@ const publishedBundle = (): ContentBundle => {
   return source;
 };
 
+const nativeSpeechSynthesis = window.speechSynthesis;
+const nativeSpeechSynthesisUtterance = globalThis.SpeechSynthesisUtterance;
+
 describe("normalized article reader", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: nativeSpeechSynthesis });
+    Object.defineProperty(globalThis, "SpeechSynthesisUtterance", { configurable: true, value: nativeSpeechSynthesisUtterance });
     vi.restoreAllMocks();
   });
 
@@ -76,6 +81,57 @@ describe("normalized article reader", () => {
     expect(screen.getByTestId("article-transfer")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "朗读本段" })).toBeInTheDocument();
     expect(screen.getByText("西语原文", { exact: true })).toBeInTheDocument();
+  });
+
+  it("lists Spanish browser voices and reuses the selected voice in Explain", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const elvira = { name: "Microsoft Elvira Online (Natural) - Spanish (Spain)", lang: "es-ES", voiceURI: "elvira-es" } as SpeechSynthesisVoice;
+    const sofia = { name: "Microsoft Sofia Online (Natural) - Spanish (Bolivia)", lang: "es-BO", voiceURI: "sofia-es" } as SpeechSynthesisVoice;
+    const spoken: SpeechSynthesisUtterance[] = [];
+    const synthesis = {
+      getVoices: () => [elvira, sofia],
+      cancel: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      speak: (utterance: SpeechSynthesisUtterance) => { spoken.push(utterance); utterance.onend?.(new Event("end") as SpeechSynthesisEvent); },
+    } as unknown as SpeechSynthesis;
+    class FakeUtterance {
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      voice: SpeechSynthesisVoice | null = null;
+      onend: ((event: SpeechSynthesisEvent) => void) | null = null;
+      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
+      constructor(public readonly text: string) {}
+    }
+    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: synthesis });
+    Object.defineProperty(globalThis, "SpeechSynthesisUtterance", { configurable: true, value: FakeUtterance });
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+
+    await user.click(screen.getByRole("tab", { name: "Settings" }));
+    expect(screen.getByRole("heading", { name: "Spanish voices" })).toBeInTheDocument();
+    const elviraLabels = screen.getAllByText(elvira.name);
+    expect(elviraLabels.length).toBeGreaterThan(0);
+    expect(elviraLabels.at(-1)?.closest("li")).toHaveClass("is-selected");
+    const sofiaLabel = screen.getAllByText(sofia.name).at(-1);
+    expect(sofiaLabel).toBeDefined();
+    if (!sofiaLabel?.parentElement) throw new Error("voice option missing");
+    await user.click(sofiaLabel.parentElement);
+    expect(screen.getAllByText(sofia.name).at(-1)?.closest("li")).toHaveClass("is-selected");
+    expect(window.localStorage.getItem("sueno-reader-tts-voice:es")).toBe(sofia.voiceURI);
+
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("word token missing");
+    await user.click(token);
+    await user.click(screen.getByRole("button", { name: "朗读 cafetería" }));
+    expect(spoken.at(-1)?.voice).toBe(sofia);
+    await user.click(screen.getByRole("button", { name: "朗读本段" }));
+    expect(spoken.at(-1)?.voice).toBe(sofia);
+    await user.click(screen.getByRole("button", { name: "朗读全文" }));
+    expect(spoken.at(-1)?.voice).toBe(sofia);
   });
 
   it("opens the assist panel on demand and shows the context-aware Explain and Dictionary states", async () => {

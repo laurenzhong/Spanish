@@ -122,6 +122,10 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   await expect(page.getByRole("combobox", { name: "词典目标语言" })).toHaveValue("Chinese");
   await expect(tools).toContainText("还没有配置 Spanish → Chinese 词典。");
 
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await expect(tools.getByRole("heading", { name: "Spanish voices" })).toBeVisible();
+  await expect(tools.getByRole("region", { name: "Spanish voices" })).toBeVisible();
+
   if ((page.viewportSize()?.width ?? 0) < 800) await page.locator(".article-reader__tools-close").click();
   else await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
