@@ -103,6 +103,7 @@
 - 好友普通点击兼容修复：仅在鼠标移动超过拖动阈值后调用 Pointer Capture，普通 `pointerdown` 不再抢占链接目标；真实浏览器验证直接点击 Inés 可进入 `/chat/ines`。实现 Commit：`5c01c41`；验证：联系人栏 Vitest 6/6、受影响文件 ESLint、`git diff --check` 通过。限制：全量类型检查仍受其他代理未提交的对话 provider 改动阻断。
 - 好友顺序缓存一致性修复：顺序/置顶保存成功后同步更新联系人列表缓存，避免切换聊天或组件重新挂载时旧缓存覆盖已保存顺序；新增卸载后重新渲染回归断言。实现 Commit：`c4896ed`；验证：联系人栏 Vitest 6/6、仓库级 `pnpm lint`、`pnpm exec tsc --noEmit`、`git diff --check` 通过。
 - 好友消息操作菜单：好友消息支持右键与双击打开独立菜单，仅提供复制、翻译、引用回复；翻译改用独立的纯翻译 provider/API，只返回中文译文并在气泡下展开；翻译完成后菜单项变为“取消翻译”，点击立即收起译文并关闭选项栏；自己的消息菜单保持复制、引用、转发、撤回、删除。自己的消息菜单现按气泡边缘对齐并通过 portal 挂载到 document.body，避免右键落点造成偏移或被聊天布局裁切；补充 portal 后主题变量回退并固定不透明菜单背景，避免菜单显示为空白或透出底层消息。实现 Commit：`a08ee0a`、`5d9e40a`、`d697765`、`d1be3cc`、`2fde075`、`2c23de9`、`acbb18f`、`5cc51d6`、`eff1493`、`843d8b6`；修改 `src/modules/conversation/ui/chat-thread.tsx`、`src/modules/providers/translation/`、`app/api/v1/conversations/translation/route.ts`、`app/globals.css`、对话单测与 Playwright 回归。验证：对话线程 Vitest 单 worker 13/13、受影响文件 ESLint、`tsc --noEmit`、`git diff --check` 通过；新增 Playwright 用例已更新但本轮因本机多 WebServer 进程未在超时内完成。限制：翻译依赖服务端 MiniMax provider 与登录会话，未配置 provider 时显示可重试错误；未同步 Flutter 消息操作 UI。下一步：发布候选门禁稳定后补 Flutter 对话操作和跨端一致性回归。
+- 聊天输入框语言标记：为 `VoiceComposer` 的文本输入框增加 `lang="es"`，让浏览器拼写检查使用西班牙语词典，避免中文词典误标西语单词。实现 Commit：`efd3eaf`；验证：VoiceComposer Vitest 2/2、受影响文件 ESLint、`tsc --noEmit` 通过。限制：最终是否显示波浪线仍取决于用户浏览器是否安装西语词典。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
