@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FakeTrainingLoop } from "@/src/modules/training/ui/fake-training-loop";
 import { SpeechCapabilityError } from "@/src/modules/providers/speech";
@@ -9,6 +9,10 @@ describe("FakeTrainingLoop", () => {
   beforeEach(() => {
     cleanup();
     window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("restores a stable checkpoint without replaying input playback", async () => {
@@ -44,6 +48,58 @@ describe("FakeTrainingLoop", () => {
     expect(screen.getByRole("button", { name: "用文字回答" })).toBeInTheDocument();
   });
 
+  it("replays and stops the current Spanish pronunciation from the audio control", async () => {
+    const user = userEvent.setup();
+    const selectedVoice = {
+      name: "Microsoft Sofia Online (Natural) - Spanish (Bolivia)",
+      lang: "es-BO",
+      voiceURI: "sofia-es",
+    } as SpeechSynthesisVoice;
+    vi.stubGlobal("speechSynthesis", {
+      getVoices: () => [selectedVoice],
+    });
+    window.localStorage.setItem("sueno-reader-tts-voice:es", selectedVoice.voiceURI);
+    let finishReplay: () => void = () => undefined;
+    const speak = vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValueOnce()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishReplay = resolve;
+          }),
+      );
+    const stop = vi.fn(() => finishReplay());
+    const audio = {
+      recorder: {
+        start: async () => undefined,
+        stop: async () => ({ blob: new Blob(), metadata: { mimeType: "audio/webm", sizeBytes: 0 } }),
+        cancel: async () => undefined,
+      },
+      textToSpeech: {
+        isSupported: true,
+        speak,
+        stop,
+      },
+    };
+
+    render(<FakeTrainingLoop audio={audio} />);
+    await screen.findByText("轮到你了");
+    speak.mockClear();
+    stop.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "播放发音" }));
+
+    expect(speak).toHaveBeenCalledWith("¿Cómo va todo?", {
+      languageTag: "es-ES",
+      rate: 0.9,
+      voiceName: selectedVoice.name,
+      voiceURI: selectedVoice.voiceURI,
+    });
+    await user.click(screen.getByRole("button", { name: "停止发音" }));
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
   it("starts with the expression for the selected communication goal", async () => {
     render(<FakeTrainingLoop goalKey="communication.repair.ask-repeat" />);
 
@@ -77,6 +133,7 @@ describe("FakeTrainingLoop", () => {
     expect(await screen.findByText("轮到你了")).toBeInTheDocument();
     expect(screen.queryByText("已恢复上次稳定进度")).not.toBeInTheDocument();
   });
+
   it("accepts a natural typed alternative and starts the next expression after completion", async () => {
     const user = userEvent.setup();
     render(<FakeTrainingLoop />);

@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -32,6 +33,9 @@ import {
 } from "@/src/modules/providers/speech";
 import {
   createBrowserTextToSpeech,
+  listBrowserVoices,
+  preferredSpanishVoice,
+  readSpanishVoicePreference,
   type BrowserTextToSpeech,
 } from "@/src/modules/providers/tts";
 import type { LearningActivityRecorder } from "@/src/modules/profile/activity";
@@ -198,6 +202,19 @@ function hintFor(expressionKey: string, level: number): string | null {
   return trainingHints[baseKey]?.[level - 1] ?? null;
 }
 
+function trainingTextToSpeechOptions() {
+  const selectedVoice = preferredSpanishVoice(
+    listBrowserVoices("es-ES"),
+    readSpanishVoicePreference(),
+  );
+  return {
+    languageTag: "es-ES",
+    rate: 0.9,
+    voiceName: selectedVoice?.name,
+    voiceURI: selectedVoice?.voiceURI,
+  };
+}
+
 function useTrainingEffects(
   expressions: typeof allExpressions,
   current: LoopState,
@@ -234,7 +251,7 @@ function useTrainingEffects(
         } else {
           const expressionText = expressionFor(expressions, current.expressionIndex, current.variantIndex).text;
           void audio.textToSpeech
-            .speak(expressionText, { languageTag: "es-ES", rate: 0.9 })
+            .speak(expressionText, trainingTextToSpeechOptions())
             .then(() => {
               if (active) dispatch({ type: "input-playback-completed" });
             })
@@ -372,6 +389,8 @@ export function FakeTrainingLoop({
   const [restored, setRestored] = useState(false);
   const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [isManualPlaybackActive, setIsManualPlaybackActive] = useState(false);
+  const manualPlaybackAttemptRef = useRef(0);
   const state = current.transition.state;
   const checkpointStore = useMemo(
     () =>
@@ -453,24 +472,67 @@ export function FakeTrainingLoop({
 
   useEffect(() => {
     return () => {
+      manualPlaybackAttemptRef.current += 1;
       void audio.recorder.cancel();
       audio.textToSpeech.stop();
     };
   }, [audio]);
 
   function submitTyping() {
+    manualPlaybackAttemptRef.current += 1;
+    audio.textToSpeech.stop();
+    setIsManualPlaybackActive(false);
     setCapabilityNotice(null);
     dispatch({ type: "submit-typing", text: draft });
     setDraft("");
   }
 
   function startRecording() {
+    manualPlaybackAttemptRef.current += 1;
+    audio.textToSpeech.stop();
+    setIsManualPlaybackActive(false);
     setRecordingSeconds(0);
     dispatch({ type: "start-recording" });
   }
 
+  function togglePronunciation() {
+    if (state.status === "presenting-input" || isManualPlaybackActive) {
+      manualPlaybackAttemptRef.current += 1;
+      audio.textToSpeech.stop();
+      setIsManualPlaybackActive(false);
+      return;
+    }
+
+    if (!audio.textToSpeech.isSupported) {
+      setCapabilityNotice(
+        "浏览器暂不支持朗读，已保留文字输入。你可以直接阅读这句内容。",
+      );
+      return;
+    }
+
+    const attemptId = manualPlaybackAttemptRef.current + 1;
+    manualPlaybackAttemptRef.current = attemptId;
+    setCapabilityNotice(null);
+    setIsManualPlaybackActive(true);
+    void audio.textToSpeech
+      .speak(expression.text, trainingTextToSpeechOptions())
+      .catch(() => {
+        if (manualPlaybackAttemptRef.current === attemptId) {
+          setCapabilityNotice("浏览器暂时无法朗读。你可以稍后再试，或直接阅读这句内容。");
+        }
+      })
+      .finally(() => {
+        if (manualPlaybackAttemptRef.current === attemptId) {
+          setIsManualPlaybackActive(false);
+        }
+      });
+  }
+
   function moveToNextExpression() {
     const nextIndex = (current.expressionIndex + 1) % practiceExpressions.length;
+    manualPlaybackAttemptRef.current += 1;
+    audio.textToSpeech.stop();
+    setIsManualPlaybackActive(false);
     setDraft("");
     async function clearAndLoad() {
       await checkpointStore?.clear();
@@ -485,6 +547,8 @@ export function FakeTrainingLoop({
       : state.status === "transitioning" || state.status === "completed"
         ? "vary"
         : "express";
+  const isInputPlaying = state.status === "presenting-input" || isManualPlaybackActive;
+  const isPronunciationDisabled = state.status === "recording" || isProcessing;
   const trainingTimeline = [
     {
       key: "listen",
@@ -628,10 +692,13 @@ export function FakeTrainingLoop({
             <h2 id="training-expression">{expression.text}</h2>
             <p className="training-loop__translation">{expression.translations["zh-CN"]}</p>
             <p className="training-loop__intent">{expression.communicativeIntent["zh-CN"]}</p>
-            <div
+            <button
               className="training-loop__audio-line"
-              data-playing={state.status === "presenting-input"}
-              aria-label="西班牙语输入音频"
+              data-playing={isInputPlaying}
+              aria-label={isInputPlaying ? "停止发音" : "播放发音"}
+              disabled={isPronunciationDisabled}
+              onClick={togglePronunciation}
+              type="button"
             >
               <span className="training-loop__audio-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
@@ -643,9 +710,9 @@ export function FakeTrainingLoop({
                 <i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i />
               </span>
               <span className="training-loop__audio-label">
-                {state.status === "presenting-input" ? "正在播放" : "已听过一遍"}
+                {isInputPlaying ? "停止发音" : "播放发音"}
               </span>
-            </div>
+            </button>
           </section>
 
           <section className="training-loop__workbench" aria-label="训练操作">

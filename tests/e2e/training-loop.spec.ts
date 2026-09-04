@@ -33,6 +33,51 @@ test("completes a typed natural alternative and moves to the next expression", a
   await expect(loop).toHaveAttribute("data-status", "presenting-input");
 });
 
+test("replays the current Spanish pronunciation from the audio button", async ({ page }) => {
+  await page.addInitScript(() => {
+    const browserWindow = window as Window & { __spokenTexts?: string[] };
+    browserWindow.__spokenTexts = [];
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: {
+        cancel: () => undefined,
+        getVoices: () => [],
+        speak: (utterance: SpeechSynthesisUtterance) => {
+          browserWindow.__spokenTexts?.push(utterance.text);
+          window.setTimeout(
+            () => utterance.onend?.({} as SpeechSynthesisEvent),
+            0,
+          );
+        },
+      },
+    });
+  });
+  await authenticate(page);
+  await page.goto("/learn/practice");
+
+  await expect(page.getByTestId("training-loop")).toHaveAttribute(
+    "data-status",
+    "awaiting-output",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as Window & { __spokenTexts?: string[] }).__spokenTexts ?? [],
+      ),
+    )
+    .toEqual(["¿Cómo va todo?"]);
+
+  await page.getByRole("button", { name: "播放发音" }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as Window & { __spokenTexts?: string[] }).__spokenTexts ?? [],
+      ),
+    )
+    .toEqual(["¿Cómo va todo?", "¿Cómo va todo?"]);
+});
+
 test("shows the desktop task timeline and detail rail without horizontal overflow", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1280, height: 900 });
