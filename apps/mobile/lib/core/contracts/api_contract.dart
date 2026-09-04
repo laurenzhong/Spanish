@@ -10,6 +10,8 @@ enum ApiErrorCode {
   protocolVersionUnsupported('PROTOCOL_VERSION_UNSUPPORTED', false),
   providerTimeout('PROVIDER_TIMEOUT', true),
   providerUnavailable('PROVIDER_UNAVAILABLE', true),
+  exploreDashboardUnavailable('EXPLORE_DASHBOARD_UNAVAILABLE', true),
+  exploreStateUnavailable('EXPLORE_STATE_UNAVAILABLE', true),
   internalError('INTERNAL_ERROR', true);
 
   const ApiErrorCode(this.wireName, this.defaultRetryable);
