@@ -17,6 +17,7 @@ type PracticePageProps = Readonly<{
   searchParams: Promise<{
     article?: string | string[];
     transfer?: string | string[];
+    goal?: string | string[];
   }>;
 }>;
 
@@ -37,6 +38,7 @@ export default async function PracticePage({ searchParams }: PracticePageProps) 
   const params = await searchParams;
   const transferType = parseArticleTransferType(firstParam(params.transfer));
   const articleId = firstParam(params.article);
+  const goalKey = firstParam(params.goal);
   let articleTransfer;
   const decodedArticleId = articleId ? decodeParam(articleId) : null;
   if (transferType && decodedArticleId) {
@@ -45,5 +47,5 @@ export default async function PracticePage({ searchParams }: PracticePageProps) 
       articleTransfer = articleTransferTask(result.article, transferType);
     }
   }
-  return <FakeTrainingLoop userId={user?.id ?? "local-user"} articleTransfer={articleTransfer} />;
+  return <FakeTrainingLoop userId={user?.id ?? "local-user"} goalKey={goalKey} articleTransfer={articleTransfer} />;
 }

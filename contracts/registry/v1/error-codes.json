@@ -9,5 +9,6 @@
   { "code": "PROVIDER_TIMEOUT", "defaultRetryable": true },
   { "code": "PROVIDER_UNAVAILABLE", "defaultRetryable": true },
   { "code": "EXPLORE_DASHBOARD_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "EXPLORE_STATE_UNAVAILABLE", "defaultRetryable": true },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }
 ]

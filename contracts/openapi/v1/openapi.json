@@ -23,6 +23,19 @@
         }
       }
     },
+    "/explore/state": {
+      "post": {
+        "summary": "Upsert the authenticated user's content-pack discovery state",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/explore-state-input.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Explore pack state saved", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/explore-state-response.schema.json" } } } },
+          "400": { "description": "Invalid state", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Explore state unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/conversations": {
       "get": {
         "summary": "List the authenticated user's persisted conversations",

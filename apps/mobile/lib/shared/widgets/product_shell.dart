@@ -3,15 +3,17 @@ import 'package:spanish_mobile/features/account/ui/account_menu_sheet.dart';
 import 'package:spanish_mobile/features/character_network/fake_character_network.dart';
 import 'package:spanish_mobile/features/chat/chat_page.dart';
 import 'package:spanish_mobile/features/explore/explore_page.dart';
+import 'package:spanish_mobile/features/explore/data/explore_api.dart';
 import 'package:spanish_mobile/features/learn/learn_page.dart';
 import 'package:spanish_mobile/features/profile/profile_page.dart';
 import 'package:spanish_mobile/features/read/read_page.dart';
 
 class ProductShell extends StatefulWidget {
-  const ProductShell({this.network, this.userId = 'local-user', super.key});
+  const ProductShell({this.network, this.userId = 'local-user', this.exploreApi, super.key});
 
   final FakeCharacterNetworkState? network;
   final String userId;
+  final ExploreApi? exploreApi;
 
   @override
   State<ProductShell> createState() => _ProductShellState();
@@ -57,7 +59,7 @@ class _ProductShellState extends State<ProductShell> {
     _pages = <Widget>[
       LearnPage(userId: widget.userId),
       const ReadPage(),
-      ExplorePage(userId: widget.userId),
+      ExplorePage(userId: widget.userId, api: widget.exploreApi),
       ChatPage(network: _network),
       ProfilePage(network: _network),
     ];

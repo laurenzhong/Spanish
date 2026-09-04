@@ -62,6 +62,7 @@ describe("Supabase RLS baseline", () => {
     await database.exec(await migration("0008_broad_chronomancer.sql"));
     await database.exec(await migration("0009_oval_namora.sql"));
     await database.exec(await migration("0010_watery_ogun.sql"));
+    await database.exec(await migration("0019_rainy_robin_chapel.sql"));
 
     await database.exec(`
       insert into auth.users (id, email)
@@ -239,5 +240,23 @@ describe("Supabase RLS baseline", () => {
     expect(expressions.rows.map((row) => row.id)).toEqual([
       publicExpressionId,
     ]);
+  });
+
+  it("isolates explore saved state and permits only own authenticated writes", async () => {
+    await database.exec(`
+      insert into user_content_pack_states (user_id, pack_stable_key, pack_version, saved, completed_steps, total_steps)
+      values ('${userA}', 'pack.cafe', 1, true, 2, 5), ('${userB}', 'pack.cafe', 1, false, 1, 5);
+    `);
+    await assumeUser(database, userA);
+    const visible = await database.query<{ user_id: string; saved: boolean }>(
+      "select user_id, saved from user_content_pack_states order by user_id",
+    );
+    expect(visible.rows).toEqual([{ user_id: userA, saved: true }]);
+    await database.exec(`update user_content_pack_states set completed_steps = 3 where user_id = '${userB}'`);
+    await database.exec("reset role");
+    const other = await database.query<{ completed_steps: number }>(
+      `select completed_steps from user_content_pack_states where user_id = '${userB}'`,
+    );
+    expect(other.rows[0]?.completed_steps).toBe(1);
   });
 });

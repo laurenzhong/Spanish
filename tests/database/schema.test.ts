@@ -50,6 +50,7 @@ import {
   userPreferences,
   userArticleHighlights,
   userArticleSaves,
+  userContentPackStates,
   userReadingProgress,
   userSavedArticleSources,
   userSceneStates,
@@ -122,6 +123,7 @@ const userOwnedTables = [
   memorySharingPermissions,
   conversations,
   messages,
+  userContentPackStates,
 ] as const;
 
 describe("database schema", () => {
@@ -202,8 +204,21 @@ describe("database schema", () => {
         "evidence_events_user_idempotency_uidx",
         "evidence_events_user_occurred_idx",
         "evidence_events_user_skill_occurred_idx",
-      ]),
+    ]),
     );
+  });
+
+  it("keeps explore state versioned and user-owned", () => {
+    const columns = getTableColumns(userContentPackStates);
+    expect(columns).toHaveProperty("userId");
+    expect(columns).toHaveProperty("packStableKey");
+    expect(columns).toHaveProperty("packVersion");
+    expect(columns).toHaveProperty("saved");
+    expect(columns).toHaveProperty("completedSteps");
+    expect(columns).toHaveProperty("totalSteps");
+    const config = getTableConfig(userContentPackStates);
+    expect(config.indexes.map((index) => index.config.name)).toContain("user_content_pack_states_user_last_opened_idx");
+    expect(config.foreignKeys).toHaveLength(1);
   });
 
   it("applies the versioned migration to an empty PostgreSQL database", async () => {

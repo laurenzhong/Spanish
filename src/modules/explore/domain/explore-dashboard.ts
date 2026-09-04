@@ -86,9 +86,20 @@ export type ExploreRepository = Readonly<{
   listContentPacks(): Promise<readonly ExploreContentPackRecord[]>;
 }>;
 
+export type ExploreDashboardOptions = Readonly<{
+  /** Allow local development to open clearly labelled, unpublished previews. */
+  allowDraft?: boolean;
+}>;
+
 export type ExploreUserStateRepository = Readonly<{
   getForUser(userId: string): Promise<ExploreUserState>;
+  setPackState?(userId: string, pack: { stableKey: string; version: number; totalSteps: number }, patch: { saved?: boolean; completedSteps?: number }): Promise<ExploreUserPackState>;
 }>;
+
+/** Stable version boundary used by persistence and client recovery caches. */
+export function explorePackStateKey(stableKey: string, version: number): string {
+  return `${stableKey}@${version}`;
+}
 
 export class ExploreDashboardError extends Error {
   readonly code = "explore-dashboard-unavailable" as const;
@@ -106,6 +117,7 @@ function localized(value: LocalizedContentText, locale: string, fallbackLocale =
 export function toExploreCard(
   record: ExploreContentPackRecord,
   userState: ExploreUserState["packs"][string] | undefined,
+  options: ExploreDashboardOptions = {},
 ): ExploreCardDto {
   const progress = userState?.progress;
   const inProgress = Boolean(progress && progress.completedSteps > 0 && progress.completedSteps < progress.totalSteps);
@@ -114,7 +126,7 @@ export function toExploreCard(
       ? "in_progress"
       : "published"
     : record.status;
-  const canOpen = status === "published" || status === "in_progress";
+  const canOpen = status === "published" || status === "in_progress" || (options.allowDraft === true && status === "draft");
 
   return {
     id: record.id,
@@ -140,6 +152,7 @@ export async function getExploreDashboard(
   repository: ExploreRepository,
   userId: string,
   userStateRepository: ExploreUserStateRepository,
+  options: ExploreDashboardOptions = {},
 ): Promise<ExploreDashboardDto> {
   if (!userId.trim()) throw new ExploreDashboardError("A user id is required.");
 
@@ -161,9 +174,8 @@ export async function getExploreDashboard(
     }));
   const packs = [...packRecords]
     .sort((left, right) => left.stableKey.localeCompare(right.stableKey) || left.version - right.version)
-    .map((pack) => toExploreCard(pack, userState.packs[pack.id]));
+    .map((pack) => toExploreCard(pack, userState.packs[explorePackStateKey(pack.stableKey, pack.version)] ?? userState.packs[pack.id], options));
   const resume = packs.filter((pack) => pack.status === "in_progress");
 
   return { goals, packs, resume, userState: userState.status };
 }
-

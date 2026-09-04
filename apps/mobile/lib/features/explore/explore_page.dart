@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:spanish_mobile/features/explore/data/explore_api.dart';
 import 'package:spanish_mobile/core/platform/flutter_secure_storage_adapter.dart';
 import 'package:spanish_mobile/core/platform/platform_capabilities.dart';
 import 'package:spanish_mobile/features/content/fakes/fake_content_pack.dart';
@@ -12,12 +13,14 @@ class ExplorePage extends StatefulWidget {
     this.userId = 'local-user',
     this.storage,
     this.textToSpeech,
+    this.api,
     super.key,
   });
 
   final String userId;
   final SecureStorage? storage;
   final TextToSpeech? textToSpeech;
+  final ExploreApi? api;
 
   @override
   State<ExplorePage> createState() => _ExplorePageState();
@@ -25,6 +28,27 @@ class ExplorePage extends StatefulWidget {
 
 class _ExplorePageState extends State<ExplorePage> {
   var _showPack = false;
+  var _query = '';
+  var _savedPack = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final api = widget.api;
+    if (api != null) {
+      api.fetchDashboard().then((snapshot) {
+        if (!mounted || snapshot == null) return;
+        for (final pack in snapshot.packs) {
+          if (pack.stableKey == 'pack.cafe') {
+            setState(() => _savedPack = pack.saved);
+            break;
+          }
+        }
+      }).catchError((_) {
+        // Local discovery remains usable when the API is unavailable.
+      });
+    }
+  }
 
   void _openPractice() {
     final storage = widget.storage ?? const FlutterSecureStorageAdapter();
@@ -82,6 +106,15 @@ class _ExplorePageState extends State<ExplorePage> {
                     description: '从真实沟通目的出发，不按孤立的语法章节堆叠内容。',
                   ),
                   const SizedBox(height: 24),
+                  TextField(
+                    onChanged: (value) => setState(() => _query = value),
+                    decoration: const InputDecoration(
+                      labelText: '按你现在想说的话查找',
+                      hintText: '例如：请求别人重复',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -94,9 +127,17 @@ class _ExplorePageState extends State<ExplorePage> {
                     itemCount: _collections.length,
                     itemBuilder: (context, index) {
                       final collection = _collections[index];
-                      return SurfaceCard(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
+                      final visible = _query.trim().isEmpty || '${collection.title} ${collection.detail}'.contains(_query.trim());
+                      return Opacity(
+                        opacity: visible ? 1 : 0.35,
+                        child: IgnorePointer(
+                          ignoring: !visible,
+                          child: SurfaceCard(
+                            padding: const EdgeInsets.all(18),
+                            child: InkWell(
+                              onTap: index == 0 ? _openPractice : () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('这组内容正在整理中。'))),
+                              borderRadius: BorderRadius.circular(14),
+                              child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Text(
@@ -126,6 +167,9 @@ class _ExplorePageState extends State<ExplorePage> {
                                   ),
                             ),
                           ],
+                              ),
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -160,13 +204,41 @@ class _ExplorePageState extends State<ExplorePage> {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: () => setState(() => _showPack = true),
-                            icon: const Icon(Icons.menu_book_outlined),
-                            label: const Text('打开咖啡馆内容包'),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () => setState(() => _showPack = true),
+                                icon: const Icon(Icons.menu_book_outlined),
+                                label: const Text('打开咖啡馆内容包'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: _savedPack ? '取消保存' : '保存内容包',
+                              onPressed: () {
+                                final nextSaved = !_savedPack;
+                                setState(() => _savedPack = nextSaved);
+                                final api = widget.api;
+                                if (api != null) {
+                                  api.savePack(
+                                    stableKey: 'pack.cafe',
+                                    version: 1,
+                                    totalSteps: 5,
+                                    completedSteps: 0,
+                                    saved: nextSaved,
+                                  ).then((ok) {
+                                    if (!context.mounted || ok) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存在本设备，账号同步失败，可重试。')));
+                                  }).catchError((_) {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存在本设备，账号同步失败，可重试。')));
+                                  });
+                                }
+                              },
+                              icon: Icon(_savedPack ? Icons.star : Icons.star_border),
+                            ),
+                          ],
                         ),
                       ],
                     ),

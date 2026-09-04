@@ -7,6 +7,7 @@ describe("LearnPage", () => {
   beforeEach(() => {
     cleanup();
     window.localStorage.clear();
+    window.history.replaceState(null, "", "/learn");
   });
 
   it("shows a first-practice empty state without invented progress", async () => {
@@ -27,6 +28,20 @@ describe("LearnPage", () => {
     expect(screen.getByTestId("learn-timeline")).toHaveTextContent("听懂情境");
     expect(screen.getByTestId("learn-timeline")).toHaveTextContent("当前步骤");
     expect(screen.queryByTestId("learn-detail-rail")).not.toBeInTheDocument();
+  });
+
+  it("keeps a selected goal title and practice route together", async () => {
+    window.history.replaceState(null, "", "/learn?goal=communication.relationship.ask-name");
+    render(<LearnPageContent userId="goal-user" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "询问姓名" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: "开始第一次练习" })).toHaveAttribute(
+      "href",
+      "/learn/practice?goal=communication.relationship.ask-name",
+    );
   });
 
   it("restores the real expression position from a stable checkpoint", async () => {

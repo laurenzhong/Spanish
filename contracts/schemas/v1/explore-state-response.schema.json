@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/explore-state-response.schema.json",
+  "title": "Explore pack state response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stableKey", "version", "saved", "progress"],
+      "properties": {
+        "stableKey": { "type": "string", "minLength": 1 },
+        "version": { "type": "integer", "minimum": 1 },
+        "saved": { "type": "boolean" },
+        "progress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["completedSteps", "totalSteps"],
+          "properties": {
+            "completedSteps": { "type": "integer", "minimum": 0 },
+            "totalSteps": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    }
+  }
+}

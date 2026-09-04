@@ -37,7 +37,8 @@ import {
 import type { LearningActivityRecorder } from "@/src/modules/profile/activity";
 import type { ArticleTransferTask } from "@/src/modules/content/domain";
 
-const practiceExpressions = contentBundle.expressions.slice(0, 4);
+const allExpressions = contentBundle.expressions;
+const defaultExpressions = allExpressions.slice(0, 4);
 const evaluator = createFakeEvaluator();
 
 type LoopState = Readonly<{
@@ -60,8 +61,12 @@ export type TrainingAudioCapabilities = Readonly<{
   textToSpeech: Pick<BrowserTextToSpeech, "isSupported" | "speak" | "stop">;
 }>;
 
-function expressionFor(expressionIndex: number, variantIndex: number) {
-  const base = practiceExpressions[expressionIndex] ?? practiceExpressions[0];
+function expressionFor(
+  expressions: typeof allExpressions,
+  expressionIndex: number,
+  variantIndex: number,
+) {
+  const base = expressions[expressionIndex] ?? expressions[0] ?? defaultExpressions[0];
   const variant = variantIndex > 0 ? base.variants?.[variantIndex - 1] : undefined;
   if (!variant) return base;
   return {
@@ -72,8 +77,12 @@ function expressionFor(expressionIndex: number, variantIndex: number) {
   };
 }
 
-function startExpression(expressionIndex: number, variantIndex = 0): LoopState {
-  const expression = expressionFor(expressionIndex, variantIndex);
+function startExpression(
+  expressions: typeof allExpressions,
+  expressionIndex: number,
+  variantIndex = 0,
+): LoopState {
+  const expression = expressionFor(expressions, expressionIndex, variantIndex);
   const loaded = transition(createTrainingState(), {
     type: "content-loaded",
     contentKey: expression.stableKey,
@@ -83,9 +92,13 @@ function startExpression(expressionIndex: number, variantIndex = 0): LoopState {
   return { expressionIndex, variantIndex, transition: loaded };
 }
 
-function loopReducer(state: LoopState, event: LoopEvent): LoopState {
+function loopReducer(
+  expressions: typeof allExpressions,
+  state: LoopState,
+  event: LoopEvent,
+): LoopState {
   if (event.type === "load-expression") {
-    return startExpression(event.expressionIndex);
+    return startExpression(expressions, event.expressionIndex);
   }
 
   if (event.type === "restore-checkpoint") {
@@ -102,10 +115,10 @@ function loopReducer(state: LoopState, event: LoopEvent): LoopState {
 
   const next = transition(state.transition.state, event);
   if (event.type === "variant-ready" && next.state.status === "presenting-input") {
-    const base = practiceExpressions[state.expressionIndex] ?? practiceExpressions[0];
+    const base = expressions[state.expressionIndex] ?? expressions[0] ?? defaultExpressions[0];
     const variantCount = base.variants?.length ?? 0;
     const variantIndex = variantCount === 0 ? 0 : (state.variantIndex % variantCount) + 1;
-    const expression = expressionFor(state.expressionIndex, variantIndex);
+    const expression = expressionFor(expressions, state.expressionIndex, variantIndex);
     return {
       expressionIndex: state.expressionIndex,
       variantIndex,
@@ -122,8 +135,8 @@ function loopReducer(state: LoopState, event: LoopEvent): LoopState {
   };
 }
 
-function initialLoopState(): LoopState {
-  return startExpression(0);
+function initialLoopState(expressions: typeof allExpressions): LoopState {
+  return startExpression(expressions, 0);
 }
 
 function statusLabel(state: TrainingState): string {
@@ -186,6 +199,7 @@ function hintFor(expressionKey: string, level: number): string | null {
 }
 
 function useTrainingEffects(
+  expressions: typeof allExpressions,
   current: LoopState,
   dispatch: Dispatch<LoopEvent>,
   store: TrainingCheckpointStore | null,
@@ -218,7 +232,7 @@ function useTrainingEffects(
           );
           cleanups.push(() => window.clearTimeout(timer));
         } else {
-          const expressionText = expressionFor(current.expressionIndex, current.variantIndex).text;
+          const expressionText = expressionFor(expressions, current.expressionIndex, current.variantIndex).text;
           void audio.textToSpeech
             .speak(expressionText, { languageTag: "es-ES", rate: 0.9 })
             .then(() => {
@@ -273,7 +287,7 @@ function useTrainingEffects(
       }
 
       if (effect.type === "transcribe") {
-        const simulatedTranscript = expressionFor(current.expressionIndex, current.variantIndex).text;
+        const simulatedTranscript = expressionFor(expressions, current.expressionIndex, current.variantIndex).text;
         void (recordingStop ?? Promise.resolve(true)).then((success) => {
           if (!active || !success) return;
           const timer = window.setTimeout(
@@ -322,7 +336,7 @@ function useTrainingEffects(
       active = false;
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [audio, current, dispatch, enabled, setCapabilityNotice, store]);
+  }, [audio, current, dispatch, enabled, expressions, setCapabilityNotice, store]);
 }
 
 type FakeTrainingLoopProps = Readonly<{
@@ -330,6 +344,7 @@ type FakeTrainingLoopProps = Readonly<{
   userId?: string;
   audio?: TrainingAudioCapabilities;
   articleTransfer?: ArticleTransferTask;
+  goalKey?: string;
 }>;
 
 export function FakeTrainingLoop({
@@ -337,8 +352,21 @@ export function FakeTrainingLoop({
   userId = "local-user",
   audio: providedAudio,
   articleTransfer,
+  goalKey,
 }: FakeTrainingLoopProps) {
-  const [current, dispatch] = useReducer(loopReducer, undefined, initialLoopState);
+  const practiceExpressions = useMemo(
+    () => {
+      if (!goalKey) return defaultExpressions;
+      const matching = allExpressions.filter((expression) => expression.goalKey === goalKey);
+      return matching.length > 0 ? matching : defaultExpressions;
+    },
+    [goalKey],
+  );
+  const [current, dispatch] = useReducer(
+    (state: LoopState, event: LoopEvent) => loopReducer(practiceExpressions, state, event),
+    undefined,
+    () => initialLoopState(practiceExpressions),
+  );
   const [draft, setDraft] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [restored, setRestored] = useState(false);
@@ -360,7 +388,7 @@ export function FakeTrainingLoop({
       },
     [providedAudio],
   );
-  const expression = expressionFor(current.expressionIndex, current.variantIndex);
+  const expression = expressionFor(practiceExpressions, current.expressionIndex, current.variantIndex);
   const isProcessing =
     state.status === "transcribing" || state.status === "evaluating";
 
@@ -390,27 +418,31 @@ export function FakeTrainingLoop({
     }).then((restoredState) => {
       if (!active) return;
       if (restoredState) {
-        const expressionIndex = Math.max(
-          0,
-          practiceExpressions.findIndex((expression) =>
-            restoredState.contentKey?.startsWith(expression.stableKey),
-          ),
-        );
-        dispatch({
-          type: "restore-checkpoint",
-          expressionIndex,
-          state: restoredState,
-        });
-        setRestored(true);
+        const checkpointMatchesGoal = !goalKey || restoredState.goalKey === goalKey;
+        if (checkpointMatchesGoal) {
+          const expressionIndex = Math.max(
+            0,
+            practiceExpressions.findIndex((expression) =>
+              restoredState.contentKey?.startsWith(expression.stableKey),
+            ),
+          );
+          dispatch({
+            type: "restore-checkpoint",
+            expressionIndex,
+            state: restoredState,
+          });
+          setRestored(true);
+        }
       }
       setHydrated(true);
     });
     return () => {
       active = false;
     };
-  }, [checkpointStore]);
+  }, [checkpointStore, goalKey, practiceExpressions]);
 
   useTrainingEffects(
+    practiceExpressions,
     current,
     dispatch,
     checkpointStore,
@@ -522,13 +554,13 @@ export function FakeTrainingLoop({
         <div
           className="training-loop__counter"
           role="progressbar"
-          aria-label={`第 ${current.expressionIndex + 1} 句，共 4 句`}
+          aria-label={`第 ${current.expressionIndex + 1} 句，共 ${practiceExpressions.length} 句`}
           aria-valuemin={1}
-          aria-valuemax={4}
+          aria-valuemax={practiceExpressions.length}
           aria-valuenow={current.expressionIndex + 1}
         >
           <span>当前句</span>
-          <strong>{current.expressionIndex + 1} / 4</strong>
+          <strong>{current.expressionIndex + 1} / {practiceExpressions.length}</strong>
         </div>
       </header>
 

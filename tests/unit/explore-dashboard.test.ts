@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getExploreDashboard, toExploreCard, type ExploreContentPackRecord, type ExploreRepository } from "@/src/modules/explore/domain";
+import { explorePackStateKey, getExploreDashboard, toExploreCard, type ExploreContentPackRecord, type ExploreRepository } from "@/src/modules/explore/domain";
 
 const pack: ExploreContentPackRecord = {
   id: "pack.cafe@1",
@@ -29,6 +29,11 @@ const repository: ExploreRepository = {
 };
 
 describe("explore dashboard", () => {
+  it("uses a stable key that isolates content-pack versions", () => {
+    expect(explorePackStateKey("pack.cafe", 1)).toBe("pack.cafe@1");
+    expect(explorePackStateKey("pack.cafe", 2)).not.toBe(explorePackStateKey("pack.cafe", 1));
+  });
+
   it("maps a published pack with partial progress to an in-progress card and a real route", async () => {
     const dashboard = await getExploreDashboard(repository, "user-1", {
       async getForUser() {
@@ -51,6 +56,7 @@ describe("explore dashboard", () => {
     expect(toExploreCard({ ...pack, status: "draft" }, undefined)).toMatchObject({ status: "draft" });
     expect(toExploreCard({ ...pack, status: "unavailable" }, undefined)).toMatchObject({ status: "unavailable" });
     expect(toExploreCard({ ...pack, status: "draft" }, undefined).route).toBeUndefined();
+    expect(toExploreCard({ ...pack, status: "draft" }, undefined, { allowDraft: true }).route).toBe("/explore/packs/pack.cafe");
   });
 
   it("keeps user-state failures explicit instead of inventing saved or progress values", async () => {
@@ -65,4 +71,3 @@ describe("explore dashboard", () => {
     expect(dashboard.packs[0]?.progress).toBeUndefined();
   });
 });
-

@@ -35,7 +35,19 @@ function readFocus(value: string | string[] | undefined): LearnFocus | null {
   return focus === "start" || focus === "needs" || focus === "maintain" || focus === "silent" ? focus : null;
 }
 
-const practiceExpressions = contentBundle.expressions.slice(0, 4);
+function readGoal(value: string | string[] | undefined): string | null {
+  const goal = Array.isArray(value) ? value[0] : value;
+  if (!goal) return null;
+  return contentBundle.goals.some((item) => item.stableKey === goal) ? goal : null;
+}
+
+const defaultExpressions = contentBundle.expressions.slice(0, 4);
+
+function expressionsForGoal(goalKey: string | null) {
+  if (!goalKey) return defaultExpressions;
+  const matching = contentBundle.expressions.filter((expression) => expression.goalKey === goalKey);
+  return matching.length > 0 ? matching : defaultExpressions;
+}
 
 function focusForGoal(goalKey: string | null): Exclude<LearnFocus, "silent"> {
   if (goalKey?.includes("need")) return "needs";
@@ -45,11 +57,15 @@ function focusForGoal(goalKey: string | null): Exclude<LearnFocus, "silent"> {
 
 export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: string }>) {
   const [focus, setFocus] = useState<LearnFocus | null>(null);
+  const [goalKey, setGoalKey] = useState<string | null>(null);
   const [progress, setProgress] = useState<LearnProgress | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const requestedFocus = readFocus(new URLSearchParams(window.location.search).get("focus") ?? undefined);
+      const params = new URLSearchParams(window.location.search);
+      const requestedGoal = readGoal(params.get("goal") ?? undefined);
+      const requestedFocus = readFocus(params.get("focus") ?? undefined);
+      setGoalKey((current) => current ?? requestedGoal);
       setFocus((current) => current ?? requestedFocus);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -63,29 +79,38 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
       contentBundleVersion: 1,
     }).then((checkpoint) => {
       if (!active || !checkpoint) return;
+      const requestedGoal = readGoal(
+        new URLSearchParams(window.location.search).get("goal") ?? undefined,
+      );
+      const activeGoalKey = goalKey ?? requestedGoal;
+      if (activeGoalKey && checkpoint.goalKey !== activeGoalKey) return;
+      const scopedExpressions = expressionsForGoal(activeGoalKey);
       const expressionIndex = Math.max(
         0,
-        practiceExpressions.findIndex((expression) =>
+        scopedExpressions.findIndex((expression) =>
           checkpoint.contentKey?.startsWith(expression.stableKey),
         ),
       );
       setProgress({
         expressionIndex,
         status: checkpoint.status,
-        totalExpressions: practiceExpressions.length,
+        totalExpressions: scopedExpressions.length,
       });
-      setFocus((current) => current ?? focusForGoal(checkpoint.goalKey));
+      setFocus((current) => current ?? (activeGoalKey ? null : focusForGoal(checkpoint.goalKey)));
     });
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [goalKey, userId]);
 
-  const selectedContent = focus && focus !== "silent" ? focusContent[focus] : focusContent.start;
+  const selectedGoal = goalKey ? contentBundle.goals.find((goal) => goal.stableKey === goalKey) ?? null : null;
+  const selectedContent = selectedGoal
+    ? { eyebrow: "目标练习", title: selectedGoal.title["zh-CN"], reason: selectedGoal.description["zh-CN"] }
+    : focus && focus !== "silent" ? focusContent[focus] : focusContent.start;
   const isSilent = focus === "silent";
   const hasProgress = progress !== null;
   const primaryLabel = hasProgress ? "继续学习" : "开始第一次练习";
-  const title = hasProgress
+  const title = hasProgress || selectedGoal
     ? selectedContent.title
     : isSilent
       ? "先用安静模式理解真实表达"
@@ -121,7 +146,7 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
               </li>)}
             </ol>
           </div> : null}
-          {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" data-testid="learn-primary-action" href="/learn/practice"><span>{primaryLabel}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
+        {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" data-testid="learn-primary-action" href={goalKey ? `/learn/practice?goal=${encodeURIComponent(goalKey)}` : "/learn/practice"}><span>{primaryLabel}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
         </div>
         {hasProgress ? <aside className="focus-card__side learn-detail-rail" aria-label="学习详情" data-testid="learn-detail-rail"><div className="learn-detail-rail__section"><span className="learn-detail-rail__label">这组表达</span><strong>{(progress?.expressionIndex ?? 0) + 1} / {progress?.totalExpressions}</strong><div className="progress-track" role="progressbar" aria-label="这组表达进度" aria-valuemin={0} aria-valuemax={progress?.totalExpressions} aria-valuenow={(progress?.expressionIndex ?? 0) + 1}><span style={{ width: `${(((progress?.expressionIndex ?? 0) + 1) / (progress?.totalExpressions || 1)) * 100}%` }} /></div><p>每句完成后都会保存，下一次打开就从这里继续。</p></div><div className="learn-detail-rail__section"><span className="learn-detail-rail__label">本次规则</span><p>完整表达前不纠错；技术失败不会产生负面能力记录。</p></div><div className="learn-detail-rail__section learn-detail-rail__section--privacy"><span aria-hidden="true">⌁</span><p><strong>录音隐私</strong>普通录音评估完成后删除。</p></div></aside> : null}
       </section>

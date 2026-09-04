@@ -37,6 +37,8 @@ READ-002 的 `GET /api/v1/content/articles` 只返回已发布文章的卡片 DT
 
 READ-003 增加 `GET /api/v1/content/articles/:articleId`，只返回已发布且版权清晰的规范化正文和稳定段落。Alpha 阅读器当前将位置、短语、高亮和笔记按文章 `stableKey`、版本与 `contentHash` 保存在 Web localStorage 或 Flutter `SecureStorage`，这是阅读 UI 的恢复缓存，不是学习证据权威来源；后续服务端用户阅读表接入时必须沿用同一版本边界和 RLS，不得把阅读活动写入口语画像。
 
+ALPHA-033 新增 `user_content_pack_states`（迁移 `0019`），保存用户对探索内容包的收藏与可恢复进度。状态以 `(user_id, pack_stable_key, pack_version)` 为边界，内容包换版后不会串用旧进度；`completed_steps` 由服务端按 `total_steps` 约束并在 upsert 时截断到合法范围。它属于用户私有的 discovery state，不是学习证据，不写入 `evidence_events`、`user_skill_states` 或口语评分。表启用 RLS，authenticated 只能读写自己的行，`profiles` 删除时级联清理；服务端 Route Handler 仍需执行会话和所有权校验。
+
 ALPHA-005 新增 `content_bundle_imports` 作为服务端导入登记表，保存 bundle 稳定 ID、版本、规范化内容哈希和实体数量。该表不向 `anon` 或 `authenticated` 开放。`expression_tags.scoring` 区分能力权值与元数据标签；`content_sources` 增加版权状态和内部审核说明。
 
 业务模块后续只能通过 repository/application 边界访问自己拥有的表，不能把 Drizzle 行类型直接扩散到 UI、Flutter 或公共 API。

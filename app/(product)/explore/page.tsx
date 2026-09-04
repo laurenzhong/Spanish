@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { getExploreDashboardForUser } from "@/src/modules/explore";
-import { BundleExploreRepository, emptyExploreUserStateRepository } from "@/src/modules/explore/repositories";
+import { BundleExploreRepository, createDrizzleExploreUserStateRepository, emptyExploreUserStateRepository } from "@/src/modules/explore/repositories";
+import { getDatabase } from "@/src/shared/db/client";
 import { getCurrentUser } from "@/src/shared/auth/server";
 
 import { ExplorePageContent } from "./explore-page-content";
@@ -20,7 +21,33 @@ function first(value: string | string[] | undefined): string | undefined {
 export default async function ExplorePage({ searchParams }: ExplorePageProps) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=%2Fexplore");
-  const dashboard = await getExploreDashboardForUser(new BundleExploreRepository(), emptyExploreUserStateRepository, user.id);
+  const userStateRepository = process.env.DATABASE_URL
+    ? createDrizzleExploreUserStateRepository(getDatabase())
+    : emptyExploreUserStateRepository;
+  const dashboardOptions = {
+    // Draft content remains blocked in production; local development can inspect
+    // the complete interaction flow without publishing unreviewed material.
+    allowDraft: process.env.NODE_ENV !== "production",
+  } as const;
+  let dashboard;
+  try {
+    dashboard = await getExploreDashboardForUser(
+      new BundleExploreRepository(),
+      userStateRepository,
+      user.id,
+      dashboardOptions,
+    );
+  } catch {
+    // User state is auxiliary to the content index. If the database is
+    // temporarily unreachable, keep the explore goals and packs usable while
+    // clearly marking persistence as unavailable in the DTO.
+    dashboard = await getExploreDashboardForUser(
+      new BundleExploreRepository(),
+      emptyExploreUserStateRepository,
+      user.id,
+      dashboardOptions,
+    );
+  }
   const params = await searchParams;
-  return <ExplorePageContent dashboard={dashboard} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} />;
+  return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} />;
 }

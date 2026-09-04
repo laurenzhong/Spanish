@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:spanish_mobile/core/auth/auth_repository.dart';
 import 'package:spanish_mobile/core/auth/auth_session.dart';
 import 'package:spanish_mobile/features/auth/login_page.dart';
+import 'package:spanish_mobile/features/explore/data/explore_api.dart';
 import 'package:spanish_mobile/shared/widgets/product_shell.dart';
 
 class SpanishApp extends StatelessWidget {
-  const SpanishApp({this.authSessionSource, this.authRepository, super.key});
+  const SpanishApp({this.authSessionSource, this.authRepository, this.exploreApi, super.key});
 
   final AuthSessionSource? authSessionSource;
   final AuthRepository? authRepository;
+  final ExploreApi? exploreApi;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +62,7 @@ class SpanishApp extends StatelessWidget {
       home: _AuthGate(
         authSessionSource: authSessionSource,
         authRepository: authRepository,
+        exploreApi: exploreApi,
       ),
     );
   }
@@ -69,10 +72,12 @@ class _AuthGate extends StatelessWidget {
   const _AuthGate({
     required this.authSessionSource,
     required this.authRepository,
+    required this.exploreApi,
   });
 
   final AuthSessionSource? authSessionSource;
   final AuthRepository? authRepository;
+  final ExploreApi? exploreApi;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +93,7 @@ class _AuthGate extends StatelessWidget {
         if (snapshot.data == null) {
           return LoginPage(repository: authRepository);
         }
-        return ProductShell(userId: snapshot.data!.userId);
+        return ProductShell(userId: snapshot.data!.userId, exploreApi: exploreApi);
       },
     );
   }

@@ -51,17 +51,34 @@ describe("ExplorePageContent", () => {
   it("filters known goals and keeps draft goals visibly unavailable", () => {
     render(<ExplorePageContent dashboard={dashboard} />);
     expect(screen.getByRole("heading", { name: "探索真实表达" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "沟通目标" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "内容包" })).toBeInTheDocument();
+    expect(screen.queryByText("表达资料库")).not.toBeInTheDocument();
+    expect(screen.queryByText("从真实沟通目的出发，不按孤立的语法章节堆叠内容。")).not.toBeInTheDocument();
+    expect(screen.queryByText("输入一句话，我们只会匹配已有的沟通目标，不会把文字发送给 AI。")).not.toBeInTheDocument();
+    expect(screen.queryByText("新的内容包正在审核，先从今天的沟通目标开始。")).not.toBeInTheDocument();
     expect(screen.getByText("询问近况")).toBeInTheDocument();
     expect(screen.getByLabelText("请求重复，内容整理中")).toBeInTheDocument();
+    expect(screen.getByText("约 6 分钟")).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "重复" } });
     expect(screen.queryByText("询问近况")).not.toBeInTheDocument();
     expect(screen.getByText("请求重复")).toBeInTheDocument();
   });
 
+  it("opens draft goal previews when local preview mode is enabled", () => {
+    render(<ExplorePageContent allowDraftPreview dashboard={dashboard} />);
+    expect(screen.getByRole("link", { name: /请求重复/ })).toHaveAttribute(
+      "href",
+      "/learn?goal=communication.repair.ask-repeat",
+    );
+  });
+
   it("opens a conditional rail with one route-backed primary action", () => {
-    render(<ExplorePageContent dashboard={dashboard} />);
+    const { container } = render(<ExplorePageContent dashboard={dashboard} />);
+    expect(container.querySelector(".explore-workspace")).not.toHaveClass("explore-workspace--with-rail");
     fireEvent.click(screen.getByRole("button", { name: "查看咖啡馆里的新朋友详情，可开始" }));
+    expect(container.querySelector(".explore-workspace")).toHaveClass("explore-workspace--with-rail");
     expect(screen.getByTestId("explore-detail-rail")).toHaveTextContent("Sueño 原创");
     expect(screen.getByRole("link", { name: "开始这组内容" })).toHaveAttribute("href", "/explore/packs/published-pack");
     expect(screen.getAllByRole("link", { name: "开始这组内容" })).toHaveLength(1);
@@ -69,10 +86,25 @@ describe("ExplorePageContent", () => {
     expect(screen.queryByTestId("explore-detail-rail")).not.toBeInTheDocument();
   });
 
+  it("supports saving a pack without nesting the save action inside the card selector", () => {
+    render(<ExplorePageContent dashboard={dashboard} />);
+    const save = screen.getByRole("button", { name: "保存咖啡馆里的新朋友" });
+    fireEvent.click(save);
+    expect(save).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("已保存到你的探索清单。")).toBeInTheDocument();
+  });
+
+  it("keeps the saved filter in the URL after selecting it", () => {
+    window.history.replaceState(null, "", "/explore");
+    render(<ExplorePageContent dashboard={dashboard} />);
+    fireEvent.click(screen.getByRole("button", { name: "已保存" }));
+    expect(new URL(window.location.href).searchParams.get("saved")).toBe("1");
+  });
+
   it("shows an honest blocked state for a draft pack", () => {
     render(<ExplorePageContent dashboard={dashboard} />);
     fireEvent.click(screen.getByRole("button", { name: "查看周末市场详情，内容整理中" }));
-    expect(screen.getByTestId("explore-detail-rail")).toHaveTextContent("完成审核后开放");
+    expect(screen.getByTestId("explore-detail-rail")).toHaveTextContent("内容整理中");
     expect(screen.getByText("这组内容完成审核后会出现在这里。")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "开始这组内容" })).not.toBeInTheDocument();
   });
@@ -81,7 +113,7 @@ describe("ExplorePageContent", () => {
     const statefulDashboard = { ...dashboard, packs: [...dashboard.packs, progressPack, unavailablePack], resume: [progressPack] };
     render(<ExplorePageContent dashboard={statefulDashboard} />);
 
-    expect(screen.getByRole("heading", { name: "从上次停下的地方回来" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "继续探索" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "查看办公室里的寒暄详情，继续中" }));
     expect(screen.getByRole("link", { name: "继续这组内容" })).toHaveAttribute("href", "/explore/packs/progress-pack");
     fireEvent.click(screen.getByRole("button", { name: "关闭内容详情" }));
@@ -89,6 +121,6 @@ describe("ExplorePageContent", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "查看地铁站问路详情，暂不可用" }));
     expect(screen.getByTestId("explore-detail-rail")).toHaveTextContent("暂不可用");
-    expect(screen.getByText("这组内容完成审核后会出现在这里。")).toBeInTheDocument();
+    expect(screen.getByText("这组内容暂时无法读取，请稍后重试。")).toBeInTheDocument();
   });
 });

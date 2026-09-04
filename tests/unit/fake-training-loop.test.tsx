@@ -44,6 +44,39 @@ describe("FakeTrainingLoop", () => {
     expect(screen.getByRole("button", { name: "用文字回答" })).toBeInTheDocument();
   });
 
+  it("starts with the expression for the selected communication goal", async () => {
+    render(<FakeTrainingLoop goalKey="communication.repair.ask-repeat" />);
+
+    expect(screen.getByText("¿Podría repetirlo?")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "第 1 句，共 1 句" })).toBeInTheDocument();
+    expect(await screen.findByText("轮到你了")).toBeInTheDocument();
+  });
+
+  it("does not restore a checkpoint from another goal", async () => {
+    window.localStorage.setItem(
+      "spanish.training.checkpoint.v1:goal-user",
+      JSON.stringify({
+        schemaVersion: 1,
+        contentBundleKey: "alpha.core",
+        contentBundleVersion: 1,
+        contentKey: "start.como-va-todo",
+        goalKey: "communication.start.check-in",
+        status: "awaiting-output",
+        outputMode: "speech",
+        hintLevel: 0,
+        generationId: 2,
+        transcript: null,
+        evaluation: null,
+        error: null,
+      }),
+    );
+
+    render(<FakeTrainingLoop goalKey="communication.repair.ask-repeat" userId="goal-user" />);
+
+    expect(screen.getByText("¿Podría repetirlo?")).toBeInTheDocument();
+    expect(await screen.findByText("轮到你了")).toBeInTheDocument();
+    expect(screen.queryByText("已恢复上次稳定进度")).not.toBeInTheDocument();
+  });
   it("accepts a natural typed alternative and starts the next expression after completion", async () => {
     const user = userEvent.setup();
     render(<FakeTrainingLoop />);

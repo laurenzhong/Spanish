@@ -27,6 +27,7 @@ import {
   type JsonObject,
 } from "./common";
 import { audioAssets } from "./infrastructure";
+import { profiles } from "./users";
 
 export const communicationDomains = pgTable(
   "communication_domains",
@@ -396,6 +397,30 @@ export const contentReviews = pgTable(
   (table) => [
     index("content_reviews_entity_idx").on(table.entityType, table.entityId),
     index("content_reviews_status_idx").on(table.status),
+  ],
+);
+
+/** User-owned discovery state for a versioned content pack. */
+export const userContentPackStates = pgTable(
+  "user_content_pack_states",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    packStableKey: text("pack_stable_key").notNull(),
+    packVersion: integer("pack_version").notNull(),
+    saved: boolean("saved").default(false).notNull(),
+    completedSteps: integer("completed_steps").default(0).notNull(),
+    totalSteps: integer("total_steps").notNull(),
+    lastOpenedAt: timestamp("last_opened_at", { withTimezone: true, mode: "date" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.packStableKey, table.packVersion] }),
+    index("user_content_pack_states_user_last_opened_idx").on(table.userId, table.lastOpenedAt),
+    check("user_content_pack_states_version_positive_check", sql`${table.packVersion} > 0`),
+    check("user_content_pack_states_steps_valid_check", sql`${table.completedSteps} >= 0 and ${table.completedSteps} <= ${table.totalSteps} and ${table.totalSteps} > 0`),
   ],
 );
 

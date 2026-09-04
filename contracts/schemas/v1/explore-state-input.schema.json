@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/explore-state-input.schema.json",
+  "title": "Explore pack state input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stableKey", "version", "totalSteps", "completedSteps"],
+  "properties": {
+    "stableKey": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "version": { "type": "integer", "minimum": 1 },
+    "totalSteps": { "type": "integer", "minimum": 1 },
+    "completedSteps": { "type": "integer", "minimum": 0 },
+    "saved": { "type": "boolean" }
+  }
+}

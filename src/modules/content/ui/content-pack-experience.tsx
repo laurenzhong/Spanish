@@ -78,6 +78,24 @@ export function ContentPackExperience({ pack }: ContentPackExperienceProps) {
     }
   }, [pack, progress]);
 
+  useEffect(() => {
+    if (!didHydrate.current) return;
+    const timer = window.setTimeout(() => {
+      void fetch("/api/v1/explore/state", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          stableKey: pack.stableKey,
+          version: pack.version,
+          totalSteps: pack.activities.length,
+          completedSteps: progress.completedActivityIds.length,
+        }),
+      }).catch(() => undefined);
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [pack, progress]);
+
   const fullText = useMemo(() => pack.segments.map((segment) => segment.text).join(" "), [pack.segments]);
   const completedCount = progress.completedActivityIds.length;
 
