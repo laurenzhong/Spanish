@@ -304,6 +304,23 @@ describe("fake conversation reply", () => {
       .toContain("No he estado en ese puerto");
   });
 
+  it("rejects an unfounded night wish after a greeting-only message", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Hola, buenas noches 😊 Espero que estés teniendo una noche tranquila.", provider: "openai" as const, modelVersion: "test", providerRequestId: "greeting-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Buenas noches 😊 Me alegra leerte.", provider: "openai" as const, modelVersion: "test", providerRequestId: "greeting-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Hola, buenas noches.", clientMessageId: "client-greeting", generationId: "generation-greeting", messageId: "message-greeting",
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toContain("Me alegra leerte");
+  });
+
   it("allows a low-pressure reciprocal question but blocks investigative questions in support", async () => {
     const makeProvider = (text: string) => ({
       generate: vi.fn().mockResolvedValue({

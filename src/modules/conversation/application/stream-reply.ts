@@ -301,7 +301,23 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   if (isRepeatedSameDayTopicReply(context, text)) return false;
   if (isUnexplainedSameDayClaimChange(context, text)) return false;
   if (isPreReturnWishAfterReturn(context, text)) return false;
+  if (isUnfoundedGreetingWish(context, text)) return false;
   return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: context.userMessage }));
+}
+
+function isUnfoundedGreetingWish(context: ReplyContext, text: string): boolean {
+  const normalizedUserMessage = context.userMessage
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  if (!/^(?:(?:hola|hey)(?:\s+buenas)?(?:\s+(?:noches|tardes|dias))?|buenas(?:\s+(?:noches|tardes|dias))?)$/u.test(normalizedUserMessage)) return false;
+  const normalizedReply = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES");
+  return /\b(?:espero\s+que|ojala\s+que|ojala)\b/iu.test(normalizedReply);
 }
 
 function isPreReturnWishAfterReturn(context: ReplyContext, text: string): boolean {
