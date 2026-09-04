@@ -228,7 +228,21 @@ test("applies and restores the selected user bubble style", async ({ page }) => 
 
   await page.goto("/chat/lucia");
   const userMessage = page.locator(".conversation-message--user");
-  await expect(userMessage.locator(".conversation-art-bubble--dog-long")).toBeVisible();
+  const dogBubble = userMessage.locator(".conversation-art-bubble--dog");
+  await expect(dogBubble).toBeVisible();
+  await expect(dogBubble).toHaveAttribute("data-dog-frame", "compact");
+  await expect.poll(() => dogBubble.locator("img").evaluate((image) => (
+    image instanceof HTMLImageElement && image.complete ? image.naturalWidth : 0
+  ))).toBe(225);
+  const dogBubbleStyle = await dogBubble.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return {
+      aspectRatio: box.width / box.height,
+      backgroundColor: getComputedStyle(element).backgroundColor,
+    };
+  });
+  expect(dogBubbleStyle.aspectRatio).toBeCloseTo(225 / 145, 1);
+  expect(dogBubbleStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
 
   await page.evaluate(() => {
     window.localStorage.setItem("sueno-chat-bubble-style", "pink-frog");

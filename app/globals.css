@@ -4608,10 +4608,29 @@ button {
   isolation: isolate;
 }
 
+.conversation-art-bubble--dog {
+  width: var(--dog-frame-width);
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: var(--dog-frame-ratio);
+  border-radius: 0;
+  background: transparent;
+}
+
+.conversation-art-bubble--dog-compact {
+  --dog-frame-width: 149px;
+  --dog-frame-ratio: 225 / 145;
+}
+
+.conversation-art-bubble--dog-medium {
+  --dog-frame-width: 368px;
+  --dog-frame-ratio: 555 / 145;
+}
+
 .conversation-art-bubble--dog-long {
-  min-width: 110px;
-  border-radius: 12px;
-  background: #95644d;
+  --dog-frame-width: 430px;
+  --dog-frame-ratio: 650 / 145;
 }
 
 .conversation-art-bubble__dog-art {
@@ -4620,7 +4639,7 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: contain;
   user-select: none;
 }
 
@@ -4638,6 +4657,27 @@ button {
   font-size: inherit;
   line-height: 1.6;
   overflow-wrap: anywhere;
+}
+
+.conversation-art-bubble--dog .conversation-art-bubble__text-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 0;
+  justify-content: center;
+  padding-block: 12%;
+}
+
+.conversation-art-bubble--dog-compact .conversation-art-bubble__text-layer {
+  padding-inline: 24% 12%;
+}
+
+.conversation-art-bubble--dog-medium .conversation-art-bubble__text-layer {
+  padding-inline: 10% 7%;
+}
+
+.conversation-art-bubble--dog-long .conversation-art-bubble__text-layer {
+  padding-inline: 9% 6%;
 }
 
 .conversation-art-bubble__text {
@@ -4690,8 +4730,6 @@ button {
 
 .conversation-art-bubble--pink > span { max-width: 100%; min-height: 0; padding: 0; }
 .conversation-art-bubble--pink .conversation-art-bubble__text { text-align: left; }
-
-.conversation-art-bubble--dog-long > span { min-width: 110px; }
 
 .conversation-art-bubble--pink > span { color: #1d211f; }
 
@@ -4787,7 +4825,10 @@ button {
 
 @media (max-width: 640px) {
   .conversation-art-bubble { min-height: 60px; }
+  .conversation-message--user:has(.conversation-art-bubble--dog) { max-width: 92%; }
+  .conversation-art-bubble--dog { min-height: 0; }
   .conversation-art-bubble__text-layer { min-height: 60px; padding-block: 5px; font-size: 13px; }
+  .conversation-art-bubble--dog .conversation-art-bubble__text-layer { min-height: 0; padding-block: 12%; }
   .conversation-art-bubble--pink { min-height: 52px; padding: 7px 32px; font-size: 13px; }
   .conversation-art-bubble__frog { right: -16px; bottom: -14px; width: 46px; height: 56px; }
 }

@@ -42,7 +42,7 @@ describe("ChatThread persistence status", () => {
     render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
 
     expect(await screen.findByText("Hola")).toBeInTheDocument();
-    await waitFor(() => expect(document.querySelector(".conversation-art-bubble--dog-long")).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector(".conversation-art-bubble--dog")).toBeInTheDocument());
   });
 
   it("uses the light frog bubble for character messages on every conversation", async () => {
@@ -57,7 +57,7 @@ describe("ChatThread persistence status", () => {
 
     expect(await screen.findByText("Hola")).toBeInTheDocument();
     expect(document.querySelector(".conversation-art-bubble--pink")).toBeInTheDocument();
-    expect(document.querySelector(".conversation-art-bubble--dog-long")).not.toBeInTheDocument();
+    expect(document.querySelector(".conversation-art-bubble--dog")).not.toBeInTheDocument();
   });
 
   it("keeps bubble text in a centered block for short messages and a left-aligned block for wrapped text", () => {
@@ -70,6 +70,32 @@ describe("ChatThread persistence status", () => {
     const wrappedText = document.querySelector<HTMLElement>(".conversation-art-bubble__text");
     expect(wrappedText?.textContent).toBe("Primera línea\nSegunda línea");
     expect(wrappedText).toHaveClass("conversation-art-bubble__text");
+  });
+
+  it("uses the original compact, medium, and long dog frames without reusing one stretched image", () => {
+    const { rerender } = render(<ChatBubbleArt text="Hola" style="dog-long" />);
+    let bubble = document.querySelector<HTMLElement>(".conversation-art-bubble--dog");
+    let art = bubble?.querySelector<HTMLImageElement>(".conversation-art-bubble__dog-art");
+    expect(bubble).toHaveAttribute("data-dog-frame", "compact");
+    expect(art?.getAttribute("src")).toContain("dog-compact-frame.png");
+    expect(art).toHaveAttribute("width", "225");
+    expect(art).toHaveAttribute("height", "145");
+
+    rerender(<ChatBubbleArt text="¿Te hace ilusión volver a viajar este otoño?" style="dog-long" />);
+    bubble = document.querySelector<HTMLElement>(".conversation-art-bubble--dog");
+    art = bubble?.querySelector<HTMLImageElement>(".conversation-art-bubble__dog-art");
+    expect(bubble).toHaveAttribute("data-dog-frame", "medium");
+    expect(art?.getAttribute("src")).toContain("dog-third-frame.png");
+    expect(art).toHaveAttribute("width", "555");
+    expect(art).toHaveAttribute("height", "145");
+
+    rerender(<ChatBubbleArt text="Hoy caminé por el centro y encontré una librería pequeña que me encantó." style="dog-long" />);
+    bubble = document.querySelector<HTMLElement>(".conversation-art-bubble--dog");
+    art = bubble?.querySelector<HTMLImageElement>(".conversation-art-bubble__dog-art");
+    expect(bubble).toHaveAttribute("data-dog-frame", "long");
+    expect(art?.getAttribute("src")).toContain("dog-long-frame.png");
+    expect(art).toHaveAttribute("width", "650");
+    expect(art).toHaveAttribute("height", "145");
   });
 
   it("keeps the history loader visible until the response body has hydrated", async () => {

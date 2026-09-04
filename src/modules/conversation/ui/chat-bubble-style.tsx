@@ -61,11 +61,28 @@ export function useChatBubbleStyle(): ChatBubbleStyle {
 
 type BubbleArtProps = Readonly<{ text: string; style: ChatBubbleStyle }>;
 
+type DogFrame = "compact" | "medium" | "long";
+
+const DOG_FRAMES: Readonly<Record<DogFrame, Readonly<{
+  src: string;
+  width: number;
+  height: number;
+}>>> = {
+  compact: { src: "/chat-bubbles/dog-compact-frame.png", width: 225, height: 145 },
+  medium: { src: "/chat-bubbles/dog-third-frame.png", width: 555, height: 145 },
+  long: { src: "/chat-bubbles/dog-long-frame.png", width: 650, height: 145 },
+};
+
+function selectDogFrame(text: string): DogFrame {
+  const characterCount = Array.from(text.trim().replace(/\s+/g, " ") || "…").length;
+  if (characterCount <= 18) return "compact";
+  if (characterCount <= 56) return "medium";
+  return "long";
+}
+
 function BubbleText({ text }: Readonly<{ text: string }>) {
   return <span className="conversation-message__text conversation-art-bubble__text">{text || "…"}</span>;
 }
-
-const dogAssets = { "dog-long": "/chat-bubbles/dog-long-frame.png" } as const;
 
 export function ChatBubbleArt({ text, style }: BubbleArtProps) {
   if (style === "pink-frog") {
@@ -77,16 +94,23 @@ export function ChatBubbleArt({ text, style }: BubbleArtProps) {
       </div>
     );
   }
+  const dogFrame = selectDogFrame(text);
+  const dogAsset = DOG_FRAMES[dogFrame];
   return (
-    <div className={`conversation-art-bubble conversation-art-bubble--${style}`}>
+    <div
+      className={`conversation-art-bubble conversation-art-bubble--dog conversation-art-bubble--dog-${dogFrame}`}
+      data-dog-frame={dogFrame}
+    >
       <Image
         className="conversation-art-bubble__dog-art"
-        src={dogAssets[style]}
+        src={dogAsset.src}
         alt=""
         aria-hidden="true"
-        fill
+        width={dogAsset.width}
+        height={dogAsset.height}
         loading="eager"
-        sizes="(max-width: 640px) 88vw, 600px"
+        unoptimized
+        sizes="(max-width: 640px) 82vw, 430px"
       />
       <span className="conversation-art-bubble__text-layer"><BubbleText text={text} /></span>
     </div>

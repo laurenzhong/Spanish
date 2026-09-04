@@ -3,7 +3,7 @@
 - 授权日期：2026-09-04
 - 授权人：本仓库产品本人、素材提交者及唯一创作者（本次 Codex 任务对话用户）
 - 授权形式：在本次 Codex 任务对话中书面确认；授权人先确认素材为原创，随后明确确认完整授权条款
-- 文件范围：`public/chat-bubbles/dog-long-frame.png`、`public/chat-bubbles/frog-clean.png`、`public/chat-bubbles/heart-clean.png`，以及为本仓库适配这些文件所产生的尺寸、压缩或格式变体
+- 文件范围：`public/chat-bubbles/dog-compact-frame.png`、`public/chat-bubbles/dog-third-frame.png`、`public/chat-bubbles/dog-long-frame.png`、`public/chat-bubbles/frog-clean.png`、`public/chat-bubbles/heart-clean.png`，以及为本仓库适配这些文件所产生的尺寸、压缩或格式变体
 - 使用范围：允许本仓库及其商业、闭源产品永久使用、复制、修改、改编和分发上述素材
 - 署名要求：无需署名
 - 其他权利：授权人确认不存在其他创作者、贡献者或第三方权利需要另行授权
