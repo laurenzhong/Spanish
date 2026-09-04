@@ -4201,6 +4201,56 @@ button {
   white-space: nowrap;
 }
 
+.conversation-contact-row__typing,
+.conversation-thread__typing {
+  color: var(--conversation-action) !important;
+  font-weight: 650;
+}
+
+.conversation-typing-indicator {
+  display: inline-flex;
+  gap: 3px;
+  align-items: baseline;
+}
+
+.conversation-typing-indicator__dots {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  height: 1em;
+}
+
+.conversation-typing-indicator__dots i {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: conversation-typing-dot 1.2s ease-in-out infinite;
+  opacity: 0.35;
+}
+
+.conversation-typing-indicator__dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.conversation-typing-indicator__dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes conversation-typing-dot {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-typing-indicator__dots i {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .conversation-contact-row__preview {
   overflow: hidden;
   color: var(--conversation-faint);

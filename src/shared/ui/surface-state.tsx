@@ -41,7 +41,13 @@ export function SurfaceState({ action, description, state }: SurfaceStateProps) 
       className={`surface-state surface-state--${state}`}
     >
       <span className="surface-state__marker" aria-hidden="true">
-        {content.marker}
+        {state === "loading" ? (
+          <span className="surface-state__loading-dots">
+            <i className="surface-state__dot" />
+            <i className="surface-state__dot" />
+            <i className="surface-state__dot" />
+          </span>
+        ) : content.marker}
       </span>
       <h2>{content.title}</h2>
       <p>{description ?? content.description}</p>

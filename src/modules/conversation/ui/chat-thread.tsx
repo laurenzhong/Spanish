@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
 
 import {
   ConversationNdjsonParser,
@@ -81,6 +82,15 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   ));
   const serverHistoryLoadedRef = useRef(Boolean(initialMessages));
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
+
+  useEffect(() => {
+    const isTyping = state.status === "streaming";
+    window.dispatchEvent(new CustomEvent("conversation-typing", { detail: { characterKey, isTyping } }));
+    if (!isTyping) return;
+    return () => {
+      window.dispatchEvent(new CustomEvent("conversation-typing", { detail: { characterKey, isTyping: false } }));
+    };
+  }, [characterKey, state.status]);
 
   useEffect(() => {
     currentMessagesRef.current = state.messages;
@@ -533,7 +543,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
           <div>
             <h1 id="conversation-title">{characterName}</h1>
-            <p>{roleLabel}</p>
+            {state.status === "streaming" ? (
+              <ConversationTypingIndicator className="conversation-thread__typing" />
+            ) : <p>{roleLabel}</p>}
           </div>
         </div>
         <ConversationSearch compact />

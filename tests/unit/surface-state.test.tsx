@@ -14,4 +14,14 @@ describe("SurfaceState", () => {
 
     expect(screen.getByText(message)).toBeVisible();
   });
+
+  it("renders an animated three-dot marker only while loading", () => {
+    const { container, rerender } = render(<SurfaceState state="loading" />);
+
+    expect(container.querySelectorAll(".surface-state__dot")).toHaveLength(3);
+
+    rerender(<SurfaceState state="empty" />);
+
+    expect(container.querySelectorAll(".surface-state__dot")).toHaveLength(0);
+  });
 });

@@ -21,6 +21,23 @@ describe("ConversationContactRail", () => {
     expect(screen.queryByRole("link", { name: /Inés García/ })).not.toBeInTheDocument();
   });
 
+  it("shows Typing only while a friend is actively replying", async () => {
+    render(<ConversationContactRail activeCharacterKey="lucia" />);
+    await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
+
+    expect(screen.queryByText("Typing")).not.toBeInTheDocument();
+    expect(screen.getByText("主要好友")).toBeInTheDocument();
+
+    window.dispatchEvent(new CustomEvent("conversation-typing", { detail: { characterKey: "lucia", isTyping: true } }));
+    await waitFor(() => expect(screen.getByText("Typing")).toBeInTheDocument());
+    expect(screen.queryByText("主要好友")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Lucía Martín 正在输入/ })).toBeInTheDocument();
+
+    window.dispatchEvent(new CustomEvent("conversation-typing", { detail: { characterKey: "lucia", isTyping: false } }));
+    await waitFor(() => expect(screen.queryByText("Typing")).not.toBeInTheDocument());
+    expect(screen.getByText("主要好友")).toBeInTheDocument();
+  });
+
   it("reuses the cached list when the active friend changes", async () => {
     const first = render(<ConversationContactRail activeCharacterKey="lucia" />);
     await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());

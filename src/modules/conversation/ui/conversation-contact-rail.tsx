@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ConversationSearch } from "./conversation-search";
 import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
 import { prefetchConversationHistory } from "./conversation-history-cache";
+import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
 
 type ConversationContactRailProps = Readonly<{
   activeCharacterKey?: string;
@@ -82,6 +83,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   const [showIntroductions, setShowIntroductions] = useState(false);
   const [preferences, setPreferences] = useState<ConversationPreferences>({});
   const [markedUnread, setMarkedUnread] = useState<ReadonlySet<string>>(() => new Set());
+  const [typingCharacters, setTypingCharacters] = useState<ReadonlySet<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const suppressClickFor = useRef<string | null>(null);
@@ -105,6 +107,22 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     });
     void loadLuciaContact().then(() => setLuciaContact(cachedLuciaContact));
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const handleTyping = (event: Event) => {
+      const detail = (event as CustomEvent<{ characterKey?: unknown; isTyping?: unknown }>).detail;
+      if (typeof detail?.characterKey !== "string" || typeof detail.isTyping !== "boolean") return;
+      const characterKey = detail.characterKey;
+      setTypingCharacters((current) => {
+        const next = new Set(current);
+        if (detail.isTyping) next.add(characterKey);
+        else next.delete(characterKey);
+        return next;
+      });
+    };
+    window.addEventListener("conversation-typing", handleTyping);
+    return () => window.removeEventListener("conversation-typing", handleTyping);
   }, []);
 
   useEffect(() => {
@@ -285,6 +303,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
         {visibleConversations.map((conversation) => {
           const preference = preferenceFor(conversation);
           const isUnread = markedUnread.has(conversation.characterKey);
+          const isTyping = typingCharacters.has(conversation.characterKey);
           return (
             <div
               className="conversation-contact-row-shell"
@@ -324,12 +343,14 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
                 onMouseEnter={() => prefetchConversationHistory(conversation.characterKey)}
                 onFocus={() => prefetchConversationHistory(conversation.characterKey)}
                 aria-current={activeCharacterKey === conversation.characterKey ? "page" : undefined}
-                aria-label={`${conversation.characterName} ${conversation.roleLabel}${isUnread ? "，未读" : ""}${preference.isMuted ? "，已静音" : ""}`}
+                aria-label={`${conversation.characterName} ${isTyping ? "正在输入" : conversation.roleLabel}${isUnread ? "，未读" : ""}${preference.isMuted ? "，已静音" : ""}`}
               >
                 <span className={`avatar ${conversation.avatarClass}`} aria-hidden="true">{conversation.characterName.slice(0, 1)}</span>
                 <span className="conversation-contact-row__body">
                   <strong>{conversation.characterName}</strong>
-                  <small>{conversation.roleLabel}</small>
+                  {isTyping ? (
+                    <ConversationTypingIndicator className="conversation-contact-row__typing" />
+                  ) : <small>{conversation.roleLabel}</small>}
                   {conversation.lastMessage ? <span className="conversation-contact-row__preview">{conversation.lastMessage.snippet}</span> : null}
                 </span>
                 {preference.isPinned ? <span className="conversation-contact-row__marker" aria-label="已置顶">置顶</span> : null}
