@@ -2,7 +2,7 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-08-29
+- 最后更新：2026-09-04
 - 当前里程碑：个人 Alpha 阶段 7.7——功能缺口收敛与发布候选准备
 - 总体状态：READ-005、READ-006、UI-009、UI-010、UI-011、ALPHA-032 已完成；阶段 8 尚未启动，等待发布候选门禁
 - 协调分支：`main`
@@ -77,6 +77,7 @@
 - ALPHA-033 限制收敛：Vitest 默认改为单 worker，避免全量并行触发 Windows V8/WASM OOM；会话历史 `hydrate`/`replace-hydrate` 对持久化重复消息按稳定客户端键去重，reply-plan 未注入测试时钟时不再受真实日期推进影响。Playwright 默认端口改为 3101、默认单 worker，并复用稳定的 `.next/e2e` 构建目录，避免与 3100 预览服务冲突及反复污染 `tsconfig.json`。实现 Commit：`116c449`。验证：会话/reply-plan Vitest `48/48`、全量 `pnpm test --run` `118/118` 文件与 `533/533` 断言、桌面/移动 Playwright smoke `2/2`、受影响文件 ESLint 和 `pnpm typecheck` 通过。限制：尚未重跑全量 Playwright；下一步在无残留开发进程时执行发布候选 E2E。
 - ALPHA-033 异步状态反馈：对话头部和联系人列表仅在真实流式回复期间显示 `Typing` 三点动效，结束、切换状态或卸载时清理；普通状态恢复角色标签。Typing 视觉对辅助技术隐藏，继续由既有中文“正在回复”状态作为唯一完整播报，并在 `prefers-reduced-motion` 下停止动效；通用 `SurfaceState` 的加载标记改为三点反馈，空态和错误态保持原图标。实现 Commit：`66b61b8`。验证：Typing/联系人/SurfaceState Vitest `12/12`、受影响文件 ESLint 与 `pnpm typecheck` 通过；对话 Playwright `22/24`，仅 2 条消息宽度断言被未纳入本提交的气泡视觉实验影响。限制：Typing 事件只反映当前页面内的活跃生成，不是跨设备在线状态。下一步：在不加载气泡实验的干净快照重跑对话 E2E。
 - ALPHA-033 原创消息气泡：角色消息固定使用浅色青蛙气泡，用户可在资料页选择深色狗狗或浅色青蛙样式；偏好通过 `useSyncExternalStore` 保存在当前设备并支持同标签页、跨标签页同步。气泡恢复内容驱动宽度，短消息不再被撑满；装饰图片具有空替代文本、稳定尺寸、可读后备底色和显式首屏加载策略。仅提交狗狗、青蛙、爱心 3 个运行时素材，授权人已确认其为原创且允许商业及闭源项目永久使用、修改和分发，无需署名、无其他贡献者权利；授权记录见 `docs/references/chat-bubble-assets.md`。实现 Commit：`c8a6d19`。验证：相关 Vitest `18/18`、全量 Vitest `119/119` 文件与 `533/533` 断言、对话 Playwright 桌面/移动 `26/26`、`pnpm lint`、`pnpm typecheck`、`pnpm build`、`git diff --check` 通过；真实渲染检查覆盖 1280px、390px、亮色和暗色主题，Next Image LCP 警告已消失。全量 Playwright `110/126` 通过，16 条失败均位于本切片之外：旧 `product-shell` 的探索/联系人/介绍入口断言、阅读保存位置抖动、移动端句子选择、阅读辅助焦点恢复和移动端账号数据删除状态。限制：偏好尚未服务端同步，Flutter 对话页未同步该视觉；独立预览源码和设计提取中间文件只保留在本机 `design/`，不进入产品路由或提交。下一步：先按模块收敛上述全量 Playwright 阻塞，再由产品本人进行气泡视觉验收和发布候选人工检查。
+- ALPHA-033 深色狗狗气泡视觉回归修复：恢复原稿的 compact、third、long 三种透明狗狗帧，按消息长度选择对应素材并固定原始宽高比，不再把同一长帧任意挤压或拉伸；移除填满透明区域的棕色矩形后备层，移动端仅等比缩放，并让小型本地 PNG 直接加载以避免优化转换期间短暂只显示白字。实现 Commit：`5523515`。验证：修复测试先复现单长帧复用；相关 Vitest `19/19`、全量 Vitest `119/119` 文件与 `534/534` 断言、对话 Playwright 桌面/移动 `26/26`、新增气泡回归 `2/2`、`pnpm lint`、`pnpm typecheck`、`pnpm build`、`git diff --check` 全部通过；另以 1280px 与 390px 真实截图确认三档轮廓、内部比例和透明边缘。限制：本轮未重跑已知存在 16 条无关失败的全量 Playwright；气泡偏好仍未服务端同步，Flutter 尚未接入该视觉。下一步：由产品本人复核恢复后的狗狗气泡，再继续收敛既有全量 Playwright 阻塞。
 - 下一项：阶段 8 个人 Alpha 连续使用与人工体验复核，仅在本任务退出条件满足并经产品本人确认后启动。
 
 - ALPHA-033 D01 主动消息 Slice B（App 内第一阶段）：新增 Lucía 主动消息资格领域规则（关系 active、暂停、每日/每周上限、12 小时冷却、未回应抑制）、provider-neutral 主动上下文和文本硬门禁；新增 `proactive_message_candidates` 表、`messages.source_type`、原子候选/消息持久化 repository，以及 `POST /api/v1/conversations/lucia/proactive` 手动触发入口。当前只生成并写入 App 内会话历史，不接 Web Push/APNs/FCM；provider 失败或门禁失败不发送、不 fallback；客户端不能自行触发关系里程碑来源。报备型日常分享是默认形式，`familiar` 以上且 `waking` 状态允许单句 `Te echo de menos.`，并通过 provider 输入和硬门禁固定该边界。实现 Commit：`8d22014`、`e76df98`；验证：主动消息领域/application Vitest 4/4、PGlite 持久化 1/1、provider 相关回归通过，`pnpm typecheck`、`pnpm db:check` 和受影响文件 ESLint 通过。下一步：在聊天 UI 增加主动消息到达后的轻量刷新/未读呈现，并进行 Lucía 连续人工体验。
