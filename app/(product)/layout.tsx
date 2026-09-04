@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { AppShell } from "@/src/shared/ui/app-shell";
+import { AuthRecoveryActions } from "@/src/shared/auth/auth-recovery-actions";
 
 type ProductLayoutProps = Readonly<{
   children: ReactNode;
@@ -29,7 +30,10 @@ export default async function ProductLayout({ children }: ProductLayoutProps) {
               <p className="eyebrow">登录状态暂时不可用</p>
               <h1>暂时无法验证登录</h1>
               <p>认证服务暂时没有响应，你的登录信息没有被清除。请稍后重新载入。</p>
-              <a className="primary-link" href={nextPath}>重新载入</a>
+              <div className="auth-recovery-actions">
+                <a className="primary-link" href={nextPath}>重新载入</a>
+                <AuthRecoveryActions nextPath={nextPath} />
+              </div>
             </section>
           </main>
         );

@@ -6,6 +6,7 @@ import {
   isPublicRoute,
   resolveAuthRedirect,
 } from "@/src/shared/auth/route-access";
+import { isRetryableAuthError } from "@/src/shared/auth/errors";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -36,7 +37,9 @@ export async function proxy(request: NextRequest) {
     if (error) {
       // Do not turn a transient Auth outage into a login redirect loop. The
       // protected product layout still performs the authoritative check.
-      authCheckFailed = true;
+      // Invalid or expired sessions are not an outage: send them through the
+      // normal anonymous redirect so the user can obtain a fresh session.
+      authCheckFailed = isRetryableAuthError(error);
     } else {
       isAuthenticated = Boolean(data.user);
     }

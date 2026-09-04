@@ -17,7 +17,7 @@
 Web 浏览器通过 `@supabase/ssr` 持有 Cookie 会话：
 
 1. 客户端 Auth Repository 请求和验证 OTP。
-2. `proxy.ts` 在受保护页面前刷新 Supabase Cookie，并做快速跳转。
+2. `proxy.ts` 在受保护页面前刷新 Supabase Cookie，并做快速跳转。Auth 返回 401/无效或过期 JWT 时按匿名会话跳转到 `/login`；只有网络、超时或 5xx 等可重试错误才进入“暂时无法验证登录”的恢复页，避免旧 Cookie 永久卡在故障状态。恢复页另提供仅清除本地会话并重新登录的操作，不依赖 Auth 服务在线。
 3. 产品服务端布局再次调用 Supabase `auth.getUser()`，不把 proxy 或客户端状态当作权威身份；如果验证遇到可重试的网络或 5xx 错误，只短暂重试一次，401/无效会话不会重试。
 4. Route Handler 对 Bearer Token 调用 `auth.getUser(token)`；不接受客户端声明的 user ID，也不只做本地 JWT 解码。
 

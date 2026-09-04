@@ -5,6 +5,12 @@ import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 
 import { readSupabasePublicConfig } from "./config";
+import {
+  isRetryableAuthError,
+  type AuthUserLookupError,
+} from "./errors";
+
+export { isRetryableAuthError } from "./errors";
 
 export type AuthenticatedUser = Readonly<{
   email: string | null;
@@ -15,39 +21,12 @@ export interface AccessTokenVerifier {
   verify(accessToken: string): Promise<AuthenticatedUser | null>;
 }
 
-type AuthUserLookupError = Readonly<{
-  code?: string;
-  message?: string;
-  name?: string;
-  status?: number;
-}>;
-
 export type AuthUserLookupResult = Readonly<{
   data: Readonly<{
     user: Readonly<{ email?: string | null; id: string }> | null;
   }>;
   error: AuthUserLookupError | null;
 }>;
-
-export function isRetryableAuthError(
-  error: AuthUserLookupError | null,
-): boolean {
-  if (!error) {
-    return false;
-  }
-
-  if (error.name === "AuthRetryableFetchError") {
-    return true;
-  }
-
-  if (typeof error.status === "number" && error.status >= 500) {
-    return true;
-  }
-
-  return /connection reset|failed to fetch|network error|timed? out|temporarily unavailable/iu.test(
-    error.message ?? "",
-  );
-}
 
 export async function getUserWithRetry(
   readUser: () => Promise<AuthUserLookupResult>,
