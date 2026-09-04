@@ -108,6 +108,8 @@
 - 验证码登录回跳修复：OTP 验证成功后在站内跳转同时调用 `router.refresh()`，使 Next.js 服务端组件和认证门禁重新读取刚写入的 Supabase 会话，避免从匿名 `/login?next=...` 进入产品页时复用未登录缓存再次跳回登录。实现 Commit：`c5fa2bf`；验证：认证相关 Vitest 20/20、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。限制：当前网络对 Supabase Auth 的 HTTPS 请求仍返回 `ECONNRESET`，服务端无法访问认证服务时需先恢复网络。
 - 认证服务暂时不可达的回跳循环修复：Proxy 标记 Auth 检查失败时，产品布局显示可恢复的“暂时无法验证登录”状态并保留目标路径；真正匿名请求仍重定向到 `/login`。实现 Commit：`e63123f`；验证：认证与布局相关 Vitest 21/21、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。
 - 匿名/故障边界修正：只有检测到 Supabase 会话 Cookie 时才显示认证故障状态，避免认证服务不可达时匿名用户停在产品页。实现 Commit：`bc15bd6`；验证：认证与布局相关 Vitest 22/22、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过；针对性 Playwright 因已有 3100 端口开发服务器占用未执行。
+- 失效会话不再伪装成认证服务故障：Proxy 将 401/无效 JWT 按匿名会话重定向到登录，仅网络/超时/5xx 保留可重试恢复页；抽出共享错误分类并新增 Proxy 回归测试。实现 Commit：`de1e260`；验证：认证/布局/Proxy Vitest 11/11、受影响文件 ESLint、`pnpm typecheck` 通过。限制：真实 Supabase 网络故障仍需检查开发服务器外网访问与运行时日志。
+- 认证恢复页补充本地会话清理：临时故障持续或旧 Cookie 无法验证时，可在不请求 Auth 服务的情况下清除当前浏览器会话并回到 OTP 登录；恢复操作使用 Supabase `scope: local`，不撤销其他设备会话。实现 Commit：`de1e260`；验证：认证/布局/Proxy Vitest 11/11、受影响文件 ESLint、`pnpm typecheck` 通过。限制：网络故障期间重新获取 OTP 仍需 Auth 服务恢复。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
