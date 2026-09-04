@@ -65,6 +65,12 @@ function withMessage(
   return messages.map((message) => (message.id === id ? update(message) : message));
 }
 
+function dedupeMessages(messages: readonly ConversationMessage[]): readonly ConversationMessage[] {
+  const byKey = new Map<string, ConversationMessage>();
+  for (const message of messages) byKey.set(message.clientMessageId ?? message.id, message);
+  return [...byKey.values()];
+}
+
 export function transitionConversationState(
   state: ConversationState,
   action: ConversationAction,
@@ -72,15 +78,16 @@ export function transitionConversationState(
   if (action.type === "reset") return createConversationState();
 
   if (action.type === "hydrate") {
+    const persistedMessages = dedupeMessages(action.messages);
     const persistedKeys = new Set(
-      action.messages.map((message) => message.clientMessageId ?? message.id),
+      persistedMessages.map((message) => message.clientMessageId ?? message.id),
     );
     const currentOnly = state.messages.filter(
       (message) => !persistedKeys.has(message.clientMessageId ?? message.id),
     );
     return {
       ...state,
-      messages: [...action.messages, ...currentOnly],
+      messages: [...persistedMessages, ...currentOnly],
       status: statusAfterHydrate(state),
       activeGenerationId: state.activeGenerationId,
       activeMessageId: state.activeMessageId,
@@ -89,13 +96,14 @@ export function transitionConversationState(
   }
 
   if (action.type === "replace-hydrate") {
+    const persistedMessages = dedupeMessages(action.messages);
     const staleKeys = new Set(action.staleMessageKeys);
     const currentOnly = state.messages.filter(
       (message) => !staleKeys.has(message.clientMessageId ?? message.id),
     );
     return {
       ...state,
-      messages: [...action.messages, ...currentOnly],
+      messages: [...persistedMessages, ...currentOnly],
       status: statusAfterHydrate(state),
       activeGenerationId: state.activeGenerationId,
       activeMessageId: state.activeMessageId,

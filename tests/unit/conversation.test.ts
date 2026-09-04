@@ -84,6 +84,26 @@ describe("conversation state", () => {
     expect(state.messages.map((message) => message.text)).toEqual(["服务器消息", "新消息"]);
   });
 
+  it("deduplicates repeated persisted messages during hydrate and replace-hydrate", () => {
+    const repeatedMessages = [
+      { id: "server-user-old", clientMessageId: "client-shared", role: "user" as const, text: "旧副本", complete: true },
+      { id: "server-user-new", clientMessageId: "client-shared", role: "user" as const, text: "最新副本", complete: true },
+    ];
+
+    const hydrated = transitionConversationState(createConversationState(), {
+      type: "hydrate",
+      messages: repeatedMessages,
+    });
+    const replaced = transitionConversationState(createConversationState(), {
+      type: "replace-hydrate",
+      messages: repeatedMessages,
+      staleMessageKeys: [],
+    });
+
+    expect(hydrated.messages).toEqual([expect.objectContaining({ id: "server-user-new", text: "最新副本" })]);
+    expect(replaced.messages).toEqual([expect.objectContaining({ id: "server-user-new", text: "最新副本" })]);
+  });
+
   it("preserves a failed status while history revalidation completes", () => {
     let state = submitted();
     state = transitionConversationState(state, {

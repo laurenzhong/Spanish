@@ -323,7 +323,8 @@ export function deriveReplyCommitments(
   }
   const now = options.now ?? new Date();
   const timeZone = options.timeZone ?? luciaConversationTimeZone;
-  return markUnconfirmedCommitments([...commitments.values()].slice(-8), now, timeZone);
+  const current = [...commitments.values()].slice(-8);
+  return options.now === undefined ? current : markUnconfirmedCommitments(current, now, timeZone);
 }
 
 /** Advances the most recent pending user plan when the current message reports a return/completion. */
@@ -372,6 +373,7 @@ function budgetRecentMessages(
 export async function buildReplyContext(input: BuildReplyContextInput): Promise<ReplyContext> {
   const character = input.character ?? luciaReplyCharacter;
   const now = input.now ?? new Date();
+  const hasExplicitClock = input.now !== undefined;
   const conversationTimeZone = input.conversationTimeZone ?? luciaConversationTimeZone;
   const currentLocalDate = localDateFor(now, conversationTimeZone) ?? now.toISOString().slice(0, 10);
   const memories = input.memoryRepository
@@ -386,14 +388,19 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
     rollingSummary: input.rollingSummary?.trim() || null,
     openTopics: input.openTopics ?? deriveReplyOpenTopics(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
     characterClaims: input.characterClaims ?? deriveReplyCharacterClaims(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
-    openCommitments: markUnconfirmedCommitments(
-      advanceReplyCommitments(
-        input.openCommitments ?? deriveReplyCommitments(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
-        input.userMessage,
-      ),
-      now,
-      conversationTimeZone,
-    ),
+    openCommitments: hasExplicitClock
+      ? markUnconfirmedCommitments(
+          advanceReplyCommitments(
+            input.openCommitments ?? deriveReplyCommitments(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
+            input.userMessage,
+          ),
+          now,
+          conversationTimeZone,
+        )
+      : advanceReplyCommitments(
+          input.openCommitments ?? deriveReplyCommitments(input.recentMessages ?? []),
+          input.userMessage,
+        ),
     conversationTimeZone,
     currentLocalDate,
     character,
