@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
+import { CHAT_BUBBLE_STYLE_STORAGE_KEY, ChatBubbleArt } from "@/src/modules/conversation/ui/chat-bubble-style";
 import { clearConversationHistoryCache, getCachedConversationHistory } from "@/src/modules/conversation/ui/conversation-history-cache";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -25,6 +26,50 @@ describe("ChatThread persistence status", () => {
     await waitFor(() => {
       expect(screen.getByTestId("conversation-persistence-status")).toHaveTextContent("聊天记录暂未保存");
     });
+  });
+
+  it("uses the selected original-art bubble for my messages", async () => {
+    window.localStorage.setItem(CHAT_BUBBLE_STYLE_STORAGE_KEY, "dog-long");
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "style-1", role: "user", text: "Hola", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => String(input) === "/api/v1/me"
+      ? ({ ok: false, status: 404 } as Response)
+      : historyResponse);
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+
+    expect(await screen.findByText("Hola")).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector(".conversation-art-bubble--dog-long")).toBeInTheDocument());
+  });
+
+  it("uses the light frog bubble for character messages on every conversation", async () => {
+    render(
+      <ChatThread
+        characterKey="mateo"
+        characterName="Mateo Ruiz"
+        characterVersion={1}
+        initialMessages={[{ id: "mateo-character-1", role: "character", text: "Hola", complete: true }]}
+      />,
+    );
+
+    expect(await screen.findByText("Hola")).toBeInTheDocument();
+    expect(document.querySelector(".conversation-art-bubble--pink")).toBeInTheDocument();
+    expect(document.querySelector(".conversation-art-bubble--dog-long")).not.toBeInTheDocument();
+  });
+
+  it("keeps bubble text in a centered block for short messages and a left-aligned block for wrapped text", () => {
+    const { rerender } = render(<ChatBubbleArt text="Hola" style="dog-long" />);
+    const shortText = document.querySelector<HTMLElement>(".conversation-art-bubble__text");
+    expect(shortText).toHaveTextContent("Hola");
+    expect(shortText?.parentElement).toHaveClass("conversation-art-bubble__text-layer");
+
+    rerender(<ChatBubbleArt text={"Primera línea\nSegunda línea"} style="dog-long" />);
+    const wrappedText = document.querySelector<HTMLElement>(".conversation-art-bubble__text");
+    expect(wrappedText?.textContent).toBe("Primera línea\nSegunda línea");
+    expect(wrappedText).toHaveClass("conversation-art-bubble__text");
   });
 
   it("keeps the history loader visible until the response body has hydrated", async () => {

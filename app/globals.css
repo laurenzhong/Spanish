@@ -4567,6 +4567,134 @@ button {
   background: var(--conversation-action);
 }
 
+.conversation-message__bubble--art {
+  position: relative;
+  width: fit-content;
+  max-width: min(100%, 600px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.conversation-message--character .conversation-message__bubble--art,
+.conversation-message--user .conversation-message__bubble--art {
+  color: inherit;
+  background: transparent;
+}
+
+.conversation-message--user .conversation-art-bubble {
+  margin-left: auto;
+}
+
+.conversation-message--user .conversation-message__bubble--art {
+  text-align: right;
+}
+
+.conversation-message--character .conversation-message__bubble--art {
+  text-align: left;
+}
+
+.conversation-art-bubble {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  align-items: stretch;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.conversation-art-bubble--dog-long {
+  min-width: 110px;
+  border-radius: 12px;
+  background: #95644d;
+}
+
+.conversation-art-bubble__dog-art {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+}
+
+.conversation-art-bubble__text-layer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 72px;
+  align-items: center;
+  padding: 6px 22px 6px 28px;
+  box-sizing: border-box;
+  color: #fffdfb;
+  font-size: inherit;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.conversation-art-bubble__text {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.conversation-art-bubble--pink {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  max-width: min(100%, 600px);
+  min-width: 0;
+  min-height: 56px;
+  align-items: center;
+  padding: 8px 48px;
+  box-sizing: border-box;
+  border-radius: 22px;
+  color: #1d211f;
+  background: #f3c4d8;
+  box-shadow: 0 4px 10px rgb(123 61 91 / 8%);
+  font-size: inherit;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.conversation-art-bubble__heart {
+  position: absolute;
+  z-index: 2;
+  top: -4px;
+  left: -7px;
+  width: 30px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.conversation-art-bubble__frog {
+  position: absolute;
+  z-index: 2;
+  right: -18px;
+  bottom: -16px;
+  width: 52px;
+  height: 62px;
+  object-fit: contain;
+}
+
+.conversation-art-bubble--pink > span { max-width: 100%; min-height: 0; padding: 0; }
+.conversation-art-bubble--pink .conversation-art-bubble__text { text-align: left; }
+
+.conversation-art-bubble--dog-long > span { min-width: 110px; }
+
+.conversation-art-bubble--pink > span { color: #1d211f; }
+
 .conversation-message__text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -4655,6 +4783,13 @@ button {
 .conversation-message--user:focus-visible {
   outline: 2px solid var(--conversation-focus);
   outline-offset: 4px;
+}
+
+@media (max-width: 640px) {
+  .conversation-art-bubble { min-height: 60px; }
+  .conversation-art-bubble__text-layer { min-height: 60px; padding-block: 5px; font-size: 13px; }
+  .conversation-art-bubble--pink { min-height: 52px; padding: 7px 32px; font-size: 13px; }
+  .conversation-art-bubble__frog { right: -16px; bottom: -14px; width: 46px; height: 56px; }
 }
 
 .conversation-message-menu {
@@ -5043,6 +5178,23 @@ button {
 .profile-editor-hint, .profile-editor-notice { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .profile-editor-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 .profile-editor-actions .button { display: inline-flex; min-height: 44px; align-items: center; padding: 0 16px; border-radius: 9px; font-size: 13px; font-weight: 700; }
+.chat-bubble-style-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.chat-bubble-style-options > label { position: relative; display: grid; min-height: 132px; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; color: var(--foreground); background: var(--surface); cursor: pointer; text-align: left; }
+.chat-bubble-style-options > label:hover,
+.chat-bubble-style-options > label:focus-within { border-color: var(--terracotta); background: var(--surface-soft); }
+.chat-bubble-style-options > label:focus-within { outline: 3px solid color-mix(in srgb, var(--terracotta) 28%, transparent); outline-offset: 2px; }
+.chat-bubble-style-options > label.is-selected { border-color: var(--terracotta); box-shadow: inset 0 0 0 1px var(--terracotta); }
+.chat-bubble-style-options > label.is-selected .chat-bubble-style-option__copy strong::after { content: " · 已选择"; color: var(--terracotta); font-size: 10px; }
+.chat-bubble-style-option__input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.chat-bubble-style-option__sample { display: grid; min-height: 72px; overflow: hidden; place-items: center; }
+.chat-bubble-style-option__sample .conversation-art-bubble { width: 100%; min-width: 0; min-height: 58px; }
+.chat-bubble-style-option__sample .conversation-art-bubble__text-layer { min-height: 58px; padding-block: 8px; padding-inline: 8%; font-size: 11px; }
+.chat-bubble-style-option__sample .conversation-art-bubble--pink { min-height: 52px; padding: 9px 8%; border-radius: 14px; font-size: 11px; }
+.chat-bubble-style-option__sample .conversation-art-bubble__heart { width: 20px; height: 24px; }
+.chat-bubble-style-option__sample .conversation-art-bubble__frog { right: -8px; bottom: -8px; width: 30px; height: 36px; }
+.chat-bubble-style-option__copy { display: grid; gap: 2px; }
+.chat-bubble-style-option__copy strong { font-size: 12px; }
+.chat-bubble-style-option__copy small { color: var(--muted); font-size: 11px; }
 .button--quiet { border: 1px solid var(--border); color: var(--foreground); }
 .button--primary { border: 1px solid var(--terracotta); color: #fff; background: var(--terracotta); cursor: pointer; }
 .button--primary:disabled { cursor: wait; opacity: .6; }

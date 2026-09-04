@@ -211,6 +211,35 @@ test("keeps sent messages right anchored while their text stays left aligned", a
   await expect(page.locator(".conversation-thread__timestamp--exact")).toHaveCount(1);
 });
 
+test("applies and restores the selected user bubble style", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          characterKey: "lucia",
+          messages: [{ id: "bubble-style-user", role: "user", text: "Hola", complete: true }],
+        },
+      }),
+    });
+  });
+
+  await page.goto("/chat/lucia");
+  const userMessage = page.locator(".conversation-message--user");
+  await expect(userMessage.locator(".conversation-art-bubble--dog-long")).toBeVisible();
+
+  await page.evaluate(() => {
+    window.localStorage.setItem("sueno-chat-bubble-style", "pink-frog");
+    window.dispatchEvent(new CustomEvent("chat-bubble-style-updated", { detail: "pink-frog" }));
+  });
+  await expect(userMessage.locator(".conversation-art-bubble--pink")).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator(".conversation-message--user .conversation-art-bubble--pink")).toBeVisible();
+});
+
 test("opens the mobile conversation list without a redundant back link", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });

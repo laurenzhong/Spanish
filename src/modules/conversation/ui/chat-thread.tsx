@@ -15,6 +15,7 @@ import {
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
 import { ConversationContactRail } from "./conversation-contact-rail";
+import { ChatBubbleArt, useChatBubbleStyle } from "./chat-bubble-style";
 import {
   getCachedConversationHistory,
   loadConversationHistory,
@@ -66,6 +67,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [hasNewProactiveMessage, setHasNewProactiveMessage] = useState(false);
   const [showMobileConversations, setShowMobileConversations] = useState(false);
   const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
+  const chatBubbleStyle = useChatBubbleStyle();
   const abortRef = useRef<AbortController | null>(null);
   const translationAbortRef = useRef<AbortController | null>(null);
   const translationRequestIdRef = useRef(0);
@@ -614,8 +616,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
               {message.role === "user" ? (userProfile?.avatar.url ? null : userProfile?.avatar.initials ?? "你") : characterName.slice(0, 1)}
             </div>
             <div className="conversation-message__content">
-              <div className="conversation-message__bubble">
-                <div className="conversation-message__text">{message.withdrawn ? "你撤回了一条消息" : message.text || "…"}</div>
+              <div className={`conversation-message__bubble${message.withdrawn ? "" : " conversation-message__bubble--art"}`}>
+                {message.withdrawn ? <div className="conversation-message__text">你撤回了一条消息</div> : <ChatBubbleArt text={message.text} style={message.role === "user" ? chatBubbleStyle : "pink-frog"} />}
                 {message.role === "user" && !message.withdrawn ? <button className="conversation-message__more" type="button" aria-label="消息操作" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) }); }}>•••</button> : null}
               </div>
               {translation ? <div className="conversation-message__translation" aria-live="polite">
