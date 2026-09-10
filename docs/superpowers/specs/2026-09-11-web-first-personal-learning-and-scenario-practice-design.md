@@ -1,7 +1,7 @@
 # Web 优先的个人学习产品与场景实战设计
 
 - 日期：2026-09-11
-- 状态：已完成逐节设计确认，等待书面规格复核
+- 状态：已完成逐节设计确认和书面规格复核
 - 适用范围：个人 Alpha、响应式 Web/PWA、桌面浏览器与 iPhone Safari
 - 相关决策：[ADR-0002：个人 Alpha 改为 Web/PWA 优先](../../adr/0002-web-pwa-first-personal-alpha.md)
 
@@ -134,7 +134,17 @@ Sueño 当前首先服务项目所有者自己的西班牙语学习，而不是�
 
 复用现有 `scenarios`、`scenario_tasks`、`expressions`、`practice_sessions`、`practice_attempts` 和 `learning_breakpoints`，新增独立表：
 
-### 7.1 `personal_scenarios`
+### 7.1 `user_saved_expressions`
+
+- `id`, `user_id`
+- 西语表达、可选翻译、语气和使用说明
+- 来源类型：正式表达、阅读选区、场景复盘或手工保存
+- 来源实体与版本/内容哈希
+- 创建时间和归档状态
+
+收藏表达是用户私有资料，不自动成为已审核的正式 `expressions`，也不能仅凭收藏行为产生学习证据。
+
+### 7.2 `personal_scenarios`
 
 - `id`, `user_id`
 - 标题、CEFR、地区和场景骨架
@@ -145,7 +155,7 @@ Sueño 当前首先服务项目所有者自己的西班牙语学习，而不是�
 
 私人场景不能通过公共内容查询返回。
 
-### 7.2 `scenario_session_states`
+### 7.3 `scenario_session_states`
 
 - 与 `practice_sessions` 一对一关联
 - 临时人物快照
@@ -154,7 +164,7 @@ Sueño 当前首先服务项目所有者自己的西班牙语学习，而不是�
 
 它不保存人物关系阶段、人物圣经或长期记忆。
 
-### 7.3 `scenario_turns`
+### 7.4 `scenario_turns`
 
 - `session_id`, `user_id`, `turn_index`
 - `speaker`: `user`、`temporary_character` 或 `condition`
@@ -164,7 +174,7 @@ Sueño 当前首先服务项目所有者自己的西班牙语学习，而不是�
 
 只有完整文字轮次进入历史；未完成流不能标记为完成。
 
-### 7.4 `scenario_turn_reviews`
+### 7.5 `scenario_turn_reviews`
 
 - 关联用户完整轮次
 - 沟通成功、错误范围、错误类别和解释
@@ -174,12 +184,20 @@ Sueño 当前首先服务项目所有者自己的西班牙语学习，而不是�
 
 Provider 结果不能直接写入证据；application 规则必须重新校验。
 
-### 7.5 `scenario_repetition_items`
+### 7.6 `scenario_repetition_items`
 
 - 原始场景或私人场景引用
 - 表达与沟通目标快照
 - `due_at`, `interval_step`, `status`
 - 上次结果和下一次变体要求
+
+### 7.7 `user_provider_preferences`
+
+- `user_id`, `capability`, `provider_key`
+- `capability` 限定为场景生成、临时人物回复、场景评估、转写或发音等内部能力键
+- 创建与更新时间
+
+偏好只引用服务端已注册的 Provider，不保存密钥、模型私密参数或供应商原始错误。Provider 健康状态由服务端配置与脱敏调用观测计算，不由客户端写入。
 
 所有私人表带 `user_id`、RLS、级联删除和服务端所有权检查。数据库变更只通过版本化迁移完成。
 
@@ -187,6 +205,9 @@ Provider 结果不能直接写入证据；application 规则必须重新校验�
 
 ### 8.1 浏览与生成
 
+- `GET /api/v1/expressions/saved`
+- `POST /api/v1/expressions/saved`
+- `DELETE /api/v1/expressions/saved/:savedExpressionId`
 - `GET /api/v1/scenarios`
 - `POST /api/v1/scenarios/generate`
 - `GET /api/v1/scenarios/:scenarioId`
@@ -194,6 +215,7 @@ Provider 结果不能直接写入证据；application 规则必须重新校验�
 ### 8.2 实战
 
 - `POST /api/v1/scenario-practice/sessions`
+- `GET /api/v1/scenario-practice/sessions`
 - `GET /api/v1/scenario-practice/sessions/:sessionId`
 - `POST /api/v1/scenario-practice/sessions/:sessionId/turns`
 - `POST /api/v1/scenario-practice/sessions/:sessionId/turns/:turnId/respond`
@@ -273,7 +295,7 @@ Provider 状态响应只包含能力、选择、配置/健康状态和脱敏时�
 - 打字、低置信度和技术失败不得形成负面口语证据。
 - 场景生成、轮次提交、复盘完成和复现计划具有幂等性。
 - 保存失败不能产生孤立人物回复。
-- 数据库覆盖 RLS、跨用户拒绝、级联删除和事务边界。
+- 数据库覆盖收藏表达、Provider 偏好及场景数据的 RLS、跨用户拒绝、级联删除和事务边界。
 - 临时人物不得创建联系人、关系记忆或人物事实。
 - Provider fake 覆盖超时、取消、限流、鉴权、无效 Schema、异常断流和一次性切换。
 - Playwright 覆盖桌面和 iPhone 视口的完整纵向路径、麦克风拒绝、刷新恢复、Provider 缺失和断流重试。
@@ -288,7 +310,7 @@ Provider 状态响应只包含能力、选择、配置/健康状态和脱敏时�
 
 ## 13. 实施拆分
 
-正式实施计划在本规格书面复核后生成，建议按以下任务拆分：
+详细步骤见 [Web/PWA 场景学习闭环实施计划](../../plans/2026-09-11-web-first-scenario-practice-implementation-plan.md)，按以下任务拆分：
 
 1. `SCN-001`：领域状态机、数据迁移、API 契约、Provider Router 和 fake。
 2. `SCN-002`：一个真正可用的“餐厅点餐”文字/语音纵向闭环。

@@ -123,7 +123,7 @@ UI / Route Handler → Application → Domain
 |---|---|---|
 | content | 内容版本、审核、图谱和发布 | expressions、tags、scenarios、content_packs |
 | reading | 阅读断点、用户标注、保存和外部来源元数据 | user_reading_progress、user_article_saves、user_article_highlights、user_saved_article_sources |
-| scenario-practice | 私人场景、临时人物轮次、条件变化、复盘和复现 | personal_scenarios、scenario_session_states、scenario_turns、scenario_turn_reviews、scenario_repetition_items |
+| scenario-practice | 私人表达收藏、私人场景、临时人物轮次、条件变化、复盘和复现 | user_saved_expressions、personal_scenarios、scenario_session_states、scenario_turns、scenario_turn_reviews、scenario_repetition_items |
 | training | 当前训练计划、状态机和断点 | practice_sessions、practice_attempts、learning_breakpoints |
 | evidence | 尝试评估和证据强度 | evidence_events |
 | profile | 技能快照、场景状态和解释 | user_skill_states、user_scene_states |
@@ -131,7 +131,7 @@ UI / Route Handler → Application → Domain
 | characters | 人物圣经、固定事实和揭示策略 | characters、character_canon_facts |
 | memory | 关系记忆、共享权限和冲突 | relationships、memories、permissions |
 | conversation | 会话、消息和回复生命周期 | conversations、messages |
-| providers | 供应商适配和统一错误 | provider_calls、audio_assets |
+| providers | 供应商适配、用户能力偏好和统一错误 | provider_calls、user_provider_preferences、audio_assets |
 
 ## 6. 关键领域边界
 

@@ -7,7 +7,7 @@
 - 技术路线：Next.js、React、TypeScript、Tailwind CSS、Supabase、Drizzle、Zod、Vercel
 - 当前客户端依据：[Web 优先的个人学习产品与场景实战设计](../superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md) 与 [ADR-0002](../adr/0002-web-pwa-first-personal-alpha.md)
 
-> 2026-09-11 重排：阶段 1 至 7 中已经完成的 Flutter 记录保留为历史交付，但 Flutter、原生客户端、商店发布和跨端同步不再属于当前个人 Alpha。当前任务和后续实施以 Web/PWA、场景学习闭环和长期 AI 角色质量为优先；详细场景实施计划在新规格完成书面复核后单独生成。
+> 2026-09-11 重排：阶段 1 至 7 中已经完成的 Flutter 记录保留为历史交付，但 Flutter、原生客户端、商店发布和跨端同步不再属于当前个人 Alpha。当前任务和后续实施以 Web/PWA、场景学习闭环和长期 AI 角色质量为优先；场景任务详见 [Web/PWA 场景学习闭环实施计划](2026-09-11-web-first-scenario-practice-implementation-plan.md)。
 
 ## 1. 实施目标
 
@@ -868,7 +868,7 @@ Flutter integration test 使用 fake 服务覆盖同一关键路径；真实 iOS
 4. `SCN-004`：完整复盘、历史、当天/1/3/7 天复现和学习页推荐。
 5. `SCN-005`：Provider 设置、切换、iPhone Safari/PWA 真机收敛和发布门禁。
 
-任务的逐文件步骤、测试命令和提交边界在书面规格复核后写入独立实施计划。长期 AI 角色仍是主要功能，但回复自然度、Provider、记忆和其他角色作为后续独立设计流，不混入上述场景任务。
+任务的逐文件步骤、测试命令和提交边界见 [独立实施计划](2026-09-11-web-first-scenario-practice-implementation-plan.md)。长期 AI 角色仍是主要功能，但回复自然度、Provider、记忆和其他角色作为后续独立设计流，不混入上述场景任务。
 
 ## 15. 阶段 8：个人 Alpha 验证
 
