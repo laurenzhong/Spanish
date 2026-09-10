@@ -9,7 +9,7 @@
 1. 阅读 `README.md`。
 2. 阅读 `PROJECT_STATUS.md`，确认当前任务 ID、状态、分支、依赖和验收条件。
 3. 阅读 `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`。
-4. 阅读 `docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md` 和 `docs/adr/0001-nextjs-web-flutter-clients.md`。
+4. 阅读 `docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md` 和 `docs/adr/0002-web-pwa-first-personal-alpha.md`；`2026-08-20` 多平台规格与 ADR-0001 只作为历史背景。
 5. 阅读 `docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的当前任务章节。
 6. 阅读与任务相关的 `docs/architecture.md`、`docs/content-authoring.md` 或 `docs/testing-strategy.md`。
 7. 检查 `git status --short --branch` 和最近提交，保留用户及其他代理已有改动。
@@ -55,8 +55,7 @@
 - 实时双向语音通话。
 - 大规模角色商城或开放角色创建。
 - 独立微服务和复杂消息队列。
-- Android、Windows、macOS 的商店发布与完整平台打磨。
-- 用 SwiftUI/UIKit 重写 Flutter 主要页面。
+- Flutter 或原生移动/桌面客户端的功能同步与商店发布；当前个人 Alpha 只做响应式 Web/PWA 与 iPhone Safari。
 - 本地离线 ASR 或用户音频媒体库。
 
 这些能力是延后，不是永久取消。需要时先更新设计或 ADR，再进入实施计划。
@@ -66,10 +65,10 @@
 - 使用单仓库和远程模块化单体，不随意创建新的服务边界或新 Git 仓库。
 - 目录优先按业务 feature 组织。
 - 服务端 `domain` 保持纯 TypeScript，不依赖 React、Next.js、Drizzle、Supabase 或供应商 SDK。
-- Flutter 客户端位于 `apps/mobile`，主要页面使用 Dart/Flutter，不通过 Capacitor WebView 承载。
-- Web 与 Flutter 不共享 UI 源码；共享 OpenAPI/JSON Schema、内容源、稳定错误码和 `contracts/fixtures` 一致性样本。
+- 当前活动客户端只有 Next.js 响应式 Web/PWA，覆盖桌面浏览器与 iPhone Safari；现有 Flutter 客户端保留在 `apps/mobile`，暂停功能同步，不删除或假称与 Web 等价。
+- 继续维护明确 DTO、OpenAPI/JSON Schema 和稳定错误码，为未来恢复多客户端保留边界；当前不要求 TypeScript/Dart 功能同步。
 - 客户端状态不能成为能力事实；评分、证据、画像、记忆权限和角色安全必须由服务端重新校验。
-- Flutter 平台能力通过内部端口隔离；只有成熟插件不足时才增加单一职责的 Swift/Kotlin/Windows 桥接。
+- 未经新的 ADR，不新增 Flutter 平台插件、Swift/Kotlin/Windows 桥接或原生页面。
 - Route Handler 只负责鉴权、Zod 校验、调用 application 用例和协议转换。
 - React 组件不直接访问数据库，不承载复杂业务流程。
 - Application 层定义事务边界并调用 repository/provider 接口。

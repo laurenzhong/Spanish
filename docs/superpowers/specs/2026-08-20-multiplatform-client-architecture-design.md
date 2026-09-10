@@ -1,9 +1,11 @@
 # Web 与 Flutter 多平台客户端架构设计
 
 - 日期：2026-08-20
-- 状态：已在对话中批准，等待书面复核
+- 状态：历史设计；个人 Alpha 同步实施决定已由 ADR-0002 取代
 - 决策范围：个人 Alpha 与后续客户端平台路线
 - 关联 ADR：[ADR-0001](../../adr/0001-nextjs-web-flutter-clients.md)
+
+> 2026-09-11 更新：本文件保留长期多平台方案与历史背景，但不再是当前个人 Alpha 的客户端实施基线。当前只推进响应式 Web/PWA 与 iPhone Safari，详见 [Web 优先的个人学习产品与场景实战设计](2026-09-11-web-first-personal-learning-and-scenario-practice-design.md) 和 [ADR-0002](../../adr/0002-web-pwa-first-personal-alpha.md)。除非新的 ADR 恢复该路线，Flutter 页面、跨语言一致性和原生商店工作均暂停。
 
 ## 1. 决策摘要
 

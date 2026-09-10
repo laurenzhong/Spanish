@@ -1,10 +1,12 @@
 # 西班牙语沉浸式口语学习平台设计
 
 - 日期：2026-08-20
-- 状态：产品设计已批准；多平台架构已通过 ADR-0001 更新
-- 首发形态：Next.js 完整 Web/PWA + Flutter iOS 客户端同步 Alpha
+- 状态：产品设计已批准；个人 Alpha 客户端范围已通过 ADR-0002 更新
+- 首发形态：Next.js 响应式 Web/PWA，覆盖桌面浏览器与 iPhone Safari
 - 首个验证阶段：个人 Alpha
 - 后续客户端：Android → Windows/macOS，具体发布顺序由真实需求决定
+
+> 2026-09-11 更新：个人 Alpha 改为首先服务项目所有者自己的学习，不以公开上架或获客为目标。当前暂停 Flutter 与原生客户端实施，以 [Web 优先的个人学习产品与场景实战设计](2026-09-11-web-first-personal-learning-and-scenario-practice-design.md) 和 [ADR-0002](../../adr/0002-web-pwa-first-personal-alpha.md) 为准。长期 AI 角色仍是主要功能；探索页优先改造成场景与表达库。
 
 ## 1. 产品摘要
 
@@ -46,11 +48,11 @@
 - 完整离线 ASR、复杂后台音频和商店商业能力。
 - 用户之间的好友申请、互加好友和私信；该能力属于阶段 8 之后的独立社交路线，不进入个人 Alpha。
 
-Flutter iOS 客户端不再延后，从 Alpha 开始与 Web 同步开发。由于当前没有 Mac，iOS 编译、签名和真机音频验收在获得 Mac/Xcode 条件前不能视为完成。
+Flutter、原生 iOS/Android 和商店发布在个人 Alpha 暂停；手机端当前使用 iPhone Safari 与 PWA，并进行真实设备上的麦克风、键盘、安全区和生命周期验收。
 
 ### 2.3 下一份实施计划的边界
 
-本设计描述完整产品方向，但下一份实施计划只覆盖个人 Alpha，并按“Web/Flutter 基础骨架、核心训练、Lucía 好友系统、扩展验证”四个可独立验收的子阶段执行。Android、Windows、macOS 发布、Beta 和商业化分别建立后续规格与实施计划，不能提前混入当前任务。
+本设计描述完整产品方向，但当前实施只覆盖响应式 Web/PWA、核心学习闭环、场景实战和长期 AI 角色质量。Flutter、原生客户端、商店发布、Beta 和商业化分别建立后续规格与实施计划，不能提前混入当前任务。
 
 ## 3. 目标用户与成功定义
 

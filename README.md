@@ -2,7 +2,7 @@
 
 这是一个面向 A2–B1 西班牙语学习者的口语优先学习产品。它帮助已经认识不少单词、理解一定语法，却在真实交流中反应慢、造句困难或无法自然开口的人，把被动知识转化为可迁移的沟通能力。
 
-当前仓库已进入个人 Alpha 实施阶段。产品设计已经逐节确认，Next.js/PWA 基础工程已经建立；架构现已确定为“Next.js 完整 Web 产品 + Flutter 多平台客户端”，Web 与 iOS 从 Alpha 开始同步推进。
+当前仓库已进入个人 Alpha 实施阶段。产品首先服务项目所有者自己的学习；当前只推进 Next.js 响应式 Web/PWA，覆盖桌面浏览器与 iPhone Safari。Flutter 和原生应用保留为后续路线，不在本阶段同步实现。
 
 ## 核心体验
 
@@ -31,42 +31,44 @@ Alpha 计划包含：
 - 8–12 个沉浸式内容包。
 - 首批可持续扩充的西语阅读文章库（原创、公共领域、开放许可或明确授权来源）。
 - 听说核心训练、静默读写替代和抽样口语复核。
-- Web 浏览器 TTS、Flutter 平台语音接口、录音、转写和基础评估。
+- Web 浏览器 TTS、录音、转写和基础评估。
 - 八维学习画像、有效学习热力图和唯一下一动作推荐。
 - Lucía、一个兴趣好友和一个生活关系角色。
 - 长期关系记忆、好友介绍和隐私控制。
-- Next.js PWA 与 Flutter iOS 客户端的核心学习闭环。
+- Next.js PWA 在桌面浏览器与 iPhone Safari 上的核心学习闭环。
 
-支付、完整内容后台、实时双向语音、大规模角色网络、微服务、完整离线 ASR，以及 Android/Windows/macOS 的发布打磨属于后续路线。Flutter iOS 客户端不再延后，但当前没有 Mac，因此 iOS 编译、签名和真机音频验收需要后续补齐 Mac/Xcode 环境。
+支付、完整内容后台、实时双向语音、大规模角色网络、微服务、完整离线 ASR、Flutter/原生移动客户端和商店发布属于后续路线。当前手机端通过 iPhone Safari 与添加到主屏幕后的 PWA 使用。
 
 ## 技术路线
 
 - Web：Next.js、React、TypeScript、Tailwind CSS、PWA
-- 多平台客户端：Flutter、Dart；iOS Alpha，后续 Android、Windows、macOS
+- 手机网页：响应式布局、iPhone Safari、PWA 安全区与麦克风适配
 - 服务端与数据：Next.js Route Handlers、Supabase PostgreSQL/Auth/Storage、Drizzle、Zod
-- 跨端一致性：版本化 API 契约、共享内容源和 JSON 一致性样本
-- 测试：Vitest、React Testing Library、Playwright、Flutter test
-- 部署：Vercel；iOS/macOS 构建最终需要 Mac/Xcode
+- 接口边界：版本化 API 契约、共享内容源和稳定错误码
+- 测试：Vitest、React Testing Library、Playwright；真实 iPhone Safari 人工验收
+- 部署：Vercel 与 Supabase
 
-Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推荐、角色、记忆和供应商通过明确模块接口协作，不提前拆分独立服务。Web 与 Flutter 不强行共享 UI 源码；服务端规则、内容、API 协议和学习数据保持单一权威来源。
+Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推荐、角色、记忆和供应商通过明确模块接口协作，不提前拆分独立服务。服务端规则、内容、API 协议和学习数据保持单一权威来源；版本化 API 继续保留，为未来恢复其他客户端提供边界。
 
 ## 文档
 
 - [当前任务与项目状态](PROJECT_STATUS.md)
 - [完整产品设计](docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
+- [Web 优先的个人学习产品与场景实战设计](docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
 - [阅读库与西语文章内容体系设计](docs/superpowers/specs/2026-08-26-reading-library-and-article-content-design.md)
 - [UI-009：Readlang 阅读工作台技术设计](docs/superpowers/specs/2026-08-26-readlang-reading-workbench-technical-design.md)
 - [Web UI 设计研究与页面方案](docs/superpowers/specs/2026-08-26-web-ui-design-research-and-scheme.md)
 - [探索页桌面 Web 技术调研](docs/superpowers/specs/2026-08-28-explore-page-desktop-web-technical-research.md)
 - [探索页桌面 Web 视觉与交互方案](docs/superpowers/specs/2026-08-28-explore-page-desktop-web-design.md)
 - [探索页桌面 Web 实施计划](docs/plans/2026-08-28-explore-page-desktop-web-implementation-plan.md)
-- [Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
+- [历史：Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
 - [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](docs/architecture.md)
 - [数据库与迁移](docs/database.md)
 - [认证与会话](docs/authentication.md)
 - [跨客户端 API 契约](contracts/README.md)
-- [ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
+- [ADR-0002：个人 Alpha 改为 Web/PWA 优先](docs/adr/0002-web-pwa-first-personal-alpha.md)
+- [历史 ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
 - [内容制作与审核规范](docs/content-authoring.md)
 - [测试与质量策略](docs/testing-strategy.md)
 - [Echo-Loop 参考评审](docs/references/echo-loop-review.md)
@@ -82,16 +84,15 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 
 实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
 
-基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。Web 与 Flutter 的产品壳层按“学习、阅读、探索、对话、我的”五项语义演进；当前视觉是 Alpha 基线，阅读库与阅读器仍处于设计审阅阶段，后续会在真实体验中继续打磨。
+基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。响应式 Web/PWA 产品壳层按“学习、阅读、探索、对话、我的”五项语义演进；Flutter 代码保留但暂停同步。
 
 本地环境要求：
 
 - Node.js 24.x，仓库通过 `.nvmrc` 和 `engines` 固定大版本。
 - pnpm 11.x，精确版本记录在 `package.json`。
-- Flutter 客户端固定使用 Flutter 3.47.1 / Dart 3.13.1，版本文件位于 `apps/mobile/`。
 - 执行 E2E 时需要本机安装 Google Chrome。
 - `pnpm test:e2e` 默认使用隔离的 `127.0.0.1:3100` 和 `.next/e2e` 构建目录，不会抢占正在运行的 3000 开发服务；如需更换端口可设置 `PLAYWRIGHT_PORT`。
-- iOS/macOS 编译、签名和真机调试需要 Mac 与 Xcode；Windows 只能完成 Flutter 公共代码和非 iOS 测试。
+- iPhone Safari 的麦克风、键盘、安全区、前后台恢复和 PWA 主屏模式需要真实设备验收。
 
 首次运行：
 
@@ -100,13 +101,7 @@ pnpm install
 pnpm dev
 ```
 
-Web 登录需要在本地 `.env` 中配置公开的 Supabase 项目 URL 和 publishable key。Flutter 使用同一项目，但通过 `--dart-define` 注入，不读取 Web 的 `.env`：
-
-```powershell
-flutter run `
-  --dart-define=SUPABASE_URL=https://your-project.supabase.co `
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=your-publishable-key
-```
+Web 登录需要在本地 `.env` 中配置公开的 Supabase 项目 URL 和 publishable key：
 
 普通用户入口是邮箱六位 OTP；密码登录只保留给预建测试账号，不在普通入口并列展示。完整配置、安全边界和本地测试说明见 [认证与会话](docs/authentication.md)。
 
@@ -133,7 +128,7 @@ pnpm content:import -- content/bundles/alpha-core-v1.json
 
 内容契约、幂等与版本规则见 [版本化内容源](content/README.md) 和 [内容制作规范](docs/content-authoring.md)。
 
-Flutter 公共代码检查：
+只有任务明确修改暂停维护的 Flutter 代码时，才额外运行：
 
 ```powershell
 cd apps/mobile

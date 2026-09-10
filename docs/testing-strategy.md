@@ -3,6 +3,8 @@
 - 适用范围：个人 Alpha
 - 目标：优先防止能力评分污染、用户数据越权、流程无法恢复和 AI 角色失真
 
+> 2026-09-11 起，个人 Alpha 只以响应式 Web/PWA、桌面浏览器和 iPhone Safari 为活动客户端范围。Flutter 测试条目保留为历史与未来恢复参考，但不再是普通 Web 任务或发布候选门禁；只有明确修改 `apps/mobile` 时才执行。Playwright WebKit 不能替代真实 iPhone Safari 的麦克风、键盘、安全区和生命周期验收。
+
 ## 1. 测试原则
 
 - 优先测试状态流转和领域规则，而不是只测试页面元素存在。
@@ -19,6 +21,7 @@
 - 7.5a 供应商观测必须覆盖关联 ID、成功/失败/取消状态、错误码、延迟、观测写入失败不污染业务结果，以及日志/metadata 不含正文和音频。
 - 7.5b 诊断事件必须覆盖四类事件、dedupe 幂等、metadata 脱敏、内部端点越权拒绝、滑动窗口告警阈值，以及备份恢复后的 RLS/迁移验收。
 - READ-005 阅读持久化必须覆盖进度 upsert 幂等、保存/高亮/笔记隔离、内容哈希版本冲突、外部 URL 规范化去重、RLS 跨用户拒绝，以及账号删除后的阅读表级联清理。
+- 场景实战必须覆盖临时人物与长期角色/记忆隔离、完整文字轮次、逐条错误标记、一次性 Provider 切换、稳定断点、跨设备 revision 冲突和当天/1/3/7 天复现计划。
 - 高成本 E2E 只覆盖关键纵向路径，细节下沉到单元和集成测试。
 
 ## 2. 工具基线
@@ -28,8 +31,7 @@
 - Vitest：领域和 application 单元测试。
 - React Testing Library：组件交互和可访问性。
 - Playwright：手机视口端到端测试。
-- Flutter test：Dart 单元、Widget 和状态编排测试。
-- Flutter integration test：移动客户端关键路径。
+- 真实 iPhone Safari：麦克风、输入法、安全区、PWA 主屏和生命周期人工验收。
 - Supabase CLI 或隔离测试数据库：迁移、RLS 和事务测试。
 - 固定 fake adapters：默认测试不调用收费供应商。
 - 词语解释 provider 必须用 fake fetch 覆盖词语/句子 `selectionType` 请求字段、MiniMax M3 响应 Schema、`stream: true`、多段 `delta`、最终 `done`、鉴权/限流/超时/取消、异常断流和无效 JSON；阅读器组件/E2E 通过本站接口拦截验证常用词命中时不调用 API、未命中词和拖选句子的 loading、增量预览、成功和可恢复失败状态，不能触发真实收费调用。
@@ -39,7 +41,7 @@
 - 主动消息必须覆盖 Lucía 关系未 active、暂停、每日/每周频率、12 小时冷却、未回应抑制、dedupe 重试，以及 provider/安全门禁失败不写入消息；同一候选只能原子地产生一条 `source_type=proactive` 消息。
 - 对话消息操作必须覆盖用户所有权校验、复制/引用菜单可访问性、删除与撤回的幂等和过期撤回；撤回后消息不得进入搜索、角色上下文、关系记忆或学习证据，回复流竞态也必须覆盖。
 - 对话工作区必须覆盖真实会话列表 DTO（只返回当前用户会话、最后消息摘要和时间）、无会话/数据库不可用状态、历史加载 skeleton、长列表上滑不被强制滚动和移动端可访问消息操作。语音 composer 必须覆盖录音取消、转写中止/超时、空转写、provider 失败、过期回调和“确认后才发送”；转写音频不得进入持久化或学习证据。
-- OpenAPI/JSON Schema 与共同 JSON fixtures：TypeScript/Dart 协议和状态语义一致性。
+- OpenAPI/JSON Schema 与稳定错误码：保证当前 Web 契约明确，并为未来恢复其他客户端保留边界。
 
 具体版本在工程脚手架阶段锁定。
 
@@ -59,7 +61,7 @@
 - 人物事实冲突。
 - 记忆分类和共享权限。
 
-Flutter 客户端对本地训练编排、平台错误映射、草稿和生命周期恢复建立对应 Dart 单元测试。服务端评分和权限规则不复制到客户端作为权威实现。
+服务端评分和权限规则不复制到客户端作为权威实现。暂停维护的 Flutter 客户端只有在任务明确修改时才补充对应 Dart 单元测试。
 
 要求：
 
@@ -120,7 +122,7 @@ Flutter 客户端对本地训练编排、平台错误映射、草稿和生命周
 - 数据不足的八维图不会绘制虚假分数。
 - 键盘和屏幕阅读器可以完成主流程。
 
-以上交互在 React Testing Library 和 Flutter Widget test 中分别覆盖适用部分，不使用 Web 快照替代 Flutter 行为测试。
+以上交互由 React Testing Library 覆盖，不使用页面快照替代状态和行为断言。
 
 ### 3.6 端到端测试
 
@@ -137,14 +139,16 @@ Flutter 客户端对本地训练编排、平台错误映射、草稿和生命周
 8. 异常断流 → 重试 → 不产生重复记忆或证据。
 9. 好友介绍 → 用户同意 → 最小信息共享。
 10. 用户查看并删除关系记忆或保存录音。
+11. 探索场景 → 选择表达 → 临时人物多轮实战 → 条件变化 → 完整复盘 → 到期复现。
+12. 场景回复断流或评估失败 → 保留稳定断点 → 重试且不重复轮次、证据或费用。
 
-Playwright 覆盖 Web；Flutter integration test 使用 fake/测试服务覆盖同一核心路径。iOS 麦克风、音频会话、键盘、安全区、App 生命周期和通知必须在 Mac/Xcode 与真机环境单独验收。
+Playwright 覆盖桌面 Chromium、iPhone 视口和必要的 WebKit 行为；真实 iPhone Safari 另行验证麦克风、音频中断、键盘、安全区、前后台生命周期和主屏 PWA 恢复。
 
-### 3.7 跨客户端一致性测试
+### 3.7 API 契约与未来客户端兼容
 
-- TypeScript 与 Dart 同时读取 `contracts/fixtures/` 中的训练状态转换、错误映射和提交 DTO 样本。
-- API Schema 变更必须检测两端生成类型或校验器是否过期。
-- 同一内容版本和用户输出在两端产生等价的服务端提交字段。
+- TypeScript 客户端与服务端读取 `contracts/fixtures/` 中的训练状态转换、错误映射和提交 DTO 样本。
+- API Schema 变更必须检测生成类型或校验器是否过期。
+- 同一内容版本和用户输出产生唯一、幂等的服务端提交字段。
 - 服务端拒绝客户端伪造的评分、画像和记忆权限字段。
 - 协议版本不兼容时返回稳定错误，不能静默接受含义不一致的数据。
 
@@ -164,8 +168,10 @@ Playwright 覆盖 Web；Flutter integration test 使用 fake/测试服务覆盖�
 | 场景掌握需要口语覆盖 | scene status 单元 |
 | 学习时长不参与能力评分 | profile 单元 |
 | 能力图历史值与代表性尝试可追溯且脱敏 | profile 单元 + 画像 E2E |
-| 热力图排除后台空置和长间隔 | activity domain + API/数据库幂等 + Web/Flutter lifecycle test |
+| 热力图排除后台空置和长间隔 | activity domain + API/数据库幂等 + Web lifecycle test |
 | 用户说话时不被纠错 | 组件测试 |
+| 临时人物不进入长期关系记忆 | scenario-practice application + 数据库集成 |
+| 没有 done 的场景回复不落为完整轮次 | 流协议 + application 集成 |
 
 ## 5. 训练状态机测试
 
@@ -278,14 +284,14 @@ pnpm test:e2e
 pnpm build
 ```
 
-涉及 Flutter 时：
+只有任务明确修改暂停维护的 Flutter 代码时：
 
 ```powershell
 flutter analyze
 flutter test
 ```
 
-有 Mac/Xcode 和可用签名条件时，再运行 Flutter iOS integration test、真机录音和发布构建检查。Windows 上的 Dart/Flutter 测试通过不能标记为 iOS 已验证。
+以上 Flutter 检查不是当前 Web/PWA 发布门禁。iPhone Safari 的真机录音和页面行为必须单独记录，不能用桌面 WebKit 结果替代。
 
 开发过程中优先运行相关测试。跨模块、迁移、发布候选或用户明确要求时运行全套。
 
@@ -312,7 +318,7 @@ flutter test
 - 训练是否像真实沟通而不是题库。
 - Lucía 是否像持续存在的朋友。
 - 手机端录音、键盘切换和单手操作是否自然。
-- iOS 安全区、系统权限、音频中断、耳机切换和 App 前后台恢复是否自然。
+- iPhone Safari/PWA 安全区、系统权限、音频中断、耳机切换和前后台恢复是否自然。
 - 八维图和进步证据是否真的帮助定位问题。
 
 每周将人工发现转化为可复现样本；能自动化的回归必须加入测试集。

@@ -3,9 +3,11 @@
 - 日期：2026-08-20
 - 依据：[产品设计规范](../superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
 - 参考：[Echo-Loop 参考评审](../references/echo-loop-review.md)
-- 实施对象：Next.js 完整 Web/PWA + Flutter iOS 客户端同步 Alpha
-- 技术路线：Next.js、React、TypeScript、Flutter、Dart、Tailwind CSS、Supabase、Drizzle、Zod、Vercel
-- 多平台依据：[Web 与 Flutter 多平台架构设计](../superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
+- 实施对象：Next.js 响应式 Web/PWA，覆盖桌面浏览器与 iPhone Safari
+- 技术路线：Next.js、React、TypeScript、Tailwind CSS、Supabase、Drizzle、Zod、Vercel
+- 当前客户端依据：[Web 优先的个人学习产品与场景实战设计](../superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md) 与 [ADR-0002](../adr/0002-web-pwa-first-personal-alpha.md)
+
+> 2026-09-11 重排：阶段 1 至 7 中已经完成的 Flutter 记录保留为历史交付，但 Flutter、原生客户端、商店发布和跨端同步不再属于当前个人 Alpha。当前任务和后续实施以 Web/PWA、场景学习闭环和长期 AI 角色质量为优先；详细场景实施计划在新规格完成书面复核后单独生成。
 
 ## 1. 实施目标
 
@@ -18,9 +20,9 @@
 
 Alpha 完成时必须能够走通：
 
-> 登录 → 首次练习或初次诊断 → 听/说或静默训练 → 反馈 → 画像更新 → Lucía 对话 → 关系记忆 → 再次打开恢复与推荐
+> 登录 → 获取场景表达 → 临时人物实战 → 完整复盘 → 到期复现 → Lucía 等长期角色对话 → 再次打开恢复与推荐
 
-这条路径必须在 Next.js Web 和 Flutter 客户端使用同一服务端数据走通；iOS 平台专属录音与生命周期验收在 Mac/Xcode 条件具备后补充为发布门禁。
+这条路径必须在桌面 Web 与 iPhone Safari 使用同一服务端数据走通；iPhone 麦克风、键盘、安全区和 PWA 生命周期通过真实设备补充验收。
 
 ## 2. 范围
 
@@ -30,14 +32,14 @@ Alpha 完成时必须能够走通：
 - 40–60 条审核后的核心口语表达。
 - 8–12 个原创或开放许可的沉浸式内容包，以及首批可持续扩充的西语阅读文章库。
 - 八类通用沟通能力与八维技能画像。
-- Web 浏览器 TTS/录音与 Flutter 平台语音接口、录音上传、语音转写和基础发音信号。
+- Web 浏览器 TTS/录音、语音转写和基础发音信号。
 - 自主开口、打字替代、三级提示、变式迁移和抽样复核。
 - 追加式学习证据、技能快照、场景状态和推荐器。
 - Lucía 私信、语音优先输入、长期关系记忆和自然反馈入口。
 - 两个可被介绍的新角色及用户同意流程。
 - Codeforces/GitHub 式有效学习热力图和八维能力图。
-- 手机端 PWA 与 Flutter iOS 客户端、错误降级、隐私设置、基本可观测性和部署。
-- 版本化 API 契约与 TypeScript/Dart 共同读取的一致性样本。
+- 桌面与 iPhone Safari 响应式 PWA、错误降级、隐私设置、基本可观测性和部署。
+- 版本化 API 契约、稳定错误码和 TypeScript 一致性样本。
 
 ### 2.2 明确延后
 
@@ -45,8 +47,7 @@ Alpha 完成时必须能够走通：
 - 完整可视化内容后台。
 - 实时双向语音通话。
 - 大规模角色网络或角色商城。
-- Android、Windows、macOS 的商店发布与完整平台打磨。
-- 用 SwiftUI/UIKit 重写 Flutter 主要页面。
+- Flutter 或原生移动/桌面客户端的功能同步、商店发布和跨端 Dart 工作。
 - 独立微服务、复杂消息队列和离线 ASR。
 - 未经授权的外刊全文导入、任意网页抓取、RSS/Newsletter 自动订阅和浏览器扩展。
 
@@ -60,7 +61,7 @@ Alpha 完成时必须能够走通：
 6. **自然表达优先**：评估语境成功，不要求复现唯一答案。
 7. **先做可解释规则**：Alpha 不使用难以校准的黑箱总分替代业务规则。
 8. **纵向切片交付**：每个阶段都要形成可以亲自体验的路径，不连续数周只建设底层。
-9. **跨端共享语义而非 UI**：Web 与 Flutter 共享 API、内容和一致性样本，页面分别实现。
+9. **单一活动客户端**：桌面与 iPhone Safari 共用响应式 Web/PWA；保留版本化 API，为未来恢复其他客户端提供边界。
 10. **服务端最终校验**：客户端状态、插件结果和本地缓存不能直接成为能力证据或记忆事实。
 
 ## 4. 计划目录结构
@@ -90,7 +91,7 @@ src/
     observability/
     ui/
 apps/
-  mobile/                 # Flutter 客户端；iOS Alpha，未来四平台共用
+  mobile/                 # 已有 Flutter 客户端；当前暂停功能同步
 contracts/
   openapi/                # 版本化 API 规范
   fixtures/               # TS/Dart 跨语言一致性样本
@@ -113,7 +114,7 @@ docs/
 | 阶段 | 结果 | 主要依赖 |
 |---|---|---|
 | 0 | 文档与仓库约束可执行 | 已批准设计 |
-| 1 | 可部署的 Web/PWA 与 Flutter 客户端骨架 | 阶段 0 |
+| 1 | 已完成的 Web/PWA 与历史 Flutter 客户端骨架 | 阶段 0 |
 | 2 | 数据库、认证、RLS 和内容导入 | 阶段 1 |
 | 3 | 可恢复的训练闭环 | 阶段 2 |
 | 4 | 语音、评估、证据和画像 | 阶段 3 |
@@ -834,7 +835,7 @@ Flutter integration test 使用 fake 服务覆盖同一关键路径；真实 iOS
 
 ### 任务 7.7b：核心路径与跨端闭环
 
-- 补齐 Web 与 Flutter 的核心用户路径，包括初次诊断、断点恢复、训练反馈、阅读状态、角色对话和数据控制。
+- 补齐响应式 Web/PWA 的核心用户路径，包括初次诊断、断点恢复、训练反馈、阅读状态、场景实战、角色对话和数据控制。
 - 服务端继续作为证据、画像、关系记忆和权限的权威来源；客户端缓存只能作为离线恢复手段。
 - 对未完成的 provider、数据库/RLS 和内容发布依赖提供明确的可恢复错误，不伪造成功状态。
 
@@ -842,12 +843,12 @@ Flutter integration test 使用 fake 服务覆盖同一关键路径；真实 iOS
 
 - 修复阻塞级和高优先级流程、状态机、取消/竞态、数据隔离、证据污染和角色一致性问题。
 - 清理既有回归失败和测试 fixture 漂移；并行资源不足时使用单 worker 定位，但发布候选仍需完成全量门禁。
-- 更新受影响的单元、集成、Playwright、Flutter 和数据库/RLS 测试，不用快照替代行为断言。
+- 更新受影响的单元、集成、Playwright 和数据库/RLS 测试，不用快照替代行为断言。
 
 ### 任务 7.7d：发布候选验收准备
 
 - 形成可部署的候选版本，完成 `pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm test:e2e` 和 `pnpm build`。
-- 涉及 Flutter 的公共检查通过；具备 Mac/Xcode 后补做 iOS 编译、签名、权限、音频生命周期和真机关键路径。
+- 使用真实 iPhone Safari 补做麦克风、键盘、安全区、音频生命周期和 PWA 主屏关键路径。
 - 确认真实 provider、数据库/RLS、内容版权、隐私日志和数据删除策略的验收条件；没有凭据或授权时保持明确阻塞，不上传真实音频或视频。
 
 ### 阶段 7.7 退出条件
@@ -856,6 +857,18 @@ Flutter integration test 使用 fake 服务覆盖同一关键路径；真实 iOS
 - P0/P1 缺陷清零；关键数据隔离、证据、记忆和角色安全不变量有自动化回归。
 - 全量质量门禁通过，或每个未通过项都有明确的发布阻断记录和负责人。
 - 产品本人确认版本达到“可以开始连续真实使用”的候选状态。
+
+### 2026-09-11 当前优先切片：场景学习闭环
+
+当前先把探索页改造成可用的场景与表达库，并交付“获取表达 → 临时人物实战 → 完整复盘 → 间隔复现”的 Web/PWA 闭环。建议任务为：
+
+1. `SCN-001`：领域状态机、数据迁移、API 契约、Provider Router 和 fake。
+2. `SCN-002`：餐厅点餐的文字/语音纵向闭环。
+3. `SCN-003`：探索场景库、搜索、分类、生成及阅读/收藏/错误来源。
+4. `SCN-004`：完整复盘、历史、当天/1/3/7 天复现和学习页推荐。
+5. `SCN-005`：Provider 设置、切换、iPhone Safari/PWA 真机收敛和发布门禁。
+
+任务的逐文件步骤、测试命令和提交边界在书面规格复核后写入独立实施计划。长期 AI 角色仍是主要功能，但回复自然度、Provider、记忆和其他角色作为后续独立设计流，不混入上述场景任务。
 
 ## 15. 阶段 8：个人 Alpha 验证
 

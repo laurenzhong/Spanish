@@ -1,14 +1,15 @@
-# 个人 Alpha 多客户端架构边界
+# 个人 Alpha Web/PWA 架构边界
 
 - 状态：实施基线
 - 适用范围：个人 Alpha
 - 详细产品要求：[设计规范](superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
-- 多平台决策：[Web 与 Flutter 多平台架构设计](superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
-- 决策记录：[ADR-0001](adr/0001-nextjs-web-flutter-clients.md)
+- 当前客户端设计：[Web 优先的个人学习产品与场景实战设计](superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
+- 决策记录：[ADR-0002](adr/0002-web-pwa-first-personal-alpha.md)
+- 历史多平台设计：[Web 与 Flutter 多平台架构设计](superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md) 与 [ADR-0001](adr/0001-nextjs-web-flutter-clients.md)
 
 ## 1. 架构目标
 
-个人 Alpha 使用单仓库、两条客户端代码线和一个远程 Next.js/TypeScript 模块化单体。Next.js/React 承担完整 Web 产品；Flutter/Dart 从 Alpha 开始承担 iOS，并作为未来 Android、Windows、macOS 的共同客户端代码基础。目标是在不提前拆微服务的前提下，让训练、评分、画像、推荐、角色、记忆、平台能力和供应商集成保持清晰边界，可以独立测试和替换。
+个人 Alpha 使用单仓库、一条活动的 Next.js 响应式 Web/PWA 客户端代码线和一个远程 Next.js/TypeScript 模块化单体。桌面浏览器与 iPhone Safari 共用 React 页面和服务端能力。已有 Flutter/Dart 代码保留但暂停同步。目标是在不提前拆微服务的前提下，让训练、场景实战、评分、画像、推荐、角色、记忆、平台能力和供应商集成保持清晰边界，可以独立测试和替换。
 
 架构优先保证：
 
@@ -17,20 +18,20 @@
 - AI 与语音供应商可替换。
 - 角色记忆不会越权共享。
 - 技术故障不会污染能力评分。
-- Web 与 Flutter 使用同一 API、内容版本和业务语义。
-- 四个 Flutter 客户端平台复用主要页面、状态编排和平台接口。
-- iOS 不依赖 Capacitor WebView，也不要求未来整体重写 Swift。
+- 桌面与 iPhone Safari 使用同一服务端 API、内容版本和业务语义。
+- 版本化 API 与稳定错误码继续保留，为未来恢复其他客户端留出边界。
+- iPhone Safari 的麦克风、键盘、安全区和 PWA 生命周期必须真实验证。
 
 ## 2. 运行时视图
 
 ```text
-Next.js Web / PWA                    Flutter 客户端
-  ├─ React 页面与组件               ├─ iOS（Alpha）
-  ├─ 浏览器 TTS、录音、权限         ├─ Android（后续）
-  └─ Web 平台适配器                 ├─ Windows（后续）
-             │                      ├─ macOS（后续）
-             │ HTTPS / NDJSON       └─ 平台能力适配器
-             └─────────┬─────────────────────┘
+Next.js 响应式 Web / PWA
+  ├─ 桌面 React 页面与组件
+  ├─ iPhone Safari / 主屏 PWA
+  ├─ 浏览器 TTS、录音、权限
+  └─ Web 平台适配器
+             │ HTTPS / NDJSON
+             ▼
                        ▼
 远程 Next.js 模块化单体
   ├─ Route Handlers：鉴权、校验、协议转换
@@ -48,11 +49,12 @@ Next.js Web / PWA                    Flutter 客户端
 ```text
 app/
   (auth)/                 # 登录与账号页面
-  (product)/              # 学习、探索、对话、我的
+  (product)/              # 学习、阅读、探索、对话、我的
   api/                    # 薄 Route Handlers
 src/
   modules/
-      content/              # 内容图谱、导入、发布与文章查询
+    content/              # 内容图谱、导入、发布与文章查询
+    scenario-practice/    # 私人场景、临时人物、实战、复盘与复现
     training/             # 训练计划、状态机、断点
     evidence/             # 评估结果、证据强度、事件写入
     profile/              # 技能快照、场景状态、进步解释
@@ -68,7 +70,7 @@ src/
     observability/        # 日志、追踪、调用成本
     ui/                   # 无业务含义的基础组件
 apps/
-  mobile/                 # Flutter 客户端；iOS Alpha，未来四平台共用
+  mobile/                 # 已有 Flutter 客户端；当前暂停功能同步
 contracts/
   openapi/                # 版本化 API 规范
   fixtures/               # TS/Dart 共同读取的一致性样本
@@ -94,7 +96,7 @@ schemas/         # 外部输入和持久化边界校验
 ui/              # 模块专用 React 组件
 ```
 
-Flutter 客户端使用相同业务 feature 名称组织 Dart 代码，但不直接导入服务端 TypeScript。跨语言共享依赖版本化契约和 JSON fixtures，而不是复制数据库行类型或手工维持两套 DTO。
+活动客户端只使用 TypeScript/React。已有 Flutter 代码不得直接导入服务端 TypeScript；未来如恢复多客户端，仍通过版本化契约和 fixtures 对齐，而不是复制数据库行类型。
 
 依赖方向：
 
@@ -110,7 +112,7 @@ UI / Route Handler → Application → Domain
 - 服务端 `domain` 不导入 React、Next.js、Drizzle、Supabase SDK 或供应商 SDK。
 - Route Handler 不直接实现评分、推荐或记忆规则。
 - React 组件不直接写数据库。
-- Flutter Widget 不直接写证据、画像或关系记忆。
+- 浏览器客户端不直接写证据、画像或关系记忆。
 - 模块不能直接更新其他模块拥有的表；必须调用对方 application 接口。
 - `shared` 不能反向依赖任何业务模块。
 - 跨模块共享的数据使用小型显式 DTO，不导出内部数据库行作为公共 API。
@@ -121,6 +123,7 @@ UI / Route Handler → Application → Domain
 |---|---|---|
 | content | 内容版本、审核、图谱和发布 | expressions、tags、scenarios、content_packs |
 | reading | 阅读断点、用户标注、保存和外部来源元数据 | user_reading_progress、user_article_saves、user_article_highlights、user_saved_article_sources |
+| scenario-practice | 私人场景、临时人物轮次、条件变化、复盘和复现 | personal_scenarios、scenario_session_states、scenario_turns、scenario_turn_reviews、scenario_repetition_items |
 | training | 当前训练计划、状态机和断点 | practice_sessions、practice_attempts、learning_breakpoints |
 | evidence | 尝试评估和证据强度 | evidence_events |
 | profile | 技能快照、场景状态和解释 | user_skill_states、user_scene_states |
@@ -131,6 +134,14 @@ UI / Route Handler → Application → Domain
 | providers | 供应商适配和统一错误 | provider_calls、audio_assets |
 
 ## 6. 关键领域边界
+
+### 6.0a 场景实战与长期角色隔离
+
+`scenario-practice` 负责从主题、阅读、收藏表达或最近错误创建私人场景，并编排临时人物多轮实战、完整文字复盘和当天/1/3/7 天复现。它可以引用 `content` 的场景、任务和表达版本，复用 `training` 的尝试、录音和稳定断点能力，并把到期复现投影给 `recommendation`。
+
+临时人物只保存本次会话的人物快照，不创建 `characters`、`conversations` 或关系记忆，也不读取长期角色的关系阶段和私密记忆。只有用户完整表达可以进入评估；自然替代表达可以完成沟通任务。Provider 输出必须经过 Schema 和服务端规则后才能形成证据，技术失败、低置信度转写和打字不得污染口语能力。
+
+详细数据、API、Provider 路由和状态机见 [Web 优先的个人学习产品与场景实战设计](superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)。
 
 ### 6.0 阅读状态与外部来源
 
