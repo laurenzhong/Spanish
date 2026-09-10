@@ -2,11 +2,23 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-04
-- 当前里程碑：个人 Alpha 阶段 7.7——功能缺口收敛与发布候选准备
-- 总体状态：READ-005、READ-006、UI-009、UI-010、UI-011、ALPHA-032 已完成；阶段 8 尚未启动，等待发布候选门禁
+- 最后更新：2026-09-11
+- 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
+- 总体状态：ALPHA-033 继续进行；Web/PWA 优先和场景实战规格已写入，等待产品本人书面复核后生成详细实施计划；阶段 8 尚未启动
 - 协调分支：`main`
-- 当前阻塞：发布候选尚未形成；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+- 当前门禁：先完成新规格书面复核与实施计划，再领取 `SCN-001`；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+
+### 2026-09-11：Web/PWA 个人学习与场景实战重排
+
+- 状态：`review`
+- 负责人：Codex / 产品本人
+- 目标分支：`fix/login-redirect-after-otp`
+- 设计 Commit：`aaa9875`
+- 范围：产品改为首先服务项目所有者自己的学习；当前只推进响应式 Web/PWA 与 iPhone Safari，暂停 Flutter、原生应用、商店发布和跨端同步；探索页改造成场景与表达库，新增临时人物多轮实战、完整文字复盘、逐条错误标记和当天/1/3/7 天复现设计；长期 AI 角色仍为主要功能，但自然度、Provider、记忆和其他角色进入后续独立设计流。
+- 文档：[`Web 优先的个人学习产品与场景实战设计`](docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)、[`ADR-0002`](docs/adr/0002-web-pwa-first-personal-alpha.md)，以及 README、AGENTS、架构、认证、内容和测试策略同步。
+- 验证：逐节产品、页面和技术方案已由产品本人确认；本地 Markdown 链接全部可解析；`git diff --check` 通过。文档任务未运行代码测试。
+- 限制：尚未生成逐文件实施计划，未修改业务代码、数据库或部署；单账号邮箱 allowlist 仍需独立认证任务实现。
+- 下一步：产品本人复核书面规格；批准后生成详细实施计划，并从 `SCN-001` 开始逐任务实施。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
@@ -170,7 +182,7 @@ UI-011 已完成；当前下一项为 `ALPHA-033`：Alpha 功能缺口收敛与�
 
 ### 当前 Alpha 收敛任务
 
-- `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备（ready；依赖阶段 7、UI-006 至 UI-011、READ-001 至 READ-005）。
+- `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备（in_progress；负责人 Codex；目标分支 `fix/login-redirect-after-otp`）。
 - 阶段 8：个人 Alpha 连续使用与人工体验复核（ready；仅在 `ALPHA-033` 退出条件满足后启动）。
 
 ### 后续路线（不进入当前 Alpha）
@@ -1448,7 +1460,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-004 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
 | UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
-| ALPHA-033 | ready | 待分配 | 待协调分配 | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
+| ALPHA-033 | in_progress | `fix/login-redirect-after-otp` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
 | 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
