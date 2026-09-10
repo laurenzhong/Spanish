@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-11
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；Web/PWA 优先和场景实战规格已写入，等待产品本人书面复核后生成详细实施计划；阶段 8 尚未启动
+- 总体状态：ALPHA-033 继续进行；Web/PWA 优先和场景实战规格已确认，详细实施计划已写入并等待产品本人复核；阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：先完成新规格书面复核与实施计划，再领取 `SCN-001`；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+- 当前门禁：先完成场景实施计划复核，再领取 `SCN-001`；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -14,11 +14,12 @@
 - 负责人：Codex / 产品本人
 - 目标分支：`fix/login-redirect-after-otp`
 - 设计 Commit：`aaa9875`
+- 实施计划 Commit：`2a0f41f`
 - 范围：产品改为首先服务项目所有者自己的学习；当前只推进响应式 Web/PWA 与 iPhone Safari，暂停 Flutter、原生应用、商店发布和跨端同步；探索页改造成场景与表达库，新增临时人物多轮实战、完整文字复盘、逐条错误标记和当天/1/3/7 天复现设计；长期 AI 角色仍为主要功能，但自然度、Provider、记忆和其他角色进入后续独立设计流。
-- 文档：[`Web 优先的个人学习产品与场景实战设计`](docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)、[`ADR-0002`](docs/adr/0002-web-pwa-first-personal-alpha.md)，以及 README、AGENTS、架构、认证、内容和测试策略同步。
-- 验证：逐节产品、页面和技术方案已由产品本人确认；本地 Markdown 链接全部可解析；`git diff --check` 通过。文档任务未运行代码测试。
-- 限制：尚未生成逐文件实施计划，未修改业务代码、数据库或部署；单账号邮箱 allowlist 仍需独立认证任务实现。
-- 下一步：产品本人复核书面规格；批准后生成详细实施计划，并从 `SCN-001` 开始逐任务实施。
+- 文档：[`Web 优先的个人学习产品与场景实战设计`](docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)、[`Web/PWA 场景学习闭环实施计划`](docs/plans/2026-09-11-web-first-scenario-practice-implementation-plan.md)、[`ADR-0002`](docs/adr/0002-web-pwa-first-personal-alpha.md)，以及 README、AGENTS、架构、认证、内容和测试策略同步。
+- 验证：逐节产品、页面、技术方案及书面规格已由产品本人确认；实施计划的本地 Markdown 链接全部可解析，无占位符，`git diff --check` 通过。文档任务未运行代码测试。
+- 限制：实施计划尚待产品本人复核；未修改业务代码、数据库或部署；单账号邮箱 allowlist 仍需独立认证任务实现。
+- 下一步：产品本人复核实施计划；批准后将 `SCN-001` 设为 `in_progress`，按独立分支和测试先行开始实施。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
