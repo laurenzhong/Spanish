@@ -1,7 +1,8 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ExploreDashboardDto } from "@/src/modules/explore/domain";
+import type { ExploreLibraryDto } from "@/src/modules/explore/domain/explore-library";
 import { ExplorePageContent } from "@/app/(product)/explore/explore-page-content";
 
 const dashboard: ExploreDashboardDto = {
@@ -15,6 +16,30 @@ const dashboard: ExploreDashboardDto = {
     { id: "pack-2", stableKey: "draft-pack", title: "周末市场", summary: "内容仍在整理。", level: "A2", skills: ["read"], durationLabel: "约 4 分钟", status: "draft", version: "v1", updatedAt: null },
   ],
   resume: [],
+};
+
+const library: ExploreLibraryDto = {
+  privateState: "available",
+  scenarios: [{
+    stableKey: "scenario.campus-administration",
+    title: "校园办事：注册与材料",
+    description: "在学校行政窗口说明来意。",
+    cefr: "A2",
+    region: "es-ES",
+    category: "study",
+    categoryLabel: "学习办事",
+    role: "校园行政工作人员",
+    communicationGoal: "说明来意并确认材料",
+    expressionTexts: ["Quisiera entregar estos documentos."],
+    sourceKind: "public",
+    route: "/explore/scenarios/scenario.campus-administration",
+  }],
+  expressions: [
+    { id: "formal-1", text: "¿Cómo va todo?", translation: "一切都怎么样？", intent: "轻松询问近况", cefr: "A1", region: "es-ES", category: "start", categoryLabel: "开始交流", sourceKind: "formal", saved: false, saveSource: { sourceType: "formal-expression", expressionKey: "start.como-va-todo", version: 1 } },
+    { id: "saved-1", text: "¿Me puede ayudar?", translation: "您能帮我吗？", intent: null, cefr: null, region: null, category: "saved", categoryLabel: "我的收藏", sourceKind: "saved", saved: true, savedExpressionId: "saved-1", generationSource: { sourceType: "saved-expression", sourceId: "saved-1" } },
+    { id: "reading-1", text: "Necesito más información.", translation: null, intent: "来自你的阅读选区", cefr: null, region: null, category: "reading", categoryLabel: "阅读来源", sourceKind: "reading", saved: false, saveSource: { sourceType: "reading-selection", highlightId: "reading-1" }, generationSource: { sourceType: "reading", sourceId: "reading-1" } },
+    { id: "review-1", text: "Quisiera explicarlo mejor.", translation: null, intent: "来自已确认的近期表达问题", cefr: null, region: null, category: "recent-error", categoryLabel: "近期难点", sourceKind: "recent-error", saved: false, saveSource: { sourceType: "scenario-review", reviewId: "review-1" }, generationSource: { sourceType: "recent-error", sourceId: "review-1" } },
+  ],
 };
 
 const progressPack: ExploreDashboardDto["packs"][number] = {
@@ -167,6 +192,63 @@ describe("ExplorePageContent", () => {
     expect(screen.getByText("请求重复")).toBeInTheDocument();
   });
 
+  it("searches scenario metadata and Spanish expressions without requiring accents", () => {
+    render(<ExplorePageContent dashboard={dashboard} library={library} />);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "como" } });
+    expect(screen.getByText("¿Cómo va todo?")).toBeInTheDocument();
+    expect(screen.queryByText("校园办事：注册与材料")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "A2 entregar" } });
+    expect(screen.getByText("校园办事：注册与材料")).toBeInTheDocument();
+    expect(screen.queryByText("¿Cómo va todo?")).not.toBeInTheDocument();
+  });
+
+  it("filters the library by source and preserves that state in the URL", () => {
+    window.history.replaceState(null, "", "/explore");
+    render(<ExplorePageContent dashboard={dashboard} library={library} />);
+    fireEvent.click(screen.getByRole("button", { name: /^阅读来源/u }));
+    expect(screen.getByText("Necesito más información.")).toBeInTheDocument();
+    expect(screen.queryByText("¿Cómo va todo?")).not.toBeInTheDocument();
+    expect(new URL(window.location.href).searchParams.get("filter")).toBe("reading");
+
+    fireEvent.click(screen.getByRole("button", { name: /^可立即开始/u }));
+    expect(screen.getByText("校园办事：注册与材料")).toBeInTheDocument();
+    expect(screen.queryByText("Necesito más información.")).not.toBeInTheDocument();
+  });
+
+  it("offers one clear recovery action when the library has no matches", () => {
+    render(<ExplorePageContent dashboard={dashboard} library={library} initialFilter="recent-error" initialQuery="不存在" />);
+    expect(screen.getByText("没有匹配的场景或表达")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "清除搜索和筛选" }));
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+    expect(screen.getByText("校园办事：注册与材料")).toBeInTheDocument();
+  });
+
+  it("saves a formal expression through its server-verifiable reference", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ apiVersion: "v1", data: { id: "saved-new" } }), { status: 201, headers: { "content-type": "application/json" } }));
+    render(<ExplorePageContent dashboard={dashboard} library={library} initialQuery="como" />);
+    fireEvent.click(screen.getByRole("button", { name: "收藏表达：¿Cómo va todo?" }));
+
+    expect(await screen.findByText("已收藏表达，不会产生学习证据。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消收藏：¿Cómo va todo?" })).toHaveAttribute("aria-pressed", "true");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/expressions/saved", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining('"expressionKey":"start.como-va-todo"'),
+    }));
+  });
+
+  it("opens a preselected generation path and restores focus when it closes", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ apiVersion: "v1", data: { generationSources: { savedExpressions: [], readingHighlights: [], recentErrors: [] } } }), { status: 200, headers: { "content-type": "application/json" } }));
+    render(<ExplorePageContent dashboard={dashboard} library={library} initialFilter="reading" />);
+    const card = screen.getByRole("heading", { name: "Necesito más información." }).closest("article");
+    const trigger = within(card!).getByRole("button", { name: "用此表达生成场景：Necesito más información." });
+    fireEvent.click(trigger);
+    expect(screen.getByText("已从表达库选择")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /从阅读迁移/u })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "关闭私人场景生成" }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it("opens draft goal previews when local preview mode is enabled", () => {
     render(<ExplorePageContent allowDraftPreview dashboard={dashboard} />);
     expect(screen.getByRole("link", { name: /请求重复/ })).toHaveAttribute(
@@ -198,7 +280,7 @@ describe("ExplorePageContent", () => {
   it("keeps the saved filter in the URL after selecting it", () => {
     window.history.replaceState(null, "", "/explore");
     render(<ExplorePageContent dashboard={dashboard} />);
-    fireEvent.click(screen.getByRole("button", { name: "已保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "已保存内容包" }));
     expect(new URL(window.location.href).searchParams.get("saved")).toBe("1");
   });
 

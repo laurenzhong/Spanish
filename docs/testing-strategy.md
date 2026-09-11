@@ -175,6 +175,10 @@ Playwright 覆盖桌面 Chromium、iPhone 视口和必要的 WebKit 行为；真
 | Explore 建议只从已发布/本人私人且可开始的场景选择 | explore 领域单元 + Route + 所有权数据库集成 |
 | 场景建议不使用学习时长、低置信度转写或技术失败 | explore 领域单元 + 固定上下文样本 |
 | 过期场景建议响应不能覆盖用户最新选择 | Explore 组件竞态测试 |
+| Explore 搜索忽略大小写、标点和西语重音，多词仍按 AND 匹配 | explore 领域单元 + 页面组件测试 |
+| Explore 五类筛选、URL 恢复和无结果恢复动作保持一致 | Explore 组件 + Playwright 深链测试 |
+| Explore 私人来源不可用时只退化为公共目录，不泄露或伪造私人结果 | application 投影单元 + Dashboard Route Schema 测试 |
+| Explore 在 320/375/414px 不横向溢出，关闭私人生成后焦点回到来源表达 | Playwright 视口回归 + 组件焦点测试 |
 | 收藏表达不能引用其他用户的阅读选区或复盘 | application + Route + RLS/所有权数据库集成 |
 | 私人场景生成重试不重复写入，同键异输入拒绝 | application 幂等单元 + 数据库唯一约束 |
 | Provider 失败、取消、非法 Schema 或丢失选中表达时不保存半成品 | scenario-generation 契约 + application 单元 |

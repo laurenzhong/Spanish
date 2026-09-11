@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { getExploreDashboardForUser } from "@/src/modules/explore";
-import { BundleExploreRepository, createDrizzleExploreUserStateRepository, emptyExploreUserStateRepository } from "@/src/modules/explore/repositories";
+import { getExploreDashboardForUser, getExploreLibraryForUser } from "@/src/modules/explore";
+import { BundleExploreRepository, CatalogExploreLibraryRepository, createDrizzleExploreUserStateRepository, emptyExploreUserStateRepository } from "@/src/modules/explore/repositories";
 import { getDatabase } from "@/src/shared/db/client";
 import { getCurrentUser } from "@/src/shared/auth/server";
-import { listScenarioPracticeDetails } from "@/src/modules/scenario-practice";
 import { createDrizzleScenarioLibraryRepository } from "@/src/modules/scenario-practice";
 
 import { ExplorePageContent } from "./explore-page-content";
@@ -23,9 +22,8 @@ function first(value: string | string[] | undefined): string | undefined {
 export default async function ExplorePage({ searchParams }: ExplorePageProps) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=%2Fexplore");
-  const userStateRepository = process.env.DATABASE_URL
-    ? createDrizzleExploreUserStateRepository(getDatabase())
-    : emptyExploreUserStateRepository;
+  const database = process.env.DATABASE_URL ? getDatabase() : null;
+  const userStateRepository = database ? createDrizzleExploreUserStateRepository(database) : emptyExploreUserStateRepository;
   const dashboardOptions = {
     // Draft content remains blocked in production; local development can inspect
     // the complete interaction flow without publishing unreviewed material.
@@ -51,21 +49,11 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
     );
   }
   const params = await searchParams;
-  type ScenarioEntry = { stableKey: string; title: string; description: string; cefr: string; role: string; sourceKind: "public" | "personal" };
-  const publicScenarios: ScenarioEntry[] = listScenarioPracticeDetails().filter((scenario) => process.env.NODE_ENV !== "production" || scenario.status === "published").map((scenario) => ({
-    stableKey: scenario.stableKey,
-    title: scenario.title,
-    description: scenario.description,
-    cefr: scenario.cefr,
-    role: scenario.temporaryCharacter.role,
-    sourceKind: "public" as const,
-  }));
-  let personalScenarios: ScenarioEntry[] = [];
-  if (process.env.DATABASE_URL) {
-    try {
-      personalScenarios = (await createDrizzleScenarioLibraryRepository(getDatabase()).listPersonalSuggestionCandidates(user.id)).map((scenario) => ({ stableKey: `personal.${scenario.id}`, title: scenario.title, description: scenario.description, cefr: scenario.cefr, role: scenario.role, sourceKind: "personal" as const }));
-    } catch { /* Public Explore content remains usable while private data is unavailable. */ }
-  }
-  const scenarios = [...personalScenarios, ...publicScenarios];
-  return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} scenarios={scenarios} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} />;
+  const library = await getExploreLibraryForUser(
+    new CatalogExploreLibraryRepository(database ? createDrizzleScenarioLibraryRepository(database) : undefined),
+    user.id,
+    dashboardOptions,
+  );
+  const filter = first(params.filter);
+  return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} library={library} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} initialFilter={filter === "saved" || filter === "recent-error" || filter === "reading" || filter === "available" ? filter : "all"} />;
 }

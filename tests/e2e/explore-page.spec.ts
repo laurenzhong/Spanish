@@ -23,6 +23,62 @@ test("renders the desktop discovery workspace with honest draft state", async ({
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
 });
 
+test("searches the full library without accents and restores filters from the URL", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/explore?q=como");
+
+  const libraryFilters = page.locator('[aria-label="场景与表达筛选"]');
+  await expect(page.getByRole("searchbox")).toHaveValue("como");
+  await expect(page.getByRole("heading", { name: "¿Cómo va todo?" })).toBeVisible();
+  await expect(libraryFilters.getByRole("button", { name: /^全部/u })).toHaveAttribute("aria-pressed", "true");
+
+  const filters = ["全部", "已收藏", "最近错误", "阅读来源", "可立即开始"];
+  for (const label of filters) {
+    await expect(libraryFilters.getByRole("button", { name: new RegExp(`^${label}`, "u") })).toBeVisible();
+  }
+
+  await libraryFilters.getByRole("button", { name: /^阅读来源/u }).click();
+  await expect(page).toHaveURL(/(?:\?|&)filter=reading(?:&|$)/u);
+  await page.reload();
+  await expect(libraryFilters.getByRole("button", { name: /^阅读来源/u })).toHaveAttribute("aria-pressed", "true");
+
+  await page.getByRole("searchbox").fill("完全不存在的场景");
+  await expect(page.getByText("没有匹配的场景或表达")).toBeVisible();
+  await page.getByRole("button", { name: "清除搜索和筛选" }).click();
+  await expect(page.getByRole("searchbox")).toHaveValue("");
+  await expect(libraryFilters.getByRole("button", { name: /^全部/u })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("enters private generation from a saved library expression and restores focus", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/v1/expressions/saved", async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ apiVersion: "v1", data: { id: "10000000-0000-4000-8000-000000000001" } }),
+    });
+  });
+  await page.route("**/api/v1/scenarios", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiVersion: "v1", data: { scenarios: [], generationSources: { savedExpressions: [], readingHighlights: [], recentErrors: [] }, generationAvailable: true } }),
+    });
+  });
+  await page.goto("/explore?q=como");
+
+  await page.getByRole("button", { name: "收藏表达：¿Cómo va todo?" }).click();
+  await expect(page.getByText("已收藏表达，不会产生学习证据。")).toBeVisible();
+  const generatorTrigger = page.getByRole("button", { name: "用此表达生成场景：¿Cómo va todo?" });
+  await generatorTrigger.click();
+  await expect(page.getByText("已从表达库选择")).toBeVisible();
+  await expect(page.getByRole("radio", { name: /用收藏表达/u })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("button", { name: "关闭私人场景生成" }).click();
+  await expect(generatorTrigger).toBeFocused();
+});
+
 test("suggests and swaps an explainable scenario without requiring a search query", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -155,10 +211,10 @@ test("keeps search and layout usable across desktop and mobile widths", async ({
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/explore");
     await expect(page.getByRole("searchbox")).toBeVisible();
-    const savedFilter = page.getByRole("button", { name: "已保存" });
+    const savedFilter = page.getByRole("button", { name: "已保存内容包" });
     await savedFilter.click();
     await expect(savedFilter).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("button", { name: "全部" }).click();
+    await page.getByRole("button", { name: "全部内容包" }).click();
     await page.getByRole("searchbox").fill("不存在的表达");
     await expect(page.getByText("没有匹配的目标")).toBeVisible();
     const dimensions = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));

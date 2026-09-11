@@ -2386,6 +2386,40 @@ body { background: var(--background); }
 .personal-scenario-generator__actions span { color: var(--danger); font-size: 0.72rem; }
 .personal-scenario-generator__created { padding: 14px; border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border)); border-radius: 8px; background: var(--success-soft); }
 .personal-scenario-generator__created span { color: var(--muted); font-size: 0.75rem; }
+.personal-scenario-generator__selected-source { display: grid; gap: 5px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.personal-scenario-generator__selected-source span { color: var(--muted); font-size: 0.72rem; }
+.personal-scenario-generator__selected-source strong { overflow-wrap: anywhere; font-size: 0.88rem; }
+
+.explore-library { display: grid; gap: 16px; min-width: 0; padding: 22px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 8px 24px rgb(31 50 81 / 5%); }
+.explore-library__heading { margin: 0 !important; }
+.explore-library__heading > div { display: grid; gap: 4px; }
+.explore-library__heading p, .explore-library__heading h2 { margin: 0; }
+.explore-library__heading > span { color: var(--muted); font-size: 0.76rem; font-weight: 700; }
+.explore-library__filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.explore-library__filters button { display: grid; min-height: 58px; gap: 2px; align-content: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--foreground); background: var(--surface-soft); cursor: pointer; font: inherit; text-align: left; transition: border-color 160ms ease, background 160ms ease, color 160ms ease; }
+.explore-library__filters button:hover, .explore-library__filters button.is-selected { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.explore-library__filters button:focus-visible, .explore-expression-card button:focus-visible, .explore-library__empty button:focus-visible { outline: 3px solid rgb(23 105 224 / 35%); outline-offset: 2px; }
+.explore-library__filters strong { font-size: 0.78rem; }
+.explore-library__filters small { color: var(--muted); font-size: 0.68rem; }
+.explore-library__private-note, .explore-library__notice { margin: 0; color: var(--muted); font-size: 0.76rem; line-height: 1.5; }
+.explore-library__notice { color: var(--success); font-weight: 700; }
+.explore-library__groups { display: grid; gap: 24px; }
+.explore-library__groups > section { display: grid; gap: 12px; min-width: 0; }
+.explore-library__group-heading { display: flex; gap: 16px; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.explore-library__group-heading h3 { margin: 0; font-size: 1rem; }
+.explore-library__group-heading span { color: var(--muted); font-size: 0.72rem; }
+.explore-scenario-card__goal { display: block; margin-top: 12px; color: var(--foreground); font-size: 0.74rem; font-weight: 700; line-height: 1.5; }
+.explore-expression-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.explore-expression-card { display: grid; min-width: 0; gap: 9px; align-content: start; padding: 16px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-soft); }
+.explore-expression-card__meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.explore-expression-card__meta span { padding: 3px 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 0.66rem; font-weight: 750; }
+.explore-expression-card h4 { margin: 2px 0 0; overflow-wrap: anywhere; font-family: var(--font-serif); font-size: 1.08rem; line-height: 1.4; }
+.explore-expression-card p, .explore-expression-card > small { margin: 0; color: var(--muted); font-size: 0.76rem; line-height: 1.55; }
+.explore-expression-card__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 3px; }
+.explore-expression-card__actions button, .explore-library__empty button { min-height: 44px; padding: 8px 11px; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--foreground); background: var(--surface); cursor: pointer; font: inherit; font-size: 0.74rem; font-weight: 750; }
+.explore-expression-card__actions button:hover, .explore-library__empty button:hover { border-color: var(--accent); color: var(--accent); }
+.explore-expression-card__actions button:disabled { cursor: not-allowed; opacity: 0.5; }
+.explore-library__empty button { width: fit-content; margin-top: 7px; }
 
 .explore-page .section-heading {
   align-items: center;
@@ -2510,6 +2544,9 @@ body { background: var(--background); }
 }
 
 @media (max-width: 760px) {
+  .explore-library { padding: 16px; }
+  .explore-library__filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .explore-expression-grid { grid-template-columns: 1fr; }
   .scenario-suggestion { padding: 16px; }
   .scenario-suggestion__heading { display: grid; gap: 6px; }
   .scenario-suggestion__heading > p { text-align: left; }
@@ -2523,13 +2560,14 @@ body { background: var(--background); }
 }
 
 @media (max-width: 560px) {
+  .explore-library__heading { display: grid; gap: 5px; align-items: start; }
   .personal-scenario-generator__choices { grid-template-columns: 1fr; }
   .explore-resume__item { grid-template-columns: minmax(0, 1fr) 20px; }
   .explore-resume__item strong { grid-column: 1 / -1; grid-row: 2; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .explore-goal-row, .explore-pack-card, .explore-resume__item, .scenario-suggestion__choices > button { transition: none; }
+  .explore-goal-row, .explore-pack-card, .explore-resume__item, .scenario-suggestion__choices > button, .explore-library__filters button { transition: none; }
 }
 
 @media (min-width: 960px) {
@@ -2537,6 +2575,7 @@ body { background: var(--background); }
   .explore-page__header,
   .explore-intent,
   .scenario-suggestion,
+  .explore-library,
   .explore-resume,
   .explore-workspace { grid-column: 1 / -1; }
 }
@@ -4135,6 +4174,7 @@ button {
   .explore-page { grid-template-columns: minmax(0, 1fr); gap: 22px; }
   .explore-page__header,
   .explore-intent,
+  .explore-library,
   .explore-resume,
   .explore-workspace { grid-column: 1 / -1; }
 }
