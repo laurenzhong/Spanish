@@ -6,7 +6,7 @@
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
 - 总体状态：ALPHA-033 继续进行；`SCN-001` 与 `SCN-002` 已合并到 `main`，下一项为 `SCN-003` 场景与表达库；阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：`SCN-002` 三个基础场景仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；`SCN-003` 实现尚未开始，须遵循已批准的场景建议设计且不得提前承担 SCN-004 的首页推荐职责；全量 E2E 的 14 条既有产品壳层/移动交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+- 当前门禁：`SCN-002` 三个基础场景仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；`SCN-003` 已开始，须遵循已批准的场景建议设计且不得提前承担 SCN-004 的首页推荐职责；全量 E2E 的 14 条既有产品壳层/移动交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -64,6 +64,17 @@
 - 验证：内容校验通过；场景聚焦单元/契约/数据库回归 `6 files / 21 tests`，Route Handler 回归 `4/4`；仓库级 Vitest `130 files / 572 tests`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、`git diff --check` 全部通过；场景 Playwright 在桌面 Chromium `2/2`、移动 Chromium `2/2` 通过，覆盖 390px 无横向溢出、移动底栏不被主导航遮挡、两轮表达、条件只触发一次和进入复盘。
 - 限制：三个内容场景目前均为未发布草稿，仅有 Codex 临时审核，仍需西班牙语母语者与中文教学视角审核后才能在生产环境显示；未使用真实收费 MiniMax 进行回放，运行时需配置 `MINIMAX_API_KEY`；账号持久化还要求 `DATABASE_URL` 且先导入对应内容包，缺少时 UI 会明确退化为本设备断点；未做真实 iPhone Safari、麦克风权限和供应商网络验证；未重跑已知含 14 条其他任务失败的全量 Playwright。
 - 下一步：开始 `SCN-003` 场景与表达库；在生产发布这些基础场景前，先完成内容双重人工审核并导入版本化内容包。
+
+### SCN-003：场景与表达库、可解释建议与私人生成
+
+- 状态：`in_progress`
+- 负责人：Codex
+- 目标分支：`codex/scn-003-scenario-library`
+- 前置依赖：SCN-001、SCN-002 已完成并合并；专项设计已由产品本人批准（设计 Commit `f894d71`）
+- 范围：完成场景与表达搜索、分类、收藏、多来源私人生成，以及“适合我的 / 探索新场景 / 随机来一个”的可解释选择辅助；保持现有内容包为次级材料。
+- 验收：服务端重新校验发布状态、所有权和来源；默认建议不调用 LLM、不产生学习证据；三种策略、换一个去重、无画像/无候选退化、移动端交互及私人生成幂等均有自动化覆盖。
+- 不包含：SCN-004 的历史、到期复现和首页唯一下一动作，长期角色/关系记忆，公共内容自动发布，以及 Flutter 改动。
+- 下一步：按实施计划先补失败测试与 Explore 建议领域策略，再接 API、页面与私人生成路径。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
@@ -1508,7 +1519,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | ALPHA-033 | in_progress | `fix/login-redirect-after-otp` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
-| SCN-003 | ready | `codex/scn-003-scenario-library` | 待分配 | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
+| SCN-003 | in_progress | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
 | 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -1517,7 +1528,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | SCN-003 | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 已完成且设计已批准 |
+| 1 | SCN-003 | 场景与表达库、可解释建议与私人生成（进行中） | SCN-001、SCN-002 已完成且设计已批准 |
 | 2 | SCN-004 | 历史、复盘与间隔复现 | SCN-002、SCN-003 |
 | 3 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
