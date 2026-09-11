@@ -75,10 +75,11 @@
 - 验收：服务端重新校验发布状态、所有权和来源；默认建议不调用 LLM、不产生学习证据；三种策略、换一个去重、无画像/无候选退化、移动端交互及私人生成幂等均有自动化覆盖。
 - 不包含：SCN-004 的历史、到期复现和首页唯一下一动作，长期角色/关系记忆，公共内容自动发布，以及 Flutter 改动。
 - 已完成切片 1：Explore 增加“适合我的 / 探索新场景 / 随机来一个”、结果预览与“换一个”；新增纯资格/排序/加权随机策略、用户私有学习投影读取、认证 Route、Zod 与 OpenAPI/JSON Schema 契约、请求取消/过期响应保护、空状态与主题回退。实现 Commit：`b2093b6`；分支状态同步 Commit：`faa9c07`；已直接合并到 `main`，Merge Commit：`2fa1e03`。SCN-003 仍为 `in_progress`。
-- 修改：`src/modules/explore/`、`app/api/v1/explore/scenario-suggestions/`、`app/(product)/explore/`、`app/globals.css`、v1 契约与错误码、Explore/数据库/E2E 测试，以及架构和测试策略文档。
-- 验证：全量 Vitest `133 files / 585 tests`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、`git diff --check` 通过；Explore Playwright 桌面与移动 `14/14` 通过。全量 Playwright `118 passed / 14 failed`，失败集合与既有门禁一致，位于旧 `product-shell` 断言及移动文章选区，新增 Explore 用例在两项目均通过。
-- 限制：生产内容包中的三个公共场景仍是未人工审核的 `draft`，因此建议接口会诚实返回无合格场景，不能绕过发布门禁；本切片尚未把 `personal_scenarios` 转成可开始候选，也未交付收藏表达 Route、私人场景生成 Provider/页面或完整分类筛选。
-- 下一步：继续 SCN-003 切片 2，完成收藏表达与私人场景生成/可开始路径，再把本人私人场景纳入同一建议候选池。
+- 已完成切片 2：新增正式表达、本人阅读选区、本人场景复盘和手工输入四类收藏来源及收藏列表/归档接口；新增主题、收藏表达、阅读选区和可信近期错误四类私人场景生成来源、MiniMax M3 Provider 与 deterministic fake、确认后生成、输入指纹幂等和失败不落半成品；本人私人场景可进入详情、实战、复盘、Explore 列表及同一建议候选池，并可安全归档。实现 Commit：`1a42f68`。SCN-003 仍为 `in_progress`。
+- 修改：Explore 页面与场景建议仓储、收藏表达和私人场景 API/应用用例/Drizzle 仓储、场景生成 Provider、私人场景详情与练习解析、v1 OpenAPI/JSON Schema/错误码，以及架构、内容和测试策略文档。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、契约测试 `10 files / 38 tests`、全量 Vitest `139 files / 599 tests`、`pnpm build` 和 `git diff --check` 通过；Explore Playwright 桌面与移动 `16/16` 通过。一次全量 Playwright 运行到第 40 条附近时测试 WebServer 意外退出，最终 `39 passed / 95 failed`，后续失败均为 `ERR_CONNECTION_REFUSED` 级联且没有留下可定位的退出堆栈，因此不作为本切片回归结论；没有删除或放宽既有断言。
+- 限制：三个公共场景仍是未经双重人工审核的 `draft`，生产环境不会绕过发布门禁；私人场景只作为本人可见 `draft`；默认建议仍不调用 LLM，只有本人明确确认生成才调用；未进行真实 MiniMax 收费调用、真实 PostgreSQL/Supabase 联调或 iPhone Safari 真机验证，Flutter 未修改；完整搜索与分类筛选尚未交付。
+- 下一步：继续 SCN-003 切片 3，完成场景与表达的完整搜索、分类和筛选收敛；SCN-003 完成后再进入 SCN-004。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
