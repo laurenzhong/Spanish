@@ -191,6 +191,24 @@ describe("scenario practice persistence", () => {
       algorithmVersion: "scenario-evaluation-v1",
     })).resolves.toBeDefined();
 
+    const review = await repository.saveTurnReview({
+      id: "35000000-0000-4000-8000-000000000201",
+      userId,
+      turnId: userTurnId,
+      communicationSuccess: true,
+      errorSpans: [],
+      naturalAlternatives: ["Me gustaría pedir la sopa."],
+      hintLevel: 1,
+      transcriptConfidence: 0.82,
+      algorithmVersion: "scenario-evaluation-v1",
+      providerKey: "minimax",
+      modelVersion: "MiniMax-M3",
+      providerRequestId: "provider-request-1",
+      status: "ready",
+    });
+    expect(review).toMatchObject({ communicationSuccess: true, status: "ready" });
+    expect(await repository.listTurnReviews(userId, sessionId)).toEqual([review]);
+
     const schedule = createRepetitionSchedule({
       userId,
       sourceSessionId: sessionId,

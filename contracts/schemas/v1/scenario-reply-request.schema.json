@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/scenario-reply-request.schema.json",
+  "title": "Scenario temporary-character reply request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scenarioKey", "generationId", "characterTurnId", "turnIndex", "persist", "completedTurns", "triggeredConditions"],
+  "properties": {
+    "scenarioKey": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "generationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "characterTurnId": { "type": "string", "format": "uuid" },
+    "turnIndex": { "type": "integer", "minimum": 0 },
+    "persist": { "type": "boolean" },
+    "completedTurns": { "type": "array", "maxItems": 30, "items": { "type": "object", "additionalProperties": false, "required": ["speaker", "text"], "properties": { "speaker": { "enum": ["user", "temporary-character", "condition"] }, "text": { "type": "string", "minLength": 1, "maxLength": 4000 } } } },
+    "triggeredConditions": { "type": "array", "maxItems": 10, "items": { "type": "string", "minLength": 1, "maxLength": 160 } }
+  }
+}

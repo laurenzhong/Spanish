@@ -56,10 +56,10 @@ describe("scenario practice contract", () => {
 
   it("rejects extra fields that could forge reviews, evidence, or relationship memory", () => {
     const validCreate = {
+      sessionId: "10000000-0000-4000-8000-000000000010",
       clientAttemptId: "session-attempt-1",
       primaryModality: "speech",
-      scenarioId: "10000000-0000-4000-8000-000000000010",
-      contentVersion: 1,
+      scenarioKey: "scenario.restaurant-ordering",
     };
     expect(parseCreateScenarioSessionRequest(validCreate)).toEqual(validCreate);
     expect(() =>
@@ -70,10 +70,11 @@ describe("scenario practice contract", () => {
     ).toThrow();
 
     const validTurn = {
+      id: "20000000-0000-4000-8000-000000000010",
+      clientAttemptId: "turn-attempt-1",
+      turnIndex: 0,
       attemptId: "attempt-1",
-      expectedRevision: 2,
       generationId: "generation-1",
-      hintLevel: 1,
       modality: "typing",
       text: "Quisiera una mesa para dos.",
     };

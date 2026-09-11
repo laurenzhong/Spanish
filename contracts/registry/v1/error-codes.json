@@ -9,6 +9,8 @@
   { "code": "PROVIDER_TIMEOUT", "defaultRetryable": true },
   { "code": "PROVIDER_UNAVAILABLE", "defaultRetryable": true },
   { "code": "SCENARIO_SESSION_NOT_FOUND", "defaultRetryable": false },
+  { "code": "SCENARIO_NOT_FOUND", "defaultRetryable": false },
+  { "code": "SCENARIO_SESSION_UNAVAILABLE", "defaultRetryable": true },
   { "code": "SCENARIO_SESSION_CONFLICT", "defaultRetryable": false },
   { "code": "SCENARIO_TURN_CONFLICT", "defaultRetryable": false },
   { "code": "SCENARIO_REPLY_INCOMPLETE", "defaultRetryable": true },

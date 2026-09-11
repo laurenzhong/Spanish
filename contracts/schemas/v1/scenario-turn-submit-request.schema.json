@@ -4,19 +4,14 @@
   "title": "Submit scenario practice turn request",
   "type": "object",
   "additionalProperties": false,
-  "required": ["attemptId", "expectedRevision", "generationId", "hintLevel", "modality", "text"],
+  "required": ["id", "clientAttemptId", "turnIndex", "attemptId", "generationId", "modality", "text"],
   "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "clientAttemptId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "turnIndex": { "type": "integer", "minimum": 0 },
     "attemptId": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "expectedRevision": { "type": "integer", "minimum": 1 },
     "generationId": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "hintLevel": { "type": "integer", "minimum": 0, "maximum": 3 },
     "modality": { "enum": ["speech", "typing"] },
-    "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
-    "transcriptConfidence": {
-      "anyOf": [
-        { "type": "number", "minimum": 0, "maximum": 1 },
-        { "type": "null" }
-      ]
-    }
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000 }
   }
 }
