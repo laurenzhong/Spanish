@@ -172,6 +172,9 @@ Playwright 覆盖桌面 Chromium、iPhone 视口和必要的 WebKit 行为；真
 | 用户说话时不被纠错 | 组件测试 |
 | 临时人物不进入长期关系记忆 | scenario-practice application + 数据库集成 |
 | 没有 done 的场景回复不落为完整轮次 | 流协议 + application 集成 |
+| Explore 建议只从已发布/本人私人且可开始的场景选择 | explore 领域单元 + Route + 所有权数据库集成 |
+| 场景建议不使用学习时长、低置信度转写或技术失败 | explore 领域单元 + 固定上下文样本 |
+| 过期场景建议响应不能覆盖用户最新选择 | Explore 组件竞态测试 |
 
 ## 5. 训练状态机测试
 
