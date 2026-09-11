@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-11
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；Web/PWA 优先和场景实战规格、详细实施计划已由产品本人确认，`SCN-001` 正在独立分支实施；阶段 8 尚未启动
+- 总体状态：ALPHA-033 继续进行；`SCN-001` 场景领域与持久化基础已完成，下一项为 `SCN-002` 餐厅点餐纵向闭环；阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：`SCN-001` 只交付场景领域、数据、契约和 fake Provider 基础，不实现页面或真实收费 Provider；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+- 当前门禁：先合并 `SCN-001`，再在独立分支领取 `SCN-002`；全量 E2E 的 14 条既有产品壳层/移动交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -23,14 +23,17 @@
 
 ### SCN-001：场景领域与持久化基础
 
-- 状态：`in_progress`
+- 状态：`done`
 - 负责人：Codex
 - 目标分支：`codex/scn-001-scenario-foundation`
+- 实现 Commit：`0af516b`
 - 前置依赖：Web/PWA 场景学习闭环设计与实施计划已由产品本人批准
 - 范围：状态机、实体、持久化与 RLS、基础 API DTO、场景专用 Provider 端口与路由规则、deterministic fake 和固定契约样本。
 - 不包含：页面、真实收费 Provider、学习证据写入、长期角色/会话/关系记忆写入，以及 Flutter 改动。
-- 验证目标：场景领域/路由单元测试、契约测试、数据库持久化/RLS 测试、`pnpm db:check`、lint、typecheck 与 `git diff --check`。
-- 下一步：先提交失败测试，再完成最小实现和版本化迁移；实现提交后单独更新本状态页。
+- 修改：新增纯 TypeScript 场景状态机、0/1/3/7 天复现计划、场景生成/临时人物/评估 Provider 端口与 deterministic fake；新增七张私有表、复盘完整轮次触发器、所有权复合外键、RLS、幂等/CAS repository；补充 v1 DTO、OpenAPI、稳定错误码和固定转换样本。
+- 验证：SCN-001 聚焦测试与共享 schema/API 回归 `33/33`；全量 Vitest 单 worker `125 files / 557 tests` 全部通过；`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、`git diff --check` 通过；全量 Playwright `112 passed / 14 failed`，失败均位于既有 `product-shell.spec.ts` 与移动文章选区，未涉及本任务文件或新增页面。
+- 限制：未在未确认用途的 `DATABASE_URL` 上执行 `pnpm db:migrate`，迁移已通过 PGlite 从基础版本和完整空库序列验证；未实现用户页面、Route Handler、真实 Provider、真实 iPhone Safari 或 Flutter；目前仍不可直接从 UI 使用场景实战。
+- 下一步：合并本分支后领取 `SCN-002`，交付第一个可实际使用的餐厅点餐文字/语音纵向闭环，并保持长期角色/记忆隔离。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
@@ -1473,7 +1476,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
 | ALPHA-033 | in_progress | `fix/login-redirect-after-otp` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
-| SCN-001 | in_progress | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
+| SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
 | 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -1482,8 +1485,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | SCN-001 | 场景领域与持久化基础 | 已开始；按独立计划完成测试、迁移和契约 |
-| 2 | SCN-002 | 餐厅点餐纵向闭环 | SCN-001 完成并合并 |
+| 1 | SCN-002 | 餐厅点餐纵向闭环 | SCN-001 完成并合并 |
+| 2 | SCN-003 | 场景与表达库 | SCN-001、SCN-002 的 UI 边界稳定 |
 | 3 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
