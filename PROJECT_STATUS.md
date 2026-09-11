@@ -76,7 +76,7 @@
 - 不包含：SCN-004 的历史、到期复现和首页唯一下一动作，长期角色/关系记忆，公共内容自动发布，以及 Flutter 改动。
 - 已完成切片 1：Explore 增加“适合我的 / 探索新场景 / 随机来一个”、结果预览与“换一个”；新增纯资格/排序/加权随机策略、用户私有学习投影读取、认证 Route、Zod 与 OpenAPI/JSON Schema 契约、请求取消/过期响应保护、空状态与主题回退。实现 Commit：`b2093b6`；分支状态同步 Commit：`faa9c07`；已直接合并到 `main`，Merge Commit：`2fa1e03`。SCN-003 仍为 `in_progress`。
 - 已完成切片 2：新增正式表达、本人阅读选区、本人场景复盘和手工输入四类收藏来源及收藏列表/归档接口；新增主题、收藏表达、阅读选区和可信近期错误四类私人场景生成来源、MiniMax M3 Provider 与 deterministic fake、确认后生成、输入指纹幂等和失败不落半成品；本人私人场景可进入详情、实战、复盘、Explore 列表及同一建议候选池，并可安全归档。实现 Commit：`1a42f68`；分支状态同步 Commit：`e787a4a`；已直接合并到 `main`，Merge Commit：`78389b2`。SCN-003 仍为 `in_progress`。
-- 已完成切片 3：Dashboard 增加服务端授权的场景/表达资料库 DTO，统一投影公共场景、本人私人场景、正式表达、本人收藏、本人阅读选区和可信近期错误；搜索覆盖标题、沟通目标、角色、表达、西语/中文、CEFR、地区和分类，忽略大小写、标点与西语重音；增加全部、已收藏、最近错误、阅读来源、可立即开始五类筛选、URL 恢复、无结果恢复、多来源进入私人生成和表达收藏。实现 Commit：`c944eec`。
+- 已完成切片 3：Dashboard 增加服务端授权的场景/表达资料库 DTO，统一投影公共场景、本人私人场景、正式表达、本人收藏、本人阅读选区和可信近期错误；搜索覆盖标题、沟通目标、角色、表达、西语/中文、CEFR、地区和分类，忽略大小写、标点与西语重音；增加全部、已收藏、最近错误、阅读来源、可立即开始五类筛选、URL 恢复、无结果恢复、多来源进入私人生成和表达收藏。实现 Commit：`c944eec`；分支状态同步 Commit：`d76ea36`；已直接合并到 `main`，Merge Commit：`af7f4fb`。
 - 修改：Explore 页面、纯搜索/筛选领域逻辑、授权资料库 application/repository、Dashboard Route 与 v1 OpenAPI/JSON Schema/fixture、私人候选地区投影、响应式样式，以及架构、内容和测试策略文档。
 - 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、契约测试 `10 files / 38 tests`、全量 Vitest `141 files / 611 tests`、`pnpm build` 和 `git diff --check` 通过；Explore Playwright 桌面与移动 `20/20`，同步后的产品壳层 Explore 用例 `4/4` 通过。全量 Playwright 首轮为 `123/138`，其中 4 条为已同步并单独通过的 Explore 旧文案/入口断言；剩余 11 条位于既有聊天好友介绍、移动阅读选区/布局和账号删除，未改动相应产品代码或放宽断言。
 - 限制：三个公共场景与 `alpha-core-v1` 正式表达仍未经双重人工审核，生产环境不会显示；私人场景只作为本人可见 `draft`；默认建议仍不调用 LLM，只有本人明确确认生成才调用；未进行真实 MiniMax 收费调用、真实 PostgreSQL/Supabase 联调或 iPhone Safari 真机验证，Flutter 未修改。
