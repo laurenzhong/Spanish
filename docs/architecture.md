@@ -151,6 +151,12 @@ UI / Route Handler → Application → Domain
 
 该策略只解决用户进入 Explore 后“不知道搜什么”的发现问题。首页稳定断点、到期复现和跨任务唯一下一动作仍只归 `recommendation`。接口不返回候选池、内部权重、原始错误句或完整私人来源，响应使用 `private, no-store`。详细交互、隐私和测试边界见 [Explore 场景建议与随机选择设计](superpowers/specs/2026-09-11-explore-scenario-suggestions-design.md)。
 
+### 6.0c 收藏表达与私人场景生成
+
+`scenario-practice` 通过 `GET/POST /api/v1/expressions/saved` 和归档接口拥有私人表达收藏。客户端只能提交版本化正式表达引用、本人阅读选区 ID、本人场景复盘 ID，或明确标记的手工文本；application 重新解析来源并以 `clientSaveId` 幂等保存，收藏行为不写学习证据。正式公共表达在生产环境仍必须为 `published`，开发环境的草稿预览不会改变公开发布状态。
+
+`POST /api/v1/scenarios/generate` 只在用户确认后调用 `ScenarioGenerationProvider`。输入为主题或当前用户拥有的单个来源 ID；repository 最小化投影文本，application 以请求内容指纹校验 `Idempotency-Key`，再验证 Provider 返回的临时人物、开场、沟通目标、条件变化和表达 Schema，并确认选中的来源表达没有被丢弃。成功结果完整写入 `personal_scenarios` 后才返回，失败不保存半成品。私人场景以 `personal.<uuid>` 作为 Web/API 稳定引用，只能由拥有者读取、归档、开始实战或进入 Explore 建议候选；它保持私人 draft，不进入公共内容 API，也不创建长期角色或关系记忆。
+
 ### 6.0 阅读状态与外部来源
 
 `reading` 模块拥有用户阅读私有数据，Route Handler 只负责会话验证、Zod 输入校验和协议转换，application 调用 `ReadingRepository` 完成事务写入。文章正文仍由 `content` 模块的已发布版本提供；阅读表只引用 `article_versions.id` 和内容哈希，不复制公共正文。

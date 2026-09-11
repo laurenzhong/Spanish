@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/personal-scenario-generation-request.schema.json",
+  "title": "Personal scenario generation request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requestId", "generationId", "cefr", "locale", "source"],
+  "properties": {
+    "requestId": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._-]+$" },
+    "generationId": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._-]+$" },
+    "cefr": { "enum": ["A1", "A2", "B1", "B2"] },
+    "locale": { "enum": ["es-ES", "es-MX"] },
+    "source": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "topic"], "properties": { "sourceType": { "const": "topic" }, "topic": { "type": "string", "minLength": 2, "maxLength": 200 } } },
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "sourceId"], "properties": { "sourceType": { "enum": ["reading", "saved-expression", "recent-error"] }, "sourceId": { "type": "string", "format": "uuid" } } }
+      ]
+    }
+  }
+}

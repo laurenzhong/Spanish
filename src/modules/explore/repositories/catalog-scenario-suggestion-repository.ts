@@ -1,4 +1,5 @@
 import { listScenarioPracticeDetails } from "@/src/modules/scenario-practice/content";
+import type { ScenarioLibraryRepository } from "@/src/modules/scenario-practice/repositories";
 import type { ScenarioSuggestionCandidateRepository, ScenarioSuggestionContextRepository } from "../application/suggest-scenario";
 import { emptyScenarioSuggestionContext } from "../application/suggest-scenario";
 import type { ScenarioSuggestionCandidate, ScenarioSuggestionCefr } from "../domain/scenario-suggestion";
@@ -15,8 +16,10 @@ function cefr(value: string): ScenarioSuggestionCefr {
 }
 
 export class CatalogScenarioSuggestionRepository implements ScenarioSuggestionCandidateRepository {
-  async listForUser(): Promise<readonly ScenarioSuggestionCandidate[]> {
-    return listScenarioPracticeDetails().map((scenario) => {
+  constructor(private readonly scenarioLibraryRepository?: ScenarioLibraryRepository) {}
+
+  async listForUser(userId: string): Promise<readonly ScenarioSuggestionCandidate[]> {
+    const publicCandidates = listScenarioPracticeDetails().map((scenario) => {
       const category = categoryFor(scenario.relationshipType);
       return {
         stableKey: scenario.stableKey,
@@ -35,6 +38,24 @@ export class CatalogScenarioSuggestionRepository implements ScenarioSuggestionCa
         route: `/explore/scenarios/${encodeURIComponent(scenario.stableKey)}`,
       } satisfies ScenarioSuggestionCandidate;
     });
+    if (!this.scenarioLibraryRepository) return publicCandidates;
+    const personal = await this.scenarioLibraryRepository.listPersonalSuggestionCandidates(userId);
+    return [...publicCandidates, ...personal.map((scenario) => ({
+      stableKey: `personal.${scenario.id}`,
+      title: scenario.title,
+      description: scenario.description,
+      cefr: scenario.cefr,
+      category: "personal",
+      categoryLabel: "私人场景",
+      role: scenario.role,
+      communicationGoal: scenario.communicationGoal,
+      goalKeys: scenario.goalKeys,
+      expressionTexts: scenario.expressionTexts,
+      modalities: ["speech", "typing"] as const,
+      sourceKind: "personal" as const,
+      status: "personal-ready" as const,
+      route: `/explore/scenarios/${encodeURIComponent(`personal.${scenario.id}`)}`,
+    }))];
   }
 }
 

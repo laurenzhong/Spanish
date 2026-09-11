@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { createDrizzleScenarioPracticeRepository, getScenarioPracticeDetail } from "@/src/modules/scenario-practice";
+import { createDrizzleScenarioLibraryRepository, createDrizzleScenarioPracticeRepository, getScenarioPracticeDetailForUser } from "@/src/modules/scenario-practice";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -15,17 +15,23 @@ export async function POST(request: NextRequest) {
   if (!user) return scenarioError(request, "AUTH_REQUIRED", "Authentication is required.", 401);
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return scenarioError(request, "VALIDATION_FAILED", "The scenario session request is invalid.", 400);
-  const detail = getScenarioPracticeDetail(parsed.data.scenarioKey);
-  if (!detail || (process.env.NODE_ENV === "production" && detail.status !== "published")) return scenarioError(request, "SCENARIO_NOT_FOUND", "The scenario was not found.", 404);
-  if (!process.env.DATABASE_URL) return scenarioData({ sessionId: parsed.data.sessionId, persistence: "device" }, { status: 201 });
+  if (!process.env.DATABASE_URL) {
+    const detail = await getScenarioPracticeDetailForUser(null, parsed.data.scenarioKey, user.id);
+    if (!detail || (process.env.NODE_ENV === "production" && detail.status !== "published")) return scenarioError(request, "SCENARIO_NOT_FOUND", "The scenario was not found.", 404);
+    return scenarioData({ sessionId: parsed.data.sessionId, persistence: "device" }, { status: 201 });
+  }
   try {
     const database = getDatabase();
+    const detail = await getScenarioPracticeDetailForUser(createDrizzleScenarioLibraryRepository(database), parsed.data.scenarioKey, user.id);
+    const isPersonal = parsed.data.scenarioKey.startsWith("personal.");
+    if (!detail || (!isPersonal && process.env.NODE_ENV === "production" && detail.status !== "published")) return scenarioError(request, "SCENARIO_NOT_FOUND", "The scenario was not found.", 404);
+    const personalScenarioId = isPersonal ? parsed.data.scenarioKey.slice("personal.".length) : undefined;
     const [record] = await database.select({ id: schema.scenarios.id }).from(schema.scenarios)
       .where(and(eq(schema.scenarios.stableKey, detail.stableKey), eq(schema.scenarios.contentVersion, detail.version))).limit(1);
-    if (!record) return scenarioData({ sessionId: parsed.data.sessionId, persistence: "device" }, { status: 201 });
+    if (!record && !personalScenarioId) return scenarioData({ sessionId: parsed.data.sessionId, persistence: "device" }, { status: 201 });
     const session = await createDrizzleScenarioPracticeRepository(database).createSession({
       sessionId: parsed.data.sessionId, userId: user.id, clientAttemptId: parsed.data.clientAttemptId,
-      scenarioId: record.id, primaryModality: parsed.data.primaryModality, contentVersion: detail.version,
+      ...(record ? { scenarioId: record.id } : {}), ...(personalScenarioId ? { personalScenarioId } : {}), primaryModality: parsed.data.primaryModality, contentVersion: detail.version,
       communicationGoal: detail.tasks.map((task) => task.prompt).join("；"),
       temporaryCharacter: { displayName: detail.temporaryCharacter.displayName, role: detail.temporaryCharacter.role, locale: detail.temporaryCharacter.locale },
     });

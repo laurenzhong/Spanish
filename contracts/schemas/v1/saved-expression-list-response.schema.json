@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/saved-expression-list-response.schema.json",
+  "title": "Saved expression list response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": { "type": "object", "additionalProperties": false, "required": ["expressions"], "properties": { "expressions": { "type": "array", "items": { "$ref": "#/$defs/expression" } } } }
+  },
+  "$defs": {
+    "expression": { "type": "object", "additionalProperties": false, "required": ["id", "sourceText", "translation", "sourceType", "sourceEntityId", "sourceVersion", "createdAt"], "properties": { "id": { "type": "string", "format": "uuid" }, "sourceText": { "type": "string", "minLength": 1 }, "translation": { "type": ["string", "null"] }, "sourceType": { "enum": ["formal-expression", "reading-selection", "scenario-review", "manual"] }, "sourceEntityId": { "type": ["string", "null"] }, "sourceVersion": { "type": ["string", "null"] }, "createdAt": { "type": "string", "format": "date-time" } } }
+  }
+}

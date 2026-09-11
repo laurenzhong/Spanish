@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { scenarioSuggestionResponseSchema, type ScenarioSuggestionResponse } from "@/src/modules/explore/schemas/scenario-suggestion";
 import type { ScenarioSuggestionMode } from "@/src/modules/explore/domain/scenario-suggestion";
+import { PersonalScenarioGenerator } from "./personal-scenario-generator";
 
 type SuggestionData = ScenarioSuggestionResponse["data"];
 
@@ -34,9 +35,16 @@ export function ScenarioSuggestionPanel({ onTopicSelected }: Readonly<{ onTopicS
   const [excluded, setExcluded] = useState<readonly string[]>([]);
   const [loadingMode, setLoadingMode] = useState<ScenarioSuggestionMode | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const suggestionSessionId = useRef(makeId("suggestion"));
   const requestSequence = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const generatorTrigger = useRef<HTMLButtonElement | null>(null);
+
+  function closeGenerator() {
+    setGeneratorOpen(false);
+    window.requestAnimationFrame(() => generatorTrigger.current?.focus());
+  }
 
   async function requestSuggestion(mode: ScenarioSuggestionMode, keepSession: boolean) {
     controller.current?.abort();
@@ -123,10 +131,13 @@ export function ScenarioSuggestionPanel({ onTopicSelected }: Readonly<{ onTopicS
       ) : data?.fallback ? (
         <div className="scenario-suggestion__empty" role="status">
           <strong>{data.limitReached ? "这一轮已经看完" : "暂时没有合适的现成场景"}</strong>
-          <span>可以选一个主题继续搜索，或稍后在私人场景生成中使用自己的表达。</span>
+          <span>可以选一个主题继续搜索，或选择自己的资料生成只对你可见的场景。</span>
           <div>{data.fallback.topicChips.map((topic) => <button type="button" key={topic} onClick={() => onTopicSelected(topic)}>{topic}</button>)}</div>
+          {data.fallback.canGeneratePersonalScenario ? <button ref={generatorTrigger} type="button" className="scenario-suggestion__generate" aria-expanded={generatorOpen} onClick={() => setGeneratorOpen(true)}>生成私人场景</button> : <small>私人生成服务尚未配置，现有搜索和主题筛选仍可使用。</small>}
         </div>
       ) : null}
+
+      {generatorOpen ? <PersonalScenarioGenerator onClose={closeGenerator} /> : null}
 
       {error ? <p className="scenario-suggestion__error" role="alert">{error} <button type="button" onClick={() => activeMode && void requestSuggestion(activeMode, excluded.length > 0)}>重试</button></p> : null}
     </section>

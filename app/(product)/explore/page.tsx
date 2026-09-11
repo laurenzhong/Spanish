@@ -6,6 +6,7 @@ import { BundleExploreRepository, createDrizzleExploreUserStateRepository, empty
 import { getDatabase } from "@/src/shared/db/client";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { listScenarioPracticeDetails } from "@/src/modules/scenario-practice";
+import { createDrizzleScenarioLibraryRepository } from "@/src/modules/scenario-practice";
 
 import { ExplorePageContent } from "./explore-page-content";
 
@@ -50,12 +51,21 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
     );
   }
   const params = await searchParams;
-  const scenarios = listScenarioPracticeDetails().filter((scenario) => process.env.NODE_ENV !== "production" || scenario.status === "published").map((scenario) => ({
+  type ScenarioEntry = { stableKey: string; title: string; description: string; cefr: string; role: string; sourceKind: "public" | "personal" };
+  const publicScenarios: ScenarioEntry[] = listScenarioPracticeDetails().filter((scenario) => process.env.NODE_ENV !== "production" || scenario.status === "published").map((scenario) => ({
     stableKey: scenario.stableKey,
     title: scenario.title,
     description: scenario.description,
     cefr: scenario.cefr,
     role: scenario.temporaryCharacter.role,
+    sourceKind: "public" as const,
   }));
+  let personalScenarios: ScenarioEntry[] = [];
+  if (process.env.DATABASE_URL) {
+    try {
+      personalScenarios = (await createDrizzleScenarioLibraryRepository(getDatabase()).listPersonalSuggestionCandidates(user.id)).map((scenario) => ({ stableKey: `personal.${scenario.id}`, title: scenario.title, description: scenario.description, cefr: scenario.cefr, role: scenario.role, sourceKind: "personal" as const }));
+    } catch { /* Public Explore content remains usable while private data is unavailable. */ }
+  }
+  const scenarios = [...personalScenarios, ...publicScenarios];
   return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} scenarios={scenarios} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} />;
 }

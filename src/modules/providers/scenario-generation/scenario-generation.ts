@@ -14,8 +14,15 @@ export type ScenarioGenerationInput = Readonly<{
 export const scenarioGenerationResultSchema = z.strictObject({
   title: z.string().min(1).max(120),
   setting: z.string().min(1).max(500),
+  openingLine: z.string().min(1).max(500),
   communicationGoals: z.array(z.string().min(1).max(300)).min(1).max(5),
   conditionChanges: z.array(z.string().min(1).max(300)).max(5),
+  expressions: z.array(z.strictObject({
+    text: z.string().min(1).max(300),
+    translation: z.string().min(1).max(300),
+    communicativeIntent: z.string().min(1).max(300),
+    variants: z.array(z.string().min(1).max(300)).max(4),
+  })).min(1).max(8),
   temporaryCharacter: z.strictObject({
     displayName: z.string().min(1).max(80),
     role: z.string().min(1).max(120),

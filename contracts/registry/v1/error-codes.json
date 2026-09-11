@@ -19,5 +19,10 @@
   { "code": "EXPLORE_DASHBOARD_UNAVAILABLE", "defaultRetryable": true },
   { "code": "EXPLORE_STATE_UNAVAILABLE", "defaultRetryable": true },
   { "code": "SCENARIO_SUGGESTION_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "SAVED_EXPRESSION_NOT_FOUND", "defaultRetryable": false },
+  { "code": "SAVED_EXPRESSION_SOURCE_NOT_FOUND", "defaultRetryable": false },
+  { "code": "SAVED_EXPRESSION_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "PERSONAL_SCENARIO_SOURCE_NOT_FOUND", "defaultRetryable": false },
+  { "code": "PERSONAL_SCENARIO_UNAVAILABLE", "defaultRetryable": true },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }
 ]

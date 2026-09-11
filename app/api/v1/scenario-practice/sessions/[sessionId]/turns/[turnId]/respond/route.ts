@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { createMiniMaxScenarioRoleplayProvider } from "@/src/modules/providers/scenario-roleplay/server";
 import { FakeScenarioRoleplayProvider, ScenarioProviderError } from "@/src/modules/providers/scenario-roleplay";
-import { getScenarioPracticeDetail, streamScenarioReply } from "@/src/modules/scenario-practice";
+import { createDrizzleScenarioLibraryRepository, getScenarioPracticeDetailForUser, streamScenarioReply } from "@/src/modules/scenario-practice";
 import { createDrizzleScenarioPracticeRepository } from "@/src/modules/scenario-practice";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
@@ -26,8 +26,9 @@ export async function POST(request: NextRequest, { params }: Readonly<{ params: 
   if (!user) return scenarioError(request, "AUTH_REQUIRED", "Authentication is required.", 401);
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return scenarioError(request, "VALIDATION_FAILED", "The roleplay request is invalid.", 400);
-  const scenario = getScenarioPracticeDetail(parsed.data.scenarioKey);
-  if (!scenario || (process.env.NODE_ENV === "production" && scenario.status !== "published")) return scenarioError(request, "SCENARIO_NOT_FOUND", "The scenario was not found.", 404);
+  const isPersonal = parsed.data.scenarioKey.startsWith("personal.");
+  const scenario = await getScenarioPracticeDetailForUser(process.env.DATABASE_URL ? createDrizzleScenarioLibraryRepository(getDatabase()) : null, parsed.data.scenarioKey, user.id).catch(() => null);
+  if (!scenario || (!isPersonal && process.env.NODE_ENV === "production" && scenario.status !== "published")) return scenarioError(request, "SCENARIO_NOT_FOUND", "The scenario was not found.", 404);
   const { sessionId, turnId } = await params;
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
   const encoder = new TextEncoder();
