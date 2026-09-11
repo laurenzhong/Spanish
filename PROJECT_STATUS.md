@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-11
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；`SCN-001` 场景领域与持久化基础已完成，下一项为 `SCN-002` 餐厅点餐纵向闭环；阶段 8 尚未启动
+- 总体状态：ALPHA-033 继续进行；`SCN-001` 已通过 PR #11 合并，`SCN-002` 通用多场景纵向闭环已完成实现并等待合并；阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：先合并 `SCN-001`，再在独立分支领取 `SCN-002`；全量 E2E 的 14 条既有产品壳层/移动交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+- 当前门禁：`SCN-002` 三个基础场景仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；不提前实现 SCN-003 的搜索、分类或私人生成；全量 E2E 的 14 条既有产品壳层/移动交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -33,7 +33,22 @@
 - 修改：新增纯 TypeScript 场景状态机、0/1/3/7 天复现计划、场景生成/临时人物/评估 Provider 端口与 deterministic fake；新增七张私有表、复盘完整轮次触发器、所有权复合外键、RLS、幂等/CAS repository；补充 v1 DTO、OpenAPI、稳定错误码和固定转换样本。
 - 验证：SCN-001 聚焦测试与共享 schema/API 回归 `33/33`；全量 Vitest 单 worker `125 files / 557 tests` 全部通过；`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、`git diff --check` 通过；全量 Playwright `112 passed / 14 failed`，失败均位于既有 `product-shell.spec.ts` 与移动文章选区，未涉及本任务文件或新增页面。
 - 限制：未在未确认用途的 `DATABASE_URL` 上执行 `pnpm db:migrate`，迁移已通过 PGlite 从基础版本和完整空库序列验证；未实现用户页面、Route Handler、真实 Provider、真实 iPhone Safari 或 Flutter；目前仍不可直接从 UI 使用场景实战。
-- 下一步：合并本分支后领取 `SCN-002`，交付第一个可实际使用的餐厅点餐文字/语音纵向闭环，并保持长期角色/记忆隔离。
+- 合并：PR [#11](https://github.com/laurenzhong/Spanish/pull/11)，Merge Commit `5b968e4`
+- 下一步：`SCN-002` 已在 `codex/scn-002-multi-scenario-vertical` 开始，交付内容驱动的通用工作台以及餐厅沟通、校园办事、租房沟通三个基础场景，并保持长期角色/记忆隔离。
+
+### SCN-002：通用多场景可用纵向闭环
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`codex/scn-002-multi-scenario-vertical`
+- 实现 Commit：`6c41f52`
+- 前置依赖：SCN-001，已通过 PR #11 合并（Merge Commit `5b968e4`）
+- 范围：实现内容驱动的通用场景详情、文字/语音实战和基础逐条复盘；首批提供餐厅沟通、校园办事、租房沟通三个不同类型的场景，证明临时人物、沟通目标、提示、表达和条件变化均由版本化内容驱动。
+- 不包含：SCN-003 的完整场景库搜索/分类/私人生成，SCN-004 的历史与间隔复现，学习证据写入，长期角色/关系记忆，以及 Flutter 改动。
+- 修改：新增 `scenario-practice-alpha-v1` 版本化内容包（3 个场景、9 个沟通目标、15 条核心表达及自然变体），通用场景目录 DTO、详情/实战/基础复盘页面、Explore 三个入口、浏览器录音与可编辑转写确认、内容定义的单次条件变化、MiniMax M3 roleplay/evaluation 适配器、NDJSON `meta/delta/condition/done/error` 流、会话/轮次/反馈 API 与账号持久化；临时人物继续与长期角色、联系人和关系记忆隔离。
+- 验证：内容校验通过；场景聚焦单元/契约/数据库回归 `6 files / 21 tests`，Route Handler 回归 `4/4`；仓库级 Vitest `130 files / 572 tests`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、`git diff --check` 全部通过；场景 Playwright 在桌面 Chromium `2/2`、移动 Chromium `2/2` 通过，覆盖 390px 无横向溢出、移动底栏不被主导航遮挡、两轮表达、条件只触发一次和进入复盘。
+- 限制：三个内容场景目前均为未发布草稿，仅有 Codex 临时审核，仍需西班牙语母语者与中文教学视角审核后才能在生产环境显示；未使用真实收费 MiniMax 进行回放，运行时需配置 `MINIMAX_API_KEY`；账号持久化还要求 `DATABASE_URL` 且先导入对应内容包，缺少时 UI 会明确退化为本设备断点；未做真实 iPhone Safari、麦克风权限和供应商网络验证；未重跑已知含 14 条其他任务失败的全量 Playwright。
+- 下一步：合并本分支后开始 `SCN-003` 场景与表达库；在生产发布这些基础场景前，先完成内容双重人工审核并导入版本化内容包。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
@@ -1477,6 +1492,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
 | ALPHA-033 | in_progress | `fix/login-redirect-after-otp` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
+| SCN-002 | in_progress | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
 | 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -1485,7 +1501,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | SCN-002 | 餐厅点餐纵向闭环 | SCN-001 完成并合并 |
+| 1 | SCN-002 | 通用多场景纵向闭环（进行中） | SCN-001 已完成并合并 |
 | 2 | SCN-003 | 场景与表达库 | SCN-001、SCN-002 的 UI 边界稳定 |
 | 3 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 

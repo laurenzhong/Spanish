@@ -1,9 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
 
-import type { ScenarioTurn, TemporaryCharacterSnapshot } from "../domain";
+import type { ScenarioTurn, ScenarioTurnReview, TemporaryCharacterSnapshot } from "../domain";
 import type {
   AppendScenarioTurnInput,
   PersistedScenarioSession,
@@ -51,6 +51,20 @@ function projectTurn(row: typeof schema.scenarioTurns.$inferSelect): ScenarioTur
     status: row.status as ScenarioTurn["status"],
     attemptId: row.attemptId,
     generationId: row.generationId,
+  };
+}
+
+function projectReview(row: typeof schema.scenarioTurnReviews.$inferSelect): ScenarioTurnReview {
+  return {
+    id: row.id,
+    turnId: row.turnId,
+    userId: row.userId,
+    communicationSuccess: row.communicationSuccess,
+    errorSpans: row.errorSpans,
+    naturalAlternatives: row.naturalAlternatives,
+    hintLevel: row.hintLevel as 0 | 1 | 2 | 3,
+    transcriptConfidence: row.transcriptConfidence,
+    status: row.status as ScenarioTurnReview["status"],
   };
 }
 
@@ -187,6 +201,22 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
 
     getSession: selectSession,
 
+    async listTurns(userId, sessionId) {
+      const rows = await database.select().from(schema.scenarioTurns)
+        .where(and(eq(schema.scenarioTurns.userId, userId), eq(schema.scenarioTurns.sessionId, sessionId)))
+        .orderBy(asc(schema.scenarioTurns.turnIndex));
+      return rows.map(projectTurn);
+    },
+
+    async listTurnReviews(userId, sessionId) {
+      const rows = await database.select({ review: schema.scenarioTurnReviews })
+        .from(schema.scenarioTurnReviews)
+        .innerJoin(schema.scenarioTurns, eq(schema.scenarioTurns.id, schema.scenarioTurnReviews.turnId))
+        .where(and(eq(schema.scenarioTurnReviews.userId, userId), eq(schema.scenarioTurns.sessionId, sessionId)))
+        .orderBy(asc(schema.scenarioTurns.turnIndex));
+      return rows.map((row) => projectReview(row.review));
+    },
+
     async compareAndSwapState(input) {
       const [updated] = await database
         .update(schema.scenarioSessionStates)
@@ -237,6 +267,33 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
     appendCompletedRoleplayTurn(input) {
       if (!input.done) throw new Error("SCENARIO_REPLY_INCOMPLETE");
       return appendCompletedTurn(input);
+    },
+
+    appendCompletedConditionTurn(input) {
+      return appendCompletedTurn(input);
+    },
+
+    async saveTurnReview(input) {
+      const reviewValues = {
+        communicationSuccess: input.communicationSuccess,
+        errorSpans: input.errorSpans.map((span) => ({ ...span })),
+        naturalAlternatives: [...input.naturalAlternatives],
+        hintLevel: input.hintLevel,
+        transcriptConfidence: input.transcriptConfidence,
+        algorithmVersion: input.algorithmVersion,
+        providerKey: input.providerKey,
+        modelVersion: input.modelVersion,
+        providerRequestId: input.providerRequestId,
+        status: input.status,
+        updatedAt: new Date(),
+      };
+      const [row] = await database.insert(schema.scenarioTurnReviews).values({
+        id: input.id, userId: input.userId, turnId: input.turnId, ...reviewValues,
+      })
+        .onConflictDoUpdate({ target: schema.scenarioTurnReviews.turnId, set: reviewValues })
+        .returning();
+      if (!row) throw new Error("SCENARIO_REVIEW_PENDING");
+      return projectReview(row);
     },
 
     async createRepetitionItems(items) {

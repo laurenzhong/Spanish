@@ -12,17 +12,23 @@
     }
   ],
   "paths": {
+    "/scenarios/{scenarioId}": {
+      "get": {
+        "summary": "Read one versioned public scenario-practice detail",
+        "parameters": [{ "name": "scenarioId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Content-driven scenario detail" }, "404": { "description": "Scenario not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } }
+      }
+    },
     "/scenario-practice/sessions": {
       "post": {
         "summary": "Create an idempotent private scenario practice session",
         "security": [{ "bearerAuth": [] }],
-        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-session-create-request.schema.json" } } } },
         "responses": {
           "201": { "description": "Scenario session created or restored", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-session-response.schema.json" } } } },
           "400": { "description": "Invalid scenario session request", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
           "409": { "description": "Scenario session conflict", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
-          "503": { "description": "Scenario provider is not configured", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+          "503": { "description": "Scenario session persistence unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
       },
       "get": {
@@ -40,7 +46,7 @@
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": {
-          "200": { "description": "Owned scenario session", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-session-response.schema.json" } } } },
+          "200": { "description": "Owned scenario session and completed turns" },
           "404": { "description": "Scenario session not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
       }
@@ -50,8 +56,7 @@
         "summary": "Persist a complete learner turn before requesting a temporary-character reply",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
-          { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
-          { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }
+          { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
         ],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-turn-submit-request.schema.json" } } } },
         "responses": {
@@ -73,6 +78,32 @@
           "202": { "description": "Session frozen; review may still be pending", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-session-response.schema.json" } } } },
           "409": { "description": "Session revision conflict", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
+      }
+    },
+    "/scenario-practice/sessions/{sessionId}/turns/{turnId}/respond": {
+      "post": {
+        "summary": "Stream a temporary-character reply and persist it only after done",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }, { "name": "turnId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-reply-request.schema.json" } } } },
+        "responses": { "200": { "description": "NDJSON meta, delta, optional condition, and terminal done/error frames", "content": { "application/x-ndjson": { "schema": { "$ref": "../../schemas/v1/scenario-reply-frame.schema.json" } } } }, "503": { "description": "Provider unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } }
+      }
+    },
+    "/scenario-practice/sessions/{sessionId}/turns/{turnId}/evaluate": {
+      "post": {
+        "summary": "Evaluate contextual success for one completed learner turn",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }, { "name": "turnId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-evaluation-request.schema.json" } } } },
+        "responses": { "200": { "description": "Contextual evaluation", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-evaluation-response.schema.json" } } } }, "202": { "description": "Neutral unavailable review for low-confidence transcription" } }
+      }
+    },
+    "/scenario-practice/sessions/{sessionId}/review": {
+      "get": {
+        "summary": "Read the complete owned transcript and basic turn reviews",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Basic session review" }, "404": { "description": "Session not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } }
       }
     },
     "/explore/dashboard": {

@@ -161,6 +161,33 @@ const scenarioTaskSchema = z
   })
   .strict();
 
+const scenarioPracticeConfigurationSchema = z
+  .object({
+    temporaryCharacter: z
+      .object({
+        displayName: z.string().trim().min(1).max(120),
+        role: z.string().trim().min(1).max(160),
+        locale: localeSchema,
+        tone: z.string().trim().min(1).max(240),
+      })
+      .strict(),
+    openingLine: localizedTextSchema,
+    recommendedTurnCount: z.number().int().min(3).max(12),
+    fictionalContext: z.boolean(),
+    conditions: z
+      .array(
+        z
+          .object({
+            stableKey: stableKeySchema,
+            afterUserTurns: z.number().int().positive().max(10),
+            prompt: localizedTextSchema,
+          })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict();
+
 const scenarioSchema = z
   .object({
     stableKey: stableKeySchema,
@@ -172,6 +199,7 @@ const scenarioSchema = z
     cefr: cefrLevelSchema,
     status: contentStatusSchema,
     tasks: z.array(scenarioTaskSchema).min(1),
+    practice: scenarioPracticeConfigurationSchema.optional(),
   })
   .strict();
 

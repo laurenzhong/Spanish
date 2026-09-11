@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/scenario-reply-frame.schema.json",
+  "title": "Scenario reply NDJSON frame",
+  "oneOf": [
+    { "type": "object", "additionalProperties": false, "required": ["type", "generationId", "provider"], "properties": { "type": { "const": "meta" }, "generationId": { "type": "string" }, "provider": { "type": "string" } } },
+    { "type": "object", "additionalProperties": false, "required": ["type", "stableKey", "text"], "properties": { "type": { "const": "condition" }, "stableKey": { "type": "string" }, "text": { "type": "string" } } },
+    { "type": "object", "additionalProperties": false, "required": ["type", "generationId", "text"], "properties": { "type": { "const": "delta" }, "generationId": { "type": "string" }, "text": { "type": "string", "minLength": 1 } } },
+    { "type": "object", "additionalProperties": false, "required": ["type", "generationId"], "properties": { "type": { "const": "done" }, "generationId": { "type": "string" } } },
+    { "type": "object", "additionalProperties": false, "required": ["type", "code", "retryable"], "properties": { "type": { "const": "error" }, "code": { "type": "string" }, "retryable": { "type": "boolean" } } }
+  ]
+}

@@ -101,6 +101,67 @@
             "items": {
               "$ref": "#/$defs/__schema20"
             }
+          },
+          "practice": {
+            "type": "object",
+            "properties": {
+              "temporaryCharacter": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "locale": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "tone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  }
+                },
+                "required": [
+                  "displayName",
+                  "role",
+                  "locale",
+                  "tone"
+                ],
+                "additionalProperties": false
+              },
+              "openingLine": {
+                "$ref": "#/$defs/__schema4"
+              },
+              "recommendedTurnCount": {
+                "type": "integer",
+                "minimum": 3,
+                "maximum": 12
+              },
+              "fictionalContext": {
+                "type": "boolean"
+              },
+              "conditions": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema23"
+                }
+              }
+            },
+            "required": [
+              "temporaryCharacter",
+              "openingLine",
+              "recommendedTurnCount",
+              "fictionalContext",
+              "conditions"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -147,21 +208,21 @@
             "minItems": 1,
             "type": "array",
             "items": {
-              "$ref": "#/$defs/__schema23"
+              "$ref": "#/$defs/__schema24"
             }
           },
           "activities": {
             "minItems": 1,
             "type": "array",
             "items": {
-              "$ref": "#/$defs/__schema24"
+              "$ref": "#/$defs/__schema25"
             }
           },
           "sources": {
             "minItems": 1,
             "type": "array",
             "items": {
-              "$ref": "#/$defs/__schema25"
+              "$ref": "#/$defs/__schema26"
             }
           }
         },
@@ -318,7 +379,7 @@
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
               },
               "license": {
-                "$ref": "#/$defs/__schema26"
+                "$ref": "#/$defs/__schema27"
               },
               "attribution": {
                 "type": "string",
@@ -331,7 +392,7 @@
                 "maxLength": 2000
               },
               "copyrightStatus": {
-                "$ref": "#/$defs/__schema27"
+                "$ref": "#/$defs/__schema28"
               },
               "reviewNotes": {
                 "type": "string",
@@ -414,7 +475,7 @@
                   "format": "uri"
                 },
                 "license": {
-                  "$ref": "#/$defs/__schema26"
+                  "$ref": "#/$defs/__schema27"
                 },
                 "attribution": {
                   "type": "string",
@@ -422,7 +483,7 @@
                   "maxLength": 1000
                 },
                 "copyrightStatus": {
-                  "$ref": "#/$defs/__schema27"
+                  "$ref": "#/$defs/__schema28"
                 },
                 "altText": {
                   "type": "string",
@@ -482,7 +543,7 @@
             "minItems": 1,
             "type": "array",
             "items": {
-              "$ref": "#/$defs/__schema28"
+              "$ref": "#/$defs/__schema29"
             }
           }
         },
@@ -1159,6 +1220,28 @@
     "__schema23": {
       "type": "object",
       "properties": {
+        "stableKey": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "afterUserTurns": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 10
+        },
+        "prompt": {
+          "$ref": "#/$defs/__schema4"
+        }
+      },
+      "required": [
+        "stableKey",
+        "afterUserTurns",
+        "prompt"
+      ],
+      "additionalProperties": false
+    },
+    "__schema24": {
+      "type": "object",
+      "properties": {
         "position": {
           "$ref": "#/$defs/__schema6"
         },
@@ -1186,7 +1269,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema24": {
+    "__schema25": {
       "type": "object",
       "properties": {
         "position": {
@@ -1231,7 +1314,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema25": {
+    "__schema26": {
       "type": "object",
       "properties": {
         "sourceType": {
@@ -1260,7 +1343,7 @@
           "format": "uri"
         },
         "license": {
-          "$ref": "#/$defs/__schema26"
+          "$ref": "#/$defs/__schema27"
         },
         "attribution": {
           "type": "string",
@@ -1273,7 +1356,7 @@
           "maxLength": 2000
         },
         "copyrightStatus": {
-          "$ref": "#/$defs/__schema27"
+          "$ref": "#/$defs/__schema28"
         },
         "reviewNotes": {
           "type": "string",
@@ -1289,7 +1372,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema26": {
+    "__schema27": {
       "type": "string",
       "enum": [
         "original",
@@ -1299,7 +1382,7 @@
         "short_quote"
       ]
     },
-    "__schema27": {
+    "__schema28": {
       "type": "string",
       "enum": [
         "unverified",
@@ -1307,7 +1390,7 @@
         "restricted"
       ]
     },
-    "__schema28": {
+    "__schema29": {
       "type": "object",
       "properties": {
         "position": {

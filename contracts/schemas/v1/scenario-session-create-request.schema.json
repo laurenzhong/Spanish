@@ -4,30 +4,11 @@
   "title": "Create scenario practice session request",
   "type": "object",
   "additionalProperties": false,
-  "required": ["clientAttemptId", "contentVersion", "primaryModality"],
+  "required": ["sessionId", "clientAttemptId", "scenarioKey", "primaryModality"],
   "properties": {
+    "sessionId": { "type": "string", "format": "uuid" },
     "clientAttemptId": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "contentVersion": { "type": "integer", "minimum": 1 },
     "primaryModality": { "enum": ["speech", "typing"] },
-    "scenarioId": { "type": "string", "format": "uuid" },
-    "personalScenarioId": { "type": "string", "format": "uuid" }
-  },
-  "oneOf": [
-    {
-      "properties": { "scenarioId": {}, "personalScenarioId": {} },
-      "required": ["scenarioId"],
-      "not": {
-        "properties": { "personalScenarioId": {} },
-        "required": ["personalScenarioId"]
-      }
-    },
-    {
-      "properties": { "scenarioId": {}, "personalScenarioId": {} },
-      "required": ["personalScenarioId"],
-      "not": {
-        "properties": { "scenarioId": {} },
-        "required": ["scenarioId"]
-      }
-    }
-  ]
+    "scenarioKey": { "type": "string", "minLength": 1, "maxLength": 160 }
+  }
 }

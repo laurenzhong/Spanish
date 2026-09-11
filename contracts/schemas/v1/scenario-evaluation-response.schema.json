@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/scenario-evaluation-response.schema.json",
+  "title": "Scenario turn evaluation response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": { "type": ["object", "null"], "additionalProperties": false, "required": ["contextualSuccess", "errors", "provider", "modelVersion", "providerRequestId", "latencyMs", "estimatedCostMicros"], "properties": {
+      "contextualSuccess": { "type": "boolean" },
+      "errors": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["turnId", "start", "end", "category", "explanation", "affectsUnderstanding", "naturalAlternative"], "properties": { "turnId": { "type": "string" }, "start": { "type": "integer", "minimum": 0 }, "end": { "type": "integer", "minimum": 1 }, "category": { "type": "string" }, "explanation": { "type": "string" }, "affectsUnderstanding": { "type": "boolean" }, "naturalAlternative": { "type": ["string", "null"] } } } },
+      "provider": { "type": "string" }, "modelVersion": { "type": "string" }, "providerRequestId": { "type": ["string", "null"] }, "latencyMs": { "type": "number", "minimum": 0 }, "estimatedCostMicros": { "type": ["integer", "null"], "minimum": 0 }
+    } }
+  }
+}

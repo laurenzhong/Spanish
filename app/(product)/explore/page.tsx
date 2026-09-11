@@ -5,6 +5,7 @@ import { getExploreDashboardForUser } from "@/src/modules/explore";
 import { BundleExploreRepository, createDrizzleExploreUserStateRepository, emptyExploreUserStateRepository } from "@/src/modules/explore/repositories";
 import { getDatabase } from "@/src/shared/db/client";
 import { getCurrentUser } from "@/src/shared/auth/server";
+import { listScenarioPracticeDetails } from "@/src/modules/scenario-practice";
 
 import { ExplorePageContent } from "./explore-page-content";
 
@@ -49,5 +50,12 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
     );
   }
   const params = await searchParams;
-  return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} />;
+  const scenarios = listScenarioPracticeDetails().filter((scenario) => process.env.NODE_ENV !== "production" || scenario.status === "published").map((scenario) => ({
+    stableKey: scenario.stableKey,
+    title: scenario.title,
+    description: scenario.description,
+    cefr: scenario.cefr,
+    role: scenario.temporaryCharacter.role,
+  }));
+  return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} scenarios={scenarios} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} />;
 }

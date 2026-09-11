@@ -1,6 +1,7 @@
 import type {
   ScenarioRepetitionItem,
   ScenarioTurn,
+  ScenarioTurnReview,
   TemporaryCharacterSnapshot,
 } from "../domain";
 
@@ -52,9 +53,27 @@ export type AppendScenarioTurnInput = Readonly<{
   providerRequestId?: string | null;
 }>;
 
+export type SaveScenarioTurnReviewInput = Readonly<{
+  id: string;
+  userId: string;
+  turnId: string;
+  communicationSuccess: boolean | null;
+  errorSpans: readonly Readonly<Record<string, unknown>>[];
+  naturalAlternatives: readonly string[];
+  hintLevel: 0 | 1 | 2 | 3;
+  transcriptConfidence: number | null;
+  algorithmVersion: string;
+  providerKey: string | null;
+  modelVersion: string | null;
+  providerRequestId: string | null;
+  status: "ready" | "unavailable";
+}>;
+
 export interface ScenarioPracticeRepository {
   createSession(input: CreateScenarioSessionInput): Promise<PersistedScenarioSession>;
   getSession(userId: string, sessionId: string): Promise<PersistedScenarioSession | null>;
+  listTurns(userId: string, sessionId: string): Promise<readonly ScenarioTurn[]>;
+  listTurnReviews(userId: string, sessionId: string): Promise<readonly ScenarioTurnReview[]>;
   compareAndSwapState(input: Readonly<{
     userId: string;
     sessionId: string;
@@ -75,6 +94,11 @@ export interface ScenarioPracticeRepository {
     modality: "system";
     done: boolean;
   }>): Promise<ScenarioTurn>;
+  appendCompletedConditionTurn(input: AppendScenarioTurnInput & Readonly<{
+    speaker: "condition";
+    modality: "system";
+  }>): Promise<ScenarioTurn>;
+  saveTurnReview(input: SaveScenarioTurnReviewInput): Promise<ScenarioTurnReview>;
   createRepetitionItems(items: readonly ScenarioRepetitionItem[]): Promise<number>;
   completeSession(input: Readonly<{
     userId: string;

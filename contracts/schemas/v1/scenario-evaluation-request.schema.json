@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/scenario-evaluation-request.schema.json",
+  "title": "Scenario turn evaluation request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scenarioKey", "generationId", "persist", "modality", "hintLevel", "transcriptConfidence", "completedTurns"],
+  "properties": {
+    "scenarioKey": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "generationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "persist": { "type": "boolean" },
+    "modality": { "enum": ["speech", "typing"] },
+    "hintLevel": { "type": "integer", "minimum": 0, "maximum": 3 },
+    "transcriptConfidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "completedTurns": { "type": "array", "maxItems": 30, "items": { "type": "object", "additionalProperties": false, "required": ["turnId", "speaker", "text"], "properties": { "turnId": { "type": "string", "minLength": 1, "maxLength": 128 }, "speaker": { "enum": ["user", "temporary-character", "condition"] }, "text": { "type": "string", "minLength": 1, "maxLength": 4000 } } } }
+  }
+}

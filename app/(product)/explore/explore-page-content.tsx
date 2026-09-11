@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExploreCardDto, ExploreDashboardDto, ExploreGoalDto } from "@/src/modules/explore/domain";
 
-type ExplorePageContentProps = Readonly<{ dashboard: ExploreDashboardDto; initialQuery?: string; initialPack?: string | null; initialSaved?: boolean }>;
+type ScenarioEntry = Readonly<{ stableKey: string; title: string; description: string; cefr: string; role: string }>;
+type ExplorePageContentProps = Readonly<{ dashboard: ExploreDashboardDto; scenarios?: readonly ScenarioEntry[]; initialQuery?: string; initialPack?: string | null; initialSaved?: boolean }>;
 
 const skillLabels: Record<ExploreCardDto["skills"][number], string> = { listen: "听", read: "读", speak: "说", write: "写" };
 const statusLabels: Record<ExploreCardDto["status"], string> = { published: "可开始", in_progress: "继续中", draft: "内容整理中", unavailable: "暂不可用" };
@@ -58,7 +59,7 @@ function DetailRail({ card, saved, onClose, onToggleSaved }: Readonly<{ card: Ex
   return <aside className="explore-detail-rail" data-testid="explore-detail-rail" aria-label="内容详情"><div className="explore-detail-rail__header"><h2>{card.title}</h2><div className="explore-detail-rail__header-actions"><button className={`icon-button${saved ? " is-saved" : ""}`} type="button" aria-label={saved ? `取消保存${card.title}` : `保存${card.title}`} aria-pressed={saved} onClick={() => onToggleSaved(card)}><BookmarkIcon filled={saved} /></button><button className="icon-button" type="button" aria-label="关闭内容详情" onClick={onClose}><CloseIcon /></button></div></div><p className="explore-detail-rail__summary">{card.summary}</p><dl className="explore-detail-rail__facts"><div><dt>水平</dt><dd>{card.level}</dd></div><div><dt>时长</dt><dd>{card.durationLabel}</dd></div><div><dt>版本</dt><dd>{card.version}</dd></div><div><dt>技能</dt><dd>{card.skills.map((skill) => skillLabels[skill]).join(" · ") || "—"}</dd></div>{card.source ? <div><dt>来源</dt><dd>{card.source.title}</dd></div> : null}</dl><div className="explore-detail-rail__status" role="status"><span className={`status-note${card.status === "published" || card.status === "in_progress" ? " status-note--open" : ""}`}>{statusLabels[card.status]}</span>{progress ? <p>{progress}</p> : null}</div>{card.route ? <a className="primary-action explore-detail-rail__action" href={card.route}><span>{actionLabel}</span><span aria-hidden="true">→</span></a> : <p className="explore-detail-rail__blocked">{card.status === "draft" ? "这组内容完成审核后会出现在这里。" : "这组内容暂时无法读取，请稍后重试。"}</p>}</aside>;
 }
 
-export function ExplorePageContent({ dashboard, initialQuery = "", initialPack = null, initialSaved = false, allowDraftPreview = false }: ExplorePageContentProps & { allowDraftPreview?: boolean }) {
+export function ExplorePageContent({ dashboard, scenarios = [], initialQuery = "", initialPack = null, initialSaved = false, allowDraftPreview = false }: ExplorePageContentProps & { allowDraftPreview?: boolean }) {
   const [query, setQuery] = useState(initialQuery);
   const [selectedKey, setSelectedKey] = useState<string | null>(initialPack);
   const [railOpen, setRailOpen] = useState(Boolean(initialPack));
@@ -76,6 +77,7 @@ export function ExplorePageContent({ dashboard, initialQuery = "", initialPack =
   const saveRequestId = useRef(0);
 
   const filteredGoals = useMemo(() => dashboard.goals.filter((goal) => matches(`${goal.title} ${goal.description} ${goal.key}`, query.trim())), [dashboard.goals, query]);
+  const filteredScenarios = useMemo(() => scenarios.filter((scenario) => matches(`${scenario.title} ${scenario.description} ${scenario.cefr} ${scenario.role}`, query.trim())), [query, scenarios]);
   const filteredPacks = useMemo(() => dashboard.packs.filter((card) => {
     const textMatches = matches(`${card.title} ${card.summary} ${card.level} ${card.skills.join(" ")} ${card.status}`, query.trim());
     const filterMatches = filter === "all" || (filter === "saved" ? Boolean(savedByKey[stateKey(card)]) : filter === "available" ? card.status === "published" || card.status === "in_progress" : card.status === "draft");
@@ -158,6 +160,21 @@ export function ExplorePageContent({ dashboard, initialQuery = "", initialPack =
       </section>
 
       {saveNotice ? <p className="explore-save-notice" role="status">{saveNotice}</p> : null}
+
+      {filteredScenarios.length > 0 ? (
+        <section className="explore-scenarios" aria-labelledby="explore-scenarios-title">
+          <div className="section-heading"><div><p className="eyebrow">真实沟通演练</p><h2 id="explore-scenarios-title">基础场景</h2></div><span>同一工作台 · 文字或语音</span></div>
+          <div className="explore-scenario-grid">
+            {filteredScenarios.map((scenario, index) => (
+              <a href={`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}`} key={scenario.stableKey}>
+                <span className="explore-scenario-card__index">0{index + 1}</span>
+                <div><small>{scenario.cefr} · {scenario.role}</small><h3>{scenario.title}</h3><p>{scenario.description}</p></div>
+                <span aria-hidden="true">→</span>
+              </a>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {dashboard.resume.length > 0 ? (
         <section className="explore-resume" aria-labelledby="explore-resume-title">
