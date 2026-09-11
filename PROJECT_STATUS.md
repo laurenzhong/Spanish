@@ -4,7 +4,7 @@
 
 - 最后更新：2026-09-11
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-003` 已完成，下一项为 `SCN-004` 历史、复盘与间隔复现；阶段 8 尚未启动
+- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-004` 已完成，下一项为 `SCN-005` Provider 设置与 iPhone Safari/PWA 收敛；阶段 8 尚未启动
 - 协调分支：`main`
 - 当前门禁：三个基础场景与 `alpha-core-v1` 正式表达仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；SCN-003 全量 E2E 中剩余的 11 条聊天好友介绍、移动阅读/账号交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
 
@@ -81,6 +81,19 @@
 - 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、契约测试 `10 files / 38 tests`、全量 Vitest `141 files / 611 tests`、`pnpm build` 和 `git diff --check` 通过；Explore Playwright 桌面与移动 `20/20`，同步后的产品壳层 Explore 用例 `4/4` 通过。全量 Playwright 首轮为 `123/138`，其中 4 条为已同步并单独通过的 Explore 旧文案/入口断言；剩余 11 条位于既有聊天好友介绍、移动阅读选区/布局和账号删除，未改动相应产品代码或放宽断言。
 - 限制：三个公共场景与 `alpha-core-v1` 正式表达仍未经双重人工审核，生产环境不会显示；私人场景只作为本人可见 `draft`；默认建议仍不调用 LLM，只有本人明确确认生成才调用；未进行真实 MiniMax 收费调用、真实 PostgreSQL/Supabase 联调或 iPhone Safari 真机验证，Flutter 未修改。
 - 下一步：进入 `SCN-004`，实现完整历史、逐条复盘、重新说、当天/1/3/7 天间隔复现和首页唯一下一动作接入。
+
+### SCN-004：完整历史、复盘与间隔复现
+
+- 状态：`done`
+- 负责人：Codex
+- 目标分支：`codex/scn-004-review-repetition`
+- 实现 Commit：`1d574b8`
+- 前置依赖：SCN-001 至 SCN-003 已完成；Web/PWA 场景规格和逐文件计划已由产品本人批准
+- 范围：完成账号权威的场景历史、逐轮完整复盘、原句错误与自然替代、“重新说”新尝试、当天/1/3/7 天换条件复现，以及学习页“稳定断点 → 到期复现 → 新任务”的唯一主动作编排。
+- 修改：场景完成事务现在冻结会话、为缺失反馈创建中性 pending review，并幂等创建 0/1/3/7 天复现；新增历史、完整复盘、到期列表/详情/完成 application、repository、Route 和响应式页面；重练由服务端验证原 session/turn 所有权且创建新会话，不覆盖原轮次或 review；可信评估先建立真实 `practice_attempts` 再追加 evidence，文字模式仍由既有领域规则过滤口语专属技能，低置信度和技术失败不写负面证据；同步扩展 v1 OpenAPI/JSON Schema。
+- 验证：聚焦单元、契约和数据库测试 `10 files / 39 tests` 通过；全量 Vitest `145 files / 625 tests` 通过；`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm test:contracts`、`pnpm build`、`git diff --check` 全部通过；场景与学习页 Playwright 在桌面/移动 Chromium `10/10` 通过。
+- 限制：没有执行真实收费 MiniMax 调用、真实 Supabase/PostgreSQL 远端联调或 iPhone Safari 真机验证；Playwright 使用无数据库的确定性 device fallback，账号历史/跨设备恢复由 PGlite 事务与 RLS 测试覆盖；本轮未重跑已记录存在 11 条其他任务失败的全量 Playwright；三个公共场景和 `alpha-core-v1` 正式表达仍为 draft，生产环境继续隐藏；Flutter 未修改。
+- 下一步：进入 `SCN-005`，实现 Provider 设置/切换并完成 iPhone Safari/PWA 真机收敛和发布门禁；不在本任务提前扩展长期角色、Flutter 或商业功能。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
@@ -1526,6 +1539,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
+| SCN-004 | done | `codex/scn-004-review-repetition` | Codex | 完整历史、逐轮复盘、重新说和当天/1/3/7 天复现 | SCN-002、SCN-003 |
+| SCN-005 | ready | `codex/scn-005-provider-pwa-hardening` | 待领取 | Provider 设置、切换与 iPhone Safari/PWA 发布门禁 | SCN-001 至 SCN-004 |
 | 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -1534,7 +1549,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | SCN-004 | 历史、复盘与间隔复现 | SCN-002、SCN-003 已完成 |
+| 1 | SCN-005 | Provider 设置、切换与 iPhone Safari/PWA 收敛 | SCN-001 至 SCN-004 已完成 |
 | 2 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
