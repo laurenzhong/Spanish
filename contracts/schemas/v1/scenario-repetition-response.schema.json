@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sueno.local/schemas/v1/scenario-repetition-response.schema.json",
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": ["id", "userId", "sourceSessionId", "intervalStep", "intervalDays", "dueAt", "status", "expressionSnapshot", "goalSnapshot", "variantRequirements", "idempotencyKey", "completionKey", "completedAt", "result"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "userId": { "type": "string", "format": "uuid" },
+        "sourceSessionId": { "type": "string", "format": "uuid" },
+        "intervalStep": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "intervalDays": { "enum": [0, 1, 3, 7] },
+        "dueAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["pending", "completed"] },
+        "expressionSnapshot": { "type": "array", "items": { "type": "string" } },
+        "goalSnapshot": { "type": "string", "minLength": 1 },
+        "variantRequirements": { "type": "array", "items": { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string" }, "value": { "type": "string" } }, "additionalProperties": false } },
+        "idempotencyKey": { "type": "string", "minLength": 1 },
+        "completionKey": { "type": ["string", "null"] },
+        "completedAt": { "type": ["string", "null"], "format": "date-time" },
+        "result": { "type": ["string", "null"], "enum": ["contextual-success", "needs-work", "technical-failure", null] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": { "oneOf": [{ "$ref": "#/$defs/item" }, { "type": "array", "items": { "$ref": "#/$defs/item" } }] }
+  },
+  "additionalProperties": false
+}

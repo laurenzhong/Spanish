@@ -75,10 +75,10 @@
         }
       },
       "get": {
-        "summary": "List resumable scenario practice sessions owned by the user",
+        "summary": "List completed scenario practice history owned by the user",
         "security": [{ "bearerAuth": [] }],
         "responses": {
-          "200": { "description": "Private scenario session list" },
+          "200": { "description": "Private completed scenario history", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-history-response.schema.json" } } } },
           "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
       }
@@ -147,6 +147,38 @@
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": { "200": { "description": "Basic session review" }, "404": { "description": "Session not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } }
+      }
+    },
+    "/scenario-practice/due": {
+      "get": {
+        "summary": "List due scenario repetitions owned by the user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Due repetition list", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-repetition-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/scenario-practice/due/{repetitionId}": {
+      "get": {
+        "summary": "Read one owned scenario repetition",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "repetitionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Owned repetition", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-repetition-response.schema.json" } } } },
+          "404": { "description": "Repetition not found" }
+        }
+      },
+      "post": {
+        "summary": "Complete one repetition idempotently; technical failures remain pending",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "repetitionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-repetition-complete-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Completion result" },
+          "404": { "description": "Repetition not found" },
+          "409": { "description": "Completion key conflict" }
+        }
       }
     },
     "/explore/dashboard": {

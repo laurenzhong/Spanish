@@ -4,9 +4,11 @@ import { z } from "zod";
 import { createMiniMaxScenarioEvaluationProvider } from "@/src/modules/providers/scenario-evaluation/server";
 import { FakeScenarioEvaluationProvider, ScenarioProviderError } from "@/src/modules/providers/scenario-evaluation";
 import { createDrizzleScenarioLibraryRepository, evaluateScenarioTurn, getScenarioPracticeDetailForUser } from "@/src/modules/scenario-practice";
-import { createDrizzleScenarioPracticeRepository } from "@/src/modules/scenario-practice";
+import { createDrizzleScenarioPracticeRepository, createScenarioEvidenceInput } from "@/src/modules/scenario-practice";
+import { createDrizzleEvidenceRepository, recordEvidence } from "@/src/modules/evidence";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
+import * as databaseSchema from "@/src/shared/db/schema";
 import { scenarioData, scenarioError } from "@/app/api/v1/scenario-practice/http";
 
 export const runtime = "nodejs";
@@ -37,13 +39,32 @@ export async function POST(request: NextRequest, { params }: Readonly<{ params: 
       requestId: request.headers.get("x-request-id") ?? crypto.randomUUID(), sessionId, signal: request.signal, ...parsed.data });
     if (parsed.data.persist) {
       if (!process.env.DATABASE_URL) throw new Error("SCENARIO_SESSION_NOT_FOUND");
-      await createDrizzleScenarioPracticeRepository(getDatabase()).saveTurnReview({
+      const database = getDatabase();
+      const repository = createDrizzleScenarioPracticeRepository(database);
+      const turn = await repository.getTurn(user.id, sessionId, turnId);
+      if (!turn || turn.speaker !== "user" || turn.status !== "completed" || turn.modality !== parsed.data.modality) throw new Error("SCENARIO_TURN_CONFLICT");
+      const turnErrors = data.errors.filter((error) => error.turnId === turnId);
+      const review = await repository.saveTurnReview({
         id: crypto.randomUUID(), userId: user.id, turnId, communicationSuccess: data.contextualSuccess,
-        errorSpans: data.errors, naturalAlternatives: data.errors.flatMap((error) => error.naturalAlternative ? [error.naturalAlternative] : []),
+        errorSpans: turnErrors, naturalAlternatives: turnErrors.flatMap((error) => error.naturalAlternative ? [error.naturalAlternative] : []),
         hintLevel: parsed.data.hintLevel, transcriptConfidence: parsed.data.transcriptConfidence,
         algorithmVersion: "scenario-evaluation-v1", providerKey: data.provider, modelVersion: data.modelVersion,
         providerRequestId: data.providerRequestId, status: "ready",
       });
+      const evidenceInput = createScenarioEvidenceInput({
+        turn, contextualSuccess: data.contextualSuccess, hintLevel: parsed.data.hintLevel,
+        transcriptConfidence: parsed.data.transcriptConfidence, contentVersion: scenario.version,
+        skillKeys: scenario.tasks.map((task) => task.goalKey), idempotencyKey: `scenario-review:${review.id}`,
+      });
+      if (evidenceInput) {
+        await database.insert(databaseSchema.practiceAttempts).values({
+          id: turn.id, userId: user.id, sessionId, clientAttemptId: `scenario:${turn.id}`,
+          modality: turn.modality, responseText: turn.text, hintLevel: parsed.data.hintLevel,
+          transcriptConfidence: parsed.data.transcriptConfidence, evaluation: { contextualSuccess: data.contextualSuccess, reviewId: review.id },
+          contentVersion: scenario.version, algorithmVersion: "scenario-evaluation-v1",
+        }).onConflictDoNothing({ target: [databaseSchema.practiceAttempts.userId, databaseSchema.practiceAttempts.clientAttemptId] });
+        await recordEvidence(createDrizzleEvidenceRepository(database), evidenceInput, { requestId: request.headers.get("x-request-id") ?? undefined });
+      }
     }
     return scenarioData(data, { headers: { "cache-control": "no-store" } });
   } catch (error) {

@@ -94,6 +94,8 @@ describe("scenario practice contract", () => {
     };
     expect(openApi.paths).toHaveProperty("/scenario-practice/sessions");
     expect(openApi.paths).toHaveProperty("/scenario-practice/sessions/{sessionId}/turns");
+    expect(openApi.paths).toHaveProperty("/scenario-practice/due");
+    expect(openApi.paths).toHaveProperty("/scenario-practice/due/{repetitionId}");
     expect(openApi.paths).toHaveProperty("/expressions/saved");
     expect(openApi.paths).toHaveProperty("/scenarios/generate");
 
@@ -107,6 +109,9 @@ describe("scenario practice contract", () => {
       "saved-expression-list-response.schema.json",
       "personal-scenario-generation-request.schema.json",
       "personal-scenario-generation-response.schema.json",
+      "scenario-history-response.schema.json",
+      "scenario-repetition-response.schema.json",
+      "scenario-repetition-complete-request.schema.json",
     ]) {
       const filePath = path.join(root, "contracts", "schemas", "v1", schemaName);
       expect(fs.existsSync(filePath)).toBe(true);

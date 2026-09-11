@@ -17,6 +17,8 @@ import { GET as getScenario } from "@/app/api/v1/scenarios/[scenarioId]/route";
 import { POST as createSession } from "@/app/api/v1/scenario-practice/sessions/route";
 import { POST as respond } from "@/app/api/v1/scenario-practice/sessions/[sessionId]/turns/[turnId]/respond/route";
 import { POST as evaluate } from "@/app/api/v1/scenario-practice/sessions/[sessionId]/turns/[turnId]/evaluate/route";
+import { GET as getDueRepetitions } from "@/app/api/v1/scenario-practice/due/route";
+import { POST as completeSession } from "@/app/api/v1/scenario-practice/sessions/[sessionId]/complete/route";
 
 const sessionId = "10000000-0000-4000-8000-000000000001";
 const userTurnId = "20000000-0000-4000-8000-000000000001";
@@ -56,5 +58,18 @@ describe("scenario routes", () => {
     expect(response.status).toBe(202);
     expect(response.headers.get("x-review-reason")).toBe("low-confidence-transcript");
     expect(mocks.evaluate).not.toHaveBeenCalled();
+  });
+
+  it("returns an explicit empty due list without an account database", async () => {
+    const response = await getDueRepetitions(new NextRequest("http://localhost/api/v1/scenario-practice/due"));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ apiVersion: "v1", data: [] });
+  });
+
+  it("keeps device-only completion neutral when no account database is configured", async () => {
+    const request = new NextRequest(`http://localhost/api/v1/scenario-practice/sessions/${sessionId}/complete`, { method: "POST", body: JSON.stringify({ idempotencyKey: "complete-device-1" }), headers: { "content-type": "application/json" } });
+    const response = await completeSession(request, { params: Promise.resolve({ sessionId }) });
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({ data: { persistence: "device" } });
   });
 });

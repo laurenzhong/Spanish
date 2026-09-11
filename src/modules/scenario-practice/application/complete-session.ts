@@ -18,6 +18,12 @@ export async function completeScenarioSession(
     makeRepetitionId: (step: 0 | 1 | 2 | 3) => string;
   }>,
 ) {
+  const existing = await repository.getSession(input.userId, input.sessionId);
+  if (!existing) throw new Error("SCENARIO_SESSION_NOT_FOUND");
+  if (existing.completionIdempotencyKey) {
+    if (existing.completionIdempotencyKey !== input.idempotencyKey) throw new Error("SCENARIO_SESSION_CONFLICT");
+    return { session: existing, repetitionItems: await repository.listRepetitionItems(input.userId, input.sessionId) } as const;
+  }
   const completedAt = input.now();
   const repetitionItems = createRepetitionSchedule({
     userId: input.userId,
@@ -37,5 +43,6 @@ export async function completeScenarioSession(
     completedAt,
     repetitionItems,
   });
-  return { session, repetitionItems } as const;
+  const refreshed = await repository.getSession(input.userId, input.sessionId);
+  return { session: refreshed ?? session, repetitionItems } as const;
 }

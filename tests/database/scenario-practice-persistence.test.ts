@@ -269,6 +269,7 @@ describe("scenario practice persistence", () => {
     const repeated = await completeScenarioSession(repository, completion);
     expect(first.session).toMatchObject({ status: "completed", reviewStatus: "pending", revision: 2 });
     expect(repeated.session).toEqual(first.session);
+    expect(repeated.repetitionItems).toEqual(first.repetitionItems);
     const [{ count }] = await database.select({ count: sql<number>`count(*)` }).from(schema.scenarioRepetitionItems);
     expect(Number(count)).toBe(4);
     await expect(completeScenarioSession(repository, {

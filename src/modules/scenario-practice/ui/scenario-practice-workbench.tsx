@@ -14,7 +14,7 @@ type SavedPractice = { sessionId: string; persistence?: "account" | "device"; tu
 function storageKey(stableKey: string) { return `scenario-practice:v1:${stableKey}`; }
 function makeId() { return crypto.randomUUID(); }
 
-export function ScenarioPracticeWorkbench({ scenario }: Readonly<{ scenario: ScenarioPracticeDetail }>) {
+export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetitionGoal = null }: Readonly<{ scenario: ScenarioPracticeDetail; retryText?: string | null; repetitionGoal?: string | null }>) {
   const router = useRouter();
   const [saved, setSaved] = useState<SavedPractice>(() => ({ sessionId: "", turns: [], reviews: {}, triggeredConditions: [], completed: false }));
   const [hydrated, setHydrated] = useState(false);
@@ -34,7 +34,13 @@ export function ScenarioPracticeWorkbench({ scenario }: Readonly<{ scenario: Sce
     const timer = window.setTimeout(() => {
       try {
         const raw = window.localStorage.getItem(storageKey(scenario.stableKey));
-        if (raw) setSaved(JSON.parse(raw) as SavedPractice);
+        if (raw) {
+          const restored = JSON.parse(raw) as SavedPractice;
+          const query = new URLSearchParams(window.location.search);
+          setSaved(restored.completed && (query.has("retryTurnId") || query.has("repetitionId"))
+            ? { sessionId: "", turns: [], reviews: {}, triggeredConditions: [], completed: false }
+            : restored);
+        }
       } catch { setNotice("无法读取本设备上的练习断点，你仍可开始新练习。"); }
       setHydrated(true);
     }, 0);
@@ -153,11 +159,40 @@ export function ScenarioPracticeWorkbench({ scenario }: Readonly<{ scenario: Sce
     finally { setBusy(false); }
   }
 
-  function complete() {
+  async function complete() {
     if (userTurnCount === 0) { setNotice("先完成至少一轮表达，再查看复盘。"); return; }
     update((current) => ({ ...current, completed: true }));
-    if (saved.sessionId && saved.persistence === "account") void fetch(`/api/v1/scenario-practice/sessions/${saved.sessionId}/complete`, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ idempotencyKey: `complete-${saved.sessionId}` }) });
-    router.push(`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}/review`);
+    if (saved.sessionId && saved.persistence === "account") {
+      try {
+        const response = await fetch(`/api/v1/scenario-practice/sessions/${saved.sessionId}/complete`, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ idempotencyKey: `complete-${saved.sessionId}` }) });
+        if (!response.ok) throw new Error("COMPLETE_FAILED");
+      } catch {
+        setNotice("练习已保存在本设备，但账号复盘暂时没有完成同步。请重试结束操作。");
+        update((current) => ({ ...current, completed: false }));
+        return;
+      }
+    }
+    const repetitionId = new URLSearchParams(window.location.search).get("repetitionId");
+    if (repetitionId) {
+      const userTurns = saved.turns.filter((turn) => turn.speaker === "user");
+      const readyReviews = userTurns.map((turn) => saved.reviews[turn.id]).filter(Boolean);
+      const result = readyReviews.length !== userTurns.length
+        ? "technical-failure"
+        : readyReviews.some((review) => !review.contextualSuccess)
+          ? "needs-work"
+          : "contextual-success";
+      try {
+        const response = await fetch(`/api/v1/scenario-practice/due/${encodeURIComponent(repetitionId)}`, {
+          method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ completionKey: `repetition-${repetitionId}-${saved.sessionId}`, result }),
+        });
+        if (!response.ok) throw new Error("REPETITION_COMPLETE_FAILED");
+      } catch {
+        setNotice("本次表达已保留，但复现任务暂时没有同步；它仍会保持待完成，不会产生负面记录。");
+      }
+    }
+    const sessionQuery = saved.sessionId && saved.persistence === "account" ? `?sessionId=${encodeURIComponent(saved.sessionId)}` : "";
+    router.push(`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}/review${sessionQuery}`);
   }
 
   if (!hydrated) return <main className="scenario-workbench"><p role="status">正在恢复练习断点…</p></main>;
@@ -183,6 +218,8 @@ export function ScenarioPracticeWorkbench({ scenario }: Readonly<{ scenario: Sce
       </section>
       {paused ? <div className="scenario-paused" role="status"><strong>练习已暂停</strong><span>对话断点已保存在本设备。</span></div> : null}
       {notice ? <p className="scenario-notice" role="status">{notice}</p> : null}
+      {retryText ? <aside className="scenario-hint"><strong>重新说这一句</strong><p><span lang="es">{retryText}</span> — 保留原意，换一种更自然的表达；这会创建新尝试，不覆盖原记录。</p></aside> : null}
+      {repetitionGoal ? <aside className="scenario-hint"><strong>变式复现目标</strong><p>{repetitionGoal}。请根据当前人物和条件自然完成，不必照读原句。</p></aside> : null}
       {hintLevel > 0 ? <aside className="scenario-hint" aria-live="polite"><strong>提示 {hintLevel}</strong><p>{hintLevel === 1 ? currentTask.hints.level1 : hintLevel === 2 ? currentTask.hints.level2 : currentTask.hints.level3}</p></aside> : null}
       {transcriptDraft ? <section className="scenario-transcript-confirm" aria-label="确认转写"><label>确认或编辑转写<textarea lang="es" value={transcriptDraft.text} onChange={(event) => setTranscriptDraft({ ...transcriptDraft, text: event.target.value })} /></label><div><button type="button" onClick={() => setTranscriptDraft(null)}>取消</button><button type="button" onClick={() => void submit(transcriptDraft.text, "speech", transcriptDraft.confidence)}>确认并发送</button></div></section> : null}
       {expressionsOpen ? <section className="scenario-expression-drawer" aria-label="可用表达">{scenario.expressions.map((expression) => <button type="button" key={expression.stableKey} onClick={() => { setText(expression.text); setExpressionsOpen(false); }}><strong lang="es">{expression.text}</strong><span>{expression.translation}</span></button>)}</section> : null}
@@ -193,7 +230,7 @@ export function ScenarioPracticeWorkbench({ scenario }: Readonly<{ scenario: Sce
           <button className={recording ? "is-recording" : ""} type="button" disabled={busy || paused} onPointerDown={() => void startRecording()} onPointerUp={() => void stopRecording()} onPointerCancel={() => void stopRecording()}>{recording ? "松开发送" : "按住说话"}</button>
           <button type="button" disabled={paused} onClick={() => textInputRef.current?.focus()}>键盘</button>
         </div>
-        <button className="scenario-complete" type="button" disabled={busy || userTurnCount === 0} onClick={complete}>结束并查看复盘</button>
+        <button className="scenario-complete" type="button" disabled={busy || userTurnCount === 0} onClick={() => void complete()}>结束并查看复盘</button>
       </section>
     </main>
   );

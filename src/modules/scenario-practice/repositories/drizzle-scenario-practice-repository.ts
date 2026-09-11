@@ -1,9 +1,9 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
 
-import type { ScenarioTurn, ScenarioTurnReview, TemporaryCharacterSnapshot } from "../domain";
+import type { ScenarioRepetitionItem, ScenarioTurn, ScenarioTurnReview, TemporaryCharacterSnapshot } from "../domain";
 import type {
   AppendScenarioTurnInput,
   PersistedScenarioSession,
@@ -17,6 +17,8 @@ function projectSession(
     scenarioId: string | null;
     primaryModality: "speech" | "typing" | "listening" | "reading";
     contentVersion: number;
+    scenarioKey?: string | null;
+    scenarioTitle?: string | null;
   },
 ): PersistedScenarioSession {
   return {
@@ -25,6 +27,8 @@ function projectSession(
     clientAttemptId: row.clientAttemptId,
     personalScenarioId: row.personalScenarioId,
     scenarioId: row.scenarioId,
+    scenarioKey: row.scenarioKey ?? (row.personalScenarioId ? `personal.${row.personalScenarioId}` : null),
+    scenarioTitle: row.scenarioTitle ?? null,
     primaryModality: row.primaryModality as PersistedScenarioSession["primaryModality"],
     contentVersion: row.contentVersion,
     status: row.stableStatus,
@@ -36,6 +40,45 @@ function projectSession(
     temporaryCharacter: row.temporaryCharacter as TemporaryCharacterSnapshot,
     reviewStatus: row.reviewStatus as PersistedScenarioSession["reviewStatus"],
     completionIdempotencyKey: row.completionIdempotencyKey,
+    completedAt: row.completedAt,
+  };
+}
+
+function localizedTitle(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const titles = value as Record<string, unknown>;
+  const title = titles["zh-CN"] ?? titles.zh ?? Object.values(titles)[0];
+  return typeof title === "string" ? title : null;
+}
+
+function personalTitle(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const title = (value as Record<string, unknown>).title;
+  return typeof title === "string" ? title : null;
+}
+
+function projectRepetition(row: typeof schema.scenarioRepetitionItems.$inferSelect): ScenarioRepetitionItem {
+  const intervalDays = [0, 1, 3, 7][row.intervalStep];
+  if (intervalDays === undefined) throw new Error("SCENARIO_REPETITION_INVALID");
+  return {
+    id: row.id,
+    userId: row.userId,
+    sourceSessionId: row.sourceSessionId,
+    intervalStep: row.intervalStep as 0 | 1 | 2 | 3,
+    intervalDays: intervalDays as 0 | 1 | 3 | 7,
+    dueAt: row.dueAt,
+    status: row.status as ScenarioRepetitionItem["status"],
+    expressionSnapshot: row.expressionSnapshot,
+    goalSnapshot: row.goalSnapshot,
+    variantRequirements: row.variantRequirements.flatMap((value) => {
+      const kind = typeof value.kind === "string" ? value.kind : null;
+      const requirementValue = typeof value.value === "string" ? value.value : undefined;
+      return kind ? [{ kind, ...(requirementValue ? { value: requirementValue } : {}) }] : [];
+    }),
+    idempotencyKey: row.idempotencyKey,
+    completionKey: row.completionKey,
+    completedAt: row.completedAt,
+    result: row.lastResult as ScenarioRepetitionItem["result"],
   };
 }
 
@@ -78,9 +121,14 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
         scenarioId: schema.practiceSessions.scenarioId,
         primaryModality: schema.practiceSessions.primaryModality,
         contentVersion: schema.practiceSessions.contentVersion,
+        scenarioKey: schema.scenarios.stableKey,
+        scenarioTitle: schema.scenarios.title,
+        personalSkeleton: schema.personalScenarios.skeleton,
       })
       .from(schema.scenarioSessionStates)
       .innerJoin(schema.practiceSessions, eq(schema.practiceSessions.id, schema.scenarioSessionStates.sessionId))
+      .leftJoin(schema.scenarios, eq(schema.scenarios.id, schema.practiceSessions.scenarioId))
+      .leftJoin(schema.personalScenarios, eq(schema.personalScenarios.id, schema.scenarioSessionStates.personalScenarioId))
       .where(and(eq(schema.scenarioSessionStates.userId, userId), eq(schema.scenarioSessionStates.sessionId, sessionId)))
       .limit(1);
     return row ? projectSession({
@@ -88,6 +136,8 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
       scenarioId: row.scenarioId,
       primaryModality: row.primaryModality,
       contentVersion: row.contentVersion,
+      scenarioKey: row.scenarioKey ?? (row.session.personalScenarioId ? `personal.${row.session.personalScenarioId}` : null),
+      scenarioTitle: localizedTitle(row.scenarioTitle) ?? personalTitle(row.personalSkeleton),
     }) : null;
   }
 
@@ -140,6 +190,25 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
       throw new Error("SCENARIO_TURN_CONFLICT");
     }
     return projectTurn(existing);
+  }
+
+  async function syncSessionReviewStatus(turnId: string, userId: string) {
+    const [turn] = await database.select({ sessionId: schema.scenarioTurns.sessionId }).from(schema.scenarioTurns)
+      .where(and(eq(schema.scenarioTurns.id, turnId), eq(schema.scenarioTurns.userId, userId))).limit(1);
+    if (!turn) return;
+    const [remaining] = await database.select({ count: sql<number>`count(*)` }).from(schema.scenarioTurns)
+      .leftJoin(schema.scenarioTurnReviews, eq(schema.scenarioTurnReviews.turnId, schema.scenarioTurns.id))
+      .where(and(
+        eq(schema.scenarioTurns.userId, userId),
+        eq(schema.scenarioTurns.sessionId, turn.sessionId),
+        eq(schema.scenarioTurns.speaker, "user"),
+        eq(schema.scenarioTurns.status, "completed"),
+        or(isNull(schema.scenarioTurnReviews.id), ne(schema.scenarioTurnReviews.status, "ready")),
+      ));
+    if (Number(remaining?.count ?? 0) === 0) {
+      await database.update(schema.scenarioSessionStates).set({ reviewStatus: "ready", updatedAt: new Date() })
+        .where(and(eq(schema.scenarioSessionStates.sessionId, turn.sessionId), eq(schema.scenarioSessionStates.userId, userId)));
+    }
   }
 
   return {
@@ -201,6 +270,15 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
 
     getSession: selectSession,
 
+    async getTurn(userId, sessionId, turnId) {
+      const [row] = await database.select().from(schema.scenarioTurns).where(and(
+        eq(schema.scenarioTurns.userId, userId),
+        eq(schema.scenarioTurns.sessionId, sessionId),
+        eq(schema.scenarioTurns.id, turnId),
+      )).limit(1);
+      return row ? projectTurn(row) : null;
+    },
+
     async listTurns(userId, sessionId) {
       const rows = await database.select().from(schema.scenarioTurns)
         .where(and(eq(schema.scenarioTurns.userId, userId), eq(schema.scenarioTurns.sessionId, sessionId)))
@@ -215,6 +293,61 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
         .where(and(eq(schema.scenarioTurnReviews.userId, userId), eq(schema.scenarioTurns.sessionId, sessionId)))
         .orderBy(asc(schema.scenarioTurns.turnIndex));
       return rows.map((row) => projectReview(row.review));
+    },
+
+    async listHistory(userId, limit, before) {
+      const conditions = [
+        eq(schema.scenarioSessionStates.userId, userId),
+        eq(schema.scenarioSessionStates.stableStatus, "completed"),
+        isNotNull(schema.scenarioSessionStates.completedAt),
+      ];
+      if (before) conditions.push(lt(schema.scenarioSessionStates.completedAt, before));
+      const rows = await database.select({
+        session: schema.scenarioSessionStates,
+        primaryModality: schema.practiceSessions.primaryModality,
+        scenarioKey: schema.scenarios.stableKey,
+        scenarioTitle: schema.scenarios.title,
+        personalSkeleton: schema.personalScenarios.skeleton,
+        userTurnCount: sql<number>`(select count(*) from ${schema.scenarioTurns} t where t.session_id = ${schema.scenarioSessionStates.sessionId} and t.user_id = ${userId} and t.speaker = 'user' and t.status = 'completed')`,
+      }).from(schema.scenarioSessionStates)
+        .innerJoin(schema.practiceSessions, eq(schema.practiceSessions.id, schema.scenarioSessionStates.sessionId))
+        .leftJoin(schema.scenarios, eq(schema.scenarios.id, schema.practiceSessions.scenarioId))
+        .leftJoin(schema.personalScenarios, eq(schema.personalScenarios.id, schema.scenarioSessionStates.personalScenarioId))
+        .where(and(...conditions))
+        .orderBy(desc(schema.scenarioSessionStates.completedAt), desc(schema.scenarioSessionStates.sessionId))
+        .limit(limit);
+      return rows.map((row) => ({
+        sessionId: row.session.sessionId,
+        scenarioKey: row.scenarioKey ?? (row.session.personalScenarioId ? `personal.${row.session.personalScenarioId}` : null),
+        title: localizedTitle(row.scenarioTitle) ?? personalTitle(row.personalSkeleton) ?? row.session.communicationGoal,
+        communicationGoal: row.session.communicationGoal,
+        temporaryCharacterName: (row.session.temporaryCharacter as TemporaryCharacterSnapshot).displayName,
+        primaryModality: row.primaryModality as "speech" | "typing",
+        reviewStatus: row.session.reviewStatus as PersistedScenarioSession["reviewStatus"],
+        completedAt: row.session.completedAt!,
+        userTurnCount: Number(row.userTurnCount),
+      }));
+    },
+
+    async listRepetitionItems(userId, sourceSessionId) {
+      const rows = await database.select().from(schema.scenarioRepetitionItems)
+        .where(and(eq(schema.scenarioRepetitionItems.userId, userId), eq(schema.scenarioRepetitionItems.sourceSessionId, sourceSessionId)))
+        .orderBy(asc(schema.scenarioRepetitionItems.intervalStep));
+      return rows.map(projectRepetition);
+    },
+
+    async listDueRepetitionItems(userId, dueAt, limit) {
+      const rows = await database.select().from(schema.scenarioRepetitionItems)
+        .where(and(eq(schema.scenarioRepetitionItems.userId, userId), eq(schema.scenarioRepetitionItems.status, "pending"), lte(schema.scenarioRepetitionItems.dueAt, dueAt)))
+        .orderBy(asc(schema.scenarioRepetitionItems.dueAt), asc(schema.scenarioRepetitionItems.intervalStep))
+        .limit(limit);
+      return rows.map(projectRepetition);
+    },
+
+    async getRepetitionItem(userId, repetitionId) {
+      const [row] = await database.select().from(schema.scenarioRepetitionItems)
+        .where(and(eq(schema.scenarioRepetitionItems.userId, userId), eq(schema.scenarioRepetitionItems.id, repetitionId))).limit(1);
+      return row ? projectRepetition(row) : null;
     },
 
     async compareAndSwapState(input) {
@@ -274,6 +407,14 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
     },
 
     async saveTurnReview(input) {
+      const [existing] = await database.select().from(schema.scenarioTurnReviews).where(and(
+        eq(schema.scenarioTurnReviews.userId, input.userId),
+        eq(schema.scenarioTurnReviews.turnId, input.turnId),
+      )).limit(1);
+      if (existing?.status === "ready") {
+        await syncSessionReviewStatus(input.turnId, input.userId);
+        return projectReview(existing);
+      }
       const reviewValues = {
         communicationSuccess: input.communicationSuccess,
         errorSpans: input.errorSpans.map((span) => ({ ...span })),
@@ -293,6 +434,7 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
         .onConflictDoUpdate({ target: schema.scenarioTurnReviews.turnId, set: reviewValues })
         .returning();
       if (!row) throw new Error("SCENARIO_REVIEW_PENDING");
+      if (row.status === "ready") await syncSessionReviewStatus(input.turnId, input.userId);
       return projectReview(row);
     },
 
@@ -318,6 +460,24 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
         .onConflictDoNothing()
         .returning({ id: schema.scenarioRepetitionItems.id });
       return rows.length;
+    },
+
+    async completeRepetitionItem(userId, repetitionId, input) {
+      return database.transaction(async (transaction) => {
+        const [current] = await transaction.select().from(schema.scenarioRepetitionItems)
+          .where(and(eq(schema.scenarioRepetitionItems.userId, userId), eq(schema.scenarioRepetitionItems.id, repetitionId))).limit(1);
+        if (!current) throw new Error("SCENARIO_REPETITION_NOT_FOUND");
+        if (current.status === "completed") {
+          if (current.completionKey !== input.completionKey) throw new Error("SCENARIO_TURN_CONFLICT");
+          return projectRepetition(current);
+        }
+        const [updated] = await transaction.update(schema.scenarioRepetitionItems).set({
+          status: "completed", completionKey: input.completionKey, completedAt: input.completedAt,
+          lastResult: input.result, updatedAt: input.completedAt,
+        }).where(and(eq(schema.scenarioRepetitionItems.userId, userId), eq(schema.scenarioRepetitionItems.id, repetitionId), eq(schema.scenarioRepetitionItems.status, "pending"))).returning();
+        if (!updated) throw new Error("SCENARIO_TURN_CONFLICT");
+        return projectRepetition(updated);
+      });
     },
 
     async completeSession(input) {
@@ -391,6 +551,19 @@ export function createDrizzleScenarioPracticeRepository<TResult extends PgQueryR
               completedAt: item.completedAt,
             })))
             .onConflictDoNothing();
+        }
+        const completedUserTurns = await transaction.select({ id: schema.scenarioTurns.id }).from(schema.scenarioTurns)
+          .where(and(eq(schema.scenarioTurns.userId, input.userId), eq(schema.scenarioTurns.sessionId, input.sessionId), eq(schema.scenarioTurns.speaker, "user"), eq(schema.scenarioTurns.status, "completed")));
+        if (completedUserTurns.length > 0) {
+          await transaction.insert(schema.scenarioTurnReviews).values(completedUserTurns.map((turn) => ({
+            userId: input.userId,
+            turnId: turn.id,
+            communicationSuccess: null,
+            errorSpans: [],
+            naturalAlternatives: [],
+            algorithmVersion: "scenario-evaluation-v1",
+            status: "pending",
+          }))).onConflictDoNothing({ target: schema.scenarioTurnReviews.turnId });
         }
         const [practice] = await transaction
           .select({

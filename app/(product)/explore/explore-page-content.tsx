@@ -133,6 +133,7 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, initialQ
     <div className="page-stack explore-page">
       <header className="explore-page__header">
         <h1>探索真实表达</h1>
+        <a href="/explore/history">练习历史</a>
       </header>
 
       <section className="explore-intent" aria-label="按意图查找">

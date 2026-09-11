@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { createDrizzleScenarioPracticeRepository } from "@/src/modules/scenario-practice";
+import { completeScenarioSession, createDrizzleScenarioPracticeRepository } from "@/src/modules/scenario-practice";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 import { scenarioData, scenarioError } from "@/app/api/v1/scenario-practice/http";
@@ -15,7 +15,23 @@ export async function POST(request: NextRequest, { params }: Readonly<{ params: 
   try {
     const repository = createDrizzleScenarioPracticeRepository(getDatabase()); const session = await repository.getSession(user.id, sessionId);
     if (!session) return scenarioError(request, "SCENARIO_SESSION_NOT_FOUND", "The scenario session was not found.", 404);
-    const completed = await repository.completeSession({ userId: user.id, sessionId, expectedRevision: session.revision, idempotencyKey: parsed.data.idempotencyKey, completedAt: new Date(), repetitionItems: [] });
-    return scenarioData({ session: completed, persistence: "account" });
+    const turns = await repository.listTurns(user.id, sessionId);
+    const expressionSnapshot = turns.filter((turn) => turn.speaker === "user" && turn.status === "completed").map((turn) => turn.text);
+    if (expressionSnapshot.length === 0) return scenarioError(request, "SCENARIO_SESSION_CONFLICT", "A completed user turn is required.", 409);
+    const completed = await completeScenarioSession(repository, {
+      userId: user.id,
+      sessionId,
+      expectedRevision: session.revision,
+      idempotencyKey: parsed.data.idempotencyKey,
+      expressionSnapshot,
+      goalSnapshot: session.communicationGoal,
+      variantRequirements: [
+        { kind: "character", value: session.temporaryCharacter.role },
+        { kind: "condition", value: "改变人物、地点、条件或表达槽位中的至少一项" },
+      ],
+      now: () => new Date(),
+      makeRepetitionId: () => crypto.randomUUID(),
+    });
+    return scenarioData({ session: completed.session, repetitions: completed.repetitionItems, persistence: "account" });
   } catch { return scenarioError(request, "SCENARIO_SESSION_CONFLICT", "The scenario session changed before completion.", 409, true); }
 }
