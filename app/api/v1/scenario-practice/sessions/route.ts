@@ -2,13 +2,31 @@ import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { createDrizzleScenarioLibraryRepository, createDrizzleScenarioPracticeRepository, getScenarioPracticeDetailForUser } from "@/src/modules/scenario-practice";
+import { createDrizzleScenarioLibraryRepository, createDrizzleScenarioPracticeRepository, getScenarioPracticeDetailForUser, listScenarioHistory } from "@/src/modules/scenario-practice";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
 import { scenarioData, scenarioError } from "@/app/api/v1/scenario-practice/http";
 
 const requestSchema = z.strictObject({ sessionId: z.string().uuid(), clientAttemptId: z.string().min(1).max(128), scenarioKey: z.string().min(1).max(160), primaryModality: z.enum(["speech", "typing"]) });
+
+export async function GET(request: NextRequest) {
+  const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
+  if (!user) return scenarioError(request, "AUTH_REQUIRED", "Authentication is required.", 401);
+  if (!process.env.DATABASE_URL) return scenarioData([], { headers: { "cache-control": "private, no-store" } });
+  const limit = Number(request.nextUrl.searchParams.get("limit") ?? "20");
+  const beforeValue = request.nextUrl.searchParams.get("before");
+  const before = beforeValue ? new Date(beforeValue) : undefined;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50 || (before && Number.isNaN(before.getTime()))) {
+    return scenarioError(request, "VALIDATION_FAILED", "The history query is invalid.", 400);
+  }
+  try {
+    const history = await listScenarioHistory(createDrizzleScenarioPracticeRepository(getDatabase()), user.id, { limit, before });
+    return scenarioData(history, { headers: { "cache-control": "private, no-store" } });
+  } catch {
+    return scenarioError(request, "SCENARIO_SESSION_UNAVAILABLE", "Scenario history is temporarily unavailable.", 503, true);
+  }
+}
 
 export async function POST(request: NextRequest) {
   const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());

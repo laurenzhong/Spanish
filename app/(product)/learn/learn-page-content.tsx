@@ -8,6 +8,7 @@ import {
   createBrowserTrainingCheckpointStore,
   restoreTrainingCheckpoint,
 } from "@/src/modules/training/checkpoints";
+import { getLearningPrimaryAction, type DueRepetitionActionInput } from "@/src/modules/recommendation";
 
 const focusContent = {
   start: { eyebrow: "开始交流", title: "问候后自然继续交流", reason: "从认识新朋友开始，练习接着分享共同点，让对话自然延续。" },
@@ -55,7 +56,7 @@ function focusForGoal(goalKey: string | null): Exclude<LearnFocus, "silent"> {
   return "start";
 }
 
-export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: string }>) {
+export function LearnPageContent({ userId = "local-user", dueRepetition = null }: Readonly<{ userId?: string; dueRepetition?: DueRepetitionActionInput | null }>) {
   const [focus, setFocus] = useState<LearnFocus | null>(null);
   const [goalKey, setGoalKey] = useState<string | null>(null);
   const [progress, setProgress] = useState<LearnProgress | null>(null);
@@ -109,14 +110,23 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
     : focus && focus !== "silent" ? focusContent[focus] : focusContent.start;
   const isSilent = focus === "silent";
   const hasProgress = progress !== null;
-  const primaryLabel = hasProgress ? "继续学习" : "开始第一次练习";
-  const title = hasProgress || selectedGoal
+  const baseTitle = hasProgress || selectedGoal
     ? selectedContent.title
     : isSilent
       ? "先用安静模式理解真实表达"
       : focus && focus !== "start"
         ? selectedContent.title
         : "从一句真实表达开始";
+  const practiceHref = goalKey ? `/learn/practice?goal=${encodeURIComponent(goalKey)}` : "/learn/practice";
+  const action = getLearningPrimaryAction({
+    hasStableBreakpoint: hasProgress,
+    dueRepetition,
+    practiceHref,
+    practiceTitle: baseTitle,
+    practiceReason: hasProgress ? `${selectedContent.reason} 从第 ${(progress?.expressionIndex ?? 0) + 1} 句接着说。` : selectedContent.reason,
+  });
+  const isDueRepetition = action.kind === "due-repetition";
+  const title = action.title;
   const feedbackVisible = progress?.status === "showing-feedback" || progress?.status === "completed";
   const timeline: readonly LearnTimelineNode[] = [
     { key: "listen", label: "听懂情境", detail: "先听一遍，抓住语气和关键信息。", status: hasProgress ? "completed" : "current" },
@@ -134,10 +144,10 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
       <section className="focus-card" aria-labelledby="next-goal-title" data-focus={focus ?? "default"} data-has-progress={hasProgress} data-testid="learn-focus-card">
         <div className="focus-card__halo" aria-hidden="true" />
         <div className="focus-card__main">
-          <p className="eyebrow eyebrow--accent">{isSilent ? "安静学习" : hasProgress ? "继续上次练习" : selectedContent.eyebrow}</p>
+          <p className="eyebrow eyebrow--accent">{isSilent ? "安静学习" : hasProgress ? "继续上次练习" : isDueRepetition ? "到期复现" : selectedContent.eyebrow}</p>
           <h1 id="next-goal-title">{title}</h1>
-          <p className="focus-card__reason">{isSilent ? "阅读、听力和打字内容正在整理中；完成后仍需通过一次口语复核，才会进入能力画像。" : hasProgress ? `${selectedContent.reason} 从第 ${(progress?.expressionIndex ?? 0) + 1} 句接着说。` : selectedContent.reason}</p>
-          {!isSilent ? <div className="learn-timeline" aria-label="学习任务时间线" data-testid="learn-timeline">
+          <p className="focus-card__reason">{isSilent ? "阅读、听力和打字内容正在整理中；完成后仍需通过一次口语复核，才会进入能力画像。" : action.reason}</p>
+          {!isSilent && !isDueRepetition ? <div className="learn-timeline" aria-label="学习任务时间线" data-testid="learn-timeline">
             <div className="learn-timeline__heading"><span>当前沟通目标</span><span>{hasProgress ? `第 ${(progress?.expressionIndex ?? 0) + 1} / ${progress?.totalExpressions ?? 4} 句` : "从第 1 句开始"}</span></div>
             <ol>
               {timeline.map((node) => <li className={`learn-timeline__node learn-timeline__node--${node.status}`} key={node.key}>
@@ -146,7 +156,7 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
               </li>)}
             </ol>
           </div> : null}
-        {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" data-testid="learn-primary-action" href={goalKey ? `/learn/practice?goal=${encodeURIComponent(goalKey)}` : "/learn/practice"}><span>{primaryLabel}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
+        {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" data-testid="learn-primary-action" href={action.href}><span>{action.label}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
         </div>
         {hasProgress ? <aside className="focus-card__side learn-detail-rail" aria-label="学习详情" data-testid="learn-detail-rail"><div className="learn-detail-rail__section"><span className="learn-detail-rail__label">这组表达</span><strong>{(progress?.expressionIndex ?? 0) + 1} / {progress?.totalExpressions}</strong><div className="progress-track" role="progressbar" aria-label="这组表达进度" aria-valuemin={0} aria-valuemax={progress?.totalExpressions} aria-valuenow={(progress?.expressionIndex ?? 0) + 1}><span style={{ width: `${(((progress?.expressionIndex ?? 0) + 1) / (progress?.totalExpressions || 1)) * 100}%` }} /></div><p>每句完成后都会保存，下一次打开就从这里继续。</p></div><div className="learn-detail-rail__section"><span className="learn-detail-rail__label">本次规则</span><p>完整表达前不纠错；技术失败不会产生负面能力记录。</p></div><div className="learn-detail-rail__section learn-detail-rail__section--privacy"><span aria-hidden="true">⌁</span><p><strong>录音隐私</strong>普通录音评估完成后删除。</p></div></aside> : null}
       </section>
@@ -157,7 +167,7 @@ export function LearnPageContent({ userId = "local-user" }: Readonly<{ userId?: 
         <Link className="learn-support__card" href="/explore"><span className="eyebrow">沟通目标</span><strong>探索新的表达</strong><small>找到下一种说法</small></Link>
       </section>
 
-      {!hasProgress ? <section className="learn-empty-progress" aria-label="学习进度为空"><strong>完成第一次练习后，这里会显示你的真实进步。</strong><span>现在没有可展示的口语证据或稳定断点。</span></section> : null}
+      {!hasProgress ? <section className="learn-empty-progress" aria-label="学习进度为空"><strong>{isDueRepetition ? "完成这次复现后，会形成新的独立证据。" : "完成第一次练习后，这里会显示你的真实进步。"}</strong><span>{isDueRepetition ? "原始练习和历史证据会继续保留。" : "现在没有可展示的口语证据或稳定断点。"}</span></section> : null}
 
       <aside className="gentle-note" aria-label="学习建议"><span className="gentle-note__mark" aria-hidden="true">i</span><p>每完成一句都会保存进度，随时停下也不会失去本次练习。</p></aside>
     </div>

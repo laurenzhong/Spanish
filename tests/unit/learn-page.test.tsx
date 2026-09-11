@@ -99,4 +99,21 @@ describe("LearnPage", () => {
     expect(screen.queryByTestId("learn-detail-rail")).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar", { name: "这组表达进度" })).not.toBeInTheDocument();
   });
+
+  it("shows exactly one due-repetition action when no stable checkpoint exists", async () => {
+    render(<LearnPageContent userId="due-user" dueRepetition={{ id: "repetition-1", goalSnapshot: "在新条件下确认材料", dueAt: "2026-09-11T08:00:00.000Z" }} />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "在新条件下确认材料" })).toBeInTheDocument());
+    expect(screen.getAllByTestId("learn-primary-action")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "开始到期复现" })).toHaveAttribute("href", "/learn/repetitions/repetition-1");
+  });
+
+  it("keeps a real checkpoint ahead of a due repetition", async () => {
+    window.localStorage.setItem("spanish.training.checkpoint.v1:resume-user", JSON.stringify({ schemaVersion: 1, contentBundleKey: "alpha.core", contentBundleVersion: 1, contentKey: "relationship.como-se-llama", goalKey: "communication.relationship.ask-name", status: "awaiting-output", outputMode: "speech", hintLevel: 0, generationId: 2, transcript: null, evaluation: null, error: null }));
+    render(<LearnPageContent userId="resume-user" dueRepetition={{ id: "repetition-1", goalSnapshot: "到期任务", dueAt: "2026-09-11T08:00:00.000Z" }} />);
+
+    await waitFor(() => expect(screen.getByRole("link", { name: "继续学习" })).toBeInTheDocument());
+    expect(screen.getAllByTestId("learn-primary-action")).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: "开始到期复现" })).not.toBeInTheDocument();
+  });
 });

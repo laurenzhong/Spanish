@@ -11,6 +11,8 @@ export type PersistedScenarioSession = Readonly<{
   clientAttemptId: string;
   personalScenarioId: string | null;
   scenarioId: string | null;
+  scenarioKey: string | null;
+  scenarioTitle: string | null;
   primaryModality: "speech" | "typing";
   contentVersion: number;
   status: string;
@@ -22,6 +24,19 @@ export type PersistedScenarioSession = Readonly<{
   temporaryCharacter: TemporaryCharacterSnapshot;
   reviewStatus: "not-requested" | "pending" | "ready" | "unavailable";
   completionIdempotencyKey: string | null;
+  completedAt: Date | null;
+}>;
+
+export type ScenarioHistoryItem = Readonly<{
+  sessionId: string;
+  scenarioKey: string | null;
+  title: string;
+  communicationGoal: string;
+  temporaryCharacterName: string;
+  primaryModality: "speech" | "typing";
+  reviewStatus: PersistedScenarioSession["reviewStatus"];
+  completedAt: Date;
+  userTurnCount: number;
 }>;
 
 export type CreateScenarioSessionInput = Readonly<{
@@ -72,8 +87,13 @@ export type SaveScenarioTurnReviewInput = Readonly<{
 export interface ScenarioPracticeRepository {
   createSession(input: CreateScenarioSessionInput): Promise<PersistedScenarioSession>;
   getSession(userId: string, sessionId: string): Promise<PersistedScenarioSession | null>;
+  getTurn(userId: string, sessionId: string, turnId: string): Promise<ScenarioTurn | null>;
   listTurns(userId: string, sessionId: string): Promise<readonly ScenarioTurn[]>;
   listTurnReviews(userId: string, sessionId: string): Promise<readonly ScenarioTurnReview[]>;
+  listHistory(userId: string, limit: number, before?: Date): Promise<readonly ScenarioHistoryItem[]>;
+  listRepetitionItems(userId: string, sourceSessionId: string): Promise<readonly ScenarioRepetitionItem[]>;
+  listDueRepetitionItems(userId: string, dueAt: Date, limit: number): Promise<readonly ScenarioRepetitionItem[]>;
+  getRepetitionItem(userId: string, repetitionId: string): Promise<ScenarioRepetitionItem | null>;
   compareAndSwapState(input: Readonly<{
     userId: string;
     sessionId: string;
@@ -100,6 +120,11 @@ export interface ScenarioPracticeRepository {
   }>): Promise<ScenarioTurn>;
   saveTurnReview(input: SaveScenarioTurnReviewInput): Promise<ScenarioTurnReview>;
   createRepetitionItems(items: readonly ScenarioRepetitionItem[]): Promise<number>;
+  completeRepetitionItem(userId: string, repetitionId: string, input: Readonly<{
+    completionKey: string;
+    completedAt: Date;
+    result: Exclude<ScenarioRepetitionItem["result"], null | "technical-failure">;
+  }>): Promise<ScenarioRepetitionItem>;
   completeSession(input: Readonly<{
     userId: string;
     sessionId: string;

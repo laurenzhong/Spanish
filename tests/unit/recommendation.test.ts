@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getNextAction,
+  getLearningPrimaryAction,
   rankRecommendationCandidates,
   type RecommendationCandidate,
   type RecommendationContext,
@@ -134,6 +135,22 @@ describe("getNextAction", () => {
       candidateId: "practice.basics",
       isFallback: true,
       inputMode: "typing",
+    });
+  });
+});
+
+describe("getLearningPrimaryAction", () => {
+  const due = { id: "repetition-1", goalSnapshot: "在新条件下确认材料", dueAt: "2026-09-11T08:00:00.000Z" };
+
+  it("keeps a stable breakpoint ahead of a due repetition", () => {
+    expect(getLearningPrimaryAction({ hasStableBreakpoint: true, dueRepetition: due })).toMatchObject({ kind: "resume", label: "继续学习", href: "/learn/practice" });
+  });
+
+  it("selects a due repetition when no stable breakpoint exists", () => {
+    expect(getLearningPrimaryAction({ hasStableBreakpoint: false, dueRepetition: due })).toEqual({
+      kind: "due-repetition", label: "开始到期复现", title: "在新条件下确认材料",
+      reason: "这项场景已经到期；现在换一个条件复现，能验证是否真正迁移。",
+      href: "/learn/repetitions/repetition-1",
     });
   });
 });

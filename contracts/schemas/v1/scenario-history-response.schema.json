@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sueno.local/schemas/v1/scenario-history-response.schema.json",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sessionId", "scenarioKey", "title", "communicationGoal", "temporaryCharacterName", "primaryModality", "reviewStatus", "completedAt", "userTurnCount"],
+        "properties": {
+          "sessionId": { "type": "string", "format": "uuid" },
+          "scenarioKey": { "type": ["string", "null"] },
+          "title": { "type": "string", "minLength": 1 },
+          "communicationGoal": { "type": "string", "minLength": 1 },
+          "temporaryCharacterName": { "type": "string", "minLength": 1 },
+          "primaryModality": { "enum": ["speech", "typing"] },
+          "reviewStatus": { "enum": ["not-requested", "pending", "ready", "unavailable"] },
+          "completedAt": { "type": "string", "format": "date-time" },
+          "userTurnCount": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
