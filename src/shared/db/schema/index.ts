@@ -6,3 +6,4 @@ export * from "./infrastructure";
 export * from "./training";
 export * from "./users";
 export * from "./reading";
+export * from "./scenario-practice";
