@@ -6,7 +6,7 @@
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
 - 总体状态：ALPHA-033 继续进行；`SCN-001` 与 `SCN-002` 已合并到 `main`，下一项为 `SCN-003` 场景与表达库；阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：`SCN-002` 三个基础场景仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；不提前实现 SCN-003 的搜索、分类或私人生成；全量 E2E 的 14 条既有产品壳层/移动交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+- 当前门禁：`SCN-002` 三个基础场景仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；`SCN-003` 实现尚未开始，须遵循已批准的场景建议设计且不得提前承担 SCN-004 的首页推荐职责；全量 E2E 的 14 条既有产品壳层/移动交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -20,6 +20,19 @@
 - 验证：逐节产品、页面、技术方案及书面规格已由产品本人确认；实施计划的本地 Markdown 链接全部可解析，无占位符，`git diff --check` 通过。文档任务未运行代码测试。
 - 限制：本条只确认设计与实施计划，尚未交付场景业务代码、数据库或部署；单账号邮箱 allowlist 仍需独立认证任务实现。
 - 下一步：`SCN-001` 已在 `codex/scn-001-scenario-foundation` 按测试先行开始实施。
+
+### 2026-09-11：SCN-003 Explore 场景建议与随机选择设计
+
+- 状态：`done`
+- 负责人：Codex / 产品本人
+- 目标分支：`main`（设计基线；功能实现仍使用 `codex/scn-003-scenario-library`）
+- 设计 Commit：`f894d71`
+- 范围：为“不知道搜索什么”的状态增加“适合我的 / 探索新场景 / 随机来一个”三个明确入口；三种模式共用经过发布状态、所有权、可用性和难度过滤的候选池，先展示可解释场景卡，再由用户开始或换一个；现有场景不足时才提示确认生成私人场景。
+- 边界：默认选择不调用 LLM、不产生学习证据、不使用低置信度转写、技术失败、学习时长、完整私密对话或长期角色记忆；本能力属于 SCN-003 Explore 发现辅助，不改变首页唯一主动作，也不提前实现 SCN-004 的跨任务推荐。
+- 文档：[`Explore 场景建议与随机选择设计`](docs/superpowers/specs/2026-09-11-explore-scenario-suggestions-design.md)，并同步上位设计及两份实施计划中的 SCN-003 范围、接口建议与测试验收。
+- 验证：六部分产品方案均由产品本人逐节确认；相关 Markdown 链接检查和 `git diff --check` 通过。文档任务未运行代码测试。
+- 限制：本条只交付设计与计划更新，未修改页面、API、数据库或 Provider；候选排序质量仍需在 SCN-003 实现后用固定样本和人工体验验证。
+- 下一步：产品本人审核本次落库文档；确认后在 `codex/scn-003-scenario-library` 按测试先行实施 SCN-003，不混入 SCN-004。
 
 ### SCN-001：场景领域与持久化基础
 
@@ -1494,7 +1507,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
 | ALPHA-033 | in_progress | `fix/login-redirect-after-otp` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
-| SCN-002 | in_progress | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
+| SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
+| SCN-003 | ready | `codex/scn-003-scenario-library` | 待分配 | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
 | 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -1503,8 +1517,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | SCN-002 | 通用多场景纵向闭环（进行中） | SCN-001 已完成并合并 |
-| 2 | SCN-003 | 场景与表达库 | SCN-001、SCN-002 的 UI 边界稳定 |
+| 1 | SCN-003 | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 已完成且设计已批准 |
+| 2 | SCN-004 | 历史、复盘与间隔复现 | SCN-002、SCN-003 |
 | 3 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
