@@ -88,6 +88,8 @@
 - 负责人：Codex
 - 目标分支：`codex/scn-004-review-repetition`
 - 实现 Commit：`1d574b8`
+- 分支状态同步 Commit：`f8f7e9f`
+- 合并 Commit：`6e65c7f`
 - 前置依赖：SCN-001 至 SCN-003 已完成；Web/PWA 场景规格和逐文件计划已由产品本人批准
 - 范围：完成账号权威的场景历史、逐轮完整复盘、原句错误与自然替代、“重新说”新尝试、当天/1/3/7 天换条件复现，以及学习页“稳定断点 → 到期复现 → 新任务”的唯一主动作编排。
 - 修改：场景完成事务现在冻结会话、为缺失反馈创建中性 pending review，并幂等创建 0/1/3/7 天复现；新增历史、完整复盘、到期列表/详情/完成 application、repository、Route 和响应式页面；重练由服务端验证原 session/turn 所有权且创建新会话，不覆盖原轮次或 review；可信评估先建立真实 `practice_attempts` 再追加 evidence，文字模式仍由既有领域规则过滤口语专属技能，低置信度和技术失败不写负面证据；同步扩展 v1 OpenAPI/JSON Schema。
