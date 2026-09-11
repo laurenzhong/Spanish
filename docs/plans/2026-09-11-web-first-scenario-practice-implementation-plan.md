@@ -1,7 +1,7 @@
 # Web/PWA 场景学习闭环实施计划
 
 - 日期：2026-09-11
-- 状态：待产品本人复核
+- 状态：产品本人已批准；`SCN-001` 已完成，待合并后进入 `SCN-002`
 - 上层任务：`ALPHA-033`
 - 设计依据：[Web 优先的个人学习产品与场景实战设计](../superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
 - 架构依据：[个人 Alpha Web/PWA 架构边界](../architecture.md) 与 [ADR-0002](../adr/0002-web-pwa-first-personal-alpha.md)

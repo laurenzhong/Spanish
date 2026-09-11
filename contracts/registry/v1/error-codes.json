@@ -8,6 +8,12 @@
   { "code": "PROTOCOL_VERSION_UNSUPPORTED", "defaultRetryable": false },
   { "code": "PROVIDER_TIMEOUT", "defaultRetryable": true },
   { "code": "PROVIDER_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "SCENARIO_SESSION_NOT_FOUND", "defaultRetryable": false },
+  { "code": "SCENARIO_SESSION_CONFLICT", "defaultRetryable": false },
+  { "code": "SCENARIO_TURN_CONFLICT", "defaultRetryable": false },
+  { "code": "SCENARIO_REPLY_INCOMPLETE", "defaultRetryable": true },
+  { "code": "SCENARIO_REVIEW_PENDING", "defaultRetryable": true },
+  { "code": "PROVIDER_NOT_CONFIGURED", "defaultRetryable": false },
   { "code": "EXPLORE_DASHBOARD_UNAVAILABLE", "defaultRetryable": true },
   { "code": "EXPLORE_STATE_UNAVAILABLE", "defaultRetryable": true },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }

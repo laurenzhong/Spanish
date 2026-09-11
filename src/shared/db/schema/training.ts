@@ -54,6 +54,7 @@ export const practiceSessions = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
+    uniqueIndex("practice_sessions_id_user_uidx").on(table.id, table.userId),
     index("practice_sessions_user_started_idx").on(
       table.userId,
       table.startedAt,

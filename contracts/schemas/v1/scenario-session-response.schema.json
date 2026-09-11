@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/scenario-session-response.schema.json",
+  "title": "Scenario practice session response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionId", "status", "revision", "hintLevel", "temporaryCharacter"],
+      "properties": {
+        "sessionId": { "type": "string", "format": "uuid" },
+        "status": {
+          "enum": [
+            "preparing",
+            "awaiting-expression",
+            "recording",
+            "transcribing",
+            "awaiting-transcript-confirmation",
+            "submitting-user-turn",
+            "awaiting-roleplay-reply",
+            "paused",
+            "recoverable-error",
+            "completed",
+            "review-pending",
+            "review-ready"
+          ]
+        },
+        "revision": { "type": "integer", "minimum": 1 },
+        "hintLevel": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "temporaryCharacter": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["displayName", "role", "locale"],
+              "properties": {
+                "displayName": { "type": "string", "minLength": 1 },
+                "role": { "type": "string", "minLength": 1 },
+                "locale": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

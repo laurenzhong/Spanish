@@ -12,6 +12,69 @@
     }
   ],
   "paths": {
+    "/scenario-practice/sessions": {
+      "post": {
+        "summary": "Create an idempotent private scenario practice session",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-session-create-request.schema.json" } } } },
+        "responses": {
+          "201": { "description": "Scenario session created or restored", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-session-response.schema.json" } } } },
+          "400": { "description": "Invalid scenario session request", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Scenario session conflict", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Scenario provider is not configured", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      },
+      "get": {
+        "summary": "List resumable scenario practice sessions owned by the user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Private scenario session list" },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/scenario-practice/sessions/{sessionId}": {
+      "get": {
+        "summary": "Restore one stable scenario practice checkpoint",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Owned scenario session", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-session-response.schema.json" } } } },
+          "404": { "description": "Scenario session not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/scenario-practice/sessions/{sessionId}/turns": {
+      "post": {
+        "summary": "Persist a complete learner turn before requesting a temporary-character reply",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-turn-submit-request.schema.json" } } } },
+        "responses": {
+          "201": { "description": "Completed user turn persisted" },
+          "404": { "description": "Scenario session not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Revision or turn conflict", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/scenario-practice/sessions/{sessionId}/complete": {
+      "post": {
+        "summary": "Freeze the session and start an idempotent review/repetition plan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }
+        ],
+        "responses": {
+          "202": { "description": "Session frozen; review may still be pending", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-session-response.schema.json" } } } },
+          "409": { "description": "Session revision conflict", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/explore/dashboard": {
       "get": {
         "summary": "Read the authenticated user's Explore dashboard",

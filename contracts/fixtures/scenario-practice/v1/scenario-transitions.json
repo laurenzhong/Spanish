@@ -1,0 +1,26 @@
+{
+  "protocolVersion": "v1",
+  "cases": [
+    {
+      "name": "prepare a temporary restaurant character",
+      "from": "preparing",
+      "event": "scenario-prepared",
+      "to": "awaiting-expression",
+      "effects": ["persistCheckpoint"]
+    },
+    {
+      "name": "persist a confirmed typed turn before roleplay",
+      "from": "awaiting-expression",
+      "event": "submit-typing",
+      "to": "submitting-user-turn",
+      "effects": ["persistUserTurn"]
+    },
+    {
+      "name": "complete roleplay only after done",
+      "from": "awaiting-roleplay-reply",
+      "event": "roleplay-done",
+      "to": "awaiting-expression",
+      "effects": ["persistCompletedRoleplayTurn", "persistCheckpoint"]
+    }
+  ]
+}
