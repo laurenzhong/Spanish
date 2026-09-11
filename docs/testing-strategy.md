@@ -175,6 +175,10 @@ Playwright 覆盖桌面 Chromium、iPhone 视口和必要的 WebKit 行为；真
 | Explore 建议只从已发布/本人私人且可开始的场景选择 | explore 领域单元 + Route + 所有权数据库集成 |
 | 场景建议不使用学习时长、低置信度转写或技术失败 | explore 领域单元 + 固定上下文样本 |
 | 过期场景建议响应不能覆盖用户最新选择 | Explore 组件竞态测试 |
+| 收藏表达不能引用其他用户的阅读选区或复盘 | application + Route + RLS/所有权数据库集成 |
+| 私人场景生成重试不重复写入，同键异输入拒绝 | application 幂等单元 + 数据库唯一约束 |
+| Provider 失败、取消、非法 Schema 或丢失选中表达时不保存半成品 | scenario-generation 契约 + application 单元 |
+| 私人场景只能由拥有者读取、开始、归档和进入建议候选 | Route + repository + RLS/所有权数据库集成 |
 
 ## 5. 训练状态机测试
 

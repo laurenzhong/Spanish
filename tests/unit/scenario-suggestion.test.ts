@@ -150,4 +150,15 @@ describe("scenario suggestion strategy", () => {
     expect(noProfile.reasons[0]).toMatchObject({ code: "safe-start" });
     expect(empty).toMatchObject({ scenario: null, eligibleCount: 0, limitReached: false });
   });
+
+  it("accepts an owned ready private scenario and explains its source", () => {
+    const result = suggestScenario({
+      mode: "best_fit",
+      candidates: [candidate("personal.10000000-0000-4000-8000-000000000001", { sourceKind: "personal", status: "personal-ready" })],
+      context: baseContext,
+      excludedScenarioIds: [],
+    });
+    expect(result.scenario?.sourceKind).toBe("personal");
+    expect(result.reasons.map((reason) => reason.code)).toContain("personal-scenario");
+  });
 });

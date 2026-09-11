@@ -94,6 +94,8 @@ describe("scenario practice contract", () => {
     };
     expect(openApi.paths).toHaveProperty("/scenario-practice/sessions");
     expect(openApi.paths).toHaveProperty("/scenario-practice/sessions/{sessionId}/turns");
+    expect(openApi.paths).toHaveProperty("/expressions/saved");
+    expect(openApi.paths).toHaveProperty("/scenarios/generate");
 
     const validator = new Ajv2020({ allErrors: true, strict: true });
     addFormats(validator);
@@ -101,6 +103,10 @@ describe("scenario practice contract", () => {
       "scenario-session-create-request.schema.json",
       "scenario-session-response.schema.json",
       "scenario-turn-submit-request.schema.json",
+      "saved-expression-request.schema.json",
+      "saved-expression-list-response.schema.json",
+      "personal-scenario-generation-request.schema.json",
+      "personal-scenario-generation-response.schema.json",
     ]) {
       const filePath = path.join(root, "contracts", "schemas", "v1", schemaName);
       expect(fs.existsSync(filePath)).toBe(true);

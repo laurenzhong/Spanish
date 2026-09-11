@@ -7,5 +7,5 @@ export function scenarioData<T>(data: T, init?: ResponseInit) {
 }
 
 export function scenarioError(request: Request, code: ApiErrorCode, message: string, status: number, retryable = false) {
-  return NextResponse.json({ apiVersion: "v1", error: { code, message, retryable, requestId: request.headers.get("x-request-id") ?? crypto.randomUUID() } }, { status });
+  return NextResponse.json({ apiVersion: "v1", error: { code, message, retryable, requestId: request.headers.get("x-request-id") ?? crypto.randomUUID() } }, { status, headers: { "cache-control": "private, no-store" } });
 }

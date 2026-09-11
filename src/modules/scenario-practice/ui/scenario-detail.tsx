@@ -1,4 +1,6 @@
 import type { ScenarioPracticeDetail as ScenarioDetailDto } from "../content";
+import { SaveExpressionButton } from "./save-expression-button";
+import { DeletePersonalScenarioButton } from "./delete-personal-scenario-button";
 
 export function ScenarioDetail({ scenario }: Readonly<{ scenario: ScenarioDetailDto }>) {
   return (
@@ -33,6 +35,7 @@ export function ScenarioDetail({ scenario }: Readonly<{ scenario: ScenarioDetail
               <strong lang="es">{expression.text}</strong>
               <span>{expression.translation}</span>
               <small>{expression.communicativeIntent}</small>
+              {!scenario.stableKey.startsWith("personal.") ? <SaveExpressionButton expressionKey={expression.stableKey} version={scenario.version} /> : null}
             </article>
           ))}
         </div>
@@ -42,6 +45,7 @@ export function ScenarioDetail({ scenario }: Readonly<{ scenario: ScenarioDetail
         <a className="primary-action" href={`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}/practice`}>开始实战 <span aria-hidden="true">→</span></a>
         <span>支持文字或语音；语音转写确认后才会提交</span>
       </div>
+      {scenario.stableKey.startsWith("personal.") ? <DeletePersonalScenarioButton scenarioKey={scenario.stableKey} /> : null}
     </main>
   );
 }

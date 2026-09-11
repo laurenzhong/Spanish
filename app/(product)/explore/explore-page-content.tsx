@@ -6,7 +6,7 @@ import type { ExploreCardDto, ExploreDashboardDto, ExploreGoalDto } from "@/src/
 
 import { ScenarioSuggestionPanel } from "./scenario-suggestion-panel";
 
-type ScenarioEntry = Readonly<{ stableKey: string; title: string; description: string; cefr: string; role: string }>;
+type ScenarioEntry = Readonly<{ stableKey: string; title: string; description: string; cefr: string; role: string; sourceKind?: "public" | "personal" }>;
 type ExplorePageContentProps = Readonly<{ dashboard: ExploreDashboardDto; scenarios?: readonly ScenarioEntry[]; initialQuery?: string; initialPack?: string | null; initialSaved?: boolean }>;
 
 const skillLabels: Record<ExploreCardDto["skills"][number], string> = { listen: "听", read: "读", speak: "说", write: "写" };
@@ -177,7 +177,7 @@ export function ExplorePageContent({ dashboard, scenarios = [], initialQuery = "
             {filteredScenarios.map((scenario, index) => (
               <a href={`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}`} key={scenario.stableKey}>
                 <span className="explore-scenario-card__index">0{index + 1}</span>
-                <div><small>{scenario.cefr} · {scenario.role}</small><h3>{scenario.title}</h3><p>{scenario.description}</p></div>
+                <div><small>{scenario.cefr} · {scenario.role}{scenario.sourceKind === "personal" ? " · 私人" : ""}</small><h3>{scenario.title}</h3><p>{scenario.description}</p></div>
                 <span aria-hidden="true">→</span>
               </a>
             ))}

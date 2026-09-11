@@ -2355,6 +2355,37 @@ body { background: var(--background); }
 .scenario-suggestion__empty button { min-height: 44px; padding: 8px 13px; border: 1px solid var(--border); border-radius: 999px; color: var(--accent); background: var(--surface); cursor: pointer; font: inherit; font-size: 0.75rem; font-weight: 750; }
 .scenario-suggestion__error { margin: 0; color: var(--danger); font-size: 0.78rem; line-height: 1.5; }
 .scenario-suggestion__error button { min-height: 44px; margin-left: 6px; padding: 6px 10px; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; font-weight: 800; text-decoration: underline; }
+.scenario-suggestion__generate { width: fit-content; border-color: var(--accent) !important; border-radius: 8px !important; color: white !important; background: var(--accent) !important; }
+.scenario-expression-save { min-height: 44px; margin-top: 4px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px; color: var(--accent); background: var(--surface-soft); cursor: pointer; font: inherit; font-size: 0.74rem; font-weight: 750; }
+.scenario-expression-save:disabled { cursor: default; opacity: 0.72; }
+.scenario-delete-personal { width: fit-content; min-height: 44px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border)); border-radius: 7px; color: var(--danger); background: var(--surface); cursor: pointer; font: inherit; font-size: 0.75rem; font-weight: 750; }
+.scenario-delete-confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 0.74rem; }
+.scenario-delete-confirm button { min-height: 44px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px; color: var(--foreground); background: var(--surface); cursor: pointer; font: inherit; }
+
+.personal-scenario-generator { display: grid; gap: 16px; padding: 18px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 10px; background: var(--surface-soft); }
+.personal-scenario-generator > p { margin: 0; color: var(--muted); font-size: 0.76rem; line-height: 1.55; }
+.personal-scenario-generator__heading { display: flex; gap: 16px; align-items: start; justify-content: space-between; }
+.personal-scenario-generator__heading > div { display: grid; gap: 3px; }
+.personal-scenario-generator__heading h3, .personal-scenario-generator__heading p { margin: 0; }
+.personal-scenario-generator__heading button { min-width: 44px; min-height: 44px; border: 0; color: var(--muted); background: transparent; cursor: pointer; font: inherit; }
+.personal-scenario-generator__choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.personal-scenario-generator__choices button { display: grid; min-height: 72px; gap: 4px; padding: 11px; border: 1px solid var(--border); border-radius: 8px; color: var(--foreground); background: var(--surface); cursor: pointer; font: inherit; text-align: left; }
+.personal-scenario-generator__choices button.is-selected { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.personal-scenario-generator__choices small { color: var(--muted); font-size: 0.75rem; line-height: 1.4; }
+.personal-scenario-generator__field { display: grid; gap: 7px; color: var(--foreground); font-size: 0.76rem; font-weight: 750; }
+.personal-scenario-generator__field input { min-height: 46px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--foreground); background: var(--surface); font: inherit; font-size: 1rem; }
+.personal-scenario-generator__sources { display: grid; gap: 7px; margin: 0; padding: 0; border: 0; }
+.personal-scenario-generator__sources legend { margin-bottom: 6px; font-size: 0.75rem; font-weight: 800; }
+.personal-scenario-generator__sources label { display: flex; min-height: 52px; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
+.personal-scenario-generator__sources label > span { display: grid; min-width: 0; gap: 3px; }
+.personal-scenario-generator__sources strong { overflow: hidden; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
+.personal-scenario-generator__sources small, .personal-scenario-generator__empty { color: var(--muted); font-size: 0.75rem; }
+.personal-scenario-generator__actions, .personal-scenario-generator__created { display: grid; gap: 8px; justify-items: start; }
+.personal-scenario-generator__actions .primary-action { min-height: 44px; border: 0; cursor: pointer; font: inherit; }
+.personal-scenario-generator__actions .primary-action:disabled { cursor: not-allowed; opacity: 0.5; }
+.personal-scenario-generator__actions span { color: var(--danger); font-size: 0.72rem; }
+.personal-scenario-generator__created { padding: 14px; border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border)); border-radius: 8px; background: var(--success-soft); }
+.personal-scenario-generator__created span { color: var(--muted); font-size: 0.75rem; }
 
 .explore-page .section-heading {
   align-items: center;
@@ -2485,12 +2516,14 @@ body { background: var(--background); }
   .scenario-suggestion__choices { grid-template-columns: 1fr; }
   .scenario-suggestion__result { grid-template-columns: 1fr; }
   .scenario-suggestion__actions { grid-template-columns: 1fr 1fr; }
+  .personal-scenario-generator__choices { grid-template-columns: 1fr 1fr; }
   .explore-goal-row { grid-template-columns: 34px minmax(0, 1fr) 20px; }
   .explore-goal-row__status { display: none; }
   .explore-detail-rail { position: static; }
 }
 
 @media (max-width: 560px) {
+  .personal-scenario-generator__choices { grid-template-columns: 1fr; }
   .explore-resume__item { grid-template-columns: minmax(0, 1fr) 20px; }
   .explore-resume__item strong { grid-column: 1 / -1; grid-row: 2; }
 }

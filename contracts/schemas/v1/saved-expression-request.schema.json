@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/saved-expression-request.schema.json",
+  "title": "Save expression request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["clientSaveId", "source"],
+  "properties": {
+    "clientSaveId": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._-]+$" },
+    "source": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "expressionKey", "version"], "properties": { "sourceType": { "const": "formal-expression" }, "expressionKey": { "type": "string", "minLength": 1, "maxLength": 160 }, "version": { "type": "integer", "minimum": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "highlightId"], "properties": { "sourceType": { "const": "reading-selection" }, "highlightId": { "type": "string", "format": "uuid" } } },
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "reviewId"], "properties": { "sourceType": { "const": "scenario-review" }, "reviewId": { "type": "string", "format": "uuid" } } },
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "text"], "properties": { "sourceType": { "const": "manual" }, "text": { "type": "string", "minLength": 1, "maxLength": 1000 }, "translation": { "type": "string", "minLength": 1, "maxLength": 1000 } } }
+      ]
+    }
+  }
+}

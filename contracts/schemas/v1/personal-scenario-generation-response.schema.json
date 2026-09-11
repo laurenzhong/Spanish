@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/personal-scenario-generation-response.schema.json",
+  "title": "Personal scenario generation response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": { "type": "object", "additionalProperties": false, "required": ["id", "title", "cefr", "sourceType", "route", "createdAt"], "properties": { "id": { "type": "string", "format": "uuid" }, "title": { "type": "string", "minLength": 1 }, "cefr": { "enum": ["A1", "A2", "B1", "B2"] }, "sourceType": { "enum": ["topic", "reading", "saved-expression", "recent-error"] }, "route": { "type": "string", "minLength": 1 }, "createdAt": { "type": "string", "format": "date-time" } } }
+  }
+}

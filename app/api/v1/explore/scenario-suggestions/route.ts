@@ -13,6 +13,7 @@ import {
   emptyScenarioSuggestionContextRepository,
 } from "@/src/modules/explore/repositories";
 import { scenarioSuggestionRequestSchema } from "@/src/modules/explore/schemas";
+import { createDrizzleScenarioLibraryRepository } from "@/src/modules/scenario-practice";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
@@ -27,7 +28,7 @@ type ScenarioSuggestionRouteDependencies = Readonly<{
 function createDefaultDependencies(): ScenarioSuggestionRouteDependencies {
   const databaseAvailable = Boolean(process.env.DATABASE_URL);
   return {
-    candidateRepository: new CatalogScenarioSuggestionRepository(),
+    candidateRepository: new CatalogScenarioSuggestionRepository(databaseAvailable ? createDrizzleScenarioLibraryRepository(getDatabase()) : undefined),
     contextRepository: databaseAvailable
       ? createDrizzleScenarioSuggestionContextRepository(getDatabase())
       : emptyScenarioSuggestionContextRepository,

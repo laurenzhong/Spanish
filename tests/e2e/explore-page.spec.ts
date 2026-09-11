@@ -57,6 +57,37 @@ test("suggests and swaps an explainable scenario without requiring a search quer
   expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client + 1);
 });
 
+test("offers explicit source choices and generates a private scenario only after confirmation", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  let generationRequest: { header: string | undefined; body: { source?: { sourceType?: string; topic?: string } } } | null = null;
+  await page.route("**/api/v1/explore/scenario-suggestions", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { requestId: "request-12345678", suggestionSessionId: "session-12345678", scenario: null, reasons: [], eligibleCount: 0, canSwap: false, limitReached: false, fallback: { canGeneratePersonalScenario: true, topicChips: ["日常生活", "学习办事", "社交沟通"] } } }) }));
+  await page.route("**/api/v1/scenarios", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { scenarios: [], generationSources: { savedExpressions: [{ id: "10000000-0000-4000-8000-000000000001", label: "Quisiera pedir ayuda.", detail: "我想请求帮助。" }], readingHighlights: [], recentErrors: [] }, generationAvailable: true } }) }));
+  await page.route("**/api/v1/scenarios/generate", async (route) => {
+    generationRequest = { header: route.request().headers()["idempotency-key"], body: route.request().postDataJSON() as { source?: { sourceType?: string; topic?: string } } };
+    await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { id: "20000000-0000-4000-8000-000000000001", title: "En la farmacia", cefr: "A2", sourceType: "topic", route: "/explore/scenarios/personal.20000000-0000-4000-8000-000000000001", createdAt: "2026-09-11T00:00:00.000Z" } }) });
+  });
+
+  await page.goto("/explore");
+  await page.getByRole("button", { name: /随机来一个/ }).click();
+  const generatorTrigger = page.getByRole("button", { name: "生成私人场景" });
+  await generatorTrigger.click();
+  await page.getByRole("button", { name: "关闭私人场景生成" }).click();
+  await expect(generatorTrigger).toBeFocused();
+  await generatorTrigger.click();
+  await expect(page.getByRole("radio", { name: /按主题/ })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: /用收藏表达/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /从阅读迁移/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /练近期难点/ })).toBeVisible();
+  await page.getByLabel("练习主题").fill("在药店询问用法");
+  await page.getByRole("button", { name: "确认生成私人场景" }).click();
+  await expect(page.getByText("私人场景已经保存，可以立即开始。")).toBeVisible();
+  await expect(page.getByRole("link", { name: "查看并开始" })).toHaveAttribute("href", "/explore/scenarios/personal.20000000-0000-4000-8000-000000000001");
+  expect(generationRequest).toMatchObject({ header: expect.stringMatching(/^generate-/u), body: { source: { sourceType: "topic", topic: "在药店询问用法" } } });
+  const dimensions = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+  expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client + 1);
+});
+
 test("routes every communication goal to its own learn entry", async ({ page }) => {
   await authenticate(page);
   await page.goto("/explore");

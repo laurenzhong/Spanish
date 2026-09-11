@@ -6,3 +6,5 @@ export * from "./get-session-review";
 export * from "./restore-session";
 export * from "./stream-scenario-reply";
 export * from "./submit-turn";
+export * from "./generate-personal-scenario";
+export * from "./saved-expressions";
