@@ -74,7 +74,11 @@
 - 范围：完成场景与表达搜索、分类、收藏、多来源私人生成，以及“适合我的 / 探索新场景 / 随机来一个”的可解释选择辅助；保持现有内容包为次级材料。
 - 验收：服务端重新校验发布状态、所有权和来源；默认建议不调用 LLM、不产生学习证据；三种策略、换一个去重、无画像/无候选退化、移动端交互及私人生成幂等均有自动化覆盖。
 - 不包含：SCN-004 的历史、到期复现和首页唯一下一动作，长期角色/关系记忆，公共内容自动发布，以及 Flutter 改动。
-- 下一步：按实施计划先补失败测试与 Explore 建议领域策略，再接 API、页面与私人生成路径。
+- 已完成切片 1：Explore 增加“适合我的 / 探索新场景 / 随机来一个”、结果预览与“换一个”；新增纯资格/排序/加权随机策略、用户私有学习投影读取、认证 Route、Zod 与 OpenAPI/JSON Schema 契约、请求取消/过期响应保护、空状态与主题回退。实现 Commit：`b2093b6`。
+- 修改：`src/modules/explore/`、`app/api/v1/explore/scenario-suggestions/`、`app/(product)/explore/`、`app/globals.css`、v1 契约与错误码、Explore/数据库/E2E 测试，以及架构和测试策略文档。
+- 验证：全量 Vitest `133 files / 585 tests`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、`git diff --check` 通过；Explore Playwright 桌面与移动 `14/14` 通过。全量 Playwright `118 passed / 14 failed`，失败集合与既有门禁一致，位于旧 `product-shell` 断言及移动文章选区，新增 Explore 用例在两项目均通过。
+- 限制：生产内容包中的三个公共场景仍是未人工审核的 `draft`，因此建议接口会诚实返回无合格场景，不能绕过发布门禁；本切片尚未把 `personal_scenarios` 转成可开始候选，也未交付收藏表达 Route、私人场景生成 Provider/页面或完整分类筛选。
+- 下一步：继续 SCN-003 切片 2，完成收藏表达与私人场景生成/可开始路径，再把本人私人场景纳入同一建议候选池。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
