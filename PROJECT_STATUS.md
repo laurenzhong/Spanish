@@ -1542,7 +1542,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
 | SCN-004 | done | `codex/scn-004-review-repetition` | Codex | 完整历史、逐轮复盘、重新说和当天/1/3/7 天复现 | SCN-002、SCN-003 |
-| SCN-005 | ready | `codex/scn-005-provider-pwa-hardening` | 待领取 | Provider 设置、切换与 iPhone Safari/PWA 发布门禁 | SCN-001 至 SCN-004 |
+| SCN-005 | in_progress | `codex/scn-005-provider-pwa-hardening` | Codex | Provider 设置、切换与 iPhone Safari/PWA 发布门禁 | SCN-001 至 SCN-004 |
 | 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
