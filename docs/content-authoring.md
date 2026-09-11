@@ -243,6 +243,7 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 - 核心表达和语用说明必须经西班牙母语者审核。
 - 中文解释必须经具备教学视角的人审核。
 - 版权字段未完成不能进入 `published`。
+- Explore 场景与表达库在生产环境只投影 `published` 的正式公共内容；开发或测试中的草稿预览必须有明确标识，不能改变内容审核状态或被描述为已发布。
 - AI 生成变式必须通过 Schema、重复和禁用词检查，再进行人工抽样。
 - 修改已发布内容必须增加版本并记录变更原因。
 

@@ -79,6 +79,7 @@ export type PersonalSuggestionCandidate = Readonly<{
   title: string;
   description: string;
   cefr: "A1" | "A2" | "B1" | "B2";
+  region?: string;
   role: string;
   communicationGoal: string;
   goalKeys: readonly string[];

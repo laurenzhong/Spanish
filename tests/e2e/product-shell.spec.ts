@@ -96,9 +96,9 @@ test("keeps discovery and conversation entry points visible", async ({
   await page.goto("/explore");
 
   await expect(page.getByRole("heading", { name: "探索真实表达" })).toBeVisible();
-  const todayLink = page.locator("header").getByRole("link", { name: "回到今天" });
-  await expect(todayLink).toHaveAttribute("href", "/learn");
-  await todayLink.click();
+  const learnLink = page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "学习" });
+  await expect(learnLink).toHaveAttribute("href", "/learn");
+  await learnLink.click();
   await expect(page).toHaveURL(/\/learn$/);
 
   await page.goto("/chat");
@@ -109,7 +109,9 @@ test("separates communication goals from unpublished content packs", async ({ pa
   await authenticate(page);
   await page.goto("/explore");
 
-  await expect(page.getByRole("heading", { name: "把交流拆成可以练习的动作" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "找到下一次真实沟通" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "沟通目标" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "内容包" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toBeVisible();
   await expect(page.getByText("内容整理中", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /查看咖啡馆里的新朋友详情，内容整理中/ })).toHaveCount(1);

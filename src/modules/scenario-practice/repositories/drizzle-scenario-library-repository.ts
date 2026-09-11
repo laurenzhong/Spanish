@@ -131,7 +131,7 @@ export function createDrizzleScenarioLibraryRepository(database: Database): Scen
       return rows.flatMap((row) => {
         const detail = row.skeleton as unknown as ScenarioPracticeDetail;
         if (!detail.tasks?.length || !detail.expressions?.length || !detail.temporaryCharacter?.displayName) return [];
-        return [{ id: row.id, title: detail.title, description: detail.description, cefr: detail.cefr as "A1" | "A2" | "B1" | "B2", role: detail.temporaryCharacter.role, communicationGoal: detail.tasks[0]!.prompt, goalKeys: detail.tasks.map((task) => task.goalKey), expressionTexts: detail.expressions.flatMap((item) => [item.text, ...item.variants]) }];
+        return [{ id: row.id, title: detail.title, description: detail.description, cefr: detail.cefr as "A1" | "A2" | "B1" | "B2", region: detail.temporaryCharacter.locale, role: detail.temporaryCharacter.role, communicationGoal: detail.tasks[0]!.prompt, goalKeys: detail.tasks.map((task) => task.goalKey), expressionTexts: detail.expressions.flatMap((item) => [item.text, ...item.variants]) }];
       });
     },
   };

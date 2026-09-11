@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ExploreExpressionGenerationSource } from "@/src/modules/explore/domain/explore-library";
 
 type Option = Readonly<{ id: string; label: string; detail: string | null }>;
 type Sources = Readonly<{ savedExpressions: readonly Option[]; readingHighlights: readonly Option[]; recentErrors: readonly Option[] }>;
@@ -15,10 +16,10 @@ const choices: readonly Readonly<{ type: SourceType; label: string; hint: string
 
 function id(prefix: string) { return `${prefix}-${crypto.randomUUID()}`; }
 
-export function PersonalScenarioGenerator({ onClose }: Readonly<{ onClose: () => void }>) {
-  const [sourceType, setSourceType] = useState<SourceType>("topic");
+export function PersonalScenarioGenerator({ onClose, initialSource, initialLabel }: Readonly<{ onClose: () => void; initialSource?: ExploreExpressionGenerationSource; initialLabel?: string }>) {
+  const [sourceType, setSourceType] = useState<SourceType>(initialSource?.sourceType ?? "topic");
   const [topic, setTopic] = useState("");
-  const [sourceId, setSourceId] = useState("");
+  const [sourceId, setSourceId] = useState(initialSource?.sourceId ?? "");
   const [sources, setSources] = useState<Sources>(emptySources);
   const [loadingSources, setLoadingSources] = useState(true);
   const [status, setStatus] = useState<"idle" | "generating" | "error">("idle");
@@ -61,7 +62,7 @@ export function PersonalScenarioGenerator({ onClose }: Readonly<{ onClose: () =>
     <div className="personal-scenario-generator__heading"><div><p className="eyebrow">私人生成</p><h3 id="personal-scenario-generator-title">你想从哪里开始？</h3></div><button type="button" onClick={onClose} aria-label="关闭私人场景生成">关闭</button></div>
     <p>内容只对你可见。生成前不会产生费用；点击确认后才调用生成服务。</p>
     <div className="personal-scenario-generator__choices" role="radiogroup" aria-label="场景生成来源">{choices.map((choice) => <button key={choice.type} type="button" role="radio" aria-checked={sourceType === choice.type} className={sourceType === choice.type ? "is-selected" : ""} onClick={() => selectType(choice.type)}><strong>{choice.label}</strong><small>{choice.hint}</small></button>)}</div>
-    {sourceType === "topic" ? <label className="personal-scenario-generator__field"><span>练习主题</span><input value={topic} maxLength={200} placeholder="例如：在药店说明症状并询问用法" onChange={(event) => { setTopic(event.target.value); idempotencyKey.current = null; }} /></label> : loadingSources ? <p role="status">正在读取你的可用来源…</p> : options.length ? <fieldset className="personal-scenario-generator__sources"><legend>选择一项</legend>{options.map((option) => <label key={option.id}><input type="radio" name="generation-source" value={option.id} checked={sourceId === option.id} onChange={() => { setSourceId(option.id); idempotencyKey.current = null; }} /><span><strong>{option.label}</strong>{option.detail ? <small>{option.detail}</small> : null}</span></label>)}</fieldset> : <p className="personal-scenario-generator__empty" role="status">这种来源暂时没有可用内容。你可以先选择“按主题”，或收藏一条表达后再回来。</p>}
+    {sourceType === "topic" ? <label className="personal-scenario-generator__field"><span>练习主题</span><input value={topic} maxLength={200} placeholder="例如：在药店说明症状并询问用法" onChange={(event) => { setTopic(event.target.value); idempotencyKey.current = null; }} /></label> : initialSource?.sourceType === sourceType && initialSource.sourceId === sourceId ? <div className="personal-scenario-generator__selected-source"><span>已从表达库选择</span><strong lang="es">{initialLabel}</strong></div> : loadingSources ? <p role="status">正在读取你的可用来源…</p> : options.length ? <fieldset className="personal-scenario-generator__sources"><legend>选择一项</legend>{options.map((option) => <label key={option.id}><input type="radio" name="generation-source" value={option.id} checked={sourceId === option.id} onChange={() => { setSourceId(option.id); idempotencyKey.current = null; }} /><span><strong>{option.label}</strong>{option.detail ? <small>{option.detail}</small> : null}</span></label>)}</fieldset> : <p className="personal-scenario-generator__empty" role="status">这种来源暂时没有可用内容。你可以先选择“按主题”，或收藏一条表达后再回来。</p>}
     {created ? <div className="personal-scenario-generator__created" role="status"><strong>{created.title}</strong><span>私人场景已经保存，可以立即开始。</span><a className="primary-action" href={created.route}>查看并开始</a></div> : <div className="personal-scenario-generator__actions"><button type="button" className="primary-action" disabled={!ready || status === "generating"} onClick={() => void generate()}>{status === "generating" ? "正在生成…" : "确认生成私人场景"}</button>{status === "error" ? <span role="alert">生成没有完成，未保存半成品。可以用同一请求安全重试。</span> : null}</div>}
   </section>;
 }

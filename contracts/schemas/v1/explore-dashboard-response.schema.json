@@ -10,7 +10,7 @@
     "data": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["goals", "packs", "resume", "userState"],
+      "required": ["goals", "packs", "resume", "userState", "library"],
       "properties": {
         "goals": {
           "type": "array",
@@ -30,11 +30,83 @@
         },
         "packs": { "$ref": "#/$defs/cards" },
         "resume": { "$ref": "#/$defs/cards" },
-        "userState": { "enum": ["available", "unavailable"] }
+        "userState": { "enum": ["available", "unavailable"] },
+        "library": { "$ref": "#/$defs/library" }
       }
     }
   },
   "$defs": {
+    "library": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scenarios", "expressions", "privateState"],
+      "properties": {
+        "scenarios": { "$ref": "#/$defs/scenarioLibraryCards" },
+        "expressions": { "$ref": "#/$defs/expressionLibraryCards" },
+        "privateState": { "enum": ["available", "unavailable"] }
+      }
+    },
+    "scenarioLibraryCards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stableKey", "title", "description", "cefr", "region", "category", "categoryLabel", "role", "communicationGoal", "expressionTexts", "sourceKind", "route"],
+        "properties": {
+          "stableKey": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "cefr": { "type": "string", "minLength": 2 },
+          "region": { "type": "string", "minLength": 2 },
+          "category": { "type": "string", "minLength": 1 },
+          "categoryLabel": { "type": "string", "minLength": 1 },
+          "role": { "type": "string", "minLength": 1 },
+          "communicationGoal": { "type": "string", "minLength": 1 },
+          "expressionTexts": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "sourceKind": { "enum": ["public", "personal"] },
+          "route": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "expressionLibraryCards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "translation", "intent", "cefr", "region", "category", "categoryLabel", "sourceKind", "saved"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "text": { "type": "string", "minLength": 1 },
+          "translation": { "type": ["string", "null"] },
+          "intent": { "type": ["string", "null"] },
+          "cefr": { "enum": ["A1", "A2", "B1", "B2", "C1", "C2", null] },
+          "region": { "type": ["string", "null"] },
+          "category": { "type": "string", "minLength": 1 },
+          "categoryLabel": { "type": "string", "minLength": 1 },
+          "sourceKind": { "enum": ["formal", "saved", "reading", "recent-error"] },
+          "saved": { "type": "boolean" },
+          "savedExpressionId": { "type": "string", "minLength": 1 },
+          "saveSource": { "$ref": "#/$defs/saveSource" },
+          "generationSource": { "$ref": "#/$defs/generationSource" }
+        }
+      }
+    },
+    "saveSource": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "expressionKey", "version"], "properties": { "sourceType": { "const": "formal-expression" }, "expressionKey": { "type": "string", "minLength": 1 }, "version": { "type": "integer", "minimum": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "highlightId"], "properties": { "sourceType": { "const": "reading-selection" }, "highlightId": { "type": "string", "minLength": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["sourceType", "reviewId"], "properties": { "sourceType": { "const": "scenario-review" }, "reviewId": { "type": "string", "minLength": 1 } } }
+      ]
+    },
+    "generationSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceType", "sourceId"],
+      "properties": {
+        "sourceType": { "enum": ["saved-expression", "reading", "recent-error"] },
+        "sourceId": { "type": "string", "minLength": 1 }
+      }
+    },
     "cards": {
       "type": "array",
       "items": {

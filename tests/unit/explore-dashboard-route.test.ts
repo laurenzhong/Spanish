@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
+
+import Ajv2020 from "ajv/dist/2020.js";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,7 +35,11 @@ describe("explore dashboard route", () => {
     const response = await GET(new NextRequest("http://localhost/api/v1/explore/dashboard", { headers: { "x-request-id": "explore-test-1" } }));
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toMatchObject({ apiVersion: "v1", data: { goals: expect.any(Array), packs: expect.any(Array), userState: "unavailable" } });
+    const payload = await response.json();
+    expect(payload).toMatchObject({ apiVersion: "v1", data: { goals: expect.any(Array), packs: expect.any(Array), userState: "unavailable", library: { scenarios: expect.any(Array), expressions: expect.any(Array), privateState: "unavailable" } } });
+
+    const schema = JSON.parse(fs.readFileSync(path.join(process.cwd(), "contracts/schemas/v1/explore-dashboard-response.schema.json"), "utf8"));
+    const validate = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
+    expect(validate(payload), JSON.stringify(validate.errors)).toBe(true);
   });
 });
-

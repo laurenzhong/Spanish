@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExploreCardDto, ExploreDashboardDto, ExploreGoalDto } from "@/src/modules/explore/domain";
+import type { ExploreLibraryDto, ExploreLibraryFilter } from "@/src/modules/explore/domain/explore-library";
 
+import { ExploreLibraryPanel } from "./explore-library-panel";
 import { ScenarioSuggestionPanel } from "./scenario-suggestion-panel";
 
-type ScenarioEntry = Readonly<{ stableKey: string; title: string; description: string; cefr: string; role: string; sourceKind?: "public" | "personal" }>;
-type ExplorePageContentProps = Readonly<{ dashboard: ExploreDashboardDto; scenarios?: readonly ScenarioEntry[]; initialQuery?: string; initialPack?: string | null; initialSaved?: boolean }>;
+const emptyLibrary: ExploreLibraryDto = { scenarios: [], expressions: [], privateState: "unavailable" };
+type ExplorePageContentProps = Readonly<{ dashboard: ExploreDashboardDto; library?: ExploreLibraryDto; initialQuery?: string; initialPack?: string | null; initialSaved?: boolean; initialFilter?: ExploreLibraryFilter }>;
 
 const skillLabels: Record<ExploreCardDto["skills"][number], string> = { listen: "听", read: "读", speak: "说", write: "写" };
 const statusLabels: Record<ExploreCardDto["status"], string> = { published: "可开始", in_progress: "继续中", draft: "内容整理中", unavailable: "暂不可用" };
@@ -61,11 +63,12 @@ function DetailRail({ card, saved, onClose, onToggleSaved }: Readonly<{ card: Ex
   return <aside className="explore-detail-rail" data-testid="explore-detail-rail" aria-label="内容详情"><div className="explore-detail-rail__header"><h2>{card.title}</h2><div className="explore-detail-rail__header-actions"><button className={`icon-button${saved ? " is-saved" : ""}`} type="button" aria-label={saved ? `取消保存${card.title}` : `保存${card.title}`} aria-pressed={saved} onClick={() => onToggleSaved(card)}><BookmarkIcon filled={saved} /></button><button className="icon-button" type="button" aria-label="关闭内容详情" onClick={onClose}><CloseIcon /></button></div></div><p className="explore-detail-rail__summary">{card.summary}</p><dl className="explore-detail-rail__facts"><div><dt>水平</dt><dd>{card.level}</dd></div><div><dt>时长</dt><dd>{card.durationLabel}</dd></div><div><dt>版本</dt><dd>{card.version}</dd></div><div><dt>技能</dt><dd>{card.skills.map((skill) => skillLabels[skill]).join(" · ") || "—"}</dd></div>{card.source ? <div><dt>来源</dt><dd>{card.source.title}</dd></div> : null}</dl><div className="explore-detail-rail__status" role="status"><span className={`status-note${card.status === "published" || card.status === "in_progress" ? " status-note--open" : ""}`}>{statusLabels[card.status]}</span>{progress ? <p>{progress}</p> : null}</div>{card.route ? <a className="primary-action explore-detail-rail__action" href={card.route}><span>{actionLabel}</span><span aria-hidden="true">→</span></a> : <p className="explore-detail-rail__blocked">{card.status === "draft" ? "这组内容完成审核后会出现在这里。" : "这组内容暂时无法读取，请稍后重试。"}</p>}</aside>;
 }
 
-export function ExplorePageContent({ dashboard, scenarios = [], initialQuery = "", initialPack = null, initialSaved = false, allowDraftPreview = false }: ExplorePageContentProps & { allowDraftPreview?: boolean }) {
+export function ExplorePageContent({ dashboard, library = emptyLibrary, initialQuery = "", initialPack = null, initialSaved = false, initialFilter = "all", allowDraftPreview = false }: ExplorePageContentProps & { allowDraftPreview?: boolean }) {
   const [query, setQuery] = useState(initialQuery);
   const [selectedKey, setSelectedKey] = useState<string | null>(initialPack);
   const [railOpen, setRailOpen] = useState(Boolean(initialPack));
-  const [filter, setFilter] = useState<"all" | "saved" | "available" | "draft">(initialSaved ? "saved" : "all");
+  const [packFilter, setPackFilter] = useState<"all" | "saved" | "available" | "draft">(initialSaved ? "saved" : "all");
+  const [libraryFilter, setLibraryFilter] = useState<ExploreLibraryFilter>(initialFilter);
   const [savedByKey, setSavedByKey] = useState<Record<string, boolean>>(() => {
     const initial = Object.fromEntries(dashboard.packs.flatMap((card) => [[stateKey(card), Boolean(card.saved)], [card.stableKey, Boolean(card.saved)]]));
     if (typeof window === "undefined") return initial;
@@ -79,28 +82,28 @@ export function ExplorePageContent({ dashboard, scenarios = [], initialQuery = "
   const saveRequestId = useRef(0);
 
   const filteredGoals = useMemo(() => dashboard.goals.filter((goal) => matches(`${goal.title} ${goal.description} ${goal.key}`, query.trim())), [dashboard.goals, query]);
-  const filteredScenarios = useMemo(() => scenarios.filter((scenario) => matches(`${scenario.title} ${scenario.description} ${scenario.cefr} ${scenario.role}`, query.trim())), [query, scenarios]);
   const filteredPacks = useMemo(() => dashboard.packs.filter((card) => {
     const textMatches = matches(`${card.title} ${card.summary} ${card.level} ${card.skills.join(" ")} ${card.status}`, query.trim());
-    const filterMatches = filter === "all" || (filter === "saved" ? Boolean(savedByKey[stateKey(card)]) : filter === "available" ? card.status === "published" || card.status === "in_progress" : card.status === "draft");
+    const filterMatches = packFilter === "all" || (packFilter === "saved" ? Boolean(savedByKey[stateKey(card)]) : packFilter === "available" ? card.status === "published" || card.status === "in_progress" : card.status === "draft");
     return textMatches && filterMatches;
-  }), [dashboard.packs, filter, query, savedByKey]);
+  }), [dashboard.packs, packFilter, query, savedByKey]);
   const selectedCard = dashboard.packs.find((card) => card.stableKey === selectedKey) ?? null;
 
-  function updateUrl(nextQuery: string, nextKey: string | null, nextFilter = filter) {
+  function updateUrl(nextQuery: string, nextKey: string | null, nextLibraryFilter = libraryFilter, nextPackFilter = packFilter) {
     const params = new URLSearchParams(window.location.search);
     if (nextQuery) params.set("q", nextQuery); else params.delete("q");
     if (nextKey) params.set("pack", nextKey); else params.delete("pack");
-    if (nextFilter === "saved") params.set("saved", "1"); else params.delete("saved");
+    if (nextLibraryFilter === "all") params.delete("filter"); else params.set("filter", nextLibraryFilter);
+    if (nextPackFilter === "saved") params.set("saved", "1"); else params.delete("saved");
     const search = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${search ? `?${search}` : ""}`);
   }
 
   useEffect(() => {
-    updateUrl(query, selectedKey, filter);
+    updateUrl(query, selectedKey, libraryFilter, packFilter);
     // updateUrl is an intentionally local URL adapter; state values trigger this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, query, selectedKey]);
+  }, [libraryFilter, packFilter, query, selectedKey]);
   function selectCard(card: ExploreCardDto) { setSelectedKey(card.stableKey); setRailOpen(true); updateUrl(query, card.stableKey); }
   function closeRail() {
     const previousKey = selectedKey;
@@ -168,22 +171,9 @@ export function ExplorePageContent({ dashboard, scenarios = [], initialQuery = "
         }}
       />
 
-      {saveNotice ? <p className="explore-save-notice" role="status">{saveNotice}</p> : null}
+      <ExploreLibraryPanel library={library} query={query} filter={libraryFilter} onFilterChange={(nextFilter) => { setLibraryFilter(nextFilter); updateUrl(query, selectedKey, nextFilter); }} onClear={() => { setQuery(""); setLibraryFilter("all"); updateUrl("", selectedKey, "all"); }} />
 
-      {filteredScenarios.length > 0 ? (
-        <section className="explore-scenarios" aria-labelledby="explore-scenarios-title">
-          <div className="section-heading"><div><p className="eyebrow">真实沟通演练</p><h2 id="explore-scenarios-title">基础场景</h2></div><span>同一工作台 · 文字或语音</span></div>
-          <div className="explore-scenario-grid">
-            {filteredScenarios.map((scenario, index) => (
-              <a href={`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}`} key={scenario.stableKey}>
-                <span className="explore-scenario-card__index">0{index + 1}</span>
-                <div><small>{scenario.cefr} · {scenario.role}{scenario.sourceKind === "personal" ? " · 私人" : ""}</small><h3>{scenario.title}</h3><p>{scenario.description}</p></div>
-                <span aria-hidden="true">→</span>
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      {saveNotice ? <p className="explore-save-notice" role="status">{saveNotice}</p> : null}
 
       {dashboard.resume.length > 0 ? (
         <section className="explore-resume" aria-labelledby="explore-resume-title">
@@ -227,13 +217,14 @@ export function ExplorePageContent({ dashboard, scenarios = [], initialQuery = "
             <div className="explore-filter-chips" aria-label="内容筛选">
               {([["all", "全部"], ["saved", "已保存"], ["available", "可开始"], ["draft", "整理中"]] as const).map(([value, label]) => (
                 <button
-                  className={filter === value ? "is-selected" : ""}
+                  className={packFilter === value ? "is-selected" : ""}
                   type="button"
-                  aria-pressed={filter === value}
+                  aria-label={`${label}内容包`}
+                  aria-pressed={packFilter === value}
                   key={value}
                   onClick={() => {
-                    setFilter(value);
-                    updateUrl(query, selectedKey);
+                    setPackFilter(value);
+                    updateUrl(query, selectedKey, libraryFilter, value);
                   }}
                 >
                   {label}

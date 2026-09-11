@@ -151,6 +151,8 @@ UI / Route Handler → Application → Domain
 
 该策略只解决用户进入 Explore 后“不知道搜什么”的发现问题。首页稳定断点、到期复现和跨任务唯一下一动作仍只归 `recommendation`。接口不返回候选池、内部权重、原始错误句或完整私人来源，响应使用 `private, no-store`。详细交互、隐私和测试边界见 [Explore 场景建议与随机选择设计](superpowers/specs/2026-09-11-explore-scenario-suggestions-design.md)。
 
+`GET /api/v1/explore/dashboard` 的 `library` DTO 合并可开始的公共/本人私人场景、版本化正式表达、本人收藏、本人阅读选区和可信近期错误。服务端 repository 负责发布门禁、所有权和来源去重；任一私人来源读取失败时保守退化为公共目录，并明确返回 `privateState=unavailable`。浏览器只在这份授权 DTO 上执行纯搜索和筛选，不直接查询数据库，也不能扩大可见范围。搜索使用 NFKD 归一化，忽略大小写、标点、西语重音和重复空格，多词按 AND 匹配；`q` 与 `filter` 写入 URL，以便刷新、前进后退和深链恢复。搜索、筛选和收藏都不产生学习证据。
+
 ### 6.0c 收藏表达与私人场景生成
 
 `scenario-practice` 通过 `GET/POST /api/v1/expressions/saved` 和归档接口拥有私人表达收藏。客户端只能提交版本化正式表达引用、本人阅读选区 ID、本人场景复盘 ID，或明确标记的手工文本；application 重新解析来源并以 `clientSaveId` 幂等保存，收藏行为不写学习证据。正式公共表达在生产环境仍必须为 `published`，开发环境的草稿预览不会改变公开发布状态。
