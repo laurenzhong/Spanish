@@ -54,6 +54,7 @@ app/
 src/
   modules/
     content/              # 内容图谱、导入、发布与文章查询
+    explore/              # 场景/表达发现、搜索与轻量选择策略
     scenario-practice/    # 私人场景、临时人物、实战、复盘与复现
     training/             # 训练计划、状态机、断点
     evidence/             # 评估结果、证据强度、事件写入
@@ -123,6 +124,7 @@ UI / Route Handler → Application → Domain
 |---|---|---|
 | content | 内容版本、审核、图谱和发布 | expressions、tags、scenarios、content_packs |
 | reading | 阅读断点、用户标注、保存和外部来源元数据 | user_reading_progress、user_article_saves、user_article_highlights、user_saved_article_sources |
+| explore | 场景与表达搜索、来源筛选、资格过滤和可解释的场景选择 | 默认不拥有持久表，通过只读端口读取场景目录和用户投影 |
 | scenario-practice | 私人表达收藏、私人场景、临时人物轮次、条件变化、复盘和复现 | user_saved_expressions、personal_scenarios、scenario_session_states、scenario_turns、scenario_turn_reviews、scenario_repetition_items |
 | training | 当前训练计划、状态机和断点 | practice_sessions、practice_attempts、learning_breakpoints |
 | evidence | 尝试评估和证据强度 | evidence_events |
@@ -142,6 +144,12 @@ UI / Route Handler → Application → Domain
 临时人物只保存本次会话的人物快照，不创建 `characters`、`conversations` 或关系记忆，也不读取长期角色的关系阶段和私密记忆。只有用户完整表达可以进入评估；自然替代表达可以完成沟通任务。Provider 输出必须经过 Schema 和服务端规则后才能形成证据，技术失败、低置信度转写和打字不得污染口语能力。
 
 详细数据、API、Provider 路由和状态机见 [Web 优先的个人学习产品与场景实战设计](superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)。
+
+### 6.0b Explore 场景选择与首页推荐隔离
+
+`explore` 通过 `POST /api/v1/explore/scenario-suggestions` 提供“适合我的 / 探索新场景 / 随机来一个”。Route Handler 认证并校验请求，application 从公开场景目录和当前用户的只读学习投影组装上下文，纯 TypeScript 策略先过滤发布状态、所有权、可用性、当前稳定断点和难度，再选择一个场景并返回最多两个结构化理由。用户投影不可用时退化为基础建议，不能伪造个性化依据；选择接口只读、不产生证据，也不调用场景生成 Provider。
+
+该策略只解决用户进入 Explore 后“不知道搜什么”的发现问题。首页稳定断点、到期复现和跨任务唯一下一动作仍只归 `recommendation`。接口不返回候选池、内部权重、原始错误句或完整私人来源，响应使用 `private, no-store`。详细交互、隐私和测试边界见 [Explore 场景建议与随机选择设计](superpowers/specs/2026-09-11-explore-scenario-suggestions-design.md)。
 
 ### 6.0 阅读状态与外部来源
 

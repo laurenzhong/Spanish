@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/scenario-suggestion-request.schema.json",
+  "title": "Scenario suggestion request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode", "suggestionSessionId", "requestId", "excludedScenarioIds"],
+  "properties": {
+    "mode": { "enum": ["best_fit", "discover", "random"] },
+    "suggestionSessionId": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._-]+$" },
+    "requestId": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._-]+$" },
+    "excludedScenarioIds": { "type": "array", "maxItems": 5, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 160 } },
+    "category": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "cefr": { "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
+    "modality": { "enum": ["speech", "typing"] }
+  }
+}

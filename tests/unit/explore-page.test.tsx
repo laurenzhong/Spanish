@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ExploreDashboardDto } from "@/src/modules/explore/domain";
 import { ExplorePageContent } from "@/app/(product)/explore/explore-page-content";
@@ -46,7 +46,108 @@ const unavailablePack: ExploreDashboardDto["packs"][number] = {
 };
 
 describe("ExplorePageContent", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("offers three low-friction choices and previews an explainable scenario", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      apiVersion: "v1",
+      data: {
+        requestId: "request-1234",
+        suggestionSessionId: "session-1234",
+        scenario: {
+          stableKey: "scenario.campus-administration",
+          title: "校园办事：注册与材料",
+          description: "在学校行政窗口说明来意。",
+          cefr: "A2",
+          category: "study",
+          categoryLabel: "学习办事",
+          role: "校园行政工作人员",
+          communicationGoal: "说明来意并确认材料",
+          sourceKind: "public",
+          route: "/explore/scenarios/scenario.campus-administration",
+        },
+        reasons: [{ code: "level-match", text: "适合你当前的 A2 难度。" }],
+        eligibleCount: 3,
+        canSwap: true,
+        limitReached: false,
+        fallback: null,
+      },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+
+    render(<ExplorePageContent dashboard={dashboard} />);
+
+    expect(screen.getByRole("button", { name: /适合我的/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /探索新场景/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /随机来一个/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /适合我的/ }));
+
+    expect(await screen.findByRole("heading", { name: "校园办事：注册与材料" })).toBeInTheDocument();
+    expect(screen.getByText("适合你当前的 A2 难度。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "开始练习" })).toHaveAttribute("href", "/explore/scenarios/scenario.campus-administration");
+    expect(screen.getByRole("button", { name: "换一个" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/explore/scenario-suggestions", expect.objectContaining({ method: "POST", signal: expect.any(AbortSignal) }));
+  });
+
+  it("keeps a recovery path when no eligible scenario exists", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      apiVersion: "v1",
+      data: {
+        requestId: "request-1234",
+        suggestionSessionId: "session-1234",
+        scenario: null,
+        reasons: [],
+        eligibleCount: 0,
+        canSwap: false,
+        limitReached: false,
+        fallback: { canGeneratePersonalScenario: false, topicChips: ["日常生活", "学习办事", "社交沟通"] },
+      },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    render(<ExplorePageContent dashboard={dashboard} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /随机来一个/ }));
+    expect(await screen.findByText("暂时没有合适的现成场景")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "学习办事" }));
+    expect(screen.getByRole("searchbox")).toHaveValue("学习办事");
+  });
+
+  it("ignores a stale response after the user chooses another mode", async () => {
+    let resolveFirst: ((value: Response) => void) | undefined;
+    let resolveSecond: ((value: Response) => void) | undefined;
+    vi.spyOn(globalThis, "fetch")
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveSecond = resolve; }));
+    const responseFor = (stableKey: string, title: string) => new Response(JSON.stringify({
+      apiVersion: "v1",
+      data: { requestId: `request-${stableKey}`, suggestionSessionId: "session-1234", scenario: { stableKey, title, description: "可开始的场景。", cefr: "A2", category: "daily-life", categoryLabel: "日常生活", role: "临时对话者", communicationGoal: "完成沟通", sourceKind: "public", route: `/explore/scenarios/${stableKey}` }, reasons: [{ code: "safe-start", text: "适合作为一轮轻量基础练习。" }], eligibleCount: 2, canSwap: true, limitReached: false, fallback: null },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+
+    render(<ExplorePageContent dashboard={dashboard} />);
+    fireEvent.click(screen.getByRole("button", { name: /适合我的/ }));
+    fireEvent.click(screen.getByRole("button", { name: /探索新场景/ }));
+    await act(async () => { resolveSecond?.(responseFor("discover12", "新的场景")); });
+    expect(await screen.findByRole("heading", { name: "新的场景" })).toBeInTheDocument();
+    await act(async () => { resolveFirst?.(responseFor("bestfit12", "过期场景")); });
+    expect(screen.getByRole("heading", { name: "新的场景" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "过期场景" })).not.toBeInTheDocument();
+  });
+
+  it("preserves the current result when swapping fails", async () => {
+    const success = new Response(JSON.stringify({
+      apiVersion: "v1",
+      data: { requestId: "request-1234", suggestionSessionId: "session-1234", scenario: { stableKey: "scenario.safe", title: "保留的场景", description: "当前结果不会因网络错误消失。", cefr: "A2", category: "daily-life", categoryLabel: "日常生活", role: "临时对话者", communicationGoal: "完成沟通", sourceKind: "public", route: "/explore/scenarios/scenario.safe" }, reasons: [{ code: "safe-start", text: "适合作为一轮轻量基础练习。" }], eligibleCount: 2, canSwap: true, limitReached: false, fallback: null },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(success).mockRejectedValueOnce(new Error("offline"));
+    render(<ExplorePageContent dashboard={dashboard} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /适合我的/ }));
+    expect(await screen.findByRole("heading", { name: "保留的场景" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "换一个" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("暂时无法选择场景");
+    expect(screen.getByRole("heading", { name: "保留的场景" })).toBeInTheDocument();
+  });
 
   it("filters known goals and keeps draft goals visibly unavailable", () => {
     render(<ExplorePageContent dashboard={dashboard} />);

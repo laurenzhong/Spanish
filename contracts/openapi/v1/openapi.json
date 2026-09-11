@@ -117,6 +117,19 @@
         }
       }
     },
+    "/explore/scenario-suggestions": {
+      "post": {
+        "summary": "Choose one eligible, explainable scenario for an authenticated user",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-suggestion-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "One suggestion or an explicit empty-state fallback", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/scenario-suggestion-response.schema.json" } } } },
+          "400": { "description": "Invalid suggestion request", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Suggestion source unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/explore/state": {
       "post": {
         "summary": "Upsert the authenticated user's content-pack discovery state",

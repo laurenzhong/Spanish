@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExploreCardDto, ExploreDashboardDto, ExploreGoalDto } from "@/src/modules/explore/domain";
 
+import { ScenarioSuggestionPanel } from "./scenario-suggestion-panel";
+
 type ScenarioEntry = Readonly<{ stableKey: string; title: string; description: string; cefr: string; role: string }>;
 type ExplorePageContentProps = Readonly<{ dashboard: ExploreDashboardDto; scenarios?: readonly ScenarioEntry[]; initialQuery?: string; initialPack?: string | null; initialSaved?: boolean }>;
 
@@ -158,6 +160,13 @@ export function ExplorePageContent({ dashboard, scenarios = [], initialQuery = "
           )}
         </label>
       </section>
+
+      <ScenarioSuggestionPanel
+        onTopicSelected={(topic) => {
+          setQuery(topic);
+          updateUrl(topic, selectedKey);
+        }}
+      />
 
       {saveNotice ? <p className="explore-save-notice" role="status">{saveNotice}</p> : null}
 

@@ -18,5 +18,6 @@
   { "code": "PROVIDER_NOT_CONFIGURED", "defaultRetryable": false },
   { "code": "EXPLORE_DASHBOARD_UNAVAILABLE", "defaultRetryable": true },
   { "code": "EXPLORE_STATE_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "SCENARIO_SUGGESTION_UNAVAILABLE", "defaultRetryable": true },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }
 ]
