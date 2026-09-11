@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-11
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；`SCN-001` 与 `SCN-002` 已合并到 `main`，下一项为 `SCN-003` 场景与表达库；阶段 8 尚未启动
+- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-003` 已完成，下一项为 `SCN-004` 历史、复盘与间隔复现；阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：`SCN-002` 三个基础场景仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；`SCN-003` 已开始，须遵循已批准的场景建议设计且不得提前承担 SCN-004 的首页推荐职责；全量 E2E 的 14 条既有产品壳层/移动交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+- 当前门禁：三个基础场景与 `alpha-core-v1` 正式表达仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；SCN-003 全量 E2E 中剩余的 11 条聊天好友介绍、移动阅读/账号交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -67,7 +67,7 @@
 
 ### SCN-003：场景与表达库、可解释建议与私人生成
 
-- 状态：`in_progress`
+- 状态：`done`
 - 负责人：Codex
 - 目标分支：`codex/scn-003-scenario-library`
 - 前置依赖：SCN-001、SCN-002 已完成并合并；专项设计已由产品本人批准（设计 Commit `f894d71`）
@@ -76,10 +76,11 @@
 - 不包含：SCN-004 的历史、到期复现和首页唯一下一动作，长期角色/关系记忆，公共内容自动发布，以及 Flutter 改动。
 - 已完成切片 1：Explore 增加“适合我的 / 探索新场景 / 随机来一个”、结果预览与“换一个”；新增纯资格/排序/加权随机策略、用户私有学习投影读取、认证 Route、Zod 与 OpenAPI/JSON Schema 契约、请求取消/过期响应保护、空状态与主题回退。实现 Commit：`b2093b6`；分支状态同步 Commit：`faa9c07`；已直接合并到 `main`，Merge Commit：`2fa1e03`。SCN-003 仍为 `in_progress`。
 - 已完成切片 2：新增正式表达、本人阅读选区、本人场景复盘和手工输入四类收藏来源及收藏列表/归档接口；新增主题、收藏表达、阅读选区和可信近期错误四类私人场景生成来源、MiniMax M3 Provider 与 deterministic fake、确认后生成、输入指纹幂等和失败不落半成品；本人私人场景可进入详情、实战、复盘、Explore 列表及同一建议候选池，并可安全归档。实现 Commit：`1a42f68`；分支状态同步 Commit：`e787a4a`；已直接合并到 `main`，Merge Commit：`78389b2`。SCN-003 仍为 `in_progress`。
-- 修改：Explore 页面与场景建议仓储、收藏表达和私人场景 API/应用用例/Drizzle 仓储、场景生成 Provider、私人场景详情与练习解析、v1 OpenAPI/JSON Schema/错误码，以及架构、内容和测试策略文档。
-- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、契约测试 `10 files / 38 tests`、全量 Vitest `139 files / 599 tests`、`pnpm build` 和 `git diff --check` 通过；Explore Playwright 桌面与移动 `16/16` 通过。一次全量 Playwright 运行到第 40 条附近时测试 WebServer 意外退出，最终 `39 passed / 95 failed`，后续失败均为 `ERR_CONNECTION_REFUSED` 级联且没有留下可定位的退出堆栈，因此不作为本切片回归结论；没有删除或放宽既有断言。
-- 限制：三个公共场景仍是未经双重人工审核的 `draft`，生产环境不会绕过发布门禁；私人场景只作为本人可见 `draft`；默认建议仍不调用 LLM，只有本人明确确认生成才调用；未进行真实 MiniMax 收费调用、真实 PostgreSQL/Supabase 联调或 iPhone Safari 真机验证，Flutter 未修改；完整搜索与分类筛选尚未交付。
-- 下一步：继续 SCN-003 切片 3，完成场景与表达的完整搜索、分类和筛选收敛；SCN-003 完成后再进入 SCN-004。
+- 已完成切片 3：Dashboard 增加服务端授权的场景/表达资料库 DTO，统一投影公共场景、本人私人场景、正式表达、本人收藏、本人阅读选区和可信近期错误；搜索覆盖标题、沟通目标、角色、表达、西语/中文、CEFR、地区和分类，忽略大小写、标点与西语重音；增加全部、已收藏、最近错误、阅读来源、可立即开始五类筛选、URL 恢复、无结果恢复、多来源进入私人生成和表达收藏。实现 Commit：`c944eec`。
+- 修改：Explore 页面、纯搜索/筛选领域逻辑、授权资料库 application/repository、Dashboard Route 与 v1 OpenAPI/JSON Schema/fixture、私人候选地区投影、响应式样式，以及架构、内容和测试策略文档。
+- 验证：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、契约测试 `10 files / 38 tests`、全量 Vitest `141 files / 611 tests`、`pnpm build` 和 `git diff --check` 通过；Explore Playwright 桌面与移动 `20/20`，同步后的产品壳层 Explore 用例 `4/4` 通过。全量 Playwright 首轮为 `123/138`，其中 4 条为已同步并单独通过的 Explore 旧文案/入口断言；剩余 11 条位于既有聊天好友介绍、移动阅读选区/布局和账号删除，未改动相应产品代码或放宽断言。
+- 限制：三个公共场景与 `alpha-core-v1` 正式表达仍未经双重人工审核，生产环境不会显示；私人场景只作为本人可见 `draft`；默认建议仍不调用 LLM，只有本人明确确认生成才调用；未进行真实 MiniMax 收费调用、真实 PostgreSQL/Supabase 联调或 iPhone Safari 真机验证，Flutter 未修改。
+- 下一步：进入 `SCN-004`，实现完整历史、逐条复盘、重新说、当天/1/3/7 天间隔复现和首页唯一下一动作接入。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
@@ -1524,7 +1525,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | ALPHA-033 | in_progress | `fix/login-redirect-after-otp` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
-| SCN-003 | in_progress | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
+| SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
 | 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -1533,9 +1534,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | SCN-003 | 场景与表达库、可解释建议与私人生成（进行中） | SCN-001、SCN-002 已完成且设计已批准 |
-| 2 | SCN-004 | 历史、复盘与间隔复现 | SCN-002、SCN-003 |
-| 3 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
+| 1 | SCN-004 | 历史、复盘与间隔复现 | SCN-002、SCN-003 已完成 |
+| 2 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
