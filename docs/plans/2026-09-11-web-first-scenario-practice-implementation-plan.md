@@ -309,7 +309,7 @@ iPhone 底栏固定为“表达｜按住说话｜键盘”，键盘位于右侧�
 
 ### 6.1 目标
 
-把 `/explore` 从内容包列表升级为日常可用的场景与表达库，支持搜索、分类、收藏，以及从主题、阅读、收藏表达和最近错误生成私人场景。
+把 `/explore` 从内容包列表升级为日常可用的场景与表达库，支持搜索、分类、收藏，以及从主题、阅读、收藏表达和最近错误生成私人场景；用户不知道搜索什么时，还可通过“适合我的 / 探索新场景 / 随机来一个”获得可解释的场景预览。详细产品、隐私和策略边界见 [Explore 场景建议与随机选择设计](../superpowers/specs/2026-09-11-explore-scenario-suggestions-design.md)。
 
 ### 6.2 收藏表达
 
@@ -354,7 +354,20 @@ Dashboard DTO 增加场景卡、表达卡、来源和生成入口；现有内容
 
 桌面保持单主列与必要详情区，不使用不等高双栏制造右下角空白。iPhone 使用单列、固定主动作和可关闭的表达详情；移除宣传式大标题与重复提示。
 
-### 6.5 测试与提交
+### 6.5 不确定目标时的场景选择辅助
+
+新增：
+
+- `src/modules/explore/domain/scenario-suggestion.ts`
+- `src/modules/explore/application/suggest-scenario.ts`
+- `app/api/v1/explore/scenario-suggestions/route.ts`
+- 建议请求/响应 Schema、OpenAPI 路径和稳定错误码
+
+三个入口共用服务端合格候选池：只包含已发布公共场景和当前用户拥有的完整私人场景，并排除越权、失效、不可开始、当前稳定断点及本轮已展示结果。“适合我的”使用 CEFR、收藏表达、合格困难证据和新鲜度的确定性排序；“探索新场景”优先未练分类和沟通目的；“随机来一个”只在难度安全的前排候选中注入可测试随机源。
+
+结果先显示场景卡、结构化理由、“开始练习”和“换一个”，不自动开始。单次建议会话最多展示五个不同结果；候选用尽后才显示主题筛选或经用户确认的私人场景生成入口。建议接口只读且不默认调用 LLM，私人生成继续使用独立写接口和幂等键。本能力不产生学习证据，也不进入 SCN-004 的首页推荐排序。
+
+### 6.6 测试与提交
 
 新增或更新：
 
@@ -363,10 +376,12 @@ Dashboard DTO 增加场景卡、表达卡、来源和生成入口；现有内容
 - `tests/contracts/scenario-generation-provider-contract.test.ts`
 - `tests/database/scenario-source-ownership.test.ts`
 - `tests/unit/explore-dashboard.test.ts`
+- `tests/unit/scenario-suggestion.test.ts`
+- `tests/unit/scenario-suggestion-route.test.ts`
 - `tests/unit/explore-page.test.tsx`
 - `tests/e2e/explore-page.spec.ts`
 
-断言搜索/分类、收藏幂等、跨用户来源拒绝、生成失败不落库、私人场景不出现在公共内容 API、从四类来源进入场景以及移动端焦点恢复。
+断言搜索/分类、收藏幂等、跨用户来源拒绝、生成失败不落库、私人场景不出现在公共内容 API、从四类来源进入场景以及移动端焦点恢复；同时覆盖三种选择策略、发布/所有权/可用性过滤、固定随机源、换一个去重、候选用尽、无画像退化、理由一致性，以及学习时长、低置信度转写和技术失败不参与排序。
 
 运行相关单元/契约/数据库/Playwright 测试、`pnpm lint`、`pnpm typecheck`、`pnpm db:check` 和 `git diff --check`。
 

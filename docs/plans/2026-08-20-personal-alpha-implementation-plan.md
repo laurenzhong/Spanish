@@ -864,7 +864,7 @@ Flutter integration test 使用 fake 服务覆盖同一关键路径；真实 iOS
 
 1. `SCN-001`：领域状态机、数据迁移、API 契约、Provider Router 和 fake。
 2. `SCN-002`：通用文字/语音纵向闭环，并交付餐厅沟通、校园办事和租房沟通三个内容驱动的基础场景。
-3. `SCN-003`：探索场景库、搜索、分类、生成及阅读/收藏/错误来源。
+3. `SCN-003`：探索场景库、搜索、分类、生成及阅读/收藏/错误来源，并增加“适合我的 / 探索新场景 / 随机来一个”的可解释选择辅助；详细规则见 [专项设计](../superpowers/specs/2026-09-11-explore-scenario-suggestions-design.md)。
 4. `SCN-004`：完整复盘、历史、当天/1/3/7 天复现和学习页推荐。
 5. `SCN-005`：Provider 设置、切换、iPhone Safari/PWA 真机收敛和发布门禁。
 
