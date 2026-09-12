@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-12
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 已完成；`SCN-001` 至 `SCN-005`、所有者授权的 Codex 双维度内容审核、v2 正式内容发布、远端数据库事务导入、电脑端 Web 自动发布候选门禁和真实登录桌面复核均已通过。iPhone Safari/PWA 真机验收继续延期且不阻塞本阶段；阶段 8 等待产品本人明确确认启动
+- 总体状态：ALPHA-033 继续进行；当前成果只形成电脑端 Web 临时集成测试基线，不是发布候选。v2 内容、远端数据库导入和自动化回归已完成，但产品本人确认仍有未完成功能及明显的排版、按钮和交互缺陷；必须重新盘点并修复后再讨论发布候选。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：电脑端 Web 发布候选已放行。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过所有者授权的 Codex 双维度审核、自动校验、数据库导入和真实登录页面复核；旧 v1 文件和历史引用继续保留。全量 Vitest、电脑端 Playwright 与 production build 已通过；全量 Playwright 的 6 个失败全部位于延期的 `mobile-chromium`，不冒充全量通过。真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
+- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。ALPHA-033 需先完成电脑端 Web 缺口与缺陷盘点，按独立切片修复 P0/P1 和明显体验问题，再重跑发布候选门禁。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -99,7 +99,7 @@
 
 ### SCN-005：Provider 设置、自动切换与 iPhone Safari/PWA 收敛
 
-- 状态：`done`
+- 状态：`in_progress`
 - 负责人：Codex / 产品本人
 - 目标分支：`codex/scn-005-provider-pwa-hardening`
 - 设计 Commit：`c2be202`
@@ -234,6 +234,7 @@
 
 - ALPHA-033 v2 数据库发布与自动门禁：目标为 `DIRECT_DATABASE_URL` 指向的 Supabase PostgreSQL；只读盘点确认历史草稿保留，正式收藏、学习断点和证据引用均为 0。`pnpm db:migrate` 成功应用 `0020_volatile_eternity.sql`，迁移登记从 20 条增至 21 条；`alpha-core-v2.json` 与 `scenario-practice-alpha-v2.json` 首次事务导入成功，重复导入均返回 `unchanged`。导入后只读核验得到 9 个 published domain、20 个 published goal、26 个 published expression、3 个 published scenario 和 1 个 published content pack；表达双 locale approved review 各 26 条、场景双 locale 各 3 条，支撑元数据审核记录完整。自动门禁：全量 Vitest `155 files / 671 tests`、电脑端 Chromium Playwright `72/72`、目标发布路径 `16/16`、产品壳层发布断言 `1/1`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright 为 `138/144`，6 个失败全部位于延期的 `mobile-chromium`（文章句子拖选 1、Lucía 移动联系人/介绍 4、移动账号删除完成态 1），不作为本轮电脑端门禁通过。内容与运行时 Commit：`a5286b0`；发布记录 Commit：`8610666`。限制：桌面自动化运行时因本机工具资产路径缺失且浏览器控制接口不支持当前 Codex `apikey` 认证，无法读取用户现有 Edge 登录会话；未调用收费 Provider、未发送消息、未删除数据。下一步：完成真实登录桌面浏览器的 v2 只读复核后关闭 ALPHA-033，并由产品本人确认是否启动阶段 8。
 - ALPHA-033 真实登录桌面验收与关闭：产品本人在已登录 Edge 打开本地 `/explore`，确认 v2 发布页面正常；该结果完成最后一项人工门禁。ALPHA-033 状态改为 `done`，阶段 8 尚未自动启动，等待产品本人另行确认。已知延期项继续为 iPhone Safari/PWA 真机、Flutter 同步及全量 Playwright 中 6 个 `mobile-chromium` 失败；本次人工确认未改变这些限制。
+- ALPHA-033 发布候选结论撤销：产品本人澄清“正常”仅表示当前本地页面可访问，不代表发布候选验收；当前仍有其他功能未完成，并存在明显排版和按钮缺陷。此前将 ALPHA-033 关闭属于验收口径误判，现恢复为 `in_progress`，当前版本仅作为临时测试基线。下一步先进行覆盖电脑端 Web 核心页面、可见操作、错误/空状态与真实数据路径的缺口盘点，再按任务切片逐项设计、确认和修复；阶段 8 不启动。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
