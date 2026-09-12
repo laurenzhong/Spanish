@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { createMiniMaxScenarioEvaluationProvider } from "@/src/modules/providers/scenario-evaluation/server";
 import { FakeScenarioEvaluationProvider, ScenarioProviderError } from "@/src/modules/providers/scenario-evaluation";
+import { createScenarioEvaluationProviders } from "@/src/modules/providers/scenario-runtime";
+import { observeScenarioEvaluationProvider } from "@/src/modules/providers/observed-scenario-providers";
+import { createDrizzleProviderCallRepository } from "@/src/modules/providers/repositories/drizzle-provider-call-repository";
 import { createDrizzleScenarioLibraryRepository, evaluateScenarioTurn, getScenarioPracticeDetailForUser } from "@/src/modules/scenario-practice";
 import { createDrizzleScenarioPracticeRepository, createScenarioEvidenceInput } from "@/src/modules/scenario-practice";
 import { createDrizzleEvidenceRepository, recordEvidence } from "@/src/modules/evidence";
@@ -34,13 +36,17 @@ export async function POST(request: NextRequest, { params }: Readonly<{ params: 
     return scenarioData(null, { status: 202, headers: { "x-review-status": "unavailable", "x-review-reason": "low-confidence-transcript" } });
   }
   try {
-    const provider = process.env.NODE_ENV !== "production" && process.env.AUTH_E2E_ENABLED === "1" ? new FakeScenarioEvaluationProvider() : createMiniMaxScenarioEvaluationProvider();
+    const database = process.env.DATABASE_URL ? getDatabase() : null;
+    const provider = process.env.NODE_ENV !== "production" && process.env.AUTH_E2E_ENABLED === "1"
+      ? new FakeScenarioEvaluationProvider()
+      : (await createScenarioEvaluationProviders(user.id)).map((candidate) =>
+          observeScenarioEvaluationProvider(candidate, database ? createDrizzleProviderCallRepository(database) : undefined, user.id));
     const data = await evaluateScenarioTurn({ provider, scenario,
       requestId: request.headers.get("x-request-id") ?? crypto.randomUUID(), sessionId, signal: request.signal, ...parsed.data });
     if (parsed.data.persist) {
       if (!process.env.DATABASE_URL) throw new Error("SCENARIO_SESSION_NOT_FOUND");
-      const database = getDatabase();
-      const repository = createDrizzleScenarioPracticeRepository(database);
+      const persistenceDatabase = getDatabase();
+      const repository = createDrizzleScenarioPracticeRepository(persistenceDatabase);
       const turn = await repository.getTurn(user.id, sessionId, turnId);
       if (!turn || turn.speaker !== "user" || turn.status !== "completed" || turn.modality !== parsed.data.modality) throw new Error("SCENARIO_TURN_CONFLICT");
       const turnErrors = data.errors.filter((error) => error.turnId === turnId);
@@ -57,13 +63,13 @@ export async function POST(request: NextRequest, { params }: Readonly<{ params: 
         skillKeys: scenario.tasks.map((task) => task.goalKey), idempotencyKey: `scenario-review:${review.id}`,
       });
       if (evidenceInput) {
-        await database.insert(databaseSchema.practiceAttempts).values({
+        await persistenceDatabase.insert(databaseSchema.practiceAttempts).values({
           id: turn.id, userId: user.id, sessionId, clientAttemptId: `scenario:${turn.id}`,
           modality: turn.modality, responseText: turn.text, hintLevel: parsed.data.hintLevel,
           transcriptConfidence: parsed.data.transcriptConfidence, evaluation: { contextualSuccess: data.contextualSuccess, reviewId: review.id },
           contentVersion: scenario.version, algorithmVersion: "scenario-evaluation-v1",
         }).onConflictDoNothing({ target: [databaseSchema.practiceAttempts.userId, databaseSchema.practiceAttempts.clientAttemptId] });
-        await recordEvidence(createDrizzleEvidenceRepository(database), evidenceInput, { requestId: request.headers.get("x-request-id") ?? undefined });
+        await recordEvidence(createDrizzleEvidenceRepository(persistenceDatabase), evidenceInput, { requestId: request.headers.get("x-request-id") ?? undefined });
       }
     }
     return scenarioData(data, { headers: { "cache-control": "no-store" } });

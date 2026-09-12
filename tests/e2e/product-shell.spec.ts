@@ -425,6 +425,25 @@ test("keeps the profile axes visible and selectable", async ({
   await expect(heatmap.getByTestId("heatmap-day-detail")).toBeVisible();
 });
 
+test("shows provider settings and keeps them usable across the release viewport matrix", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/providers/status", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { capabilities: [{ capability: "scenario-roleplay", selectedProviderKey: null, selectedProviderAvailable: true, effectiveProviderKey: "minimax", canAutoSwitch: true, providers: [{ key: "minimax", label: "MiniMax", configured: true, status: "healthy", lastSuccessAt: "2026-09-12T07:00:00.000Z", lastFailureAt: null }, { key: "openai", label: "OpenAI", configured: true, status: "configured", lastSuccessAt: null, lastFailureAt: null }] }] } }) });
+  });
+  await page.route("**/api/v1/me/provider-preferences", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { preference: { capability: "scenario-roleplay", providerKey: "openai" } } }) });
+  });
+  for (const width of [320, 375, 390, 414, 768, 1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: width < 600 ? 760 : 900 });
+    await page.goto("/me#preferences");
+    await expect(page.getByRole("region", { name: "Provider 设置" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "临时人物回复 Provider" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px overflow`).toBeLessThanOrEqual(width);
+  }
+  await page.getByRole("combobox", { name: "临时人物回复 Provider" }).selectOption("openai");
+  await expect(page.getByText("临时人物回复设置已保存。")).toBeAttached();
+});
+
 test("returns the authenticated session through the versioned API", async ({
   page,
 }) => {

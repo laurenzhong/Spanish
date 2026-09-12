@@ -27,6 +27,9 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
   const [transcriptDraft, setTranscriptDraft] = useState<{ text: string; confidence: number | null } | null>(null);
   const [expressionsOpen, setExpressionsOpen] = useState(false);
   const recorder = useRef<BrowserAudioRecorder | null>(null);
+  const recordingGestureActive = useRef(false);
+  const recorderStarted = useRef(false);
+  const workbenchRef = useRef<HTMLElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -54,6 +57,20 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
 
   useEffect(() => { endRef.current?.scrollIntoView({ block: "nearest" }); }, [saved.turns, busy]);
   useEffect(() => () => { void recorder.current?.cancel(); }, []);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const workbench = workbenchRef.current;
+    if (!viewport || !workbench) return;
+    const syncViewport = () => workbench.style.setProperty("--scenario-visible-height", `${Math.round(viewport.height)}px`);
+    syncViewport();
+    viewport.addEventListener("resize", syncViewport);
+    viewport.addEventListener("scroll", syncViewport);
+    return () => {
+      viewport.removeEventListener("resize", syncViewport);
+      viewport.removeEventListener("scroll", syncViewport);
+      workbench.style.removeProperty("--scenario-visible-height");
+    };
+  }, [hydrated]);
 
   const userTurnCount = saved.turns.filter((turn) => turn.speaker === "user").length;
   const currentTask = scenario.tasks[Math.min(userTurnCount, scenario.tasks.length - 1)]!;
@@ -140,13 +157,40 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
   async function startRecording() {
     if (busy || paused || recording) return;
     try {
-      recorder.current ??= createBrowserAudioRecorder();
-      await recorder.current.start(); setRecording(true); setNotice("正在录音；松开按钮后转写。完整表达之前不会出现纠错。");
+      recorder.current ??= createBrowserAudioRecorder(() => {
+        recordingGestureActive.current = false;
+        recorderStarted.current = false;
+        setRecording(false);
+        setBusy(false);
+        setNotice("录音因页面切换或麦克风中断而取消，未送去转写，也不会产生负面评价。你可以重新录音或改用文字。");
+      });
+      await recorder.current.start();
+      recorderStarted.current = true;
+      if (!recordingGestureActive.current) {
+        recorderStarted.current = false;
+        await recorder.current.cancel();
+        setRecording(false);
+        setNotice("录音已取消，未送去转写。你可以重新按住录音或改用文字。");
+        return;
+      }
+      setRecording(true);
+      setNotice("正在录音；松开按钮后转写。完整表达之前不会出现纠错。");
     } catch { setNotice("麦克风不可用，已切换为文字输入。你可以直接键入西班牙语。"); setRecording(false); }
   }
 
+  async function cancelRecording() {
+    recordingGestureActive.current = false;
+    if (!recorderStarted.current || !recorder.current) return;
+    recorderStarted.current = false;
+    setRecording(false);
+    await recorder.current.cancel();
+    setNotice("录音已取消，未送去转写。你可以重新按住录音或改用文字。");
+  }
+
   async function stopRecording() {
-    if (!recording || !recorder.current) return;
+    recordingGestureActive.current = false;
+    if (!recorderStarted.current || !recorder.current) return;
+    recorderStarted.current = false;
     setRecording(false); setBusy(true); setNotice("正在转写，结果确认后才会提交。");
     try {
       const audio = await recorder.current.stop();
@@ -198,7 +242,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
   if (!hydrated) return <main className="scenario-workbench"><p role="status">正在恢复练习断点…</p></main>;
 
   return (
-    <main className="scenario-workbench">
+    <main className="scenario-workbench" ref={workbenchRef}>
       <header className="scenario-workbench__header">
         <a href={`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}`} aria-label="返回场景详情">←</a>
         <div><strong>{scenario.title}</strong><span>{scenario.temporaryCharacter.displayName} · 临时人物</span></div>
@@ -227,7 +271,19 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
         <div className="scenario-composer__input"><textarea ref={textInputRef} lang="es" value={text} disabled={busy || paused} onChange={(event) => setText(event.target.value)} placeholder="用西班牙语完成你的表达…" /><button type="button" disabled={!text.trim() || busy || paused} onClick={() => void submit(text, "typing")}>发送</button></div>
         <div className="scenario-composer__tools">
           <button type="button" aria-expanded={expressionsOpen} onClick={() => setExpressionsOpen((value) => !value)}>表达</button>
-          <button className={recording ? "is-recording" : ""} type="button" disabled={busy || paused} onPointerDown={() => void startRecording()} onPointerUp={() => void stopRecording()} onPointerCancel={() => void stopRecording()}>{recording ? "松开发送" : "按住说话"}</button>
+          <button
+            className={recording ? "is-recording" : ""}
+            type="button"
+            disabled={busy || paused}
+            onContextMenu={(event) => event.preventDefault()}
+            onPointerDown={(event) => {
+              recordingGestureActive.current = true;
+              event.currentTarget.setPointerCapture?.(event.pointerId);
+              void startRecording();
+            }}
+            onPointerUp={() => void stopRecording()}
+            onPointerCancel={() => void cancelRecording()}
+          >{recording ? "松开发送" : "按住说话"}</button>
           <button type="button" disabled={paused} onClick={() => textInputRef.current?.focus()}>键盘</button>
         </div>
         <button className="scenario-complete" type="button" disabled={busy || userTurnCount === 0} onClick={() => void complete()}>结束并查看复盘</button>

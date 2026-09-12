@@ -11,6 +11,13 @@ export const metadata: Metadata = {
     template: "%s | Sueño",
   },
   description: "A speaking-first Spanish learning experience.",
+  applicationName: "Sueño",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Sueño",
+  },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {

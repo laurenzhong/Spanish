@@ -27,8 +27,11 @@ export type MiniMaxScenarioRoleplayOptions = Readonly<{
 
 export class MiniMaxScenarioRoleplayProvider implements ScenarioRoleplayProvider {
   readonly key = "minimax";
+  readonly modelVersion: string;
 
-  constructor(private readonly options: MiniMaxScenarioRoleplayOptions) {}
+  constructor(private readonly options: MiniMaxScenarioRoleplayOptions) {
+    this.modelVersion = options.modelVersion ?? defaultModelVersion;
+  }
 
   async *stream(
     input: ScenarioRoleplayInput,
@@ -53,7 +56,7 @@ export class MiniMaxScenarioRoleplayProvider implements ScenarioRoleplayProvider
           "x-api-key": this.options.apiKey,
         },
         body: JSON.stringify({
-          model: this.options.modelVersion ?? defaultModelVersion,
+          model: this.modelVersion,
           max_tokens: 300,
           thinking: { type: "disabled" },
           stream: false,

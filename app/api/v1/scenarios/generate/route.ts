@@ -1,15 +1,16 @@
 import { NextRequest } from "next/server";
 
 import { FakeScenarioGenerationProvider, ScenarioProviderError, type ScenarioGenerationProvider } from "@/src/modules/providers/scenario-generation";
-import { createMiniMaxScenarioGenerationProvider } from "@/src/modules/providers/scenario-generation/server";
 import { PersonalScenarioConflictError, PersonalScenarioSourceError, createDrizzleScenarioLibraryRepository, generatePersonalScenario, type ScenarioLibraryRepository } from "@/src/modules/scenario-practice";
+import { createScenarioGenerationProviders } from "@/src/modules/providers/scenario-runtime";
+import { observeScenarioGenerationProvider } from "@/src/modules/providers/observed-scenario-providers";
+import { createDrizzleProviderCallRepository } from "@/src/modules/providers/repositories/drizzle-provider-call-repository";
 import { generatePersonalScenarioRequestSchema } from "@/src/modules/scenario-practice/schemas";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 import { scenarioData, scenarioError } from "@/app/api/v1/scenario-practice/http";
 
-type Dependencies = Readonly<{ repository: ScenarioLibraryRepository; provider: ScenarioGenerationProvider }>;
-function defaults(): Dependencies { return { repository: createDrizzleScenarioLibraryRepository(getDatabase()), provider: process.env.NODE_ENV !== "production" && process.env.AUTH_E2E_ENABLED === "1" ? new FakeScenarioGenerationProvider() : createMiniMaxScenarioGenerationProvider() }; }
+type Dependencies = Readonly<{ repository: ScenarioLibraryRepository; provider: ScenarioGenerationProvider | readonly ScenarioGenerationProvider[] }>;
 
 export async function handleGeneratePersonalScenario(request: NextRequest, dependencies?: Dependencies) {
   const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
@@ -20,7 +21,15 @@ export async function handleGeneratePersonalScenario(request: NextRequest, depen
   if (!parsed.success) return scenarioError(request, "VALIDATION_FAILED", "The private scenario request is invalid.", 400);
   if (!process.env.DATABASE_URL && !dependencies) return scenarioError(request, "PERSONAL_SCENARIO_UNAVAILABLE", "Private scenarios require account persistence.", 503, true);
   try {
-    const active = dependencies ?? defaults();
+    let active = dependencies;
+    if (!active) {
+      const database = getDatabase();
+      const provider = process.env.NODE_ENV !== "production" && process.env.AUTH_E2E_ENABLED === "1"
+        ? new FakeScenarioGenerationProvider()
+        : (await createScenarioGenerationProviders(user.id)).map((candidate) =>
+            observeScenarioGenerationProvider(candidate, createDrizzleProviderCallRepository(database), user.id));
+      active = { repository: createDrizzleScenarioLibraryRepository(database), provider };
+    }
     const record = await generatePersonalScenario(active.repository, active.provider, { userId: user.id, idempotencyKey, ...parsed.data }, { signal: request.signal });
     return scenarioData({ id: record.id, title: record.detail.title, cefr: record.detail.cefr, sourceType: record.sourceType, route: `/explore/scenarios/personal.${record.id}`, createdAt: record.createdAt }, { status: 201, headers: { "cache-control": "private, no-store" } });
   } catch (error) {

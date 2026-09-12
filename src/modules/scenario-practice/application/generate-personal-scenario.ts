@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { ScenarioProviderError, type ScenarioGenerationProvider } from "@/src/modules/providers/scenario-generation";
+import { executeWithScenarioProviderFallback } from "@/src/modules/providers/routing/provider-fallback";
 import type { ScenarioPracticeDetail } from "../content";
 import type { GenerationSourceInput, PersonalScenarioRecord, ScenarioLibraryRepository } from "../repositories/scenario-library-repository";
 
@@ -70,7 +71,7 @@ function buildDetail(id: string, cefr: GeneratePersonalScenarioInput["cefr"], so
 
 export async function generatePersonalScenario(
   repository: ScenarioLibraryRepository,
-  provider: ScenarioGenerationProvider,
+  provider: ScenarioGenerationProvider | readonly ScenarioGenerationProvider[],
   input: GeneratePersonalScenarioInput,
   options: Readonly<{ signal?: AbortSignal; makeId?: () => string }> = {},
 ): Promise<PersonalScenarioRecord> {
@@ -82,14 +83,20 @@ export async function generatePersonalScenario(
   }
   const source = await repository.resolveGenerationSource(input.userId, input.source);
   if (!source) throw new PersonalScenarioSourceError();
-  const result = await provider.generate({
-    requestId: input.requestId,
-    generationId: input.generationId,
-    locale: input.locale,
-    cefr: input.cefr,
-    topic: source.topic,
-    sourceExpressions: source.expressions.map((expression) => expression.text),
-  }, { signal: options.signal });
+  const providers: readonly ScenarioGenerationProvider[] = Array.isArray(provider)
+    ? provider
+    : [provider as ScenarioGenerationProvider];
+  const { result } = await executeWithScenarioProviderFallback({
+    providers,
+    execute: (activeProvider) => activeProvider.generate({
+      requestId: input.requestId,
+      generationId: input.generationId,
+      locale: input.locale,
+      cefr: input.cefr,
+      topic: source.topic,
+      sourceExpressions: source.expressions.map((expression) => expression.text),
+    }, { signal: options.signal }),
+  });
   if (source.expressions.some((sourceExpression) => !result.expressions.some((generated) => generated.text.trim().toLocaleLowerCase() === sourceExpression.text.trim().toLocaleLowerCase()))) {
     throw new ScenarioProviderError("provider-response-invalid", "Scenario generation did not preserve the selected source expressions.", false);
   }

@@ -7,6 +7,7 @@ import {
 
 export class FakeScenarioRoleplayProvider implements ScenarioRoleplayProvider {
   readonly key = "deterministic-scenario-roleplay";
+  readonly modelVersion = "fake-v1";
 
   constructor(
     private readonly behavior: "complete" | "incomplete" | "timeout" = "complete",

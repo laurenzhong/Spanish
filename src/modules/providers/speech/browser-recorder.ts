@@ -18,6 +18,12 @@ type MediaRecorderFactory = (
   options?: MediaRecorderOptions,
 ) => MediaRecorderLike;
 
+type RecorderLifecycle = Readonly<{
+  page?: EventTarget;
+  visibility?: EventTarget & Readonly<{ visibilityState: DocumentVisibilityState }>;
+  onInterrupted?: () => void;
+}>;
+
 export type BrowserRecordedAudio = Readonly<{
   blob: Blob;
   metadata: RecordedAudioMetadata;
@@ -33,6 +39,7 @@ export class BrowserAudioRecorder {
   private stream: MediaStream | null = null;
   private recorder: MediaRecorderLike | null = null;
   private chunks: Blob[] = [];
+  private lifecycleCleanup: Array<() => void> = [];
 
   constructor(
     private readonly mediaDevices: MediaDevicesLike | null,
@@ -43,6 +50,7 @@ export class BrowserAudioRecorder {
       typeof MediaRecorder !== "undefined" &&
       typeof MediaRecorder.isTypeSupported === "function" &&
       MediaRecorder.isTypeSupported(mimeType),
+    private readonly lifecycle: RecorderLifecycle = {},
   ) {}
 
   get isSupported(): boolean {
@@ -106,6 +114,7 @@ export class BrowserAudioRecorder {
       recorder.start();
       this.stream = stream;
       this.recorder = recorder;
+      this.attachLifecycle(stream);
     } catch {
       stopTracks(stream);
       throw new SpeechCapabilityError(
@@ -185,14 +194,44 @@ export class BrowserAudioRecorder {
   }
 
   private reset(stream: MediaStream): void {
+    this.detachLifecycle();
     stopTracks(stream);
     this.stream = null;
     this.recorder = null;
     this.chunks = [];
   }
+
+  private attachLifecycle(stream: MediaStream): void {
+    this.detachLifecycle();
+    const interrupt = () => {
+      if (this.recorder?.state !== "recording") return;
+      this.lifecycle.onInterrupted?.();
+      void this.cancel();
+    };
+    const handleVisibility = () => {
+      if (this.lifecycle.visibility?.visibilityState === "hidden") interrupt();
+    };
+    if (this.lifecycle.page) {
+      this.lifecycle.page.addEventListener("pagehide", interrupt);
+      this.lifecycleCleanup.push(() => this.lifecycle.page?.removeEventListener("pagehide", interrupt));
+    }
+    if (this.lifecycle.visibility) {
+      this.lifecycle.visibility.addEventListener("visibilitychange", handleVisibility);
+      this.lifecycleCleanup.push(() => this.lifecycle.visibility?.removeEventListener("visibilitychange", handleVisibility));
+    }
+    for (const track of stream.getTracks()) {
+      if (typeof track.addEventListener !== "function") continue;
+      track.addEventListener("ended", interrupt);
+      this.lifecycleCleanup.push(() => track.removeEventListener("ended", interrupt));
+    }
+  }
+
+  private detachLifecycle(): void {
+    for (const cleanup of this.lifecycleCleanup.splice(0)) cleanup();
+  }
 }
 
-export function createBrowserAudioRecorder(): BrowserAudioRecorder {
+export function createBrowserAudioRecorder(onInterrupted?: () => void): BrowserAudioRecorder {
   if (typeof navigator === "undefined" || typeof MediaRecorder === "undefined") {
     return new BrowserAudioRecorder(null, null);
   }
@@ -200,6 +239,8 @@ export function createBrowserAudioRecorder(): BrowserAudioRecorder {
   return new BrowserAudioRecorder(
     navigator.mediaDevices ?? null,
     (stream, options) => new MediaRecorder(stream, options),
+    undefined,
+    { page: window, visibility: document, onInterrupted },
   );
 }
 

@@ -475,11 +475,14 @@ Dashboard DTO 增加场景卡、表达卡、来源和生成入口；现有内容
 
 健康状态由“是否配置 + 最近脱敏调用结果”计算，不通过频繁收费探针保持绿色。状态只有 configured、healthy、degraded、unavailable；客户端不能写健康状态。
 
+没有用户偏好时按 `healthy → configured → degraded` 选择第一个已配置 Provider；全部不可用时返回稳定错误。用户偏好只在对应 Provider 已注册、支持该能力且服务端已配置时生效。
+
 自动切换规则：
 
 - 非流式生成/评估在没有终态结果时最多切换一次。
 - 流式回复尚未产生 delta 时可以切换一次。
 - 已产生 delta 后失败只显示重试/手动切换，不静默拼接第二个 Provider。
+- 用户取消、非法输入、所有权/状态冲突和其他不可重试错误不触发自动切换。
 - 每次尝试分别记录 request/generation/provider/model/latency/result/cost，不记录 prompt、正文或音频。
 
 ### 8.3 API 与设置页

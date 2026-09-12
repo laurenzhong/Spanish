@@ -16,6 +16,8 @@ import {
   submitScenarioTurn,
 } from "@/src/modules/scenario-practice";
 import * as schema from "@/src/shared/db/schema";
+import { createDrizzleUserProviderPreferenceRepository } from "@/src/modules/providers/repositories/drizzle-user-provider-preference-repository";
+import { createDrizzleProviderHealthRepository } from "@/src/modules/providers/repositories/drizzle-provider-health-repository";
 
 const userId = "00000000-0000-4000-8000-000000000201";
 const sessionId = "10000000-0000-4000-8000-000000000201";
@@ -46,6 +48,8 @@ describe("scenario practice persistence", () => {
     for (const name of [
       "0000_big_phalanx.sql",
       "0001_auth_rls.sql",
+      "0008_broad_chronomancer.sql",
+      "0009_oval_namora.sql",
       "0020_volatile_eternity.sql",
     ]) {
       await client.exec(await migration(name));
@@ -239,6 +243,32 @@ describe("scenario practice persistence", () => {
       const [{ count }] = await database.select({ count: sql<number>`count(*)` }).from(table);
       expect(Number(count)).toBe(0);
     }
+  });
+
+  it("upserts owned provider preferences and derives only terminal health observations", async () => {
+    const preferences = createDrizzleUserProviderPreferenceRepository(database);
+    await preferences.set(userId, "scenario-roleplay", "minimax");
+    await preferences.set(userId, "scenario-roleplay", "openai");
+    await expect(preferences.list(userId)).resolves.toEqual([
+      { capability: "scenario-roleplay", providerKey: "openai" },
+    ]);
+    await expect(preferences.list("00000000-0000-4000-8000-000000000299")).resolves.toEqual([]);
+
+    await database.insert(schema.providerCalls).values([
+      { userId, providerType: "scenario-roleplay", provider: "openai", status: "succeeded", latencyMs: 20, completedAt: new Date("2026-09-12T07:00:00.000Z") },
+      { userId, providerType: "scenario-roleplay", provider: "openai", status: "failed", latencyMs: 30, completedAt: new Date("2026-09-12T07:30:00.000Z") },
+      { userId, providerType: "conversation", provider: "openai", status: "succeeded", latencyMs: 10, completedAt: new Date("2026-09-12T07:40:00.000Z") },
+    ]);
+    await expect(createDrizzleProviderHealthRepository(database).listObservationSummaries()).resolves.toEqual([
+      {
+        capability: "scenario-roleplay",
+        providerKey: "openai",
+        lastSuccessAt: new Date("2026-09-12T07:00:00.000Z"),
+        lastFailureAt: new Date("2026-09-12T07:30:00.000Z"),
+      },
+    ]);
+    await preferences.clear(userId, "scenario-roleplay");
+    await expect(preferences.list(userId)).resolves.toEqual([]);
   });
 
   it("freezes the session and creates the repetition plan atomically and idempotently", async () => {
