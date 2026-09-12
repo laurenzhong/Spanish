@@ -64,11 +64,15 @@ describe("scenario review", () => {
     expect(result.nextRepetition?.id).toBe("repetition-0");
   });
 
-  it("renders the fixed review order and can show only marked turns", () => {
+  it("keeps the transcript visible and folds secondary review actions", () => {
     render(<ScenarioReview review={buildScenarioReview({ session, turns, reviews, repetitions })} />);
 
     const sections = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
-    expect(sections).toEqual(["沟通结果", "完整对话", "原句错误标记", "自然替代表达", "重新说", "下次复现"]);
+    expect(sections).toEqual(["沟通结果", "完整对话"]);
+    for (const label of ["错误详情", "自然替代表达", "重新说", "复现计划"]) {
+      const summary = screen.getByText(label);
+      expect(summary.closest("details")).not.toHaveAttribute("open");
+    }
     fireEvent.click(screen.getByRole("button", { name: "只看标记" }));
     expect(screen.queryByText("Necesito renovar mi tarjeta.")).not.toBeInTheDocument();
     expect(screen.getByText("No tengo formulario.")).toBeInTheDocument();

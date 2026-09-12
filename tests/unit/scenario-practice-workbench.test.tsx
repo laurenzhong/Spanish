@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const speechMocks = vi.hoisted(() => ({
   createBrowserAudioRecorder: vi.fn(),
 }));
+const navigationMocks = vi.hoisted(() => ({ push: vi.fn() }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: navigationMocks.push }) }));
 vi.mock("@/src/modules/providers/speech", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/src/modules/providers/speech")>()),
   createBrowserAudioRecorder: speechMocks.createBrowserAudioRecorder,
@@ -18,6 +19,7 @@ describe("scenario practice shared UI", () => {
     cleanup();
     localStorage.clear();
     speechMocks.createBrowserAudioRecorder.mockReset();
+    navigationMocks.push.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -25,17 +27,19 @@ describe("scenario practice shared UI", () => {
     const scenario = getScenarioPracticeDetail(key)!;
     render(<ScenarioDetail scenario={scenario} />);
     expect(screen.getByRole("heading", { name: scenario.title })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /开始实战/ })).toHaveLength(1);
     expect(screen.getByRole("link", { name: /开始实战/ })).toHaveAttribute("href", `/explore/scenarios/${key}/practice`);
     expect(screen.getAllByText(/自然替代表达/).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "收藏表达" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^收藏表达：/ }).length).toBeGreaterThan(0);
+    expect(document.querySelector(".scenario-detail__action")).not.toBeInTheDocument();
   });
 
   it("saves a formal expression by versioned server reference", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ apiVersion: "v1", data: { id: "saved-1" } }), { status: 201 }));
     const scenario = getScenarioPracticeDetail("scenario.restaurant-ordering")!;
     render(<ScenarioDetail scenario={scenario} />);
-    fireEvent.click(screen.getAllByRole("button", { name: "收藏表达" })[0]!);
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "已收藏" }).length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole("button", { name: `收藏表达：${scenario.expressions[0]!.text}` }));
+    await waitFor(() => expect(screen.getByRole("button", { name: `已收藏：${scenario.expressions[0]!.text}` })).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/expressions/saved", expect.objectContaining({ method: "POST", body: expect.stringContaining(scenario.expressions[0]!.stableKey) }));
   });
 
@@ -59,6 +63,10 @@ describe("scenario practice shared UI", () => {
     });
 
     render(<ScenarioPracticeWorkbench scenario={getScenarioPracticeDetail("scenario.campus-administration")!} />);
+    expect(screen.queryByRole("button", { name: "按住说话" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "暂停" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "键盘" })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "切换到语音输入" }));
     const recordButton = await screen.findByRole("button", { name: "按住说话" });
     fireEvent.pointerDown(recordButton, { pointerId: 1 });
     fireEvent.pointerUp(recordButton, { pointerId: 1 });
@@ -67,5 +75,39 @@ describe("scenario practice shared UI", () => {
     await waitFor(() => expect(cancel).toHaveBeenCalledTimes(1));
     expect(stop).not.toHaveBeenCalled();
     expect(screen.getByText("录音已取消，未送去转写。你可以重新按住录音或改用文字。")).toBeInTheDocument();
+  });
+
+  it("uses text by default, reveals voice on demand, and only offers completion after two turns", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/respond")) return new Response("{\"type\":\"delta\",\"text\":\"Vale.\"}\n{\"type\":\"done\"}\n", { status: 200, headers: { "content-type": "application/x-ndjson" } });
+      return new Response(null, { status: 503 });
+    });
+    render(<ScenarioPracticeWorkbench scenario={getScenarioPracticeDetail("scenario.campus-administration")!} />);
+
+    expect(await screen.findByPlaceholderText("用西班牙语完成你的表达…")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "按住说话" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "完成练习" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "切换到语音输入" }));
+    expect(screen.getByRole("button", { name: "按住说话" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "切换到文字输入" }));
+    expect(screen.getByPlaceholderText("用西班牙语完成你的表达…")).toBeInTheDocument();
+
+    const input = screen.getByPlaceholderText("用西班牙语完成你的表达…");
+    fireEvent.change(input, { target: { value: "Primera respuesta." } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(screen.getByText("Vale.")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "完成练习" })).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "Segunda respuesta." } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(screen.getAllByText("Vale.")).toHaveLength(2));
+    expect(screen.getByRole("button", { name: "完成练习" })).toBeInTheDocument();
+  });
+
+  it("returns to the detail route through the router", async () => {
+    const scenario = getScenarioPracticeDetail("scenario.campus-administration")!;
+    render(<ScenarioPracticeWorkbench scenario={scenario} />);
+    fireEvent.click(await screen.findByRole("button", { name: "返回场景详情" }));
+    expect(navigationMocks.push).toHaveBeenCalledWith(`/explore/scenarios/${scenario.stableKey}`);
   });
 });

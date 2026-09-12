@@ -18,8 +18,11 @@ test("uses one responsive workbench for the three starter scenarios", async ({ p
   await expect(page.getByRole("heading", { name: "校园办事" })).toBeVisible();
   await page.getByRole("link", { name: /开始实战/ }).click();
   await expect(page.getByText("Javier · 临时人物")).toBeVisible();
+  await expect(page.getByPlaceholder("用西班牙语完成你的表达…")).toBeVisible();
+  await expect(page.getByRole("button", { name: "按住说话" })).toHaveCount(0);
+  await page.getByRole("button", { name: "切换到语音输入" }).click();
   await expect(page.getByRole("button", { name: "按住说话" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "键盘" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "切换到文字输入" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
@@ -28,8 +31,8 @@ test("keeps the practice composer usable without horizontal overflow across the 
   for (const width of viewportWidths) {
     await page.setViewportSize({ width, height: width < 600 ? 760 : 900 });
     await page.goto("/explore/scenarios/scenario.campus-administration/practice");
-    await expect(page.getByRole("button", { name: "按住说话" })).toBeVisible();
     await expect(page.getByPlaceholder("用西班牙语完成你的表达…")).toBeVisible();
+    await expect(page.getByRole("button", { name: "切换到语音输入" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px overflow`).toBeLessThanOrEqual(width);
   }
 });
@@ -46,7 +49,7 @@ test("keeps complete learner turns, triggers one content condition, and shows th
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByText("你选择的菜品刚好售完，需要换一种。")).toBeVisible();
   await expect(page.getByText("你选择的菜品刚好售完，需要换一种。")).toHaveCount(1);
-  await page.getByRole("button", { name: "结束并查看复盘" }).click();
+  await page.getByRole("button", { name: "完成练习" }).click();
   await expect(page).toHaveURL(/\/review$/);
   await expect(page.getByRole("heading", { name: "完整对话" })).toBeVisible();
   await expect(page.getByText("Quería pedir el menú del día.")).toBeVisible();
