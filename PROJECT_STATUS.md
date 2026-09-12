@@ -6,7 +6,7 @@
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
 - 总体状态：ALPHA-033 继续进行；当前成果只形成电脑端 Web 临时集成测试基线，不是发布候选。v2 内容、远端数据库导入和自动化回归已完成，但产品本人确认仍有未完成功能及明显的排版、按钮和交互缺陷；必须重新盘点并修复后再讨论发布候选。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012`、`UI-013` 已完成；`UI-014` 解锁为 `ready`，后续任务仍按既定顺序逐项验收。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
+- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012`、`UI-013` 已完成；`UI-014` 已领取并进入 `in_progress`，后续任务仍按既定顺序逐项验收。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -248,6 +248,8 @@
 
 - UI-013 合并完成：产品本人于 2026-09-12 确认开启下一项任务；`codex/ui-013-learning-workbench-density` 已通过 Merge Commit `ef89207` 合入 `main`。UI-013 状态改为 `done`，UI-014 解锁为 `ready`；合并不改变既有移动端延期项或发布候选门禁。
 
+- UI-014 启动：已从最新 `main` 创建 `codex/ui-014-reading-density`，只收敛阅读书架与文章阅读器的桌面布局密度、动作层级、按钮与字号；保持现有内容 API、阅读断点、词语/句子解释、流式 `done`、保存和口语迁移边界，不新增抓取、上传、公开发布或阅读证据语义。负责人：Codex；状态：`in_progress`。
+
 ### READ-006：Generate Story 私有 AI 草稿文章
 
 - 状态：`done`
@@ -278,7 +280,7 @@
 
 ## 当前任务
 
-UI-012、UI-013 已完成并合并；当前上位任务仍为 `ALPHA-033`，下一项 `UI-014` 阅读书架与文章阅读器密度收敛已解锁为 `ready`，尚未领取。
+UI-012、UI-013 已完成并合并；当前上位任务仍为 `ALPHA-033`，当前只实施 `UI-014` 阅读书架与文章阅读器密度收敛，状态为 `in_progress`。
 
 当前任务为 `ALPHA-033`：电脑端 Web 的 Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等电脑端候选版本门禁通过后再启动。当前只做电脑端 Web 功能补齐、缺陷修复和局部/全量质量回归；响应式与 iPhone Safari/PWA 兼容保留但真机验收延期，Flutter 不恢复同步。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
@@ -300,7 +302,7 @@ UI-012、UI-013 已完成并合并；当前上位任务仍为 `ALPHA-033`，下�
 - `UI-011`：跨视口、可访问性与行为回归（done；依赖 UI-006 至 UI-010）
 - `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（done；实现 Commit `742d1e7`、产品反馈修正 `335c747`、Merge Commit `7f994e6`）
 - `UI-013`：学习首页与训练工作台密度收敛（done；实现 `ea91cc7`、Merge Commit `ef89207`）
-- `UI-014`：阅读书架与文章阅读器密度收敛（ready；依赖 UI-013 已满足；待领取）
+- `UI-014`：阅读书架与文章阅读器密度收敛（in_progress；分支 `codex/ui-014-reading-density`；依赖 UI-013 已满足）
 - `UI-015`：对话页面密度收敛（blocked；依赖 UI-014）
 - `UI-016`：“我的”、设置与隐私密度收敛（blocked；依赖 UI-015）
 - `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（blocked；依赖 UI-012 至 UI-016）
@@ -1593,7 +1595,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | SCN-005 | done | `codex/scn-005-provider-pwa-hardening` | Codex / 产品本人 | Provider 设置、切换与电脑端 Web 发布门禁；iPhone 真机延期 | SCN-001 至 SCN-004 |
 | UI-012 | done | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 实现 `742d1e7`、反馈修正 `335c747`、合并 `7f994e6` |
 | UI-013 | done | `codex/ui-013-learning-workbench-density` | Codex | 学习首页与训练工作台密度收敛 | 实现 `ea91cc7`、合并 `ef89207` |
-| UI-014 | ready | `codex/ui-014-reading-density` | 待领取 | 阅读书架与文章阅读器密度收敛 | UI-013 已完成 |
+| UI-014 | in_progress | `codex/ui-014-reading-density` | Codex | 阅读书架与文章阅读器密度收敛 | UI-013 已完成 |
 | UI-015 | blocked | `codex/ui-015-conversation-density` | 待领取 | 对话页面密度收敛 | UI-014 |
 | UI-016 | blocked | `codex/ui-016-profile-density` | 待领取 | “我的”、设置与隐私密度收敛 | UI-015 |
 | UI-017 | blocked | `codex/ui-017-collapsible-shell` | 待领取 | 公共壳层、可收缩侧边栏与全站一致性 | UI-012 至 UI-016 |
