@@ -37,7 +37,7 @@
 | 2 | `SCN-002` 通用多场景纵向闭环 | `codex/scn-002-multi-scenario-vertical` | SCN-001 | 共用工作台承载三个可日常使用的基础场景 |
 | 3 | `SCN-003` 场景与表达库 | `codex/scn-003-scenario-library` | SCN-001、SCN-002 的 UI 边界 | 搜索、分类、收藏、生成和多来源进入 |
 | 4 | `SCN-004` 历史、复盘与间隔复现 | `codex/scn-004-review-repetition` | SCN-002、SCN-003 | 完整复盘、历史和学习页到期任务 |
-| 5 | `SCN-005` Provider 与 iPhone 收敛 | `codex/scn-005-provider-pwa-hardening` | SCN-002 至 SCN-004 | Provider 选择/切换与 iPhone Safari 发布门禁 |
+| 5 | `SCN-005` Provider 与电脑端 Web 收敛 | `codex/scn-005-provider-pwa-hardening` | SCN-002 至 SCN-004 | Provider 选择/切换与电脑端 Web 发布门禁；iPhone 真机延期 |
 
 协调者在开始 `SCN-001` 前，应先把本设计与计划提交纳入目标基线，并在 `PROJECT_STATUS.md` 将该任务从 `ready` 改为 `in_progress`。不得在当前 `fix/login-redirect-after-otp` 分支上顺手实现五个任务。
 
@@ -457,11 +457,11 @@ Dashboard DTO 增加场景卡、表达卡、来源和生成入口；现有内容
 
 建议实现提交：`feat: add scenario review and repetition`
 
-## 8. SCN-005：Provider 设置、切换与 iPhone Safari/PWA 收敛
+## 8. SCN-005：Provider 设置、切换与电脑端 Web 收敛
 
 ### 8.1 目标
 
-让用户可以看见每项能力的 Provider 状态、选择可用 Provider，并在失败时安全切换；同时完成桌面与 iPhone Safari 的发布候选检查。
+让用户可以看见每项能力的 Provider 状态、选择可用 Provider，并在失败时安全切换；完成电脑端 Web 的发布候选代码与浏览器门禁。根据产品本人 2026-09-12 的优先级决定，iPhone Safari/PWA 真机验收延期且不阻塞当前阶段。
 
 ### 8.2 Provider registry 与真实备用适配器
 
@@ -497,7 +497,7 @@ src/modules/providers/ui/provider-settings-panel.tsx
 
 修改 `app/(product)/me/page.tsx` 和必要的 preferences 组合组件。页面按场景生成、临时人物回复、场景评估、转写和发音分别显示当前选择、状态、最近成功/失败时间、备用选项和恢复动作。不能返回密钥、完整厂商错误或请求正文。
 
-### 8.4 iPhone Safari/PWA
+### 8.4 电脑端 Web 与延期的 iPhone Safari/PWA 验收
 
 验证并按实际问题修改：
 
@@ -506,9 +506,9 @@ src/modules/providers/ui/provider-settings-panel.tsx
 - 场景详情、实战、复盘和 Provider 设置组件
 - 浏览器录音生命周期适配器
 
-检查 320、375、390、414、768、1024、1280 和 1440px；重点是真实 iPhone Safari 的输入法弹出、visual viewport、底部安全区、长按录音、来电/后台中断、返回恢复、主屏 PWA 和横向溢出。
+自动检查 320、375、390、414、768、1024、1280 和 1440px，确保当前电脑端 Web 主线及已有响应式布局不回退。真实 iPhone Safari 的输入法弹出、visual viewport、底部安全区、长按录音、来电/后台中断、返回恢复和主屏 PWA 改为后续单独排期。
 
-将人工结果记录到 `docs/testing/scenario-practice-iphone-safari-checklist.md`，每个失败必须有复现设备/iOS/Safari/PWA 模式和后续任务 ID，不能用 Playwright WebKit 冒充真机通过。
+保留 `docs/testing/scenario-practice-iphone-safari-checklist.md`。后续执行时，每个失败必须记录复现设备/iOS/Safari/PWA 模式和后续任务 ID；任何时候都不能用 Playwright WebKit 冒充真机通过。未执行该清单不阻塞当前电脑端 Web 候选。
 
 ### 8.5 测试与发布门禁
 
@@ -544,9 +544,9 @@ git diff --check
 | 能力 | SCN-001 | SCN-002 | SCN-003 | SCN-004 | SCN-005 |
 | --- | --- | --- | --- | --- | --- |
 | 状态机、revision、幂等 | 完成 | 接入 UI/API | 保持 | 跨设备回归 | 发布门禁 |
-| 餐厅、校园与租房场景 | 基础模型 | 共用工作台可完整使用 | 出现在完整场景库 | 历史与复现 | iPhone 真机 |
+| 餐厅、校园与租房场景 | 基础模型 | 共用工作台可完整使用 | 出现在完整场景库 | 历史与复现 | 电脑端 Web 门禁；iPhone 真机延期 |
 | 搜索、分类、收藏、生成 | 数据边界 | 最小入口 | 完成 | 历史联动 | Provider 状态 |
-| 完整文字复盘 | 数据表 | 基础版本 | 来源复用 | 完成 | 真机回归 |
+| 完整文字复盘 | 数据表 | 基础版本 | 来源复用 | 完成 | 电脑端 Web 回归 |
 | 1/3/7 天复现 | 纯规则 | 不展示 | 不展示 | 完成 | 发布门禁 |
 | Provider 切换 | fake 规则 | MiniMax 单路径 | 生成 Provider | 评估补试 | 多 Provider 与设置页 |
 | 长期角色/记忆隔离 | 自动测试 | 自动测试 | 自动测试 | 自动测试 | 全量回归 |
@@ -572,4 +572,4 @@ git diff --check
 - 已知限制、真实 Provider/数据库/真机条件和下一项建议。
 - `PROJECT_STATUS.md` 后置提交及远端分支状态。
 
-只有 `SCN-005` 的全量门禁和真实 iPhone Safari 检查完成后，才能把整个场景学习闭环标记为发布候选；`SCN-002` 完成后即可作为个人学习的早期可用停点。
+`SCN-005` 的电脑端 Web 代码、契约、构建和专项浏览器门禁通过后，可以完成该任务并继续电脑端个人 Alpha 候选收敛；真实 iPhone Safari/PWA 检查延期且不阻塞当前阶段，但完成前不得声称手机端或 PWA 已通过真机验收。`SCN-002` 完成后即可作为个人学习的早期可用停点。

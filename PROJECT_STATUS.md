@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-12
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-004` 已完成，`SCN-005` Provider 设置、自动切换和 Web/PWA 代码门禁已完成，等待产品本人执行真实 iPhone Safari/PWA 清单；阶段 8 尚未启动
+- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-005` 已完成，当前优先收敛电脑端 Web 个人 Alpha；iPhone Safari/PWA 真机验收延期且不阻塞当前阶段，阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：SCN-005 真实 iPhone Safari/PWA 的麦克风、前后台、耳机切换、输入法、安全区和主屏恢复尚待产品本人执行；三个基础场景与 `alpha-core-v1` 正式表达仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；SCN-003 全量 E2E 中剩余的聊天好友介绍、移动阅读/账号交互失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频
+- 当前门禁：三个基础场景与 `alpha-core-v1` 正式表达仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；电脑端 Web 的既有聊天好友介绍失败仍需按原任务归属处理；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -99,19 +99,20 @@
 
 ### SCN-005：Provider 设置、自动切换与 iPhone Safari/PWA 收敛
 
-- 状态：`review`
+- 状态：`done`
 - 负责人：Codex / 产品本人
 - 目标分支：`codex/scn-005-provider-pwa-hardening`
 - 设计 Commit：`c2be202`
 - 实现 Commit：`7ee64f2`
 - 分支状态同步 Commit：`5c1a546`
 - 合并 Commit：`b782140`
+- 优先级决定（2026-09-12）：产品本人确认暂时以电脑端 Web 为优先；SCN-005 按已通过的电脑端 Web 代码、契约、构建和专项浏览器门禁完成，iPhone Safari/PWA 真机检查延期且不阻塞当前阶段。
 - 前置依赖：SCN-001 至 SCN-004 已完成；Provider 路由优先级、一次性切换、观测与真机边界已由产品本人确认
 - 范围：按场景生成、临时人物回复、场景评估、转写和发音展示 Provider 配置、健康与用户偏好；为三类场景能力接入 MiniMax/OpenAI 选择和安全的一次性 fallback；收敛 iPhone Safari 录音生命周期、visual viewport、安全区、PWA metadata 和八档响应式视口。
 - 修改：新增服务端 Provider registry、健康派生、用户偏好与观测 repository、OpenAI Responses 适配器、状态/偏好 API、v1 OpenAPI/JSON Schema 和“我的 → 偏好设置”面板；流式回复只在首个 delta 前切换，无 `done` 视为失败，取消/非法响应不切换，每次尝试独立记录脱敏结果；录音在页面隐藏、`pagehide`、音轨结束、Pointer Cancel 或快速松手时取消并释放资源，不送转写或产生负面证据；新增 512px any/maskable 图标、180px Apple 图标与真机清单。
 - 验证：全量 Vitest `153 files / 652 tests`、Provider 契约 `10 files / 41 tests`、录音/工作台聚焦回归 `2 files / 13 tests`、SCN-005 桌面与移动 Chromium 多视口 Playwright `4/4` 通过；`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、`git diff --check` 全部通过。扩大运行 `product-shell.spec.ts` 与 `scenario-practice.spec.ts` 时仍会命中既有 Lucía 联系人/介绍请求失败，未将该结果误记为 SCN-005 通过。
-- 限制：没有调用真实收费 MiniMax/OpenAI/SpeechAce，没有在远端 Supabase/PostgreSQL 执行迁移或联调，没有真实 iPhone Safari/PWA 验证；自动化 Chromium 和单元测试不能替代麦克风权限、来电/后台、耳机切换、输入法、安全区与主屏恢复的真机结论；三个公共场景和正式表达仍为 draft；Flutter 未修改。
-- 下一步：产品本人按 [`场景实战 iPhone Safari / PWA 真机检查清单`](docs/testing/scenario-practice-iphone-safari-checklist.md) 执行并记录结果；若无阻断问题，再把 SCN-005 标记为 `done` 并进入阶段 8，既有聊天/阅读 Playwright 失败继续按原任务归属修复。
+- 限制：没有调用真实收费 MiniMax/OpenAI/SpeechAce，没有在远端 Supabase/PostgreSQL 执行迁移或联调，没有真实 iPhone Safari/PWA 验证；移动兼容代码和 [`场景实战 iPhone Safari / PWA 真机检查清单`](docs/testing/scenario-practice-iphone-safari-checklist.md) 继续保留，但真机结论延期；三个公共场景和正式表达仍为 draft；Flutter 未修改。
+- 下一步：继续 `ALPHA-033` 的电脑端 Web 功能缺口、已知缺陷和发布候选门禁收敛；满足退出条件后再由产品本人确认进入阶段 8 的电脑端 Web 个人 Alpha 使用周期。iPhone Safari/PWA 真机验收后续单独排期。
 
 ### ALPHA-031：MiniMax M3 生成式角色对话
 
@@ -144,9 +145,10 @@
 - 负责人：Codex
 - 目标分支：`fix/login-redirect-after-otp`
 - 前置依赖：阶段 7、UI-006 至 UI-011、READ-001 至 READ-005
-- 范围：对照产品设计和 Alpha 范围盘点未完成能力与已知缺陷；补齐核心训练、初次诊断、阅读、对话、画像、隐私和 Web/Flutter 跨端闭环；修复阻塞级/高优先级流程、状态机、取消/竞态、数据隔离、证据污染和角色一致性问题；清理全量测试与 fixture 漂移；准备发布候选质量门禁。
+- 范围：对照产品设计和 Alpha 范围盘点未完成能力与已知缺陷；当前优先补齐电脑端 Web 的核心训练、初次诊断、阅读、对话、画像和隐私闭环；修复阻塞级/高优先级流程、状态机、取消/竞态、数据隔离、证据污染和角色一致性问题；清理电脑端 Web 发布候选测试与 fixture 漂移。响应式与 iPhone Safari/PWA 兼容代码继续保留，但真机验收延期；Flutter 继续暂停同步。
 - 不包含：阶段 8 连续使用配额、周度复盘或全面主观体验；支付、完整内容后台、实时双向语音、大规模角色网络、任意外部来源抓取和其他 Alpha 延后范围。
-- 验收：核心路径可从入口走到完成或可恢复失败；P0/P1 缺陷清零；关键数据和角色安全不变量有自动化回归；`pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm test:e2e`、`pnpm build` 按发布候选范围通过；Flutter 公共检查通过，并记录 Mac/Xcode 真机验收缺口。
+- 验收：电脑端 Web 核心路径可从入口走到完成或可恢复失败；P0/P1 缺陷清零；关键数据和角色安全不变量有自动化回归；`pnpm lint`、`pnpm typecheck`、`pnpm test --run`、适用的电脑端 `pnpm test:e2e` 与 `pnpm build` 按发布候选范围通过。iPhone Safari/PWA 真机与 Flutter 检查不再作为当前退出门禁，延期结果必须诚实记录。
+- 优先级覆盖说明：下方切片日志中的 Flutter 同源实现或 iPhone 真机“下一步”保留为当时交接记录；自 2026-09-12 起均由电脑端 Web 优先决定取代，不代表当前任务顺序或放行前置。
 - 当前切片：画像 Web `/me` 视觉与信息层级落地。首屏改为能力摘要、唯一真实继续练习入口（有证据时才显示）、八维状态条、最近证据时间线；雷达图与证据表降为可展开的次级明细；活动热力图默认展示最近 12 周；桌面/移动样式统一暖米白、赤陶与灰绿色编辑式主题，并补充暗色主题映射。实现 Commit：`c1f740c`。随后修复分区入口仅为锚点的问题，新增客户端分段视图：默认只渲染能力与活动，关系隐私/数据与隐私切换时隐藏其他分区，并同步 hash 与浏览器返回；实现 Commit：`6b6f29f`。数据库连接探测成功并执行 `pnpm db:migrate` 应用 15 条迁移；修复画像、活动、关系记忆和保存语音 API 对浏览器 Cookie 会话的回退认证，使真实登录页面可读取数据库空/有数据状态；实现 Commit：`b31a629`。验证：画像/热力图/profile 页面 Vitest 7/7，Profile API 相关 Vitest 6/6，画像 E2E 1/1（桌面）+ 1/1（移动），`pnpm lint`、受影响文件 ESLint 通过；浏览器 Playwright 验证迁移后画像与活动从 503 恢复并无横向溢出。全量 `pnpm exec tsc --noEmit` 仍被其他代理未提交的 `chat-thread.tsx` 缺失格式化函数阻断。限制：当前数据库尚无该登录用户的学习证据，因此显示真实的 0/8 与空活动；本切片未改 Flutter 页面或新增 Dashboard DTO。下一步：补齐真实 profile Dashboard DTO 与 Flutter 同源渲染，再进入发布候选门禁。
 - 账户菜单与个人资料可用性修复：退出登录接入 Supabase `signOut` 并跳转 `/login`，UID 复制增加非安全上下文回退；新增可用的 `/help` 帮助与 `/me#preferences` 偏好设置分区；个人资料读取失败时提供明确的重试入口，并为请求补充同源凭据和禁缓存。排查确认远程数据库尚未应用账户迁移，已通过 `pnpm db:migrate` 应用并验证 `profiles.public_uid/avatar_*` 字段存在、现有账户 UID 已补齐。新增资料保存后的账户菜单/对话头像同步、预设头像颜色和本地图片上传入口；头像选择改为点击“保存资料”后才上传，保存完成后再同步各页面，替换头像时清理旧上传文件；上传时会自动创建缺失的私有 `profile-avatars` bucket。实现 Commit：`9b2846d`、`e406f4c`、`3f1ee29`、`a0b6bfe`、`d75f364`、`b45bd94`、`68b000e`；验证：账户菜单/个人资料/画像/账户更新相关 Vitest 9/9、受影响文件 ESLint、`pnpm exec tsc --noEmit` 通过。限制：照片上传需要配置 Supabase `SUPABASE_SECRET_KEY`（或旧版 `SUPABASE_SERVICE_ROLE_KEY`）；偏好设置暂存本设备，尚未接入 `user_preferences` 服务端同步；Flutter 账户菜单仍需接入同源退出和偏好 API。下一步：配置并验证 Storage 上传，再继续发布候选门禁。
 - 头像稳定性与清理补丁：账户菜单头像加载失败时回退到首字母；上传新头像后会清理该用户目录下残留旧对象。实现 Commit：`b93bba2`；验证：账户菜单/资料/上传相关 Vitest 5/5、受影响文件 ESLint、`pnpm exec tsc --noEmit` 通过。
@@ -254,7 +256,7 @@
 
 UI-011 已完成；当前下一项为 `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备。
 
-当前任务为 `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等候选版本门禁通过后再启动。当前只做功能补齐、缺陷修复、跨端闭环和局部/全量质量回归；阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务为 `ALPHA-033`：电脑端 Web 的 Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等电脑端候选版本门禁通过后再启动。当前只做电脑端 Web 功能补齐、缺陷修复和局部/全量质量回归；响应式与 iPhone Safari/PWA 兼容保留但真机验收延期，Flutter 不恢复同步。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 当前工作边界
 
@@ -275,8 +277,8 @@ UI-011 已完成；当前下一项为 `ALPHA-033`：Alpha 功能缺口收敛与�
 
 ### 当前 Alpha 收敛任务
 
-- `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备（in_progress；负责人 Codex；目标分支 `fix/login-redirect-after-otp`）。
-- 阶段 8：个人 Alpha 连续使用与人工体验复核（ready；仅在 `ALPHA-033` 退出条件满足后启动）。
+- `ALPHA-033`：电脑端 Web Alpha 功能缺口收敛与发布候选准备（in_progress；负责人 Codex；目标分支 `fix/login-redirect-after-otp`）。
+- 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（ready；仅在 `ALPHA-033` 退出条件满足后启动）。
 
 ### 后续路线（不进入当前 Alpha）
 
@@ -1558,8 +1560,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
 | SCN-004 | done | `codex/scn-004-review-repetition` | Codex | 完整历史、逐轮复盘、重新说和当天/1/3/7 天复现 | SCN-002、SCN-003 |
-| SCN-005 | review | `codex/scn-005-provider-pwa-hardening` | Codex / 产品本人 | Provider 设置、切换与 iPhone Safari/PWA 发布门禁；代码门禁通过，待真机 | SCN-001 至 SCN-004 |
-| 阶段 8 | ready | 待启动 | 产品本人 / Codex | 发布候选版本的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
+| SCN-005 | done | `codex/scn-005-provider-pwa-hardening` | Codex / 产品本人 | Provider 设置、切换与电脑端 Web 发布门禁；iPhone 真机延期 | SCN-001 至 SCN-004 |
+| 阶段 8 | ready | 待启动 | 产品本人 / Codex | 电脑端 Web 发布候选的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -1567,8 +1569,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | SCN-005 | 真实 iPhone Safari/PWA 清单与缺陷回收 | Web/PWA 代码门禁已完成 |
-| 2 | 阶段 8 | 个人 Alpha 使用周期与人工体验复核 | SCN-005 真机通过、ALPHA-033 退出条件与产品本人确认 |
+| 1 | ALPHA-033 | 电脑端 Web 功能缺口、已知缺陷与发布候选门禁收敛 | SCN-001 至 SCN-005 已完成 |
+| 2 | 阶段 8 | 电脑端 Web 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
