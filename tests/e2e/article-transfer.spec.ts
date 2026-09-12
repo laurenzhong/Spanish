@@ -16,6 +16,8 @@ test("moves an explicit article transfer into the oral practice context", async 
   await authenticate(page);
   await page.goto("/read/article/article.sueno-first-cafe@1");
 
+  await expect(page.getByTestId("article-transfer")).toHaveCount(0);
+  await page.getByRole("button", { name: "口语" }).click();
   await expect(page.getByTestId("article-transfer")).toBeVisible();
   await expect(page.getByRole("button", { name: /说说文章讲了什么/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /说说你的看法/ })).toBeVisible();
@@ -51,34 +53,27 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   await expect(topbar).toHaveCSS("top", "0px");
   await expect(topbar).toHaveCSS("border-bottom-width", "1px");
   await expect(title).toContainText("Una conversación que empieza con un café");
-  await expect(title).toHaveCSS("text-overflow", "clip");
+  await expect(title).toHaveCSS("text-overflow", "ellipsis");
   await expect(actions).toHaveCSS("gap", "2px");
 
-  const toggle = page.locator(".article-reader__assist-toggle");
-  const tools = page.getByRole("dialog", { name: "阅读辅助" });
-  await expect(toggle).toHaveAccessibleName("打开阅读辅助");
+  const toggle = page.getByRole("button", { name: "解释" });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(tools).not.toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await toggle.click();
-  await expect(toggle).toHaveAccessibleName("关闭阅读辅助");
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const tools = page.getByRole("dialog", { name: "解释" });
   await expect(tools).toBeVisible();
-  await expect(tools).toContainText("Click any word on the left for a context-aware explanation.");
+  await expect(tools).toContainText("点击正文中的词语查看语境解释。");
 
-  const tabs = page.locator(".article-reader__tool-tabs");
   const toolsBox = await tools.boundingBox();
-  const tabsBox = await tabs.boundingBox();
   expect(toolsBox).not.toBeNull();
-  expect(tabsBox).not.toBeNull();
-  if (toolsBox && tabsBox) {
-    expect(tabsBox.y - toolsBox.y).toBeLessThan(80);
+  if (toolsBox) {
     if ((page.viewportSize()?.width ?? 0) >= 960) {
-      expect(toolsBox.width).toBeCloseTo(425, 0);
+      expect(toolsBox.width).toBeCloseTo(360, 0);
       const toggleBox = await toggle.boundingBox();
       expect(toggleBox).not.toBeNull();
       if (toggleBox) {
-        expect(toggleBox.x).toBeGreaterThanOrEqual(toolsBox.x);
         const toggleIsTopmost = await toggle.evaluate((node) => {
           const rect = node.getBoundingClientRect();
           const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -88,49 +83,33 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
       }
       const content = page.locator(".article-reader__content");
       await expect(content).toHaveCSS("padding-right", "24px");
-      await expect(content).toHaveCSS("margin-right", "0px");
-      const firstTab = tabs.getByRole("tab").first();
-      const firstTabBox = await firstTab.boundingBox();
-      expect(firstTabBox).not.toBeNull();
-      if (firstTabBox) {
-        const tabIsTopmost = await firstTab.evaluate((node) => {
-          const rect = node.getBoundingClientRect();
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          return hit === node || node.contains(hit);
-        });
-        expect(tabIsTopmost).toBe(true);
-      }
     }
   }
 
   if ((page.viewportSize()?.width ?? 0) < 800) {
     await page.locator(".article-reader__tools-close").click();
-    await expect(tools).not.toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   }
   await page.getByRole("button", { name: /^café/ }).click();
   await expect(tools).toContainText("咖啡这种饮料；咖啡馆");
   expect(explanationApiCalled).toBe(false);
-  const sidebarOverflow = await tools.evaluate((node) => ({
-    panel: node.scrollWidth <= node.clientWidth,
-    tabRows: new Set([...node.querySelectorAll<HTMLElement>(".article-reader__tool-tabs button")].map((button) => button.getBoundingClientRect().top)).size,
-  }));
+  const activeTools = page.getByRole("dialog", { name: "解释" });
+  const sidebarOverflow = await activeTools.evaluate((node) => ({ panel: node.scrollWidth <= node.clientWidth }));
   expect(sidebarOverflow.panel).toBe(true);
-  expect(sidebarOverflow.tabRows).toBe(1);
 
-  await page.getByRole("tab", { name: "Dictionary" }).click();
+  await page.getByRole("button", { name: "词典" }).click();
   await expect(page.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
   await expect(page.getByRole("combobox", { name: "词典目标语言" })).toHaveValue("Chinese");
-  await expect(tools).toContainText("还没有配置 Spanish → Chinese 词典。");
+  await expect(page.getByRole("dialog", { name: "词典" })).toContainText("还没有配置 Spanish → Chinese 词典。");
 
-  await page.getByRole("tab", { name: "Settings" }).click();
-  await expect(tools.getByRole("heading", { name: "Spanish voices" })).toBeVisible();
-  await expect(tools.getByRole("region", { name: "Spanish voices" })).toBeVisible();
+  await page.getByRole("button", { name: "设置" }).click();
+  const settings = page.getByRole("dialog", { name: "设置" });
+  await expect(settings.getByRole("heading", { name: "Spanish voices" })).toBeVisible();
+  await expect(settings.getByRole("region", { name: "Spanish voices" })).toBeVisible();
 
-  if ((page.viewportSize()?.width ?? 0) < 800) await page.locator(".article-reader__tools-close").click();
-  else await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(toggle).toHaveAccessibleName("打开阅读辅助");
-  await expect(tools).not.toBeVisible();
+  await page.locator(".article-reader__tools-close").click();
+  await expect(page.getByRole("button", { name: "设置" })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("explains a selected sentence", async ({ page }) => {
@@ -154,25 +133,24 @@ test("explains a selected sentence", async ({ page }) => {
     });
   });
   await page.goto("/read/article/article.sueno-first-cafe@1");
-  await page.locator(".article-reader__assist-toggle").click();
+  await page.getByRole("button", { name: "解释" }).click();
   const paragraph = page.locator('[data-reader-position="0"]');
-  const tokens = paragraph.locator(".reader-token");
-  const start = await tokens.nth(1).boundingBox();
-  const end = await tokens.nth(3).boundingBox();
-  expect(start).not.toBeNull();
-  expect(end).not.toBeNull();
-  if (!start || !end) throw new Error("sentence tokens missing");
-  await page.evaluate(() => {
-    document.addEventListener("mouseup", () => {
-      document.body.dataset.lastReaderSelection = window.getSelection()?.toString() ?? "";
-    }, { capture: true, once: true });
+  const selectedText = await paragraph.evaluate((node) => {
+    const tokens = node.querySelectorAll<HTMLElement>(".reader-token");
+    const start = tokens[1]?.firstChild;
+    const end = tokens[3]?.firstChild;
+    if (!start || !end) throw new Error("sentence tokens missing");
+    const range = document.createRange();
+    range.setStart(start, 0);
+    range.setEnd(end, end.textContent?.length ?? 0);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const value = selection?.toString() ?? "";
+    node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    return value;
   });
-  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 8 });
-  await page.mouse.up();
-  const selectedText = await page.locator("body").getAttribute("data-last-reader-selection");
   expect(selectedText).toContain("clase");
   await expect(page.getByRole("button", { name: "解析所选句子" })).toHaveCount(0);
-  await expect(page.getByRole("dialog", { name: "阅读辅助" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
+  await expect(page.getByRole("dialog", { name: "解释" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
 });

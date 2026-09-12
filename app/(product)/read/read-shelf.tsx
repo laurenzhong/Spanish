@@ -12,8 +12,7 @@ type ReadSource = "public" | "web";
 
 type ReadShelfProps = Readonly<{
   result: ArticleListResult;
-  page?: number;
-  pageSize?: number;
+  visibleCount?: number;
   search: string;
   topic: string;
   cefr: string;
@@ -80,7 +79,23 @@ function withParams(params: Readonly<Record<string, string | undefined>>): strin
   return serialized ? `/read?${serialized}` : "/read";
 }
 
-export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, savedOnly, initialReaderProgress, generatedArticles = [] }: ReadShelfProps) {
+function SearchIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>;
+}
+
+function ChevronIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4" /></svg>;
+}
+
+function BookmarkIcon({ filled }: Readonly<{ filled: boolean }>) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6.5 4.5h11v15l-5.5-3.2-5.5 3.2z" fill={filled ? "currentColor" : "none"} /></svg>;
+}
+
+function TrashIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4.5h6V7m-8 0 1 12h8l1-12M10 10v6m4-6v6" /></svg>;
+}
+
+export function ReadShelf({ result, visibleCount = 12, search, topic, cefr, minutes, source, sort, savedOnly, initialReaderProgress, generatedArticles = [] }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
   const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(() => savedOnly
     ? result.savedFilterAvailable ? new Set(result.articles.map((article) => article.id)) : null
@@ -113,9 +128,17 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
 
   const visibleArticles = useMemo(() => {
     if (source === "web") return [];
-    const publicArticles = savedOnly && !result.savedFilterAvailable ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles;
+    const publicArticles = savedOnly ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles;
     return savedOnly ? [...publicArticles, ...privateArticles] : publicArticles;
-  }, [privateArticles, result.articles, result.savedFilterAvailable, savedArticleIds, savedOnly, source]);
+  }, [privateArticles, result.articles, savedArticleIds, savedOnly, source]);
+  const removedServerArticleCount = savedOnly && result.savedFilterAvailable && savedArticleIds !== null
+    ? result.articles.filter((article) => !savedArticleIds.has(article.id)).length
+    : 0;
+  const displayedArticleCount = source === "web" || savedArticleIds === null
+    ? null
+    : savedOnly
+      ? result.savedFilterAvailable ? Math.max(0, result.totalCount - removedServerArticleCount) + privateArticles.length : visibleArticles.length
+      : result.totalCount;
 
   useEffect(() => {
     const nextStates = Object.fromEntries(
@@ -136,15 +159,15 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
   }, [toolNotice]);
 
   const emptyHeading = source === "web"
-    ? "Web Sites 暂未开放"
+    ? "外部网站暂未开放"
     : savedOnly
-      ? savedLoadFailed ? "My Texts 暂时无法读取" : "My Texts 还是空的"
+      ? savedLoadFailed ? "我的文章暂时无法读取" : "还没有收藏文章"
       : hasFilters ? "没有找到匹配的文章" : "可公开阅读的文章正在准备中";
   const emptyDescription = source === "web"
-    ? "外部网站保存和正文解析需要单独的来源许可，当前 Alpha 先保留入口。"
+    ? "网站保存和正文解析需要来源许可，当前暂不提供。"
     : savedOnly
-      ? savedLoadFailed ? "网络恢复或登录后可以重新读取你的个人保存。" : "在文章卡片右侧点击五角星，即可把它加入这里。"
-      : hasFilters ? "换一个筛选条件试试，或者回到 Public Texts。" : "每篇文章都会经过来源、版权和语言审核；准备好后会出现在这里。";
+      ? savedLoadFailed ? "网络恢复或重新登录后再试。" : "收藏的文章和私人故事会显示在这里。"
+      : hasFilters ? "调整搜索或筛选条件后再试。" : "审核通过后，文章会显示在这里。";
 
   const toggleSaved = useCallback(async (articleId: string, currentlySaved: boolean) => {
     if (savingArticleIds.has(articleId)) return;
@@ -178,7 +201,7 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
         else next.delete(articleId);
         return next;
       });
-      setToolNotice(saved ? "已保存到 My Texts。" : "已从 My Texts 移除。");
+      setToolNotice(saved ? "已收藏。" : "已取消收藏。");
     } catch {
       setSavedArticleIds((previous) => {
         const next = new Set(previous ?? []);
@@ -197,13 +220,14 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
   }, [router, savingArticleIds]);
 
   const deleteGenerated = useCallback(async (articleId: string) => {
+    if (!window.confirm("删除这篇私人故事？删除后无法恢复。")) return;
     try {
       const response = await fetch(`/api/v1/read/generated-stories/${encodeURIComponent(articleId)}`, { method: "DELETE", credentials: "same-origin" });
       if (!response.ok) throw new Error("delete-unavailable");
       const stableKey = articleId.slice(0, articleId.lastIndexOf("@"));
       if (stableKey) window.localStorage.removeItem(`${readerStoragePrefix}${stableKey}`);
       setPrivateArticles((previous) => previous.filter((item) => item.id !== articleId));
-      setToolNotice("文章已从 My Texts 删除。");
+      setToolNotice("私人故事已删除。");
     } catch {
       setToolNotice("文章暂时无法删除，请稍后重试。");
     }
@@ -211,55 +235,58 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
 
   return (
     <div className="read-library">
-      <nav className="read-library__source-tabs" aria-label="Reading sources">
-        <Link className={source === "public" && !savedOnly ? "is-selected" : ""} href={withParams({ search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>Public Texts</Link>
-        <Link className={savedOnly ? "is-selected" : ""} href={withParams({ saved: "1", search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>My Texts</Link>
-        <Link className={source === "web" ? "is-selected" : ""} href={withParams({ source: "web", search, sort: sort !== "hot" ? sort : undefined })}>Web Sites</Link>
-        <span className="read-library__source-count">{source === "web" || savedArticleIds === null ? "" : `${savedOnly ? visibleArticles.length : result.totalCount} texts`}</span>
+      <nav className="read-library__source-tabs" aria-label="文章来源">
+        <Link className={source === "public" && !savedOnly ? "is-selected" : ""} href={withParams({ search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>公共文章</Link>
+        <Link className={savedOnly ? "is-selected" : ""} href={withParams({ saved: "1", search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>我的文章</Link>
+        <span className="read-library__source-count">{displayedArticleCount === null ? "— 篇" : `${displayedArticleCount} 篇`}</span>
       </nav>
 
-      <section className="read-library__toolbar" aria-label="Reading tools">
-        <form className="read-search" method="get">
-          <label htmlFor="read-search-input">Search by title or author</label>
+      <section className="read-library__toolbar" aria-label="文章工具">
+        <form className="read-search" method="get" role="search">
+          <label htmlFor="read-search-input">搜索文章</label>
           <div className="read-search__field">
-            <input id="read-search-input" name="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by title or author" />
+            <input id="read-search-input" name="search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、作者或主题" />
             {source === "web" ? <input type="hidden" name="source" value="web" /> : null}
             {savedOnly ? <input type="hidden" name="saved" value="1" /> : null}
             {topic ? <input type="hidden" name="topic" value={topic} /> : null}
             {cefr ? <input type="hidden" name="cefr" value={cefr} /> : null}
             {minutes ? <input type="hidden" name="minutes" value={minutes} /> : null}
             {sort !== "hot" ? <input type="hidden" name="sort" value={sort} /> : null}
-            <button type="submit" aria-label="Search"><span aria-hidden="true">⌕</span></button>
+            <button type="submit" aria-label="搜索"><SearchIcon /></button>
           </div>
         </form>
         <div className="read-library__toolbar-actions">
-          <Link className="read-tool-button" href="/read/generate">✣ <span>Generate Story</span></Link>
-          <button className="read-tool-button" type="button" onClick={() => setToolNotice("Upload Text or Audio 当前仅保留入口；上传解析和版权检查将在后续 Alpha 增量开放。")}>↑ <span>Upload Text or Audio</span></button>
           <label className="read-sort">
-            <span>Sort</span>
-            <select aria-label="Sort articles" value={sort} onChange={(event) => { window.location.href = withParams({ source: source === "web" ? "web" : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: event.target.value }); }}>
-              <option value="hot">Hot</option>
-              <option value="newest">Newest</option>
-              <option value="shortest">Shortest</option>
+            <span>排序</span>
+            <select aria-label="排序" value={sort} onChange={(event) => router.push(withParams({ source: source === "web" ? "web" : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: event.target.value }))}>
+              <option value="hot">默认排序</option>
+              <option value="newest">最新发布</option>
+              <option value="shortest">用时最短</option>
             </select>
           </label>
           <details className="read-filter-menu">
-            <summary>Filters <span aria-hidden="true">⌄</span></summary>
+            <summary>筛选 <ChevronIcon /></summary>
             <form method="get" className="read-filter-menu__panel">
               {source === "web" ? <input type="hidden" name="source" value="web" /> : null}
               {savedOnly ? <input type="hidden" name="saved" value="1" /> : null}
               {search ? <input type="hidden" name="search" value={search} /> : null}
               {sort !== "hot" ? <input type="hidden" name="sort" value={sort} /> : null}
-              <label><span>Topic</span><select name="topic" defaultValue={topic}><option value="">All topics</option>{result.topics.map((value) => <option value={value} key={value}>{topicLabel(value)}</option>)}</select></label>
-              <label><span>Level</span><select name="cefr" defaultValue={cefr}><option value="">All levels</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
-              <label><span>Length</span><select name="minutes" defaultValue={minutes}><option value="">Any length</option><option value="short">Up to 5 min</option><option value="medium">6–10 min</option><option value="long">11+ min</option></select></label>
-              <button className="secondary-action" type="submit">Apply filters</button>
+              <label><span>主题</span><select name="topic" defaultValue={topic}><option value="">全部主题</option>{result.topics.map((value) => <option value={value} key={value}>{topicLabel(value)}</option>)}</select></label>
+              <label><span>难度</span><select name="cefr" defaultValue={cefr}><option value="">全部难度</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+              <label><span>篇幅</span><select name="minutes" defaultValue={minutes}><option value="">不限篇幅</option><option value="short">5 分钟内</option><option value="medium">6–10 分钟</option><option value="long">11 分钟以上</option></select></label>
+              <button className="secondary-action" type="submit">应用筛选</button>
             </form>
+          </details>
+          <details className="read-add-menu">
+            <summary>添加内容 <ChevronIcon /></summary>
+            <div className="read-add-menu__panel">
+              <Link href="/read/generate">生成私人故事</Link>
+            </div>
           </details>
         </div>
       </section>
 
-      {toolNotice ? <aside className="read-library__notice" role="status">{toolNotice}<button type="button" onClick={() => setToolNotice(null)} aria-label="Dismiss notice">×</button></aside> : null}
+      {toolNotice ? <aside className="read-library__notice" role="status">{toolNotice}<button type="button" onClick={() => setToolNotice(null)} aria-label="关闭提示">×</button></aside> : null}
 
       <section className="read-results" aria-label="文章列表">
         {visibleArticles.length > 0 ? (
@@ -271,30 +298,19 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
             <span className="surface-state__marker" aria-hidden="true">文</span>
             <h2>{emptyHeading}</h2>
             <p>{emptyDescription}</p>
-            {source === "web" ? <button className="text-link" type="button" onClick={() => setToolNotice("请先在文章阅读器中使用真实的来源保存入口。")}>了解来源保存</button> : hasFilters ? <Link className="text-link" href="/read">View Public Texts <span aria-hidden="true">→</span></Link> : null}
+            {hasFilters && source !== "web" ? <Link className="text-link" href="/read">清除筛选 <span aria-hidden="true">→</span></Link> : null}
           </div>
         )}
-        {source === "public" && result.totalCount > 0 && (!savedOnly || result.savedFilterAvailable) ? <ArticlePagination page={page} pageSize={pageSize} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} savedOnly={savedOnly} /> : null}
+        {source === "public" && result.hasMore && (!savedOnly || result.savedFilterAvailable) ? <ShowMoreArticles visibleCount={visibleCount} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} savedOnly={savedOnly} /> : null}
       </section>
     </div>
   );
 }
 
-function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, minutes, sort, savedOnly }: Readonly<{ page: number; pageSize: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort; savedOnly: boolean }>) {
-  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
-  const hrefFor = (targetPage: number) => withParams({ page: targetPage > 1 ? String(targetPage) : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
-  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
-  return (
-    <nav className="read-pagination" aria-label="Article pages">
-      {page > 1 ? <Link className="read-pagination__arrow" href={hrefFor(page - 1)} aria-label="Previous page">← <span>Previous</span></Link> : <span className="read-pagination__arrow is-disabled" aria-disabled="true">← <span>Previous</span></span>}
-      <div className="read-pagination__pages">
-        {pageNumbers.map((pageNumber) => pageNumber === page
-          ? <span className="read-pagination__page is-current" aria-current="page" key={pageNumber}>{pageNumber}</span>
-          : <Link className="read-pagination__page" href={hrefFor(pageNumber)} key={pageNumber}>{pageNumber}</Link>)}
-      </div>
-      {page < totalPages ? <Link className="read-pagination__arrow" href={hrefFor(page + 1)} aria-label="Next page"><span>Next</span> →</Link> : <span className="read-pagination__arrow is-disabled" aria-disabled="true"><span>Next</span> →</span>}
-    </nav>
-  );
+function ShowMoreArticles({ visibleCount, totalCount, search, topic, cefr, minutes, sort, savedOnly }: Readonly<{ visibleCount: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort; savedOnly: boolean }>) {
+  const nextVisible = Math.min(Math.max(visibleCount, 12) + 12, totalCount);
+  const href = withParams({ visible: String(nextVisible), saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
+  return <div className="read-show-more"><Link href={href}>显示更多</Link></div>;
 }
 
 function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, onDeleteGenerated, readerState }: Readonly<{ article: ArticleCardProjection; isSaved: boolean; isSaving: boolean; onToggleSaved: (articleId: string, currentlySaved: boolean) => void; onDeleteGenerated?: (articleId: string) => void; readerState?: StoredReaderState }>) {
@@ -306,15 +322,14 @@ function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, onDeleteGe
           <div className="read-article-row__meta"><span>{article.sourceName}</span>{article.origin === "generated" ? <span className="read-article-row__draft">AI draft</span> : null}{article.author ? <span>作者 {article.author}</span> : null}<span>{article.cefr} · {article.estimatedReadingMinutes} 分钟</span></div>
           <span className="read-article-row__state">{readingStatus(readerState)}</span>
         </div>
-        <h3><Link href={`/read/article/${encodeURIComponent(article.id)}`}>{article.title}</Link></h3>
+        <h3><Link className="read-article-row__main-link" href={`/read/article/${encodeURIComponent(article.id)}`}>{article.title}</Link></h3>
         <p>{article.summary}</p>
         <div className="read-article-row__rule" aria-hidden="true"><span /></div>
-        <div className="read-article-row__footer">
-          <div className="read-article-row__topics">{article.topics.map((value) => <span key={value}>{topicLabel(value)}</span>)}</div>
-          <div className="read-article-row__footer-actions"><Link className="read-article-row__read-link" href={`/read/article/${encodeURIComponent(article.id)}`}>打开文章 <span aria-hidden="true">＋</span></Link>{article.origin === "generated" && onDeleteGenerated ? <button className="read-article-row__delete" type="button" onClick={() => onDeleteGenerated(article.id)}>删除</button> : null}</div>
-        </div>
+        <div className="read-article-row__footer"><div className="read-article-row__topics">{article.topics.map((value) => <span key={value}>{topicLabel(value)}</span>)}</div></div>
       </div>
-      <button className={`read-article-row__save${isSaved ? " is-saved" : ""}`} type="button" aria-label={isSaved ? `从 My Texts 移除：${article.title}` : `保存到 My Texts：${article.title}`} title={isSaved ? "从 My Texts 移除" : "保存到 My Texts"} aria-pressed={isSaved} aria-busy={isSaving} disabled={isSaving} onClick={() => onToggleSaved(article.id, isSaved)}><span aria-hidden="true">{isSaved ? "★" : "☆"}</span></button>
+      {article.origin === "generated" && onDeleteGenerated
+        ? <button className="read-article-row__save read-article-row__delete" type="button" aria-label={`删除私人故事：${article.title}`} onClick={() => onDeleteGenerated(article.id)}><TrashIcon /></button>
+        : <button className={`read-article-row__save${isSaved ? " is-saved" : ""}`} type="button" aria-label={isSaved ? `取消收藏：${article.title}` : `收藏文章：${article.title}`} title={isSaved ? "取消收藏" : "收藏文章"} aria-pressed={isSaved} aria-busy={isSaving} disabled={isSaving} onClick={() => onToggleSaved(article.id, isSaved)}><BookmarkIcon filled={isSaved} /></button>}
     </article>
   );
 }
