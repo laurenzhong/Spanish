@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { LearnPageContent } from "@/app/(product)/learn/learn-page-content";
@@ -27,7 +28,14 @@ describe("LearnPage", () => {
     expect(screen.getByTestId("learn-timeline")).toBeInTheDocument();
     expect(screen.getByTestId("learn-timeline")).toHaveTextContent("听懂情境");
     expect(screen.getByTestId("learn-timeline")).toHaveTextContent("当前步骤");
-    expect(screen.queryByTestId("learn-detail-rail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("learn-detail-disclosure")).not.toHaveAttribute("open");
+    expect(screen.getByText("先听一遍，抓住语气和关键信息。")).not.toBeVisible();
+    expect(screen.queryByText("文章库正在准备中，稍后会在这里出现。")).not.toBeInTheDocument();
+    expect(screen.queryByText("每完成一句都会保存进度，随时停下也不会失去本次练习。")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("learn-empty-state")).toHaveLength(1);
+    for (const name of ["阅读", "和 Lucía 聊聊", "探索", "练习历史"]) {
+      expect(screen.getByRole("link", { name })).not.toHaveClass("primary-action");
+    }
   });
 
   it("keeps a selected goal title and practice route together", async () => {
@@ -45,6 +53,7 @@ describe("LearnPage", () => {
   });
 
   it("restores the real expression position from a stable checkpoint", async () => {
+    const user = userEvent.setup();
     window.localStorage.setItem(
       "spanish.training.checkpoint.v1:test-user",
       JSON.stringify({
@@ -73,13 +82,16 @@ describe("LearnPage", () => {
       "href",
       "/learn/practice",
     );
+    const details = screen.getByTestId("learn-detail-disclosure");
+    expect(details).not.toHaveAttribute("open");
+    await user.click(screen.getByText("练习详情"));
+    expect(details).toHaveAttribute("open");
     expect(screen.getByRole("progressbar", { name: "这组表达进度" })).toHaveAttribute(
       "aria-valuenow",
       "2",
     );
     expect(screen.getByText("2 / 4")).toBeInTheDocument();
-    expect(screen.getByTestId("learn-detail-rail")).toBeInTheDocument();
-    expect(screen.getByTestId("learn-detail-rail")).toHaveTextContent("录音隐私");
+    expect(details).toHaveTextContent("录音隐私");
     expect(screen.getByTestId("learn-timeline")).toHaveTextContent("自己表达");
   });
 
@@ -96,7 +108,7 @@ describe("LearnPage", () => {
     });
 
     expect(screen.getByRole("link", { name: "开始第一次练习" })).toBeInTheDocument();
-    expect(screen.queryByTestId("learn-detail-rail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("learn-detail-disclosure")).not.toHaveAttribute("open");
     expect(screen.queryByRole("progressbar", { name: "这组表达进度" })).not.toBeInTheDocument();
   });
 

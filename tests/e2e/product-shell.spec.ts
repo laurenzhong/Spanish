@@ -58,7 +58,7 @@ test("navigates between all four product areas", async ({ page }) => {
   );
 
   for (const destination of [
-    { name: "探索", path: "/explore", heading: "探索真实表达" },
+    { name: "探索", path: "/explore", heading: "校园办事：注册与材料" },
     { name: "对话", path: "/chat", heading: "Lucía Martín" },
     { name: "我的", path: "/me", heading: "我的进步" },
     { name: "学习", path: "/learn", heading: "从一句真实表达开始" },
@@ -95,7 +95,7 @@ test("keeps discovery and conversation entry points visible", async ({
   await authenticate(page);
   await page.goto("/explore");
 
-  await expect(page.getByRole("heading", { name: "探索真实表达" })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "搜索场景" })).toBeVisible();
   const learnLink = page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "学习" });
   await expect(learnLink).toHaveAttribute("href", "/learn");
   await learnLink.click();
@@ -105,19 +105,14 @@ test("keeps discovery and conversation entry points visible", async ({
   await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeVisible();
 });
 
-test("separates communication goals from the published content pack", async ({ page }) => {
+test("keeps themes and content packs out of the default scenario surface", async ({ page }) => {
   await authenticate(page);
   await page.goto("/explore");
 
-  await expect(page.getByRole("heading", { name: "找到下一次真实沟通" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "沟通目标" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "内容包" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toBeVisible();
-  await expect(
-    page.getByRole("button", {
-      name: "查看咖啡馆里的新朋友详情，可开始",
-    }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "校园办事：注册与材料" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "沟通目标" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "内容包" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toHaveCount(0);
 });
 
 test("adds Lucía as a pinned contact only after explicit approval", async ({ page }) => {
@@ -371,9 +366,9 @@ test("preserves the selected discovery direction on the learning page", async ({
   await page.goto("/explore");
 
   await expect(page.getByRole("searchbox")).toBeVisible();
-  await page.getByRole("searchbox").fill("请求重复");
-  await expect(page.getByText("请求重复")).toBeVisible();
-  await expect(page.getByText("没有匹配的目标")).toHaveCount(0);
+  await page.getByRole("searchbox").fill("que documentos");
+  await expect(page.getByRole("heading", { name: "校园办事：注册与材料" })).toBeVisible();
+  await expect(page.getByText("没有匹配的场景")).toHaveCount(0);
 
   await page.goto("/learn?focus=needs");
   await expect(page).toHaveURL(/\/learn\?focus=needs$/);

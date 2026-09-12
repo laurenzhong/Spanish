@@ -14,7 +14,7 @@ async function authenticate(page: Page) {
   ]);
 }
 
-test("renders the desktop learning timeline without a phantom rail", async ({ page }) => {
+test("renders one compact primary learning action with details closed", async ({ page }) => {
   await authenticate(page);
   await page.addInitScript(() => window.localStorage.clear());
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -22,13 +22,17 @@ test("renders the desktop learning timeline without a phantom rail", async ({ pa
 
   await expect(page.getByRole("heading", { name: "从一句真实表达开始" })).toBeVisible();
   await expect(page.getByTestId("learn-timeline")).toContainText("当前步骤");
-  await expect(page.getByTestId("learn-detail-rail")).toHaveCount(0);
+  await expect(page.getByTestId("learn-detail-disclosure")).not.toHaveAttribute("open", "");
+  await expect(page.getByText("先听一遍，抓住语气和关键信息。")).not.toBeVisible();
+  await expect(page.getByTestId("learn-primary-action")).toHaveCount(1);
+  await expect(page.getByText("文章库正在准备中，稍后会在这里出现。")).toHaveCount(0);
+  await expect(page.getByText("每完成一句都会保存进度，随时停下也不会失去本次练习。")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     await page.evaluate(() => window.innerWidth),
   );
 });
 
-test("shows the checkpoint timeline and detail rail for a returning learner", async ({ page }) => {
+test("shows checkpoint details only after the returning learner asks", async ({ page }) => {
   await authenticate(page);
   await page.addInitScript((userId) => {
     window.localStorage.setItem(
@@ -57,7 +61,11 @@ test("shows the checkpoint timeline and detail rail for a returning learner", as
     "href",
     "/learn/practice",
   );
-  await expect(page.getByTestId("learn-detail-rail")).toContainText("录音隐私");
+  const details = page.getByTestId("learn-detail-disclosure");
+  await expect(details).not.toHaveAttribute("open", "");
+  await details.getByText("练习详情").click();
+  await expect(details).toHaveAttribute("open", "");
+  await expect(details).toContainText("录音隐私");
   await expect(page.getByTestId("learn-timeline")).toContainText("自己表达");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     await page.evaluate(() => window.innerWidth),
@@ -74,6 +82,9 @@ test("keeps the learning entry usable across the viewport matrix", async ({ page
 
     await expect(page.getByTestId("learn-focus-card")).toBeVisible();
     await expect(page.getByTestId("learn-primary-action")).toHaveCount(1);
+    for (const name of ["阅读", "和 Lucía 聊聊", "探索", "练习历史"]) {
+      await expect(page.locator(".learn-secondary-nav").getByRole("link", { name })).not.toHaveClass(/primary-action/);
+    }
     const dimensions = await page.evaluate(() => ({
       client: document.documentElement.clientWidth,
       scroll: document.documentElement.scrollWidth,

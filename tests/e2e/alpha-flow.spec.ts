@@ -24,12 +24,10 @@ test("runs the phone learning path with hints, silent output, feedback, and base
   await expect(loop).toHaveAttribute("data-hydrated", "true");
   await expect(loop).toHaveAttribute("data-status", "awaiting-output");
 
-  for (const level of [1, 2, 3]) {
-    const hint = page.getByRole("button", { name: `提示 ${level}` });
-    await hint.click();
-    await expect(hint).toHaveAttribute("aria-pressed", "true");
+  for (const name of ["提示", "更多提示", "最后提示"]) {
+    await page.getByRole("button", { name }).click();
   }
-  await expect(page.getByText("提示 3/3")).toBeVisible();
+  await expect(page.getByText("3/3", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "用文字回答" }).click();
   await page.getByLabel("写下你的回应").fill("¿Qué tal todo?");
@@ -63,7 +61,7 @@ test("turns microphone denial into a typing path without a negative result", asy
   await expect(page.getByRole("status")).toContainText("麦克风暂时不可用，已切换为文字回答。");
   await expect(page.getByTestId("training-loop")).toHaveAttribute("data-status", "awaiting-output");
   await expect(page.getByLabel("写下你的回应")).toBeVisible();
-  await expect(page.getByText("提示 0/3")).toBeVisible();
+  await expect(page.getByText("0/3", { exact: true })).toBeVisible();
   await expect(page.getByText("没有产生负面能力记录")).not.toBeVisible();
 });
 

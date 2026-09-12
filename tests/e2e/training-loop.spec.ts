@@ -78,7 +78,7 @@ test("replays the current Spanish pronunciation from the audio button", async ({
     .toEqual(["¿Cómo va todo?", "¿Cómo va todo?"]);
 });
 
-test("shows the desktop task timeline and detail rail without horizontal overflow", async ({ page }) => {
+test("shows a compact timeline with training details closed by default", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/learn/practice");
@@ -86,13 +86,16 @@ test("shows the desktop task timeline and detail rail without horizontal overflo
   await expect(page.getByTestId("training-timeline")).toContainText("听懂情境");
   await expect(page.getByTestId("training-timeline")).toContainText("自己表达");
   await expect(page.getByTestId("training-timeline")).toContainText("换一种说法");
-  await expect(page.getByTestId("training-detail-rail")).toBeVisible();
+  await expect(page.getByTestId("training-detail-rail")).toHaveCount(0);
+  const details = page.getByTestId("training-detail-disclosure");
+  await expect(details).not.toHaveAttribute("open", "");
+  await details.getByText("练习说明").click();
+  await expect(details).toHaveAttribute("open", "");
+  await expect(details).toContainText("录音隐私");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     await page.evaluate(() => window.innerWidth),
   );
-  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(
-    await page.evaluate(() => window.innerHeight),
-  );
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(1250);
 });
 
 test("keeps the training surface accessible across the viewport matrix", async ({ page }) => {
@@ -102,7 +105,7 @@ test("keeps the training surface accessible across the viewport matrix", async (
     await page.goto("/learn/practice");
 
     await expect(page.getByTestId("training-timeline")).toBeVisible();
-    await expect(page.getByTestId("training-detail-rail")).toBeVisible();
+    await expect(page.getByTestId("training-detail-disclosure")).not.toHaveAttribute("open", "");
     await expect(page.locator('[aria-current="step"]')).toHaveCount(1);
     const dimensions = await page.evaluate(() => ({
       client: document.documentElement.clientWidth,
@@ -125,7 +128,7 @@ test("allows keyboard focus to move from output choice to the typing composer", 
   await typingButton.click();
   const composer = page.getByLabel("写下你的回应");
   await expect(composer).toBeVisible();
-  await composer.focus();
+  await expect(composer).toBeFocused();
   await composer.fill("Hola");
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "提交文字回答" })).toBeFocused();
@@ -176,11 +179,11 @@ test("shows progressive hint content and a real variant prompt", async ({ page }
   await authenticate(page);
   await page.goto("/learn/practice");
 
-  await page.getByRole("button", { name: "提示 1" }).click();
+  await page.getByRole("button", { name: "提示" }).click();
   await expect(page.getByTestId("training-hint-content")).toContainText("先决定");
-  await page.getByRole("button", { name: "提示 2" }).click();
+  await page.getByRole("button", { name: "更多提示" }).click();
   await expect(page.getByTestId("training-hint-content")).toContainText("bien");
-  await page.getByRole("button", { name: "提示 3" }).click();
+  await page.getByRole("button", { name: "最后提示" }).click();
   await expect(page.getByTestId("training-hint-content")).toContainText("句式骨架");
 
   await page.getByRole("button", { name: "用文字回答" }).click();

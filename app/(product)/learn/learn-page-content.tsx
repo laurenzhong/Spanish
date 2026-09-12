@@ -137,41 +137,60 @@ export function LearnPageContent({ userId = "local-user", dueRepetition = null }
 
   return (
     <div className="page-stack learn-page">
-      <header className="page-header learn-page__masthead">
-        <div><p className="eyebrow">今天继续</p><p className="welcome-copy">Hola，准备好继续了吗？</p></div>
-        <Link className="icon-button" href="/me" aria-label="打开我的进步"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6" /></svg></Link>
-      </header>
-
       <section className="focus-card" aria-labelledby="next-goal-title" data-focus={focus ?? "default"} data-has-progress={hasProgress} data-testid="learn-focus-card">
-        <div className="focus-card__halo" aria-hidden="true" />
         <div className="focus-card__main">
-          <p className="eyebrow eyebrow--accent">{isSilent ? "安静学习" : hasProgress ? "继续上次练习" : isDueRepetition ? "到期复现" : selectedContent.eyebrow}</p>
-          <h1 id="next-goal-title">{title}</h1>
-          <p className="focus-card__reason">{isSilent ? "阅读、听力和打字内容正在整理中；完成后仍需通过一次口语复核，才会进入能力画像。" : action.reason}</p>
+          <div className="focus-card__intro">
+            <div>
+              <p className="eyebrow eyebrow--accent">{isSilent ? "安静学习" : hasProgress ? "继续上次练习" : isDueRepetition ? "到期复现" : selectedContent.eyebrow}</p>
+              <h1 id="next-goal-title">{title}</h1>
+              <p className="focus-card__reason">{isSilent ? "阅读、听力和打字内容正在整理中；完成后仍需通过一次口语复核，才会进入能力画像。" : action.reason}</p>
+            </div>
+            {isSilent ? (
+              <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p>
+            ) : (
+              <Link className="primary-action" data-testid="learn-primary-action" href={action.href}>
+                <span>{action.label}</span>
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+              </Link>
+            )}
+          </div>
           {!isSilent && !isDueRepetition ? <div className="learn-timeline" aria-label="学习任务时间线" data-testid="learn-timeline">
             <div className="learn-timeline__heading"><span>当前沟通目标</span><span>{hasProgress ? `第 ${(progress?.expressionIndex ?? 0) + 1} / ${progress?.totalExpressions ?? 4} 句` : "从第 1 句开始"}</span></div>
             <ol>
               {timeline.map((node) => <li className={`learn-timeline__node learn-timeline__node--${node.status}`} key={node.key}>
                 <span className="learn-timeline__marker" aria-hidden="true">{node.status === "completed" ? "✓" : node.status === "current" ? "•" : ""}</span>
-                <div><strong>{node.label}</strong><span>{node.status === "completed" ? "已完成" : node.status === "current" ? "当前步骤" : "完成当前步骤后解锁"}</span><p>{node.detail}</p></div>
+                <div><strong>{node.label}</strong><span>{node.status === "completed" ? "已完成" : node.status === "current" ? "当前步骤" : "待解锁"}</span></div>
               </li>)}
             </ol>
           </div> : null}
-        {isSilent ? <p className="learn-focus-note" role="status">当前方向已记录，暂时没有可开始的静默内容包。</p> : <Link className="primary-action" data-testid="learn-primary-action" href={action.href}><span>{action.label}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" /></svg></Link>}
+
+          {!isSilent ? <details className="learn-detail-disclosure" data-testid="learn-detail-disclosure">
+            <summary><span>练习详情</span><span aria-hidden="true">＋</span></summary>
+            <div className="learn-detail-disclosure__body">
+              {!isDueRepetition ? <ol className="learn-step-details">
+                {timeline.map((node) => <li key={node.key}><strong>{node.label}</strong><p>{node.detail}</p></li>)}
+              </ol> : null}
+              {hasProgress ? <div className="learn-detail-section">
+                <div className="learn-detail-section__heading"><span>这组表达</span><strong>{(progress?.expressionIndex ?? 0) + 1} / {progress?.totalExpressions}</strong></div>
+                <div className="progress-track" role="progressbar" aria-label="这组表达进度" aria-valuemin={0} aria-valuemax={progress?.totalExpressions} aria-valuenow={(progress?.expressionIndex ?? 0) + 1}><span style={{ width: `${(((progress?.expressionIndex ?? 0) + 1) / (progress?.totalExpressions || 1)) * 100}%` }} /></div>
+              </div> : null}
+              <div className="learn-detail-disclosure__rules">
+                <p><strong>练习规则</strong>完整表达前不纠错；技术失败不会产生负面能力记录。</p>
+                <p><strong>录音隐私</strong>普通录音评估完成后删除。</p>
+              </div>
+            </div>
+          </details> : null}
         </div>
-        {hasProgress ? <aside className="focus-card__side learn-detail-rail" aria-label="学习详情" data-testid="learn-detail-rail"><div className="learn-detail-rail__section"><span className="learn-detail-rail__label">这组表达</span><strong>{(progress?.expressionIndex ?? 0) + 1} / {progress?.totalExpressions}</strong><div className="progress-track" role="progressbar" aria-label="这组表达进度" aria-valuemin={0} aria-valuemax={progress?.totalExpressions} aria-valuenow={(progress?.expressionIndex ?? 0) + 1}><span style={{ width: `${(((progress?.expressionIndex ?? 0) + 1) / (progress?.totalExpressions || 1)) * 100}%` }} /></div><p>每句完成后都会保存，下一次打开就从这里继续。</p></div><div className="learn-detail-rail__section"><span className="learn-detail-rail__label">本次规则</span><p>完整表达前不纠错；技术失败不会产生负面能力记录。</p></div><div className="learn-detail-rail__section learn-detail-rail__section--privacy"><span aria-hidden="true">⌁</span><p><strong>录音隐私</strong>普通录音评估完成后删除。</p></div></aside> : null}
       </section>
 
-      <section className="learn-support" aria-label="继续探索">
-        <article className="learn-support__card learn-support__card--empty"><span className="eyebrow">阅读库</span><strong>读一篇文章</strong><small>文章库正在准备中，稍后会在这里出现。</small></article>
-        <Link className="learn-support__card" href="/chat/lucia"><span className="eyebrow">关系练习</span><strong>和 Lucía 聊几句</strong><small>从最近话题自然继续</small></Link>
-        <Link className="learn-support__card" href="/explore"><span className="eyebrow">沟通目标</span><strong>探索新的表达</strong><small>找到下一种说法</small></Link>
-      </section>
-      <Link className="learn-history-link" href="/explore/history">查看练习历史 →</Link>
+      <nav className="learn-secondary-nav" aria-label="其他学习入口">
+        <Link href="/read">阅读</Link>
+        <Link href="/chat/lucia">和 Lucía 聊聊</Link>
+        <Link href="/explore">探索</Link>
+        <Link href="/explore/history">练习历史</Link>
+      </nav>
 
-      {!hasProgress ? <section className="learn-empty-progress" aria-label="学习进度为空"><strong>{isDueRepetition ? "完成这次复现后，会形成新的独立证据。" : "完成第一次练习后，这里会显示你的真实进步。"}</strong><span>{isDueRepetition ? "原始练习和历史证据会继续保留。" : "现在没有可展示的口语证据或稳定断点。"}</span></section> : null}
-
-      <aside className="gentle-note" aria-label="学习建议"><span className="gentle-note__mark" aria-hidden="true">i</span><p>每完成一句都会保存进度，随时停下也不会失去本次练习。</p></aside>
+      {!hasProgress && !isDueRepetition && !isSilent ? <p className="learn-empty-state" data-testid="learn-empty-state">尚无口语证据，先完成一次练习。</p> : null}
     </div>
   );
 }
