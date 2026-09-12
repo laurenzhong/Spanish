@@ -1,7 +1,7 @@
 # ADR-0008：内容驱动学习入口与自动采集审核链路
 
 - 日期：2026-09-12
-- 状态：Proposed；产品方案已口头确认，等待书面规格复核后 Accepted
+- 状态：Accepted
 - 影响：一级导航职责、学习入口、内容域、自动化运行方式、能力画像
 - 关联规格：[自动内容供应与词句学习重构设计](../superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md)
 
@@ -71,7 +71,7 @@ Language Reactor 调研说明，原生内容中的片段、词语和上下文可
 
 ## 执行约束
 
-- 本 ADR 在书面规格批准后转为 `Accepted`，并与 `AGENTS.md`、`README.md`、`PROJECT_STATUS.md`、架构、内容、测试和实施计划同步更新。
+- 本 ADR 已经书面批准，并与 `AGENTS.md`、`README.md`、`PROJECT_STATUS.md`、架构、内容、测试和实施计划同步更新。
 - 在详细实施计划获批前，不替换页面、不创建迁移、不运行公网采集、不调用收费 Provider。
 - 当前 `codex/ui-014-reading-density` 的未提交改动必须完整保留；协调者在新队列登记时再决定复用、拆分或延期。
 - 第一个实现任务必须是 `ACQ-001` 的领域、契约、数据库和 fake 基础，不能同时实现真实发布、全部来源和前端资料库。
