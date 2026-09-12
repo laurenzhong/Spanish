@@ -167,6 +167,7 @@ export function LearnPageContent({ userId = "local-user", dueRepetition = null }
         <Link className="learn-support__card" href="/chat/lucia"><span className="eyebrow">关系练习</span><strong>和 Lucía 聊几句</strong><small>从最近话题自然继续</small></Link>
         <Link className="learn-support__card" href="/explore"><span className="eyebrow">沟通目标</span><strong>探索新的表达</strong><small>找到下一种说法</small></Link>
       </section>
+      <Link className="learn-history-link" href="/explore/history">查看练习历史 →</Link>
 
       {!hasProgress ? <section className="learn-empty-progress" aria-label="学习进度为空"><strong>{isDueRepetition ? "完成这次复现后，会形成新的独立证据。" : "完成第一次练习后，这里会显示你的真实进步。"}</strong><span>{isDueRepetition ? "原始练习和历史证据会继续保留。" : "现在没有可展示的口语证据或稳定断点。"}</span></section> : null}
 

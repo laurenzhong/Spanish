@@ -11,12 +11,11 @@ type SuggestionData = ScenarioSuggestionResponse["data"];
 const choices: readonly Readonly<{
   mode: ScenarioSuggestionMode;
   title: string;
-  description: string;
   icon: "target" | "compass" | "shuffle";
 }>[] = [
-  { mode: "best_fit", title: "适合我的", description: "根据可信学习状态和收藏表达推荐", icon: "target" },
-  { mode: "discover", title: "探索新场景", description: "优先发现还没练过的沟通主题", icon: "compass" },
-  { mode: "random", title: "随机来一个", description: "从难度合适的可用场景中选择", icon: "shuffle" },
+  { mode: "best_fit", title: "适合我的", icon: "target" },
+  { mode: "discover", title: "探索新场景", icon: "compass" },
+  { mode: "random", title: "随机来一个", icon: "shuffle" },
 ];
 
 function ChoiceIcon({ name }: Readonly<{ name: (typeof choices)[number]["icon"] }>) {
@@ -90,15 +89,7 @@ export function ScenarioSuggestionPanel({ onTopicSelected }: Readonly<{ onTopicS
   }
 
   return (
-    <section className="scenario-suggestion" aria-labelledby="scenario-suggestion-title" aria-busy={loadingMode !== null}>
-      <div className="scenario-suggestion__heading">
-        <div>
-          <p className="eyebrow">选择辅助</p>
-          <h2 id="scenario-suggestion-title">暂时不知道练什么？</h2>
-        </div>
-        <p>选一种方式，我们先给你看一个合适的场景。</p>
-      </div>
-
+    <section className="scenario-suggestion" aria-label="场景建议" aria-busy={loadingMode !== null}>
       <div className="scenario-suggestion__choices">
         {choices.map((choice) => (
           <button
@@ -109,7 +100,7 @@ export function ScenarioSuggestionPanel({ onTopicSelected }: Readonly<{ onTopicS
             onClick={() => void requestSuggestion(choice.mode, false)}
           >
             <span className="scenario-suggestion__icon"><ChoiceIcon name={choice.icon} /></span>
-            <span><strong>{loadingMode === choice.mode ? "正在选择…" : choice.title}</strong><small>{choice.description}</small></span>
+            <strong>{loadingMode === choice.mode ? "正在选择…" : choice.title}</strong>
           </button>
         ))}
       </div>
@@ -119,9 +110,8 @@ export function ScenarioSuggestionPanel({ onTopicSelected }: Readonly<{ onTopicS
           <div className="scenario-suggestion__result-copy">
             <div className="scenario-suggestion__meta"><span>{data.scenario.cefr}</span><span>{data.scenario.categoryLabel}</span><span>{data.scenario.role}</span></div>
             <h3>{data.scenario.title}</h3>
-            <p>{data.scenario.description}</p>
-            <dl><div><dt>这次练什么</dt><dd>{data.scenario.communicationGoal}</dd></div></dl>
-            <ul aria-label="选择理由">{data.reasons.map((reason) => <li key={reason.code}>{reason.text}</li>)}</ul>
+            <strong className="scenario-suggestion__goal">{data.scenario.communicationGoal}</strong>
+            {data.reasons[0] ? <p className="scenario-suggestion__reason">{data.reasons[0].text}</p> : null}
           </div>
           <div className="scenario-suggestion__actions">
             <a className="primary-action" href={data.scenario.route}>开始练习</a>
@@ -131,7 +121,6 @@ export function ScenarioSuggestionPanel({ onTopicSelected }: Readonly<{ onTopicS
       ) : data?.fallback ? (
         <div className="scenario-suggestion__empty" role="status">
           <strong>{data.limitReached ? "这一轮已经看完" : "暂时没有合适的现成场景"}</strong>
-          <span>可以选一个主题继续搜索，或选择自己的资料生成只对你可见的场景。</span>
           <div>{data.fallback.topicChips.map((topic) => <button type="button" key={topic} onClick={() => onTopicSelected(topic)}>{topic}</button>)}</div>
           {data.fallback.canGeneratePersonalScenario ? <button ref={generatorTrigger} type="button" className="scenario-suggestion__generate" aria-expanded={generatorOpen} onClick={() => setGeneratorOpen(true)}>生成私人场景</button> : <small>私人生成服务尚未配置，现有搜索和主题筛选仍可使用。</small>}
         </div>

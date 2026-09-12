@@ -13,6 +13,8 @@ type SavedPractice = { sessionId: string; persistence?: "account" | "device"; tu
 
 function storageKey(stableKey: string) { return `scenario-practice:v1:${stableKey}`; }
 function makeId() { return crypto.randomUUID(); }
+function MicrophoneIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" /></svg>; }
+function BackIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></svg>; }
 
 export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetitionGoal = null }: Readonly<{ scenario: ScenarioPracticeDetail; retryText?: string | null; repetitionGoal?: string | null }>) {
   const router = useRouter();
@@ -21,7 +23,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
   const [text, setText] = useState("");
   const [hintLevel, setHintLevel] = useState<0 | 1 | 2 | 3>(0);
   const [busy, setBusy] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const [inputMode, setInputMode] = useState<"typing" | "speech">("typing");
   const [notice, setNotice] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [transcriptDraft, setTranscriptDraft] = useState<{ text: string; confidence: number | null } | null>(null);
@@ -55,7 +57,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
     try { window.localStorage.setItem(storageKey(scenario.stableKey), JSON.stringify(saved)); } catch { /* The in-memory session remains usable. */ }
   }, [hydrated, saved, scenario.stableKey]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ block: "nearest" }); }, [saved.turns, busy]);
+  useEffect(() => { if (typeof endRef.current?.scrollIntoView === "function") endRef.current.scrollIntoView({ block: "nearest" }); }, [saved.turns, busy]);
   useEffect(() => () => { void recorder.current?.cancel(); }, []);
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -95,7 +97,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
 
   async function submit(message: string, modality: "speech" | "typing", confidence: number | null = null) {
     const clean = message.trim();
-    if (!clean || busy || paused) return;
+    if (!clean || busy) return;
     setBusy(true); setNotice(null); setText(""); setTranscriptDraft(null);
     const session = await ensureSession();
     const sessionId = session.sessionId;
@@ -155,7 +157,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
   }
 
   async function startRecording() {
-    if (busy || paused || recording) return;
+    if (busy || recording) return;
     try {
       recorder.current ??= createBrowserAudioRecorder(() => {
         recordingGestureActive.current = false;
@@ -175,7 +177,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
       }
       setRecording(true);
       setNotice("正在录音；松开按钮后转写。完整表达之前不会出现纠错。");
-    } catch { setNotice("麦克风不可用，已切换为文字输入。你可以直接键入西班牙语。"); setRecording(false); }
+    } catch { setNotice("麦克风不可用，已切换为文字输入。你可以直接键入西班牙语。"); setRecording(false); setInputMode("typing"); }
   }
 
   async function cancelRecording() {
@@ -204,7 +206,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
   }
 
   async function complete() {
-    if (userTurnCount === 0) { setNotice("先完成至少一轮表达，再查看复盘。"); return; }
+    if (userTurnCount < 2) return;
     update((current) => ({ ...current, completed: true }));
     if (saved.sessionId && saved.persistence === "account") {
       try {
@@ -244,12 +246,11 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
   return (
     <main className="scenario-workbench" ref={workbenchRef}>
       <header className="scenario-workbench__header">
-        <a href={`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}`} aria-label="返回场景详情">←</a>
+        <button type="button" aria-label="返回场景详情" onClick={() => router.push(`/explore/scenarios/${encodeURIComponent(scenario.stableKey)}`)}><BackIcon /></button>
         <div><strong>{scenario.title}</strong><span>{scenario.temporaryCharacter.displayName} · 临时人物</span></div>
-        <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? "继续" : "暂停"}</button>
       </header>
       {scenario.fictionalContext ? <p className="scenario-fiction-notice scenario-fiction-notice--compact">虚构练习，不代表真实地点或现实安排{scenario.stableKey === "scenario.rental-conversation" ? "；房源和看房时间均为练习设定" : ""}。</p> : null}
-      <section className="scenario-goal-strip" aria-live="polite"><span>当前目标 {Math.min(userTurnCount + 1, scenario.tasks.length)} / {scenario.tasks.length}</span><strong>{currentTask.prompt}</strong><button type="button" disabled={hintLevel === 3 || paused} onClick={() => setHintLevel((level) => Math.min(3, level + 1) as 1 | 2 | 3)}>提示 {hintLevel || ""}</button></section>
+      <section className="scenario-goal-strip" aria-live="polite"><strong><span>目标 {Math.min(userTurnCount + 1, scenario.tasks.length)}/{scenario.tasks.length}</span> · {currentTask.prompt}</strong><button type="button" disabled={hintLevel === 3} onClick={() => setHintLevel((level) => Math.min(3, level + 1) as 1 | 2 | 3)}>提示{hintLevel ? ` ${hintLevel}` : ""}</button></section>
       <section className="scenario-transcript" aria-label="练习对话" aria-busy={busy}>
         {displayedTurns.map((turn) => (
           <article className={`scenario-turn scenario-turn--${turn.speaker}`} key={turn.id}>
@@ -260,7 +261,6 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
         {busy ? <p className="scenario-typing" role="status">{scenario.temporaryCharacter.displayName} 正在回应…</p> : null}
         <div ref={endRef} />
       </section>
-      {paused ? <div className="scenario-paused" role="status"><strong>练习已暂停</strong><span>对话断点已保存在本设备。</span></div> : null}
       {notice ? <p className="scenario-notice" role="status">{notice}</p> : null}
       {retryText ? <aside className="scenario-hint"><strong>重新说这一句</strong><p><span lang="es">{retryText}</span> — 保留原意，换一种更自然的表达；这会创建新尝试，不覆盖原记录。</p></aside> : null}
       {repetitionGoal ? <aside className="scenario-hint"><strong>变式复现目标</strong><p>{repetitionGoal}。请根据当前人物和条件自然完成，不必照读原句。</p></aside> : null}
@@ -268,25 +268,8 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
       {transcriptDraft ? <section className="scenario-transcript-confirm" aria-label="确认转写"><label>确认或编辑转写<textarea lang="es" value={transcriptDraft.text} onChange={(event) => setTranscriptDraft({ ...transcriptDraft, text: event.target.value })} /></label><div><button type="button" onClick={() => setTranscriptDraft(null)}>取消</button><button type="button" onClick={() => void submit(transcriptDraft.text, "speech", transcriptDraft.confidence)}>确认并发送</button></div></section> : null}
       {expressionsOpen ? <section className="scenario-expression-drawer" aria-label="可用表达">{scenario.expressions.map((expression) => <button type="button" key={expression.stableKey} onClick={() => { setText(expression.text); setExpressionsOpen(false); }}><strong lang="es">{expression.text}</strong><span>{expression.translation}</span></button>)}</section> : null}
       <section className="scenario-composer" aria-label="发送表达">
-        <div className="scenario-composer__input"><textarea ref={textInputRef} lang="es" value={text} disabled={busy || paused} onChange={(event) => setText(event.target.value)} placeholder="用西班牙语完成你的表达…" /><button type="button" disabled={!text.trim() || busy || paused} onClick={() => void submit(text, "typing")}>发送</button></div>
-        <div className="scenario-composer__tools">
-          <button type="button" aria-expanded={expressionsOpen} onClick={() => setExpressionsOpen((value) => !value)}>表达</button>
-          <button
-            className={recording ? "is-recording" : ""}
-            type="button"
-            disabled={busy || paused}
-            onContextMenu={(event) => event.preventDefault()}
-            onPointerDown={(event) => {
-              recordingGestureActive.current = true;
-              event.currentTarget.setPointerCapture?.(event.pointerId);
-              void startRecording();
-            }}
-            onPointerUp={() => void stopRecording()}
-            onPointerCancel={() => void cancelRecording()}
-          >{recording ? "松开发送" : "按住说话"}</button>
-          <button type="button" disabled={paused} onClick={() => textInputRef.current?.focus()}>键盘</button>
-        </div>
-        <button className="scenario-complete" type="button" disabled={busy || userTurnCount === 0} onClick={() => void complete()}>结束并查看复盘</button>
+        {inputMode === "typing" ? <div className="scenario-composer__input"><div className="scenario-composer__field"><textarea ref={textInputRef} lang="es" value={text} disabled={busy} onChange={(event) => setText(event.target.value)} placeholder="用西班牙语完成你的表达…" /><button className="scenario-composer__mode" type="button" aria-label="切换到语音输入" disabled={busy} onClick={() => setInputMode("speech")}><MicrophoneIcon /></button></div><button className="scenario-composer__send" type="button" disabled={!text.trim() || busy} onClick={() => void submit(text, "typing")}>发送</button></div> : <div className="scenario-composer__voice"><button className={recording ? "is-recording" : ""} type="button" disabled={busy} onContextMenu={(event) => event.preventDefault()} onPointerDown={(event) => { recordingGestureActive.current = true; event.currentTarget.setPointerCapture?.(event.pointerId); void startRecording(); }} onPointerUp={() => void stopRecording()} onPointerCancel={() => void cancelRecording()}>{recording ? "松开发送" : "按住说话"}</button><button type="button" onClick={() => { setInputMode("typing"); window.requestAnimationFrame(() => textInputRef.current?.focus()); }}>切换到文字输入</button></div>}
+        <div className="scenario-composer__secondary"><button type="button" aria-expanded={expressionsOpen} onClick={() => setExpressionsOpen((value) => !value)}>常用表达</button>{userTurnCount >= 2 ? <button className="scenario-complete" type="button" disabled={busy} onClick={() => void complete()}>完成练习</button> : null}</div>
       </section>
     </main>
   );
