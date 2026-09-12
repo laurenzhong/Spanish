@@ -495,7 +495,7 @@ type SourcePosition =
 
 ## 19. 实施任务拆分
 
-详细逐文件计划必须在本规格书面复核后编写。候选顺序如下，每个任务使用独立分支并单独验收：
+详细逐文件计划已在本规格书面复核后完成。批准顺序如下，每个任务使用独立分支并单独验收：
 
 1. `IA-001`：本规格、ADR、权威文档同步与实施计划。
 2. `ACQ-001`：`content-acquisition` 领域、来源表族、运行/候选状态、调度 CLI、预算与 fake 适配器。
@@ -510,7 +510,7 @@ type SourcePosition =
 11. `PROFILE-001`：四板块能力投影、历史八维映射和“我的”页面替换。
 12. `OPS-001`：每日生产调度、来源/成本/失败观测、清理任务、全链路门禁和运行手册。
 
-顺序中的依赖是设计基线，不在本任务直接改写当前 `PROJECT_STATUS.md` 队列。规格批准后，由协调者在 `main` 上暂停或重排与新信息架构冲突的 `UI-014` 至 `UI-017` 和 `ALPHA-033`；现有 `codex/ui-014-reading-density` 未提交改动先完整保留，再判断归入 `ARTICLE-001`、`LEX-001` 或独立 UI 修正。
+该顺序已经同步到 `PROJECT_STATUS.md`：`ACQ-001` 是唯一 `ready` 项，`UI-014` 至 `UI-017` 和 `ALPHA-033` 已阻塞。现有 `codex/ui-014-reading-density` 未提交改动必须完整保留，再判断归入 `ARTICLE-001`、`LEX-001` 或独立 UI 修正。
 
 ## 20. 已知影响与迁移原则
 
@@ -524,6 +524,6 @@ type SourcePosition =
 
 ## 21. 文档复核后的下一步
 
-1. 按[详细实施计划](../../plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)同步权威文档和任务队列。
-2. 协调者在 `main` 登记 `ACQ-001` 为首个可领取实现任务；一次只实施一个任务 ID。
+1. 合并 `IA-001` 的规格、ADR、[详细实施计划](../../plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)和权威文档同步。
+2. 只领取 `ACQ-001`，一次只实施一个任务 ID。
 3. 实施从领域、契约和 fake 开始，不在首个任务中抓取公网、调用收费 ASR 或发布真实内容。

@@ -4,7 +4,8 @@
 - 适用范围：个人 Alpha
 - 详细产品要求：[设计规范](superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
 - 当前客户端设计：[Web 优先的个人学习产品与场景实战设计](superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
-- 决策记录：[ADR-0002](adr/0002-web-pwa-first-personal-alpha.md)
+- 当前内容与学习入口设计：[自动内容供应与词句学习重构设计](superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md)
+- 决策记录：[ADR-0002](adr/0002-web-pwa-first-personal-alpha.md)、[ADR-0008](adr/0008-content-led-learning-and-automated-ingestion.md)
 - 历史多平台设计：[Web 与 Flutter 多平台架构设计](superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md) 与 [ADR-0001](adr/0001-nextjs-web-flutter-clients.md)
 
 ## 1. 架构目标
@@ -21,6 +22,8 @@
 - 桌面与 iPhone Safari 使用同一服务端 API、内容版本和业务语义。
 - 版本化 API 与稳定错误码继续保留，为未来恢复其他客户端留出边界。
 - iPhone Safari 的麦克风、键盘、安全区和 PWA 生命周期必须真实验证。
+- 每日内容供应可恢复、可幂等、受预算控制，并且只能进入所有者候选审核库。
+- 视频/播客、文章和词句语料通过版本化位置 DTO 互通，不合并为失去职责边界的通用内容表。
 
 ## 2. 运行时视图
 
@@ -32,7 +35,6 @@ Next.js 响应式 Web / PWA
   └─ Web 平台适配器
              │ HTTPS / NDJSON
              ▼
-                       ▼
 远程 Next.js 模块化单体
   ├─ Route Handlers：鉴权、校验、协议转换
   ├─ Application：用例编排与事务边界
@@ -42,7 +44,15 @@ Next.js 响应式 Web / PWA
             │
             ├─ Supabase PostgreSQL / Auth / Storage
             └─ 外部 AI、语音与地点供应商
+
+定时 CI runner
+  └─ TypeScript acquisition CLI
+             │ application ports
+             ▼
+      同一个远程模块化单体与 PostgreSQL 工作记录
 ```
+
+长时间来源抓取、媒体处理和 ASR 不在 Vercel Route Handler 内执行。调度器只负责触发仓库内 CLI；业务规则、幂等和事务仍位于 application/domain/repository 边界，不因此形成第二套服务。
 
 ## 3. 目录与职责
 
@@ -54,12 +64,15 @@ app/
 src/
   modules/
     content/              # 内容图谱、导入、发布与文章查询
+    content-acquisition/  # 白名单来源、增量运行、候选、处理与审核编排
+    media/                # 视频/播客版本、播放资产、片段与用户进度
+    lexicon-corpus/       # 词元、短语、出现位置、语料查询与文字考察
     explore/              # 场景/表达发现、搜索与轻量选择策略
     scenario-practice/    # 私人场景、临时人物、实战、复盘与复现
     training/             # 训练计划、状态机、断点
     evidence/             # 评估结果、证据强度、事件写入
     profile/              # 技能快照、场景状态、进步解释
-    recommendation/       # 唯一下一动作
+    recommendation/       # 历史断点、到期复现与渐进式建议排序
     characters/           # 人物圣经与固定事实
     memory/               # 关系记忆、权限、冲突检查
     conversation/         # 对话、回复规划、消息流
@@ -123,12 +136,15 @@ UI / Route Handler → Application → Domain
 | 模块 | 拥有的规则 | 主要数据 |
 |---|---|---|
 | content | 内容版本、审核、图谱和发布 | expressions、tags、scenarios、content_packs |
+| content-acquisition | 来源白名单、游标、候选、处理步骤、权利/预算门禁和所有者审核投影 | acquisition_sources、acquisition_runs、content_candidates、candidate_artifacts、candidate_processing_attempts、candidate_reviews |
+| media | 视频/播客稳定身份、不可变版本、播放资产、定时片段与用户进度 | media_items、media_versions、media_assets、media_segments、user_media_progress |
+| lexicon-corpus | 词元/词形、正式与私人短语、出现位置、KWIC、个人复习意图和文字考察 | lexemes、lexeme_forms、phrase_entries、phrase_variants、corpus_occurrences、user_lexical_intents、lexical_assessment_items、lexical_assessment_attempts |
 | reading | 阅读断点、用户标注、保存和外部来源元数据 | user_reading_progress、user_article_saves、user_article_highlights、user_saved_article_sources |
 | explore | 场景与表达搜索、来源筛选、资格过滤和可解释的场景选择 | 默认不拥有持久表，通过只读端口读取场景目录和用户投影 |
 | scenario-practice | 私人表达收藏、私人场景、临时人物轮次、条件变化、复盘和复现 | user_saved_expressions、personal_scenarios、scenario_session_states、scenario_turns、scenario_turn_reviews、scenario_repetition_items |
 | training | 当前训练计划、状态机和断点 | practice_sessions、practice_attempts、learning_breakpoints |
 | evidence | 尝试评估和证据强度 | evidence_events |
-| profile | 技能快照、场景状态和解释 | user_skill_states、user_scene_states |
+| profile | 技能快照、场景状态和四板块能力解释 | user_skill_states、user_scene_states |
 | recommendation | 候选排序与下一动作 | 默认不拥有持久表，读取其他模块投影 |
 | characters | 人物圣经、固定事实和揭示策略 | characters、character_canon_facts |
 | memory | 关系记忆、共享权限和冲突 | relationships、memories、permissions |
@@ -137,7 +153,23 @@ UI / Route Handler → Application → Domain
 
 ## 6. 关键领域边界
 
-### 6.0a 场景实战与长期角色隔离
+### 6.0 内容采集、正式内容与语料隔离
+
+`content-acquisition` 只负责白名单来源、增量游标、发现、去重、初筛、处理编排、成本门禁和候选审核状态。它不能直接把候选标为正式文章或媒体，也不能写学习证据。每日自动化最多推进到候选审核库；正式 publisher 必须调用 `content`/article 或 `media` 的 application，并再次验证权利、两个审核维度、结构、哈希和 revision。
+
+文章继续由现有 article 表族拥有；视频和播客由 `media` 共享稳定身份、版本、资产和定时片段；旧 `content_packs` 冻结为历史兼容载体，不为新媒体增加字段。`lexicon-corpus` 通过只读投影索引已发布 article/media 版本，不修改来源内容。
+
+跨内容引用使用显式版本 DTO：`ContentDocumentRef` 区分 article/media，`SourcePosition` 区分段落/片段和媒体毫秒。撤下内容必须从公开目录和语料索引消失，内部审计引用可以保留。
+
+长任务由定时 CI runner 调用 TypeScript CLI。每次运行/步骤携带 `runId`、`jobId`、`generationId` 和 revision；游标只在已承诺写入完成后推进。Route Handler 只承担所有者短操作，不承担抓取、下载或 ASR。
+
+### 6.1 学习、阅读与能力入口
+
+`/learn` 是视频/播客目录和媒体学习器，不再读取推荐器生成“开始/继续”任务。`/read` 在文章之外提供词汇、短语、语料和文字考察。`training` 继续提供 attempt、录音、状态机和证据编排，但不再拥有任务式学习首页。
+
+画像主投影为词汇与短语、交流运用、语音表达、跟读表现四个板块。底层 `evidence_events` 和 `user_skill_states` 继续按 skill key 保存并可重算；profile 只做版本化分组和解释。文字考察、文字对话、可信语音和跟读按输出方式进入不同 skill；观看、阅读、查词、收藏和时长均不写证据。
+
+### 6.2 场景实战与长期角色隔离
 
 `scenario-practice` 负责从主题、阅读、收藏表达或最近错误创建私人场景，并编排临时人物多轮实战、完整文字复盘和当天/1/3/7 天复现。它可以引用 `content` 的场景、任务和表达版本，复用 `training` 的尝试、录音和稳定断点能力，并把到期复现投影给 `recommendation`。
 
@@ -145,21 +177,21 @@ UI / Route Handler → Application → Domain
 
 详细数据、API、Provider 路由和状态机见 [Web 优先的个人学习产品与场景实战设计](superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)。
 
-### 6.0b Explore 场景选择与首页推荐隔离
+### 6.3 Explore 场景选择与首页推荐隔离
 
 `explore` 通过 `POST /api/v1/explore/scenario-suggestions` 提供“适合我的 / 探索新场景 / 随机来一个”。Route Handler 认证并校验请求，application 从公开场景目录和当前用户的只读学习投影组装上下文，纯 TypeScript 策略先过滤发布状态、所有权、可用性、当前稳定断点和难度，再选择一个场景并返回最多两个结构化理由。用户投影不可用时退化为基础建议，不能伪造个性化依据；选择接口只读、不产生证据，也不调用场景生成 Provider。
 
-该策略只解决用户进入 Explore 后“不知道搜什么”的发现问题。首页稳定断点、到期复现和跨任务唯一下一动作仍只归 `recommendation`。接口不返回候选池、内部权重、原始错误句或完整私人来源，响应使用 `private, no-store`。详细交互、隐私和测试边界见 [Explore 场景建议与随机选择设计](superpowers/specs/2026-09-11-explore-scenario-suggestions-design.md)。
+该策略只解决用户进入 Explore 后“不知道搜什么”的发现问题。它不参与 `/learn` 的媒体目录排序；历史稳定断点、到期复现和跨任务建议可继续由 `recommendation` 供场景历史或其他渐进式入口使用，但不得恢复任务式学习首页。接口不返回候选池、内部权重、原始错误句或完整私人来源，响应使用 `private, no-store`。详细交互、隐私和测试边界见 [Explore 场景建议与随机选择设计](superpowers/specs/2026-09-11-explore-scenario-suggestions-design.md)。
 
 `GET /api/v1/explore/dashboard` 的 `library` DTO 合并可开始的公共/本人私人场景、版本化正式表达、本人收藏、本人阅读选区和可信近期错误。服务端 repository 负责发布门禁、所有权和来源去重；任一私人来源读取失败时保守退化为公共目录，并明确返回 `privateState=unavailable`。浏览器只在这份授权 DTO 上执行纯搜索和筛选，不直接查询数据库，也不能扩大可见范围。搜索使用 NFKD 归一化，忽略大小写、标点、西语重音和重复空格，多词按 AND 匹配；`q` 与 `filter` 写入 URL，以便刷新、前进后退和深链恢复。搜索、筛选和收藏都不产生学习证据。
 
-### 6.0c 收藏表达与私人场景生成
+### 6.4 收藏表达与私人场景生成
 
 `scenario-practice` 通过 `GET/POST /api/v1/expressions/saved` 和归档接口拥有私人表达收藏。客户端只能提交版本化正式表达引用、本人阅读选区 ID、本人场景复盘 ID，或明确标记的手工文本；application 重新解析来源并以 `clientSaveId` 幂等保存，收藏行为不写学习证据。正式公共表达在生产环境仍必须为 `published`，开发环境的草稿预览不会改变公开发布状态。
 
 `POST /api/v1/scenarios/generate` 只在用户确认后调用 `ScenarioGenerationProvider`。输入为主题或当前用户拥有的单个来源 ID；repository 最小化投影文本，application 以请求内容指纹校验 `Idempotency-Key`，再验证 Provider 返回的临时人物、开场、沟通目标、条件变化和表达 Schema，并确认选中的来源表达没有被丢弃。成功结果完整写入 `personal_scenarios` 后才返回，失败不保存半成品。私人场景以 `personal.<uuid>` 作为 Web/API 稳定引用，只能由拥有者读取、归档、开始实战或进入 Explore 建议候选；它保持私人 draft，不进入公共内容 API，也不创建长期角色或关系记忆。
 
-### 6.0 阅读状态与外部来源
+### 6.5 阅读状态与外部来源
 
 `reading` 模块拥有用户阅读私有数据，Route Handler 只负责会话验证、Zod 输入校验和协议转换，application 调用 `ReadingRepository` 完成事务写入。文章正文仍由 `content` 模块的已发布版本提供；阅读表只引用 `article_versions.id` 和内容哈希，不复制公共正文。
 
@@ -183,19 +215,19 @@ Lucía 的主动消息暂限 App 内可见，入口为 `POST /api/v1/conversatio
 
 Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。`POST /api/v1/read/generated-stories` 要求当前会话和 `Idempotency-Key`，输入经 Zod 校验后生成私有 AI draft；文章正文写入内部 `article_*` 版本载体，并由 `user_generated_articles` 按用户所有权关联。`GET/DELETE /api/v1/read/generated-stories/:articleId` 只返回或删除当前用户的记录，公共内容列表与公开内容 API 永不包含这些文章。生成文章可以复用阅读器的版本哈希、断点、标注和 TTS，但这些操作仍不会写入口语证据、画像或角色记忆。供应商请求只记录模型、延迟、请求 ID 等脱敏元数据，不保存 prompt 或原始响应。
 
-### 6.1 训练完成不等于能力掌握
+### 6.6 训练完成不等于能力掌握
 
 `training` 只回答“用户当前正在做什么、流程走到哪里”。`evidence` 判断本次尝试提供了什么证据，`profile` 决定技能状态如何变化。
 
 禁止在训练页面完成回调中直接把场景标记为掌握。
 
-### 6.1.1 训练断点的稳定边界
+### 6.6.1 训练断点的稳定边界
 
 训练断点只保存可安全重建的稳定状态：`awaiting-output`、`showing-feedback`、`completed` 和 `recoverable-error`。播放、录音、转写、评估以及其他带活动副作用的状态不落盘；如果这些状态触发保存 effect，客户端保留上一个稳定断点。恢复只注入状态，不重放旧的播放、录音、转写或评估 effect。
 
 断点包含内容包 key/版本、表达和目标 key、输出方式、提示级别、generation、转写和反馈快照；不包含证据、画像、API 密钥或原始录音。Web 断点按用户 ID 隔离在浏览器本地存储，Flutter 通过平台安全存储抽象隔离。Schema 或内容包版本不兼容、数据损坏时清除断点并从当前微循环起点开始。
 
-### 6.2 证据事件与技能快照
+### 6.7 证据事件与技能快照
 
 `evidence_events` 是追加式事实，至少保存：
 
@@ -222,7 +254,7 @@ Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。
 
 每次证据写入和快照更新在同一事务中完成。定期重算用于验证快照没有漂移。
 
-### 6.3 内容版本
+### 6.8 内容版本
 
 - 内容源使用稳定 `external_id`。
 - 每次教学含义变化增加版本。
@@ -234,7 +266,7 @@ Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。
 - 导入器不会自动审批或发布。后继 bundle 只有在内容字段及子项完全一致时才能单向推进既有实体状态；状态降级、归档后恢复和同版本内容改写均拒绝，状态更新与 bundle claim 在同一事务中回滚。
 - 个人产品阶段的正式 expression/scenario 必须同时具有 `es-ES` 与 `zh-CN` approved review；审核者身份来自 `content_reviews.reviewer_reference`，当前使用 `codex-ai-owner-authorized-review`，不得解释为真人签字。生产投影仍只读取 `published`。
 
-### 6.4 人物固定事实与关系记忆
+### 6.9 人物固定事实与关系记忆
 
 人物圣经是全局角色事实，关系记忆是某个用户与角色的共同历史，两者不可混写。
 
@@ -310,8 +342,16 @@ Route Handler 的职责只有：
 - `GET /api/v1/conversations/:id/stream`
 - `POST /api/v1/relationships/:id/share-permission`
 - `DELETE /api/v1/me/data`
+- `GET /api/v1/media`
+- `GET /api/v1/media/:stableKey/playback`
+- `PUT /api/v1/media/:stableKey/progress`
+- `GET /api/v1/lexicon/vocabulary`
+- `GET /api/v1/lexicon/phrases`
+- `GET /api/v1/corpus/search`
+- `POST /api/v1/lexicon/assessments/:assessmentId/attempts`
+- `/api/v1/internal/content-workflow/*`（同时要求用户会话和所有者 allowlist）
 
-`GET /api/v1/profile` 返回固定八个能力维度的当前掌握度、可信度、口语覆盖和证据计数；当历史证据足够时还返回四周前掌握度，并提供最多三条只含日期、输入方式、场景标签和提示级别的脱敏代表性尝试。响应不得包含原始答案、转写正文或音频引用。
+`GET /api/v1/profile` 的主投影返回词汇与短语、交流运用、语音表达、跟读表现四个板块的当前掌握度、可信度、适用证据覆盖和证据计数；当历史证据足够时还返回对比值，并提供最多三条只含日期、输入方式、来源标签和提示级别的脱敏代表性尝试。旧八维结果只保留为版本化历史投影或审计数据，不再作为主界面固定合同。响应不得包含原始答案、转写正文或音频引用。
 
 画像、活动、关系记忆和保存语音资料的 Web 同源请求在缺少 Bearer token 时，会在请求携带会话 Cookie 的前提下回退到服务端会话校验；无 Cookie 的跨端请求仍必须提供 Bearer token。这样浏览器登录态与 Flutter/API 调用保持相同的所有权检查。
 
@@ -471,6 +511,8 @@ Flutter 的 `AudioRecorder` 和 `TextToSpeech` 端口继续位于 `apps/mobile/l
 - 无 `done` 异常断流率。
 - 记忆冲突和越权共享拦截次数。
 - 每次有效训练和聊天的供应商成本。
+- 每次内容运行的发现、重复、拒绝、处理、待审核、失败和估算成本。
+- ASR 预算消耗、临时资产清理失败、来源连续失败和撤下内容索引残留。
 - 对话 provider 安全门禁拦截率（按 provider、关系阶段和回复意图统计），用于判断是否需要调整 prompt 或增加受控重生成；门禁结果只记录稳定错误分类，不保存被拒绝的完整文本。
 
 7.5a 已落地 `provider_calls` 的 `request_id`、`session_id`、`attempt_id`、`conversation_id`、`generation_id` 和 `error_type` 字段，并为 request/attempt 建立诊断查询索引。记录只保存结构化供应商元数据，不保存音频、完整对话或供应商响应正文。

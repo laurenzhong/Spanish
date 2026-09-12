@@ -6,13 +6,14 @@
 
 ## 核心体验
 
-- 首页按学习状态显示真实的唯一主动作：新用户“开始第一次练习”，有稳定断点的用户“继续学习”；不强制先选择时长和模式，必要的调整入口以低干扰方式提供。
+- 登录后打开“学习”直接看到视频与播客资料库，像桌面 YouTube/B站一样选择内容；不经过“开始学习”“继续学习”、Hero 或模式选择器。
 - 围绕打招呼、建立关系、表达需要、维持对话和修复沟通等通用交际能力训练。
 - 通过情境输入、独立输出、渐进提示、变式迁移和真实对话形成听说闭环。
 - 在不方便发声时用听力、阅读和打字继续学习，之后补充口语验证。
-- 在独立的“阅读”页面阅读可核验来源的西语刊物、生活和工作文章，支持断点、词语辅助、保存和可选口语迁移；阅读行为本身不计为口语证据。
-- 用学习证据、八维能力图和场景状态说明真实进步，而不是只展示经验值或打卡。
+- “阅读”集中承载文章、词汇、短语、文字考察和跨来源语料查询；阅读行为本身不计为口语证据。
+- 用词汇与短语、交流运用、语音表达、跟读表现四个能力板块说明真实进步，而不是只展示经验值或打卡。
 - 与长期 AI 好友 Lucía 在接近真实私信的环境中持续交流，并自然认识其他角色。
+- 通过白名单 YouTube 频道、播客 RSS、文章 RSS 和专用适配器每日增量发现素材；自动化只进入候选库，所有者审核后才发布。
 
 ## 产品原则
 
@@ -25,19 +26,19 @@
 
 ## 个人 Alpha
 
-Alpha 计划包含：
+Alpha 当前计划包含：
 
-- 40–60 条正式训练表达。
-- 8–12 个沉浸式内容包。
-- 首批可持续扩充的西语阅读文章库（原创、公共领域、开放许可或明确授权来源）。
+- 保留已审核的正式表达、场景和历史沉浸式内容包，不静默改写已有版本或证据。
+- 可持续扩充的视频、播客和西语文章库，以及每日白名单候选供应链。
+- 文章、媒体共用的词汇/短语出现索引、语料查询和纯文字词句考察。
 - 听说核心训练、静默读写替代和抽样口语复核。
 - Web 浏览器 TTS、录音、转写和基础评估。
-- 八维学习画像、有效学习热力图和唯一下一动作推荐。
+- 四板块学习画像和有效学习热力图。
 - Lucía、一个兴趣好友和一个生活关系角色。
 - 长期关系记忆、好友介绍和隐私控制。
 - Next.js PWA 在桌面浏览器与 iPhone Safari 上的核心学习闭环。
 
-支付、完整内容后台、实时双向语音、大规模角色网络、微服务、完整离线 ASR、Flutter/原生移动客户端和商店发布属于后续路线。当前手机端通过 iPhone Safari 与添加到主屏幕后的 PWA 使用。
+支付、通用内容管理后台、实时双向语音、大规模角色网络、微服务、本地离线 ASR、Flutter/原生移动客户端和商店发布属于后续路线。当前只允许所有者使用的轻量内容工作流；手机端通过 iPhone Safari 与添加到主屏幕后的 PWA 使用。
 
 ## 技术路线
 
@@ -50,11 +51,15 @@ Alpha 计划包含：
 
 Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推荐、角色、记忆和供应商通过明确模块接口协作，不提前拆分独立服务。服务端规则、内容、API 协议和学习数据保持单一权威来源；版本化 API 继续保留，为未来恢复其他客户端提供边界。
 
+自动内容供应继续运行在同一仓库和模块化单体边界内：`content-acquisition` 负责来源、候选和处理编排，`media` 负责视频/播客版本与播放，`lexicon-corpus` 负责词句和语料。长任务由定时 CI runner 调用 TypeScript CLI，不在 Vercel 请求中运行，也不提前引入微服务或消息队列。
+
 ## 文档
 
 - [当前任务与项目状态](PROJECT_STATUS.md)
 - [完整产品设计](docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
 - [Web 优先的个人学习产品与场景实战设计](docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
+- [自动内容供应与词句学习重构设计](docs/superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md)
+- [自动内容供应与词句学习重构实施计划](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)
 - [Web/PWA 场景学习闭环实施计划](docs/plans/2026-09-11-web-first-scenario-practice-implementation-plan.md)
 - [阅读库与西语文章内容体系设计](docs/superpowers/specs/2026-08-26-reading-library-and-article-content-design.md)
 - [UI-009：Readlang 阅读工作台技术设计](docs/superpowers/specs/2026-08-26-readlang-reading-workbench-technical-design.md)
@@ -71,6 +76,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [认证与会话](docs/authentication.md)
 - [跨客户端 API 契约](contracts/README.md)
 - [ADR-0002：个人 Alpha 改为 Web/PWA 优先](docs/adr/0002-web-pwa-first-personal-alpha.md)
+- [ADR-0008：内容驱动学习入口与自动采集审核链路](docs/adr/0008-content-led-learning-and-automated-ingestion.md)
 - [历史 ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
 - [内容制作与审核规范](docs/content-authoring.md)
 - [测试与质量策略](docs/testing-strategy.md)
@@ -87,7 +93,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 
 实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
 
-基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。响应式 Web/PWA 产品壳层按“学习、阅读、探索、对话、我的”五项语义演进；Flutter 代码保留但暂停同步。
+基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。响应式 Web/PWA 产品壳层保留“学习、阅读、探索、对话、我的”五项导航；新一轮实施将把学习替换为视频/播客资料库，并把词汇、短语和语料纳入阅读。Flutter 代码保留但暂停同步。
 
 本地环境要求：
 
