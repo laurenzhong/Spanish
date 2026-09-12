@@ -6,7 +6,7 @@
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
 - 总体状态：ALPHA-033 继续进行；当前成果只形成电脑端 Web 临时集成测试基线，不是发布候选。v2 内容、远端数据库导入和自动化回归已完成，但产品本人确认仍有未完成功能及明显的排版、按钮和交互缺陷；必须重新盘点并修复后再讨论发布候选。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012` 至 `UI-017` 的逐任务实施计划已形成；当前只允许先领取 `UI-012`，后续任务依赖前项验收。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
+- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012` 至 `UI-017` 的逐任务实施计划已形成；`UI-012` 已在独立分支开始，后续任务依赖前项验收。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -287,7 +287,7 @@ UI-011 已完成；当前上位任务为 `ALPHA-033`，下一项可执行子任�
 - `UI-009`：阅读库与规范化阅读器（done；`4cbc121`；基于现有已发布内容 bundle，READ-005 外部来源能力仍待实现）
 - `UI-010`：我的进步与隐私控制（done；`d59a617`；依赖 UI-006）
 - `UI-011`：跨视口、可访问性与行为回归（done；依赖 UI-006 至 UI-010）
-- `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（ready；书面规格已批准，实施计划已形成）
+- `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（in_progress；负责人 Codex；分支 `codex/ui-012-explore-scenario-density`；开始日期 2026-09-12）
 - `UI-013`：学习首页与训练工作台密度收敛（blocked；依赖 UI-012）
 - `UI-014`：阅读书架与文章阅读器密度收敛（blocked；依赖 UI-013）
 - `UI-015`：对话页面密度收敛（blocked；依赖 UI-014）
@@ -1580,7 +1580,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
 | SCN-004 | done | `codex/scn-004-review-repetition` | Codex | 完整历史、逐轮复盘、重新说和当天/1/3/7 天复现 | SCN-002、SCN-003 |
 | SCN-005 | done | `codex/scn-005-provider-pwa-hardening` | Codex / 产品本人 | Provider 设置、切换与电脑端 Web 发布门禁；iPhone 真机延期 | SCN-001 至 SCN-004 |
-| UI-012 | ready | `codex/ui-012-explore-scenario-density` | 待领取 | Explore、场景详情、实战与复盘密度收敛 | 书面规格已批准，实施计划已形成 |
+| UI-012 | in_progress | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 书面规格已批准，实施计划已形成 |
 | UI-013 | blocked | `codex/ui-013-learning-workbench-density` | 待领取 | 学习首页与训练工作台密度收敛 | UI-012 |
 | UI-014 | blocked | `codex/ui-014-reading-density` | 待领取 | 阅读书架与文章阅读器密度收敛 | UI-013 |
 | UI-015 | blocked | `codex/ui-015-conversation-density` | 待领取 | 对话页面密度收敛 | UI-014 |
@@ -1594,7 +1594,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | UI-012 | Explore、场景详情、实战与复盘密度收敛 | 书面规格与实施计划已形成 |
+| 1 | UI-012 | Explore、场景详情、实战与复盘密度收敛 | 已开始；完成后等待产品本人确认 |
 | 2 | UI-013 | 学习首页与训练工作台密度收敛 | UI-012 完成并确认 |
 | 3 | UI-014 | 阅读书架与文章阅读器密度收敛 | UI-013 完成并确认 |
 | 4 | UI-015 | 对话页面密度收敛 | UI-014 完成并确认 |
