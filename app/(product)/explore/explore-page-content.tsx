@@ -1,101 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 
-import type { ExploreCardDto, ExploreDashboardDto } from "@/src/modules/explore/domain";
+import type { ExploreDashboardDto } from "@/src/modules/explore/domain";
 import type { ExploreLibraryDto, ExploreLibraryFilter } from "@/src/modules/explore/domain/explore-library";
 
-import { ExploreLibraryPanel, type ExploreLibraryView } from "./explore-library-panel";
+import { ExploreLibraryPanel } from "./explore-library-panel";
 import { ScenarioSuggestionPanel } from "./scenario-suggestion-panel";
 
 const emptyLibrary: ExploreLibraryDto = { scenarios: [], expressions: [], privateState: "unavailable" };
-const legacySavedPacksStorageKey = "explore-saved-packs:v1";
-const pendingSavedPacksStorageKey = "explore-pending-saved-packs:v2";
-const pendingSavedPacksChangedEvent = "explore-pending-saved-packs-changed";
-type ExplorePageContentProps = Readonly<{ dashboard: ExploreDashboardDto; library?: ExploreLibraryDto; initialQuery?: string; initialPack?: string | null; initialSaved?: boolean; initialFilter?: ExploreLibraryFilter }>;
 
-const skillLabels: Record<ExploreCardDto["skills"][number], string> = { listen: "听", read: "读", speak: "说", write: "写" };
-const statusLabels: Record<ExploreCardDto["status"], string> = { published: "可开始", in_progress: "继续中", draft: "内容整理中", unavailable: "暂不可用" };
-
-function matches(value: string, query: string): boolean {
-  return !query || value.toLocaleLowerCase().includes(query.toLocaleLowerCase());
-}
-
-function stateKey(card: ExploreCardDto): string {
-  return `${card.stableKey}@${card.version}`;
-}
-
-function savedStateFromDashboard(packs: ExploreDashboardDto["packs"]): Record<string, boolean> {
-  return Object.fromEntries(packs.flatMap((card) => [
-    [stateKey(card), Boolean(card.saved)],
-    [card.stableKey, Boolean(card.saved)],
-  ]));
-}
-
-function readPendingSavedState(raw: string | null, packs: ExploreDashboardDto["packs"]): Record<string, boolean> {
-  try {
-    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
-    return Object.fromEntries(packs.flatMap((card) => {
-      const pending = parsed[stateKey(card)];
-      return typeof pending === "boolean"
-        ? [[stateKey(card), pending], [card.stableKey, pending]]
-        : [];
-    }));
-  } catch {
-    return {};
-  }
-}
-
-function readPendingSavedStateSnapshot(): string | null {
-  try { return window.localStorage.getItem(pendingSavedPacksStorageKey); } catch { return null; }
-}
-
-function readEmptyPendingSavedStateSnapshot(): null {
-  return null;
-}
-
-function subscribeToPendingSavedState(onStoreChange: () => void): () => void {
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === pendingSavedPacksStorageKey) onStoreChange();
-  };
-  window.addEventListener("storage", onStorage);
-  window.addEventListener(pendingSavedPacksChangedEvent, onStoreChange);
-  return () => {
-    window.removeEventListener("storage", onStorage);
-    window.removeEventListener(pendingSavedPacksChangedEvent, onStoreChange);
-  };
-}
-
-function writePendingSavedState(card: ExploreCardDto, saved: boolean | null): void {
-  try {
-    const raw = window.localStorage.getItem(pendingSavedPacksStorageKey);
-    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
-    const key = stateKey(card);
-    if (saved === null) delete parsed[key];
-    else parsed[key] = saved;
-
-    if (Object.keys(parsed).length === 0) {
-      window.localStorage.removeItem(pendingSavedPacksStorageKey);
-    } else {
-      window.localStorage.setItem(pendingSavedPacksStorageKey, JSON.stringify(parsed));
-    }
-    window.dispatchEvent(new Event(pendingSavedPacksChangedEvent));
-  } catch {
-    // The current in-memory state remains usable when browser storage fails.
-  }
-}
-
-function progressCopy(card: ExploreCardDto): string | null {
-  if (card.status === "in_progress" && card.progress) {
-    return `已完成 ${card.progress.completedSteps} / ${card.progress.totalSteps} 步`;
-  }
-  return null;
-}
-
-function actionCopy(card: ExploreCardDto): string {
-  if (card.status === "draft") return "打开草稿预览";
-  return card.status === "in_progress" ? "继续这组内容" : "开始这组内容";
-}
+type ExplorePageContentProps = Readonly<{
+  dashboard: ExploreDashboardDto;
+  library?: ExploreLibraryDto;
+  initialQuery?: string;
+  initialPack?: string | null;
+  initialSaved?: boolean;
+  initialFilter?: ExploreLibraryFilter;
+  allowDraftPreview?: boolean;
+}>;
 
 function SearchIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>;
@@ -105,131 +28,67 @@ function CloseIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17" /></svg>;
 }
 
-function BookmarkIcon({ filled = false }: Readonly<{ filled?: boolean }>) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 4.5h10v15l-5-3.2-5 3.2z" fill={filled ? "currentColor" : "none"} /></svg>;
-}
-
-function PackCard({ card, selected, saved, onSelect, onToggleSaved, buttonRef }: Readonly<{ card: ExploreCardDto; selected: boolean; saved: boolean; onSelect: (card: ExploreCardDto) => void; onToggleSaved: (card: ExploreCardDto) => void; buttonRef: (node: HTMLButtonElement | null) => void }>) {
-  const cardContent = <><div className="explore-pack-card__art" aria-hidden="true"><span>{card.status === "draft" ? "IN EDIT" : "SUEÑO"}</span><strong>{card.title.split(" ")[0]}</strong></div><div className="explore-pack-card__body"><div className="explore-pack-card__meta"><span>{card.level}</span><span>{card.skills.map((skill) => skillLabels[skill]).join(" · ") || "内容包"}</span></div><h3>{card.title}</h3><p>{card.summary}</p><div className="explore-pack-card__footer"><span className={`status-note${card.status === "published" || card.status === "in_progress" ? " status-note--open" : ""}`}>{statusLabels[card.status]}</span><span>{progressCopy(card) ?? card.durationLabel}</span></div></div></>;
-  return <article className={`explore-pack-card${selected ? " is-selected" : ""}`} data-status={card.status}><button ref={buttonRef} type="button" className="explore-pack-card__select" aria-label={`查看${card.title}详情，${statusLabels[card.status]}`} onClick={() => onSelect(card)}>{cardContent}</button><button className={`explore-pack-card__save${saved ? " is-saved" : ""}`} type="button" aria-label={saved ? `取消保存${card.title}` : `保存${card.title}`} aria-pressed={saved} onClick={() => onToggleSaved(card)}><BookmarkIcon filled={saved} /></button></article>;
-}
-
-function DetailRail({ card, saved, onClose, onToggleSaved }: Readonly<{ card: ExploreCardDto; saved: boolean; onClose: () => void; onToggleSaved: (card: ExploreCardDto) => void }>) {
-  const actionLabel = actionCopy(card);
-  const progress = progressCopy(card);
-  return <aside className="explore-detail-rail" data-testid="explore-detail-rail" aria-label="内容详情"><div className="explore-detail-rail__header"><h2>{card.title}</h2><div className="explore-detail-rail__header-actions"><button className={`icon-button${saved ? " is-saved" : ""}`} type="button" aria-label={saved ? `取消保存${card.title}` : `保存${card.title}`} aria-pressed={saved} onClick={() => onToggleSaved(card)}><BookmarkIcon filled={saved} /></button><button className="icon-button" type="button" aria-label="关闭内容详情" onClick={onClose}><CloseIcon /></button></div></div><p className="explore-detail-rail__summary">{card.summary}</p><dl className="explore-detail-rail__facts"><div><dt>水平</dt><dd>{card.level}</dd></div><div><dt>时长</dt><dd>{card.durationLabel}</dd></div><div><dt>版本</dt><dd>{card.version}</dd></div><div><dt>技能</dt><dd>{card.skills.map((skill) => skillLabels[skill]).join(" · ") || "—"}</dd></div>{card.source ? <div><dt>来源</dt><dd>{card.source.title}</dd></div> : null}</dl><div className="explore-detail-rail__status" role="status"><span className={`status-note${card.status === "published" || card.status === "in_progress" ? " status-note--open" : ""}`}>{statusLabels[card.status]}</span>{progress ? <p>{progress}</p> : null}</div>{card.route ? <a className="primary-action explore-detail-rail__action" href={card.route}><span>{actionLabel}</span><span aria-hidden="true">→</span></a> : <p className="explore-detail-rail__blocked">{card.status === "draft" ? "这组内容完成审核后会出现在这里。" : "这组内容暂时无法读取，请稍后重试。"}</p>}</aside>;
-}
-
-export function ExplorePageContent({ dashboard, library = emptyLibrary, initialQuery = "", initialPack = null, initialSaved = false, initialFilter = "all" }: ExplorePageContentProps & { allowDraftPreview?: boolean }) {
+export function ExplorePageContent({ library = emptyLibrary, initialQuery = "", initialFilter = "all" }: ExplorePageContentProps) {
   const [query, setQuery] = useState(initialQuery);
-  const [selectedKey, setSelectedKey] = useState<string | null>(initialPack);
-  const [railOpen, setRailOpen] = useState(Boolean(initialPack));
-  const [packFilter, setPackFilter] = useState<"all" | "saved" | "available" | "draft">(initialSaved ? "saved" : "all");
-  const [libraryFilter, setLibraryFilter] = useState<ExploreLibraryFilter>(initialFilter);
-  const [view, setView] = useState<ExploreLibraryView | "packs">(initialPack ? "packs" : ["saved", "recent-error", "reading"].includes(initialFilter) ? "expressions" : "scenarios");
-  const [packFiltersOpen, setPackFiltersOpen] = useState(false);
-  const [savedOverrides, setSavedOverrides] = useState<Record<string, boolean>>({});
-  const pendingSavedStateRaw = useSyncExternalStore(
-    subscribeToPendingSavedState,
-    readPendingSavedStateSnapshot,
-    readEmptyPendingSavedStateSnapshot,
-  );
-  const savedByKey = useMemo(() => ({
-    ...savedStateFromDashboard(dashboard.packs),
-    ...readPendingSavedState(pendingSavedStateRaw, dashboard.packs),
-    ...savedOverrides,
-  }), [dashboard.packs, pendingSavedStateRaw, savedOverrides]);
-  const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const saveRequestId = useRef(0);
+  const [filter, setFilter] = useState<ExploreLibraryFilter>(initialFilter === "available" ? "available" : "all");
 
-  const filteredPacks = useMemo(() => dashboard.packs.filter((card) => {
-    const textMatches = matches(`${card.title} ${card.summary} ${card.level} ${card.skills.join(" ")} ${card.status}`, query.trim());
-    const filterMatches = packFilter === "all" || (packFilter === "saved" ? Boolean(savedByKey[stateKey(card)]) : packFilter === "available" ? card.status === "published" || card.status === "in_progress" : card.status === "draft");
-    return textMatches && filterMatches;
-  }), [dashboard.packs, packFilter, query, savedByKey]);
-  const selectedCard = dashboard.packs.find((card) => card.stableKey === selectedKey) ?? null;
-
-  function updateUrl(nextQuery: string, nextKey: string | null, nextLibraryFilter = libraryFilter, nextPackFilter = packFilter) {
+  function updateUrl(nextQuery: string, nextFilter = filter) {
     const params = new URLSearchParams(window.location.search);
     if (nextQuery) params.set("q", nextQuery); else params.delete("q");
-    if (nextKey) params.set("pack", nextKey); else params.delete("pack");
-    if (nextLibraryFilter === "all") params.delete("filter"); else params.set("filter", nextLibraryFilter);
-    if (nextPackFilter === "saved") params.set("saved", "1"); else params.delete("saved");
+    if (nextFilter === "available") params.set("filter", nextFilter); else params.delete("filter");
+    params.delete("pack");
+    params.delete("saved");
     const search = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${search ? `?${search}` : ""}`);
   }
 
   useEffect(() => {
-    updateUrl(query, selectedKey, libraryFilter, packFilter);
+    updateUrl(query, filter);
     // updateUrl is an intentionally local URL adapter; state values trigger this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [libraryFilter, packFilter, query, selectedKey]);
-  useEffect(() => {
-    try { window.localStorage.removeItem(legacySavedPacksStorageKey); } catch { /* Ignore unavailable browser storage. */ }
-  }, []);
-  function selectCard(card: ExploreCardDto) { setSelectedKey(card.stableKey); setRailOpen(true); updateUrl(query, card.stableKey); }
-  function closeRail() {
-    const previousKey = selectedKey;
-    setRailOpen(false);
-    setSelectedKey(null);
-    updateUrl(query, null);
-    if (previousKey) window.requestAnimationFrame(() => triggerRefs.current[previousKey]?.focus());
-  }
-  function toggleSaved(card: ExploreCardDto) {
-    const requestId = ++saveRequestId.current;
-    const key = stateKey(card);
-    const nextSaved = !Boolean(savedByKey[key]);
-    setSavedOverrides((current) => ({ ...current, [key]: nextSaved, [card.stableKey]: nextSaved }));
-    setSaveNotice(nextSaved ? "已保存到你的探索清单。" : "已从探索清单移除。");
-    void fetch("/api/v1/explore/state", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ stableKey: card.stableKey, version: Number(card.version.slice(1)) || 1, totalSteps: card.progress?.totalSteps ?? 1, completedSteps: card.progress?.completedSteps ?? 0, saved: nextSaved }) })
-      .then((response) => {
-        if (!response.ok) throw new Error("EXPLORE_STATE_SYNC_FAILED");
-        if (requestId === saveRequestId.current) {
-          writePendingSavedState(card, null);
-          setSaveNotice(nextSaved ? "已保存到你的探索清单，已同步到账号。" : "已从探索清单移除，已同步到账号。");
-        }
-      })
-      .catch(() => {
-        if (requestId === saveRequestId.current) {
-          writePendingSavedState(card, nextSaved);
-          setSaveNotice(nextSaved ? "已保存在本设备，账号同步失败，可重试。" : "已从本设备移除，账号同步失败。");
-        }
-      });
+  }, [filter, query]);
+
+  function clearSearchAndFilters() {
+    setQuery("");
+    setFilter("all");
+    updateUrl("", "all");
   }
 
   return (
     <div className="page-stack explore-page">
-      <h1 className="sr-only">探索真实表达</h1>
+      <h1 className="sr-only">探索场景</h1>
       <div className="explore-discovery-controls">
         <section className="explore-intent" aria-label="按意图查找">
           <label className="explore-intent__field">
-            <span className="sr-only">搜索场景、表达和内容包</span>
-            <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); updateUrl(event.target.value, selectedKey); }} placeholder="搜索场景或表达" />
-            {query ? <button type="button" aria-label="清除搜索" onClick={() => { setQuery(""); updateUrl("", selectedKey); }}><CloseIcon /></button> : <span aria-hidden="true"><SearchIcon /></span>}
+            <span className="sr-only">搜索场景</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                updateUrl(event.target.value);
+              }}
+              placeholder="搜索场景"
+            />
+            {query
+              ? <button type="button" aria-label="清除搜索" onClick={() => { setQuery(""); updateUrl(""); }}><CloseIcon /></button>
+              : <span aria-hidden="true"><SearchIcon /></span>}
           </label>
         </section>
-        <ScenarioSuggestionPanel onTopicSelected={(topic) => { setQuery(topic); setView("scenarios"); updateUrl(topic, selectedKey); }} />
+        <ScenarioSuggestionPanel onTopicSelected={(topic) => { setQuery(topic); updateUrl(topic); }} />
       </div>
 
-      <div className="explore-view-tabs" role="tablist" aria-label="探索内容">
-        {([[
-          "scenarios", "场景",
-        ], ["expressions", "表达"], ["packs", "内容包"]] as const).map(([value, label]) => <button key={value} id={`explore-view-${value}`} type="button" role="tab" aria-selected={view === value} aria-controls="explore-view-panel" onClick={() => { setView(value); setPackFiltersOpen(false); if (value !== "packs") { setRailOpen(false); setSelectedKey(null); const nextFilter = value === "scenarios" && !["all", "available"].includes(libraryFilter) || value === "expressions" && libraryFilter === "available" ? "all" : libraryFilter; if (nextFilter !== libraryFilter) { setLibraryFilter(nextFilter); updateUrl(query, null, nextFilter); } } }}>{label}</button>)}
-      </div>
-
-      {saveNotice ? <p className="explore-save-notice" role="status">{saveNotice}</p> : null}
-      <div id="explore-view-panel" role="tabpanel" aria-labelledby={`explore-view-${view}`} className={`explore-workspace${view === "packs" && railOpen && selectedCard ? " explore-workspace--with-rail" : ""}`}>
-        {view === "scenarios" || view === "expressions" ? <ExploreLibraryPanel library={library} query={query} filter={libraryFilter} view={view} onFilterChange={(nextFilter) => { setLibraryFilter(nextFilter); updateUrl(query, selectedKey, nextFilter); }} onClear={() => { setQuery(""); setLibraryFilter("all"); updateUrl("", selectedKey, "all"); }} /> : <>
-          <main className="explore-main">
-            <section className="explore-packs" aria-label="内容包结果">
-              <div className="explore-library__toolbar"><span role="status" aria-live="polite">{filteredPacks.length} 个内容包</span><div className="explore-library__filter-wrap"><button className="explore-library__filter-trigger" type="button" aria-expanded={packFiltersOpen} aria-label="筛选内容包" onClick={() => setPackFiltersOpen((open) => !open)}><span>筛选</span></button>{packFiltersOpen ? <div className="explore-library__filter-panel" role="dialog" aria-label="内容包筛选"><div><strong>状态</strong>{([["all", "全部"], ["saved", "已保存"], ["available", "可开始"], ["draft", "整理中"]] as const).map(([value, label]) => <button className={packFilter === value ? "is-selected" : ""} type="button" aria-label={`${label}内容包`} aria-pressed={packFilter === value} key={value} onClick={() => { setPackFilter(value); setPackFiltersOpen(false); updateUrl(query, selectedKey, libraryFilter, value); }}>{label}</button>)}</div></div> : null}</div></div>
-              {filteredPacks.length > 0 ? <div className="explore-pack-grid">{filteredPacks.map((card) => <PackCard buttonRef={(node) => { triggerRefs.current[card.stableKey] = node; }} card={card} saved={Boolean(savedByKey[card.stableKey])} selected={selectedKey === card.stableKey} onSelect={selectCard} onToggleSaved={toggleSaved} key={card.id} />)}</div> : <div className="explore-empty" role="status"><strong>暂时没有匹配的内容包</strong><button type="button" onClick={() => { setQuery(""); setPackFilter("all"); }}>清除搜索和筛选</button></div>}
-            </section>
-          </main>
-          {railOpen && selectedCard ? <DetailRail card={selectedCard} saved={Boolean(savedByKey[selectedCard.stableKey])} onClose={closeRail} onToggleSaved={toggleSaved} /> : null}
-        </>}
-      </div>
+      <ExploreLibraryPanel
+        library={library}
+        query={query}
+        filter={filter}
+        onFilterChange={(nextFilter) => {
+          const scenarioFilter = nextFilter === "available" ? "available" : "all";
+          setFilter(scenarioFilter);
+          updateUrl(query, scenarioFilter);
+        }}
+        onClear={clearSearchAndFilters}
+      />
     </div>
   );
 }

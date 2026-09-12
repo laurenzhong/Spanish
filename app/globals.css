@@ -8347,25 +8347,6 @@ body {
   background: var(--surface);
 }
 
-.explore-pack-card__save {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border: 1px solid rgb(255 255 255 / 45%);
-  border-radius: 999px;
-  color: #fff7ee;
-  background: rgb(20 34 31 / 48%);
-  cursor: pointer;
-}
-.explore-pack-card__save.is-saved { color: #ffd27e; }
-.explore-pack-card__save:focus-visible { outline: 3px solid rgb(23 105 224 / 42%); outline-offset: 2px; }
-.explore-pack-card__save svg { width: 20px; height: 20px; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
-
 .training-loop__detail-heading {
   display: grid;
   gap: 6px;
@@ -8517,11 +8498,6 @@ body {
 .scenario-suggestion__actions .primary-action,
 .scenario-suggestion__actions button { min-height: 40px; }
 
-.explore-view-tabs { display: flex; gap: 4px; padding-bottom: 1px; border-bottom: 1px solid var(--border); }
-.explore-view-tabs button { min-height: 40px; padding: 0 16px; border: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; cursor: pointer; font: inherit; font-size: .82rem; font-weight: 750; }
-.explore-view-tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
-.explore-view-tabs button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: -2px; }
-.explore-workspace { gap: 18px; }
 .explore-library { gap: 12px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .explore-library__toolbar { display: flex; min-height: 40px; align-items: center; justify-content: space-between; }
 .explore-library__toolbar > span { color: var(--muted); font-size: .76rem; font-weight: 700; }
@@ -8535,24 +8511,13 @@ body {
 .explore-library__filter-panel button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .explore-library__filter-trigger:focus-visible,
 .explore-library__filter-panel button:focus-visible,
-.explore-library__active-filters button:focus-visible,
-.explore-library__more:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 2px; }
+.explore-library__active-filters button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 2px; }
 .explore-library__active-filters { display: flex; flex-wrap: wrap; gap: 7px; }
 .explore-library__active-filters button { min-height: 32px; padding: 0 9px; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent); background: var(--accent-soft); cursor: pointer; font: inherit; font-size: .7rem; }
 .explore-scenario-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .explore-scenario-grid > a { min-height: 126px; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 15px; }
 .explore-scenario-grid h3 { margin: 12px 0 6px; font-size: 1.05rem; }
 .explore-scenario-card__goal { margin-top: 8px; }
-.explore-expression-list { display: grid; overflow: hidden; border-top: 1px solid var(--border); }
-.explore-expression-card { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
-.explore-expression-card__copy { display: grid; min-width: 0; gap: 5px; }
-.explore-expression-card h4 { margin: 0; font-size: 1rem; }
-.explore-expression-card p { margin: 0; }
-.explore-expression-card__actions { flex-wrap: nowrap; margin: 0; }
-.explore-expression-card__actions button { display: grid; width: 40px; min-width: 40px; min-height: 40px; padding: 0; place-items: center; border-radius: 999px; }
-.explore-expression-card__actions svg { width: 18px; height: 18px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
-.explore-library__more { width: fit-content; min-height: 40px; margin: 12px auto 0; padding: 0 14px; border: 1px solid var(--border); border-radius: 7px; color: var(--foreground); background: var(--surface); cursor: pointer; font: inherit; font-size: .76rem; font-weight: 750; }
-.explore-packs { display: grid; gap: 12px; }
 .learn-history-link { width: fit-content; color: var(--muted); font-size: .78rem; text-decoration: none; }
 .learn-history-link:hover { color: var(--accent); }
 
@@ -8637,7 +8602,6 @@ body {
   .scenario-suggestion__icon { display: none; }
   .scenario-suggestion__result { grid-template-columns: 1fr; }
   .explore-scenario-grid { grid-template-columns: 1fr; }
-  .explore-expression-card__actions button,
   .scenario-expression-save { width: 44px; min-width: 44px; min-height: 44px; }
   .scenario-detail__rail { grid-template-columns: 1fr; }
   .scenario-detail__rail .primary-action { width: 100%; }
