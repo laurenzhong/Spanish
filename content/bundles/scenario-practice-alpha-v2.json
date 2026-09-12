@@ -1,0 +1,2692 @@
+{
+  "schemaVersion": "1.0",
+  "bundle": {
+    "stableKey": "alpha.scenario-practice",
+    "version": 2,
+    "defaultLocale": "es-ES",
+    "nativeLanguage": "zh-CN",
+    "description": "Owner-authorized AI-reviewed public scenario-practice content for the project owner's personal product stage. AI review is not a human or native-speaker signature."
+  },
+  "domains": [
+    {
+      "stableKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "日常生活沟通"
+      },
+      "description": {
+        "zh-CN": "在西班牙学习和生活时完成常见事务。"
+      },
+      "position": 0,
+      "status": "published"
+    }
+  ],
+  "goals": [
+    {
+      "stableKey": "daily.restaurant.order",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "自然点单"
+      },
+      "description": {
+        "zh-CN": "说明想点的菜品。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 0,
+      "status": "published"
+    },
+    {
+      "stableKey": "daily.restaurant.allergy",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "确认配料"
+      },
+      "description": {
+        "zh-CN": "询问配料并说明过敏情况。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 1,
+      "status": "published"
+    },
+    {
+      "stableKey": "daily.restaurant.alternative",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "接受替代"
+      },
+      "description": {
+        "zh-CN": "菜品不可用时询问并接受建议。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 2,
+      "status": "published"
+    },
+    {
+      "stableKey": "daily.campus.purpose",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "说明办理目的"
+      },
+      "description": {
+        "zh-CN": "向学校行政人员说明来意。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 3,
+      "status": "published"
+    },
+    {
+      "stableKey": "daily.campus.requirements",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "确认所需材料"
+      },
+      "description": {
+        "zh-CN": "确认手续所需文件和步骤。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 4,
+      "status": "published"
+    },
+    {
+      "stableKey": "daily.campus.missing-document",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "处理材料缺失"
+      },
+      "description": {
+        "zh-CN": "材料不完整时确认补交方式。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 5,
+      "status": "published"
+    },
+    {
+      "stableKey": "daily.rental.costs",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "询问租金费用"
+      },
+      "description": {
+        "zh-CN": "确认虚构房源练习中的租金和费用。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 6,
+      "status": "published"
+    },
+    {
+      "stableKey": "daily.rental.conditions",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "确认居住条件"
+      },
+      "description": {
+        "zh-CN": "询问合同和居住条件。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 7,
+      "status": "published"
+    },
+    {
+      "stableKey": "daily.rental.schedule",
+      "domainKey": "communication.daily-life",
+      "title": {
+        "zh-CN": "协商看房时间"
+      },
+      "description": {
+        "zh-CN": "在虚构练习中协商合适时间。"
+      },
+      "cefrMin": "A2",
+      "cefrMax": "B1",
+      "position": 8,
+      "status": "published"
+    }
+  ],
+  "tags": [
+    {
+      "stableKey": "task.daily-transaction",
+      "category": "task",
+      "label": {
+        "zh-CN": "办理日常事务"
+      },
+      "description": {
+        "zh-CN": "在服务或行政场景中完成沟通目的。"
+      },
+      "isActive": true
+    },
+    {
+      "stableKey": "fluency.adapt-condition",
+      "category": "fluency",
+      "label": {
+        "zh-CN": "应对条件变化"
+      },
+      "description": {
+        "zh-CN": "信息改变后继续自然沟通。"
+      },
+      "isActive": true
+    },
+    {
+      "stableKey": "region.spain",
+      "category": "region",
+      "label": {
+        "zh-CN": "西班牙"
+      },
+      "description": {
+        "zh-CN": "适合西班牙常见生活语境。"
+      },
+      "isActive": true
+    }
+  ],
+  "expressions": [
+    {
+      "stableKey": "restaurant.queria-pedir",
+      "version": 1,
+      "goalKey": "daily.restaurant.order",
+      "locale": "es-ES",
+      "text": "Quería pedir el menú del día.",
+      "translations": {
+        "zh-CN": "我想点今日套餐。"
+      },
+      "communicativeIntent": {
+        "zh-CN": "礼貌说明想点什么。"
+      },
+      "chunks": [
+        {
+          "text": "Quería pedir el menú del día",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "Quería pedir"
+      ],
+      "slots": [
+        {
+          "key": "dish",
+          "description": {
+            "zh-CN": "想点的菜品。"
+          },
+          "examples": [
+            "el menú del día",
+            "la sopa"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "未完成过去时 quería 可弱化语气。"
+        },
+        "details": {
+          "zh-CN": "在服务场景中比直接使用 quiero 更委婉。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重读 rí、dir 和 dí。"
+        },
+        "details": {
+          "zh-CN": "Quería 连贯说出，不在 que 后停顿。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "适合餐厅礼貌点单。"
+        },
+        "avoidWhen": {
+          "zh-CN": "不要把它理解为只能点固定菜名。"
+        },
+        "relationshipTypes": [
+          "service.restaurant"
+        ],
+        "toneEffects": [
+          "polite"
+        ]
+      },
+      "cefr": "A2",
+      "register": "polite-neutral",
+      "region": "es-ES",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "Para mí, el menú del día, por favor.",
+          "usageNotes": {
+            "zh-CN": "简洁自然的点单方式。"
+          },
+          "region": "es-ES",
+          "register": "polite-neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "Voy a tomar la sopa.",
+          "usageNotes": {
+            "zh-CN": "明确做出选择。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "restaurant.lleva",
+      "version": 1,
+      "goalKey": "daily.restaurant.allergy",
+      "locale": "es-ES",
+      "text": "¿Lleva frutos secos?",
+      "translations": {
+        "zh-CN": "里面有坚果吗？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "确认菜品是否含某种配料。"
+      },
+      "chunks": [
+        {
+          "text": "¿Lleva frutos secos?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "¿Lleva...?"
+      ],
+      "slots": [
+        {
+          "key": "ingredient",
+          "description": {
+            "zh-CN": "需要确认的配料。"
+          },
+          "examples": [
+            "frutos secos",
+            "gluten"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "llevar 可表示菜品含有某种配料。"
+        },
+        "details": {
+          "zh-CN": "主语是当前菜品，因此使用第三人称单数。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "注意 lleva 的 ll 音。"
+        },
+        "details": {
+          "zh-CN": "问句末尾自然上扬。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "点餐前确认配料。"
+        },
+        "avoidWhen": {
+          "zh-CN": "严重过敏时还应明确说出过敏。"
+        },
+        "relationshipTypes": [
+          "service.restaurant"
+        ],
+        "toneEffects": [
+          "clear"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "es-ES",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿Tiene frutos secos?",
+          "usageNotes": {
+            "zh-CN": "通用的配料询问。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿Este plato lleva gluten?",
+          "usageNotes": {
+            "zh-CN": "明确指向当前菜品。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "restaurant.soy-alergico",
+      "version": 1,
+      "goalKey": "daily.restaurant.allergy",
+      "locale": "es-ES",
+      "text": "Soy alérgico a los frutos secos.",
+      "translations": {
+        "zh-CN": "我对坚果过敏。"
+      },
+      "communicativeIntent": {
+        "zh-CN": "明确说明过敏信息。"
+      },
+      "chunks": [
+        {
+          "text": "Soy alérgico a los frutos secos",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "Soy alérgico/a a"
+      ],
+      "slots": [
+        {
+          "key": "allergen",
+          "description": {
+            "zh-CN": "过敏原。"
+          },
+          "examples": [
+            "los frutos secos",
+            "los mariscos"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "形容词随说话者性别变化。"
+        },
+        "details": {
+          "zh-CN": "使用 alérgico 或 alérgica，并接介词 a。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重音在 lér。"
+        },
+        "details": {
+          "zh-CN": "alérgico 与 a 之间保持连贯。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "用于明确健康相关限制。"
+        },
+        "avoidWhen": {
+          "zh-CN": "偏好不是过敏时不要误用。"
+        },
+        "relationshipTypes": [
+          "service.restaurant"
+        ],
+        "toneEffects": [
+          "direct"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "Soy alérgica al marisco.",
+          "usageNotes": {
+            "zh-CN": "女性说话者示例。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "No puedo comer frutos secos.",
+          "usageNotes": {
+            "zh-CN": "说明不能食用。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "restaurant.que-recomienda",
+      "version": 1,
+      "goalKey": "daily.restaurant.alternative",
+      "locale": "es-ES",
+      "text": "¿Qué me recomienda?",
+      "translations": {
+        "zh-CN": "您推荐什么？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "在需要替代选择时请求建议。"
+      },
+      "chunks": [
+        {
+          "text": "¿Qué me recomienda?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "¿Qué me recomienda?"
+      ],
+      "slots": [],
+      "grammar": {
+        "summary": {
+          "zh-CN": "使用 usted 对应的 recomienda。"
+        },
+        "details": {
+          "zh-CN": "me 表示建议的对象是说话者。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重读 qué 和 mien。"
+        },
+        "details": {
+          "zh-CN": "保持问题节奏紧凑。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "礼貌询问服务人员建议。"
+        },
+        "avoidWhen": {
+          "zh-CN": "明确知道选择时无需使用。"
+        },
+        "relationshipTypes": [
+          "service.restaurant"
+        ],
+        "toneEffects": [
+          "open"
+        ]
+      },
+      "cefr": "A2",
+      "register": "polite",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿Qué plato me aconseja?",
+          "usageNotes": {
+            "zh-CN": "更明确询问菜品。"
+          },
+          "region": "general",
+          "register": "polite",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿Tiene alguna alternativa?",
+          "usageNotes": {
+            "zh-CN": "直接询问替代选择。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "restaurant.tomare-eso",
+      "version": 2,
+      "goalKey": "daily.restaurant.alternative",
+      "locale": "es-ES",
+      "text": "Pues tomaré eso.",
+      "translations": {
+        "zh-CN": "那我就要这个。"
+      },
+      "communicativeIntent": {
+        "zh-CN": "接受替代建议并完成选择。"
+      },
+      "chunks": [
+        {
+          "text": "Pues tomaré eso.",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "Pues tomaré eso"
+      ],
+      "slots": [],
+      "grammar": {
+        "summary": {
+          "zh-CN": "简单将来时表达当下决定。"
+        },
+        "details": {
+          "zh-CN": "也可以使用现在时 tomo。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "tomaré 的重音在 ré。"
+        },
+        "details": {
+          "zh-CN": "Pues 与 tomaré 自然衔接，句末 eso 保持清楚。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "自然接受对方推荐。"
+        },
+        "avoidWhen": {
+          "zh-CN": "仍未确认过敏信息时先不要决定。"
+        },
+        "relationshipTypes": [
+          "service.restaurant"
+        ],
+        "toneEffects": [
+          "decisive"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "Perfecto, me quedo con eso.",
+          "usageNotes": {
+            "zh-CN": "口语化接受选择。"
+          },
+          "region": "es-ES",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "De acuerdo, pediré eso.",
+          "usageNotes": {
+            "zh-CN": "明确接受建议。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "campus.vengo-para",
+      "version": 2,
+      "goalKey": "daily.campus.purpose",
+      "locale": "es-ES",
+      "text": "Vengo para formalizar mi matrícula.",
+      "translations": {
+        "zh-CN": "我是来完成注册手续的。"
+      },
+      "communicativeIntent": {
+        "zh-CN": "清楚说明办理目的。"
+      },
+      "chunks": [
+        {
+          "text": "Vengo para formalizar",
+          "kind": "target",
+          "stressed": true
+        },
+        {
+          "text": "mi matrícula.",
+          "kind": "sense_group",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "Vengo para + infinitivo",
+        "formalizar la matrícula"
+      ],
+      "slots": [
+        {
+          "key": "procedure",
+          "description": {
+            "zh-CN": "需要办理的事项。"
+          },
+          "examples": [
+            "completar mi matrícula",
+            "recoger mi tarjeta"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "venir para + 不定式用于说明来意或目的。"
+        },
+        "details": {
+          "zh-CN": "formalizar la matrícula 指正式完成注册手续，适合学校行政窗口。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "formalizar 的重音在 zar，matrícula 的重音在 trí。"
+        },
+        "details": {
+          "zh-CN": "Vengo para 保持连贯，para 不需要过度重读。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "适合学校行政窗口。"
+        },
+        "avoidWhen": {
+          "zh-CN": "非本人办理时需要补充说明。"
+        },
+        "relationshipTypes": [
+          "service.campus"
+        ],
+        "toneEffects": [
+          "clear"
+        ]
+      },
+      "cefr": "A2",
+      "register": "polite-neutral",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "Estoy aquí para terminar la matrícula.",
+          "usageNotes": {
+            "zh-CN": "更直接说明来意。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "Necesito formalizar la matrícula.",
+          "usageNotes": {
+            "zh-CN": "突出需要办理。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "campus.que-documentos",
+      "version": 1,
+      "goalKey": "daily.campus.requirements",
+      "locale": "es-ES",
+      "text": "¿Qué documentos tengo que presentar?",
+      "translations": {
+        "zh-CN": "我需要提交哪些文件？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "确认所需材料。"
+      },
+      "chunks": [
+        {
+          "text": "¿Qué documentos tengo que presentar?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "tengo que presentar"
+      ],
+      "slots": [],
+      "grammar": {
+        "summary": {
+          "zh-CN": "tener que + 不定式表示需要做某事。"
+        },
+        "details": {
+          "zh-CN": "疑问词 qué 修饰复数 documentos。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重读 qué、men 和 tar。"
+        },
+        "details": {
+          "zh-CN": "tengo que 连贯说出。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "在办理手续前确认清单。"
+        },
+        "avoidWhen": {
+          "zh-CN": "不要假设对方已经知道你的具体事项。"
+        },
+        "relationshipTypes": [
+          "service.campus"
+        ],
+        "toneEffects": [
+          "precise"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿Qué documentación necesito?",
+          "usageNotes": {
+            "zh-CN": "更简洁正式。"
+          },
+          "region": "es-ES",
+          "register": "formal-neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿Me puede decir qué documentos hacen falta?",
+          "usageNotes": {
+            "zh-CN": "礼貌请求说明。"
+          },
+          "region": "es-ES",
+          "register": "polite",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "campus.aqui-tiene",
+      "version": 1,
+      "goalKey": "daily.campus.requirements",
+      "locale": "es-ES",
+      "text": "Aquí tiene mi pasaporte y el formulario.",
+      "translations": {
+        "zh-CN": "这是我的护照和表格。"
+      },
+      "communicativeIntent": {
+        "zh-CN": "递交并说明已有材料。"
+      },
+      "chunks": [
+        {
+          "text": "Aquí tiene mi pasaporte y el formulario",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "Aquí tiene"
+      ],
+      "slots": [
+        {
+          "key": "documents",
+          "description": {
+            "zh-CN": "已经准备的材料。"
+          },
+          "examples": [
+            "mi pasaporte",
+            "el formulario"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "Aquí tiene 是递交物品时的礼貌表达。"
+        },
+        "details": {
+          "zh-CN": "后接所递交的文件。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重读 quí、tie 和 por。"
+        },
+        "details": {
+          "zh-CN": "列举文件时保持自然节奏。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "递交文件时使用。"
+        },
+        "avoidWhen": {
+          "zh-CN": "未实际携带材料时不要这样说。"
+        },
+        "relationshipTypes": [
+          "service.campus"
+        ],
+        "toneEffects": [
+          "cooperative"
+        ]
+      },
+      "cefr": "A2",
+      "register": "polite",
+      "region": "general",
+      "frequency": "common",
+      "status": "published",
+      "variants": [
+        {
+          "text": "Le entrego el pasaporte y el formulario.",
+          "usageNotes": {
+            "zh-CN": "稍正式地说明递交。"
+          },
+          "region": "general",
+          "register": "formal-neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "Traigo estos dos documentos.",
+          "usageNotes": {
+            "zh-CN": "说明带来了材料。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "campus.me-falta",
+      "version": 1,
+      "goalKey": "daily.campus.missing-document",
+      "locale": "es-ES",
+      "text": "Me falta ese documento.",
+      "translations": {
+        "zh-CN": "我缺少那份文件。"
+      },
+      "communicativeIntent": {
+        "zh-CN": "如实说明材料缺失。"
+      },
+      "chunks": [
+        {
+          "text": "Me falta ese documento",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "Me falta"
+      ],
+      "slots": [
+        {
+          "key": "document",
+          "description": {
+            "zh-CN": "缺少的文件。"
+          },
+          "examples": [
+            "ese documento",
+            "la copia"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "faltar 表示某物对我而言缺失。"
+        },
+        "details": {
+          "zh-CN": "缺少一项用 falta，多项用 faltan。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重读 fal 和 men。"
+        },
+        "details": {
+          "zh-CN": "me falta 连贯说出。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "直接说明当前缺少材料。"
+        },
+        "avoidWhen": {
+          "zh-CN": "已经提交时不要误说缺少。"
+        },
+        "relationshipTypes": [
+          "service.campus"
+        ],
+        "toneEffects": [
+          "honest"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "No tengo ese documento ahora mismo.",
+          "usageNotes": {
+            "zh-CN": "明确说明目前没有。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "Todavía no tengo la copia.",
+          "usageNotes": {
+            "zh-CN": "说明尚未准备好。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "campus.puedo-enviarlo",
+      "version": 1,
+      "goalKey": "daily.campus.missing-document",
+      "locale": "es-ES",
+      "text": "¿Puedo enviarlo por correo electrónico?",
+      "translations": {
+        "zh-CN": "我可以通过电子邮件发送吗？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "确认补交材料的方式。"
+      },
+      "chunks": [
+        {
+          "text": "¿Puedo enviarlo por correo electrónico?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "¿Puedo enviarlo...?"
+      ],
+      "slots": [
+        {
+          "key": "method",
+          "description": {
+            "zh-CN": "补交方式。"
+          },
+          "examples": [
+            "por correo electrónico",
+            "mañana"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "poder + 不定式询问是否可以。"
+        },
+        "details": {
+          "zh-CN": "lo 指代前文的单数文件。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重读 pue、viar 和 tró。"
+        },
+        "details": {
+          "zh-CN": "enviarlo 连续发音。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "材料缺失后提出可行补救。"
+        },
+        "avoidWhen": {
+          "zh-CN": "不要假设邮件一定被接受。"
+        },
+        "relationshipTypes": [
+          "service.campus"
+        ],
+        "toneEffects": [
+          "solution-oriented"
+        ]
+      },
+      "cefr": "A2",
+      "register": "polite",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿Se lo puedo mandar por email?",
+          "usageNotes": {
+            "zh-CN": "较口语的询问。"
+          },
+          "region": "es-ES",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿Puedo traerlo mañana?",
+          "usageNotes": {
+            "zh-CN": "询问次日补交。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "rental.cuanto-cuesta",
+      "version": 2,
+      "goalKey": "daily.rental.costs",
+      "locale": "es-ES",
+      "text": "¿Cuánto cuesta el alquiler al mes?",
+      "translations": {
+        "zh-CN": "每月租金是多少？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "在虚构练习中确认月租。"
+      },
+      "chunks": [
+        {
+          "text": "¿Cuánto cuesta el alquiler al mes?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "¿Cuánto cuesta...?"
+      ],
+      "slots": [],
+      "grammar": {
+        "summary": {
+          "zh-CN": "cuánto 询问金额。"
+        },
+        "details": {
+          "zh-CN": "al mes 表示按月计算。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "cuánto 的重音在 cuán，alquiler 的重音在 ler，mes 保持清楚。"
+        },
+        "details": {
+          "zh-CN": "cuesta 的 ue 连成一个双元音；alquiler 末尾的 r 是轻触音。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "确认租金基本信息。"
+        },
+        "avoidWhen": {
+          "zh-CN": "这是虚构练习，不代表真实房源报价。"
+        },
+        "relationshipTypes": [
+          "service.rental"
+        ],
+        "toneEffects": [
+          "direct"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿Cuál es el precio mensual?",
+          "usageNotes": {
+            "zh-CN": "询问每月价格。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿Qué precio tiene el alquiler?",
+          "usageNotes": {
+            "zh-CN": "通用价格询问。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "rental.gastos-incluidos",
+      "version": 1,
+      "goalKey": "daily.rental.costs",
+      "locale": "es-ES",
+      "text": "¿Están incluidos los gastos?",
+      "translations": {
+        "zh-CN": "费用包含在内吗？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "确认租金是否包含其他费用。"
+      },
+      "chunks": [
+        {
+          "text": "¿Están incluidos los gastos?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "¿Están incluidos...?"
+      ],
+      "slots": [
+        {
+          "key": "cost",
+          "description": {
+            "zh-CN": "需要确认的费用。"
+          },
+          "examples": [
+            "los gastos",
+            "el agua"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "estar incluido 表示被包含。"
+        },
+        "details": {
+          "zh-CN": "复数 gastos 对应 están incluidos。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重读 tán、clui 和 gas。"
+        },
+        "details": {
+          "zh-CN": "incluidos 中的元音保持清楚。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "进一步确认费用构成。"
+        },
+        "avoidWhen": {
+          "zh-CN": "不要把练习回答当成现实合同条款。"
+        },
+        "relationshipTypes": [
+          "service.rental"
+        ],
+        "toneEffects": [
+          "precise"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿El agua está incluida?",
+          "usageNotes": {
+            "zh-CN": "确认具体费用。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿Hay que pagar los gastos aparte?",
+          "usageNotes": {
+            "zh-CN": "询问是否需要另付。"
+          },
+          "region": "es-ES",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "rental.cuanto-dura",
+      "version": 1,
+      "goalKey": "daily.rental.conditions",
+      "locale": "es-ES",
+      "text": "¿Cuánto dura el contrato?",
+      "translations": {
+        "zh-CN": "合同期限是多久？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "确认合同期限。"
+      },
+      "chunks": [
+        {
+          "text": "¿Cuánto dura el contrato?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "¿Cuánto dura...?"
+      ],
+      "slots": [],
+      "grammar": {
+        "summary": {
+          "zh-CN": "durar 表示持续多久。"
+        },
+        "details": {
+          "zh-CN": "主语 contrato 为单数。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "重读 cuán、du 和 tra。"
+        },
+        "details": {
+          "zh-CN": "contrato 的 r 保持轻触。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "确认虚构合同的期限。"
+        },
+        "avoidWhen": {
+          "zh-CN": "实际签约应以真实书面合同为准。"
+        },
+        "relationshipTypes": [
+          "service.rental"
+        ],
+        "toneEffects": [
+          "careful"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "general",
+      "frequency": "common",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿Cuál es la duración del contrato?",
+          "usageNotes": {
+            "zh-CN": "更正式。"
+          },
+          "region": "general",
+          "register": "formal-neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿El contrato es de un año?",
+          "usageNotes": {
+            "zh-CN": "确认具体期限。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "rental.se-permiten",
+      "version": 2,
+      "goalKey": "daily.rental.conditions",
+      "locale": "es-ES",
+      "text": "¿Se permiten mascotas?",
+      "translations": {
+        "zh-CN": "允许养宠物吗？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "确认一项重要居住条件。"
+      },
+      "chunks": [
+        {
+          "text": "¿Se permiten mascotas?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "¿Se permiten...?"
+      ],
+      "slots": [
+        {
+          "key": "condition",
+          "description": {
+            "zh-CN": "需要确认的居住条件。"
+          },
+          "examples": [
+            "mascotas",
+            "visitas"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "被动式 se（pasiva refleja）用于询问某事物是否被允许。"
+        },
+        "details": {
+          "zh-CN": "主语 mascotas 为复数，因此动词使用 permiten。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "permiten 的重音在 mi，mascotas 的重音在 co。"
+        },
+        "details": {
+          "zh-CN": "se permiten 连贯说出，但不要漏掉 permiten 的任何音节。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "确认房屋规定。"
+        },
+        "avoidWhen": {
+          "zh-CN": "练习设定不能替代真实房源确认。"
+        },
+        "relationshipTypes": [
+          "service.rental"
+        ],
+        "toneEffects": [
+          "respectful"
+        ]
+      },
+      "cefr": "A2",
+      "register": "neutral",
+      "region": "general",
+      "frequency": "common",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿Puedo vivir con mi gato?",
+          "usageNotes": {
+            "zh-CN": "说明具体宠物。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿Aceptan animales?",
+          "usageNotes": {
+            "zh-CN": "较简短的问法。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "stableKey": "rental.otra-hora",
+      "version": 2,
+      "goalKey": "daily.rental.schedule",
+      "locale": "es-ES",
+      "text": "¿Podríamos ver el piso a otra hora?",
+      "translations": {
+        "zh-CN": "我们可以换个时间看房吗？"
+      },
+      "communicativeIntent": {
+        "zh-CN": "原定时间不可用时协商另一个看房时间。"
+      },
+      "chunks": [
+        {
+          "text": "¿Podríamos ver el piso a otra hora?",
+          "kind": "target",
+          "stressed": true
+        }
+      ],
+      "targetChunks": [
+        "¿Podríamos + infinitivo...?",
+        "a otra hora"
+      ],
+      "slots": [
+        {
+          "key": "time",
+          "description": {
+            "zh-CN": "替代时间。"
+          },
+          "examples": [
+            "a otra hora",
+            "por la tarde"
+          ]
+        }
+      ],
+      "grammar": {
+        "summary": {
+          "zh-CN": "条件式 podríamos 让协商更礼貌。"
+        },
+        "details": {
+          "zh-CN": "ver el piso 明确说明看房，a otra hora 表示换到另一个时间。"
+        }
+      },
+      "pronunciation": {
+        "summary": {
+          "zh-CN": "podríamos 的重音在 drí，hora 的重音在 ho。"
+        },
+        "details": {
+          "zh-CN": "podríamos 分为 po-drí-a-mos；hora 的 h 不发音。"
+        }
+      },
+      "usage": {
+        "summary": {
+          "zh-CN": "在虚构练习中协商时间。"
+        },
+        "avoidWhen": {
+          "zh-CN": "不能把练习约定说成现实预约。"
+        },
+        "relationshipTypes": [
+          "service.rental"
+        ],
+        "toneEffects": [
+          "flexible"
+        ]
+      },
+      "cefr": "B1",
+      "register": "polite",
+      "region": "general",
+      "frequency": "core",
+      "status": "published",
+      "variants": [
+        {
+          "text": "¿Le viene bien ver el piso por la tarde?",
+          "usageNotes": {
+            "zh-CN": "礼貌提出下午看房。"
+          },
+          "region": "es-ES",
+          "register": "polite",
+          "position": 0,
+          "status": "published"
+        },
+        {
+          "text": "¿Podemos cambiar la hora de la visita?",
+          "usageNotes": {
+            "zh-CN": "更直接地请求更改看房时间。"
+          },
+          "region": "general",
+          "register": "neutral",
+          "position": 1,
+          "status": "published"
+        }
+      ],
+      "tags": [
+        {
+          "tagKey": "task.daily-transaction",
+          "weight": 0.8,
+          "scoring": true
+        },
+        {
+          "tagKey": "fluency.adapt-condition",
+          "weight": 0.2,
+          "scoring": true
+        },
+        {
+          "tagKey": "region.spain",
+          "weight": 0.2,
+          "scoring": false
+        }
+      ],
+      "publishedAt": "2026-09-12T04:30:00.000Z"
+    }
+  ],
+  "scenarios": [
+    {
+      "stableKey": "scenario.restaurant-ordering",
+      "version": 2,
+      "title": {
+        "zh-CN": "餐厅沟通：点单与饮食限制"
+      },
+      "description": {
+        "zh-CN": "在餐厅完成点单、确认过敏原，并在菜品售完时接受合适替代。"
+      },
+      "setting": "fictional-restaurant-practice",
+      "relationshipType": "service.restaurant",
+      "cefr": "A2",
+      "status": "published",
+      "practice": {
+        "temporaryCharacter": {
+          "displayName": "Marina",
+          "role": "餐厅服务员",
+          "locale": "es-ES",
+          "tone": "友好、简洁，会先回应用户的完整表达"
+        },
+        "openingLine": {
+          "zh-CN": "Marina 递来菜单，等你开始点单。",
+          "es-ES": "Buenas, ¿ya sabe qué va a tomar?"
+        },
+        "recommendedTurnCount": 4,
+        "fictionalContext": true,
+        "conditions": [
+          {
+            "stableKey": "restaurant.sold-out",
+            "afterUserTurns": 2,
+            "prompt": {
+              "zh-CN": "你选择的菜品刚好售完，需要换一种。",
+              "es-ES": "Lo siento, justo se nos ha terminado ese plato."
+            }
+          }
+        ]
+      },
+      "tasks": [
+        {
+          "position": 0,
+          "goalKey": "daily.restaurant.order",
+          "prompt": {
+            "zh-CN": "礼貌点一份主菜。"
+          },
+          "successCriteria": {
+            "intent": "order-a-main-dish"
+          },
+          "targetExpressionKeys": [
+            "restaurant.queria-pedir"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "说明你想点什么。"
+            },
+            "level2": {
+              "zh-CN": "使用 Quería pedir..."
+            },
+            "level3": {
+              "zh-CN": "Quería pedir el menú del día. 也可以说 Para mí..., por favor."
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "换一种主菜。"
+            },
+            "changedRelationship": {
+              "zh-CN": "改为更正式的服务场景。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "不使用参考句也能清楚点单。"
+            }
+          }
+        },
+        {
+          "position": 1,
+          "goalKey": "daily.restaurant.allergy",
+          "prompt": {
+            "zh-CN": "确认配料并说明过敏。"
+          },
+          "successCriteria": {
+            "intent": "clarify-allergen"
+          },
+          "targetExpressionKeys": [
+            "restaurant.lleva",
+            "restaurant.soy-alergico"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "询问配料，再说明身体限制。"
+            },
+            "level2": {
+              "zh-CN": "¿Lleva...? / Soy alérgico/a a..."
+            },
+            "level3": {
+              "zh-CN": "¿Lleva frutos secos? Soy alérgico/a a los frutos secos."
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "把过敏原换成麸质或海鲜。"
+            },
+            "changedRelationship": {
+              "zh-CN": "向忙碌的服务员简洁说明。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "用自己的方式说明不能吃某种配料。"
+            }
+          }
+        },
+        {
+          "position": 2,
+          "goalKey": "daily.restaurant.alternative",
+          "prompt": {
+            "zh-CN": "菜品售完后询问并接受替代。"
+          },
+          "successCriteria": {
+            "intent": "accept-alternative"
+          },
+          "targetExpressionKeys": [
+            "restaurant.que-recomienda",
+            "restaurant.tomare-eso"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "询问建议并做出新选择。"
+            },
+            "level2": {
+              "zh-CN": "¿Qué me recomienda? / Entonces..."
+            },
+            "level3": {
+              "zh-CN": "¿Qué me recomienda? Pues tomaré eso."
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "替代选择不符合最初偏好。"
+            },
+            "changedRelationship": {
+              "zh-CN": "向不同服务人员询问。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "自然接受任意合适替代。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "stableKey": "scenario.campus-administration",
+      "version": 2,
+      "title": {
+        "zh-CN": "校园办事：注册与材料"
+      },
+      "description": {
+        "zh-CN": "在学校行政窗口说明来意、确认材料，并处理需要补交文件的变化。"
+      },
+      "setting": "fictional-campus-office-practice",
+      "relationshipType": "service.campus",
+      "cefr": "A2",
+      "status": "published",
+      "practice": {
+        "temporaryCharacter": {
+          "displayName": "Javier",
+          "role": "学校行政人员",
+          "locale": "es-ES",
+          "tone": "专业、耐心，只根据练习材料回答"
+        },
+        "openingLine": {
+          "zh-CN": "Javier 在行政窗口接待你。",
+          "es-ES": "Buenos días. ¿En qué puedo ayudarle?"
+        },
+        "recommendedTurnCount": 4,
+        "fictionalContext": true,
+        "conditions": [
+          {
+            "stableKey": "campus.missing-copy",
+            "afterUserTurns": 2,
+            "prompt": {
+              "zh-CN": "办理时发现还缺少一份护照复印件。",
+              "es-ES": "Veo que falta una copia del pasaporte."
+            }
+          }
+        ]
+      },
+      "tasks": [
+        {
+          "position": 0,
+          "goalKey": "daily.campus.purpose",
+          "prompt": {
+            "zh-CN": "说明你要完成注册手续。"
+          },
+          "successCriteria": {
+            "intent": "state-administration-purpose"
+          },
+          "targetExpressionKeys": [
+            "campus.vengo-para"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "先说明你为什么来。"
+            },
+            "level2": {
+              "zh-CN": "Vengo para..."
+            },
+            "level3": {
+              "zh-CN": "Vengo para formalizar mi matrícula."
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "改为领取学生卡。"
+            },
+            "changedRelationship": {
+              "zh-CN": "向另一位行政人员说明。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "不用参考句也能清楚说明来意。"
+            }
+          }
+        },
+        {
+          "position": 1,
+          "goalKey": "daily.campus.requirements",
+          "prompt": {
+            "zh-CN": "确认需要哪些材料并递交已有文件。"
+          },
+          "successCriteria": {
+            "intent": "confirm-required-documents"
+          },
+          "targetExpressionKeys": [
+            "campus.que-documentos",
+            "campus.aqui-tiene"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "询问清单，再说明你带了什么。"
+            },
+            "level2": {
+              "zh-CN": "¿Qué documentos...? / Aquí tiene..."
+            },
+            "level3": {
+              "zh-CN": "¿Qué documentos tengo que presentar? Aquí tiene mi pasaporte y el formulario."
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "材料换成学生证和照片。"
+            },
+            "changedRelationship": {
+              "zh-CN": "在电话中确认材料。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "自然确认并列举已有材料。"
+            }
+          }
+        },
+        {
+          "position": 2,
+          "goalKey": "daily.campus.missing-document",
+          "prompt": {
+            "zh-CN": "发现材料缺失后确认补交方式。"
+          },
+          "successCriteria": {
+            "intent": "repair-missing-document"
+          },
+          "targetExpressionKeys": [
+            "campus.me-falta",
+            "campus.puedo-enviarlo"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "承认缺少材料并提出补交。"
+            },
+            "level2": {
+              "zh-CN": "Me falta... / ¿Puedo enviarlo...?"
+            },
+            "level3": {
+              "zh-CN": "Me falta ese documento. ¿Puedo enviarlo por correo electrónico?"
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "改为缺少照片。"
+            },
+            "changedRelationship": {
+              "zh-CN": "向严格的窗口人员说明。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "提出另一种可行补交方式。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "stableKey": "scenario.rental-conversation",
+      "version": 2,
+      "title": {
+        "zh-CN": "租房沟通：费用与时间"
+      },
+      "description": {
+        "zh-CN": "在完全虚构的房源练习中确认费用、居住条件，并在原时间不可用时重新协商；不代表真实房源或现实预约。"
+      },
+      "setting": "fictional-rental-practice",
+      "relationshipType": "service.rental",
+      "cefr": "B1",
+      "status": "published",
+      "practice": {
+        "temporaryCharacter": {
+          "displayName": "Elena",
+          "role": "虚构房源联系人",
+          "locale": "es-ES",
+          "tone": "清楚、克制，绝不把练习房源说成现实存在"
+        },
+        "openingLine": {
+          "zh-CN": "Elena 说明这是虚构练习，并请你开始询问。",
+          "es-ES": "En este ejercicio ficticio, ¿qué le gustaría saber primero?"
+        },
+        "recommendedTurnCount": 4,
+        "fictionalContext": true,
+        "conditions": [
+          {
+            "stableKey": "rental.time-unavailable",
+            "afterUserTurns": 2,
+            "prompt": {
+              "zh-CN": "原定的虚构看房时间不可用，需要重新协商。",
+              "es-ES": "En este ejercicio, la hora prevista ya no está disponible."
+            }
+          }
+        ]
+      },
+      "tasks": [
+        {
+          "position": 0,
+          "goalKey": "daily.rental.costs",
+          "prompt": {
+            "zh-CN": "询问月租和费用是否包含。"
+          },
+          "successCriteria": {
+            "intent": "clarify-rental-costs",
+            "fictional": true
+          },
+          "targetExpressionKeys": [
+            "rental.cuanto-cuesta",
+            "rental.gastos-incluidos"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "先问月租，再问额外费用。"
+            },
+            "level2": {
+              "zh-CN": "¿Cuánto cuesta...? / ¿Están incluidos...?"
+            },
+            "level3": {
+              "zh-CN": "¿Cuánto cuesta el alquiler al mes? ¿Están incluidos los gastos?"
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "改为询问水电费用。"
+            },
+            "changedRelationship": {
+              "zh-CN": "向中介而不是房东询问。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "自然确认总成本。"
+            }
+          }
+        },
+        {
+          "position": 1,
+          "goalKey": "daily.rental.conditions",
+          "prompt": {
+            "zh-CN": "确认合同期限和一项居住条件。"
+          },
+          "successCriteria": {
+            "intent": "clarify-rental-conditions",
+            "fictional": true
+          },
+          "targetExpressionKeys": [
+            "rental.cuanto-dura",
+            "rental.se-permiten"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "问合同多久，再问重要规则。"
+            },
+            "level2": {
+              "zh-CN": "¿Cuánto dura...? / ¿Se permiten...?"
+            },
+            "level3": {
+              "zh-CN": "¿Cuánto dura el contrato? ¿Se permiten mascotas?"
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "把宠物条件换成访客规定。"
+            },
+            "changedRelationship": {
+              "zh-CN": "向合租室友确认。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "询问另一项真正关心的条件。"
+            }
+          }
+        },
+        {
+          "position": 2,
+          "goalKey": "daily.rental.schedule",
+          "prompt": {
+            "zh-CN": "原时间不可用时协商另一个看房时间。"
+          },
+          "successCriteria": {
+            "intent": "renegotiate-fictional-viewing",
+            "fictional": true
+          },
+          "targetExpressionKeys": [
+            "rental.otra-hora"
+          ],
+          "prompts": {
+            "level1": {
+              "zh-CN": "礼貌提出换时间。"
+            },
+            "level2": {
+              "zh-CN": "¿Podríamos ver...?"
+            },
+            "level3": {
+              "zh-CN": "¿Podríamos ver el piso a otra hora?"
+            }
+          },
+          "transfer": {
+            "changedInformation": {
+              "zh-CN": "提出下午或第二天。"
+            },
+            "changedRelationship": {
+              "zh-CN": "通过电话重新协商。"
+            },
+            "unfamiliarVariant": {
+              "zh-CN": "自然提出一个替代时间。"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "contentPacks": [],
+  "characters": [],
+  "articles": [],
+  "reviews": [
+    {
+      "entityType": "communication_domain",
+      "stableKey": "communication.daily-life",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.restaurant.order",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.restaurant.allergy",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.restaurant.alternative",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.campus.purpose",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.campus.requirements",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.campus.missing-document",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.rental.costs",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.rental.conditions",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "learning_goal",
+      "stableKey": "daily.rental.schedule",
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 支撑元数据审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对命名、说明、层级、难度与引用；不代表真人签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.queria-pedir",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.queria-pedir",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.lleva",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.lleva",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.soy-alergico",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.soy-alergico",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.que-recomienda",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.que-recomienda",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.tomare-eso",
+      "version": 2,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "restaurant.tomare-eso",
+      "version": 2,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.vengo-para",
+      "version": 2,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.vengo-para",
+      "version": 2,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.que-documentos",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.que-documentos",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.aqui-tiene",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.aqui-tiene",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.me-falta",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.me-falta",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.puedo-enviarlo",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "campus.puedo-enviarlo",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.cuanto-cuesta",
+      "version": 2,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.cuanto-cuesta",
+      "version": 2,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.gastos-incluidos",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.gastos-incluidos",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.cuanto-dura",
+      "version": 1,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.cuanto-dura",
+      "version": 1,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.se-permiten",
+      "version": 2,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.se-permiten",
+      "version": 2,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.otra-hora",
+      "version": 2,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "expression",
+      "stableKey": "rental.otra-hora",
+      "version": 2,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "scenario",
+      "stableKey": "scenario.restaurant-ordering",
+      "version": 2,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "scenario",
+      "stableKey": "scenario.restaurant-ordering",
+      "version": 2,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "scenario",
+      "stableKey": "scenario.campus-administration",
+      "version": 2,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "scenario",
+      "stableKey": "scenario.campus-administration",
+      "version": 2,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "scenario",
+      "stableKey": "scenario.rental-conversation",
+      "version": 2,
+      "locale": "es-ES",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 语言审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对语法、自然度、地区、语域、变体与发音；不代表真人或母语者签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    },
+    {
+      "entityType": "scenario",
+      "stableKey": "scenario.rental-conversation",
+      "version": 2,
+      "locale": "zh-CN",
+      "status": "approved",
+      "reviewerReference": "codex-ai-owner-authorized-review",
+      "notes": "AI 中文教学审核；项目所有者于 2026-09-12 授权个人产品阶段使用。已核对翻译、语法/发音说明、语用限制、提示与任务设计；不代表真人教学专家签字。结论：approved。",
+      "reviewedAt": "2026-09-12T04:30:00.000Z"
+    }
+  ]
+}
+

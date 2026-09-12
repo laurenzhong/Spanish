@@ -17,6 +17,8 @@ describe("scenario practice content", () => {
     expect(new Set(scenarios.map((scenario) => scenario.temporaryCharacter.role)).size).toBe(3);
 
     for (const scenario of scenarios) {
+      expect(scenario.version).toBe(2);
+      expect(scenario.status).toBe("published");
       expect(scenario.tasks).toHaveLength(3);
       expect(scenario.expressions.length).toBeGreaterThanOrEqual(5);
       expect(scenario.conditions).toHaveLength(1);
@@ -34,6 +36,11 @@ describe("scenario practice content", () => {
 
     expect(scenario?.fictionalContext).toBe(true);
     expect(scenario?.description).toContain("虚构");
+    expect(
+      scenario?.expressions.find(
+        (expression) => expression.stableKey === "rental.otra-hora",
+      )?.text,
+    ).toBe("¿Podríamos ver el piso a otra hora?");
   });
 
   it("returns null for an unknown scenario", () => {

@@ -8,7 +8,7 @@ async function authenticate(page: Page) {
   await page.context().addCookies([{ name: "spanish-e2e-user", value: e2eUserId, url: e2eBaseUrl }]);
 }
 
-test("renders the desktop discovery workspace with honest draft state", async ({ page }) => {
+test("renders the desktop discovery workspace with published content", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/explore");
@@ -18,7 +18,7 @@ test("renders the desktop discovery workspace with honest draft state", async ({
   await expect(page.getByRole("heading", { name: "内容包" })).toBeVisible();
   await expect(page.getByText("表达资料库")).toHaveCount(0);
   await expect(page.getByText("新的内容包正在审核，先从今天的沟通目标开始。")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /查看.*内容整理中/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /查看.*可开始/ })).toHaveCount(1);
   await expect(page.getByRole("link", { name: /询问近况/ })).toHaveAttribute("href", "/learn?goal=communication.start.check-in");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
 });
@@ -192,26 +192,26 @@ test("routes every communication goal to its own learn entry", async ({ page }) 
   }
 });
 
-test("opens and closes a clearly labelled local draft preview", async ({ page }) => {
+test("opens and closes the published content detail", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/explore");
 
-  const packButton = page.getByRole("button", { name: /查看.*内容整理中/ });
+  const packButton = page.getByRole("button", { name: /查看.*可开始/ });
   await packButton.focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("explore-detail-rail")).toContainText("内容整理中");
-  await expect(page.getByRole("link", { name: "打开草稿预览" })).toHaveAttribute("href", "/explore/packs/immersive.first-cafe-conversation");
+  await expect(page.getByTestId("explore-detail-rail")).toContainText("可开始");
+  await expect(page.getByRole("link", { name: "开始这组内容" })).toHaveAttribute("href", "/explore/packs/immersive.first-cafe-conversation");
   await page.getByRole("button", { name: "关闭内容详情" }).click();
   await expect(page.getByTestId("explore-detail-rail")).toHaveCount(0);
   await expect(packButton).toBeFocused();
 });
 
-test("follows the draft preview action to the content workspace", async ({ page }) => {
+test("follows the published action to the content workspace", async ({ page }) => {
   await authenticate(page);
   await page.goto("/explore");
-  await page.getByRole("button", { name: /查看.*内容整理中/ }).click();
-  await page.getByRole("link", { name: "打开草稿预览" }).click();
+  await page.getByRole("button", { name: /查看.*可开始/ }).click();
+  await page.getByRole("link", { name: "开始这组内容" }).click();
   await expect(page).toHaveURL(/\/explore\/packs\/immersive\.first-cafe-conversation$/);
   await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toBeVisible();
 });

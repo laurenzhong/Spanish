@@ -56,18 +56,56 @@ describe("explore library projection", () => {
     expect(library.privateState).toBe("available");
   });
 
-  it("keeps unreviewed public content out while retaining complete owned scenarios", async () => {
+  it("shows reviewed public content without draft preview and preserves a saved v1 expression", async () => {
     const library = await getExploreLibraryForUser(
       new CatalogExploreLibraryRepository(privateSource),
       "user-1",
       { allowDraft: false },
     );
 
-    expect(library.scenarios).toEqual([
-      expect.objectContaining({ stableKey: "personal.10000000-0000-4000-8000-000000000001" }),
-    ]);
-    expect(library.expressions.some((item) => item.sourceKind === "formal")).toBe(false);
-    expect(library.expressions.map((item) => item.sourceKind)).toEqual(["reading", "recent-error"]);
+    expect(
+      library.scenarios.filter((item) => item.sourceKind === "public"),
+    ).toHaveLength(3);
+    expect(library.scenarios).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stableKey: "scenario.restaurant-ordering",
+          sourceKind: "public",
+        }),
+        expect.objectContaining({
+          stableKey: "personal.10000000-0000-4000-8000-000000000001",
+          sourceKind: "personal",
+        }),
+      ]),
+    );
+    expect(
+      library.expressions.filter((item) => item.sourceKind === "formal"),
+    ).toHaveLength(12);
+    expect(library.expressions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "formal:start.como-va-todo@2",
+          saved: false,
+        }),
+        expect.objectContaining({
+          id: "formal:start.como-va-todo@1",
+          saved: true,
+          savedExpressionId: "20000000-0000-4000-8000-000000000001",
+        }),
+      ]),
+    );
+  });
+
+  it("exposes the reviewed public catalog when private storage is unavailable", async () => {
+    const library = await getExploreLibraryForUser(
+      new CatalogExploreLibraryRepository(),
+      "user-1",
+      { allowDraft: false },
+    );
+
+    expect(library.privateState).toBe("unavailable");
+    expect(library.scenarios).toHaveLength(3);
+    expect(library.expressions).toHaveLength(11);
   });
 
   it("degrades to the authorized public catalog when private storage is unavailable", async () => {

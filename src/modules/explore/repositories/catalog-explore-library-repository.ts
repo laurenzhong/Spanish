@@ -1,4 +1,5 @@
-import coreBundle from "@/content/bundles/alpha-core-v1.json";
+import historicCoreBundle from "@/content/bundles/alpha-core-v1.json";
+import coreBundle from "@/content/bundles/alpha-core-v2.json";
 
 import { validateContentBundle } from "@/src/modules/content/import";
 import type { ContentBundle } from "@/src/modules/content/schemas";
@@ -11,6 +12,7 @@ import type {
 } from "../domain/explore-library";
 
 const content = validateContentBundle(coreBundle) as ContentBundle;
+const historicContent = validateContentBundle(historicCoreBundle) as ContentBundle;
 
 export type ExploreLibraryRepositoryOptions = Readonly<{ allowDraft?: boolean }>;
 export type ExplorePrivateLibrarySource = Pick<
@@ -85,6 +87,66 @@ function publicExpressions(
         }),
       };
     });
+}
+
+function historicalSavedFormalExpressions(
+  saved: Awaited<ReturnType<ExplorePrivateLibrarySource["listSavedExpressions"]>>,
+): ExploreExpressionLibraryCard[] {
+  const currentKeys = new Set(
+    content.expressions.map(
+      (expression) => `${expression.stableKey}@${expression.version}`,
+    ),
+  );
+  const goals = new Map(
+    historicContent.goals.map((goal) => [goal.stableKey, goal]),
+  );
+  const domains = new Map(
+    historicContent.domains.map((domain) => [domain.stableKey, domain]),
+  );
+
+  return saved.flatMap((item) => {
+    if (
+      item.sourceType !== "formal-expression" ||
+      !item.sourceEntityId ||
+      !item.sourceVersion
+    ) {
+      return [];
+    }
+    const version = Number(item.sourceVersion);
+    const formalKey = `${item.sourceEntityId}@${version}`;
+    if (currentKeys.has(formalKey)) return [];
+
+    const expression = historicContent.expressions.find(
+      (candidate) =>
+        candidate.stableKey === item.sourceEntityId &&
+        candidate.version === version,
+    );
+    if (!expression) return [];
+
+    const goal = goals.get(expression.goalKey);
+    const domain = goal ? domains.get(goal.domainKey) : undefined;
+    return [{
+      id: `formal:${formalKey}`,
+      text: expression.text,
+      translation: localized(expression.translations),
+      intent: localized(expression.communicativeIntent),
+      cefr: expression.cefr,
+      region: expression.region,
+      category: domain?.stableKey ?? expression.goalKey,
+      categoryLabel: domain
+        ? localized(domain.title)
+        : goal
+          ? localized(goal.title)
+          : "正式表达",
+      sourceKind: "formal" as const,
+      saved: true,
+      savedExpressionId: item.id,
+      generationSource: {
+        sourceType: "saved-expression" as const,
+        sourceId: item.id,
+      },
+    }];
+  });
 }
 
 export class CatalogExploreLibraryRepository implements ExploreLibraryRepository {
@@ -174,9 +236,16 @@ export class CatalogExploreLibraryRepository implements ExploreLibraryRepository
           savedExpressionId: item.id,
           generationSource: { sourceType: "saved-expression" as const, sourceId: item.id },
         }));
+      const historicalFormal = historicalSavedFormalExpressions(saved);
       return {
         scenarios: [...personalScenarios, ...publicScenarios(allowDraft)],
-        expressions: [...publicExpressions(allowDraft, savedByFormalKey), ...standaloneSaved, ...readingExpressions, ...recentExpressions],
+        expressions: [
+          ...publicExpressions(allowDraft, savedByFormalKey),
+          ...historicalFormal,
+          ...standaloneSaved,
+          ...readingExpressions,
+          ...recentExpressions,
+        ],
         privateState: "available",
       };
     } catch {

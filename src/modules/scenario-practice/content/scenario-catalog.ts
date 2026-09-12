@@ -1,4 +1,4 @@
-import scenarioPracticeBundle from "@/content/bundles/scenario-practice-alpha-v1.json";
+import scenarioPracticeBundle from "@/content/bundles/scenario-practice-alpha-v2.json";
 import { validateContentBundle } from "@/src/modules/content/import";
 
 type LocalizedText = Readonly<Record<string, string>>;

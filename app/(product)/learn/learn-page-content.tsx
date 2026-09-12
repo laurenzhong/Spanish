@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import contentBundle from "@/content/bundles/alpha-core-v1.json";
+import contentBundle from "@/content/bundles/alpha-core-v2.json";
 import {
   createBrowserTrainingCheckpointStore,
   restoreTrainingCheckpoint,
+  TRAINING_SUPPORTED_CONTENT_BUNDLE_VERSIONS,
 } from "@/src/modules/training/checkpoints";
 import { getLearningPrimaryAction, type DueRepetitionActionInput } from "@/src/modules/recommendation";
 
@@ -77,7 +78,7 @@ export function LearnPageContent({ userId = "local-user", dueRepetition = null }
     let active = true;
     void restoreTrainingCheckpoint(store, {
       contentBundleKey: "alpha.core",
-      contentBundleVersion: 1,
+      contentBundleVersions: TRAINING_SUPPORTED_CONTENT_BUNDLE_VERSIONS,
     }).then((checkpoint) => {
       if (!active || !checkpoint) return;
       const requestedGoal = readGoal(

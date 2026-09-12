@@ -1,4 +1,4 @@
-import bundle from "@/content/bundles/alpha-core-v1.json";
+import bundle from "@/content/bundles/alpha-core-v2.json";
 
 import { validateContentBundle } from "../import";
 import type { ContentBundle } from "../schemas";

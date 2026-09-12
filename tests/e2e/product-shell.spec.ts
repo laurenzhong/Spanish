@@ -105,7 +105,7 @@ test("keeps discovery and conversation entry points visible", async ({
   await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeVisible();
 });
 
-test("separates communication goals from unpublished content packs", async ({ page }) => {
+test("separates communication goals from the published content pack", async ({ page }) => {
   await authenticate(page);
   await page.goto("/explore");
 
@@ -113,8 +113,11 @@ test("separates communication goals from unpublished content packs", async ({ pa
   await expect(page.getByRole("heading", { name: "沟通目标" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "内容包" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toBeVisible();
-  await expect(page.getByText("内容整理中", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /查看咖啡馆里的新朋友详情，内容整理中/ })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", {
+      name: "查看咖啡馆里的新朋友详情，可开始",
+    }),
+  ).toBeVisible();
 });
 
 test("adds Lucía as a pinned contact only after explicit approval", async ({ page }) => {

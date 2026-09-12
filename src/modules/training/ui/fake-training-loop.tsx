@@ -10,7 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import contentBundle from "@/content/bundles/alpha-core-v1.json";
+import contentBundle from "@/content/bundles/alpha-core-v2.json";
 import {
   createTrainingState,
   transition,
@@ -24,6 +24,7 @@ import {
   createBrowserTrainingCheckpointStore,
   restoreTrainingCheckpoint,
   serializeTrainingCheckpoint,
+  TRAINING_SUPPORTED_CONTENT_BUNDLE_VERSIONS,
   type TrainingCheckpointStore,
 } from "@/src/modules/training/checkpoints";
 import {
@@ -433,7 +434,7 @@ export function FakeTrainingLoop({
     let active = true;
     void restoreTrainingCheckpoint(checkpointStore, {
       contentBundleKey: "alpha.core",
-      contentBundleVersion: 1,
+      contentBundleVersions: TRAINING_SUPPORTED_CONTENT_BUNDLE_VERSIONS,
     }).then((restoredState) => {
       if (!active) return;
       if (restoredState) {

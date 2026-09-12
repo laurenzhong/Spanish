@@ -9,7 +9,8 @@ import type {
 
 export const TRAINING_CHECKPOINT_SCHEMA_VERSION = 1;
 export const TRAINING_CONTENT_BUNDLE_KEY = "alpha.core";
-export const TRAINING_CONTENT_BUNDLE_VERSION = 1;
+export const TRAINING_CONTENT_BUNDLE_VERSION = 2;
+export const TRAINING_SUPPORTED_CONTENT_BUNDLE_VERSIONS = [1, 2] as const;
 
 export const stableTrainingStatuses = [
   "awaiting-output",
@@ -44,6 +45,7 @@ export type TrainingCheckpointStore = Readonly<{
 export type TrainingCheckpointExpectation = Readonly<{
   contentBundleKey?: string;
   contentBundleVersion?: number;
+  contentBundleVersions?: readonly number[];
 }>;
 
 export function isStableTrainingStatus(
@@ -153,6 +155,12 @@ function checkpointFromUnknown(
   if (
     expectation.contentBundleVersion !== undefined &&
     input.contentBundleVersion !== expectation.contentBundleVersion
+  ) {
+    return null;
+  }
+  if (
+    expectation.contentBundleVersions !== undefined &&
+    !expectation.contentBundleVersions.includes(input.contentBundleVersion)
   ) {
     return null;
   }

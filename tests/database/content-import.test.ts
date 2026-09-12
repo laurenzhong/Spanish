@@ -66,6 +66,15 @@ async function readFixture() {
   >;
 }
 
+async function readBundle(name: string) {
+  return JSON.parse(
+    await readFile(
+      path.join(process.cwd(), "content", "bundles", name),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+}
+
 function setLearningContentStatus(
   fixture: Record<string, unknown>,
   status: "draft" | "published",
@@ -195,6 +204,96 @@ describe("content bundle importer", () => {
       .from(schema.contentBundleImports);
     expect(expressionCount?.value).toBe(2);
     expect(importCount?.value).toBe(2);
+  });
+
+  it("imports the reviewed v2 bundles after v1 without rewriting historical versions", async () => {
+    const coreV1 = await readBundle("alpha-core-v1.json");
+    coreV1.scenarios = [];
+    coreV1.characters = [];
+    coreV1.articles = [];
+    coreV1.reviews = (coreV1.reviews as Array<Record<string, unknown>>).filter(
+      (review) =>
+        review.entityType !== "scenario" &&
+        review.entityType !== "character" &&
+        review.entityType !== "article",
+    );
+
+    for (const bundle of [
+      coreV1,
+      await readBundle("scenario-practice-alpha-v1.json"),
+      await readBundle("alpha-core-v2.json"),
+      await readBundle("scenario-practice-alpha-v2.json"),
+    ]) {
+      await expect(importContentBundle(database, bundle)).resolves.toMatchObject({
+        status: "imported",
+      });
+    }
+
+    const expressionRows = await database
+      .select({
+        stableKey: schema.expressions.stableKey,
+        version: schema.expressions.contentVersion,
+        status: schema.expressions.status,
+      })
+      .from(schema.expressions);
+    const scenarioRows = await database
+      .select({
+        stableKey: schema.scenarios.stableKey,
+        version: schema.scenarios.contentVersion,
+        status: schema.scenarios.status,
+      })
+      .from(schema.scenarios);
+    const [pack] = await database
+      .select({
+        stableKey: schema.contentPacks.stableKey,
+        version: schema.contentPacks.contentVersion,
+        status: schema.contentPacks.status,
+      })
+      .from(schema.contentPacks);
+    const [importCount] = await database
+      .select({ value: count() })
+      .from(schema.contentBundleImports);
+
+    expect(expressionRows).toHaveLength(37);
+    expect(expressionRows).toEqual(
+      expect.arrayContaining([
+        {
+          stableKey: "navigate.creo-que-estoy-perdido",
+          version: 1,
+          status: "draft",
+        },
+        {
+          stableKey: "navigate.creo-que-estoy-perdido",
+          version: 2,
+          status: "published",
+        },
+        {
+          stableKey: "relationship.como-se-llama",
+          version: 1,
+          status: "published",
+        },
+      ]),
+    );
+    expect(scenarioRows).toEqual(
+      expect.arrayContaining([
+        {
+          stableKey: "scenario.restaurant-ordering",
+          version: 1,
+          status: "draft",
+        },
+        {
+          stableKey: "scenario.restaurant-ordering",
+          version: 2,
+          status: "published",
+        },
+      ]),
+    );
+    expect(pack).toEqual({
+      stableKey: "immersive.first-cafe-conversation",
+      version: 1,
+      status: "published",
+    });
+    expect(importCount?.value).toBe(4);
   });
 
   it("advances existing content statuses when immutable fields match", async () => {

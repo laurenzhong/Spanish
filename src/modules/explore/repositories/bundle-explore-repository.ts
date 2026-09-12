@@ -1,4 +1,4 @@
-import bundle from "@/content/bundles/alpha-core-v1.json";
+import bundle from "@/content/bundles/alpha-core-v2.json";
 
 import { projectContentPack } from "@/src/modules/content/domain";
 import { validateContentBundle } from "@/src/modules/content/import";

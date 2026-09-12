@@ -6,6 +6,8 @@ import {
   restoreTrainingCheckpoint,
   serializeTrainingCheckpoint,
   stateFromTrainingCheckpoint,
+  TRAINING_CONTENT_BUNDLE_VERSION,
+  TRAINING_SUPPORTED_CONTENT_BUNDLE_VERSIONS,
   trainingCheckpointStorageKey,
 } from "@/src/modules/training/checkpoints";
 import { createTrainingState, transition } from "@/src/modules/training/domain";
@@ -50,7 +52,22 @@ describe("training checkpoints", () => {
     const state = awaitingOutputState();
     const checkpoint = checkpointFromState(state);
     expect(checkpoint).not.toBeNull();
+    expect(checkpoint?.contentBundleVersion).toBe(2);
     expect(stateFromTrainingCheckpoint(checkpoint!)).toEqual(state);
+  });
+
+  it("accepts v1 checkpoints during the v2 content transition", () => {
+    const checkpoint = checkpointFromState(awaitingOutputState(), { version: 1 });
+    const serialized = serializeTrainingCheckpoint(checkpoint!);
+
+    expect(TRAINING_CONTENT_BUNDLE_VERSION).toBe(2);
+    expect(TRAINING_SUPPORTED_CONTENT_BUNDLE_VERSIONS).toEqual([1, 2]);
+    expect(
+      parseTrainingCheckpoint(serialized, {
+        contentBundleKey: "alpha.core",
+        contentBundleVersions: TRAINING_SUPPORTED_CONTENT_BUNDLE_VERSIONS,
+      }),
+    ).toMatchObject({ contentBundleVersion: 1 });
   });
 
   it("rejects incompatible versions and malformed payloads", () => {

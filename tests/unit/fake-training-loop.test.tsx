@@ -24,6 +24,13 @@ describe("FakeTrainingLoop", () => {
       "data-hydrated",
       "true",
     );
+    expect(
+      JSON.parse(
+        window.localStorage.getItem(
+          "spanish.training.checkpoint.v1:checkpoint-user",
+        ) ?? "{}",
+      ),
+    ).toMatchObject({ contentBundleKey: "alpha.core", contentBundleVersion: 2 });
     unmount();
     cleanup();
     render(<FakeTrainingLoop userId="checkpoint-user" />);
