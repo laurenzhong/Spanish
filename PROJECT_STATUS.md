@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-12
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-005` 已完成，电脑端 Web 自动发布候选门禁与真实账号核心路径复核已通过，当前剩余正式内容双重人工审核；iPhone Safari/PWA 真机验收延期且不阻塞当前阶段，阶段 8 尚未启动
+- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-005` 已完成，电脑端 Web 自动发布候选门禁与真实账号核心路径复核已通过，正式内容双轨人工审核包已就绪，当前等待西语母语与中文教学审核者逐项反馈和签字；iPhone Safari/PWA 真机验收延期且不阻塞当前阶段，阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：三个基础场景与 `alpha-core-v1` 正式表达仍为 `draft` 且只有 `codex-ai-temporary-review`，生产环境继续阻止未审核内容发布；真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。真实登录会话下的 Explore 收藏跨刷新、原状态恢复、Lucía 联系人一致性和电脑端核心页面复核已完成；iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
+- 当前门禁：三个基础场景与 `alpha-core-v1` 正式表达仍为 `draft` 且只有 `codex-ai-temporary-review`；审核包 `docs/reviews/ALPHA-033-content-review-pack.md` 已完成，但在两类真人审核者签字、反馈落地和版本化导入前，生产环境继续阻止未审核内容发布。真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。真实登录会话下的 Explore 收藏跨刷新、原状态恢复、Lucía 联系人一致性和电脑端核心页面复核已完成；iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -225,6 +225,7 @@
 - 认证恢复页补充本地会话清理：临时故障持续或旧 Cookie 无法验证时，可在不请求 Auth 服务的情况下清除当前浏览器会话并回到 OTP 登录；恢复操作使用 Supabase `scope: local`，不撤销其他设备会话。实现 Commit：`de1e260`；验证：认证/布局/Proxy Vitest 11/11、受影响文件 ESLint、`pnpm typecheck` 通过。限制：网络故障期间重新获取 OTP 仍需 Auth 服务恢复。
 - ALPHA-033 电脑端 Web 发布候选门禁修复：将项目直接依赖的 Sharp 从 `0.34.3` 对齐到 Next.js 16.3.1 要求的 `0.35.3`，消除 Windows 开发服务器同时加载两套原生 DLL 后崩溃的问题；好友申请 E2E 按已确认的“列表默认空、先审批 Lucía、审批后创建联系人”规则更新，并让审批成功后的联系人栏立即重新读取服务端会话，不需要刷新页面。实现 Commit：`1c4764f`；修改 `package.json`、`pnpm-lock.yaml`、`src/modules/character-network/ui/introduction-inbox.tsx`、`src/modules/conversation/ui/conversation-contact-rail.tsx` 和 `tests/e2e/product-shell.spec.ts`。验证：回归测试先复现审批后联系人不刷新的失败；联系人/隐私定向 Vitest `14/14`、产品壳层桌面 Playwright `21/21`、全量 Vitest `153/153` 文件与 `652/652` 断言、全量桌面 Chromium Playwright `71/71`、`pnpm lint`、`pnpm typecheck`、`pnpm build`、`git diff --check` 全部通过。限制：Playwright 使用 `AUTH_E2E_ENABLED`、空数据库连接和禁用收费 Provider 的确定性环境，未替代真实登录、远端数据库或收费 Provider 验证；公共场景与正式表达仍待双重人工审核；iPhone Safari/PWA 真机与 Flutter 按当前优先级未执行。下一步：使用真实登录账号完成 Explore 收藏/进度跨刷新与电脑端核心路径人工复核，并推进正式内容审核。
 - ALPHA-033 真实账号复核与 Explore 收藏一致性修复：真实 Supabase OTP 登录、远端 PostgreSQL 和桌面 Chrome 复核发现旧 `explore-saved-packs:v1` 会在 hydration 阶段覆盖服务端收藏事实，造成 React 状态与服务端 HTML 不一致；首次渲染现只使用服务端 DTO，本地存储只保留账号同步失败的 `v2` 待同步覆盖，成功同步后清除，旧缓存自动废弃。实现 Commit：`3ca682f`；修改 `app/(product)/explore/explore-page-content.tsx`、`tests/unit/explore-page.test.tsx`、`tests/e2e/explore-page.spec.ts`。真实账号验证：Explore 三种建议入口可见；内容包收藏跨两次刷新保持并恢复验证前状态；Lucía `active` 状态与联系人栏一致；`/learn`、`/read`、`/chat`、`/me` 均正常渲染；未发送消息、未审批好友、未删除数据。验证：Explore Vitest `19/19`、全量 Vitest `153/153` 文件与 `655/655` 断言、`pnpm lint`、`pnpm typecheck`、`pnpm build`、定向桌面 Playwright `1/1` 通过；首次桌面全量 Playwright 的既有关系记忆删除提示出现一次偶发超时，隔离重跑 `1/1`，随后全量复跑 `72/72` 通过。限制：真实复核未调用收费对话、转写或评分 Provider；`/api/v1/providers/status` 在当前本地配置返回 503，是本轮唯一控制台资源错误；正式内容仍为 draft 并待西语母语与中文教学双重审核；iPhone Safari/PWA 真机与 Flutter 未执行。下一步：推进正式内容双重人工审核，满足 ALPHA-033 最后一项发布门禁后再由产品本人确认是否进入阶段 8。
+- ALPHA-033 正式内容审核准备：新增 `docs/reviews/ALPHA-033-content-review-pack.md`，为 `alpha.core@1` 与 `alpha.scenario-practice@1` 的 26 条表达和 3 个基础场景提供逐项西语母语/中文教学 `approve`、`revise`、`reject` 结论栏、审核者引用与签字模板；记录正文、中文、变体、语域/地区、语法、发音、语用、场景角色/开场/条件变化/任务及安全边界，并将拼写、自然度、性别适配和教学提示风险明确标为“AI 预审”。实现 Commit：`214aadb`。验证：两个 bundle 的 `pnpm content:validate` 均通过；审核包源覆盖检查确认 26 条表达及 3 个场景的稳定 ID、版本、正文/变体、开场、条件变化和任务引用均匹配；`git diff --check` 通过。限制：未取得任何真人审核结论，未修改 bundle 状态或 review 记录，未导入或发布内容；`alpha.core@1` 的文章不在本次审核范围；iPhone Safari/PWA 真机仍因网站仅本地运行而延期。下一步：将审核包交给西语母语者和中文教学审核者，收到可追踪反馈后按版本化规则修订并依次推进 `language-reviewed`、`pedagogy-reviewed` 和 `published`，重新校验并事务导入后才能关闭 ALPHA-033。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
