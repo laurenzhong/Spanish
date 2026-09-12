@@ -62,6 +62,8 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [探索页桌面 Web 技术调研](docs/superpowers/specs/2026-08-28-explore-page-desktop-web-technical-research.md)
 - [探索页桌面 Web 视觉与交互方案](docs/superpowers/specs/2026-08-28-explore-page-desktop-web-design.md)
 - [探索页桌面 Web 实施计划](docs/plans/2026-08-28-explore-page-desktop-web-implementation-plan.md)
+- [电脑端 Web 界面密度与操作层级收敛设计](docs/superpowers/specs/2026-09-12-desktop-web-interface-density-and-action-hierarchy-design.md)
+- [电脑端 Web 界面密度与操作层级收敛实施计划](docs/plans/2026-09-12-desktop-web-interface-density-and-action-hierarchy-implementation-plan.md)
 - [历史：Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
 - [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](docs/architecture.md)
