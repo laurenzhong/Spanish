@@ -66,6 +66,39 @@ async function readFixture() {
   >;
 }
 
+function setLearningContentStatus(
+  fixture: Record<string, unknown>,
+  status: "draft" | "published",
+) {
+  for (const domain of fixture.domains as Array<Record<string, unknown>>) {
+    domain.status = status;
+  }
+  for (const goal of fixture.goals as Array<Record<string, unknown>>) {
+    goal.status = status;
+  }
+  for (const expression of fixture.expressions as Array<Record<string, unknown>>) {
+    expression.status = status;
+    for (const variant of expression.variants as Array<Record<string, unknown>>) {
+      variant.status = status;
+    }
+    if (status === "draft") delete expression.publishedAt;
+  }
+  for (const scenario of fixture.scenarios as Array<Record<string, unknown>>) {
+    scenario.status = status;
+  }
+  for (const pack of fixture.contentPacks as Array<Record<string, unknown>>) {
+    pack.status = status;
+    if (status === "draft") delete pack.publishedAt;
+  }
+}
+
+function removeCharacters(fixture: Record<string, unknown>) {
+  fixture.characters = [];
+  fixture.reviews = (fixture.reviews as Array<Record<string, unknown>>).filter(
+    (review) => review.entityType !== "character",
+  );
+}
+
 describe("content bundle importer", () => {
   let client: PGlite;
   let database: Awaited<ReturnType<typeof createTestDatabase>>["database"];
@@ -162,6 +195,113 @@ describe("content bundle importer", () => {
       .from(schema.contentBundleImports);
     expect(expressionCount?.value).toBe(2);
     expect(importCount?.value).toBe(2);
+  });
+
+  it("advances existing content statuses when immutable fields match", async () => {
+    const draft = await readFixture();
+    removeCharacters(draft);
+    setLearningContentStatus(draft, "draft");
+    await importContentBundle(database, draft);
+
+    const published = await readFixture();
+    removeCharacters(published);
+    (published.bundle as Record<string, unknown>).version = 2;
+    await expect(importContentBundle(database, published)).resolves.toMatchObject({
+      status: "imported",
+      bundleVersion: 2,
+    });
+
+    const [domain] = await database
+      .select({ status: schema.communicationDomains.status })
+      .from(schema.communicationDomains);
+    const [goal] = await database
+      .select({ status: schema.learningGoals.status })
+      .from(schema.learningGoals);
+    const [expression] = await database
+      .select({ status: schema.expressions.status })
+      .from(schema.expressions);
+    const [scenario] = await database
+      .select({ status: schema.scenarios.status })
+      .from(schema.scenarios);
+    const [pack] = await database
+      .select({ status: schema.contentPacks.status })
+      .from(schema.contentPacks);
+
+    expect({ domain, goal, expression, scenario, pack }).toEqual({
+      domain: { status: "published" },
+      goal: { status: "published" },
+      expression: { status: "published" },
+      scenario: { status: "published" },
+      pack: { status: "published" },
+    });
+  });
+
+  it("rolls back status advances when a later update fails", async () => {
+    const draft = await readFixture();
+    removeCharacters(draft);
+    setLearningContentStatus(draft, "draft");
+    await importContentBundle(database, draft);
+
+    await client.exec(`
+      create function fail_expression_status_update()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        raise exception 'forced expression update failure';
+      end;
+      $$;
+      create trigger fail_expression_status_update_trigger
+        before update on expressions
+        for each row execute function fail_expression_status_update();
+    `);
+
+    const published = await readFixture();
+    removeCharacters(published);
+    (published.bundle as Record<string, unknown>).version = 2;
+    await expect(importContentBundle(database, published)).rejects.toThrow();
+
+    const [domain] = await database
+      .select({ status: schema.communicationDomains.status })
+      .from(schema.communicationDomains);
+    const [goal] = await database
+      .select({ status: schema.learningGoals.status })
+      .from(schema.learningGoals);
+    const [importCount] = await database
+      .select({ value: count() })
+      .from(schema.contentBundleImports);
+
+    expect(domain?.status).toBe("draft");
+    expect(goal?.status).toBe("draft");
+    expect(importCount?.value).toBe(1);
+  });
+
+  it("rejects attempts to downgrade an existing content status", async () => {
+    await importContentBundle(database, await readFixture());
+    const draft = await readFixture();
+    (draft.bundle as Record<string, unknown>).version = 2;
+    setLearningContentStatus(draft, "draft");
+
+    await expect(importContentBundle(database, draft)).rejects.toBeInstanceOf(
+      ContentImportConflictError,
+    );
+  });
+
+  it("rejects immutable field changes disguised as a status advance", async () => {
+    const draft = await readFixture();
+    setLearningContentStatus(draft, "draft");
+    await importContentBundle(database, draft);
+
+    const changed = await readFixture();
+    (changed.bundle as Record<string, unknown>).version = 2;
+    (changed.domains as Array<Record<string, unknown>>)[0]!.title = {
+      "zh-CN": "被改写的领域",
+      "es-ES": "Dominio modificado",
+    };
+
+    await expect(importContentBundle(database, changed)).rejects.toBeInstanceOf(
+      ContentImportConflictError,
+    );
   });
 
   it("rolls back reference rows when a later write fails", async () => {

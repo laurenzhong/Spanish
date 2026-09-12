@@ -51,6 +51,16 @@ type ImportCounts = Readonly<{
   tags: number;
 }>;
 
+type ContentStatus = ContentBundle["domains"][number]["status"];
+
+const contentStatusRank: Readonly<Record<ContentStatus, number>> = {
+  draft: 0,
+  review: 1,
+  approved: 2,
+  published: 3,
+  archived: 4,
+};
+
 export type ContentImportResult = Readonly<{
   bundleKey: string;
   bundleVersion: number;
@@ -81,6 +91,39 @@ function assertSameReference(
   if (canonical(existing) !== canonical(incoming)) {
     throw new ContentImportConflictError(
       `${entity} ${stableKey} already exists with different immutable content.`,
+    );
+  }
+}
+
+function shouldAdvanceStatus(
+  entity: string,
+  stableKey: string,
+  existing: ContentStatus,
+  incoming: ContentStatus,
+): boolean {
+  if (existing === incoming) return false;
+  if (
+    existing === "archived" ||
+    contentStatusRank[incoming] < contentStatusRank[existing]
+  ) {
+    throw new ContentImportConflictError(
+      `${entity} ${stableKey} cannot move from ${existing} to ${incoming}.`,
+    );
+  }
+  return true;
+}
+
+function assertSamePublishedAt(
+  entity: string,
+  stableKey: string,
+  existing: Date | null,
+  incoming?: string,
+) {
+  const existingTime = existing?.getTime() ?? null;
+  const incomingTime = incoming ? new Date(incoming).getTime() : null;
+  if (existingTime !== incomingTime) {
+    throw new ContentImportConflictError(
+      `${entity} ${stableKey} already exists with different publication metadata.`,
     );
   }
 }
@@ -190,11 +233,10 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
 
     const domainIds = new Map<string, string>();
     for (const domain of bundle.domains) {
-      const expected = {
+      const expectedReference = {
         title: domain.title,
         description: domain.description,
         position: domain.position,
-        status: domain.status,
       };
       const [existing] = await transaction
         .select({
@@ -216,15 +258,31 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
             title: existing.title,
             description: existing.description,
             position: existing.position,
-            status: existing.status,
           },
-          expected,
+          expectedReference,
         );
+        if (
+          shouldAdvanceStatus(
+            "Communication domain",
+            domain.stableKey,
+            existing.status,
+            domain.status,
+          )
+        ) {
+          await transaction
+            .update(communicationDomains)
+            .set({ status: domain.status })
+            .where(eq(communicationDomains.id, existing.id));
+        }
         domainIds.set(domain.stableKey, existing.id);
       } else {
         const [inserted] = await transaction
           .insert(communicationDomains)
-          .values({ stableKey: domain.stableKey, ...expected })
+          .values({
+            stableKey: domain.stableKey,
+            ...expectedReference,
+            status: domain.status,
+          })
           .returning({ id: communicationDomains.id });
         domainIds.set(domain.stableKey, inserted!.id);
       }
@@ -233,14 +291,13 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
     const goalIds = new Map<string, string>();
     for (const goal of bundle.goals) {
       const domainId = domainIds.get(goal.domainKey)!;
-      const expected = {
+      const expectedReference = {
         domainId,
         title: goal.title,
         description: goal.description,
         cefrMin: goal.cefrMin,
         cefrMax: goal.cefrMax,
         position: goal.position,
-        status: goal.status,
       };
       const [existing] = await transaction
         .select({
@@ -268,15 +325,31 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
             cefrMin: existing.cefrMin,
             cefrMax: existing.cefrMax,
             position: existing.position,
-            status: existing.status,
           },
-          expected,
+          expectedReference,
         );
+        if (
+          shouldAdvanceStatus(
+            "Learning goal",
+            goal.stableKey,
+            existing.status,
+            goal.status,
+          )
+        ) {
+          await transaction
+            .update(learningGoals)
+            .set({ status: goal.status })
+            .where(eq(learningGoals.id, existing.id));
+        }
         goalIds.set(goal.stableKey, existing.id);
       } else {
         const [inserted] = await transaction
           .insert(learningGoals)
-          .values({ stableKey: goal.stableKey, ...expected })
+          .values({
+            stableKey: goal.stableKey,
+            ...expectedReference,
+            status: goal.status,
+          })
           .returning({ id: learningGoals.id });
         goalIds.set(goal.stableKey, inserted!.id);
       }
@@ -333,8 +406,46 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
     );
 
     for (const expression of bundle.expressions) {
+      const expressionKey = versionedKey(
+        expression.stableKey,
+        expression.version,
+      );
+      const expectedReference = {
+        goalId: goalIds.get(expression.goalKey)!,
+        sourceText: expression.text,
+        translations: expression.translations,
+        communicativeIntent: expression.communicativeIntent,
+        chunks: expression.chunks,
+        grammarNotes: {
+          ...expression.grammar,
+          slots: expression.slots,
+          targetChunks: expression.targetChunks,
+        },
+        pronunciationNotes: expression.pronunciation,
+        usageNotes: { locale: expression.locale, ...expression.usage },
+        cefrLevel: expression.cefr,
+        register: expression.register,
+        region: expression.region,
+        frequency: expression.frequency,
+      };
       const [existing] = await transaction
-        .select({ id: expressions.id })
+        .select({
+          id: expressions.id,
+          goalId: expressions.goalId,
+          sourceText: expressions.sourceText,
+          translations: expressions.translations,
+          communicativeIntent: expressions.communicativeIntent,
+          chunks: expressions.chunks,
+          grammarNotes: expressions.grammarNotes,
+          pronunciationNotes: expressions.pronunciationNotes,
+          usageNotes: expressions.usageNotes,
+          cefrLevel: expressions.cefrLevel,
+          register: expressions.register,
+          region: expressions.region,
+          frequency: expressions.frequency,
+          status: expressions.status,
+          publishedAt: expressions.publishedAt,
+        })
         .from(expressions)
         .where(
           and(
@@ -344,31 +455,142 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
         )
         .limit(1);
       if (existing) {
-        throw new ContentImportConflictError(
-          `Expression ${versionedKey(expression.stableKey, expression.version)} already belongs to another import.`,
+        assertSameReference(
+          "Expression",
+          expressionKey,
+          {
+            goalId: existing.goalId,
+            sourceText: existing.sourceText,
+            translations: existing.translations,
+            communicativeIntent: existing.communicativeIntent,
+            chunks: existing.chunks,
+            grammarNotes: existing.grammarNotes,
+            pronunciationNotes: existing.pronunciationNotes,
+            usageNotes: existing.usageNotes,
+            cefrLevel: existing.cefrLevel,
+            register: existing.register,
+            region: existing.region,
+            frequency: existing.frequency,
+          },
+          expectedReference,
         );
+
+        const storedVariants = await transaction
+          .select({
+            id: expressionVariants.id,
+            variantText: expressionVariants.variantText,
+            usageNotes: expressionVariants.usageNotes,
+            region: expressionVariants.region,
+            register: expressionVariants.register,
+            position: expressionVariants.position,
+            status: expressionVariants.status,
+          })
+          .from(expressionVariants)
+          .where(eq(expressionVariants.expressionId, existing.id));
+        const sortedStoredVariants = storedVariants.toSorted(
+          (left, right) => left.position - right.position,
+        );
+        const expectedVariants = expression.variants
+          .toSorted((left, right) => left.position - right.position)
+          .map((variant) => ({
+            variantText: variant.text,
+            usageNotes: variant.usageNotes,
+            region: variant.region,
+            register: variant.register,
+            position: variant.position,
+          }));
+        assertSameReference(
+          "Expression variants",
+          expressionKey,
+          sortedStoredVariants.map((variant) => ({
+            variantText: variant.variantText,
+            usageNotes: variant.usageNotes,
+            region: variant.region,
+            register: variant.register,
+            position: variant.position,
+          })),
+          expectedVariants,
+        );
+        for (const [index, storedVariant] of sortedStoredVariants.entries()) {
+          const incomingVariant = expression.variants.toSorted(
+            (left, right) => left.position - right.position,
+          )[index]!;
+          if (
+            shouldAdvanceStatus(
+              "Expression variant",
+              `${expressionKey}:${incomingVariant.position}`,
+              storedVariant.status,
+              incomingVariant.status,
+            )
+          ) {
+            await transaction
+              .update(expressionVariants)
+              .set({ status: incomingVariant.status })
+              .where(eq(expressionVariants.id, storedVariant.id));
+          }
+        }
+
+        const storedTags = await transaction
+          .select({
+            tagId: expressionTags.tagId,
+            weight: expressionTags.weight,
+            scoring: expressionTags.scoring,
+          })
+          .from(expressionTags)
+          .where(eq(expressionTags.expressionId, existing.id));
+        const expectedTags = expression.tags.map((tag) => ({
+          tagId: tagIds.get(tag.tagKey)!,
+          weight: tag.weight,
+          scoring: tag.scoring,
+        }));
+        assertSameReference(
+          "Expression tags",
+          expressionKey,
+          storedTags.toSorted((left, right) =>
+            left.tagId.localeCompare(right.tagId),
+          ),
+          expectedTags.toSorted((left, right) =>
+            left.tagId.localeCompare(right.tagId),
+          ),
+        );
+
+        if (
+          shouldAdvanceStatus(
+            "Expression",
+            expressionKey,
+            existing.status,
+            expression.status,
+          )
+        ) {
+          await transaction
+            .update(expressions)
+            .set({
+              status: expression.status,
+              publishedAt: expression.publishedAt
+                ? new Date(expression.publishedAt)
+                : null,
+            })
+            .where(eq(expressions.id, existing.id));
+        } else {
+          assertSamePublishedAt(
+            "Expression",
+            expressionKey,
+            existing.publishedAt,
+            expression.publishedAt,
+          );
+        }
+        entityIds.set(
+          reviewKey("expression", expression.stableKey, expression.version),
+          existing.id,
+        );
+        continue;
       }
 
       const [inserted] = await transaction
         .insert(expressions)
         .values({
-          goalId: goalIds.get(expression.goalKey)!,
+          ...expectedReference,
           stableKey: expression.stableKey,
-          sourceText: expression.text,
-          translations: expression.translations,
-          communicativeIntent: expression.communicativeIntent,
-          chunks: expression.chunks,
-          grammarNotes: {
-            ...expression.grammar,
-            slots: expression.slots,
-            targetChunks: expression.targetChunks,
-          },
-          pronunciationNotes: expression.pronunciation,
-          usageNotes: { locale: expression.locale, ...expression.usage },
-          cefrLevel: expression.cefr,
-          register: expression.register,
-          region: expression.region,
-          frequency: expression.frequency,
           contentVersion: expression.version,
           status: expression.status,
           publishedAt: expression.publishedAt
@@ -404,8 +626,24 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
     }
 
     for (const scenario of bundle.scenarios) {
+      const scenarioKey = versionedKey(scenario.stableKey, scenario.version);
+      const expectedReference = {
+        title: scenario.title,
+        description: scenario.description,
+        setting: scenario.setting,
+        relationshipType: scenario.relationshipType,
+        cefrLevel: scenario.cefr,
+      };
       const [existing] = await transaction
-        .select({ id: scenarios.id })
+        .select({
+          id: scenarios.id,
+          title: scenarios.title,
+          description: scenarios.description,
+          setting: scenarios.setting,
+          relationshipType: scenarios.relationshipType,
+          cefrLevel: scenarios.cefrLevel,
+          status: scenarios.status,
+        })
         .from(scenarios)
         .where(
           and(
@@ -415,20 +653,70 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
         )
         .limit(1);
       if (existing) {
-        throw new ContentImportConflictError(
-          `Scenario ${versionedKey(scenario.stableKey, scenario.version)} already belongs to another import.`,
+        assertSameReference(
+          "Scenario",
+          scenarioKey,
+          {
+            title: existing.title,
+            description: existing.description,
+            setting: existing.setting,
+            relationshipType: existing.relationshipType,
+            cefrLevel: existing.cefrLevel,
+          },
+          expectedReference,
         );
+        const storedTasks = await transaction
+          .select({
+            goalId: scenarioTasks.goalId,
+            prompt: scenarioTasks.prompt,
+            successCriteria: scenarioTasks.successCriteria,
+            targetExpressionKeys: scenarioTasks.targetExpressionKeys,
+            position: scenarioTasks.position,
+          })
+          .from(scenarioTasks)
+          .where(eq(scenarioTasks.scenarioId, existing.id));
+        const expectedTasks = scenario.tasks.map((task) => ({
+          goalId: goalIds.get(task.goalKey)!,
+          prompt: task.prompt,
+          successCriteria: {
+            criteria: task.successCriteria,
+            prompts: task.prompts,
+            transfer: task.transfer,
+          },
+          targetExpressionKeys: task.targetExpressionKeys,
+          position: task.position,
+        }));
+        assertSameReference(
+          "Scenario tasks",
+          scenarioKey,
+          storedTasks.toSorted((left, right) => left.position - right.position),
+          expectedTasks.toSorted((left, right) => left.position - right.position),
+        );
+        if (
+          shouldAdvanceStatus(
+            "Scenario",
+            scenarioKey,
+            existing.status,
+            scenario.status,
+          )
+        ) {
+          await transaction
+            .update(scenarios)
+            .set({ status: scenario.status })
+            .where(eq(scenarios.id, existing.id));
+        }
+        entityIds.set(
+          reviewKey("scenario", scenario.stableKey, scenario.version),
+          existing.id,
+        );
+        continue;
       }
 
       const [inserted] = await transaction
         .insert(scenarios)
         .values({
+          ...expectedReference,
           stableKey: scenario.stableKey,
-          title: scenario.title,
-          description: scenario.description,
-          setting: scenario.setting,
-          relationshipType: scenario.relationshipType,
-          cefrLevel: scenario.cefr,
           contentVersion: scenario.version,
           status: scenario.status,
         })
@@ -456,8 +744,21 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
     }
 
     for (const pack of bundle.contentPacks) {
+      const packKey = versionedKey(pack.stableKey, pack.version);
+      const expectedReference = {
+        title: pack.title,
+        summary: pack.summary,
+        cefrLevel: pack.cefr,
+      };
       const [existing] = await transaction
-        .select({ id: contentPacks.id })
+        .select({
+          id: contentPacks.id,
+          title: contentPacks.title,
+          summary: contentPacks.summary,
+          cefrLevel: contentPacks.cefrLevel,
+          status: contentPacks.status,
+          publishedAt: contentPacks.publishedAt,
+        })
         .from(contentPacks)
         .where(
           and(
@@ -467,18 +768,158 @@ export async function importContentBundle<TResult extends PgQueryResultHKT>(
         )
         .limit(1);
       if (existing) {
-        throw new ContentImportConflictError(
-          `Content pack ${versionedKey(pack.stableKey, pack.version)} already belongs to another import.`,
+        assertSameReference(
+          "Content pack",
+          packKey,
+          {
+            title: existing.title,
+            summary: existing.summary,
+            cefrLevel: existing.cefrLevel,
+          },
+          expectedReference,
         );
+
+        const storedSegments = await transaction
+          .select({
+            id: contentPackSegments.id,
+            position: contentPackSegments.position,
+            sourceText: contentPackSegments.sourceText,
+            translations: contentPackSegments.translations,
+            chunks: contentPackSegments.chunks,
+          })
+          .from(contentPackSegments)
+          .where(eq(contentPackSegments.contentPackId, existing.id));
+        const expectedSegments = pack.segments.map((segment) => ({
+          position: segment.position,
+          sourceText: segment.text,
+          translations: segment.translations,
+          chunks: segment.chunks,
+        }));
+        assertSameReference(
+          "Content pack segments",
+          packKey,
+          storedSegments
+            .map((segment) => ({
+              position: segment.position,
+              sourceText: segment.sourceText,
+              translations: segment.translations,
+              chunks: segment.chunks,
+            }))
+            .toSorted((left, right) => left.position - right.position),
+          expectedSegments.toSorted(
+            (left, right) => left.position - right.position,
+          ),
+        );
+        const storedSegmentIds = new Map(
+          storedSegments.map((segment) => [segment.position, segment.id]),
+        );
+
+        const storedActivities = await transaction
+          .select({
+            segmentId: contentPackActivities.segmentId,
+            activityType: contentPackActivities.activityType,
+            modality: contentPackActivities.modality,
+            instructions: contentPackActivities.instructions,
+            configuration: contentPackActivities.configuration,
+            position: contentPackActivities.position,
+          })
+          .from(contentPackActivities)
+          .where(eq(contentPackActivities.contentPackId, existing.id));
+        const expectedActivities = pack.activities.map((activity) => ({
+          segmentId:
+            activity.segmentPosition === undefined
+              ? null
+              : storedSegmentIds.get(activity.segmentPosition)!,
+          activityType: activity.activityType,
+          modality: activity.modality,
+          instructions: activity.instructions,
+          configuration: activity.configuration,
+          position: activity.position,
+        }));
+        assertSameReference(
+          "Content pack activities",
+          packKey,
+          storedActivities.toSorted(
+            (left, right) => left.position - right.position,
+          ),
+          expectedActivities.toSorted(
+            (left, right) => left.position - right.position,
+          ),
+        );
+
+        const storedSources = await transaction
+          .select({
+            sourceType: contentSources.sourceType,
+            title: contentSources.title,
+            author: contentSources.author,
+            sourceUrl: contentSources.sourceUrl,
+            license: contentSources.license,
+            attribution: contentSources.attribution,
+            licenseEvidence: contentSources.licenseEvidence,
+            copyrightStatus: contentSources.copyrightStatus,
+            reviewNotes: contentSources.reviewNotes,
+          })
+          .from(contentSources)
+          .where(eq(contentSources.contentPackId, existing.id));
+        const expectedSources = pack.sources.map((source) => ({
+          sourceType: source.sourceType,
+          title: source.title,
+          author: source.author ?? null,
+          sourceUrl: source.sourceUrl ?? null,
+          license: source.license,
+          attribution: source.attribution ?? null,
+          licenseEvidence: source.licenseEvidence ?? null,
+          copyrightStatus: source.copyrightStatus,
+          reviewNotes: source.reviewNotes ?? null,
+        }));
+        assertSameReference(
+          "Content pack sources",
+          packKey,
+          storedSources.toSorted((left, right) =>
+            canonical(left).localeCompare(canonical(right)),
+          ),
+          expectedSources.toSorted((left, right) =>
+            canonical(left).localeCompare(canonical(right)),
+          ),
+        );
+
+        if (
+          shouldAdvanceStatus(
+            "Content pack",
+            packKey,
+            existing.status,
+            pack.status,
+          )
+        ) {
+          await transaction
+            .update(contentPacks)
+            .set({
+              status: pack.status,
+              publishedAt: pack.publishedAt
+                ? new Date(pack.publishedAt)
+                : null,
+            })
+            .where(eq(contentPacks.id, existing.id));
+        } else {
+          assertSamePublishedAt(
+            "Content pack",
+            packKey,
+            existing.publishedAt,
+            pack.publishedAt,
+          );
+        }
+        entityIds.set(
+          reviewKey("content_pack", pack.stableKey, pack.version),
+          existing.id,
+        );
+        continue;
       }
 
       const [inserted] = await transaction
         .insert(contentPacks)
         .values({
+          ...expectedReference,
           stableKey: pack.stableKey,
-          title: pack.title,
-          summary: pack.summary,
-          cefrLevel: pack.cefr,
           contentVersion: pack.version,
           status: pack.status,
           publishedAt: pack.publishedAt ? new Date(pack.publishedAt) : null,

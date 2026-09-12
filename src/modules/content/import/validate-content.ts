@@ -96,8 +96,17 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
     ctx,
   );
 
-  const domainKeys = new Set(bundle.domains.map((domain) => domain.stableKey));
-  const goalKeys = new Set(bundle.goals.map((goal) => goal.stableKey));
+  const domainsByKey = new Map(
+    bundle.domains.map((domain) => [domain.stableKey, domain]),
+  );
+  const goalsByKey = new Map(
+    bundle.goals.map((goal) => [goal.stableKey, goal]),
+  );
+  const expressionsByKey = new Map(
+    bundle.expressions.map((expression) => [expression.stableKey, expression]),
+  );
+  const domainKeys = new Set(domainsByKey.keys());
+  const goalKeys = new Set(goalsByKey.keys());
   const tagKeys = new Set(bundle.tags.map((tag) => tag.stableKey));
   const expressionKeys = new Set(
     bundle.expressions.map((expression) => expression.stableKey),
@@ -275,6 +284,23 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
           path: ["expressions", expressionIndex, "translations"],
         });
       }
+      if (expression.variants.some((variant) => variant.status !== "published")) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Published expressions require published variants.",
+          path: ["expressions", expressionIndex, "variants"],
+        });
+      }
+      const goal = goalsByKey.get(expression.goalKey);
+      const domain = goal ? domainsByKey.get(goal.domainKey) : undefined;
+      if (goal?.status !== "published" || domain?.status !== "published") {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "Published expressions require a published learning goal and communication domain.",
+          path: ["expressions", expressionIndex, "goalKey"],
+        });
+      }
     }
   });
 
@@ -309,6 +335,23 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
         }
       });
     });
+    if (
+      scenario.status === "published" &&
+      scenario.tasks.some(
+        (task) =>
+          goalsByKey.get(task.goalKey)?.status !== "published" ||
+          task.targetExpressionKeys.some(
+            (key) => expressionsByKey.get(key)?.status !== "published",
+          ),
+      )
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Published scenarios require published goals and target expressions.",
+        path: ["scenarios", scenarioIndex, "tasks"],
+      });
+    }
   });
 
   bundle.contentPacks.forEach((pack, packIndex) => {
@@ -411,6 +454,7 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
     ),
   ]);
   const approvedReviews = new Set<string>();
+  const approvedReviewLocales = new Map<string, Set<string>>();
 
   bundle.reviews.forEach((review, reviewIndex) => {
     const expectsVersion = versionedReviewTypes.has(review.entityType);
@@ -441,8 +485,39 @@ function validateBundle(bundle: ContentBundle, ctx: z.RefinementCtx) {
         });
       }
       approvedReviews.add(key);
+      const locales = approvedReviewLocales.get(key) ?? new Set<string>();
+      locales.add(review.locale);
+      approvedReviewLocales.set(key, locales);
     }
   });
+
+  for (const expression of bundle.expressions) {
+    if (expression.status !== "published") continue;
+    const key = reviewKey("expression", expression.stableKey, expression.version);
+    const locales = approvedReviewLocales.get(key);
+    if (!locales?.has("es-ES") || !locales.has("zh-CN")) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Published expression requires approved es-ES and zh-CN reviews.",
+        path: ["reviews"],
+      });
+    }
+  }
+
+  for (const scenario of bundle.scenarios) {
+    if (scenario.status !== "published") continue;
+    const key = reviewKey("scenario", scenario.stableKey, scenario.version);
+    const locales = approvedReviewLocales.get(key);
+    if (!locales?.has("es-ES") || !locales.has("zh-CN")) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Published scenario requires approved es-ES and zh-CN reviews.",
+        path: ["reviews"],
+      });
+    }
+  }
 
   const publishedEntities = [
     ...bundle.domains
