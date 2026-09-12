@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-12
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-005` 已完成，所有者授权的 Codex 语言/教学双维度审核、v2 正式内容、运行时切换、远端数据库事务导入和电脑端 Web 自动发布候选门禁均已完成；当前仅等待 v2 发布后的真实登录桌面浏览器核心路径复核。iPhone Safari/PWA 真机验收延期且不阻塞当前阶段，阶段 8 尚未启动
+- 总体状态：ALPHA-033 已完成；`SCN-001` 至 `SCN-005`、所有者授权的 Codex 双维度内容审核、v2 正式内容发布、远端数据库事务导入、电脑端 Web 自动发布候选门禁和真实登录桌面复核均已通过。iPhone Safari/PWA 真机验收继续延期且不阻塞本阶段；阶段 8 等待产品本人明确确认启动
 - 协调分支：`main`
-- 当前门禁：`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过所有者授权的 Codex 双维度审核、自动校验并切换为电脑端 Web 生产投影；旧 v1 文件和历史引用继续保留。目标远端数据库已盘点并应用迁移 `0020`，两个 v2 bundle 已事务导入且幂等复导为 `unchanged`；全量 Vitest、电脑端 Playwright 与 production build 已通过。全量 Playwright 的 6 个失败全部位于延期的 `mobile-chromium`，不冒充全量通过。关闭 ALPHA-033 前只剩真实登录桌面浏览器的 v2 页面复核。真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
+- 当前门禁：电脑端 Web 发布候选已放行。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过所有者授权的 Codex 双维度审核、自动校验、数据库导入和真实登录页面复核；旧 v1 文件和历史引用继续保留。全量 Vitest、电脑端 Playwright 与 production build 已通过；全量 Playwright 的 6 个失败全部位于延期的 `mobile-chromium`，不冒充全量通过。真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -141,9 +141,9 @@
 
 ### ALPHA-033：Alpha 功能缺口收敛与发布候选准备
 
-- 状态：`in_progress`
+- 状态：`done`
 - 负责人：Codex
-- 目标分支：`fix/login-redirect-after-otp`
+- 目标分支：`main`
 - 前置依赖：阶段 7、UI-006 至 UI-011、READ-001 至 READ-005
 - 范围：对照产品设计和 Alpha 范围盘点未完成能力与已知缺陷；当前优先补齐电脑端 Web 的核心训练、初次诊断、阅读、对话、画像和隐私闭环；修复阻塞级/高优先级流程、状态机、取消/竞态、数据隔离、证据污染和角色一致性问题；清理电脑端 Web 发布候选测试与 fixture 漂移。响应式与 iPhone Safari/PWA 兼容代码继续保留，但真机验收延期；Flutter 继续暂停同步。
 - 不包含：阶段 8 连续使用配额、周度复盘或全面主观体验；支付、完整内容后台、实时双向语音、大规模角色网络、任意外部来源抓取和其他 Alpha 延后范围。
@@ -233,6 +233,7 @@
 - ALPHA-033 所有者授权正式内容与运行时切换：完成 26 条表达、3 个基础场景、9 个领域、20 个目标和 1 个内容包的逐项 AI 审核与报告；新增 `alpha.core@2`、`alpha.scenario-practice@2`，修订内容使用新实体版本，未修改实体通过事务规则单向推进状态，正式表达/场景均带 `es-ES` 与 `zh-CN` approved review；Explore、训练、内容包和场景目录切到 v2，文章继续读取 v1。新断点写 v2、旧 v1 断点仍可恢复；旧版本收藏以原版本显示，不静默改绑。实现 Commit：`a5286b0`。验证：全部 5 个 bundle 校验通过；相关单元 `9 files / 42 tests`、内容导入数据库 `10/10`、目标桌面 Playwright `16/16`、产品壳层发布断言 `1/1`、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。一次参数转发错误启动的全量 Playwright 在修正旧发布状态断言前被终止，期间另见既有移动文章句子拖选偶发失败，未计为全量通过。限制：RAE 页面受 Cloudflare 验证阻挡且 Google 搜索超时，未声称完成外部权威网页核验；v2 尚未导入远端数据库，完整 Vitest/Playwright/build 与真实登录桌面复核仍待执行；iPhone Safari/PWA 真机和 Flutter 未执行。下一步：只读确认目标数据库与 v1 引用后事务导入两个 v2 bundle，再重跑完整发布候选门禁。
 
 - ALPHA-033 v2 数据库发布与自动门禁：目标为 `DIRECT_DATABASE_URL` 指向的 Supabase PostgreSQL；只读盘点确认历史草稿保留，正式收藏、学习断点和证据引用均为 0。`pnpm db:migrate` 成功应用 `0020_volatile_eternity.sql`，迁移登记从 20 条增至 21 条；`alpha-core-v2.json` 与 `scenario-practice-alpha-v2.json` 首次事务导入成功，重复导入均返回 `unchanged`。导入后只读核验得到 9 个 published domain、20 个 published goal、26 个 published expression、3 个 published scenario 和 1 个 published content pack；表达双 locale approved review 各 26 条、场景双 locale 各 3 条，支撑元数据审核记录完整。自动门禁：全量 Vitest `155 files / 671 tests`、电脑端 Chromium Playwright `72/72`、目标发布路径 `16/16`、产品壳层发布断言 `1/1`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright 为 `138/144`，6 个失败全部位于延期的 `mobile-chromium`（文章句子拖选 1、Lucía 移动联系人/介绍 4、移动账号删除完成态 1），不作为本轮电脑端门禁通过。内容与运行时 Commit：`a5286b0`；发布记录 Commit：`8610666`。限制：桌面自动化运行时因本机工具资产路径缺失且浏览器控制接口不支持当前 Codex `apikey` 认证，无法读取用户现有 Edge 登录会话；未调用收费 Provider、未发送消息、未删除数据。下一步：完成真实登录桌面浏览器的 v2 只读复核后关闭 ALPHA-033，并由产品本人确认是否启动阶段 8。
+- ALPHA-033 真实登录桌面验收与关闭：产品本人在已登录 Edge 打开本地 `/explore`，确认 v2 发布页面正常；该结果完成最后一项人工门禁。ALPHA-033 状态改为 `done`，阶段 8 尚未自动启动，等待产品本人另行确认。已知延期项继续为 iPhone Safari/PWA 真机、Flutter 同步及全量 Playwright 中 6 个 `mobile-chromium` 失败；本次人工确认未改变这些限制。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
