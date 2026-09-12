@@ -554,19 +554,16 @@ export function FakeTrainingLoop({
     {
       key: "listen",
       label: "听懂情境",
-      detail: "听清语气和关键信息。",
       status: activeTimelineKey === "listen" ? "current" : "completed",
     },
     {
       key: "express",
       label: "自己表达",
-      detail: "完整说完，再结束这一轮。",
       status: activeTimelineKey === "express" ? "current" : activeTimelineKey === "vary" ? "completed" : "locked",
     },
     {
       key: "vary",
       label: "换一种说法",
-      detail: "完成当前步骤后解锁，保留真实交际意图。",
       status: activeTimelineKey === "vary" ? "current" : "locked",
     },
   ] as const;
@@ -665,8 +662,7 @@ export function FakeTrainingLoop({
                   </span>
                   <div>
                     <strong>{node.label}</strong>
-                    <span>{node.status === "completed" ? "已完成" : node.status === "current" ? "当前步骤" : "完成当前步骤后解锁"}</span>
-                    <p>{node.detail}</p>
+                    <span>{node.status === "completed" ? "已完成" : node.status === "current" ? "当前步骤" : "待解锁"}</span>
                   </div>
                 </li>
               ))}
@@ -717,14 +713,6 @@ export function FakeTrainingLoop({
           </section>
 
           <section className="training-loop__workbench" aria-label="训练操作">
-        <div className="training-loop__progress">
-          <div className="training-loop__progress-copy">
-            <span className="training-loop__progress-label">本轮节奏</span>
-            <strong>{state.outputMode === "typing" ? "文字回答" : "口语回答"}</strong>
-          </div>
-          <span className="training-loop__progress-hint">提示 {state.hintLevel}/3</span>
-        </div>
-
         {state.status === "presenting-input" ? (
           <p className="training-loop__instruction">先听输入，听完后用自己的话回应。</p>
         ) : null}
@@ -741,7 +729,6 @@ export function FakeTrainingLoop({
                 <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
               </svg>
               <span>开始录音</span>
-              <span className="training-loop__button-note" aria-hidden="true">用声音回答</span>
             </button>
             <button
               className="training-loop__secondary training-loop__typing-action"
@@ -755,7 +742,6 @@ export function FakeTrainingLoop({
                 <path d="M5 5.5h14v13H5zM8 9h8M8 12h5M8 15h8" />
               </svg>
               <span>用文字回答</span>
-              <span className="training-loop__button-note" aria-hidden="true">安静环境</span>
             </button>
           </div>
         ) : null}
@@ -764,6 +750,7 @@ export function FakeTrainingLoop({
           <div className="training-loop__composer">
             <label htmlFor="training-draft">写下你的回应</label>
             <textarea
+              autoFocus
               id="training-draft"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -931,23 +918,16 @@ export function FakeTrainingLoop({
         {state.status === "awaiting-output" ? (
           <div className="training-loop__hints">
             <div className="training-loop__hints-head">
-              <span>需要一点支撑？</span>
-              <span>{state.hintLevel === 0 ? "按需打开" : `已打开 ${state.hintLevel}/3`}</span>
-            </div>
-            <div className="training-loop__hint-drawer">
-              {[1, 2, 3].map((level) => (
+              {state.hintLevel < 3 ? (
                 <button
-                  key={level}
-                  className={level <= state.hintLevel ? "is-active" : ""}
-                  aria-pressed={level <= state.hintLevel}
-                  onClick={() => dispatch({ type: "request-hint", level: level as 1 | 2 | 3 })}
+                  className="training-loop__hint-trigger"
+                  onClick={() => dispatch({ type: "request-hint", level: (state.hintLevel + 1) as 1 | 2 | 3 })}
                   type="button"
                 >
-                  <span className="training-loop__hint-index">0{level}</span>
-                  <span>提示 {level}</span>
-                  <span className="training-loop__hint-state" aria-hidden="true">{level <= state.hintLevel ? "已开" : ""}</span>
+                  {state.hintLevel === 0 ? "提示" : state.hintLevel === 1 ? "更多提示" : "最后提示"}
                 </button>
-              ))}
+              ) : <span>提示已全部展开</span>}
+              <span>{state.hintLevel}/3</span>
             </div>
             {state.hintLevel > 0 && hintFor(expression.stableKey, state.hintLevel) ? (
               <aside className="training-loop__hint-content" data-testid="training-hint-content" role="status">
@@ -958,37 +938,32 @@ export function FakeTrainingLoop({
           </div>
         ) : null}
           </section>
-        </div>
 
-        <aside
-          className="training-loop__detail-rail"
-          aria-label="训练详情"
-          data-testid="training-detail-rail"
-        >
-          <div className="training-loop__detail-heading">
-            <p className="eyebrow eyebrow--accent">当前详情</p>
-            <h2>把注意力放在沟通上</h2>
-          </div>
-          <div className="training-loop__detail-section">
-            <span className="training-loop__detail-label">输出方式</span>
-            <strong>{state.outputMode === "typing" ? "文字回答" : "口语回答"}</strong>
-            <p>{state.outputMode === "typing" ? "安静环境下完成，不计入口语证据。" : "完整说完后再结束，保留真实口头反应。"}</p>
-          </div>
-          <div className="training-loop__detail-section">
-            <span className="training-loop__detail-label">提示级别</span>
-            <strong>{state.hintLevel === 0 ? "未打开" : `提示 ${state.hintLevel} / 3`}</strong>
-            <p>{state.hintLevel === 0 ? "需要时再打开，不会打断当前表达。" : "提示已记录在本轮进度中。"}</p>
-          </div>
-          <div className="training-loop__detail-section" data-testid="training-evidence-summary">
-            <span className="training-loop__detail-label">证据说明</span>
-            <strong>{evidenceSummary.label}</strong>
-            <p>{evidenceSummary.detail}</p>
-          </div>
-          <div className="training-loop__detail-section training-loop__detail-section--privacy">
-            <span aria-hidden="true">⌁</span>
-            <p><strong>录音隐私</strong>普通录音评估完成后删除。</p>
-          </div>
-        </aside>
+          <details className="training-loop__detail-disclosure" data-testid="training-detail-disclosure">
+            <summary><span>练习说明</span><span aria-hidden="true">＋</span></summary>
+            <div className="training-loop__detail-body">
+              <div className="training-loop__detail-section">
+                <span className="training-loop__detail-label">输出方式</span>
+                <strong>{state.outputMode === "typing" ? "文字回答" : "口语回答"}</strong>
+                <p>{state.outputMode === "typing" ? "安静环境下完成，不计入口语证据。" : "完整说完后再结束，保留真实口头反应。"}</p>
+              </div>
+              <div className="training-loop__detail-section">
+                <span className="training-loop__detail-label">提示级别</span>
+                <strong>{state.hintLevel === 0 ? "未打开" : `提示 ${state.hintLevel} / 3`}</strong>
+                <p>{state.hintLevel === 0 ? "需要时再打开，不会打断当前表达。" : "提示已记录在本轮进度中。"}</p>
+              </div>
+              <div className="training-loop__detail-section" data-testid="training-evidence-summary">
+                <span className="training-loop__detail-label">证据说明</span>
+                <strong>{evidenceSummary.label}</strong>
+                <p>{evidenceSummary.detail}</p>
+              </div>
+              <div className="training-loop__detail-section training-loop__detail-section--privacy">
+                <span aria-hidden="true">⌁</span>
+                <p><strong>录音隐私</strong>普通录音评估完成后删除。</p>
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
   );

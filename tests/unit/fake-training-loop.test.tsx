@@ -49,9 +49,12 @@ describe("FakeTrainingLoop", () => {
     expect(screen.getByTestId("training-timeline")).toHaveTextContent("听懂情境");
     expect(screen.getByTestId("training-timeline")).toHaveTextContent("自己表达");
     expect(screen.getByTestId("training-timeline")).toHaveTextContent("换一种说法");
-    expect(screen.getByTestId("training-detail-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("training-detail-disclosure")).not.toHaveAttribute("open");
+    expect(screen.queryByTestId("training-detail-rail")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("training-hint-content")).not.toBeInTheDocument();
     expect(screen.getByText("先听一遍")).toBeInTheDocument();
     expect(await screen.findByText("轮到你了")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "提示" })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "用文字回答" })).toBeInTheDocument();
   });
 
@@ -147,7 +150,10 @@ describe("FakeTrainingLoop", () => {
 
     await screen.findByText("轮到你了");
     await user.click(screen.getByRole("button", { name: "用文字回答" }));
-    expect(screen.getByTestId("training-detail-rail")).toHaveTextContent("文字回答");
+    expect(screen.getByLabelText("写下你的回应")).toHaveFocus();
+    await user.click(screen.getByText("练习说明"));
+    expect(screen.getByTestId("training-detail-disclosure")).toHaveAttribute("open");
+    expect(screen.getByTestId("training-detail-disclosure")).toHaveTextContent("文字回答");
     expect(screen.getByTestId("training-evidence-summary")).toHaveTextContent("文字路径");
     await user.type(screen.getByLabelText("写下你的回应"), "¿Qué tal todo?");
     await user.click(screen.getByRole("button", { name: "提交文字回答" }));
