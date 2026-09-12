@@ -104,6 +104,8 @@
 - 目标分支：`codex/scn-005-provider-pwa-hardening`
 - 设计 Commit：`c2be202`
 - 实现 Commit：`7ee64f2`
+- 分支状态同步 Commit：`5c1a546`
+- 合并 Commit：`b782140`
 - 前置依赖：SCN-001 至 SCN-004 已完成；Provider 路由优先级、一次性切换、观测与真机边界已由产品本人确认
 - 范围：按场景生成、临时人物回复、场景评估、转写和发音展示 Provider 配置、健康与用户偏好；为三类场景能力接入 MiniMax/OpenAI 选择和安全的一次性 fallback；收敛 iPhone Safari 录音生命周期、visual viewport、安全区、PWA metadata 和八档响应式视口。
 - 修改：新增服务端 Provider registry、健康派生、用户偏好与观测 repository、OpenAI Responses 适配器、状态/偏好 API、v1 OpenAPI/JSON Schema 和“我的 → 偏好设置”面板；流式回复只在首个 delta 前切换，无 `done` 视为失败，取消/非法响应不切换，每次尝试独立记录脱敏结果；录音在页面隐藏、`pagehide`、音轨结束、Pointer Cancel 或快速松手时取消并释放资源，不送转写或产生负面证据；新增 512px any/maskable 图标、180px Apple 图标与真机清单。
