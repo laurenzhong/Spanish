@@ -40,6 +40,8 @@ export default defineConfig({
       DATABASE_URL: "",
       // Never call a real or billable conversation provider from browser tests.
       MINIMAX_API_KEY: "",
+      OPENAI_API_KEY: "",
+      SPEECHACE_API_KEY: "",
       // A stable in-repo directory is already represented in tsconfig.json;
       // varying it by port makes Next.js append machine-local paths there.
       NEXT_DIST_DIR: process.env.NEXT_DIST_DIR ?? ".next/e2e",

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { SharedMemoryPermissions } from "@/src/modules/character-network/ui/shared-memory-permissions";
+import { ProviderSettingsPanel } from "@/src/modules/providers/ui/provider-settings-panel";
 import { AccountDataControls } from "./account-data-controls";
 import { LearningHeatmap } from "./learning-heatmap";
 import { MemoryDataControls } from "./memory-data-controls";
@@ -84,6 +85,7 @@ export function ProfileSections() {
       <section id="preferences" className="profile-page__group profile-page__group--privacy" aria-labelledby="preferences-section-title" hidden={activeSection !== "preferences"}>
         <h2 id="preferences-section-title" className="sr-only">偏好设置</h2>
         <PreferencesPanel />
+        <ProviderSettingsPanel />
       </section>
     </>
   );

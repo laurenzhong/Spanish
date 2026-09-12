@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/provider-status-response.schema.json",
+  "title": "Provider status response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capabilities"],
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["capability", "selectedProviderKey", "selectedProviderAvailable", "effectiveProviderKey", "canAutoSwitch", "providers"],
+            "properties": {
+              "capability": { "enum": ["scenario-generation", "scenario-roleplay", "scenario-evaluation", "transcription", "pronunciation"] },
+              "selectedProviderKey": { "type": ["string", "null"] },
+              "selectedProviderAvailable": { "type": "boolean" },
+              "effectiveProviderKey": { "type": ["string", "null"] },
+              "canAutoSwitch": { "type": "boolean" },
+              "providers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["key", "label", "configured", "status", "lastSuccessAt", "lastFailureAt"],
+                  "properties": {
+                    "key": { "type": "string", "minLength": 1 },
+                    "label": { "type": "string", "minLength": 1 },
+                    "configured": { "type": "boolean" },
+                    "status": { "enum": ["configured", "healthy", "degraded", "unavailable"] },
+                    "lastSuccessAt": { "type": ["string", "null"], "format": "date-time" },
+                    "lastFailureAt": { "type": ["string", "null"], "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

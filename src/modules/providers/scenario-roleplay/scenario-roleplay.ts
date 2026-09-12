@@ -25,6 +25,7 @@ export type ScenarioRoleplayStreamEvent = z.infer<typeof scenarioRoleplayStreamE
 
 export interface ScenarioRoleplayProvider {
   readonly key: string;
+  readonly modelVersion?: string;
   stream(
     input: ScenarioRoleplayInput,
     options?: Readonly<{ signal?: AbortSignal }>,

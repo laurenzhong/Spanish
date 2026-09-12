@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { BrowserAudioRecorder } from "@/src/modules/providers/speech";
 import { BrowserTextToSpeech, defaultSpanishVoiceName, preferredSpanishVoice } from "@/src/modules/providers/tts";
@@ -110,6 +110,62 @@ describe("browser speech capabilities", () => {
 
     expect(recorder.isSupported).toBe(false);
     expect(tts.isSupported).toBe(false);
+  });
+
+  it("cancels and releases microphone tracks when Safari hides the page", async () => {
+    let stoppedTracks = 0;
+    const page = new EventTarget();
+    const visibility = new EventTarget() as EventTarget & { visibilityState: DocumentVisibilityState };
+    visibility.visibilityState = "visible";
+    const track = new EventTarget() as EventTarget & { stop(): void };
+    track.stop = () => { stoppedTracks += 1; };
+    const stream = { getTracks: () => [track] } as unknown as MediaStream;
+    const fakeRecorder = {
+      state: "inactive",
+      ondataavailable: null,
+      onerror: null,
+      onstop: null as ((event: Event) => void) | null,
+      start() { fakeRecorder.state = "recording"; },
+      stop() { fakeRecorder.state = "inactive"; fakeRecorder.onstop?.(new Event("stop")); },
+    };
+    const interrupted = vi.fn();
+    const recorder = new BrowserAudioRecorder(
+      { getUserMedia: async () => stream },
+      () => fakeRecorder as unknown as MediaRecorder,
+      () => true,
+      { page, visibility, onInterrupted: interrupted },
+    );
+
+    await recorder.start();
+    page.dispatchEvent(new Event("pagehide"));
+    await vi.waitFor(() => expect(stoppedTracks).toBe(1));
+    expect(interrupted).toHaveBeenCalledTimes(1);
+    await expect(recorder.stop()).rejects.toMatchObject({ code: "recording-not-active" });
+  });
+
+  it("treats an ended audio track as a recoverable interruption", async () => {
+    const track = new EventTarget() as EventTarget & { stop(): void };
+    track.stop = vi.fn();
+    const stream = { getTracks: () => [track] } as unknown as MediaStream;
+    const fakeRecorder = {
+      state: "inactive",
+      ondataavailable: null,
+      onerror: null,
+      onstop: null as ((event: Event) => void) | null,
+      start() { fakeRecorder.state = "recording"; },
+      stop() { fakeRecorder.state = "inactive"; fakeRecorder.onstop?.(new Event("stop")); },
+    };
+    const interrupted = vi.fn();
+    const recorder = new BrowserAudioRecorder(
+      { getUserMedia: async () => stream },
+      () => fakeRecorder as unknown as MediaRecorder,
+      () => true,
+      { onInterrupted: interrupted },
+    );
+    await recorder.start();
+    track.dispatchEvent(new Event("ended"));
+    await vi.waitFor(() => expect(interrupted).toHaveBeenCalledTimes(1));
+    expect(track.stop).toHaveBeenCalledTimes(1);
   });
 
   it("prefers a saved Spanish voice, then Elvira, then the first available voice", () => {

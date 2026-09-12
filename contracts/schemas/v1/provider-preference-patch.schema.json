@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/provider-preference-patch.schema.json",
+  "title": "Provider preference patch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["capability", "providerKey"],
+  "properties": {
+    "capability": { "enum": ["scenario-generation", "scenario-roleplay", "scenario-evaluation", "transcription", "pronunciation"] },
+    "providerKey": { "type": ["string", "null"], "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9-]+$" }
+  }
+}

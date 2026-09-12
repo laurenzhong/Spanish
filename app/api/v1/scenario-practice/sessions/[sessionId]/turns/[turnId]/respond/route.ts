@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { createMiniMaxScenarioRoleplayProvider } from "@/src/modules/providers/scenario-roleplay/server";
 import { FakeScenarioRoleplayProvider, ScenarioProviderError } from "@/src/modules/providers/scenario-roleplay";
+import { createScenarioRoleplayProviders } from "@/src/modules/providers/scenario-runtime";
+import { observeScenarioRoleplayProvider } from "@/src/modules/providers/observed-scenario-providers";
+import { createDrizzleProviderCallRepository } from "@/src/modules/providers/repositories/drizzle-provider-call-repository";
 import { createDrizzleScenarioLibraryRepository, getScenarioPracticeDetailForUser, streamScenarioReply } from "@/src/modules/scenario-practice";
 import { createDrizzleScenarioPracticeRepository } from "@/src/modules/scenario-practice";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
@@ -37,12 +39,23 @@ export async function POST(request: NextRequest, { params }: Readonly<{ params: 
       try {
         let completeText = "";
         let persistedCondition = false;
-        const provider = process.env.NODE_ENV !== "production" && process.env.AUTH_E2E_ENABLED === "1" ? new FakeScenarioRoleplayProvider() : createMiniMaxScenarioRoleplayProvider();
+        let completedProviderKey: string | null = null;
+        let completedModelVersion: string | null = null;
+        const database = process.env.DATABASE_URL ? getDatabase() : null;
+        const provider = process.env.NODE_ENV !== "production" && process.env.AUTH_E2E_ENABLED === "1"
+          ? new FakeScenarioRoleplayProvider()
+          : (await createScenarioRoleplayProviders(user.id)).map((candidate) =>
+              observeScenarioRoleplayProvider(candidate, database ? createDrizzleProviderCallRepository(database) : undefined, user.id));
         for await (const frame of streamScenarioReply({
           provider, scenario, requestId, sessionId,
           generationId: parsed.data.generationId, completedTurns: parsed.data.completedTurns,
           triggeredConditions: parsed.data.triggeredConditions, signal: request.signal,
         })) {
+          if (frame.type === "meta") {
+            completedProviderKey = frame.provider;
+            const candidates = Array.isArray(provider) ? provider : [provider];
+            completedModelVersion = candidates.find((candidate) => candidate.key === frame.provider)?.modelVersion ?? null;
+          }
           if (frame.type === "delta") completeText += frame.text;
           if (frame.type === "condition" && parsed.data.persist) {
             if (!process.env.DATABASE_URL) throw new Error("SCENARIO_SESSION_NOT_FOUND");
@@ -59,7 +72,10 @@ export async function POST(request: NextRequest, { params }: Readonly<{ params: 
             await createDrizzleScenarioPracticeRepository(getDatabase()).appendCompletedRoleplayTurn({
               id: parsed.data.characterTurnId, userId: user.id, sessionId, clientAttemptId: parsed.data.generationId,
               turnIndex: parsed.data.turnIndex + (persistedCondition ? 1 : 0), speaker: "temporary-character", modality: "system", text: completeText,
-              generationId: parsed.data.generationId, replyToTurnId: turnId, providerKey: provider.key, modelVersion: provider.key === "minimax" ? "MiniMax-M3" : "fake-v1", done: true,
+              generationId: parsed.data.generationId, replyToTurnId: turnId,
+              providerKey: completedProviderKey,
+              modelVersion: completedModelVersion,
+              done: true,
             });
           }
           controller.enqueue(encoder.encode(`${JSON.stringify(frame)}\n`));

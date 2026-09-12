@@ -12,6 +12,37 @@
     }
   ],
   "paths": {
+    "/providers/status": {
+      "get": {
+        "summary": "Read configured and recently observed provider status by capability",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Credential-free provider status", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/provider-status-response.schema.json" } } } },
+          "401": { "description": "Authentication required" }
+        }
+      }
+    },
+    "/me/provider-preferences": {
+      "get": {
+        "summary": "List the authenticated user's provider preferences",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Owned provider preferences", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/provider-preferences-response.schema.json" } } } },
+          "401": { "description": "Authentication required" }
+        }
+      },
+      "patch": {
+        "summary": "Set or clear one provider preference after server validation",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/provider-preference-patch.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Provider preference updated" },
+          "400": { "description": "Unsupported or unavailable provider selection" },
+          "401": { "description": "Authentication required" },
+          "503": { "description": "Provider preference persistence unavailable" }
+        }
+      }
+    },
     "/expressions/saved": {
       "get": {
         "summary": "List the authenticated user's saved expressions",

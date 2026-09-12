@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3101"}`;
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
+const viewportWidths = [320, 375, 390, 414, 768, 1024, 1280, 1440];
 
 async function authenticate(page: Page) {
   await page.context().addCookies([{ name: "spanish-e2e-user", value: e2eUserId, url: e2eBaseUrl }]);
@@ -20,6 +21,17 @@ test("uses one responsive workbench for the three starter scenarios", async ({ p
   await expect(page.getByRole("button", { name: "按住说话" })).toBeVisible();
   await expect(page.getByRole("button", { name: "键盘" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("keeps the practice composer usable without horizontal overflow across the release matrix", async ({ page }) => {
+  await authenticate(page);
+  for (const width of viewportWidths) {
+    await page.setViewportSize({ width, height: width < 600 ? 760 : 900 });
+    await page.goto("/explore/scenarios/scenario.campus-administration/practice");
+    await expect(page.getByRole("button", { name: "按住说话" })).toBeVisible();
+    await expect(page.getByPlaceholder("用西班牙语完成你的表达…")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px overflow`).toBeLessThanOrEqual(width);
+  }
 });
 
 test("keeps complete learner turns, triggers one content condition, and shows the basic review", async ({ page }) => {

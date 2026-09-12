@@ -12,6 +12,10 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser: mocks.getCurrentUser, verifyRequestUser: mocks.verifyRequestUser }));
 vi.mock("@/src/modules/providers/scenario-roleplay/server", () => ({ createMiniMaxScenarioRoleplayProvider: () => ({ key: "test-roleplay", stream: mocks.roleplayStream }) }));
 vi.mock("@/src/modules/providers/scenario-evaluation/server", () => ({ createMiniMaxScenarioEvaluationProvider: () => ({ key: "test-evaluation", evaluate: mocks.evaluate }) }));
+vi.mock("@/src/modules/providers/scenario-runtime", () => ({
+  createScenarioRoleplayProviders: async () => [{ key: "test-roleplay", modelVersion: "test-v1", stream: mocks.roleplayStream }],
+  createScenarioEvaluationProviders: async () => [{ key: "test-evaluation", evaluate: mocks.evaluate }],
+}));
 
 import { GET as getScenario } from "@/app/api/v1/scenarios/[scenarioId]/route";
 import { POST as createSession } from "@/app/api/v1/scenario-practice/sessions/route";
