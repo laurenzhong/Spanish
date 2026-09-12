@@ -6,7 +6,7 @@
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
 - 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-005` 已完成，电脑端 Web 自动发布候选门禁与真实账号核心路径复核已通过；产品所有者已决定个人产品阶段的正式内容改由 Codex 独立完成语言与教学双维度审核，治理设计已提交并等待书面规格确认；iPhone Safari/PWA 真机验收延期且不阻塞当前阶段，阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：三个基础场景与 `alpha-core-v1` 正式表达仍为 `draft` 且只有 `codex-ai-temporary-review`；产品所有者已确认所有者授权 AI 审核设计与修正版，实施计划 `docs/plans/2026-09-12-owner-authorized-ai-content-review-implementation-plan.md` 已就绪，当前由 Codex 执行双维度审核、版本化修订、校验和事务导入，期间生产环境继续阻止草稿内容发布。真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。真实登录会话下的 Explore 收藏跨刷新、原状态恢复、Lucía 联系人一致性和电脑端核心页面复核已完成；iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
+- 当前门禁：三个基础场景与 `alpha-core-v1` 正式表达仍为 `draft` 且只有 `codex-ai-temporary-review`；所有者授权 AI 审核的 ADR、规范、双 locale 校验和状态推进基础设施已完成，当前由 Codex 执行正式内容审核、v2 修订、运行时切换和事务导入，期间生产环境继续阻止草稿内容发布。真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。真实登录会话下的 Explore 收藏跨刷新、原状态恢复、Lucía 联系人一致性和电脑端核心页面复核已完成；iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -229,6 +229,7 @@
 - ALPHA-033 所有者授权 AI 审核设计：产品所有者确认产品仅供本人使用的阶段不再等待外部审核者，正式内容由 Codex 独立完成西语语言与中文教学两个审核维度；新增 `docs/superpowers/specs/2026-09-12-owner-authorized-ai-content-review-design.md`，选择复用既有状态机并以 `codex-ai-owner-authorized-review` 诚实记录 AI 身份和所有者授权，禁止描述为真人签字；未来开始面向其他用户前必须新增 ADR 重新决定外部复核门槛。设计 Commit：`c889fbb`。本次实施范围仍限定为 26 条表达和 3 个基础场景，文章、词典、角色和私人生成内容不混入。验证：规格已完成占位符、内部一致性、范围和歧义自检，`git diff --check` 通过。限制：书面规格仍待产品所有者确认，尚未更新治理 ADR/规则、修改内容、写入正式审核记录或发布。下一步：确认书面规格后制定实施计划并执行正式 AI 审核。
 - ALPHA-033 所有者授权 AI 审核修正版与实施计划：真实代码盘点确认内容状态为 `draft/review/approved/published/archived`，审核维度由 `content_reviews.locale` 表达；产品所有者确认修正版，将生产支撑所需的 9 个领域、20 个目标和 1 个内容包纳入审核，同时继续排除旧场景、文章、词典与角色。设计修正 Commit：`8d77999`；实施计划 Commit：`95ab5de`。计划采用失败测试、双 locale 发布校验、不可变内容下的状态单向推进、v2 bundle、正式 AI 审核报告、运行时切换、事务导入和完整发布门禁。限制：尚未开始生产代码和内容修改，当前内容仍不可发布。下一步：执行计划切片 1，用失败测试锁定审核与状态推进规则。
 - ALPHA-033 AI 审核门禁与状态推进基础设施：已发布 expression/scenario 现在必须同时具有 `es-ES` 与 `zh-CN` approved review；已发布表达必须引用已发布目标/领域且所有变体已发布，已发布场景必须引用已发布目标和表达。内容导入器在其他字段及子项完全一致时允许 domain、goal、expression/variant、scenario、content pack 状态单向推进，禁止降级、归档后恢复和借状态推进改写不可变内容；状态更新与 bundle claim 保持同一事务并覆盖回滚测试。实现 Commit：`05d439b`。验证：审核门禁/共享契约 Vitest `9/9`、数据库导入 Vitest `9/9`、`pnpm typecheck`、受影响文件 ESLint、全部现有 bundle 的 `content:validate`、`git diff --check` 通过。共享 fixture 的 Flutter 合同测试在加载阶段超过 90 秒且未开始断言，已终止；未修改 Dart 代码。限制：v2 正式内容和治理文档尚未完成，现有 v1 仍为草稿。下一步：同步 ADR/治理规则，再完成正式 AI 内容审核与 v2 bundle。
+- ALPHA-033 个人阶段内容治理同步：新增 ADR-0007，明确项目所有者 2026-09-12 授权 Codex 在仅本人使用阶段独立完成 `es-ES` 语言与 `zh-CN` 教学审核；同步 `AGENTS.md`、内容规范、架构、Web 优先设计、内容 README 和实施计划，保留生成与审核分离、版本/版权/隐私/评分不变量，并要求产品面向其他真实用户前新增 ADR 重审外部复核门槛。实现 Commit：`b9c36ff`。验证：当前权威文档中的真人审核阻塞已替换为诚实的 AI 审核身份与双维度规则，`git diff --check` 通过。限制：历史交接中的旧要求保留当时事实；v2 内容尚未生成或发布。下一步：完成 26 条表达、3 个场景及支撑元数据的正式审核报告和版本化内容。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
