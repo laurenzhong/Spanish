@@ -73,6 +73,7 @@ const unavailablePack: ExploreDashboardDto["packs"][number] = {
 describe("ExplorePageContent", () => {
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -275,6 +276,56 @@ describe("ExplorePageContent", () => {
     fireEvent.click(save);
     expect(save).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("已保存到你的探索清单。")).toBeInTheDocument();
+  });
+
+  it("uses the server saved state instead of a conflicting legacy browser cache", () => {
+    window.localStorage.setItem("explore-saved-packs:v1", JSON.stringify({
+      "published-pack": false,
+      "published-pack@v1": false,
+    }));
+    const savedDashboard: ExploreDashboardDto = {
+      ...dashboard,
+      packs: dashboard.packs.map((pack) => pack.stableKey === "published-pack"
+        ? { ...pack, saved: true }
+        : pack),
+    };
+
+    render(<ExplorePageContent dashboard={savedDashboard} />);
+
+    expect(screen.getByRole("button", { name: "取消保存咖啡馆里的新朋友" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("restores only a save change whose account sync failed", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+    render(<ExplorePageContent dashboard={dashboard} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "保存咖啡馆里的新朋友" }));
+    expect(await screen.findByText("已保存在本设备，账号同步失败，可重试。")).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("explore-pending-saved-packs:v2") ?? "{}"))
+      .toMatchObject({ "published-pack@v1": true });
+
+    cleanup();
+    render(<ExplorePageContent dashboard={dashboard} />);
+    expect(await screen.findByRole("button", { name: "取消保存咖啡馆里的新朋友" }))
+      .toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("clears a pending browser fallback after account sync succeeds", async () => {
+    window.localStorage.setItem("explore-pending-saved-packs:v2", JSON.stringify({
+      "published-pack@v1": false,
+    }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+    const savedDashboard: ExploreDashboardDto = {
+      ...dashboard,
+      packs: dashboard.packs.map((pack) => pack.stableKey === "published-pack"
+        ? { ...pack, saved: true }
+        : pack),
+    };
+    render(<ExplorePageContent dashboard={savedDashboard} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "保存咖啡馆里的新朋友" }));
+    expect(await screen.findByText("已保存到你的探索清单，已同步到账号。")).toBeInTheDocument();
+    expect(window.localStorage.getItem("explore-pending-saved-packs:v2")).toBeNull();
   });
 
   it("keeps the saved filter in the URL after selecting it", () => {

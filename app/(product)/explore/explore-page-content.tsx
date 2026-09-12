@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type { ExploreCardDto, ExploreDashboardDto, ExploreGoalDto } from "@/src/modules/explore/domain";
 import type { ExploreLibraryDto, ExploreLibraryFilter } from "@/src/modules/explore/domain/explore-library";
@@ -9,6 +9,9 @@ import { ExploreLibraryPanel } from "./explore-library-panel";
 import { ScenarioSuggestionPanel } from "./scenario-suggestion-panel";
 
 const emptyLibrary: ExploreLibraryDto = { scenarios: [], expressions: [], privateState: "unavailable" };
+const legacySavedPacksStorageKey = "explore-saved-packs:v1";
+const pendingSavedPacksStorageKey = "explore-pending-saved-packs:v2";
+const pendingSavedPacksChangedEvent = "explore-pending-saved-packs-changed";
 type ExplorePageContentProps = Readonly<{ dashboard: ExploreDashboardDto; library?: ExploreLibraryDto; initialQuery?: string; initialPack?: string | null; initialSaved?: boolean; initialFilter?: ExploreLibraryFilter }>;
 
 const skillLabels: Record<ExploreCardDto["skills"][number], string> = { listen: "听", read: "读", speak: "说", write: "写" };
@@ -20,6 +23,66 @@ function matches(value: string, query: string): boolean {
 
 function stateKey(card: ExploreCardDto): string {
   return `${card.stableKey}@${card.version}`;
+}
+
+function savedStateFromDashboard(packs: ExploreDashboardDto["packs"]): Record<string, boolean> {
+  return Object.fromEntries(packs.flatMap((card) => [
+    [stateKey(card), Boolean(card.saved)],
+    [card.stableKey, Boolean(card.saved)],
+  ]));
+}
+
+function readPendingSavedState(raw: string | null, packs: ExploreDashboardDto["packs"]): Record<string, boolean> {
+  try {
+    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    return Object.fromEntries(packs.flatMap((card) => {
+      const pending = parsed[stateKey(card)];
+      return typeof pending === "boolean"
+        ? [[stateKey(card), pending], [card.stableKey, pending]]
+        : [];
+    }));
+  } catch {
+    return {};
+  }
+}
+
+function readPendingSavedStateSnapshot(): string | null {
+  try { return window.localStorage.getItem(pendingSavedPacksStorageKey); } catch { return null; }
+}
+
+function readEmptyPendingSavedStateSnapshot(): null {
+  return null;
+}
+
+function subscribeToPendingSavedState(onStoreChange: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === pendingSavedPacksStorageKey) onStoreChange();
+  };
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(pendingSavedPacksChangedEvent, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(pendingSavedPacksChangedEvent, onStoreChange);
+  };
+}
+
+function writePendingSavedState(card: ExploreCardDto, saved: boolean | null): void {
+  try {
+    const raw = window.localStorage.getItem(pendingSavedPacksStorageKey);
+    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    const key = stateKey(card);
+    if (saved === null) delete parsed[key];
+    else parsed[key] = saved;
+
+    if (Object.keys(parsed).length === 0) {
+      window.localStorage.removeItem(pendingSavedPacksStorageKey);
+    } else {
+      window.localStorage.setItem(pendingSavedPacksStorageKey, JSON.stringify(parsed));
+    }
+    window.dispatchEvent(new Event(pendingSavedPacksChangedEvent));
+  } catch {
+    // The current in-memory state remains usable when browser storage fails.
+  }
 }
 
 function progressCopy(card: ExploreCardDto): string | null {
@@ -69,14 +132,17 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, initialQ
   const [railOpen, setRailOpen] = useState(Boolean(initialPack));
   const [packFilter, setPackFilter] = useState<"all" | "saved" | "available" | "draft">(initialSaved ? "saved" : "all");
   const [libraryFilter, setLibraryFilter] = useState<ExploreLibraryFilter>(initialFilter);
-  const [savedByKey, setSavedByKey] = useState<Record<string, boolean>>(() => {
-    const initial = Object.fromEntries(dashboard.packs.flatMap((card) => [[stateKey(card), Boolean(card.saved)], [card.stableKey, Boolean(card.saved)]]));
-    if (typeof window === "undefined") return initial;
-    try {
-      const raw = window.localStorage.getItem("explore-saved-packs:v1");
-      return raw ? { ...initial, ...(JSON.parse(raw) as Record<string, boolean>) } : initial;
-    } catch { return initial; }
-  });
+  const [savedOverrides, setSavedOverrides] = useState<Record<string, boolean>>({});
+  const pendingSavedStateRaw = useSyncExternalStore(
+    subscribeToPendingSavedState,
+    readPendingSavedStateSnapshot,
+    readEmptyPendingSavedStateSnapshot,
+  );
+  const savedByKey = useMemo(() => ({
+    ...savedStateFromDashboard(dashboard.packs),
+    ...readPendingSavedState(pendingSavedStateRaw, dashboard.packs),
+    ...savedOverrides,
+  }), [dashboard.packs, pendingSavedStateRaw, savedOverrides]);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const saveRequestId = useRef(0);
@@ -104,6 +170,9 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, initialQ
     // updateUrl is an intentionally local URL adapter; state values trigger this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [libraryFilter, packFilter, query, selectedKey]);
+  useEffect(() => {
+    try { window.localStorage.removeItem(legacySavedPacksStorageKey); } catch { /* Ignore unavailable browser storage. */ }
+  }, []);
   function selectCard(card: ExploreCardDto) { setSelectedKey(card.stableKey); setRailOpen(true); updateUrl(query, card.stableKey); }
   function closeRail() {
     const previousKey = selectedKey;
@@ -116,16 +185,21 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, initialQ
     const requestId = ++saveRequestId.current;
     const key = stateKey(card);
     const nextSaved = !Boolean(savedByKey[key]);
-    setSavedByKey((current) => ({ ...current, [key]: nextSaved, [card.stableKey]: nextSaved }));
+    setSavedOverrides((current) => ({ ...current, [key]: nextSaved, [card.stableKey]: nextSaved }));
     setSaveNotice(nextSaved ? "已保存到你的探索清单。" : "已从探索清单移除。");
-    try { window.localStorage.setItem("explore-saved-packs:v1", JSON.stringify({ ...savedByKey, [key]: nextSaved })); } catch { /* local fallback remains in memory */ }
     void fetch("/api/v1/explore/state", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ stableKey: card.stableKey, version: Number(card.version.slice(1)) || 1, totalSteps: card.progress?.totalSteps ?? 1, completedSteps: card.progress?.completedSteps ?? 0, saved: nextSaved }) })
       .then((response) => {
         if (!response.ok) throw new Error("EXPLORE_STATE_SYNC_FAILED");
-        if (requestId === saveRequestId.current) setSaveNotice(nextSaved ? "已保存到你的探索清单，已同步到账号。" : "已从探索清单移除，已同步到账号。");
+        if (requestId === saveRequestId.current) {
+          writePendingSavedState(card, null);
+          setSaveNotice(nextSaved ? "已保存到你的探索清单，已同步到账号。" : "已从探索清单移除，已同步到账号。");
+        }
       })
       .catch(() => {
-        if (requestId === saveRequestId.current) setSaveNotice(nextSaved ? "已保存在本设备，账号同步失败，可重试。" : "已从本设备移除，账号同步失败。");
+        if (requestId === saveRequestId.current) {
+          writePendingSavedState(card, nextSaved);
+          setSaveNotice(nextSaved ? "已保存在本设备，账号同步失败，可重试。" : "已从本设备移除，账号同步失败。");
+        }
       });
   }
 

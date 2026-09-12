@@ -23,6 +23,28 @@ test("renders the desktop discovery workspace with honest draft state", async ({
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
 });
 
+test("restores a device-only save after sync failure without hydration mismatch", async ({ page }) => {
+  await authenticate(page);
+  const hydrationErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && message.text().includes("hydrated but some attributes")) {
+      hydrationErrors.push(message.text());
+    }
+  });
+  await page.goto("/explore");
+
+  await page.getByRole("button", { name: "保存咖啡馆里的新朋友" }).click();
+  await expect(page.getByText("已保存在本设备，账号同步失败，可重试。")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "取消保存咖啡馆里的新朋友" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.getByRole("button", { name: "取消保存咖啡馆里的新朋友" }).click();
+  await expect(page.getByText("已从本设备移除，账号同步失败。")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "保存咖啡馆里的新朋友" })).toHaveAttribute("aria-pressed", "false");
+  expect(hydrationErrors).toEqual([]);
+});
+
 test("searches the full library without accents and restores filters from the URL", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
