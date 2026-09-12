@@ -6,7 +6,7 @@
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
 - 总体状态：ALPHA-033 继续进行；当前成果只形成电脑端 Web 临时集成测试基线，不是发布候选。v2 内容、远端数据库导入和自动化回归已完成，但产品本人确认仍有未完成功能及明显的排版、按钮和交互缺陷；必须重新盘点并修复后再讨论发布候选。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级方案已逐节确认并形成书面规格，当前等待产品本人复核；复核后再制定 `UI-012` 至 `UI-017` 的逐任务实施计划。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
+- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012` 至 `UI-017` 的逐任务实施计划已形成；当前只允许先领取 `UI-012`，后续任务依赖前项验收。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -141,7 +141,7 @@
 
 ### ALPHA-033：Alpha 功能缺口收敛与发布候选准备
 
-- 状态：`done`
+- 状态：`in_progress`
 - 负责人：Codex
 - 目标分支：`main`
 - 前置依赖：阶段 7、UI-006 至 UI-011、READ-001 至 READ-005
@@ -235,7 +235,7 @@
 - ALPHA-033 v2 数据库发布与自动门禁：目标为 `DIRECT_DATABASE_URL` 指向的 Supabase PostgreSQL；只读盘点确认历史草稿保留，正式收藏、学习断点和证据引用均为 0。`pnpm db:migrate` 成功应用 `0020_volatile_eternity.sql`，迁移登记从 20 条增至 21 条；`alpha-core-v2.json` 与 `scenario-practice-alpha-v2.json` 首次事务导入成功，重复导入均返回 `unchanged`。导入后只读核验得到 9 个 published domain、20 个 published goal、26 个 published expression、3 个 published scenario 和 1 个 published content pack；表达双 locale approved review 各 26 条、场景双 locale 各 3 条，支撑元数据审核记录完整。自动门禁：全量 Vitest `155 files / 671 tests`、电脑端 Chromium Playwright `72/72`、目标发布路径 `16/16`、产品壳层发布断言 `1/1`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright 为 `138/144`，6 个失败全部位于延期的 `mobile-chromium`（文章句子拖选 1、Lucía 移动联系人/介绍 4、移动账号删除完成态 1），不作为本轮电脑端门禁通过。内容与运行时 Commit：`a5286b0`；发布记录 Commit：`8610666`。限制：桌面自动化运行时因本机工具资产路径缺失且浏览器控制接口不支持当前 Codex `apikey` 认证，无法读取用户现有 Edge 登录会话；未调用收费 Provider、未发送消息、未删除数据。下一步：完成真实登录桌面浏览器的 v2 只读复核后关闭 ALPHA-033，并由产品本人确认是否启动阶段 8。
 - ALPHA-033 真实登录桌面验收与关闭：产品本人在已登录 Edge 打开本地 `/explore`，确认 v2 发布页面正常；该结果完成最后一项人工门禁。ALPHA-033 状态改为 `done`，阶段 8 尚未自动启动，等待产品本人另行确认。已知延期项继续为 iPhone Safari/PWA 真机、Flutter 同步及全量 Playwright 中 6 个 `mobile-chromium` 失败；本次人工确认未改变这些限制。
 - ALPHA-033 发布候选结论撤销：产品本人澄清“正常”仅表示当前本地页面可访问，不代表发布候选验收；当前仍有其他功能未完成，并存在明显排版和按钮缺陷。此前将 ALPHA-033 关闭属于验收口径误判，现恢复为 `in_progress`，当前版本仅作为临时测试基线。下一步先进行覆盖电脑端 Web 核心页面、可见操作、错误/空状态与真实数据路径的缺口盘点，再按任务切片逐项设计、确认和修复；阶段 8 不启动。
-- ALPHA-033 电脑端 Web 密度与操作层级设计：完成 1440×900 浅色/深色只读审计，确认 Explore 49 个、阅读页 61 个、“我的”页 115 个可操作元素，以及建议/筛选按钮过大、深色数量胶囊撞色、逐条整行收藏、实战输入裁切与整栏结束按钮等共性问题。产品本人逐节确认“一屏一个明确决策”、按钮/字号分级、Explore 上下搜索与三项建议结构、场景详情/实战、学习、阅读、对话、“我的”和可收缩侧边栏方案。书面规格：[`电脑端 Web 界面密度与操作层级收敛设计`](docs/superpowers/specs/2026-09-12-desktop-web-interface-density-and-action-hierarchy-design.md)；设计 Commit：`ddf38f4`。拟拆分 `UI-012` 至 `UI-017`，当前均未开始，等待书面规格复核和实施计划。
+- ALPHA-033 电脑端 Web 密度与操作层级规划：完成 1440×900 浅色/深色只读审计，确认 Explore 49 个、阅读页 61 个、“我的”页 115 个可操作元素，以及建议/筛选按钮过大、深色数量胶囊撞色、逐条整行收藏、实战输入裁切与整栏结束按钮等共性问题。产品本人逐节确认并批准“一屏一个明确决策”、按钮/字号分级、Explore 上下搜索与三项建议结构、场景详情/实战、学习、阅读、对话、“我的”和可收缩侧边栏书面规格。设计：[`电脑端 Web 界面密度与操作层级收敛设计`](docs/superpowers/specs/2026-09-12-desktop-web-interface-density-and-action-hierarchy-design.md)，设计 Commit：`ddf38f4`；实施：[`电脑端 Web 界面密度与操作层级收敛实施计划`](docs/plans/2026-09-12-desktop-web-interface-density-and-action-hierarchy-implementation-plan.md)，计划 Commit：`7eb1cd3`。文档自检确认无未决占位、新增本地链接均可解析、`git diff --check` 通过；本切片未修改产品代码，因此未运行代码测试。`UI-012` 已具备领取条件，`UI-013` 至 `UI-017` 按顺序依赖前项，均未开始。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
@@ -267,7 +267,7 @@
 
 ## 当前任务
 
-UI-011 已完成；当前下一项为 `ALPHA-033`：Alpha 功能缺口收敛与发布候选准备。
+UI-011 已完成；当前上位任务为 `ALPHA-033`，下一项可执行子任务为 `UI-012`。
 
 当前任务为 `ALPHA-033`：电脑端 Web 的 Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等电脑端候选版本门禁通过后再启动。当前只做电脑端 Web 功能补齐、缺陷修复和局部/全量质量回归；响应式与 iPhone Safari/PWA 兼容保留但真机验收延期，Flutter 不恢复同步。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
@@ -287,11 +287,17 @@ UI-011 已完成；当前下一项为 `ALPHA-033`：Alpha 功能缺口收敛与�
 - `UI-009`：阅读库与规范化阅读器（done；`4cbc121`；基于现有已发布内容 bundle，READ-005 外部来源能力仍待实现）
 - `UI-010`：我的进步与隐私控制（done；`d59a617`；依赖 UI-006）
 - `UI-011`：跨视口、可访问性与行为回归（done；依赖 UI-006 至 UI-010）
+- `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（ready；书面规格已批准，实施计划已形成）
+- `UI-013`：学习首页与训练工作台密度收敛（blocked；依赖 UI-012）
+- `UI-014`：阅读书架与文章阅读器密度收敛（blocked；依赖 UI-013）
+- `UI-015`：对话页面密度收敛（blocked；依赖 UI-014）
+- `UI-016`：“我的”、设置与隐私密度收敛（blocked；依赖 UI-015）
+- `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（blocked；依赖 UI-012 至 UI-016）
 
 ### 当前 Alpha 收敛任务
 
-- `ALPHA-033`：电脑端 Web Alpha 功能缺口收敛与发布候选准备（in_progress；负责人 Codex；目标分支 `fix/login-redirect-after-otp`）。
-- 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（ready；仅在 `ALPHA-033` 退出条件满足后启动）。
+- `ALPHA-033`：电脑端 Web Alpha 功能缺口收敛与发布候选准备（in_progress；协调分支 `main`）。
+- 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；仅在 `ALPHA-033` 退出条件满足且产品本人确认后启动）。
 
 ### 后续路线（不进入当前 Alpha）
 
@@ -1568,13 +1574,19 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-004 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
 | UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
-| ALPHA-033 | in_progress | `fix/login-redirect-after-otp` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
+| ALPHA-033 | in_progress | `main` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
 | SCN-004 | done | `codex/scn-004-review-repetition` | Codex | 完整历史、逐轮复盘、重新说和当天/1/3/7 天复现 | SCN-002、SCN-003 |
 | SCN-005 | done | `codex/scn-005-provider-pwa-hardening` | Codex / 产品本人 | Provider 设置、切换与电脑端 Web 发布门禁；iPhone 真机延期 | SCN-001 至 SCN-004 |
-| 阶段 8 | ready | 待启动 | 产品本人 / Codex | 电脑端 Web 发布候选的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件 |
+| UI-012 | ready | `codex/ui-012-explore-scenario-density` | 待领取 | Explore、场景详情、实战与复盘密度收敛 | 书面规格已批准，实施计划已形成 |
+| UI-013 | blocked | `codex/ui-013-learning-workbench-density` | 待领取 | 学习首页与训练工作台密度收敛 | UI-012 |
+| UI-014 | blocked | `codex/ui-014-reading-density` | 待领取 | 阅读书架与文章阅读器密度收敛 | UI-013 |
+| UI-015 | blocked | `codex/ui-015-conversation-density` | 待领取 | 对话页面密度收敛 | UI-014 |
+| UI-016 | blocked | `codex/ui-016-profile-density` | 待领取 | “我的”、设置与隐私密度收敛 | UI-015 |
+| UI-017 | blocked | `codex/ui-017-collapsible-shell` | 待领取 | 公共壳层、可收缩侧边栏与全站一致性 | UI-012 至 UI-016 |
+| 阶段 8 | blocked | 待启动 | 产品本人 / Codex | 电脑端 Web 发布候选的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -1582,8 +1594,14 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | ALPHA-033 | 电脑端 Web 功能缺口、已知缺陷与发布候选门禁收敛 | SCN-001 至 SCN-005 已完成 |
-| 2 | 阶段 8 | 电脑端 Web 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
+| 1 | UI-012 | Explore、场景详情、实战与复盘密度收敛 | 书面规格与实施计划已形成 |
+| 2 | UI-013 | 学习首页与训练工作台密度收敛 | UI-012 完成并确认 |
+| 3 | UI-014 | 阅读书架与文章阅读器密度收敛 | UI-013 完成并确认 |
+| 4 | UI-015 | 对话页面密度收敛 | UI-014 完成并确认 |
+| 5 | UI-016 | “我的”、设置与隐私密度收敛 | UI-015 完成并确认 |
+| 6 | UI-017 | 公共壳层、可收缩侧边栏与全站一致性复核 | UI-012 至 UI-016 完成并确认 |
+| 7 | ALPHA-033 | 复核剩余功能缺口与发布候选门禁 | UI-017 全量门禁与真实登录复核完成 |
+| 8 | 阶段 8 | 电脑端 Web 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
 
 完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
 
