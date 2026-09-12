@@ -4,9 +4,9 @@
 
 - 最后更新：2026-09-12
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-005` 已完成，电脑端 Web 自动发布候选门禁与真实账号核心路径复核已通过；所有者授权的 Codex 语言/教学双维度审核、v2 正式内容、运行时切换和历史断点/收藏兼容已完成并推送，当前等待远端数据库只读盘点、事务导入和完整发布候选复跑；iPhone Safari/PWA 真机验收延期且不阻塞当前阶段，阶段 8 尚未启动
+- 总体状态：ALPHA-033 继续进行；`SCN-001` 至 `SCN-005` 已完成，所有者授权的 Codex 语言/教学双维度审核、v2 正式内容、运行时切换、远端数据库事务导入和电脑端 Web 自动发布候选门禁均已完成；当前仅等待 v2 发布后的真实登录桌面浏览器核心路径复核。iPhone Safari/PWA 真机验收延期且不阻塞当前阶段，阶段 8 尚未启动
 - 协调分支：`main`
-- 当前门禁：`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过所有者授权的 Codex 双维度审核、自动校验并切换为电脑端 Web 生产投影；旧 v1 文件和历史引用继续保留。关闭 ALPHA-033 前仍需确认目标数据库、只读盘点已有 v1/收藏/断点/证据引用，事务导入两个 v2 bundle，并完成全量 Vitest、Playwright、build 和真实登录桌面复核。真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
+- 当前门禁：`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过所有者授权的 Codex 双维度审核、自动校验并切换为电脑端 Web 生产投影；旧 v1 文件和历史引用继续保留。目标远端数据库已盘点并应用迁移 `0020`，两个 v2 bundle 已事务导入且幂等复导为 `unchanged`；全量 Vitest、电脑端 Playwright 与 production build 已通过。全量 Playwright 的 6 个失败全部位于延期的 `mobile-chromium`，不冒充全量通过。关闭 ALPHA-033 前只剩真实登录桌面浏览器的 v2 页面复核。真人视频相关外部 provider 凭据和第三方处理授权仍未配置，继续使用本地诊断，不上传视频。iPhone Safari/PWA 真机清单保留为延期验证，不参与当前电脑端 Web 阶段放行
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -231,6 +231,8 @@
 - ALPHA-033 AI 审核门禁与状态推进基础设施：已发布 expression/scenario 现在必须同时具有 `es-ES` 与 `zh-CN` approved review；已发布表达必须引用已发布目标/领域且所有变体已发布，已发布场景必须引用已发布目标和表达。内容导入器在其他字段及子项完全一致时允许 domain、goal、expression/variant、scenario、content pack 状态单向推进，禁止降级、归档后恢复和借状态推进改写不可变内容；状态更新与 bundle claim 保持同一事务并覆盖回滚测试。实现 Commit：`05d439b`。验证：审核门禁/共享契约 Vitest `9/9`、数据库导入 Vitest `9/9`、`pnpm typecheck`、受影响文件 ESLint、全部现有 bundle 的 `content:validate`、`git diff --check` 通过。共享 fixture 的 Flutter 合同测试在加载阶段超过 90 秒且未开始断言，已终止；未修改 Dart 代码。限制：v2 正式内容和治理文档尚未完成，现有 v1 仍为草稿。下一步：同步 ADR/治理规则，再完成正式 AI 内容审核与 v2 bundle。
 - ALPHA-033 个人阶段内容治理同步：新增 ADR-0007，明确项目所有者 2026-09-12 授权 Codex 在仅本人使用阶段独立完成 `es-ES` 语言与 `zh-CN` 教学审核；同步 `AGENTS.md`、内容规范、架构、Web 优先设计、内容 README 和实施计划，保留生成与审核分离、版本/版权/隐私/评分不变量，并要求产品面向其他真实用户前新增 ADR 重审外部复核门槛。实现 Commit：`b9c36ff`。验证：当前权威文档中的真人审核阻塞已替换为诚实的 AI 审核身份与双维度规则，`git diff --check` 通过。限制：历史交接中的旧要求保留当时事实；v2 内容尚未生成或发布。下一步：完成 26 条表达、3 个场景及支撑元数据的正式审核报告和版本化内容。
 - ALPHA-033 所有者授权正式内容与运行时切换：完成 26 条表达、3 个基础场景、9 个领域、20 个目标和 1 个内容包的逐项 AI 审核与报告；新增 `alpha.core@2`、`alpha.scenario-practice@2`，修订内容使用新实体版本，未修改实体通过事务规则单向推进状态，正式表达/场景均带 `es-ES` 与 `zh-CN` approved review；Explore、训练、内容包和场景目录切到 v2，文章继续读取 v1。新断点写 v2、旧 v1 断点仍可恢复；旧版本收藏以原版本显示，不静默改绑。实现 Commit：`a5286b0`。验证：全部 5 个 bundle 校验通过；相关单元 `9 files / 42 tests`、内容导入数据库 `10/10`、目标桌面 Playwright `16/16`、产品壳层发布断言 `1/1`、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。一次参数转发错误启动的全量 Playwright 在修正旧发布状态断言前被终止，期间另见既有移动文章句子拖选偶发失败，未计为全量通过。限制：RAE 页面受 Cloudflare 验证阻挡且 Google 搜索超时，未声称完成外部权威网页核验；v2 尚未导入远端数据库，完整 Vitest/Playwright/build 与真实登录桌面复核仍待执行；iPhone Safari/PWA 真机和 Flutter 未执行。下一步：只读确认目标数据库与 v1 引用后事务导入两个 v2 bundle，再重跑完整发布候选门禁。
+
+- ALPHA-033 v2 数据库发布与自动门禁：目标为 `DIRECT_DATABASE_URL` 指向的 Supabase PostgreSQL；只读盘点确认历史草稿保留，正式收藏、学习断点和证据引用均为 0。`pnpm db:migrate` 成功应用 `0020_volatile_eternity.sql`，迁移登记从 20 条增至 21 条；`alpha-core-v2.json` 与 `scenario-practice-alpha-v2.json` 首次事务导入成功，重复导入均返回 `unchanged`。导入后只读核验得到 9 个 published domain、20 个 published goal、26 个 published expression、3 个 published scenario 和 1 个 published content pack；表达双 locale approved review 各 26 条、场景双 locale 各 3 条，支撑元数据审核记录完整。自动门禁：全量 Vitest `155 files / 671 tests`、电脑端 Chromium Playwright `72/72`、目标发布路径 `16/16`、产品壳层发布断言 `1/1`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright 为 `138/144`，6 个失败全部位于延期的 `mobile-chromium`（文章句子拖选 1、Lucía 移动联系人/介绍 4、移动账号删除完成态 1），不作为本轮电脑端门禁通过。内容与运行时 Commit：`a5286b0`；发布记录 Commit：`8610666`。限制：桌面自动化运行时因本机工具资产路径缺失且浏览器控制接口不支持当前 Codex `apikey` 认证，无法读取用户现有 Edge 登录会话；未调用收费 Provider、未发送消息、未删除数据。下一步：完成真实登录桌面浏览器的 v2 只读复核后关闭 ALPHA-033，并由产品本人确认是否启动阶段 8。
 
 ### READ-006：Generate Story 私有 AI 草稿文章
 
