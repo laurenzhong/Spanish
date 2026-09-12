@@ -28,7 +28,10 @@ type MemoryPreview = Readonly<{
 
 const names: Record<string, string> = { lucia: "Lucía Martín", mateo: "Mateo Ruiz", ines: "Inés García" };
 
-export function IntroductionInbox({ alwaysVisible = false }: Readonly<{ alwaysVisible?: boolean }>) {
+export function IntroductionInbox({ alwaysVisible = false, onLuciaContactAccepted }: Readonly<{
+  alwaysVisible?: boolean;
+  onLuciaContactAccepted?: (contact: LuciaContact) => void;
+}>) {
   const [offers, setOffers] = useState<readonly Offer[]>([]);
   const [luciaContact, setLuciaContact] = useState<LuciaContact | null>(null);
   const [selectedMemoryIds, setSelectedMemoryIds] = useState<Readonly<Record<string, readonly string[]>>>({});
@@ -109,6 +112,9 @@ export function IntroductionInbox({ alwaysVisible = false }: Readonly<{ alwaysVi
       if (!response.ok) throw new Error("CONTACT_RESPONSE_FAILED");
       const payload = await response.json() as { data?: LuciaContact };
       setLuciaContact(payload.data ?? null);
+      if (decision === "accept" && payload.data?.status === "active") {
+        onLuciaContactAccepted?.(payload.data);
+      }
       setMessage(decision === "accept" ? "已通过 Lucía 的好友申请，现在可以开始聊天了。" : "已暂不接受 Lucía 的好友申请。你之后仍可以重新考虑。" );
     } catch {
       setMessage("暂时无法处理这次好友申请，请稍后再试。");

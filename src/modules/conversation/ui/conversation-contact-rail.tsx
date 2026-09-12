@@ -202,6 +202,21 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     : null;
   const contextPreference = contextConversation ? preferenceFor(contextConversation) : null;
 
+  function refreshAfterLuciaContactAccepted(contact: LuciaContactPreview): void {
+    cachedLuciaContact = contact;
+    setLuciaContact(contact);
+    void loadConversationList(true).then(() => {
+      const nextConversations = cachedConversations ?? [];
+      setConversations(nextConversations);
+      setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, {
+        isPinned: conversation.isPinned ?? conversation.characterKey === "lucia",
+        isMuted: conversation.isMuted ?? false,
+        sortRank: conversation.sortRank ?? null,
+      }])));
+      setStatus(cachedStatus);
+    });
+  }
+
   function openContextMenu(event: React.MouseEvent, characterKey: string) {
     event.preventDefault();
     event.stopPropagation();
@@ -390,7 +405,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       {showIntroductions ? <div className="conversation-introductions-dialog" role="dialog" aria-modal="true" aria-labelledby="conversation-introductions-dialog-title">
         <div className="conversation-introductions-dialog__panel">
           <div className="conversation-introductions-dialog__heading"><h2 id="conversation-introductions-dialog-title">介绍请求</h2><button type="button" aria-label="关闭介绍请求" onClick={() => setShowIntroductions(false)}>×</button></div>
-          <IntroductionInbox alwaysVisible />
+          <IntroductionInbox alwaysVisible onLuciaContactAccepted={refreshAfterLuciaContactAccepted} />
         </div>
       </div> : null}
     </aside>
