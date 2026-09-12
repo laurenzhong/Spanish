@@ -6,7 +6,7 @@
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
 - 总体状态：ALPHA-033 继续进行；当前成果只形成电脑端 Web 临时集成测试基线，不是发布候选。v2 内容、远端数据库导入和自动化回归已完成，但产品本人确认仍有未完成功能及明显的排版、按钮和交互缺陷；必须重新盘点并修复后再讨论发布候选。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012` 至 `UI-017` 的逐任务实施计划已形成；`UI-012` 已完成分支实现与验证并进入 `review`，等待产品本人视觉确认和合并，后续任务仍依赖前项验收。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
+- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012` 至 `UI-017` 的逐任务实施计划已形成；`UI-012` 已完成首轮实现及“Explore 只负责找场景”的产品反馈修正并保持 `review`，等待产品本人复核和合并，后续任务仍依赖前项验收。iPhone Safari/PWA 真机、Flutter 及 6 个 `mobile-chromium` 失败继续延期并如实记录
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -238,6 +238,8 @@
 - ALPHA-033 电脑端 Web 密度与操作层级规划：完成 1440×900 浅色/深色只读审计，确认 Explore 49 个、阅读页 61 个、“我的”页 115 个可操作元素，以及建议/筛选按钮过大、深色数量胶囊撞色、逐条整行收藏、实战输入裁切与整栏结束按钮等共性问题。产品本人逐节确认并批准“一屏一个明确决策”、按钮/字号分级、Explore 上下搜索与三项建议结构、场景详情/实战、学习、阅读、对话、“我的”和可收缩侧边栏书面规格。设计：[`电脑端 Web 界面密度与操作层级收敛设计`](docs/superpowers/specs/2026-09-12-desktop-web-interface-density-and-action-hierarchy-design.md)，设计 Commit：`ddf38f4`；实施：[`电脑端 Web 界面密度与操作层级收敛实施计划`](docs/plans/2026-09-12-desktop-web-interface-density-and-action-hierarchy-implementation-plan.md)，计划 Commit：`7eb1cd3`。文档自检确认无未决占位、新增本地链接均可解析、`git diff --check` 通过；本切片未修改产品代码，因此未运行代码测试。`UI-012` 已具备领取条件，`UI-013` 至 `UI-017` 按顺序依赖前项，均未开始。
 - UI-012 Explore 与场景链路密度收敛：分支 `codex/ui-012-explore-scenario-density` 已完成实现并进入 `review`，实现 Commit `742d1e7`。Explore 删除可见页头、顶部历史和解释性说明，改为上下排列的搜索与三项建议、场景/表达/内容包单一视图、按需筛选、非交互数量状态和表达分批显示；场景详情改为主内容与紧凑信息栏，收藏改为可访问图标；实战默认文字输入、语音与常用表达按需出现，完成动作只在达到条件后显示；复盘默认突出完整对话和关键反馈，低频详情进入 disclosure；学习页保留低权重历史入口。1440×900 默认 Explore 以同一可见可聚焦元素口径从审计基线 49 项降至 19 项（主内容 11 项）。验证：聚焦 Vitest `3 files / 29 tests`、桌面 Chromium Explore/场景 Playwright `14/14`、全量 Vitest `155 files / 673 tests`、`pnpm lint`、`pnpm typecheck`、`git diff --check` 全部通过；已人工检查 Explore 1440×900 浅色/深色、390×844，场景详情 1280×900、实战 1024×900 和复盘 1280×900。限制：自动化使用 E2E 假登录、空数据库和禁用收费 Provider；未执行全量 `pnpm test:e2e` 与 `pnpm build`，它们保留到 UI-017/ALPHA-033 全站门禁，既有 6 个 `mobile-chromium` 失败未在本任务处理；未做真实账号、真实 Provider、iPhone Safari/PWA 真机或 Flutter 验证。下一步：产品本人视觉确认并合并 UI-012；确认前不启动 UI-013。
 
+- UI-012 Explore 产品反馈修正：根据产品本人对一级“表达”和“内容包”无明确用户目标、收藏后星形操作无反馈、功能入口冗余的反馈，将 Explore 收敛为只回答“现在想练什么场景”。删除场景/表达/内容包标签、表达列表及其收藏/生成入口、内容包列表/保存/详情栏和相关状态；搜索框改为“搜索场景”，仍通过场景包含的表达文本匹配并始终返回场景；只保留三项场景建议、场景筛选、结果数量和场景列表，旧 `pack`、`saved` 与表达筛选查询参数会自动清理。底层 DTO、数据库、评分、推荐、表达数据和旧内容包路由均未删除或改写。实现 Commit：`335c747`；修改 Explore 两个客户端组件、相关 CSS、单元与 Playwright 回归。验证：聚焦 Vitest `2 files / 13 tests`、Explore 桌面 Chromium Playwright `6/6`、全量 Vitest `155 files / 663 tests`、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过；已检查 1440×900 与 390×900 截图及横向溢出。限制：截图和浏览器回归使用 E2E 假登录、空数据库及禁用收费 Provider；未执行全量 `pnpm test:e2e` 与 `pnpm build`，保留到 UI-017/ALPHA-033 全站门禁；未做真实账号、真实 Provider、iPhone Safari/PWA 真机或 Flutter 验证。下一步：产品本人复核 Explore 后合并 UI-012；确认前不启动 UI-013。
+
 ### READ-006：Generate Story 私有 AI 草稿文章
 
 - 状态：`done`
@@ -288,7 +290,7 @@ UI-011 已完成；当前上位任务为 `ALPHA-033`，`UI-012` 已进入 `revie
 - `UI-009`：阅读库与规范化阅读器（done；`4cbc121`；基于现有已发布内容 bundle，READ-005 外部来源能力仍待实现）
 - `UI-010`：我的进步与隐私控制（done；`d59a617`；依赖 UI-006）
 - `UI-011`：跨视口、可访问性与行为回归（done；依赖 UI-006 至 UI-010）
-- `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（review；负责人 Codex；分支 `codex/ui-012-explore-scenario-density`；实现 Commit `742d1e7`；等待产品本人视觉确认和合并）
+- `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（review；负责人 Codex；分支 `codex/ui-012-explore-scenario-density`；实现 Commit `742d1e7`、产品反馈修正 `335c747`；等待产品本人复核和合并）
 - `UI-013`：学习首页与训练工作台密度收敛（blocked；依赖 UI-012）
 - `UI-014`：阅读书架与文章阅读器密度收敛（blocked；依赖 UI-013）
 - `UI-015`：对话页面密度收敛（blocked；依赖 UI-014）
@@ -1581,7 +1583,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
 | SCN-004 | done | `codex/scn-004-review-repetition` | Codex | 完整历史、逐轮复盘、重新说和当天/1/3/7 天复现 | SCN-002、SCN-003 |
 | SCN-005 | done | `codex/scn-005-provider-pwa-hardening` | Codex / 产品本人 | Provider 设置、切换与电脑端 Web 发布门禁；iPhone 真机延期 | SCN-001 至 SCN-004 |
-| UI-012 | review | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 实现 Commit `742d1e7` 已推送；等待产品本人视觉确认和合并 |
+| UI-012 | review | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 实现 `742d1e7`、产品反馈修正 `335c747` 已推送；等待产品本人复核和合并 |
 | UI-013 | blocked | `codex/ui-013-learning-workbench-density` | 待领取 | 学习首页与训练工作台密度收敛 | UI-012 |
 | UI-014 | blocked | `codex/ui-014-reading-density` | 待领取 | 阅读书架与文章阅读器密度收敛 | UI-013 |
 | UI-015 | blocked | `codex/ui-015-conversation-density` | 待领取 | 对话页面密度收敛 | UI-014 |
@@ -1595,7 +1597,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | UI-012 | Explore、场景详情、实战与复盘密度收敛 | 已进入 review；产品本人确认并合并后完成 |
+| 1 | UI-012 | Explore、场景详情、实战与复盘密度收敛 | 产品反馈修正已推送并保持 review；产品本人复核、合并后完成 |
 | 2 | UI-013 | 学习首页与训练工作台密度收敛 | UI-012 完成并确认 |
 | 3 | UI-014 | 阅读书架与文章阅读器密度收敛 | UI-013 完成并确认 |
 | 4 | UI-015 | 对话页面密度收敛 | UI-014 完成并确认 |
