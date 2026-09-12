@@ -231,7 +231,8 @@ Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。
 - 推荐器只使用已发布、适合当前母语且审核通过的内容。
 - Content Bundle 在写库前完成结构与跨引用校验，随后在单个数据库事务中导入。
 - bundle 稳定 ID＋版本＋规范化哈希决定幂等性；同版本不同哈希必须报告冲突。
-- 导入器不会自动审批或发布，也不会覆盖已存在的版本化实体。
+- 导入器不会自动审批或发布。后继 bundle 只有在内容字段及子项完全一致时才能单向推进既有实体状态；状态降级、归档后恢复和同版本内容改写均拒绝，状态更新与 bundle claim 在同一事务中回滚。
+- 个人产品阶段的正式 expression/scenario 必须同时具有 `es-ES` 与 `zh-CN` approved review；审核者身份来自 `content_reviews.reviewer_reference`，当前使用 `codex-ai-owner-authorized-review`，不得解释为真人签字。生产投影仍只读取 `published`。
 
 ### 6.4 人物固定事实与关系记忆
 

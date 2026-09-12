@@ -108,7 +108,7 @@ pnpm typecheck
 
 ### 修改文件
 
-- `docs/adr/0003-owner-authorized-ai-content-review.md`
+- `docs/adr/0007-owner-authorized-ai-content-review.md`
 - `AGENTS.md`
 - `docs/content-authoring.md`
 - `docs/architecture.md`
@@ -255,4 +255,3 @@ iPhone Safari/PWA 真机继续延期，不阻塞电脑端候选。
 - 每个切片按单一目的提交并推送。
 - `main...origin/main` 为 `0 0`。
 - 只有所有内容、导入和电脑端发布候选门禁通过后，才将 `ALPHA-033` 标记为完成。
-

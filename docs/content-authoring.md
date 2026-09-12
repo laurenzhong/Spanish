@@ -128,7 +128,7 @@
 - 标出重读词、弱读、连读、音节和容易受母语影响的点。
 - 默认只给最影响理解的发音提示。
 - 严格纠音内容可以更详细，但每次反馈仍限制关键问题数量。
-- 浏览器 TTS 只作为发音输入，不视为母语者审核替代品。
+- 浏览器 TTS 只作为发音输入，不替代独立的语言审核。
 
 ## 7. 沉浸式内容包
 
@@ -143,7 +143,7 @@
 - 与角色世界的关联方式。
 
 Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生成全文或分段播放，
-不提交或长期保存音频文件；TTS 不构成母语者审核，也不产生口语能力证据。内容包的
+不提交或长期保存音频文件；TTS 不构成语言审核，也不产生口语能力证据。内容包的
 听力、阅读、打字和迁移断点只保存在带内容版本的客户端本地存储中，不写入
 `evidence_events`、`mastery` 或 `confidence`。需要生产发布时，内容包必须先从
 `draft` 进入审核和发布状态。
@@ -232,22 +232,25 @@ Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生�
 
 ## 10. 审核流程
 
-状态：
+内容状态使用代码和数据库的实际枚举：
 
 ```text
-draft → language-reviewed → pedagogy-reviewed → published → retired
+draft → review → approved → published → archived
 ```
+
+审核记录状态为 `pending`、`changes_requested` 或 `approved`。语言与教学维度通过 review locale 区分，不是内容状态。
 
 要求：
 
-- 核心表达和语用说明必须经西班牙母语者审核。
-- 中文解释必须经具备教学视角的人审核。
+- 当前仅供项目所有者本人使用的产品阶段，核心表达和语用说明由 Codex 完成 `es-ES` 语言审核，中文解释由 Codex 完成 `zh-CN` 教学审核。
+- 已发布 expression 和 scenario 必须同时具有上述两个 locale 的 approved review；统一使用 `codex-ai-owner-authorized-review`，备注明确 AI 身份、所有者授权、范围、修改和结论。
+- domain、learning goal 和 content pack 至少具有一条 approved owner-authorized review；其中的西语和教学内容仍需纳入审核报告。
 - 版权字段未完成不能进入 `published`。
 - Explore 场景与表达库在生产环境只投影 `published` 的正式公共内容；开发或测试中的草稿预览必须有明确标识，不能改变内容审核状态或被描述为已发布。
-- AI 生成变式必须通过 Schema、重复和禁用词检查，再进行人工抽样。
+- AI 生成变式必须先作为草稿，通过 Schema、重复和禁用词检查，再由 Codex 作为独立审核步骤逐项复核；生成不能自动等于审核通过。
 - 修改已发布内容必须增加版本并记录变更原因。
 
-个人 Alpha 在缺少外部审核人时，可以由项目所有者明确授权临时 AI 审核。该审核必须使用 `codex-ai-temporary-review` 标识，并在 `content_reviews.notes` 中说明其临时性质；它只用于当前个人 Alpha，不得被描述为母语者或教学专家签字，进入更大规模发布前仍需补齐真人复核。
+项目所有者已于 2026-09-12 授权上述个人产品阶段的正式 AI 审核。原有 `codex-ai-temporary-review` 只保留为历史记录，不能改写为真人审核；新的正式记录使用 `codex-ai-owner-authorized-review`。产品开始邀请、允许或面向其他真实用户使用前，必须新增 ADR 重新决定是否恢复外部母语与教学复核，不能自动沿用本授权。
 
 ## 11. 自动校验
 
@@ -260,7 +263,7 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 - 重复或高度相似表达。
 - 翻译、解析和提示语言完整。
 - 地区、语域和 CEFR 一致性。
-- 审核状态与审核信息。
+- 已发布表达和场景的 `es-ES` / `zh-CN` 双维度审核状态与审核信息。
 - 来源、许可和署名。
 - 文章段落、正文清洗结果和内容哈希（适用于阅读文章）。
 - 人物事实冲突。
@@ -274,7 +277,7 @@ pnpm content:validate -- content/bundles/alpha-core-v1.json
 pnpm content:import -- content/bundles/alpha-core-v1.json
 ```
 
-导入以 bundle 稳定 ID、bundle 版本和规范化 SHA-256 哈希登记。相同版本相同哈希为幂等重试；相同版本不同哈希为冲突。版本化表达、场景、内容包和角色不能被其他 bundle 静默接管。
+导入以 bundle 稳定 ID、bundle 版本和规范化 SHA-256 哈希登记。相同版本相同哈希为幂等重试；相同版本不同哈希为冲突。内容字段和子项完全一致时，后继 bundle 可以在同一事务中单向推进既有实体状态；状态降级、归档后恢复或借状态推进修改不可变内容必须拒绝。
 
 ## 12. Alpha 内容验收
 
@@ -284,7 +287,7 @@ Alpha 首批内容满足：
 - 每类至少有一个可独立验证的微型目标。
 - 8–12 个内容包中至少 3 个与 Lucía 的角色世界有关联。
 - 所有已发布内容都有简体中文版本。
-- 所有核心表达已完成母语者审核。
+- 所有核心表达已按当前产品阶段完成可追踪的语言与中文教学双维度审核；审核身份不得误述。
 - 所有内容包版权状态清楚。
 - 首批阅读文章的来源、许可、署名、版本和审核状态完整；阅读行为不写入口语证据。
 - 固定测试集包含自然替代表达、常见错误和低置信度转写样本。
