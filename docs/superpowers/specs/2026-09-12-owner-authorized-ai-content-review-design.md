@@ -1,7 +1,7 @@
 # 个人产品阶段的所有者授权 AI 内容审核设计
 
 日期：2026-09-12  
-状态：待产品所有者书面确认后实施  
+状态：产品所有者已确认
 当前任务：`ALPHA-033`
 
 ## 1. 背景
@@ -26,19 +26,20 @@
 
 ### 3.1 采用方案：复用现有状态机，明确审核维度
 
-继续使用：
+继续使用代码现有的内容状态：
 
 ```text
-draft → language-reviewed → pedagogy-reviewed → published → retired
+draft → review → approved → published → archived
 ```
 
-其中 `language-reviewed` 和 `pedagogy-reviewed` 表示已经完成的审核维度，不再暗示审核者一定是人类。审核者身份由 review 记录表达。
+语言与教学不是内容状态，而是两条独立 `content_reviews` 记录：语言维度使用 locale `es-ES`，中文教学维度使用 locale `zh-CN`。审核记录自身使用 `pending`、`changes_requested` 或 `approved`；审核者身份由 `reviewerReference` 表达。
 
 优点：
 
 - 不修改数据库枚举、DTO、API 或生产筛选逻辑。
 - 继续保留先语言、后教学、再发布的明确门禁。
 - 审核者身份和授权方式可由记录准确追踪。
+- 通过内容校验器强制已发布表达和场景同时存在 `es-ES` 与 `zh-CN` 两条 approved review，避免只靠文档约定。
 
 ### 3.2 未采用：新增 `ai-reviewed` 状态
 
@@ -67,6 +68,7 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 - `alpha.core@1` 中的 11 条核心表达。
 - `alpha.scenario-practice@1` 中的 15 条核心表达。
 - `alpha.scenario-practice@1` 中的 3 个基础场景。
+- 为上述正式内容提供生产投影所必需的 9 个沟通领域、20 个学习目标和 1 个内容包；标签文字、标签权重、内容包的 3 个片段与 6 个活动随其所属表达或内容包一并审核。
 
 本次不重新审核：
 
@@ -137,18 +139,19 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 
 ### 7.1 版本策略
 
-`alpha.core@1` 和 `alpha.scenario-practice@1` 保留为历史候选。正式审核发现需要修改的内容不在原版本上静默覆盖；实施时创建版本化后继 bundle，并对发生语义或教学字段变化的实体提升版本。
+`alpha.core@1` 和 `alpha.scenario-practice@1` 保留为历史候选。实施时创建 `alpha.core@2` 与 `alpha.scenario-practice@2` 后继 bundle；发生语义或教学字段变化的版本化实体提升版本。运行时表达、内容包与场景目录切换到经审核的 v2，文章目录继续读取不在本次范围的既有来源。
 
-实施前必须检查数据库是否已导入 v1、是否存在学习断点、收藏或证据引用，再确定未修改实体是否复用 v1 或整体提升版本。无论选择哪种粒度，都必须满足：
+领域和学习目标当前没有实体版本字段，且导入器把状态也当作不可变内容。为允许已经导入的草稿进入发布状态，导入器必须只在其他字段完全相同时允许状态单向推进，并拒绝降级或借状态更新修改标题、描述、归属、CEFR 或位置。无论选择哪种实体版本粒度，都必须满足：
 
 - 旧引用仍可解析。
 - 新发布内容指向明确版本。
 - 已有学习证据继续绑定实际使用版本。
 - 同一稳定 ID 和版本不能以不同内容哈希重复导入。
+- 已发布的无版本实体不能被旧 bundle 降回草稿。
 
 ### 7.2 审核记录
 
-每个正式对象至少保留两条可区分的审核记录：
+每条正式表达和每个正式场景至少保留两条可区分的审核记录：
 
 - 语言维度：locale `es-ES`，reviewer reference `codex-ai-owner-authorized-review`。
 - 教学维度：locale `zh-CN`，reviewer reference `codex-ai-owner-authorized-review`。
@@ -162,6 +165,8 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 - 审核时间。
 
 原有 `codex-ai-temporary-review` 记录不改写成正式人工记录；可以保留为历史，也可以通过新增记录明确其已被本次所有者授权审核取代。
+
+领域、学习目标和内容包至少需要一条 `zh-CN` 的 approved owner-authorized review；内容包内的西语片段和活动指令同时纳入审核报告。校验器继续对其他实体使用既有“至少一条 approved review”规则，不把本次双 locale 要求误加到文章和角色。
 
 ## 8. `ALPHA-033` 已知重点
 
@@ -185,7 +190,7 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 3. 对所有 `revise` 项创建版本化修订，并重新执行语言审核。
 4. Codex 完成中文教学维度审核，记录逐项结论和修改建议。
 5. 对所有 `revise` 项创建版本化修订，并重新执行受影响的两个维度审核。
-6. 两个维度均通过后，更新 review 记录和内容状态。
+6. 两个维度均通过后，更新 review 记录和内容状态；领域、目标和内容包完成支撑元数据审核。
 7. 完整执行内容、类型、单元、契约、浏览器和构建门禁。
 8. 所有检查通过后才执行事务导入；导入失败时不部分发布。
 9. 使用真实账号确认 Explore、学习入口、断点和复盘读取的是预期版本。
@@ -211,7 +216,7 @@ draft → language-reviewed → pedagogy-reviewed → published → retired
 最低验证包括：
 
 - 两个后继 bundle 分别通过 `pnpm content:validate`。
-- 内容 Schema 和导入器测试覆盖双维度 AI review、状态顺序、版本冲突和失败回滚。
+- 内容 Schema 和导入器测试覆盖表达/场景双 locale AI review、无版本实体状态单向推进、禁止降级、版本冲突和失败回滚。
 - 生产投影继续拒绝非 `published` 内容。
 - Explore 和训练入口测试验证新版本可见、旧草稿不被误选、自然替代表达仍能完成任务。
 - `pnpm lint`、`pnpm typecheck`、`pnpm test --run`、`pnpm test:e2e` 和 `pnpm build` 通过。
@@ -224,7 +229,7 @@ iPhone Safari/PWA 真机验证继续延期，因为当前网站仅能在本地�
 `ALPHA-033` 的本内容切片只有在以下条件同时满足时完成：
 
 - 本设计及对应 ADR、规范和代理规则已同步。
-- 26 条表达和 3 个场景全部完成两个 AI 审核维度。
+- 26 条表达和 3 个场景全部完成两个 AI 审核维度；9 个领域、20 个学习目标和 1 个内容包完成支撑元数据审核。
 - 所有阻塞问题已经版本化修正并复审通过。
 - 审核身份和产品所有者授权有明确、诚实、可追踪的记录。
 - 内容状态、版本、review 记录、Schema 和导入结果一致。
