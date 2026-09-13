@@ -4,21 +4,22 @@
 
 - 最后更新：2026-09-13
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`MEDIA-001` 实现已完成并推送，统一媒体领域、版本化数据库、播放/进度 API 和直接内容式 `/learn` 资料库基础已建立；等待合并复核。媒体 publisher 与真实来源仍未接入，合并前不领取后续任务。阶段 8 未启动
+- 总体状态：`MEDIA-001` 已通过合并复核并进入 `main`，统一媒体领域、版本化数据库、播放/进度 API 和直接内容式 `/learn` 资料库基础已建立。`VIDEO-001` 已领取为唯一进行中的实现任务；媒体 publisher 与真实 YouTube 来源尚未接入。阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。媒体 publisher 仍未注册，因此自动候选不能正式发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
 ### 2026-09-13：MEDIA-001 统一媒体领域与学习资料库
 
-- 状态：`review`
+- 状态：`done`
 - 负责人：Codex
 - 分支：`codex/media-001-library-foundation`
 - 实现 Commit：`7cd67b7`
+- Merge Commit：`683cff9`
 - 范围：新增视频/播客共享领域、稳定 `stableKey@version` DTO、公开列表/详情、鉴权播放投影和 revision/CAS 进度 API；新增 `media_items`、`media_versions`、`media_assets`、`media_segments`、`user_media_progress` 与迁移 `0024_media_library_foundation.sql`。`/learn` 已移除旧 Hero、开始/继续 CTA 和任务时间线，直接展示全部/视频/播客、搜索、地区/难度/时长/排序筛选、内容卡或真实空状态；新增媒体详情播放器与最多 500 段已审核字幕，移动顶部头像移除而桌面侧栏账户菜单保留。旧 `/learn/practice` route、训练状态机和历史数据保持兼容。
 - 数据与安全：公开目录只投影当前 `published + cleared + playable` 版本；撤下、过期、非 HTTPS 播放信息失败关闭。非官方嵌入资产必须有过期时间；进度按用户和不可变版本唯一，保存时重新验证当前版本、资产、总时长、片段审核状态和 revision，重复请求幂等，跨用户由 RLS 与服务端所有权双重隔离。观看和进度不写能力证据。
 - 验证：全量 Vitest `182 files / 752 tests`、媒体/学习页相关 Playwright `10/10`、壳层相关 Playwright `8/8`、旧训练兼容 Playwright `2/2`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright 在兼容断言修正前为 `139/146`；相关 2 条已隔离复测通过，剩余 5 条与前序状态一致，均为既有 `mobile-chromium` 延期项（文章拖选 1 条、Lucía 联系人/介绍 4 条）。
 - 限制：未执行远端数据库迁移，未注册媒体 publisher，未接真实 YouTube、播客 RSS、ASR、翻译或收费 Provider；正式库因此保持真实空状态。未做真实账号、iPhone Safari/PWA 真机或 Flutter 验证。
-- 下一步：由协调者合并 `MEDIA-001` 并在 `main` 标记 `done`；合并确认后才把 `VIDEO-001` 提升为唯一 `ready` 任务。
+- 下一步：只实施 `VIDEO-001` 的 YouTube 白名单视频纵向闭环；不得混入播客 RSS、ASR、词句语料或能力画像。
 
 ### 2026-09-13：ARTICLE-001 自动文章采集与正式发布
 
@@ -360,7 +361,7 @@
 
 ## 当前任务
 
-`ARTICLE-001` 已在 `codex/article-001-automated-article-ingestion` 完成并推送。当前没有已领取的实现任务；唯一可领取任务是 `MEDIA-001`，分支为 `codex/media-001-library-foundation`。它只建立统一媒体领域和视频/播客学习资料库基础，不接真实 YouTube、播客 RSS 或 ASR。
+`MEDIA-001` 已合并到 `main`。当前唯一已领取任务是 `VIDEO-001`，分支为 `codex/video-001-youtube-learning`；只实现 YouTube 白名单视频纵向闭环，不接播客 RSS、ASR、词句语料或能力画像。
 
 当前任务顺序以 [`自动内容供应与词句学习重构实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。阶段 8 个人 Alpha 人工体验仍不是当前开发任务；必须等新队列完成、重新建立发布候选门禁并由产品本人确认后才可启动。阶段记录继续见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
@@ -369,7 +370,7 @@
 上方 UI/ALPHA 记录是历史交接事实；当前任务和下一项以本页 IA-001 记录、新实施计划及任务表为准。
 
 - 已完成的 UI、SCN、READ 和 ALPHA 任务继续作为实现基线，但不代表新信息架构或自动供应链已经交付。
-- `UI-014` 至 `UI-017` 不继续按旧顺序实施；先完整保留 `codex/ui-014-reading-density` 的用户改动，再在 ARTICLE-001、LEX-001、PROFILE-001 或独立修正中明确接收范围。
+- `UI-014` 已完成并合并；`UI-015` 至 `UI-017` 不继续按旧顺序实施，现有分支和用户未提交改动继续保留，等待新内容队列完成后重新排期或明确接收范围。
 - `ALPHA-033` 的旧发布候选出口失效；OPS-001 完成后必须基于新路径重新定义并执行全量门禁。
 
 ### 待执行 UI 批次
@@ -393,7 +394,8 @@
 - `ACQ-001`：自动采集领域与持久化基础（done；实现 Commit `cfd1e00`）。
 - `REVIEW-001`：所有者候选审核、修订、双维度批准和发布门禁（done；实现 Commit `e15cc81`）。
 - `ARTICLE-001`：文章 RSS/专用适配器接入现有 article 模型（done；实现 Commit `bf5ea3b`）。
-- `MEDIA-001`：统一媒体领域与视频/播客学习资料库（ready；唯一可领取实现任务）。
+- `MEDIA-001`：统一媒体领域与视频/播客学习资料库（done；实现 `7cd67b7`，合并 `683cff9`）。
+- `VIDEO-001`：YouTube 白名单视频纵向闭环（in_progress；唯一已领取实现任务，分支 `codex/video-001-youtube-learning`）。
 - `ALPHA-033`：旧电脑端 Web 发布候选门禁（blocked；等待 OPS-001 后按新路径重新定义）。
 - 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待新发布候选门禁与产品本人确认）。
 
@@ -1688,8 +1690,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | ACQ-001 | done | `codex/acq-001-content-acquisition-foundation` | Codex | 自动采集领域、持久化、CLI、预算/保留与 fake | 实现 `cfd1e00` |
 | REVIEW-001 | done | `codex/review-001-owner-content-workflow` | Codex | 所有者候选审核、修订、双维度批准和发布门禁 | 实现 `e15cc81` |
 | ARTICLE-001 | done | `codex/article-001-automated-article-ingestion` | Codex | 文章 RSS/专用适配器接入现有 article 模型 | 实现 `bf5ea3b` |
-| MEDIA-001 | review | `codex/media-001-library-foundation` | Codex | 统一媒体领域与视频/播客学习资料库 | 实现 `7cd67b7`，等待合并复核 |
-| VIDEO-001 | blocked | `codex/video-001-youtube-learning` | 待领取 | YouTube 白名单视频纵向闭环 | MEDIA-001 |
+| MEDIA-001 | done | `codex/media-001-library-foundation` | Codex | 统一媒体领域与视频/播客学习资料库 | 实现 `7cd67b7`；合并 `683cff9` |
+| VIDEO-001 | in_progress | `codex/video-001-youtube-learning` | Codex | YouTube 白名单视频纵向闭环 | MEDIA-001 已完成 |
 | PODCAST-001 | blocked | `codex/podcast-001-rss-learning` | 待领取 | 播客 RSS 纵向闭环 | MEDIA-001 |
 | MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 |
 | LEX-001 | blocked | `codex/lex-001-lexicon-corpus-foundation` | 待领取 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 |
@@ -1708,8 +1710,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 2 | ACQ-001 | 自动采集领域与持久化基础 | 已完成；实现 `cfd1e00` |
 | 3 | REVIEW-001 | 所有者审核与发布门禁 | 已完成；实现 `e15cc81` |
 | 4 | ARTICLE-001 | 文章 RSS 与正式 article 接入 | 已完成；实现 `bf5ea3b` |
-| 5 | MEDIA-001 | 统一媒体领域与学习资料库 | 实现 `7cd67b7` 已推送；等待合并复核 |
-| 6 | VIDEO-001 | YouTube 白名单视频纵向闭环 | MEDIA-001 完成并确认 |
+| 5 | MEDIA-001 | 统一媒体领域与学习资料库 | 已完成；实现 `7cd67b7`，合并 `683cff9` |
+| 6 | VIDEO-001 | YouTube 白名单视频纵向闭环 | `in_progress`；唯一已领取任务 |
 | 7 | PODCAST-001 | 播客 RSS 纵向闭环 | MEDIA-001 完成并确认 |
 | 8 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 完成并确认 |
 | 9 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
@@ -1717,7 +1719,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 11 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
 | 12 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前等待 `MEDIA-001` 合并复核，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前只实施 `VIDEO-001`，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
@@ -1765,6 +1767,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-13 | MEDIA-001 通过合并复核并进入 `main` | `7cd67b7`、`683cff9` | VIDEO-001 解锁并作为唯一进行中的任务；播客与 ASR 继续阻塞 |
 | 2026-09-13 | 完成 ARTICLE-001 白名单文章 RSS、纯文本规范化、候选处理、正式 article publisher 与数据库公开读取 | `bf5ea3b` | MEDIA-001 解锁为唯一 ready 任务；真实媒体来源仍未接入 |
 | 2026-09-13 | 完成 REVIEW-001 所有者审核、版本化修订、双维度批准和发布/撤下门禁 | `e15cc81` | ARTICLE-001 解锁为唯一 ready 任务；真实 publisher 尚未接入 |
 | 2026-09-13 | 完成 ACQ-001 自动采集领域、六表持久化、CLI、预算/保留与 deterministic fake | `cfd1e00` | REVIEW-001 解锁为唯一 ready 任务 |
