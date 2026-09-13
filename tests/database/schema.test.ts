@@ -294,6 +294,7 @@ describe("database schema", () => {
         "0012_wakeful_spiral.sql",
         "0021_shallow_killmonger.sql",
         "0024_media_library_foundation.sql",
+        "0025_youtube_video_publication.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),
