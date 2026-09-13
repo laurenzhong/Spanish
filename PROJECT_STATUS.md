@@ -1648,27 +1648,29 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 ## 当前关键决定
 
 - 目标用户：学过语法和词汇但无法自然开口的 A2–B1 学习者。
-- 首发形态：Next.js 完整 Web/PWA + Flutter iOS 同步个人 Alpha。
-- 后续客户端：Flutter 同一代码线扩展 Android、Windows、macOS。
-- 技术路线：Next.js/React/TypeScript Web，Flutter/Dart 客户端，Supabase、Drizzle、Zod、Vercel 远程模块化单体。
-- 架构：单仓库、两条客户端代码线、版本化 API 和共同 JSON fixtures；不在 Alpha 提前拆微服务。
-- iOS 不采用 Capacitor WebView；必要平台能力使用少量 Swift 桥接。
-- 当前有 iPhone、无 Mac；iOS 编译、签名和真机音频验收尚不具备本地条件。
+- 首发形态：Next.js 响应式 Web/PWA；当前以电脑端 Web 为开发与验收主线，iPhone Safari/PWA 真机验收延期。
+- 后续客户端：Flutter、原生 iOS/Android、Windows 和 macOS 均暂停；是否恢复及顺序由个人使用结果和新的 ADR 决定。
+- 技术路线：Next.js/React/TypeScript、Supabase、Drizzle、Zod、Vercel 远程模块化单体；`apps/mobile` 仅保留历史代码，不做功能同步。
+- 架构：单仓库、一个当前活动 Web 客户端、版本化 API 和明确 DTO；不在 Alpha 提前拆微服务。
+- 未经新的 ADR，不新增 Flutter 平台插件、Capacitor 包装、Swift/Kotlin/Windows 桥接或原生页面。
+- iPhone Safari/PWA 的麦克风、键盘、安全区和生命周期仍需真机验收，但当前不阻塞电脑端 Web 候选推进。
 - 当前产品壳层设计为五项导航：学习、阅读、探索、对话、我的；历史 UI-001 的四栏实现记录代表当时基线，阅读扩展待后续 UI/READ 切片实施。
 - 首页按学习状态提供唯一真实主动作：无学习记录时为“开始第一次练习”，有稳定断点时为“继续学习”；时长、模式和内容调整不作为进入前置条件，是否提供可选入口由可用性验证决定。
 - 听说是强核心；读写用于静默环境并需要后续口语验证。
 - AI 社交世界首个主要好友：Lucía Martín，固定生活在马德里。
 - Echo-Loop 当前只作为流程、Flutter 边界和可靠性参考；未来源码复用必须先记录作者授权范围、其他贡献者权利和许可义务。
 
-权威细节见：
+当前权威细节见：
 
 - `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`
-- `docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md`
-- `docs/adr/0001-nextjs-web-flutter-clients.md`
+- `docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md`
+- `docs/adr/0002-web-pwa-first-personal-alpha.md`
 - `docs/plans/2026-08-20-personal-alpha-implementation-plan.md`
 - `docs/architecture.md`
 - `docs/content-authoring.md`
 - `docs/testing-strategy.md`
+
+`docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md` 与 `docs/adr/0001-nextjs-web-flutter-clients.md` 仅作为历史背景。
 
 ## 最近完成
 
