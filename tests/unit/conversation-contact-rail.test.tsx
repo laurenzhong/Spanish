@@ -2,10 +2,13 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
+import { clearConversationContactCache, ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
 
 describe("ConversationContactRail", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    clearConversationContactCache();
+  });
 
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: { conversations: [{ conversationId: "c1", characterKey: "lucia", characterName: "Lucía Martín", avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null }] } }) }));
@@ -17,6 +20,9 @@ describe("ConversationContactRail", () => {
     render(<ConversationContactRail activeCharacterKey="lucia" />);
     await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument();
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
+    expect(screen.queryByText("最近")).not.toBeInTheDocument();
+    expect(screen.queryByText("会话记录会在发送第一条消息后保存。")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Mateo Ruiz/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Inés García/ })).not.toBeInTheDocument();
   });
@@ -38,10 +44,47 @@ describe("ConversationContactRail", () => {
     expect(screen.getByText("主要好友")).toBeInTheDocument();
   });
 
+  it("reveals contact search only once the list is large enough to need it", async () => {
+    const conversations = Array.from({ length: 8 }, (_, index) => ({
+      conversationId: `c${index}`,
+      characterKey: index === 0 ? "lucia" : `friend-${index}`,
+      characterName: index === 0 ? "Lucía Martín" : `好友 ${index}`,
+      avatarClass: "avatar--lucia",
+      roleLabel: "好友",
+      lastMessageAt: null,
+      lastMessage: null,
+    }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/api/v1/conversations") return { ok: true, json: async () => ({ data: { conversations } }) } as Response;
+      if (url.endsWith("/introductions")) return { ok: true, json: async () => ({ data: { offers: [] } }) } as Response;
+      return { ok: true, json: async () => ({ data: { characterKey: "lucia", status: "active" } }) } as Response;
+    });
+
+    render(<ConversationContactRail activeCharacterKey="lucia" />);
+
+    expect(await screen.findByRole("search", { name: "搜索对话" })).toBeInTheDocument();
+  });
+
+  it("shows a real pending count without a permanent empty inbox action", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/api/v1/conversations") return { ok: true, json: async () => ({ data: { conversations: [] } }) } as Response;
+      if (url.endsWith("/introductions")) return { ok: true, json: async () => ({ data: { offers: [{ offerKey: "offer-1" }] } }) } as Response;
+      return { ok: true, json: async () => ({ data: { characterKey: "lucia", status: "pending" } }) } as Response;
+    });
+
+    render(<ConversationContactRail />);
+
+    expect(await screen.findByLabelText("2 项待处理")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /待处理/ })).toBeInTheDocument();
+  });
+
   it("reuses the cached list when the active friend changes", async () => {
     const first = render(<ConversationContactRail activeCharacterKey="lucia" />);
     await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
     first.unmount();
+    vi.mocked(fetch).mockClear();
     render(<ConversationContactRail activeCharacterKey="mateo" />);
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });

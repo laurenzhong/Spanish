@@ -16,6 +16,20 @@ let cachedStatus: "loading" | "available" | "unavailable" = "loading";
 let listRequest: Promise<void> | null = null;
 let cachedLuciaContact: LuciaContactPreview | null = null;
 let luciaContactRequest: Promise<void> | null = null;
+let cachedIntroductionOfferCount: number | null = null;
+let introductionOfferRequest: Promise<void> | null = null;
+
+const CONTACT_SEARCH_THRESHOLD = 8;
+
+export function clearConversationContactCache(): void {
+  cachedConversations = null;
+  cachedStatus = "loading";
+  listRequest = null;
+  cachedLuciaContact = null;
+  luciaContactRequest = null;
+  cachedIntroductionOfferCount = null;
+  introductionOfferRequest = null;
+}
 
 type ConversationPreference = Readonly<{
   isPinned: boolean;
@@ -68,6 +82,17 @@ function loadLuciaContact(): Promise<void> {
   return luciaContactRequest;
 }
 
+function loadIntroductionOfferCount(force = false): Promise<void> {
+  if (introductionOfferRequest) return introductionOfferRequest;
+  if (!force && cachedIntroductionOfferCount !== null) return Promise.resolve();
+  introductionOfferRequest = fetch("/api/v1/character-network/introductions", { cache: "no-store" })
+    .then((response) => { if (!response.ok) throw new Error("INTRODUCTIONS_UNAVAILABLE"); return response.json() as Promise<{ data?: { offers?: unknown[] } }>; })
+    .then((payload) => { cachedIntroductionOfferCount = payload.data?.offers?.length ?? 0; })
+    .catch(() => { cachedIntroductionOfferCount = null; })
+    .finally(() => { introductionOfferRequest = null; });
+  return introductionOfferRequest;
+}
+
 function syncCachedConversationPreferences(updates: Readonly<Record<string, Partial<ConversationPreference>>>): void {
   if (!cachedConversations) return;
   cachedConversations = cachedConversations.map((conversation) => {
@@ -79,8 +104,8 @@ function syncCachedConversationPreferences(updates: Readonly<Record<string, Part
 export function ConversationContactRail({ activeCharacterKey }: ConversationContactRailProps) {
   const [conversations, setConversations] = useState<readonly ConversationPreview[]>(cachedConversations ?? []);
   const [status, setStatus] = useState(cachedStatus);
-  const [luciaContact, setLuciaContact] = useState<LuciaContactPreview | null>(cachedLuciaContact);
   const [showIntroductions, setShowIntroductions] = useState(false);
+  const [pendingIntroductionCount, setPendingIntroductionCount] = useState(0);
   const [preferences, setPreferences] = useState<ConversationPreferences>({});
   const [markedUnread, setMarkedUnread] = useState<ReadonlySet<string>>(() => new Set());
   const [typingCharacters, setTypingCharacters] = useState<ReadonlySet<string>>(() => new Set());
@@ -89,6 +114,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   const suppressClickFor = useRef<string | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLElement>(null);
+  const introductionsTriggerRef = useRef<HTMLButtonElement>(null);
   const dragState = useRef<DragState | null>(null);
   const dragOverCharacterKeyRef = useRef<string | null>(null);
   const [preferenceError, setPreferenceError] = useState(false);
@@ -105,9 +131,31 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }])))
       setStatus(cachedStatus);
     });
-    void loadLuciaContact().then(() => setLuciaContact(cachedLuciaContact));
+    void Promise.all([loadLuciaContact(), loadIntroductionOfferCount()]).then(() => {
+      if (!active) return;
+      setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0));
+    });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!showIntroductions) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setShowIntroductions(false);
+      introductionsTriggerRef.current?.focus();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showIntroductions]);
+
+  function closeIntroductions() {
+    setShowIntroductions(false);
+    introductionsTriggerRef.current?.focus();
+    void loadIntroductionOfferCount(true).then(() => {
+      setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0));
+    });
+  }
 
   useEffect(() => {
     const handleTyping = (event: Event) => {
@@ -204,7 +252,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
 
   function refreshAfterLuciaContactAccepted(contact: LuciaContactPreview): void {
     cachedLuciaContact = contact;
-    setLuciaContact(contact);
+    setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (contact.status === "pending" ? 1 : 0));
     void loadConversationList(true).then(() => {
       const nextConversations = cachedConversations ?? [];
       setConversations(nextConversations);
@@ -302,15 +350,21 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
   return (
     <aside ref={railRef} className="conversation-contact-rail" aria-label="联系人">
       <div className="conversation-contact-rail__heading">
-        <div>
-          <h2>好友</h2>
-        </div>
-        <span className="conversation-contact-rail__count">{visibleConversations.length} 位好友</span>
+        <h2>对话</h2>
+        {pendingIntroductionCount > 0 ? <button
+          ref={introductionsTriggerRef}
+          type="button"
+          className="conversation-contact-rail__request"
+          aria-expanded={showIntroductions}
+          onClick={() => setShowIntroductions(true)}
+        >
+          <span>待处理</span>
+          <span className="conversation-contact-rail__request-count" aria-label={`${pendingIntroductionCount} 项待处理`}>{pendingIntroductionCount}</span>
+        </button> : null}
       </div>
 
-      <ConversationSearch />
+      {visibleConversations.length >= CONTACT_SEARCH_THRESHOLD ? <ConversationSearch /> : null}
       {preferenceError ? <p className="conversation-contact-rail__preference-error" role="status">好友设置暂未保存，请稍后重试。</p> : preferenceNotice ? <p className="conversation-contact-rail__preference-notice" role="status">{preferenceNotice}</p> : null}
-      <p className="conversation-contact-rail__label">最近</p>
       <nav className="conversation-contact-rail__list" aria-label="好友列表">
         {status === "loading" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">正在加载会话……</p> : null}
         {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表。</p><button type="button" onClick={() => { setStatus("loading"); void loadConversationList(true).then(() => { const nextConversations = cachedConversations ?? []; setConversations(nextConversations); setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }]))); setStatus(cachedStatus); }); }}>重试</button></div> : null}
@@ -394,17 +448,9 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
         </div>
       ) : null}
 
-      <div className="conversation-contact-rail__footer">
-        <button type="button" className="conversation-contact-rail__request" onClick={() => setShowIntroductions(true)}>
-          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0M17 8v6M14 11h6" /></svg>
-          <span>查看好友申请和介绍</span>
-          {luciaContact?.status === "pending" ? <span className="conversation-contact-rail__request-dot" aria-label="有新的好友申请" /> : null}
-        </button>
-        <p>会话记录会在发送第一条消息后保存。</p>
-      </div>
-      {showIntroductions ? <div className="conversation-introductions-dialog" role="dialog" aria-modal="true" aria-labelledby="conversation-introductions-dialog-title">
+      {showIntroductions ? <div className="conversation-introductions-dialog" role="dialog" aria-modal="true" aria-labelledby="conversation-introductions-dialog-title" onMouseDown={(event) => { if (event.target === event.currentTarget) closeIntroductions(); }}>
         <div className="conversation-introductions-dialog__panel">
-          <div className="conversation-introductions-dialog__heading"><h2 id="conversation-introductions-dialog-title">介绍请求</h2><button type="button" aria-label="关闭介绍请求" onClick={() => setShowIntroductions(false)}>×</button></div>
+          <div className="conversation-introductions-dialog__heading"><h2 id="conversation-introductions-dialog-title">好友申请与介绍</h2><button type="button" aria-label="关闭好友申请与介绍" onClick={closeIntroductions}>×</button></div>
           <IntroductionInbox alwaysVisible onLuciaContactAccepted={refreshAfterLuciaContactAccepted} />
         </div>
       </div> : null}
@@ -438,4 +484,8 @@ function formatConversationTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(date);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("account-signed-out", clearConversationContactCache);
 }

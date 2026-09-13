@@ -7,6 +7,43 @@ async function authenticate(page: Page) {
   await page.context().addCookies([
     { name: "spanish-e2e-user", value: e2eUserId, url: e2eBaseUrl },
   ]);
+  await page.route("**/api/v1/conversations", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          conversations: [{ conversationId: "conversation-lucia", characterKey: "lucia", characterName: "Lucía Martín", avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null }],
+        },
+      }),
+    });
+  });
+  await page.route("**/api/v1/character-network/lucia-contact", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey: "lucia", status: "active", relationshipStage: "familiar", conversationId: "conversation-lucia" } }) });
+  });
+  await page.route("**/api/v1/character-network/introductions", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { offers: [] } }) });
+  });
+  await page.route("**/api/v1/conversations/*", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const url = new URL(route.request().url());
+    const characterKey = url.pathname.split("/").at(-1) ?? "lucia";
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey, messages: [] } }) });
+  });
+  await page.route("**/api/v1/conversations/*/stream", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const request = route.request().postDataJSON() as { generationId: string };
+    const characterKey = new URL(route.request().url()).pathname.split("/").at(-2) ?? "lucia";
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/x-ndjson", "x-conversation-persistence": "available" },
+      body: [
+        JSON.stringify({ type: "meta", protocolVersion: "v1", characterKey, characterVersion: 1, generationId: request.generationId, messageId: `reply-${request.generationId}` }),
+        JSON.stringify({ type: "delta", generationId: request.generationId, messageId: `reply-${request.generationId}`, text: "Qué alegría leerte." }),
+        JSON.stringify({ type: "done", generationId: request.generationId, messageId: `reply-${request.generationId}` }),
+      ].join("\n") + "\n",
+    });
+  });
 }
 
 test("sends a message and completes the Lucía stream", async ({ page }) => {
@@ -41,7 +78,7 @@ test("offers retry when the stream fails before the first character event", asyn
   let attempts = 0;
   await page.route("**/api/v1/conversations/lucia", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not configured" }) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey: "lucia", messages: [] } }) });
       return;
     }
     await route.continue();
@@ -82,7 +119,7 @@ test("can stop before the first character event and retry the same user message"
   let attempts = 0;
   await page.route("**/api/v1/conversations/lucia", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not configured" }) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey: "lucia", messages: [] } }) });
       return;
     }
     await route.continue();
@@ -154,8 +191,36 @@ test("keeps the conversation thread within a phone viewport", async ({ page }) =
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/chat/lucia");
-  const width = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
-  expect(width.scroll).toBeLessThanOrEqual(width.client);
+  const viewport = await page.evaluate(() => ({
+    width: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    height: window.innerHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }));
+  expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.width);
+  expect(viewport.scrollHeight).toBeLessThanOrEqual(viewport.height + 2);
+});
+
+test("shows one retry path and disables composing when history is unavailable", async ({ page }) => {
+  await authenticate(page);
+  let historyAttempts = 0;
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    historyAttempts += 1;
+    if (historyAttempts === 1) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "CONVERSATION_UNAVAILABLE" } }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey: "lucia", messages: [] } }) });
+  });
+
+  await page.goto("/chat/lucia");
+  await expect(page.getByTestId("conversation-persistence-status")).toContainText("暂时无法打开这段对话");
+  await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "发送消息" })).toBeDisabled();
+  await page.getByTestId("conversation-persistence-status").getByRole("button", { name: "重试" }).click();
+  await expect(page.getByText("¡Hola! Cuéntame algo de tu día.")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeEnabled();
 });
 
 test("keeps sent messages right anchored while their text stays left aligned", async ({ page }) => {
@@ -260,7 +325,7 @@ test("opens the mobile conversation list without a redundant back link", async (
   await page.goto("/chat/lucia");
 
   await expect(page.getByRole("link", { name: "返回对话列表" })).toHaveCount(0);
-  await page.getByRole("button", { name: "会话列表" }).click();
+  await page.getByRole("button", { name: "打开会话列表" }).click();
   await expect(page.getByRole("dialog", { name: "会话列表" })).toBeVisible();
 });
 
@@ -283,6 +348,8 @@ test("searches conversation history and opens the matching message", async ({ pa
   });
 
   await page.goto("/chat");
+  await page.getByRole("button", { name: "更多对话操作" }).click();
+  await page.getByRole("menuitem", { name: "搜索消息" }).click();
   await page.getByRole("searchbox", { name: "搜索对话" }).fill("café");
   await page.getByRole("button", { name: "提交对话搜索" }).click();
   await expect(page.getByRole("link", { name: /Hablamos del café/ })).toBeVisible();

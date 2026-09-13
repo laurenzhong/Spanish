@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
 
@@ -66,6 +67,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [hasNewProactiveMessage, setHasNewProactiveMessage] = useState(false);
   const [showMobileConversations, setShowMobileConversations] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
   const chatBubbleStyle = useChatBubbleStyle();
   const abortRef = useRef<AbortController | null>(null);
@@ -73,6 +77,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const translationRequestIdRef = useRef(0);
   const translationCharacterKeyRef = useRef(characterKey);
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const headerMenuRef = useRef<HTMLDivElement | null>(null);
+  const headerMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const messageMenuRef = useRef<HTMLDivElement | null>(null);
+  const messageMenuTriggerRef = useRef<HTMLElement | null>(null);
   const shouldFollowRef = useRef(true);
   const isNearBottomRef = useRef(true);
   const currentMessagesRef = useRef(state.messages);
@@ -178,12 +186,34 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
   useEffect(() => {
     if (!contextMenu) return;
+    const focusTimer = window.setTimeout(() => messageMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus(), 0);
     const close = () => setContextMenu(null);
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      close();
+      messageMenuTriggerRef.current?.focus();
+    };
     window.addEventListener("click", close);
     window.addEventListener("keydown", onKeyDown);
-    return () => { window.removeEventListener("click", close); window.removeEventListener("keydown", onKeyDown); };
+    return () => { window.clearTimeout(focusTimer); window.removeEventListener("click", close); window.removeEventListener("keydown", onKeyDown); };
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (!showHeaderMenu) return;
+    const focusTimer = window.setTimeout(() => headerMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus(), 0);
+    const close = (event: MouseEvent) => {
+      if (event.target instanceof Node && (headerMenuRef.current?.contains(event.target) || headerMenuTriggerRef.current?.contains(event.target))) return;
+      setShowHeaderMenu(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setShowHeaderMenu(false);
+      headerMenuTriggerRef.current?.focus();
+    };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", onKeyDown);
+    return () => { window.clearTimeout(focusTimer); document.removeEventListener("click", close); document.removeEventListener("keydown", onKeyDown); };
+  }, [showHeaderMenu]);
 
   useEffect(() => {
     if (!notice) return;
@@ -265,7 +295,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.clearInterval(interval);
     };
-  }, [characterKey, initialMessages]);
+  }, [characterKey, historyReloadToken, initialMessages]);
 
   useEffect(() => {
     if (state.messages.length === 0) return;
@@ -384,10 +414,16 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     apply({ type: "cancel", generationId });
   }
 
+  function retryHistory() {
+    setPersistenceStatus("loading");
+    setHistoryReloadToken((value) => value + 1);
+  }
+
   function openMessageMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     if (message.withdrawn || !message.text || !message.complete) return;
     event.preventDefault();
     event.stopPropagation();
+    messageMenuTriggerRef.current = event.currentTarget;
     const rect = event.currentTarget.getBoundingClientRect();
     const menuWidth = 176;
     const menuHeight = message.role === "character" ? 140 : 230;
@@ -399,6 +435,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   function openMessageMenuFromKeyboard(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     if ((event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) && !message.withdrawn && message.text && message.complete) {
       event.preventDefault();
+      messageMenuTriggerRef.current = event.currentTarget;
       const rect = event.currentTarget.getBoundingClientRect();
       const menuHeight = message.role === "character" ? 140 : 240;
       const preferredX = message.role === "user" ? rect.right - 176 : rect.left;
@@ -410,9 +447,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     setExpandedTimestampId((current) => current === messageId ? null : messageId);
   }
 
-  function handleMessageClick(message: ConversationState["messages"][number]) {
-    if (!message.createdAt) return;
-    toggleMessageTimestamp(message.id);
+  function handleMessageClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
+    if (window.getSelection()?.toString()) return;
+    if (message.text && message.complete && !message.withdrawn) openMessageMenu(event, message);
+    if (message.createdAt) setExpandedTimestampId(message.id);
   }
 
   function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
@@ -430,9 +468,15 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
   function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     openMessageMenuFromKeyboard(event, message);
-    if ((event.key === "Enter" || event.key === " ") && message.createdAt) {
+    if ((event.key === "Enter" || event.key === " ") && message.text && message.complete && !message.withdrawn) {
       event.preventDefault();
-      toggleMessageTimestamp(message.id);
+      messageMenuTriggerRef.current = event.currentTarget;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const menuWidth = 176;
+      const menuHeight = message.role === "character" ? 140 : 230;
+      const preferredX = message.role === "user" ? rect.right - menuWidth : rect.left;
+      setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(preferredX, window.innerWidth - menuWidth - 8)), y: Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - menuHeight - 8)) });
+      if (message.createdAt) setExpandedTimestampId(message.id);
     }
   }
 
@@ -539,7 +583,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   return (
-    <section className="conversation-thread" aria-labelledby="conversation-title" data-testid="conversation-thread">
+    <section className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
       <header className="conversation-thread__header">
         <div className="conversation-thread__identity">
           <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
@@ -550,11 +594,30 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             ) : <p>{roleLabel}</p>}
           </div>
         </div>
-        <ConversationSearch compact />
-        <button className="conversation-thread__mobile-list" type="button" onClick={() => setShowMobileConversations(true)}>会话列表</button>
-        <span className="conversation-thread__status" data-status={state.status} role="status">
-          {state.status === "streaming" ? "正在回复" : state.status === "completed" ? "已完成" : state.status === "failed" ? "需要重试" : state.status === "cancelled" ? "已停止" : ""}
-        </span>
+        <div className="conversation-thread__header-actions">
+          <button className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表" onClick={() => setShowMobileConversations(true)}>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
+          </button>
+          <button
+            ref={headerMenuTriggerRef}
+            aria-expanded={showHeaderMenu}
+            aria-haspopup="menu"
+            aria-label="更多对话操作"
+            className="conversation-thread__more"
+            type="button"
+            onClick={() => setShowHeaderMenu((value) => !value)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></svg>
+          </button>
+        </div>
+        {showHeaderMenu ? <div ref={headerMenuRef} className="conversation-thread__header-menu" role="menu" aria-label="对话操作">
+          <button type="button" role="menuitem" onClick={() => { setShowHeaderMenu(false); setShowSearch(true); }}>搜索消息</button>
+          <Link role="menuitem" href="/me#profile-relationships" onClick={() => setShowHeaderMenu(false)}>关系资料与清理</Link>
+        </div> : null}
+        {showSearch ? <div className="conversation-thread__search-panel">
+          <ConversationSearch compact autoFocus onDismiss={() => { setShowSearch(false); headerMenuTriggerRef.current?.focus(); }} />
+          <button type="button" aria-label="关闭消息搜索" onClick={() => { setShowSearch(false); headerMenuTriggerRef.current?.focus(); }}>×</button>
+        </div> : null}
       </header>
 
       {showMobileConversations ? <div className="conversation-mobile-list" role="dialog" aria-modal="true" aria-label="会话列表">
@@ -564,17 +627,17 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
       <div ref={messagesRef} className="conversation-thread__messages" onScroll={handleMessagesScroll}>
         {persistenceStatus === "unavailable" ? (
-          <p className="conversation-thread__persistence-notice" aria-live="polite" data-testid="conversation-persistence-status">
-            聊天记录暂未保存：当前环境未连接消息数据库。配置 DATABASE_URL 后，切换页面仍可恢复记录。
-          </p>
+          <div className="conversation-thread__persistence-notice" role="alert" data-testid="conversation-persistence-status">
+            <span>暂时无法打开这段对话，请检查网络后重试。</span>
+            <button type="button" onClick={retryHistory}>重试</button>
+          </div>
         ) : null}
         {persistenceStatus === "loading" && state.messages.length === 0 ? (
           <div className="conversation-thread__loading" role="status" aria-live="polite"><span /><span /><span />正在加载聊天记录……</div>
         ) : null}
-        {persistenceStatus !== "loading" && state.messages.length === 0 ? (
+        {persistenceStatus === "available" && state.messages.length === 0 ? (
           <div className="conversation-thread__welcome">
-            <p className="eyebrow eyebrow--accent">{characterName} 的消息</p>
-            <p>¡Hola! Cuéntame algo de tu día. Yo te sigo la conversación.</p>
+            <p>¡Hola! Cuéntame algo de tu día.</p>
           </div>
         ) : null}
         {state.messages.map((message, index) => {
@@ -602,11 +665,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             data-complete={message.complete}
             data-withdrawn={message.withdrawn ? "true" : undefined}
             aria-live={message.role === "character" && message.id === state.activeMessageId ? "polite" : undefined}
-            onClick={() => handleMessageClick(message)}
+            onClick={(event) => handleMessageClick(event, message)}
             onContextMenu={(event) => handleMessageContextMenu(event, message)}
             onDoubleClick={(event) => handleMessageDoubleClick(event, message)}
             onKeyDown={(event) => handleMessageKeyDown(event, message)}
-            tabIndex={message.createdAt ? 0 : undefined}
+            tabIndex={message.text && message.complete && !message.withdrawn ? 0 : undefined}
+            aria-expanded={contextMenu?.messageId === message.id ? true : undefined}
           >
             <div
               className={`avatar conversation-message__avatar ${message.role === "user" ? "conversation-message__avatar--user" : avatarClassName}`}
@@ -618,7 +682,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             <div className="conversation-message__content">
               <div className={`conversation-message__bubble${message.withdrawn ? "" : " conversation-message__bubble--art"}`}>
                 {message.withdrawn ? <div className="conversation-message__text">你撤回了一条消息</div> : <ChatBubbleArt text={message.text} style={message.role === "user" ? chatBubbleStyle : "pink-frog"} />}
-                {message.role === "user" && !message.withdrawn ? <button className="conversation-message__more" type="button" aria-label="消息操作" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) }); }}>•••</button> : null}
               </div>
               {translation ? <div className="conversation-message__translation" aria-live="polite">
                 {translation.status === "loading" ? "正在翻译……" : translation.status === "error" ? <button type="button" onClick={() => void translateMessage(message)}>{translation.message}</button> : translation.text}
@@ -633,7 +696,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {hasNewProactiveMessage && !isNearBottom ? <button className="conversation-thread__new-proactive" type="button" onClick={scrollToBottom}>有一条新消息</button> : null}
 
       {contextMenu && selectedMessage() && typeof document !== "undefined" ? createPortal(
-        <div className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
+        <div ref={messageMenuRef} className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
           {selectedMessage()?.role === "character" ? (() => {
             const selected = selectedMessage()!;
@@ -672,7 +735,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {retryMessage ? <button className="secondary-action" onClick={retry} type="button">重新发送</button> : null}
         </div>
       ) : null}
-      <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
+      <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
     </section>
   );
 }
