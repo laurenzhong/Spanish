@@ -29,7 +29,7 @@ test("restores focus when the mobile reading assist drawer closes", async ({ pag
   await token.click();
   const dialog = page.getByRole("dialog", { name: "解释" });
   await expect(dialog).toBeVisible();
-  await expect(page.locator(".article-reader__tools-close")).toBeFocused();
+  await expect(dialog).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(token).toBeFocused();

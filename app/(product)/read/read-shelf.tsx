@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
 import type { GeneratedStoryCard } from "@/src/modules/reading/domain/generated-story";
@@ -106,6 +106,8 @@ export function ReadShelf({ result, visibleCount = 12, search, topic, cefr, minu
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const [privateArticles, setPrivateArticles] = useState<readonly GeneratedStoryCard[]>(generatedArticles);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
+  const [openMenu, setOpenMenu] = useState<"filter" | "add" | null>(null);
+  const toolbarActionsRef = useRef<HTMLDivElement>(null);
   const hasFilters = Boolean(search || topic || cefr || minutes);
   const router = useRouter();
 
@@ -157,6 +159,27 @@ export function ReadShelf({ result, visibleCount = 12, search, topic, cefr, minu
     const timeout = window.setTimeout(() => setToolNotice(null), 2200);
     return () => window.clearTimeout(timeout);
   }, [toolNotice]);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && toolbarActionsRef.current?.contains(event.target)) return;
+      setOpenMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      const menu = openMenu;
+      setOpenMenu(null);
+      toolbarActionsRef.current?.querySelector<HTMLElement>(`.read-${menu}-menu summary`)?.focus();
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openMenu]);
 
   const emptyHeading = source === "web"
     ? "外部网站暂未开放"
@@ -255,7 +278,7 @@ export function ReadShelf({ result, visibleCount = 12, search, topic, cefr, minu
             <button type="submit" aria-label="搜索"><SearchIcon /></button>
           </div>
         </form>
-        <div className="read-library__toolbar-actions">
+        <div className="read-library__toolbar-actions" ref={toolbarActionsRef}>
           <label className="read-sort">
             <span>排序</span>
             <select aria-label="排序" value={sort} onChange={(event) => router.push(withParams({ source: source === "web" ? "web" : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: event.target.value }))}>
@@ -264,8 +287,8 @@ export function ReadShelf({ result, visibleCount = 12, search, topic, cefr, minu
               <option value="shortest">用时最短</option>
             </select>
           </label>
-          <details className="read-filter-menu">
-            <summary>筛选 <ChevronIcon /></summary>
+          <details className="read-filter-menu" open={openMenu === "filter"}>
+            <summary onClick={(event) => { event.preventDefault(); setOpenMenu((current) => current === "filter" ? null : "filter"); }}>筛选 <ChevronIcon /></summary>
             <form method="get" className="read-filter-menu__panel">
               {source === "web" ? <input type="hidden" name="source" value="web" /> : null}
               {savedOnly ? <input type="hidden" name="saved" value="1" /> : null}
@@ -277,8 +300,8 @@ export function ReadShelf({ result, visibleCount = 12, search, topic, cefr, minu
               <button className="secondary-action" type="submit">应用筛选</button>
             </form>
           </details>
-          <details className="read-add-menu">
-            <summary>添加内容 <ChevronIcon /></summary>
+          <details className="read-add-menu" open={openMenu === "add"}>
+            <summary onClick={(event) => { event.preventDefault(); setOpenMenu((current) => current === "add" ? null : "add"); }}>添加内容 <ChevronIcon /></summary>
             <div className="read-add-menu__panel">
               <Link href="/read/generate">生成私人故事</Link>
             </div>
@@ -322,8 +345,7 @@ function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, onDeleteGe
           <div className="read-article-row__meta"><span>{article.sourceName}</span>{article.origin === "generated" ? <span className="read-article-row__draft">AI draft</span> : null}{article.author ? <span>作者 {article.author}</span> : null}<span>{article.cefr} · {article.estimatedReadingMinutes} 分钟</span></div>
           <span className="read-article-row__state">{readingStatus(readerState)}</span>
         </div>
-        <h3><Link className="read-article-row__main-link" href={`/read/article/${encodeURIComponent(article.id)}`}>{article.title}</Link></h3>
-        <p>{article.summary}</p>
+        <h3><Link className="read-article-row__main-link" href={`/read/article/${encodeURIComponent(article.id)}`} title={article.title}>{article.title}</Link></h3>
         <div className="read-article-row__rule" aria-hidden="true"><span /></div>
         <div className="read-article-row__footer"><div className="read-article-row__topics">{article.topics.map((value) => <span key={value}>{topicLabel(value)}</span>)}</div></div>
       </div>

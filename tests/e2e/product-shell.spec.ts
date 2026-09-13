@@ -377,6 +377,7 @@ test("preserves the selected discovery direction on the learning page", async ({
 
 test("opens the published reading shelf and article reader", async ({ page }) => {
   await authenticate(page);
+  const wideDesktop = (page.viewportSize()?.width ?? 0) >= 1200;
   let savedArticleId: string | null = null;
   await page.route("**/api/v1/read/saved", async (route) => {
     if (route.request().method() === "GET") {
@@ -404,10 +405,15 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await page.locator("summary").filter({ hasText: "添加内容" }).click();
   await expect(page.getByRole("link", { name: "生成私人故事" })).toHaveAttribute("href", "/read/generate");
   await page.locator("summary").filter({ hasText: "筛选" }).click();
+  await expect(page.locator(".read-add-menu")).not.toHaveAttribute("open", "");
   await expect(page.locator(".read-filter-menu__panel")).toBeVisible();
+  await page.getByRole("searchbox", { name: "搜索文章" }).click();
+  await expect(page.locator(".read-filter-menu")).not.toHaveAttribute("open", "");
   await page.goto("/read");
   const firstArticleLink = page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true });
   await expect(firstArticleLink).toBeVisible();
+  await expect(firstArticleLink).toHaveCSS("white-space", "nowrap");
+  await expect(firstArticleLink).toHaveCSS("text-overflow", "ellipsis");
   const firstArticleRow = page.locator("article.read-article-row").first();
   await page.evaluate(() => document.fonts?.ready);
   await firstArticleRow.evaluate(async (element) => {
@@ -430,7 +436,9 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toHaveCount(0);
   await page.getByRole("button", { name: "收藏" }).click();
   await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toBeVisible();
-  await page.locator(".article-reader__tools-close").click();
+  if (wideDesktop) await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
+  else await page.locator(".article-reader__scrim").click({ position: { x: 8, y: 8 } });
+  await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toHaveCount(0);
   await page.getByText("读完后练口语", { exact: true }).click();
   await expect(page.getByTestId("article-transfer")).toBeVisible();
   await page.goto("/read");

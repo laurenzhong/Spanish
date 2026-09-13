@@ -145,7 +145,32 @@ describe("article library shelf", () => {
     render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} visibleCount={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
 
     expect(screen.getByRole("link", { name: article.title })).toHaveAttribute("href", `/read/article/${encodeURIComponent(article.id)}`);
+    expect(screen.getByRole("link", { name: article.title })).toHaveAttribute("title", article.title);
+    expect(screen.queryByText(article.summary)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /打开文章/u })).not.toBeInTheDocument();
+  });
+
+  it("dismisses shelf menus on outside click or Escape and keeps them mutually exclusive", async () => {
+    const user = userEvent.setup();
+    render(<ReadShelf result={result} visibleCount={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+
+    const filter = screen.getByText("筛选", { selector: "summary" }).closest("details");
+    const add = screen.getByText("添加内容", { selector: "summary" }).closest("details");
+    expect(filter).not.toBeNull();
+    expect(add).not.toBeNull();
+
+    await user.click(screen.getByText("筛选", { selector: "summary" }));
+    expect(filter).toHaveAttribute("open");
+    await user.click(screen.getByText("添加内容", { selector: "summary" }));
+    expect(filter).not.toHaveAttribute("open");
+    expect(add).toHaveAttribute("open");
+
+    await user.click(document.body);
+    expect(add).not.toHaveAttribute("open");
+
+    await user.click(screen.getByText("筛选", { selector: "summary" }));
+    await user.keyboard("{Escape}");
+    expect(filter).not.toHaveAttribute("open");
   });
 
   it("filters saved IDs before applying pagination", () => {
