@@ -9,18 +9,24 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import {
+  acquisitionRuns,
+  acquisitionSources,
   articleAssets,
   articleSegments,
   articleSources,
   articleVersions,
   articles,
   audioAssets,
+  candidateArtifacts,
+  candidateProcessingAttempts,
+  candidateReviews,
   characterCanonFacts,
   characterIntroductionOffers,
   characterRelationships,
   characters,
   communicationDomains,
   contentBundleImports,
+  contentCandidates,
   contentPackActivities,
   contentPackSegments,
   contentPacks,
@@ -58,6 +64,12 @@ import {
 } from "@/src/shared/db/schema";
 
 const allTables = [
+  acquisitionSources,
+  acquisitionRuns,
+  contentCandidates,
+  candidateArtifacts,
+  candidateProcessingAttempts,
+  candidateReviews,
   profiles,
   userPreferences,
   communicationDomains,
@@ -130,7 +142,9 @@ describe("database schema", () => {
   it("defines the current versioned database table set", () => {
     expect(allTables.map(getTableName).sort()).toEqual(
       [
-      "audio_assets",
+        "acquisition_runs",
+        "acquisition_sources",
+        "audio_assets",
         "article_assets",
         "article_segments",
         "article_sources",
@@ -140,8 +154,12 @@ describe("database schema", () => {
         "character_introduction_offers",
         "character_relationships",
         "characters",
+        "candidate_artifacts",
+        "candidate_processing_attempts",
+        "candidate_reviews",
         "communication_domains",
         "content_bundle_imports",
+        "content_candidates",
         "content_pack_activities",
         "content_pack_segments",
         "content_packs",
@@ -257,6 +275,7 @@ describe("database schema", () => {
         "0010_watery_ogun.sql",
         "0011_early_colleen_wing.sql",
         "0012_wakeful_spiral.sql",
+        "0021_shallow_killmonger.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),

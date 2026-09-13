@@ -148,6 +148,13 @@
       "when": 1789094405172,
       "tag": "0020_volatile_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789255884201,
+      "tag": "0021_shallow_killmonger",
+      "breakpoints": true
     }
   ]
 }

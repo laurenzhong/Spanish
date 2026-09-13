@@ -3,7 +3,7 @@
   "info": {
     "title": "Spanish speaking platform API",
     "version": "1.0.0",
-    "description": "Versioned protocol baseline shared by the Next.js Web product and Flutter clients."
+    "description": "Versioned protocol baseline for the Web product, including internal content-acquisition error semantics."
   },
   "servers": [
     {

@@ -1,6 +1,7 @@
 export * from "./characters";
 export * from "./common";
 export * from "./content";
+export * from "./content-acquisition";
 export * from "./evidence";
 export * from "./infrastructure";
 export * from "./training";
