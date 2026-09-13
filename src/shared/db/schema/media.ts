@@ -30,6 +30,8 @@ export const mediaVersions = pgTable("media_versions", {
   summary: text("summary").default("").notNull(),
   sourceName: text("source_name").notNull(),
   sourceUrl: text("source_url"),
+  platformSourceId: text("platform_source_id"),
+  sourceChannelId: text("source_channel_id"),
   language: text("language").default("es").notNull(),
   region: text("region"),
   cefr: text("cefr"),
@@ -44,16 +46,25 @@ export const mediaVersions = pgTable("media_versions", {
   attribution: text("attribution").notNull(),
   licenseEvidence: text("license_evidence").notNull(),
   copyrightStatus: text("copyright_status").default("unverified").notNull(),
+  acquisitionCandidateId: uuid("acquisition_candidate_id"),
+  acquisitionCandidateRevision: integer("acquisition_candidate_revision"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "date" }),
+  changeReason: text("change_reason"),
+  reviewNotes: text("review_notes"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
   uniqueIndex("media_versions_item_version_uidx").on(table.mediaItemId, table.version),
   index("media_versions_status_curated_idx").on(table.status, table.curatedAt),
+  uniqueIndex("media_versions_candidate_revision_uidx")
+    .on(table.acquisitionCandidateId, table.acquisitionCandidateRevision)
+    .where(sql`${table.acquisitionCandidateId} is not null`),
   check("media_versions_version_positive_check", sql`${table.version} > 0`),
   check("media_versions_duration_positive_check", sql`${table.durationMs} > 0`),
   check("media_versions_hash_check", sql`${table.contentHash} ~ '^[a-f0-9]{64}$'`),
   check("media_versions_cefr_check", sql`${table.cefr} is null or ${table.cefr} in ('A2', 'B1')`),
   check("media_versions_copyright_check", sql`${table.copyrightStatus} in ('unverified', 'cleared', 'restricted')`),
+  check("media_versions_acquisition_provenance_check", sql`(${table.acquisitionCandidateId} is null and ${table.acquisitionCandidateRevision} is null and ${table.fetchedAt} is null) or (${table.acquisitionCandidateId} is not null and ${table.acquisitionCandidateRevision} > 0 and ${table.fetchedAt} is not null)`),
 ]);
 
 export const mediaAssets = pgTable("media_assets", {
@@ -84,6 +95,7 @@ export const mediaSegments = pgTable("media_segments", {
   sourceText: text("source_text").notNull(),
   translation: text("translation"),
   confidence: real("confidence"),
+  sourceKind: text("source_kind"),
   reviewStatus: reviewStatusEnum("review_status").default("pending").notNull(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -92,6 +104,7 @@ export const mediaSegments = pgTable("media_segments", {
   index("media_segments_version_start_idx").on(table.mediaVersionId, table.startMs),
   check("media_segments_time_check", sql`${table.segmentIndex} >= 0 and ${table.startMs} >= 0 and ${table.endMs} > ${table.startMs}`),
   check("media_segments_confidence_check", sql`${table.confidence} is null or (${table.confidence} >= 0 and ${table.confidence} <= 1)`),
+  check("media_segments_source_kind_check", sql`${table.sourceKind} is null or ${table.sourceKind} in ('platform_manual', 'platform_auto', 'asr')`),
 ]);
 
 export const userMediaProgress = pgTable("user_media_progress", {

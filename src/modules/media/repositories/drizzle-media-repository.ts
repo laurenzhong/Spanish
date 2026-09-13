@@ -1,12 +1,13 @@
 import { Buffer } from "node:buffer";
 
-import { and, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, max, or } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
 
 import {
   MediaProgressConflictError,
+  validateSegmentTimeline,
   MediaUnavailableError,
   nextMediaProgress,
   projectMediaCard,
@@ -16,6 +17,18 @@ import {
 } from "../domain";
 import type { ParsedMediaListQuery } from "../schemas";
 import type { MediaLookupResult, MediaRepository } from "./media-repository";
+import type { AcquiredVideoRepository } from "./acquired-video-repository";
+
+export class AcquiredVideoPersistenceConflictError extends Error {
+  readonly code = "CONTENT_PUBLICATION_CONFLICT" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "AcquiredVideoPersistenceConflictError";
+  }
+}
+
+export type DrizzleMediaRepository = MediaRepository & AcquiredVideoRepository;
 
 type JoinedRow = Readonly<{
   item: typeof schema.mediaItems.$inferSelect;
@@ -105,7 +118,7 @@ function matches(item: MediaCard, query: ParsedMediaListQuery): boolean {
 export function createDrizzleMediaRepository(
   database: Database,
   dependencies: Readonly<{ now?: () => Date }> = {},
-): MediaRepository {
+): DrizzleMediaRepository {
   const now = dependencies.now ?? (() => new Date());
 
   async function joinedRows(stableKey?: string): Promise<JoinedRow[]> {
@@ -157,6 +170,167 @@ export function createDrizzleMediaRepository(
   }
 
   return {
+    async publishAcquiredVideo(input) {
+      if (input.contentHash !== input.draft.contentHash) {
+        throw new AcquiredVideoPersistenceConflictError("The candidate hash does not match the immutable video draft.");
+      }
+      let embedUrl: URL;
+      try {
+        embedUrl = new URL(input.draft.embedUrl);
+      } catch {
+        throw new AcquiredVideoPersistenceConflictError("The official embed URL is invalid.");
+      }
+      if (
+        embedUrl.origin !== "https://www.youtube-nocookie.com"
+        || embedUrl.username !== ""
+        || embedUrl.password !== ""
+        || embedUrl.pathname !== `/embed/${input.draft.platformVideoId}`
+      ) {
+        throw new AcquiredVideoPersistenceConflictError("The video must use the official privacy-enhanced YouTube embed.");
+      }
+      if (input.draft.segments.length > 0) {
+        validateSegmentTimeline(input.draft.segments, input.draft.durationMs);
+      } else if (input.draft.captionStatus !== "unavailable") {
+        throw new AcquiredVideoPersistenceConflictError("A captioned video must include a reviewed timeline.");
+      }
+
+      return database.transaction(async (transaction) => {
+        const [existing] = await transaction
+          .select({ item: schema.mediaItems, version: schema.mediaVersions })
+          .from(schema.mediaVersions)
+          .innerJoin(schema.mediaItems, eq(schema.mediaItems.id, schema.mediaVersions.mediaItemId))
+          .where(and(
+            eq(schema.mediaVersions.acquisitionCandidateId, input.candidateId),
+            eq(schema.mediaVersions.acquisitionCandidateRevision, input.candidateRevision),
+          ))
+          .limit(1);
+        if (existing) {
+          if (
+            existing.item.stableKey !== input.draft.stableKey
+            || existing.version.contentHash !== input.contentHash
+            || existing.version.sourceUrl !== input.draft.canonicalUrl
+          ) {
+            throw new AcquiredVideoPersistenceConflictError("The candidate revision already published different immutable media.");
+          }
+          return { kind: "media" as const, stableKey: existing.item.stableKey, version: existing.version.version };
+        }
+
+        await transaction.insert(schema.mediaItems).values({
+          stableKey: input.draft.stableKey,
+          kind: "video",
+        }).onConflictDoNothing({ target: schema.mediaItems.stableKey });
+        const [item] = await transaction.select().from(schema.mediaItems)
+          .where(eq(schema.mediaItems.stableKey, input.draft.stableKey)).limit(1).for("update");
+        if (!item || item.kind !== "video") {
+          throw new AcquiredVideoPersistenceConflictError("The media identity could not be claimed as a video.");
+        }
+        const [latest] = await transaction.select({ value: max(schema.mediaVersions.version) })
+          .from(schema.mediaVersions).where(eq(schema.mediaVersions.mediaItemId, item.id));
+        const versionNumber = Number(latest?.value ?? 0) + 1;
+        const [version] = await transaction.insert(schema.mediaVersions).values({
+          mediaItemId: item.id,
+          version: versionNumber,
+          locale: "es-ES",
+          title: input.draft.title,
+          summary: input.draft.summary,
+          sourceName: input.draft.sourceName,
+          sourceUrl: input.draft.canonicalUrl,
+          platformSourceId: input.draft.platformVideoId,
+          sourceChannelId: input.draft.sourceChannelId,
+          language: input.draft.language,
+          region: input.draft.region,
+          cefr: input.draft.cefr,
+          topics: [...input.draft.topics],
+          durationMs: input.draft.durationMs,
+          publicationDate: new Date(input.draft.publicationDate),
+          curatedAt: input.publishedAt,
+          publishedAt: input.publishedAt,
+          contentHash: input.contentHash,
+          status: "published",
+          license: input.draft.license,
+          attribution: input.draft.attribution,
+          licenseEvidence: input.draft.licenseEvidence,
+          copyrightStatus: input.draft.copyrightStatus,
+          acquisitionCandidateId: input.candidateId,
+          acquisitionCandidateRevision: input.candidateRevision,
+          fetchedAt: new Date(input.draft.fetchedAt),
+          changeReason: input.draft.changeReason,
+          reviewNotes: "Published from a versioned YouTube candidate after independent es-ES and zh-CN review.",
+        }).returning({ id: schema.mediaVersions.id });
+        if (!version) throw new Error("MEDIA_VERSION_WRITE_FAILED");
+        await transaction.insert(schema.mediaAssets).values({
+          mediaVersionId: version.id,
+          kind: "official_embed",
+          providerKey: "youtube",
+          playbackUrl: input.draft.embedUrl,
+          availability: "available",
+        });
+        if (input.draft.segments.length > 0) {
+          await transaction.insert(schema.mediaSegments).values(input.draft.segments.map((segment) => ({
+            mediaVersionId: version.id,
+            segmentIndex: segment.index,
+            startMs: segment.startMs,
+            endMs: segment.endMs,
+            speaker: segment.speaker,
+            sourceText: segment.sourceText,
+            translation: segment.translation,
+            confidence: segment.confidence,
+            sourceKind: segment.sourceKind,
+            reviewStatus: "approved" as const,
+          })));
+        }
+        await transaction.insert(schema.contentReviews).values(input.reviews.map((review) => ({
+          entityType: "media",
+          entityId: version.id,
+          locale: review.locale,
+          status: "approved" as const,
+          reviewerReference: review.reviewerReference,
+          notes: review.notes,
+          reviewedAt: review.reviewedAt,
+        })));
+        await transaction.update(schema.mediaItems).set({
+          currentVersion: versionNumber,
+          updatedAt: input.publishedAt,
+        }).where(eq(schema.mediaItems.id, item.id));
+        return { kind: "media" as const, stableKey: item.stableKey, version: versionNumber };
+      });
+    },
+
+    async archiveAcquiredVideo(input) {
+      await database.transaction(async (transaction) => {
+        const [row] = await transaction
+          .select({
+            itemId: schema.mediaItems.id,
+            currentVersion: schema.mediaItems.currentVersion,
+            versionId: schema.mediaVersions.id,
+            version: schema.mediaVersions.version,
+            status: schema.mediaVersions.status,
+          })
+          .from(schema.mediaVersions)
+          .innerJoin(schema.mediaItems, eq(schema.mediaItems.id, schema.mediaVersions.mediaItemId))
+          .where(and(
+            eq(schema.mediaItems.stableKey, input.publication.stableKey),
+            eq(schema.mediaVersions.version, input.publication.version),
+            eq(schema.mediaVersions.acquisitionCandidateId, input.candidateId),
+          ))
+          .limit(1)
+          .for("update");
+        if (!row) throw new AcquiredVideoPersistenceConflictError("The media publication does not belong to this candidate.");
+        if (row.status === "archived") return;
+        if (row.status !== "published") throw new AcquiredVideoPersistenceConflictError("Only published media can be archived.");
+        const updated = await transaction.update(schema.mediaVersions).set({ status: "archived", updatedAt: input.archivedAt })
+          .where(and(eq(schema.mediaVersions.id, row.versionId), eq(schema.mediaVersions.status, "published")))
+          .returning({ id: schema.mediaVersions.id });
+        if (updated.length !== 1) throw new AcquiredVideoPersistenceConflictError("The media changed before archival.");
+        await transaction.update(schema.mediaAssets).set({ availability: "withdrawn", updatedAt: input.archivedAt })
+          .where(eq(schema.mediaAssets.mediaVersionId, row.versionId));
+        if (row.currentVersion === row.version) {
+          await transaction.update(schema.mediaItems).set({ currentVersion: null, updatedAt: input.archivedAt })
+            .where(eq(schema.mediaItems.id, row.itemId));
+        }
+      });
+    },
+
     async list(query, userId) {
       const rows = await joinedRows();
       const selected = new Map<string, JoinedRow>();

@@ -1,0 +1,132 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  MediaLearningWorkbench,
+  type VideoPlayerFactory,
+  type VideoPlayerLifecycle,
+  type VideoPlayerPort,
+} from "@/src/modules/media";
+
+function playback() {
+  return {
+    media: {
+      id: "youtube.publicvideo1@1", stableKey: "youtube.publicvideo1", version: 1, kind: "video" as const,
+      title: "Cómo pedir un café", summary: "Una conversación breve.", sourceName: "Español con calma", language: "es", region: "es-ES", cefr: "A2" as const,
+      topics: ["topic.daily-life"], durationMs: 6_000, publishedAt: "2026-09-13T08:00:00.000Z", curatedAt: "2026-09-13T12:00:00.000Z", contentHash: "a".repeat(64),
+      progress: { lastPositionMs: 0, lastSegmentIndex: 0, status: "in_progress" as const, revision: 2 },
+    },
+    asset: { kind: "official_embed" as const, url: "https://www.youtube-nocookie.com/embed/publicVideo1?enablejsapi=1", expiresAt: null },
+    segments: [
+      { id: "s0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null },
+      { id: "s1", index: 1, startMs: 1_800, endMs: 4_250, sourceText: "Quería un café con leche.", translation: "我想要一杯拿铁。", speaker: null },
+      { id: "s2", index: 2, startMs: 4_250, endMs: 6_000, sourceText: "Claro.", translation: "当然。", speaker: null },
+    ],
+  };
+}
+
+function fakePlayer() {
+  let lifecycle: VideoPlayerLifecycle | null = null;
+  let currentTimeMs = 0;
+  const port: VideoPlayerPort = {
+    play: vi.fn(),
+    pause: vi.fn(),
+    seek: vi.fn((value) => { currentTimeMs = value; }),
+    currentTime: vi.fn(() => currentTimeMs),
+    destroy: vi.fn(),
+  };
+  const factory: VideoPlayerFactory = vi.fn((_target, input) => {
+    lifecycle = input.lifecycle;
+    return port;
+  });
+  return { factory, port, lifecycle: () => lifecycle!, setCurrentTime: (value: number) => { currentTimeMs = value; } };
+}
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { progress: { revision: 3 } } }), { status: 200 })));
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe("video learning workbench", () => {
+  it("supports transcript seeking, A/S/D/Q controls, caption modes and focus-restoring lexical drawer", async () => {
+    const player = fakePlayer();
+    const user = userEvent.setup();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+
+    await user.click(screen.getByRole("button", { name: "下一句" }));
+    expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
+    expect(player.port.play).toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "a" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(0);
+    fireEvent.keyDown(window, { key: "s" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(0);
+
+    const autoPause = screen.getByRole("checkbox", { name: "自动暂停" });
+    expect(autoPause).not.toBeChecked();
+    fireEvent.keyDown(window, { key: "q" });
+    expect(autoPause).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "双语" }));
+    expect(screen.getByText("早上好。")).toBeVisible();
+    const word = screen.getByRole("button", { name: "查看词语 Buenos" });
+    await user.click(word);
+    expect(screen.getByRole("dialog", { name: "词句上下文" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "关闭词句上下文" }));
+    expect(word).toHaveFocus();
+  });
+
+  it("auto-pauses at the reviewed segment boundary and ignores stale player callbacks after replacement", () => {
+    vi.useFakeTimers();
+    const first = fakePlayer();
+    const { rerender } = render(<MediaLearningWorkbench playback={playback()} playerFactory={first.factory} />);
+    act(() => first.lifecycle().onReady());
+    fireEvent.click(screen.getByRole("checkbox", { name: "自动暂停" }));
+    first.setCurrentTime(1_800);
+    act(() => first.lifecycle().onStateChange("playing"));
+    act(() => vi.advanceTimersByTime(300));
+    expect(first.port.pause).toHaveBeenCalled();
+
+    const second = fakePlayer();
+    const nextPlayback = { ...playback(), media: { ...playback().media, id: "youtube.nextvideo2@1", stableKey: "youtube.nextvideo2", title: "Otro vídeo" }, asset: { ...playback().asset, url: "https://www.youtube-nocookie.com/embed/nextVideo2?enablejsapi=1" } };
+    const stale = first.lifecycle();
+    rerender(<MediaLearningWorkbench playback={nextPlayback} playerFactory={second.factory} />);
+    act(() => stale.onError("old generation failed"));
+    expect(screen.queryByText("old generation failed")).not.toBeInTheDocument();
+  });
+
+  it("synchronizes progress with revision CAS and exposes conflicts without accepting stale responses", async () => {
+    let resolveFirst: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveFirst = resolve; }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: "MEDIA_PROGRESS_CONFLICT" } }), { status: 409 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const first = fakePlayer();
+    const view = render(<MediaLearningWorkbench playback={playback()} playerFactory={first.factory} />);
+    act(() => first.lifecycle().onReady());
+    first.setCurrentTime(2_500);
+    act(() => first.lifecycle().onStateChange("paused"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      version: 1, expectedRevision: 2, lastPositionMs: 2_500, lastSegmentIndex: 1, status: "in_progress",
+    });
+
+    const second = fakePlayer();
+    const nextPlayback = { ...playback(), media: { ...playback().media, id: "youtube.nextvideo2@1", stableKey: "youtube.nextvideo2", title: "Otro vídeo" }, asset: { ...playback().asset, url: "https://www.youtube-nocookie.com/embed/nextVideo2?enablejsapi=1" } };
+    view.rerender(<MediaLearningWorkbench playback={nextPlayback} playerFactory={second.factory} />);
+    resolveFirst?.(new Response(JSON.stringify({ data: { progress: { revision: 3 } } }), { status: 200 }));
+    await act(async () => Promise.resolve());
+    expect(screen.queryByText("进度已同步")).not.toBeInTheDocument();
+
+    act(() => second.lifecycle().onReady());
+    second.setCurrentTime(4_500);
+    act(() => second.lifecycle().onStateChange("paused"));
+    expect(await screen.findByText("进度已在其他页面更新，请刷新后继续。")).toBeVisible();
+  });
+});

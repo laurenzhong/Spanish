@@ -9,6 +9,7 @@ import {
   saveMediaProgress,
   saveMediaProgressSchema,
 } from "@/src/modules/media";
+import { getVideoLearningE2eFixture } from "@/src/modules/media/testing/video-learning-e2e-fixture";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
@@ -31,9 +32,6 @@ export async function PUT(request: NextRequest, { params }: Context) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
   const user = await requestUser(request);
   if (!user) return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
-  if (!process.env.DATABASE_URL) {
-    return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 503, "媒体学习进度暂时无法同步。");
-  }
 
   let body: unknown;
   try {
@@ -47,11 +45,28 @@ export async function PUT(request: NextRequest, { params }: Context) {
   }
 
   try {
-    const { stableKey } = await params;
+    const stableKey = decodeURIComponent((await params).stableKey);
+    const e2eFixture = getVideoLearningE2eFixture(stableKey);
+    if (e2eFixture) {
+      const segmentExists = parsed.data.lastSegmentIndex === null
+        || e2eFixture.segments.some((segment) => segment.index === parsed.data.lastSegmentIndex);
+      if (parsed.data.version !== e2eFixture.media.version
+        || parsed.data.lastPositionMs > e2eFixture.media.durationMs
+        || !segmentExists) {
+        return errorResponse(requestId, "VALIDATION_FAILED", 400, "媒体学习进度超出内容范围。");
+      }
+      return NextResponse.json({
+        apiVersion: API_VERSION,
+        data: { progress: { ...parsed.data, revision: parsed.data.expectedRevision + 1 } },
+      }, { headers: { "cache-control": "private, no-store" } });
+    }
+    if (!process.env.DATABASE_URL) {
+      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 503, "媒体学习进度暂时无法同步。");
+    }
     const progress = await saveMediaProgress(
       createDrizzleMediaRepository(getDatabase()),
       user.id,
-      decodeURIComponent(stableKey),
+      stableKey,
       parsed.data,
     );
     return NextResponse.json(

@@ -183,6 +183,10 @@ Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生�
 
 采集后保存的是规范化 URL、纯文本段落、摘要、作者、发布日期、抓取时间和确定性内容哈希，不保存或向客户端返回可执行 HTML。新候选经过确定性校验后才推进到 `review_ready`。显式发布会在 article 模块的单一事务中保存正式版本、来源候选 revision、变更原因以及 `es-ES`、`zh-CN` 两份审核记录；同一候选 revision 的相同哈希幂等返回已有版本，不同哈希必须冲突，不能覆盖历史版本。撤下保留内部版本与审核审计，但公开目录和详情查询立即不可见。
 
+YouTube 来源必须使用 `adapter_type=youtube`、`source_kind=video-channel`、官方 `UC…` channel ID、`language=es`、`rights_status=verified`，并在 `rights_policy` 中保存 `contentMode=official_embed`、`license`、`attribution`、HTTPS `licenseEvidence`、CEFR、主题、允许地区以及最短/最长时长。`YOUTUBE_DATA_API_KEY` 只放服务端环境，不得写入来源策略、候选 metadata、日志或客户端响应。Creative Commons 策略还要验证每条视频的官方许可字段；`licensed` 策略必须由来源记录中的授权证据覆盖频道及拟发布内容。
+
+频道 Atom feed 只负责增量发现，Data API 再确认频道、公开状态、可嵌入状态、声明语言、区域限制和时长。当前真实适配器不读取非公开字幕或下载接口，因此默认候选为 `captionStatus=unavailable` 且片段为空；这类内容可以在三维审核后以“仅播放”方式发布。以后从平台允许渠道取得的人工/自动字幕仍必须标记 `platform_manual`/`platform_auto`，解析成最多 500 段、不重叠且不越过视频时长的毫秒时间轴，再独立审核后发布。
+
 ### 8.1 阅读文章字段
 
 每篇可公开阅读的文章至少包含：
@@ -239,7 +243,7 @@ Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生�
 - 按时间排序的西语片段、可选 `zh-CN` 翻译、说话者、`startMs/endMs`、字幕来源和置信度。
 - 内容、语言、教学和权利审核记录，以及版本变更原因。
 
-YouTube 默认使用官方嵌入，只读取平台允许取得的元数据/字幕，不下载视频或音频。播客 enclosure 只有在权利策略允许时才能用于播放或临时处理。来源失效、嵌入受限、许可撤销或权利存疑时停止公开投影和语料查询，并保留必要审计记录。
+YouTube 只允许精确匹配 `https://www.youtube-nocookie.com/embed/{videoId}` 的官方隐私增强嵌入，只读取平台允许取得的元数据/字幕，不下载视频或音频。候选内容哈希排除抓取时间与流程备注，避免相同内容因每日抓取产生伪变更；标题、摘要、播放身份、时长、许可或字幕内容改变时仍会形成新哈希。播客 enclosure 只有在权利策略允许时才能用于播放或临时处理。来源失效、嵌入受限、许可撤销或权利存疑时停止公开投影和语料查询，并保留必要审计记录。
 
 ### 8.3 词汇、短语与语料
 

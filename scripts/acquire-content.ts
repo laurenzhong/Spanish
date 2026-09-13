@@ -9,10 +9,12 @@ import {
   ContentSourceNotFoundError,
   FakeContentSourceAdapter,
   createArticleRssAdapterFromSource,
+  createYouTubeChannelAdapterFromSource,
   contentSourcePageSchema,
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
   prepareArticleCandidateForReview,
+  prepareVideoCandidateForReview,
   type ContentAcquisitionRepository,
   type ContentSourceAdapter,
 } from "../src/modules/content-acquisition/index";
@@ -91,9 +93,13 @@ export async function runAcquireContentCli(
     input: options,
   });
   let reviewReady = 0;
-  if (!result.dryRun && dependencies.adapter.key === "article-rss") {
+  if (!result.dryRun && (dependencies.adapter.key === "article-rss" || dependencies.adapter.key === "youtube")) {
     for (const candidateId of result.insertedCandidateIds) {
-      await prepareArticleCandidateForReview(dependencies.repository, candidateId);
+      if (dependencies.adapter.key === "article-rss") {
+        await prepareArticleCandidateForReview(dependencies.repository, candidateId);
+      } else {
+        await prepareVideoCandidateForReview(dependencies.repository, candidateId);
+      }
       reviewReady += 1;
     }
   }
@@ -103,14 +109,14 @@ export async function runAcquireContentCli(
     steps: {
       discovery: "completed",
       persistence: result.dryRun ? "skipped" : "completed",
-      ...(dependencies.adapter.key === "article-rss" ? { processing: result.dryRun ? "skipped" : "completed" } : {}),
+      ...(["article-rss", "youtube"].includes(dependencies.adapter.key) ? { processing: result.dryRun ? "skipped" : "completed" } : {}),
     },
     counts: {
       discovered: result.discovered,
       inserted: result.inserted,
       duplicates: result.duplicates,
       conflicts: result.conflicts,
-      ...(dependencies.adapter.key === "article-rss" ? { reviewReady } : {}),
+      ...(["article-rss", "youtube"].includes(dependencies.adapter.key) ? { reviewReady } : {}),
     },
     estimatedCostMicros: result.estimatedCostMicros,
   }));
@@ -144,6 +150,8 @@ async function main(): Promise<void> {
       ? await loadConfiguredFakeAdapter()
       : source.adapterType === "article-rss"
         ? createArticleRssAdapterFromSource(source)
+        : source.adapterType === "youtube"
+          ? createYouTubeChannelAdapterFromSource(source)
         : null;
     if (!adapter) throw new ContentAcquisitionRunError("No runtime adapter is available for this source type.");
     await runAcquireContentCli(process.argv.slice(2), {
