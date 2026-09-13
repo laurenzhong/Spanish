@@ -260,6 +260,8 @@
 
 - UI-014 第三轮产品反馈修订：实现 Commit `98e0fbf`，状态保持 `review`。正文区删除与顶栏重复的文章大标题并上移正文起点；首次没有主题偏好时默认浅色，已保存选择继续生效，深色阅读面改为暖炭灰与柔和米灰组合。未固定解释器支持桌面鼠标拖动和视口边界约束；点击或拖选的当前翻译内容使用独立临时高亮，切换选区或关闭解释器后清除，不写入永久高亮。固定解释器仅在 `1280px` 以上开放，阅读器退出产品容器额外边距并把正文内边距压缩到必要值，1280px Playwright 实测固定前后正文均约 680px，不再因固定造成额外断行；移动顶栏标题参与正常布局，不遮挡工具按钮。验证：相关 Vitest `2 files / 15 tests`、阅读/迁移/跨视口目标 Playwright `12/12`、`pnpm lint`、`pnpm typecheck`、`pnpm build` 和 `git diff --check` 通过；全量单 worker Vitest 为 `154/155 files`、`671/672 tests`，唯一失败位于未改动的 `fake-training-loop` 时序测试，隔离复跑失败点漂移。已检查 1440 浅色浮动/拖动/固定和深色固定截图。限制：未执行完整 `pnpm test:e2e`，未做真实账号/Provider、iPhone Safari/PWA 真机或 Flutter 验证。下一步：产品本人视觉确认并决定是否合并 UI-014；确认前不启动 UI-015。
 
+- UI-014 固定入口回归修复：产品反馈发现浏览器有效宽度处于 `1200–1279px` 时固定按钮消失。实现 Commit `2dee69e` 将固定入口和自动取消固定断点恢复为 `1200px`，并将解释栏宽度调整为 `clamp(300px, 25vw, 360px)`，使该区间以最小 `300px` 侧栏减少正文压缩；新增 `1200×800` 下“固定翻译器”按钮可见的 Playwright 回归。验证：阅读器 Vitest `12/12`、文章迁移 Playwright `7 passed / 1 mobile project skipped`、`1200px` 专项 Playwright `1/1`、`pnpm lint`、`pnpm typecheck` 和 `git diff --check` 通过。限制：本轮未重跑 `pnpm build`、完整 `pnpm test:e2e` 或真实 iPhone Safari/PWA 真机；UI-014 继续保持 `review`，等待产品本人刷新页面确认，确认前不合并也不启动 UI-015。
+
 ### READ-006：Generate Story 私有 AI 草稿文章
 
 - 状态：`done`
@@ -290,7 +292,7 @@
 
 ## 当前任务
 
-UI-012、UI-013 已完成并合并；当前上位任务仍为 `ALPHA-033`，`UI-014` 第三轮产品反馈修订已完成实现并处于 `review`，等待产品本人视觉确认；确认并合并前不启动 UI-015。
+UI-012、UI-013 已完成并合并；当前上位任务仍为 `ALPHA-033`，`UI-014` 固定入口回归修复已完成实现并处于 `review`，等待产品本人视觉确认；确认并合并前不启动 UI-015。
 
 当前任务为 `ALPHA-033`：电脑端 Web 的 Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等电脑端候选版本门禁通过后再启动。当前只做电脑端 Web 功能补齐、缺陷修复和局部/全量质量回归；响应式与 iPhone Safari/PWA 兼容保留但真机验收延期，Flutter 不恢复同步。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
