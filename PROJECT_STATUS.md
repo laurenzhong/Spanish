@@ -4,9 +4,22 @@
 
 - 最后更新：2026-09-13
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`REVIEW-001` 已完成并推送，所有者 allowlist、候选审核工作台、版本化修订、双维度批准、publisher 端口以及发布/撤下门禁已建立；真实 article/media publisher 仍未接入，不能发布正式内容。下一步只允许领取 `ARTICLE-001`，接入经审核的文章 RSS/专用适配器与正式 article 版本。阶段 8 未启动
+- 总体状态：`ARTICLE-001` 已完成并推送，白名单文章 RSS/专用适配器、确定性候选处理、正式 article publisher 与数据库文章公开读取已接通；媒体 publisher 仍未接入。下一步只允许领取 `MEDIA-001`，建立统一媒体领域与视频/播客学习资料库基础。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：未放行发布候选。`UI-014` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排；原 `codex/ui-014-reading-density` 工作区及用户未提交改动必须保留。现有 v2 内容、训练、推荐、八维证据和数据库记录不删除；ACQ-001 只证明内部基础，不能据此声称真实来源抓取、新媒体、词句语料或四板块画像已经实现。iPhone Safari/PWA 真机、Flutter 及既有 6 个 `mobile-chromium` 失败继续延期并如实记录
+- 当前门禁：文章只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体仍未放行发布。`UI-014` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排；原 `codex/ui-014-reading-density` 工作区及用户未提交改动必须保留。现有 v2 内容、训练、推荐、八维证据和数据库记录不删除；ARTICLE-001 不代表媒体库、YouTube、播客、ASR、词句语料或四板块画像已经实现。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
+
+### 2026-09-13：ARTICLE-001 自动文章采集与正式发布
+
+- 状态：`done`
+- 负责人：Codex
+- 分支：`codex/article-001-automated-article-ingestion`
+- 实现 Commit：`bf5ea3b`
+- 范围：新增使用 `saxes` 的 RSS/Atom 解析、使用 `parse5` 的非执行式文章正文抽取、HTTPS 主机 allowlist、逐跳重定向与 Content-Type/体积/编码限制、ETag/Last-Modified 和分页游标；新增纯文本文章候选规范化、确定性 stable key/content hash、自动候选处理，以及接入 REVIEW-001 registry 的正式 article publisher。公开阅读列表、详情和 API 现在组合 bundle 与数据库中的已发布文章，继续复用既有阅读器路由。
+- 发布与数据安全：只有 `verified` 且明确允许 `full_text` 的来源可以抓取；许可、署名和 HTTPS 许可证据缺失时失败关闭。候选不保存原始 HTML，只保存纯文本段落和来源元数据。正式发布在 article repository 单一事务中创建稳定身份、不可变版本、段落、来源 provenance 和当前修订版的 `es-ES`、`zh-CN` 审核记录；同 revision/hash 幂等，不同 hash 冲突。撤下后公开列表与详情不可见但审计保留；内部 `rights_policy` 不进入来源列表或候选 API 投影。媒体类型继续返回 `CONTENT_PUBLISHER_NOT_AVAILABLE`。
+- 数据与文档：迁移 `0023_article_acquisition.sql` 为 `article_sources` 增加候选 ID/revision、抓取时间、条件唯一索引和完整性约束；同步架构、内容制作、数据库和环境示例。新增 `parse5@8.0.1`、`saxes@6.0.0`。
+- 验证：聚焦回归最终 `3 files / 10 tests`，此前新旧相关回归 `13 files / 50 tests`、全量 Vitest `175 files / 733 tests`、专用桌面 Chromium `1/1`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright `135/140`，新增文章路径桌面/移动均通过；5 条失败均为既有 `mobile-chromium` 延期项（文章拖选 1 条、Lucía 联系人/介绍 4 条）。
+- 限制：未执行远端数据库迁移，未访问真实公网来源，未接媒体、YouTube、播客、ASR 或收费 Provider；未做真实账号、iPhone Safari/PWA 真机或 Flutter 验证。
+- 下一步：只领取 `MEDIA-001`，建立统一媒体领域和视频/播客资料库基础；不得在同一任务提前接 YouTube、播客 RSS、真实 ASR、词句语料或能力画像。
 
 ### 2026-09-13：REVIEW-001 所有者审核与发布门禁
 
@@ -317,7 +330,7 @@
 
 ## 当前任务
 
-`REVIEW-001` 已在 `codex/review-001-owner-content-workflow` 完成并推送。当前没有已领取的实现任务；唯一可领取任务是 `ARTICLE-001`，分支为 `codex/article-001-automated-article-ingestion`。它只接入白名单文章 RSS/专用适配器、候选处理和正式 article publisher，不建设媒体库、不接 YouTube/播客、不调用真实 ASR。
+`ARTICLE-001` 已在 `codex/article-001-automated-article-ingestion` 完成并推送。当前没有已领取的实现任务；唯一可领取任务是 `MEDIA-001`，分支为 `codex/media-001-library-foundation`。它只建立统一媒体领域和视频/播客学习资料库基础，不接真实 YouTube、播客 RSS 或 ASR。
 
 当前任务顺序以 [`自动内容供应与词句学习重构实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。阶段 8 个人 Alpha 人工体验仍不是当前开发任务；必须等新队列完成、重新建立发布候选门禁并由产品本人确认后才可启动。阶段记录继续见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
@@ -349,7 +362,8 @@
 - `IA-001`：规格、ADR、实施计划与权威文档同步（done；`codex/ia-001-content-supply-design`）。
 - `ACQ-001`：自动采集领域与持久化基础（done；实现 Commit `cfd1e00`）。
 - `REVIEW-001`：所有者候选审核、修订、双维度批准和发布门禁（done；实现 Commit `e15cc81`）。
-- `ARTICLE-001`：文章 RSS/专用适配器接入现有 article 模型（ready；唯一可领取实现任务）。
+- `ARTICLE-001`：文章 RSS/专用适配器接入现有 article 模型（done；实现 Commit `bf5ea3b`）。
+- `MEDIA-001`：统一媒体领域与视频/播客学习资料库（ready；唯一可领取实现任务）。
 - `ALPHA-033`：旧电脑端 Web 发布候选门禁（blocked；等待 OPS-001 后按新路径重新定义）。
 - 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待新发布候选门禁与产品本人确认）。
 
@@ -1643,8 +1657,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | IA-001 | done | `codex/ia-001-content-supply-design` | Codex / 产品本人 | 内容驱动学习、自动供应、词句语料和四板块画像规划 | 设计 `241c47a`、计划 `e43130c` |
 | ACQ-001 | done | `codex/acq-001-content-acquisition-foundation` | Codex | 自动采集领域、持久化、CLI、预算/保留与 fake | 实现 `cfd1e00` |
 | REVIEW-001 | done | `codex/review-001-owner-content-workflow` | Codex | 所有者候选审核、修订、双维度批准和发布门禁 | 实现 `e15cc81` |
-| ARTICLE-001 | ready | `codex/article-001-automated-article-ingestion` | 待领取 | 文章 RSS/专用适配器接入现有 article 模型 | ACQ-001、REVIEW-001 |
-| MEDIA-001 | blocked | `codex/media-001-library-foundation` | 待领取 | 统一媒体领域与视频/播客学习资料库 | ACQ-001、REVIEW-001 |
+| ARTICLE-001 | done | `codex/article-001-automated-article-ingestion` | Codex | 文章 RSS/专用适配器接入现有 article 模型 | 实现 `bf5ea3b` |
+| MEDIA-001 | ready | `codex/media-001-library-foundation` | 待领取 | 统一媒体领域与视频/播客学习资料库 | ACQ-001、REVIEW-001、ARTICLE-001 |
 | VIDEO-001 | blocked | `codex/video-001-youtube-learning` | 待领取 | YouTube 白名单视频纵向闭环 | MEDIA-001 |
 | PODCAST-001 | blocked | `codex/podcast-001-rss-learning` | 待领取 | 播客 RSS 纵向闭环 | MEDIA-001 |
 | MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 |
@@ -1663,8 +1677,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 1 | IA-001 | 规格、ADR、详细计划与权威文档同步 | 已完成；设计 `241c47a`，计划 `e43130c` |
 | 2 | ACQ-001 | 自动采集领域与持久化基础 | 已完成；实现 `cfd1e00` |
 | 3 | REVIEW-001 | 所有者审核与发布门禁 | 已完成；实现 `e15cc81` |
-| 4 | ARTICLE-001 | 文章 RSS 与正式 article 接入 | `ready`；唯一可领取任务 |
-| 5 | MEDIA-001 | 统一媒体领域与学习资料库 | ACQ-001、REVIEW-001 完成并确认 |
+| 4 | ARTICLE-001 | 文章 RSS 与正式 article 接入 | 已完成；实现 `bf5ea3b` |
+| 5 | MEDIA-001 | 统一媒体领域与学习资料库 | `ready`；唯一可领取任务 |
 | 6 | VIDEO-001 | YouTube 白名单视频纵向闭环 | MEDIA-001 完成并确认 |
 | 7 | PODCAST-001 | 播客 RSS 纵向闭环 | MEDIA-001 完成并确认 |
 | 8 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 完成并确认 |
@@ -1673,7 +1687,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 11 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
 | 12 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前只允许领取 `ARTICLE-001`，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前只允许领取 `MEDIA-001`，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
@@ -1721,6 +1735,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-13 | 完成 ARTICLE-001 白名单文章 RSS、纯文本规范化、候选处理、正式 article publisher 与数据库公开读取 | `bf5ea3b` | MEDIA-001 解锁为唯一 ready 任务；真实媒体来源仍未接入 |
 | 2026-09-13 | 完成 REVIEW-001 所有者审核、版本化修订、双维度批准和发布/撤下门禁 | `e15cc81` | ARTICLE-001 解锁为唯一 ready 任务；真实 publisher 尚未接入 |
 | 2026-09-13 | 完成 ACQ-001 自动采集领域、六表持久化、CLI、预算/保留与 deterministic fake | `cfd1e00` | REVIEW-001 解锁为唯一 ready 任务 |
 | 2026-09-12 | 完成 IA-001 内容驱动学习、自动供应、词句语料与四板块画像规划 | `241c47a`、`e43130c` | 旧 UI/ALPHA 队列阻塞；唯一下一项为 ACQ-001 |
