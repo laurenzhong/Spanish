@@ -92,14 +92,11 @@ export async function fetchBoundedText(input: Readonly<{
         redirect: "manual",
         signal: input.signal,
       });
-    } catch (error) {
+    } catch {
       if (input.signal?.aborted) {
         throw new ContentSourceAdapterError("Source request was cancelled.", false);
       }
-      throw new ContentSourceAdapterError(
-        `Source request failed${error instanceof Error ? `: ${error.message}` : "."}`,
-        true,
-      );
+      throw new ContentSourceAdapterError("Source request failed.", true);
     }
     if (response.status === 304) {
       return { text: "", url: current.toString(), status: 304, headers: response.headers };

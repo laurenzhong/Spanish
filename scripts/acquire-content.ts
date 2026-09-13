@@ -9,11 +9,13 @@ import {
   ContentSourceNotFoundError,
   FakeContentSourceAdapter,
   createArticleRssAdapterFromSource,
+  createPodcastRssAdapterFromSource,
   createYouTubeChannelAdapterFromSource,
   contentSourcePageSchema,
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
   prepareArticleCandidateForReview,
+  preparePodcastCandidateForReview,
   prepareVideoCandidateForReview,
   type ContentAcquisitionRepository,
   type ContentSourceAdapter,
@@ -93,10 +95,13 @@ export async function runAcquireContentCli(
     input: options,
   });
   let reviewReady = 0;
-  if (!result.dryRun && (dependencies.adapter.key === "article-rss" || dependencies.adapter.key === "youtube")) {
+  const supportsAutomaticPreparation = ["article-rss", "podcast-rss", "youtube"].includes(dependencies.adapter.key);
+  if (!result.dryRun && supportsAutomaticPreparation) {
     for (const candidateId of result.insertedCandidateIds) {
       if (dependencies.adapter.key === "article-rss") {
         await prepareArticleCandidateForReview(dependencies.repository, candidateId);
+      } else if (dependencies.adapter.key === "podcast-rss") {
+        await preparePodcastCandidateForReview(dependencies.repository, candidateId);
       } else {
         await prepareVideoCandidateForReview(dependencies.repository, candidateId);
       }
@@ -109,14 +114,14 @@ export async function runAcquireContentCli(
     steps: {
       discovery: "completed",
       persistence: result.dryRun ? "skipped" : "completed",
-      ...(["article-rss", "youtube"].includes(dependencies.adapter.key) ? { processing: result.dryRun ? "skipped" : "completed" } : {}),
+      ...(supportsAutomaticPreparation ? { processing: result.dryRun ? "skipped" : "completed" } : {}),
     },
     counts: {
       discovered: result.discovered,
       inserted: result.inserted,
       duplicates: result.duplicates,
       conflicts: result.conflicts,
-      ...(["article-rss", "youtube"].includes(dependencies.adapter.key) ? { reviewReady } : {}),
+      ...(supportsAutomaticPreparation ? { reviewReady } : {}),
     },
     estimatedCostMicros: result.estimatedCostMicros,
   }));
@@ -150,6 +155,8 @@ async function main(): Promise<void> {
       ? await loadConfiguredFakeAdapter()
       : source.adapterType === "article-rss"
         ? createArticleRssAdapterFromSource(source)
+        : source.adapterType === "podcast-rss"
+          ? createPodcastRssAdapterFromSource(source)
         : source.adapterType === "youtube"
           ? createYouTubeChannelAdapterFromSource(source)
         : null;

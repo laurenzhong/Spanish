@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+  xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Café de cada día</title>
+    <link>https://podcast.example.test/</link>
+    <language>es-ES</language>
+    <item>
+      <guid isPermaLink="false">episode-42</guid>
+      <title>Una mañana en el mercado</title>
+      <link>https://podcast.example.test/episodes/42?utm_source=rss</link>
+      <description>Una charla breve sobre comprar fruta en Madrid.</description>
+      <pubDate>Sun, 13 Sep 2026 08:00:00 GMT</pubDate>
+      <itunes:duration>00:06:00</itunes:duration>
+      <enclosure url="https://media.example.test/audio/episode-42.mp3" length="128" type="audio/mpeg" />
+      <podcast:transcript url="https://transcripts.example.test/episode-42.vtt" type="text/vtt" language="es" />
+    </item>
+    <item>
+      <guid isPermaLink="false">episode-42</guid>
+      <title>Duplicate feed entry</title>
+      <link>https://podcast.example.test/episodes/42</link>
+      <pubDate>Sun, 13 Sep 2026 08:00:00 GMT</pubDate>
+      <itunes:duration>360</itunes:duration>
+      <enclosure url="https://media.example.test/audio/episode-42.mp3" length="128" type="audio/mpeg" />
+    </item>
+  </channel>
+</rss>

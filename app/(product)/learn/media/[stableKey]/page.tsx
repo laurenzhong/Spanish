@@ -9,6 +9,7 @@ import {
   type MediaPlayback,
 } from "@/src/modules/media";
 import { getVideoLearningE2eFixture } from "@/src/modules/media/testing/video-learning-e2e-fixture";
+import { getPodcastLearningE2eFixture } from "@/src/modules/media/testing/podcast-learning-e2e-fixture";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -55,7 +56,7 @@ export default async function MediaDetailPage({ params }: Context) {
   if (!user) return <UnavailableDetail />;
 
   let playback: MediaPlayback;
-  const e2eFixture = getVideoLearningE2eFixture(stableKey);
+  const e2eFixture = getVideoLearningE2eFixture(stableKey) ?? getPodcastLearningE2eFixture(stableKey);
   if (e2eFixture) {
     playback = e2eFixture;
   } else {
@@ -76,7 +77,8 @@ export default async function MediaDetailPage({ params }: Context) {
         <p>{playback.media.summary}</p>
         <span>{playback.media.sourceName} · {playback.media.region ?? "地区未知"}</span>
       </header>
-      {playback.media.kind === "video" && playback.asset.kind === "official_embed" ? <MediaLearningWorkbench playback={playback} /> : <>
+      {(playback.media.kind === "video" && playback.asset.kind === "official_embed")
+        || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench playback={playback} /> : <>
         <div className="media-detail__player"><PlaybackSurface playback={playback} /></div>
         <section className="media-transcript" aria-labelledby="media-transcript-title">
         <div className="media-transcript__heading"><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
