@@ -4,9 +4,22 @@
 
 - 最后更新：2026-09-13
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`ACQ-001` 已完成并推送，自动采集领域、持久化、去重、权利/预算/保留门禁、CLI 和 deterministic fake 已建立；旧任务式学习首页及原发布候选队列继续暂停。下一步只允许领取 `REVIEW-001`，建立所有者审核、版本化修订、双维度批准和发布门禁。阶段 8 未启动
+- 总体状态：`REVIEW-001` 已完成并推送，所有者 allowlist、候选审核工作台、版本化修订、双维度批准、publisher 端口以及发布/撤下门禁已建立；真实 article/media publisher 仍未接入，不能发布正式内容。下一步只允许领取 `ARTICLE-001`，接入经审核的文章 RSS/专用适配器与正式 article 版本。阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：未放行发布候选。`UI-014` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排；原 `codex/ui-014-reading-density` 工作区及用户未提交改动必须保留。现有 v2 内容、训练、推荐、八维证据和数据库记录不删除；ACQ-001 只证明内部基础，不能据此声称真实来源抓取、新媒体、词句语料或四板块画像已经实现。iPhone Safari/PWA 真机、Flutter 及既有 6 个 `mobile-chromium` 失败继续延期并如实记录
+
+### 2026-09-13：REVIEW-001 所有者审核与发布门禁
+
+- 状态：`done`
+- 负责人：Codex
+- 分支：`codex/review-001-owner-content-workflow`
+- 实现 Commit：`e15cc81`
+- 范围：新增服务端 UUID allowlist 和“我的 → 内容工作流”所有者入口；新增来源/运行/候选内部 API、候选列表与审核工作台、按 candidate revision 保存的 `es-ES`、`zh-CN`、结构审核以及请求修改、拒绝和重新处理；新增 article/media publisher 端口与注册表，真实运行注册表为空时明确返回 `CONTENT_PUBLISHER_NOT_AVAILABLE`。
+- 发布安全：采集、审核和公开状态保持分离；发布在调用 publisher 前后分别校验 `review_ready`、verified rights、当前 revision/hash 和三个批准门禁，数据库使用行锁及事务重校验，工作流 CAS 失败时撤下 publisher 的公开投影；撤下保留内部审计。审核身份固定记录为 `codex-ai-owner-authorized-review`，不会信任客户端角色或生成者元数据，也不写学习证据、画像或关系记忆。
+- 数据与合同：迁移 `0022_empty_lenny_balinger.sql` 为候选增加 draft/published/archived 公开投影、不可变正式版本引用、发布 revision/hash 和撤下时间；新增候选列表、详情、审核和发布 JSON Schema、OpenAPI 路径与四个稳定错误码。浏览器角色仍不能直读写内部采集表。
+- 验证：聚焦 unit/database `8 files / 27 tests`、合同 `12 files / 46 tests`、全量 Vitest `170 files / 723 tests`、专用桌面 Chromium `2/2`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright `131/138`；内容工作流桌面/移动 `4/4` 通过，6 条既有移动 Chromium 延期项保持不变，另 1 条既有桌面阅读布局/状态时序偶发失败隔离重跑 `1/1` 通过。
+- 限制：未执行远端数据库迁移，未接公网、真实文章/媒体来源、真实 ASR 或收费 Provider；运行时 publisher registry 刻意为空，因此当前工作台可以审核和修订候选但不能冒充正式发布成功；未做真实账号、iPhone Safari/PWA 真机或 Flutter 验证。
+- 下一步：只领取 `ARTICLE-001`，接入白名单文章 RSS/专用适配器并通过 article publisher 创建正式不可变文章版本；不得在同一任务提前建设媒体库、YouTube、播客或 ASR。
 
 ### 2026-09-13：ACQ-001 自动采集领域与持久化基础
 
@@ -304,7 +317,7 @@
 
 ## 当前任务
 
-`ACQ-001` 已在 `codex/acq-001-content-acquisition-foundation` 完成并推送。当前没有已领取的实现任务；唯一可领取任务是 `REVIEW-001`，分支为 `codex/review-001-owner-content-workflow`。它只实现所有者候选审核、版本化修订、双维度批准和发布门禁，不接真实文章/媒体来源、不调用真实 ASR、不修改学习、阅读或媒体页面。
+`REVIEW-001` 已在 `codex/review-001-owner-content-workflow` 完成并推送。当前没有已领取的实现任务；唯一可领取任务是 `ARTICLE-001`，分支为 `codex/article-001-automated-article-ingestion`。它只接入白名单文章 RSS/专用适配器、候选处理和正式 article publisher，不建设媒体库、不接 YouTube/播客、不调用真实 ASR。
 
 当前任务顺序以 [`自动内容供应与词句学习重构实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。阶段 8 个人 Alpha 人工体验仍不是当前开发任务；必须等新队列完成、重新建立发布候选门禁并由产品本人确认后才可启动。阶段记录继续见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
@@ -335,7 +348,8 @@
 
 - `IA-001`：规格、ADR、实施计划与权威文档同步（done；`codex/ia-001-content-supply-design`）。
 - `ACQ-001`：自动采集领域与持久化基础（done；实现 Commit `cfd1e00`）。
-- `REVIEW-001`：所有者候选审核、修订、双维度批准和发布门禁（ready；唯一可领取实现任务）。
+- `REVIEW-001`：所有者候选审核、修订、双维度批准和发布门禁（done；实现 Commit `e15cc81`）。
+- `ARTICLE-001`：文章 RSS/专用适配器接入现有 article 模型（ready；唯一可领取实现任务）。
 - `ALPHA-033`：旧电脑端 Web 发布候选门禁（blocked；等待 OPS-001 后按新路径重新定义）。
 - 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待新发布候选门禁与产品本人确认）。
 
@@ -1628,8 +1642,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-017 | blocked | `codex/ui-017-collapsible-shell` | 待重排 | 公共壳层、可收缩侧边栏与全站一致性 | 新信息架构和移动头像规则落地后重排 |
 | IA-001 | done | `codex/ia-001-content-supply-design` | Codex / 产品本人 | 内容驱动学习、自动供应、词句语料和四板块画像规划 | 设计 `241c47a`、计划 `e43130c` |
 | ACQ-001 | done | `codex/acq-001-content-acquisition-foundation` | Codex | 自动采集领域、持久化、CLI、预算/保留与 fake | 实现 `cfd1e00` |
-| REVIEW-001 | ready | `codex/review-001-owner-content-workflow` | 待领取 | 所有者候选审核、修订、双维度批准和发布门禁 | ACQ-001 |
-| ARTICLE-001 | blocked | `codex/article-001-automated-article-ingestion` | 待领取 | 文章 RSS/专用适配器接入现有 article 模型 | ACQ-001、REVIEW-001 |
+| REVIEW-001 | done | `codex/review-001-owner-content-workflow` | Codex | 所有者候选审核、修订、双维度批准和发布门禁 | 实现 `e15cc81` |
+| ARTICLE-001 | ready | `codex/article-001-automated-article-ingestion` | 待领取 | 文章 RSS/专用适配器接入现有 article 模型 | ACQ-001、REVIEW-001 |
 | MEDIA-001 | blocked | `codex/media-001-library-foundation` | 待领取 | 统一媒体领域与视频/播客学习资料库 | ACQ-001、REVIEW-001 |
 | VIDEO-001 | blocked | `codex/video-001-youtube-learning` | 待领取 | YouTube 白名单视频纵向闭环 | MEDIA-001 |
 | PODCAST-001 | blocked | `codex/podcast-001-rss-learning` | 待领取 | 播客 RSS 纵向闭环 | MEDIA-001 |
@@ -1648,8 +1662,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 |---|---|---|---|
 | 1 | IA-001 | 规格、ADR、详细计划与权威文档同步 | 已完成；设计 `241c47a`，计划 `e43130c` |
 | 2 | ACQ-001 | 自动采集领域与持久化基础 | 已完成；实现 `cfd1e00` |
-| 3 | REVIEW-001 | 所有者审核与发布门禁 | `ready`；唯一可领取任务 |
-| 4 | ARTICLE-001 | 文章 RSS 与正式 article 接入 | ACQ-001、REVIEW-001 完成并确认 |
+| 3 | REVIEW-001 | 所有者审核与发布门禁 | 已完成；实现 `e15cc81` |
+| 4 | ARTICLE-001 | 文章 RSS 与正式 article 接入 | `ready`；唯一可领取任务 |
 | 5 | MEDIA-001 | 统一媒体领域与学习资料库 | ACQ-001、REVIEW-001 完成并确认 |
 | 6 | VIDEO-001 | YouTube 白名单视频纵向闭环 | MEDIA-001 完成并确认 |
 | 7 | PODCAST-001 | 播客 RSS 纵向闭环 | MEDIA-001 完成并确认 |
@@ -1659,7 +1673,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 11 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
 | 12 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前只允许领取 `REVIEW-001`，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前只允许领取 `ARTICLE-001`，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
@@ -1707,6 +1721,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-13 | 完成 REVIEW-001 所有者审核、版本化修订、双维度批准和发布/撤下门禁 | `e15cc81` | ARTICLE-001 解锁为唯一 ready 任务；真实 publisher 尚未接入 |
 | 2026-09-13 | 完成 ACQ-001 自动采集领域、六表持久化、CLI、预算/保留与 deterministic fake | `cfd1e00` | REVIEW-001 解锁为唯一 ready 任务 |
 | 2026-09-12 | 完成 IA-001 内容驱动学习、自动供应、词句语料与四板块画像规划 | `241c47a`、`e43130c` | 旧 UI/ALPHA 队列阻塞；唯一下一项为 ACQ-001 |
 | 2026-08-20 | 完成并批准七节产品设计 | `6564952` | 可以编写个人 Alpha 实施文档 |
