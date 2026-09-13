@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
@@ -20,12 +21,37 @@ describe("ChatThread persistence status", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows a visible explanation when conversation history is unavailable", async () => {
+  it("shows one recoverable error and disables the composer when conversation history is unavailable", async () => {
     render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("conversation-persistence-status")).toHaveTextContent("聊天记录暂未保存");
+      expect(screen.getByTestId("conversation-persistence-status")).toHaveTextContent("暂时无法打开这段对话");
     });
+    expect(screen.getAllByRole("button", { name: "重试" })).toHaveLength(1);
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
+    expect(screen.queryByText(/DATABASE_URL/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the header to identity, relationship state, and one contextual menu", async () => {
+    const user = userEvent.setup();
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" roleLabel="熟悉的朋友" characterVersion={1} initialMessages={[]} />);
+
+    expect(screen.getByRole("heading", { name: "Lucía Martín" })).toBeInTheDocument();
+    expect(screen.getByText("熟悉的朋友")).toBeInTheDocument();
+    expect(screen.queryByRole("search", { name: "搜索对话" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "更多对话操作" }));
+    expect(screen.getByRole("menu", { name: "对话操作" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "搜索消息" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "关系资料与清理" })).toHaveAttribute("href", "/me#profile-relationships");
+  });
+
+  it("uses one natural sentence for an empty conversation", () => {
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[]} />);
+
+    expect(screen.getByText("¡Hola! Cuéntame algo de tu día.")).toBeInTheDocument();
+    expect(screen.queryByText("Lucía Martín 的消息")).not.toBeInTheDocument();
+    expect(screen.queryByText("Yo te sigo la conversación.")).not.toBeInTheDocument();
   });
 
   it("uses the selected original-art bubble for my messages", async () => {
@@ -148,7 +174,7 @@ describe("ChatThread persistence status", () => {
 
   it("opens the sent-message menu and copies only the visible text", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     const historyResponse = {
       ok: true,
       headers: new Headers([["x-conversation-persistence", "available"]]),
@@ -160,7 +186,8 @@ describe("ChatThread persistence status", () => {
     render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
 
     const message = await screen.findByText("Hola desde el chat");
-    fireEvent.contextMenu(message.closest("article")!);
+    expect(screen.queryByRole("button", { name: "消息操作" })).not.toBeInTheDocument();
+    fireEvent.click(message.closest("article")!);
     expect(screen.getByRole("menu")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "复制" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("Hola desde el chat"));

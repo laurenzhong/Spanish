@@ -10,6 +10,7 @@ import {
 
 type VoiceComposerProps = Readonly<{
   disabled?: boolean;
+  unavailable?: boolean;
   characterName?: string;
   value: string;
   onChange: (value: string) => void;
@@ -21,6 +22,7 @@ type VoiceComposerProps = Readonly<{
 
 export function VoiceComposer({
   disabled = false,
+  unavailable = false,
   characterName = "Lucía Martín",
   value,
   onChange,
@@ -38,6 +40,7 @@ export function VoiceComposer({
   const transcriptionAbortRef = useRef<AbortController | null>(null);
   const transcriptionAttemptRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const blocked = disabled || unavailable;
 
   useEffect(() => {
     recorderRef.current = createBrowserAudioRecorder();
@@ -107,7 +110,7 @@ export function VoiceComposer({
 
   async function toggleRecording() {
     const recorder = recorderRef.current;
-    if (!recorder || disabled) return;
+    if (!recorder || blocked) return;
     if (transcribing) {
       transcriptionAttemptRef.current += 1;
       transcriptionAbortRef.current?.abort();
@@ -146,10 +149,10 @@ export function VoiceComposer({
   return (
     <form
       className="conversation-composer"
-      data-state={recording ? "recording" : transcribing ? "transcribing" : disabled ? "streaming" : "idle"}
+      data-state={recording ? "recording" : transcribing ? "transcribing" : disabled ? "streaming" : unavailable ? "unavailable" : "idle"}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!disabled && !transcribing && value.trim()) onSubmit();
+        if (!blocked && !transcribing && value.trim()) onSubmit();
       }}
     >
       {quotedText ? (
@@ -162,7 +165,7 @@ export function VoiceComposer({
         <button
           aria-label={recording ? "取消录音" : transcribing ? "取消语音整理" : "使用语音输入"}
           className="conversation-composer__control conversation-composer__control--leading"
-          disabled={disabled}
+          disabled={blocked}
           onClick={() => void (recording ? cancelRecording() : toggleRecording())}
           title={recording ? "取消录音" : transcribing ? "取消语音整理" : "使用语音输入"}
           type="button"
@@ -185,7 +188,7 @@ export function VoiceComposer({
         ) : (
           <textarea
             aria-label={`写下你想对 ${characterName === "Lucía Martín" ? "Lucía" : characterName} 说的话`}
-            disabled={disabled || transcribing}
+            disabled={blocked || transcribing}
             lang="es"
             maxLength={2_000}
             ref={textareaRef}
@@ -193,9 +196,9 @@ export function VoiceComposer({
             onKeyDown={(event) => {
               if (event.key !== "Enter" || event.shiftKey) return;
               event.preventDefault();
-              if (!disabled && !transcribing && value.trim()) onSubmit();
+              if (!blocked && !transcribing && value.trim()) onSubmit();
             }}
-            placeholder={disabled ? `${characterName} 正在回复…` : "写下你想说的话…"}
+            placeholder={unavailable ? "对话暂时不可用" : disabled ? `${characterName} 正在回复…` : "写下你想说的话…"}
             rows={1}
             value={value}
           />
@@ -214,15 +217,14 @@ export function VoiceComposer({
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17" /></svg>
           </button>
         ) : (
-          <button aria-label="发送消息" className="conversation-composer__control conversation-composer__control--trailing" disabled={!value.trim()} title="发送消息" type="submit">
+          <button aria-label="发送消息" className="conversation-composer__control conversation-composer__control--trailing" disabled={unavailable || !value.trim()} title="发送消息" type="submit">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
           </button>
         )}
       </div>
-      <div className="conversation-composer__meta">
-        <span className="conversation-composer__notice" role={notice ? "status" : undefined} aria-live="polite">{notice ?? (disabled ? `${characterName} 回复完成后可以继续发送` : "")}</span>
-        <span className="conversation-composer__help">Enter 发送 · Shift + Enter 换行</span>
-      </div>
+      {notice || disabled ? <div className="conversation-composer__meta">
+        <span className="conversation-composer__notice" role="status" aria-live="polite">{notice ?? `${characterName} 正在回复`}</span>
+      </div> : null}
     </form>
   );
 }
