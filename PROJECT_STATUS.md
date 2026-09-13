@@ -4,9 +4,21 @@
 
 - 最后更新：2026-09-13
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`ARTICLE-001` 已完成并推送，白名单文章 RSS/专用适配器、确定性候选处理、正式 article publisher 与数据库文章公开读取已接通；媒体 publisher 仍未接入。下一步只允许领取 `MEDIA-001`，建立统一媒体领域与视频/播客学习资料库基础。阶段 8 未启动
+- 总体状态：`MEDIA-001` 实现已完成并推送，统一媒体领域、版本化数据库、播放/进度 API 和直接内容式 `/learn` 资料库基础已建立；等待合并复核。媒体 publisher 与真实来源仍未接入，合并前不领取后续任务。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：文章只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体仍未放行发布。`UI-014` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排；原 `codex/ui-014-reading-density` 工作区及用户未提交改动必须保留。现有 v2 内容、训练、推荐、八维证据和数据库记录不删除；ARTICLE-001 不代表媒体库、YouTube、播客、ASR、词句语料或四板块画像已经实现。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
+- 当前门禁：文章只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。媒体 publisher 仍未注册，因此自动候选不能正式发布。`UI-014` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排；原 `codex/ui-014-reading-density` 工作区及用户未提交改动必须保留。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
+
+### 2026-09-13：MEDIA-001 统一媒体领域与学习资料库
+
+- 状态：`review`
+- 负责人：Codex
+- 分支：`codex/media-001-library-foundation`
+- 实现 Commit：`7cd67b7`
+- 范围：新增视频/播客共享领域、稳定 `stableKey@version` DTO、公开列表/详情、鉴权播放投影和 revision/CAS 进度 API；新增 `media_items`、`media_versions`、`media_assets`、`media_segments`、`user_media_progress` 与迁移 `0024_media_library_foundation.sql`。`/learn` 已移除旧 Hero、开始/继续 CTA 和任务时间线，直接展示全部/视频/播客、搜索、地区/难度/时长/排序筛选、内容卡或真实空状态；新增媒体详情播放器与最多 500 段已审核字幕，移动顶部头像移除而桌面侧栏账户菜单保留。旧 `/learn/practice` route、训练状态机和历史数据保持兼容。
+- 数据与安全：公开目录只投影当前 `published + cleared + playable` 版本；撤下、过期、非 HTTPS 播放信息失败关闭。非官方嵌入资产必须有过期时间；进度按用户和不可变版本唯一，保存时重新验证当前版本、资产、总时长、片段审核状态和 revision，重复请求幂等，跨用户由 RLS 与服务端所有权双重隔离。观看和进度不写能力证据。
+- 验证：全量 Vitest `182 files / 752 tests`、媒体/学习页相关 Playwright `10/10`、壳层相关 Playwright `8/8`、旧训练兼容 Playwright `2/2`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright 在兼容断言修正前为 `139/146`；相关 2 条已隔离复测通过，剩余 5 条与前序状态一致，均为既有 `mobile-chromium` 延期项（文章拖选 1 条、Lucía 联系人/介绍 4 条）。
+- 限制：未执行远端数据库迁移，未注册媒体 publisher，未接真实 YouTube、播客 RSS、ASR、翻译或收费 Provider；正式库因此保持真实空状态。未做真实账号、iPhone Safari/PWA 真机或 Flutter 验证。
+- 下一步：由协调者合并 `MEDIA-001` 并在 `main` 标记 `done`；合并确认后才把 `VIDEO-001` 提升为唯一 `ready` 任务。
 
 ### 2026-09-13：ARTICLE-001 自动文章采集与正式发布
 
@@ -1658,7 +1670,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | ACQ-001 | done | `codex/acq-001-content-acquisition-foundation` | Codex | 自动采集领域、持久化、CLI、预算/保留与 fake | 实现 `cfd1e00` |
 | REVIEW-001 | done | `codex/review-001-owner-content-workflow` | Codex | 所有者候选审核、修订、双维度批准和发布门禁 | 实现 `e15cc81` |
 | ARTICLE-001 | done | `codex/article-001-automated-article-ingestion` | Codex | 文章 RSS/专用适配器接入现有 article 模型 | 实现 `bf5ea3b` |
-| MEDIA-001 | ready | `codex/media-001-library-foundation` | 待领取 | 统一媒体领域与视频/播客学习资料库 | ACQ-001、REVIEW-001、ARTICLE-001 |
+| MEDIA-001 | review | `codex/media-001-library-foundation` | Codex | 统一媒体领域与视频/播客学习资料库 | 实现 `7cd67b7`，等待合并复核 |
 | VIDEO-001 | blocked | `codex/video-001-youtube-learning` | 待领取 | YouTube 白名单视频纵向闭环 | MEDIA-001 |
 | PODCAST-001 | blocked | `codex/podcast-001-rss-learning` | 待领取 | 播客 RSS 纵向闭环 | MEDIA-001 |
 | MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 |
@@ -1678,7 +1690,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 2 | ACQ-001 | 自动采集领域与持久化基础 | 已完成；实现 `cfd1e00` |
 | 3 | REVIEW-001 | 所有者审核与发布门禁 | 已完成；实现 `e15cc81` |
 | 4 | ARTICLE-001 | 文章 RSS 与正式 article 接入 | 已完成；实现 `bf5ea3b` |
-| 5 | MEDIA-001 | 统一媒体领域与学习资料库 | `ready`；唯一可领取任务 |
+| 5 | MEDIA-001 | 统一媒体领域与学习资料库 | 实现 `7cd67b7` 已推送；等待合并复核 |
 | 6 | VIDEO-001 | YouTube 白名单视频纵向闭环 | MEDIA-001 完成并确认 |
 | 7 | PODCAST-001 | 播客 RSS 纵向闭环 | MEDIA-001 完成并确认 |
 | 8 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 完成并确认 |
@@ -1687,7 +1699,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 11 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
 | 12 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前只允许领取 `MEDIA-001`，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前等待 `MEDIA-001` 合并复核，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
