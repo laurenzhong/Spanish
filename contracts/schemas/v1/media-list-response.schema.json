@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-list-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data", "page"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": { "type": "array", "maxItems": 50, "items": { "$ref": "media-item.schema.json" } }
+      }
+    },
+    "page": { "$ref": "https://spanish.local/contracts/v1/page-info.schema.json" }
+  }
+}

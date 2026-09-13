@@ -13,13 +13,15 @@ async function usePhoneViewport(page: Page) {
   await page.setViewportSize({ width: 390, height: 844 });
 }
 
-test("runs the phone learning path with hints, silent output, feedback, and baseline profile state", async ({ page }) => {
+test("keeps the legacy phone training route usable without restoring a learning-page task CTA", async ({ page }) => {
   await authenticate(page);
   await usePhoneViewport(page);
   await page.goto("/learn");
   await expect(page.getByRole("progressbar", { name: "这组表达进度" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "开始第一次练习" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
 
-  await page.getByRole("link", { name: "开始第一次练习" }).click();
+  await page.goto("/learn/practice");
   const loop = page.getByTestId("training-loop");
   await expect(loop).toHaveAttribute("data-hydrated", "true");
   await expect(loop).toHaveAttribute("data-status", "awaiting-output");

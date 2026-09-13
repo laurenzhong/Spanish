@@ -4,6 +4,7 @@ export * from "./content";
 export * from "./content-acquisition";
 export * from "./evidence";
 export * from "./infrastructure";
+export * from "./media";
 export * from "./training";
 export * from "./users";
 export * from "./reading";

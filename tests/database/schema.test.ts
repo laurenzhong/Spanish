@@ -41,6 +41,10 @@ import {
   idempotencyKeys,
   learningBreakpoints,
   learningGoals,
+  mediaAssets,
+  mediaItems,
+  mediaSegments,
+  mediaVersions,
   memorySharingPermissions,
   messages,
   practiceAttempts,
@@ -57,6 +61,7 @@ import {
   userArticleHighlights,
   userArticleSaves,
   userContentPackStates,
+  userMediaProgress,
   userReadingProgress,
   userSavedArticleSources,
   userSceneStates,
@@ -107,6 +112,10 @@ const allTables = [
   articleSources,
   articleVersions,
   articles,
+  mediaItems,
+  mediaVersions,
+  mediaAssets,
+  mediaSegments,
   providerCalls,
   diagnosticEvents,
   privacyCleanupTasks,
@@ -115,6 +124,7 @@ const allTables = [
   userArticleSaves,
   userArticleHighlights,
   userSavedArticleSources,
+  userMediaProgress,
 ] as const;
 
 const userOwnedTables = [
@@ -136,6 +146,7 @@ const userOwnedTables = [
   conversations,
   messages,
   userContentPackStates,
+  userMediaProgress,
 ] as const;
 
 describe("database schema", () => {
@@ -174,6 +185,10 @@ describe("database schema", () => {
         "idempotency_keys",
         "learning_breakpoints",
         "learning_goals",
+        "media_assets",
+        "media_items",
+        "media_segments",
+        "media_versions",
         "memory_sharing_permissions",
         "messages",
         "practice_attempts",
@@ -188,6 +203,7 @@ describe("database schema", () => {
         "tags",
         "user_article_highlights",
         "user_article_saves",
+        "user_media_progress",
         "user_preferences",
         "user_reading_progress",
         "user_saved_article_sources",
@@ -277,6 +293,7 @@ describe("database schema", () => {
         "0023_article_acquisition.sql",
         "0012_wakeful_spiral.sql",
         "0021_shallow_killmonger.sql",
+        "0024_media_library_foundation.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),

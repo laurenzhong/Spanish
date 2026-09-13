@@ -173,6 +173,8 @@ article publisher 不直接由 `content-acquisition` 写表，而是调用 `cont
 
 `/learn` 是视频/播客目录和媒体学习器，不再读取推荐器生成“开始/继续”任务。`/read` 在文章之外提供词汇、短语、语料和文字考察。`training` 继续提供 attempt、录音、状态机和证据编排，但不再拥有任务式学习首页。
 
+`media` 的公开列表和详情只投影当前 `published + cleared + playable` 版本，稳定引用为 `stableKey@version`。播放接口要求用户会话，只返回 HTTPS 播放信息和最多 500 个已审核片段；临时播放地址过期、资产撤下或版本不可用时失败关闭。用户进度绑定具体媒体版本，以 revision/CAS 保存位置并允许相同旧请求幂等重放，不能把过期版本、未审核片段或越界位置写入进度。`/learn` 在没有正式媒体时显示真实空状态，不用 fixture 或 AI 示例内容冒充已发布素材；旧 `/learn/practice` 保留为兼容 route，但不再从学习首页暴露。
+
 画像主投影为词汇与短语、交流运用、语音表达、跟读表现四个板块。底层 `evidence_events` 和 `user_skill_states` 继续按 skill key 保存并可重算；profile 只做版本化分组和解释。文字考察、文字对话、可信语音和跟读按输出方式进入不同 skill；观看、阅读、查词、收藏和时长均不写证据。
 
 ### 6.2 场景实战与长期角色隔离

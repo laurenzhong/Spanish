@@ -169,6 +169,13 @@
       "when": 1789268022224,
       "tag": "0023_article_acquisition",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789286686512,
+      "tag": "0024_media_library_foundation",
+      "breakpoints": true
     }
   ]
 }

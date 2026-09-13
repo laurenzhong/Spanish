@@ -34,5 +34,8 @@
   { "code": "CONTENT_REVIEW_INCOMPLETE", "defaultRetryable": false },
   { "code": "CONTENT_PUBLISHER_NOT_AVAILABLE", "defaultRetryable": true },
   { "code": "CONTENT_PUBLICATION_CONFLICT", "defaultRetryable": false },
+  { "code": "MEDIA_NOT_FOUND", "defaultRetryable": false },
+  { "code": "MEDIA_NOT_AVAILABLE", "defaultRetryable": true },
+  { "code": "MEDIA_PROGRESS_CONFLICT", "defaultRetryable": false },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }
 ]
