@@ -377,6 +377,7 @@ test("preserves the selected discovery direction on the learning page", async ({
 
 test("opens the published reading shelf and article reader", async ({ page }) => {
   await authenticate(page);
+  const wideDesktop = (page.viewportSize()?.width ?? 0) >= 1200;
   let savedArticleId: string | null = null;
   await page.route("**/api/v1/read/saved", async (route) => {
     if (route.request().method() === "GET") {
@@ -393,43 +394,62 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("link", { name: "回到今天" })).toHaveCount(0);
   await expect(page.getByText("安静输入", { exact: true })).toHaveCount(0);
   await expect(page.getByText("读一篇真实的西语文章", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Public Texts" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "My Texts" })).toHaveAttribute("href", "/read?saved=1");
-  await expect(page.getByRole("link", { name: "Web Sites" })).toHaveAttribute("href", "/read?source=web");
-  await expect(page.getByText("105 texts", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Next page" })).toHaveAttribute("href", "/read?page=2");
-  await page.getByRole("link", { name: "Next page" }).click();
+  await expect(page.getByRole("link", { name: "公共文章" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "我的文章" })).toHaveAttribute("href", "/read?saved=1");
+  await expect(page.getByRole("link", { name: "Web Sites" })).toHaveCount(0);
+  await expect(page.getByText("105 篇", { exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "文章分页" })).toBeVisible();
+  await expect(page.getByLabel("第 1 页，当前页")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "下一页" })).toHaveAttribute("href", "/read?page=2");
+  await page.getByRole("link", { name: "下一页" }).click();
   await expect(page).toHaveURL(/\/read\?page=2$/);
-  await expect(page.getByRole("link", { name: "Previous page" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Generate Story/ })).toHaveAttribute("href", "/read/generate");
-  await page.locator("summary").filter({ hasText: "Filters" }).click();
+  await expect(page.locator("article.read-article-row")).toHaveCount(12);
+  await expect(page.getByLabel("第 2 页，当前页")).toHaveAttribute("aria-current", "page");
+  await page.locator("summary").filter({ hasText: "添加内容" }).click();
+  await expect(page.getByRole("link", { name: "生成私人故事" })).toHaveAttribute("href", "/read/generate");
+  await page.locator("summary").filter({ hasText: "筛选" }).click();
+  await expect(page.locator(".read-add-menu")).not.toHaveAttribute("open", "");
   await expect(page.locator(".read-filter-menu__panel")).toBeVisible();
+  await page.getByRole("searchbox", { name: "搜索文章" }).click();
+  await expect(page.locator(".read-filter-menu")).not.toHaveAttribute("open", "");
   await page.goto("/read");
   const firstArticleLink = page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true });
   await expect(firstArticleLink).toBeVisible();
+  await expect(firstArticleLink).toHaveCSS("white-space", "nowrap");
+  await expect(firstArticleLink).toHaveCSS("text-overflow", "ellipsis");
   const firstArticleRow = page.locator("article.read-article-row").first();
   await page.evaluate(() => document.fonts?.ready);
+  await firstArticleRow.evaluate(async (element) => {
+    const pageStack = element.closest(".page-stack");
+    await Promise.all(pageStack?.getAnimations().map((animation) => animation.finished.catch(() => undefined)) ?? []);
+  });
   const firstArticleTop = await firstArticleRow.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
-  const firstArticleSave = page.getByRole("button", { name: /保存到 My Texts：Una conversación que empieza con un café/ });
+  const firstArticleSave = page.getByRole("button", { name: /收藏文章：Una conversación que empieza con un café/ });
   await firstArticleSave.click();
   await page.evaluate(() => document.fonts?.ready);
   const firstArticleTopAfterSave = await firstArticleRow.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
   expect(Math.abs(firstArticleTopAfterSave - firstArticleTop)).toBeLessThan(5);
-  await expect(page.getByRole("button", { name: /从 My Texts 移除：Una conversación que empieza con un café/ })).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("已保存到 My Texts。");
+  await expect(page.getByRole("button", { name: /取消收藏：Una conversación que empieza con un café/ })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("已收藏。");
   await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4000 });
   await firstArticleLink.click();
   await expect(page).toHaveURL(/\/read\/article\/article\.sueno-first-cafe%401$/);
   await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "打开阅读辅助" })).toBeVisible();
-  await expect(page.getByTestId("article-transfer")).toBeVisible();
+  await expect(page.getByTestId("article-transfer")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toHaveCount(0);
+  await page.getByRole("button", { name: "收藏" }).click();
   await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toBeVisible();
+  if (wideDesktop) await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
+  else await page.locator(".article-reader__scrim").click({ position: { x: 8, y: 8 } });
+  await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toHaveCount(0);
+  await page.getByText("读完后练口语", { exact: true }).click();
+  await expect(page.getByTestId("article-transfer")).toBeVisible();
   await page.goto("/read");
-  await page.getByRole("link", { name: "My Texts" }).click();
+  await page.getByRole("link", { name: "我的文章" }).click();
   await expect(page).toHaveURL(/\/read\?saved=1$/);
   await expect(page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /从 My Texts 移除：Una conversación que empieza con un café/ }).click();
-  await expect(page.getByRole("heading", { name: "My Texts 还是空的" })).toBeVisible();
+  await page.getByRole("button", { name: /取消收藏：Una conversación que empieza con un café/ }).click();
+  await expect(page.getByRole("heading", { name: "还没有收藏文章" })).toBeVisible();
 });
 
 test("redirects readers to login when their save session expires", async ({ page }) => {
@@ -444,7 +464,7 @@ test("redirects readers to login when their save session expires", async ({ page
   await page.goto("/read");
   const title = "Una conversación que empieza con un café";
   await page.context().clearCookies();
-  await page.getByRole("button", { name: `保存到 My Texts：${title}` }).click();
+  await page.getByRole("button", { name: `收藏文章：${title}` }).click();
   await expect(page).toHaveURL(/\/login\?next=%2Fread$/);
 });
 

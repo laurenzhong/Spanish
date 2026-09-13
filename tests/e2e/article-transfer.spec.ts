@@ -12,10 +12,22 @@ async function authenticate(page: Page) {
   ]);
 }
 
+test("keeps the translator pin available at the desktop threshold", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium");
+  await authenticate(page);
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await page.goto("/read/article/article.sueno-first-cafe@1");
+  await page.getByRole("button", { name: /^café/ }).click();
+
+  await expect(page.getByRole("button", { name: "固定翻译器" })).toBeVisible();
+});
+
 test("moves an explicit article transfer into the oral practice context", async ({ page }) => {
   await authenticate(page);
   await page.goto("/read/article/article.sueno-first-cafe@1");
 
+  await expect(page.getByTestId("article-transfer")).toHaveCount(0);
+  await page.getByText("读完后练口语", { exact: true }).click();
   await expect(page.getByTestId("article-transfer")).toBeVisible();
   await expect(page.getByRole("button", { name: /说说文章讲了什么/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /说说你的看法/ })).toBeVisible();
@@ -37,6 +49,7 @@ test("moves an explicit article transfer into the oral practice context", async 
 
 test("opens reader tools on demand and explains a selected word", async ({ page }) => {
   await authenticate(page);
+  const wideDesktop = (page.viewportSize()?.width ?? 0) >= 1200;
   let explanationApiCalled = false;
   await page.route("**/api/v1/read/word-explanation", async (route) => {
     explanationApiCalled = true;
@@ -49,88 +62,97 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   const actions = page.locator(".article-reader__topbar-actions");
   await expect(topbar).toHaveCSS("position", "fixed");
   await expect(topbar).toHaveCSS("top", "0px");
-  await expect(topbar).toHaveCSS("border-bottom-width", "1px");
+  await expect(topbar).toHaveCSS("min-height", "64px");
   await expect(title).toContainText("Una conversación que empieza con un café");
-  await expect(title).toHaveCSS("text-overflow", "clip");
-  await expect(actions).toHaveCSS("gap", "2px");
-
-  const toggle = page.locator(".article-reader__assist-toggle");
-  const tools = page.getByRole("dialog", { name: "阅读辅助" });
-  await expect(toggle).toHaveAccessibleName("打开阅读辅助");
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(tools).not.toBeVisible();
-
-  await toggle.click();
-  await expect(toggle).toHaveAccessibleName("关闭阅读辅助");
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(tools).toBeVisible();
-  await expect(tools).toContainText("Click any word on the left for a context-aware explanation.");
-
-  const tabs = page.locator(".article-reader__tool-tabs");
-  const toolsBox = await tools.boundingBox();
-  const tabsBox = await tabs.boundingBox();
-  expect(toolsBox).not.toBeNull();
-  expect(tabsBox).not.toBeNull();
-  if (toolsBox && tabsBox) {
-    expect(tabsBox.y - toolsBox.y).toBeLessThan(80);
-    if ((page.viewportSize()?.width ?? 0) >= 960) {
-      expect(toolsBox.width).toBeCloseTo(425, 0);
-      const toggleBox = await toggle.boundingBox();
-      expect(toggleBox).not.toBeNull();
-      if (toggleBox) {
-        expect(toggleBox.x).toBeGreaterThanOrEqual(toolsBox.x);
-        const toggleIsTopmost = await toggle.evaluate((node) => {
-          const rect = node.getBoundingClientRect();
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          return hit === node || node.contains(hit);
-        });
-        expect(toggleIsTopmost).toBe(true);
-      }
-      const content = page.locator(".article-reader__content");
-      await expect(content).toHaveCSS("padding-right", "24px");
-      await expect(content).toHaveCSS("margin-right", "0px");
-      const firstTab = tabs.getByRole("tab").first();
-      const firstTabBox = await firstTab.boundingBox();
-      expect(firstTabBox).not.toBeNull();
-      if (firstTabBox) {
-        const tabIsTopmost = await firstTab.evaluate((node) => {
-          const rect = node.getBoundingClientRect();
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          return hit === node || node.contains(hit);
-        });
-        expect(tabIsTopmost).toBe(true);
-      }
-    }
+  await expect(title).toHaveCSS("text-overflow", "ellipsis");
+  if (wideDesktop) {
+    await topbar.evaluate(async (node) => {
+      await Promise.all(node.closest(".page-stack")?.getAnimations().map((animation) => animation.finished.catch(() => undefined)) ?? []);
+    });
+    const centers = await Promise.all([topbar, title].map((locator) => locator.evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      return box.left + box.width / 2;
+    })));
+    expect(Math.abs(centers[0] - centers[1])).toBeLessThan(2);
   }
+  await expect(actions.getByRole("button")).toHaveCount(3);
+  await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
+  await expect(page.getByText("Marta conoce a una compañera nueva en la cafetería del campus y descubre que una conversación sencilla puede abrir una relación inesperada.")).toHaveCount(0);
+  await expect(page.getByText("来源已审核")).toHaveCount(0);
+  await expect(page.locator(".article-reader__content")).toHaveCSS("border-top-width", "0px");
+  await expect(page.locator(".article-reader__content")).toHaveCSS("box-shadow", "none");
+  await expect(page.getByRole("progressbar", { name: "文章阅读进度" })).toBeVisible();
 
-  if ((page.viewportSize()?.width ?? 0) < 800) {
-    await page.locator(".article-reader__tools-close").click();
-    await expect(tools).not.toBeVisible();
-  }
-  await page.getByRole("button", { name: /^café/ }).click();
+  await expect(page.getByRole("button", { name: "朗读" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "收藏" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "设置" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "解释" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "词典" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "口语" })).toHaveCount(0);
+  await expect(page.locator(".article-reader__document-header")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const selectedWord = page.getByRole("button", { name: /^café/ });
+  await selectedWord.click();
+  await expect(selectedWord).toHaveClass(/is-translation-selection/u);
+  const tools = page.getByRole("dialog", { name: "解释" });
   await expect(tools).toContainText("咖啡这种饮料；咖啡馆");
   expect(explanationApiCalled).toBe(false);
-  const sidebarOverflow = await tools.evaluate((node) => ({
-    panel: node.scrollWidth <= node.clientWidth,
-    tabRows: new Set([...node.querySelectorAll<HTMLElement>(".article-reader__tool-tabs button")].map((button) => button.getBoundingClientRect().top)).size,
-  }));
+  const activeTools = page.getByRole("dialog", { name: "解释" });
+  const sidebarOverflow = await activeTools.evaluate((node) => ({ panel: node.scrollWidth <= node.clientWidth }));
   expect(sidebarOverflow.panel).toBe(true);
-  expect(sidebarOverflow.tabRows).toBe(1);
 
-  await page.getByRole("tab", { name: "Dictionary" }).click();
-  await expect(page.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
-  await expect(page.getByRole("combobox", { name: "词典目标语言" })).toHaveValue("Chinese");
-  await expect(tools).toContainText("还没有配置 Spanish → Chinese 词典。");
+  if (wideDesktop) {
+    const bodyWidthBeforePin = await page.locator(".article-reader__body").evaluate((node) => node.getBoundingClientRect().width);
+    const toolsBoxBeforeDrag = await activeTools.boundingBox();
+    const dragHandle = page.getByTestId("translator-drag-handle");
+    if (toolsBoxBeforeDrag) {
+      await dragHandle.hover({ position: { x: 24, y: 20 } });
+      await page.mouse.down();
+      await page.mouse.move(toolsBoxBeforeDrag.x - 120, toolsBoxBeforeDrag.y + 150);
+      await page.mouse.up();
+      const toolsBoxAfterDrag = await activeTools.boundingBox();
+      expect(toolsBoxAfterDrag?.x).not.toBe(toolsBoxBeforeDrag.x);
+    }
+    const pin = page.getByRole("button", { name: "固定翻译器" });
+    await pin.click();
+    await expect(page.locator(".article-reader")).toHaveClass(/article-reader--tools-pinned/u);
+    const pinnedBoxes = await Promise.all([page.locator(".article-reader__content"), activeTools].map((locator) => locator.boundingBox()));
+    expect(pinnedBoxes[0]).not.toBeNull();
+    expect(pinnedBoxes[1]).not.toBeNull();
+    if (pinnedBoxes[0] && pinnedBoxes[1]) expect(pinnedBoxes[0].x + pinnedBoxes[0].width).toBeLessThanOrEqual(pinnedBoxes[1].x);
+    const bodyWidthAfterPin = await page.locator(".article-reader__body").evaluate((node) => node.getBoundingClientRect().width);
+    expect(bodyWidthAfterPin).toBeGreaterThanOrEqual(bodyWidthBeforePin - 1);
+    await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
+    await expect(activeTools).toBeVisible();
+    await page.getByRole("button", { name: "取消固定翻译器" }).click();
+    await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
+    await expect(activeTools).toHaveCount(0);
+    await expect(selectedWord).not.toHaveClass(/is-translation-selection/u);
+  } else {
+    await expect(page.getByRole("button", { name: "固定翻译器" })).toBeHidden();
+    await page.locator(".article-reader__scrim").click({ position: { x: 8, y: 8 } });
+  }
 
-  await page.getByRole("tab", { name: "Settings" }).click();
-  await expect(tools.getByRole("heading", { name: "Spanish voices" })).toBeVisible();
-  await expect(tools.getByRole("region", { name: "Spanish voices" })).toBeVisible();
+  await page.getByRole("button", { name: "朗读" }).click();
+  const listenPanel = page.getByRole("dialog", { name: "朗读" });
+  await expect(listenPanel).toContainText(/当前：第 \d+ 段/u);
+  const currentParagraphText = await listenPanel.textContent();
+  const currentParagraph = Number(currentParagraphText?.match(/当前：第 (\d+) 段/u)?.[1]);
+  expect(currentParagraph).toBeGreaterThan(0);
+  await expect(page.getByRole("button", { name: `朗读第 ${currentParagraph} 段` })).toBeVisible();
+  await expect(page.locator(`[data-reader-position="${currentParagraph - 1}"]`)).toHaveClass(/is-listen-target/u);
+  if (wideDesktop) await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
+  else await page.locator(".article-reader__scrim").click({ position: { x: 8, y: 8 } });
 
-  if ((page.viewportSize()?.width ?? 0) < 800) await page.locator(".article-reader__tools-close").click();
-  else await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(toggle).toHaveAccessibleName("打开阅读辅助");
-  await expect(tools).not.toBeVisible();
+  await page.getByRole("button", { name: "设置" }).click();
+  const settings = page.getByRole("dialog", { name: "设置" });
+  await expect(settings.getByRole("heading", { name: "Spanish voices" })).toBeVisible();
+  await expect(settings.getByRole("region", { name: "Spanish voices" })).toBeVisible();
+
+  if (wideDesktop) await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
+  else await page.locator(".article-reader__scrim").click({ position: { x: 8, y: 8 } });
+  await expect(page.getByRole("button", { name: "设置" })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("explains a selected sentence", async ({ page }) => {
@@ -154,25 +176,27 @@ test("explains a selected sentence", async ({ page }) => {
     });
   });
   await page.goto("/read/article/article.sueno-first-cafe@1");
-  await page.locator(".article-reader__assist-toggle").click();
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByRole("dialog", { name: "设置" }).waitFor();
+  await page.keyboard.press("Escape");
   const paragraph = page.locator('[data-reader-position="0"]');
-  const tokens = paragraph.locator(".reader-token");
-  const start = await tokens.nth(1).boundingBox();
-  const end = await tokens.nth(3).boundingBox();
-  expect(start).not.toBeNull();
-  expect(end).not.toBeNull();
-  if (!start || !end) throw new Error("sentence tokens missing");
-  await page.evaluate(() => {
-    document.addEventListener("mouseup", () => {
-      document.body.dataset.lastReaderSelection = window.getSelection()?.toString() ?? "";
-    }, { capture: true, once: true });
+  const selectedText = await paragraph.evaluate((node) => {
+    const tokens = node.querySelectorAll<HTMLElement>(".reader-token");
+    const start = tokens[1]?.firstChild;
+    const end = tokens[3]?.firstChild;
+    if (!start || !end) throw new Error("sentence tokens missing");
+    const range = document.createRange();
+    range.setStart(start, 0);
+    range.setEnd(end, end.textContent?.length ?? 0);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const value = range.toString();
+    node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    return value;
   });
-  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 8 });
-  await page.mouse.up();
-  const selectedText = await page.locator("body").getAttribute("data-last-reader-selection");
   expect(selectedText).toContain("clase");
   await expect(page.getByRole("button", { name: "解析所选句子" })).toHaveCount(0);
-  await expect(page.getByRole("dialog", { name: "阅读辅助" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
+  await expect(paragraph.locator(".reader-token.is-translation-selection")).toHaveCount(3);
+  await expect(page.getByRole("dialog", { name: "解释" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
 });

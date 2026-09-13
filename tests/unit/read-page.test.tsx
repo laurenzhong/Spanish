@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createDrizzleReadingRepository: vi.fn(),
   getCurrentUser: vi.fn(),
   getDatabase: vi.fn(),
+  ReadShelf: vi.fn(() => null),
 }));
 
 vi.mock("@/src/modules/content/application", () => ({ getArticles: mocks.getArticles }));
@@ -25,7 +26,7 @@ vi.mock("@/src/modules/reading/repositories", () => ({
 }));
 vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser: mocks.getCurrentUser }));
 vi.mock("@/src/shared/db/client", () => ({ getDatabase: mocks.getDatabase }));
-vi.mock("@/app/(product)/read/read-shelf", () => ({ ReadShelf: () => null }));
+vi.mock("@/app/(product)/read/read-shelf", () => ({ ReadShelf: mocks.ReadShelf }));
 
 import ReadPage from "@/app/(product)/read/page";
 
@@ -93,5 +94,21 @@ describe("read page data loading", () => {
     expect(mocks.listReadingProgress).toHaveBeenCalledTimes(1);
     expect(mocks.listSavedArticles).not.toHaveBeenCalled();
     expect(mocks.listPrivateStories).not.toHaveBeenCalled();
+  });
+
+  it("loads the requested article page in one bounded repository batch", async () => {
+    delete process.env.DATABASE_URL;
+    const pageArticles = Array.from({ length: 12 }, (_, index) => ({ id: `article-${index + 24}` }));
+    mocks.getArticles.mockResolvedValueOnce({ ...listResult, articles: pageArticles, totalCount: 105, nextCursor: "36", hasMore: true });
+
+    const rendered = await ReadPage({ searchParams: Promise.resolve({ page: "3" }) });
+
+    expect(mocks.getArticles).toHaveBeenCalledTimes(1);
+    expect(mocks.getArticles).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ cursor: "24", pageSize: 12 }));
+    expect(rendered.props.children[1].props).toEqual(expect.objectContaining({
+      result: expect.objectContaining({ articles: pageArticles }),
+      page: 3,
+      pageSize: 12,
+    }));
   });
 });

@@ -29,6 +29,7 @@ describe("normalized article reader", () => {
     Object.defineProperty(window, "speechSynthesis", { configurable: true, value: nativeSpeechSynthesis });
     Object.defineProperty(globalThis, "SpeechSynthesisUtterance", { configurable: true, value: nativeSpeechSynthesisUtterance });
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("returns only published article versions with ordered segments", async () => {
@@ -50,26 +51,35 @@ describe("normalized article reader", () => {
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
-    expect(screen.getByRole("heading", { name: result.article.title })).toBeInTheDocument();
-    expect(screen.queryByRole("progressbar", { name: "文章阅读进度" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /返回文章库/ })).toHaveAttribute("href", "/read");
-    expect(screen.getByRole("tab", { name: "Dictionary" })).toBeInTheDocument();
-    expect(document.querySelector(".article-reader__layout")?.children).toHaveLength(2);
-    expect(screen.getByRole("dialog", { name: "阅读辅助" })).toBeInTheDocument();
-    expect(screen.getAllByText("阅读辅助").length).toBeGreaterThan(0);
-    expect(screen.queryByText(result.article.cefr)).not.toBeInTheDocument();
-    expect(screen.queryByText(result.article.estimatedReadingMinutes + " 分钟")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: result.article.title })).toHaveLength(1);
+    expect(document.querySelector(".article-reader__document-header")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "文章阅读进度" })).toHaveAttribute("aria-valuenow", "0");
+    expect(screen.getByRole("link", { name: "返回" })).toHaveAttribute("href", "/read");
+    expect(screen.getByRole("heading", { name: result.article.title })).toBeVisible();
+    expect(screen.queryByText(result.article.summary)).not.toBeInTheDocument();
+    expect(screen.queryByText(/来源已审核/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`${result.article.cefr}.*${result.article.estimatedReadingMinutes} 分钟`, "u"))).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "朗读" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "收藏" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "解释" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "词典" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "口语" })).not.toBeInTheDocument();
+    expect(document.querySelector(".article-reader__layout")?.children).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "阅读工具" })).not.toBeInTheDocument();
     const token = screen.getAllByRole("button").find((button) => button.classList.contains("reader-token"));
     expect(token).toBeDefined();
     if (!token) throw new Error("reader token missing");
     await user.click(token);
-    expect(screen.getByRole("tab", { name: "Explain" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("dialog", { name: "解释" })).toBeInTheDocument();
+    expect(token).toHaveClass("is-translation-selection");
     await user.click(screen.getByRole("button", { name: "保存词语" }));
-    await user.click(screen.getByRole("tab", { name: "Words" }));
+    await user.click(screen.getByRole("button", { name: "收藏" }));
     expect(screen.getAllByText(token.textContent ?? "").length).toBeGreaterThan(0);
-    await user.click(screen.getByRole("tab", { name: "Settings" }));
+    await user.click(screen.getByRole("button", { name: "设置" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "字号" }), "large");
     expect(screen.getByRole("combobox", { name: "字号" })).toHaveValue("large");
+    await user.click(screen.getByRole("button", { name: "收藏" }));
     expect(screen.getByRole("textbox", { name: "文章个人笔记" })).toBeInTheDocument();
   });
 
@@ -77,10 +87,17 @@ describe("normalized article reader", () => {
     const source = publishedBundle();
     const result = await getArticle(new BundleArticleRepository(source), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
+    const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
+    expect(screen.queryByTestId("article-transfer")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "文章个人笔记" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "朗读" }));
+    expect(screen.getByText("当前：第 1 段")).toBeInTheDocument();
+    expect(screen.getByText(result.article.segments[0]?.text.slice(0, 56) ?? "", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "朗读第 1 段" })).toBeInTheDocument();
+    expect(document.querySelector('[data-reader-position="0"]')).toHaveClass("is-listen-target");
+    await user.click(screen.getByText("读完后练口语", { selector: "summary" }));
     expect(screen.getByTestId("article-transfer")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "朗读本段" })).toBeInTheDocument();
-    expect(screen.getByText("西语原文", { exact: true })).toBeInTheDocument();
   });
 
   it("lists Spanish browser voices and reuses the selected voice in Explain", async () => {
@@ -110,7 +127,7 @@ describe("normalized article reader", () => {
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
 
-    await user.click(screen.getByRole("tab", { name: "Settings" }));
+    await user.click(screen.getByRole("button", { name: "设置" }));
     expect(screen.getByRole("heading", { name: "Spanish voices" })).toBeInTheDocument();
     const elviraLabels = screen.getAllByText(elvira.name);
     expect(elviraLabels.length).toBeGreaterThan(0);
@@ -128,40 +145,29 @@ describe("normalized article reader", () => {
     await user.click(token);
     await user.click(screen.getByRole("button", { name: "朗读 cafetería" }));
     expect(spoken.at(-1)?.voice).toBe(sofia);
-    await user.click(screen.getByRole("button", { name: "朗读本段" }));
+    await user.click(screen.getByRole("button", { name: "朗读" }));
+    await user.click(screen.getByRole("button", { name: "朗读第 1 段" }));
     expect(spoken.at(-1)?.voice).toBe(sofia);
     await user.click(screen.getByRole("button", { name: "朗读全文" }));
     expect(spoken.at(-1)?.voice).toBe(sofia);
   });
 
-  it("opens the assist panel on demand and shows the context-aware Explain and Dictionary states", async () => {
+  it("opens the contextual explanation only after selecting text", async () => {
     const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
 
-    const toggle = screen.getByRole("button", { name: "打开阅读辅助" });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText("Click any word on the left for a context-aware explanation.")).toBeInTheDocument();
-
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(document.querySelector(".article-reader")?.className).toContain("article-reader--tools-open");
+    expect(screen.queryByRole("button", { name: "解释" })).not.toBeInTheDocument();
+    expect(screen.queryByText("点击正文中的词语查看语境解释。")).not.toBeInTheDocument();
 
     const café = screen.getAllByRole("button").find((button) => button.textContent?.startsWith("café"));
     expect(café).toBeDefined();
     if (!café) throw new Error("glossary token missing");
     await user.click(café);
+    expect(screen.getByRole("dialog", { name: "解释" })).toBeInTheDocument();
     expect(screen.getByText("咖啡这种饮料；咖啡馆")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "Dictionary" }));
-    expect(screen.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
-    expect(screen.getByRole("combobox", { name: "词典目标语言" })).toHaveValue("Chinese");
-    expect(screen.getByText("还没有配置 Spanish → Chinese 词典。")).toBeInTheDocument();
-
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(document.querySelector(".article-reader")?.className).not.toContain("article-reader--tools-open");
+    expect(screen.queryByText("还没有配置 Spanish → Chinese 词典。")).not.toBeInTheDocument();
   });
 
   it("requests a MiniMax explanation when a word is selected and renders the response", async () => {
@@ -198,7 +204,7 @@ describe("normalized article reader", () => {
     expect(screen.getByText("例句")).toBeInTheDocument();
     expect(screen.queryByText(/^上下文：/u)).not.toBeInTheDocument();
     expect(screen.queryByText("正在使用 MiniMax M3 生成解释……")).not.toBeInTheDocument();
-    expect(within(screen.getByRole("dialog", { name: "阅读辅助" })).queryByRole("button", { name: "朗读全文" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog", { name: "解释" })).queryByRole("button", { name: "朗读全文" })).not.toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/read/word-explanation",
       expect.objectContaining({ method: "POST", body: expect.stringContaining("cafetería") }),
@@ -265,23 +271,83 @@ describe("normalized article reader", () => {
     if (!paragraph) throw new Error("article paragraph missing");
     fireEvent.mouseUp(paragraph);
     expect(screen.queryByRole("button", { name: "解析所选句子" })).not.toBeInTheDocument();
+    expect(tokens.slice(0, 3).every((token) => token.classList.contains("is-translation-selection"))).toBe(true);
     await waitFor(() => expect(screen.getByText("这句话交代了人物进入咖啡馆的时间、地点和原因。")).toBeInTheDocument());
     const requestBody = JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input).includes("word-explanation"))?.[1]?.body)) as { word?: string; selectionType?: string };
     expect(requestBody).toMatchObject({ word: "clase, Marta entra en", selectionType: "sentence" });
   });
 
-  it("moves focus into the assist dialog and restores it on Escape", async () => {
+  it("dismisses a temporary explanation on outside click", async () => {
     const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
-    const toggle = screen.getByRole("button", { name: "打开阅读辅助" });
-    await user.click(toggle);
-    const close = document.querySelector<HTMLButtonElement>(".article-reader__tools-close");
-    expect(close).not.toBeNull();
-    expect(close).toHaveFocus();
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("reader token missing");
+
+    await user.click(token);
+    expect(screen.getByRole("dialog", { name: "解释" })).toBeInTheDocument();
+    expect(token).toHaveClass("is-translation-selection");
+    await user.click(screen.getByRole("heading", { name: result.article.title }));
+    expect(screen.queryByRole("dialog", { name: "解释" })).not.toBeInTheDocument();
+    expect(token).not.toHaveClass("is-translation-selection");
+  });
+
+  it("lets the unpinned translator be dragged within the desktop viewport", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const user = userEvent.setup();
+    vi.stubGlobal("innerWidth", 1440);
+    vi.stubGlobal("innerHeight", 900);
+    render(<ArticleReader article={result.article} />);
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("reader token missing");
+    await user.click(token);
+    const translator = screen.getByRole("dialog", { name: "解释" });
+    vi.spyOn(translator, "getBoundingClientRect").mockReturnValue({ x: 1000, y: 80, width: 360, height: 500, top: 80, right: 1360, bottom: 580, left: 1000, toJSON: () => ({}) });
+    const handle = screen.getByTestId("translator-drag-handle");
+    fireEvent.pointerDown(handle, { button: 0, clientX: 1060, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(document, { clientX: 420, clientY: 230, pointerId: 1 });
+    fireEvent.pointerUp(document, { pointerId: 1 });
+    expect(translator).toHaveStyle({ left: "360px", top: "210px" });
+  });
+
+  it("keeps a pinned translator open until it is unpinned", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("reader token missing");
+
+    await user.click(token);
+    const pin = screen.getByRole("button", { name: "固定翻译器" });
+    await user.click(pin);
+    expect(pin).toHaveAttribute("aria-pressed", "true");
+    expect(document.querySelector(".article-reader")).toHaveClass("article-reader--tools-pinned");
+    await user.click(screen.getByRole("heading", { name: result.article.title }));
+    expect(screen.getByRole("dialog", { name: "解释" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "取消固定翻译器" }));
+    await user.click(screen.getByRole("heading", { name: result.article.title }));
+    expect(screen.queryByRole("dialog", { name: "解释" })).not.toBeInTheDocument();
+  });
+
+  it("moves focus to the pin control and restores it on Escape", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("reader token missing");
+    await user.click(token);
+    const pin = screen.getByRole("button", { name: "固定翻译器" });
+    expect(pin).toHaveFocus();
     await user.keyboard("{Escape}");
-    expect(toggle).toHaveFocus();
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(token).toHaveFocus();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

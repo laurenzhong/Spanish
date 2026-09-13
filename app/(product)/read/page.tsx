@@ -32,7 +32,8 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   const minutes = first(params.minutes)?.trim() || undefined;
   const sortParam = first(params.sort);
   const sort: ReadSort = sortParam === "newest" || sortParam === "shortest" ? sortParam : "hot";
-  const requestedPage = Math.max(Number.parseInt(first(params.page) ?? "1", 10) || 1, 1);
+  const parsedPage = Number.parseInt(first(params.page) ?? "1", 10);
+  const requestedPage = Number.isSafeInteger(parsedPage) ? Math.max(parsedPage, 1) : 1;
   const repository = new BundleArticleRepository();
   let savedArticleIds: readonly string[] | undefined;
   let initialReaderProgress: Record<string, { position: number; status: "in_progress" | "completed"; lastOpenedAt: string }> = {};
