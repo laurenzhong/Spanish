@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-progress.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lastPositionMs", "lastSegmentIndex", "status", "revision"],
+  "properties": {
+    "lastPositionMs": { "type": "integer", "minimum": 0 },
+    "lastSegmentIndex": { "type": ["integer", "null"], "minimum": 0 },
+    "status": { "enum": ["in_progress", "completed"] },
+    "revision": { "type": "integer", "minimum": 1 }
+  }
+}

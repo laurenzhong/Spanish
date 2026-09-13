@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { BottomNavigation } from "@/src/shared/ui/bottom-navigation";
-import { AccountMenu } from "@/src/shared/ui/account-menu";
 import { ConnectivityBanner } from "@/src/shared/ui/connectivity-banner";
 
 type AppShellProps = Readonly<{
@@ -21,7 +20,6 @@ export function AppShell({ children }: AppShellProps) {
           <Link className="mobile-product-header__wordmark" href="/" aria-label="Sueño 首页">
             Sue<span>ñ</span>o
           </Link>
-          <AccountMenu />
         </div>
         <ConnectivityBanner />
         <main className="product-content" id="main-content">

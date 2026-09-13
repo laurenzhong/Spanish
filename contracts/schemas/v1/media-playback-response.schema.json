@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-playback-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["media", "asset", "segments"],
+      "properties": {
+        "media": { "$ref": "media-item.schema.json" },
+        "asset": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "url", "expiresAt"],
+          "properties": {
+            "kind": { "enum": ["official_embed", "audio", "video"] },
+            "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+            "expiresAt": { "type": ["string", "null"], "format": "date-time" }
+          }
+        },
+        "segments": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "index", "startMs", "endMs", "sourceText", "translation", "speaker"],
+            "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "index": { "type": "integer", "minimum": 0 },
+              "startMs": { "type": "integer", "minimum": 0 },
+              "endMs": { "type": "integer", "minimum": 1 },
+              "sourceText": { "type": "string", "minLength": 1, "maxLength": 8000 },
+              "translation": { "type": ["string", "null"], "maxLength": 8000 },
+              "speaker": { "type": ["string", "null"], "maxLength": 200 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

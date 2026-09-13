@@ -56,6 +56,7 @@ async function setup() {
     "0012_wakeful_spiral.sql",
     "0013_smart_stick.sql",
     "0014_parallel_liz_osborn.sql",
+    "0023_article_acquisition.sql",
   ]) {
     await client.exec(await migration(name));
   }

@@ -25,6 +25,7 @@ ALPHA-003 建立 Supabase PostgreSQL / Drizzle 基础；ALPHA-004 在第二版�
 - `src/shared/db/client.ts`：只供服务端使用的 PostgreSQL/Drizzle 连接入口。
 - `src/shared/db/schema/users.ts`：用户资料与偏好。
 - `src/shared/db/schema/content.ts`：沟通能力、表达、场景、内容包、阅读文章和审核。
+- `src/shared/db/schema/media.ts`：视频/播客稳定身份、不可变版本、播放资产、定时片段和用户进度。
 - `src/shared/db/schema/training.ts`：训练会话、尝试、会话断点和有效活动事件。
 - `src/shared/db/schema/evidence.ts`：只追加证据与可重算画像快照。
 - `src/shared/db/schema/characters.ts`：人物设定、关系、对话、消息与记忆权限。
@@ -36,6 +37,8 @@ READ-001 新增 `articles`、`article_versions`、`article_sources`、`article_s
 READ-002 的 `GET /api/v1/content/articles` 只返回已发布文章的卡片 DTO，使用服务端分页、主题和搜索过滤；不会把文章正文或用户阅读状态放入列表响应。当前 bundle 只有 draft 文章，因此 Web 与 Flutter 均显示可解释的空状态。
 
 READ-003 增加 `GET /api/v1/content/articles/:articleId`，只返回已发布且版权清晰的规范化正文和稳定段落。Alpha 阅读器当前将位置、短语、高亮和笔记按文章 `stableKey`、版本与 `contentHash` 保存在 Web localStorage 或 Flutter `SecureStorage`，这是阅读 UI 的恢复缓存，不是学习证据权威来源；后续服务端用户阅读表接入时必须沿用同一版本边界和 RLS，不得把阅读活动写入口语画像。
+
+MEDIA-001 新增迁移 `0024_media_library_foundation.sql` 及 `media_items`、`media_versions`、`media_assets`、`media_segments`、`user_media_progress`。`media_items.current_version` 指向当前不可变版本号；正式投影还必须同时满足版本已发布、版权已清晰、资产可用且播放信息未过期。非官方嵌入资产必须保存过期时间，片段以版本内 `segment_index` 唯一并校验毫秒区间。用户进度以 `(user_id, media_version_id)` 唯一，revision/CAS 防止并发静默覆盖，账号删除时随 profile 级联清理；播放、观看时长和进度都不是能力证据。
 
 ALPHA-033 新增 `user_content_pack_states`（迁移 `0019`），保存用户对探索内容包的收藏与可恢复进度。状态以 `(user_id, pack_stable_key, pack_version)` 为边界，内容包换版后不会串用旧进度；`completed_steps` 由服务端按 `total_steps` 约束并在 upsert 时截断到合法范围。它属于用户私有的 discovery state，不是学习证据，不写入 `evidence_events`、`user_skill_states` 或口语评分。表启用 RLS，authenticated 只能读写自己的行，`profiles` 删除时级联清理；服务端 Route Handler 仍需执行会话和所有权校验。
 
@@ -97,6 +100,7 @@ pnpm db:migrate
 - 用户私有表包含 `user_id`、`created_at` 和 `updated_at`；`profiles.id` 本身就是用户 ID。
 - `0012` 新增四张阅读私有表：`user_reading_progress`、`user_article_saves`、`user_article_highlights`、`user_saved_article_sources`。前三张通过 `article_version_id` 关联已发布内容版本，来源表只保存用户提交的外部 URL 元数据，不保存正文。
 - `0014` 新增 `user_generated_articles`。每行绑定一个内部文章版本和一个用户，保存生成参数、MiniMax provider/model/request 元数据、内容哈希、幂等键和 `ready` 状态；用户只能读取、插入和删除自己的行。关联的文章载体使用级联删除，账号删除会先由 profile 外键清理生成记录及其内部版本，公共文章不受影响。重复的 `(user_id, idempotency_key)` 且参数一致时返回原文章，参数不一致返回 `409 CONFLICT`。
+- `0024` 的媒体版本、资产和片段只通过服务端 repository 访问；资产 URL 必须为 HTTPS，非官方嵌入必须有过期时间。进度保存重新验证当前版本、发布/版权状态、资产可用性、地址有效期、内容总时长和已审核片段，撤下后不能继续写入。
 - `evidence_events` 只追加。首版迁移在 Supabase 角色存在时撤销 `anon` 和 `authenticated` 的 `UPDATE` / `DELETE` 权限。
 - `user_skill_states` 与 `user_scene_states` 是可重算快照，不能替代原始证据。
 - 尝试、证据和角色消息包含稳定客户端 ID、幂等键或 generation 标识，后续重试不能重复写入事实。
@@ -118,6 +122,8 @@ pnpm db:migrate
 - 7.4c 的账号数据删除由服务端事务执行：先删除 `evidence_events` 解除 `practice_attempts` 的 restrict 引用，再删除 `profiles` 触发用户私有表级联；`provider_calls` 在 profile 删除前置空 `user_id` 并替换 metadata 为匿名标记。`privacy_cleanup_tasks` 不含 `user_id`，只保存待清理的 bucket/path、状态、尝试次数和脱敏错误，RLS 对客户端完全关闭。
 - `0012` 的阅读表启用 RLS。`authenticated` 仅能按 `user_id = auth.uid()` 读写自己的阅读行；`anon` 没有表权限。删除账号时由 `profiles` 外键级联清理阅读进度、收藏、高亮、笔记和外部来源元数据，公共文章和文章版本不受影响。
 - `0014` 的生成文章表启用同样的用户级 RLS；内部文章版本只有在生成记录的用户所有权条件下才可被阅读状态 repository 解析，防止通过稳定文章 ID 横向读取其他用户的 draft。公共文章查询不 join 生成表。
+- `0023_article_acquisition.sql` 为 `article_sources` 增加采集候选 ID/revision 与抓取时间，并用条件唯一索引保证同一候选修订版只对应一个正式来源记录。三个字段必须同时为空或同时有效；它们只保存内部 UUID、正整数 revision 和时间，不建立跨模块外键。正式文章发布仍在 article repository 事务内追加 `article_versions`、段落和两份审核记录，撤下不删除审计数据。
+- `0024_media_library_foundation.sql` 对四张正式媒体表和用户进度表启用 RLS；`anon`/`authenticated` 无权直接读取正式媒体内部表。`authenticated` 只能按 `user_id = auth.uid()` 读写自己的进度，Route Handler 和 application 仍负责重新验证版本、资产和 CAS 规则。
 - `0015` 为 `profiles` 增加不可变 `public_uid`、`avatar_kind`、`avatar_preset_id` 和受保护的 `avatar_path`，并新增仅服务端可访问的 `reserved_public_uids`。UID 由服务端函数随机生成、唯一索引保护；账号删除先登记 UID 与头像 Storage 清理任务，再级联删除 profile，后续生成器同时排除保留表中的 UID。客户端只能通过 `/api/v1/me` DTO 读取自己的身份资料，不能读取内部路径或保留表。
 - `diagnostic_events` 不开放客户端读写；内部查询只返回去掉 `user_id` 和 `dedupe_key` 的诊断投影。
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
