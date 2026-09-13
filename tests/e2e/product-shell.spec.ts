@@ -398,10 +398,13 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("link", { name: "我的文章" })).toHaveAttribute("href", "/read?saved=1");
   await expect(page.getByRole("link", { name: "Web Sites" })).toHaveCount(0);
   await expect(page.getByText("105 篇", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "显示更多" })).toHaveAttribute("href", "/read?visible=24");
-  await page.getByRole("link", { name: "显示更多" }).click();
-  await expect(page).toHaveURL(/\/read\?visible=24$/);
-  await expect(page.locator("article.read-article-row")).toHaveCount(24);
+  await expect(page.getByRole("navigation", { name: "文章分页" })).toBeVisible();
+  await expect(page.getByLabel("第 1 页，当前页")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "下一页" })).toHaveAttribute("href", "/read?page=2");
+  await page.getByRole("link", { name: "下一页" }).click();
+  await expect(page).toHaveURL(/\/read\?page=2$/);
+  await expect(page.locator("article.read-article-row")).toHaveCount(12);
+  await expect(page.getByLabel("第 2 页，当前页")).toHaveAttribute("aria-current", "page");
   await page.locator("summary").filter({ hasText: "添加内容" }).click();
   await expect(page.getByRole("link", { name: "生成私人故事" })).toHaveAttribute("href", "/read/generate");
   await page.locator("summary").filter({ hasText: "筛选" }).click();

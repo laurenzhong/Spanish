@@ -17,8 +17,6 @@ type ReadPageProps = Readonly<{
 
 type ReadSort = "hot" | "newest" | "shortest";
 const ARTICLE_PAGE_SIZE = 12;
-const ARTICLE_FETCH_SIZE = 24;
-const MAX_VISIBLE_ARTICLES = 120;
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -34,10 +32,8 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   const minutes = first(params.minutes)?.trim() || undefined;
   const sortParam = first(params.sort);
   const sort: ReadSort = sortParam === "newest" || sortParam === "shortest" ? sortParam : "hot";
-  const requestedVisible = Math.min(
-    Math.max(Number.parseInt(first(params.visible) ?? String(ARTICLE_PAGE_SIZE), 10) || ARTICLE_PAGE_SIZE, ARTICLE_PAGE_SIZE),
-    MAX_VISIBLE_ARTICLES,
-  );
+  const parsedPage = Number.parseInt(first(params.page) ?? "1", 10);
+  const requestedPage = Number.isSafeInteger(parsedPage) ? Math.max(parsedPage, 1) : 1;
   const repository = new BundleArticleRepository();
   let savedArticleIds: readonly string[] | undefined;
   let initialReaderProgress: Record<string, { position: number; status: "in_progress" | "completed"; lastOpenedAt: string }> = {};
@@ -82,28 +78,20 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
     sort,
     savedOnly: savedOnly && savedFilterAvailable,
     savedArticleIds,
+    pageSize: ARTICLE_PAGE_SIZE,
+    cursor: String((requestedPage - 1) * ARTICLE_PAGE_SIZE),
   };
-  let result = await getArticles(repository, {
-    ...query,
-    cursor: "0",
-    pageSize: Math.min(requestedVisible, ARTICLE_FETCH_SIZE),
-  });
-  while (result.articles.length < requestedVisible && result.hasMore && result.nextCursor) {
-    const next = await getArticles(repository, {
-      ...query,
-      cursor: result.nextCursor,
-      pageSize: Math.min(requestedVisible - result.articles.length, ARTICLE_FETCH_SIZE),
-    });
-    result = {
-      ...next,
-      articles: [...result.articles, ...next.articles],
-    };
+  let result = await getArticles(repository, query);
+  const totalPages = Math.max(Math.ceil(result.totalCount / ARTICLE_PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, totalPages);
+  if (page !== requestedPage) {
+    result = await getArticles(repository, { ...query, cursor: String((page - 1) * ARTICLE_PAGE_SIZE) });
   }
 
   return (
     <div className="page-stack read-page">
       <h1 className="sr-only">阅读</h1>
-      <ReadShelf result={result} visibleCount={requestedVisible} search={search ?? ""} topic={topic ?? ""} cefr={cefr ?? ""} minutes={minutes ?? ""} source={source} sort={sort} savedOnly={savedOnly} initialReaderProgress={initialReaderProgress} generatedArticles={initialGeneratedArticles} />
+      <ReadShelf result={result} page={page} pageSize={ARTICLE_PAGE_SIZE} search={search ?? ""} topic={topic ?? ""} cefr={cefr ?? ""} minutes={minutes ?? ""} source={source} sort={sort} savedOnly={savedOnly} initialReaderProgress={initialReaderProgress} generatedArticles={initialGeneratedArticles} />
     </div>
   );
 }

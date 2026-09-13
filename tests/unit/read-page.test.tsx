@@ -96,21 +96,19 @@ describe("read page data loading", () => {
     expect(mocks.listPrivateStories).not.toHaveBeenCalled();
   });
 
-  it("loads more from the first article in bounded repository batches", async () => {
+  it("loads the requested article page in one bounded repository batch", async () => {
     delete process.env.DATABASE_URL;
-    const firstBatch = Array.from({ length: 24 }, (_, index) => ({ id: `article-${index}` }));
-    const secondBatch = Array.from({ length: 12 }, (_, index) => ({ id: `article-${index + 24}` }));
-    mocks.getArticles
-      .mockResolvedValueOnce({ ...listResult, articles: firstBatch, totalCount: 105, nextCursor: "24", hasMore: true })
-      .mockResolvedValueOnce({ ...listResult, articles: secondBatch, totalCount: 105, nextCursor: "36", hasMore: true });
+    const pageArticles = Array.from({ length: 12 }, (_, index) => ({ id: `article-${index + 24}` }));
+    mocks.getArticles.mockResolvedValueOnce({ ...listResult, articles: pageArticles, totalCount: 105, nextCursor: "36", hasMore: true });
 
-    const rendered = await ReadPage({ searchParams: Promise.resolve({ visible: "36" }) });
+    const rendered = await ReadPage({ searchParams: Promise.resolve({ page: "3" }) });
 
-    expect(mocks.getArticles).toHaveBeenNthCalledWith(1, expect.anything(), expect.objectContaining({ cursor: "0", pageSize: 24 }));
-    expect(mocks.getArticles).toHaveBeenNthCalledWith(2, expect.anything(), expect.objectContaining({ cursor: "24", pageSize: 12 }));
+    expect(mocks.getArticles).toHaveBeenCalledTimes(1);
+    expect(mocks.getArticles).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ cursor: "24", pageSize: 12 }));
     expect(rendered.props.children[1].props).toEqual(expect.objectContaining({
-      result: expect.objectContaining({ articles: [...firstBatch, ...secondBatch] }),
-      visibleCount: 36,
+      result: expect.objectContaining({ articles: pageArticles }),
+      page: 3,
+      pageSize: 12,
     }));
   });
 });

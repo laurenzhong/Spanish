@@ -12,7 +12,8 @@ type ReadSource = "public" | "web";
 
 type ReadShelfProps = Readonly<{
   result: ArticleListResult;
-  visibleCount?: number;
+  page?: number;
+  pageSize?: number;
   search: string;
   topic: string;
   cefr: string;
@@ -95,7 +96,40 @@ function TrashIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4.5h6V7m-8 0 1 12h8l1-12M10 10v6m4-6v6" /></svg>;
 }
 
-export function ReadShelf({ result, visibleCount = 12, search, topic, cefr, minutes, source, sort, savedOnly, initialReaderProgress, generatedArticles = [] }: ReadShelfProps) {
+function PaginationArrowIcon({ direction }: Readonly<{ direction: "previous" | "next" }>) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d={direction === "previous" ? "m14.5 7-5 5 5 5" : "m9.5 7 5 5-5 5"} /></svg>;
+}
+
+type PaginationItem = number | "ellipsis-start" | "ellipsis-end";
+
+function getPaginationItems(page: number, totalPages: number): readonly PaginationItem[] {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+  const pages = new Set([1, totalPages]);
+  if (page <= 3) {
+    [2, 3, 4].forEach((value) => pages.add(value));
+  } else if (page >= totalPages - 2) {
+    [totalPages - 3, totalPages - 2, totalPages - 1].forEach((value) => pages.add(value));
+  } else {
+    [page - 1, page, page + 1].forEach((value) => pages.add(value));
+  }
+  const sortedPages = [...pages].sort((a, b) => a - b);
+  return sortedPages.flatMap<PaginationItem>((pageNumber, index) => {
+    const previousPage = sortedPages[index - 1];
+    if (previousPage && pageNumber - previousPage > 1) {
+      return [index === 1 ? "ellipsis-start" : "ellipsis-end", pageNumber];
+    }
+    return [pageNumber];
+  });
+}
+
+function getMobilePageNumbers(page: number, totalPages: number): ReadonlySet<number> {
+  if (totalPages <= 5) return new Set(Array.from({ length: totalPages }, (_, index) => index + 1));
+  if (page <= 3) return new Set([1, 2, 3, totalPages]);
+  if (page >= totalPages - 2) return new Set([1, totalPages - 2, totalPages - 1, totalPages]);
+  return new Set([1, page, totalPages]);
+}
+
+export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, savedOnly, initialReaderProgress, generatedArticles = [] }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
   const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(() => savedOnly
     ? result.savedFilterAvailable ? new Set(result.articles.map((article) => article.id)) : null
@@ -324,16 +358,34 @@ export function ReadShelf({ result, visibleCount = 12, search, topic, cefr, minu
             {hasFilters && source !== "web" ? <Link className="text-link" href="/read">清除筛选 <span aria-hidden="true">→</span></Link> : null}
           </div>
         )}
-        {source === "public" && result.hasMore && (!savedOnly || result.savedFilterAvailable) ? <ShowMoreArticles visibleCount={visibleCount} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} savedOnly={savedOnly} /> : null}
+        {source === "public" && result.totalCount > pageSize && (!savedOnly || result.savedFilterAvailable) ? <ArticlePagination page={page} pageSize={pageSize} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} savedOnly={savedOnly} /> : null}
       </section>
     </div>
   );
 }
 
-function ShowMoreArticles({ visibleCount, totalCount, search, topic, cefr, minutes, sort, savedOnly }: Readonly<{ visibleCount: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort; savedOnly: boolean }>) {
-  const nextVisible = Math.min(Math.max(visibleCount, 12) + 12, totalCount);
-  const href = withParams({ visible: String(nextVisible), saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
-  return <div className="read-show-more"><Link href={href}>显示更多</Link></div>;
+function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, minutes, sort, savedOnly }: Readonly<{ page: number; pageSize: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort; savedOnly: boolean }>) {
+  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
+  const pageItems = getPaginationItems(page, totalPages);
+  const mobilePageNumbers = getMobilePageNumbers(page, totalPages);
+  const hrefFor = (targetPage: number) => withParams({ page: targetPage > 1 ? String(targetPage) : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
+  return (
+    <nav className="read-pagination" aria-label="文章分页">
+      {page > 1
+        ? <Link className="read-pagination__arrow" href={hrefFor(page - 1)} aria-label="上一页"><PaginationArrowIcon direction="previous" /><span>上一页</span></Link>
+        : <span className="read-pagination__arrow is-disabled" aria-label="上一页" aria-disabled="true"><PaginationArrowIcon direction="previous" /><span>上一页</span></span>}
+      <div className="read-pagination__pages">
+        {pageItems.map((item) => typeof item === "number"
+          ? item === page
+            ? <span className="read-pagination__page is-current" aria-current="page" aria-label={`第 ${item} 页，当前页`} key={item}>{item}</span>
+            : <Link className={`read-pagination__page${mobilePageNumbers.has(item) ? "" : " is-mobile-hidden"}`} href={hrefFor(item)} aria-label={`第 ${item} 页`} key={item}>{item}</Link>
+          : <span className="read-pagination__ellipsis" aria-hidden="true" key={item}>…</span>)}
+      </div>
+      {page < totalPages
+        ? <Link className="read-pagination__arrow" href={hrefFor(page + 1)} aria-label="下一页"><span>下一页</span><PaginationArrowIcon direction="next" /></Link>
+        : <span className="read-pagination__arrow is-disabled" aria-label="下一页" aria-disabled="true"><span>下一页</span><PaginationArrowIcon direction="next" /></span>}
+    </nav>
+  );
 }
 
 function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, onDeleteGenerated, readerState }: Readonly<{ article: ArticleCardProjection; isSaved: boolean; isSaving: boolean; onToggleSaved: (articleId: string, currentlySaved: boolean) => void; onDeleteGenerated?: (articleId: string) => void; readerState?: StoredReaderState }>) {

@@ -46,7 +46,7 @@ describe("article library shelf", () => {
   });
 
   it("keeps the shelf header to two sources, a passive count, and one compact tool row", () => {
-    render(<ReadShelf result={result} visibleCount={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
 
     expect(screen.getByRole("heading", { name: "可公开阅读的文章正在准备中" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "公共文章" })).toHaveAttribute("href", "/read");
@@ -75,7 +75,7 @@ describe("article library shelf", () => {
       },
     }));
     vi.stubGlobal("fetch", fetchMock);
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} visibleCount={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
 
     const saveButton = await screen.findByRole("button", { name: `收藏文章：${article.title}` });
     await user.click(saveButton);
@@ -85,18 +85,27 @@ describe("article library shelf", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/read/saved", expect.objectContaining({ method: "POST" }));
   });
 
-  it("uses one show-more action and preserves reading filters", () => {
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 25, hasMore: true }} visibleCount={12} search="vida" topic="topic.daily-life" cefr="A2" minutes="short" source="public" sort="newest" savedOnly={false} />);
+  it("uses compact numbered pagination and preserves reading filters", () => {
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 105, hasMore: true }} page={5} pageSize={12} search="vida" topic="topic.daily-life" cefr="A2" minutes="short" source="public" sort="newest" savedOnly={false} />);
 
-    expect(screen.queryByRole("navigation", { name: "Article pages" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "显示更多" })).toHaveAttribute("href", "/read?visible=24&search=vida&topic=topic.daily-life&cefr=A2&minutes=short&sort=newest");
+    const pagination = screen.getByRole("navigation", { name: "文章分页" });
+    expect(pagination).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "显示更多" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "上一页" })).toHaveAttribute("href", "/read?page=4&search=vida&topic=topic.daily-life&cefr=A2&minutes=short&sort=newest");
+    expect(screen.getByRole("link", { name: "下一页" })).toHaveAttribute("href", "/read?page=6&search=vida&topic=topic.daily-life&cefr=A2&minutes=short&sort=newest");
+    expect(screen.getByLabelText("第 5 页，当前页")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "第 1 页" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "第 9 页" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "第 2 页" })).not.toBeInTheDocument();
+    expect(pagination.querySelectorAll(".read-pagination__ellipsis")).toHaveLength(2);
   });
 
-  it("keeps server-filtered My Texts on the same show-more path", () => {
+  it("keeps server-filtered My Texts on the numbered pagination path", () => {
     const generatedArticle = { ...article, id: "generated.private@1", stableKey: "generated.private", title: "Mi cuento", origin: "generated" as const, generatedAt: new Date("2026-09-12T00:00:00.000Z") };
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 25, hasMore: true, savedFilterAvailable: true }} visibleCount={24} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly initialReaderProgress={{}} generatedArticles={[generatedArticle]} />);
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 25, hasMore: true, savedFilterAvailable: true }} page={2} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly initialReaderProgress={{}} generatedArticles={[generatedArticle]} />);
 
-    expect(screen.getByRole("link", { name: "显示更多" })).toHaveAttribute("href", "/read?visible=25&saved=1");
+    expect(screen.getByRole("link", { name: "上一页" })).toHaveAttribute("href", "/read?saved=1");
+    expect(screen.getByRole("link", { name: "下一页" })).toHaveAttribute("href", "/read?page=3&saved=1");
     expect(screen.getByText("26 篇")).toBeInTheDocument();
   });
 
@@ -112,7 +121,7 @@ describe("article library shelf", () => {
     }));
     vi.stubGlobal("confirm", confirmMock);
     vi.stubGlobal("fetch", fetchMock);
-    render(<ReadShelf result={result} visibleCount={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly generatedArticles={[generatedArticle]} />);
+    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly generatedArticles={[generatedArticle]} />);
 
     const deleteButton = screen.getByRole("button", { name: `删除私人故事：${generatedArticle.title}` });
     await user.click(deleteButton);
@@ -133,7 +142,7 @@ describe("article library shelf", () => {
         : { data: { articleIds: [article.id] } },
     }));
     vi.stubGlobal("fetch", fetchMock);
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1, savedFilterAvailable: true }} visibleCount={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly />);
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1, savedFilterAvailable: true }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly />);
 
     await user.click(await screen.findByRole("button", { name: `取消收藏：${article.title}` }));
 
@@ -142,7 +151,7 @@ describe("article library shelf", () => {
   });
 
   it("makes the article title region the only reading link", () => {
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} visibleCount={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
 
     expect(screen.getByRole("link", { name: article.title })).toHaveAttribute("href", `/read/article/${encodeURIComponent(article.id)}`);
     expect(screen.getByRole("link", { name: article.title })).toHaveAttribute("title", article.title);
@@ -152,7 +161,7 @@ describe("article library shelf", () => {
 
   it("dismisses shelf menus on outside click or Escape and keeps them mutually exclusive", async () => {
     const user = userEvent.setup();
-    render(<ReadShelf result={result} visibleCount={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
 
     const filter = screen.getByText("筛选", { selector: "summary" }).closest("details");
     const add = screen.getByText("添加内容", { selector: "summary" }).closest("details");
