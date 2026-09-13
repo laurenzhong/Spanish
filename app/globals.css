@@ -9023,7 +9023,7 @@ body {
 .read-show-more a { display: inline-flex; min-height: 40px; align-items: center; padding: 7px 16px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); color: var(--foreground); background: var(--surface); font-size: .8rem; font-weight: 680; text-decoration: none; }
 .read-show-more a:hover, .read-show-more a:focus-visible { border-color: var(--accent); color: var(--accent-strong); }
 
-.article-reader { --reader-tools-width: clamp(320px, 25vw, 360px); width: 100%; min-height: 100dvh; margin: 0; padding: 64px 0 80px; color: var(--foreground); background: color-mix(in srgb, var(--background) 96%, var(--surface)); transition: none; }
+.article-reader { --reader-tools-width: clamp(300px, 25vw, 360px); width: 100%; min-height: 100dvh; margin: 0; padding: 64px 0 80px; color: var(--foreground); background: color-mix(in srgb, var(--background) 96%, var(--surface)); transition: none; }
 .article-reader__topbar { position: fixed; z-index: 60; top: 0; right: 0; left: 0; display: flex; width: auto; min-height: 64px; gap: 12px; align-items: center; margin: 0; padding: 8px 18px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: none; backdrop-filter: blur(12px); }
 .article-reader__topbar-left { display: flex; min-width: 0; flex: 1; align-items: center; }
 .article-reader__back { min-width: 62px; white-space: nowrap; }
@@ -9130,15 +9130,12 @@ body {
 @media (min-width: 1200px) {
   .article-reader__tools, .article-reader__tools.is-open { top: 80px; right: 24px; bottom: auto; left: auto; width: var(--reader-tools-width); height: auto; min-height: 0; max-height: calc(100dvh - 104px); border-radius: 16px; box-shadow: 0 18px 48px rgb(13 26 20 / 18%); transform: none; }
   .article-reader__scrim { display: none; }
-}
-
-@media (min-width: 1280px) {
   .article-reader--tools-pinned .article-reader__layout { padding-right: var(--reader-tools-width); padding-left: 0; }
   .article-reader--tools-pinned .article-reader__content { width: 100%; padding-right: 12px; padding-left: 12px; }
   .article-reader--tools-pinned .article-reader__tools { top: 64px; right: 0; bottom: 0; width: var(--reader-tools-width); max-height: none; border-width: 0 0 0 1px; border-radius: 0; box-shadow: none; }
 }
 
-@media (max-width: 1279px) {
+@media (max-width: 1199px) {
   .article-reader__tools-pin { display: none; }
 }
 

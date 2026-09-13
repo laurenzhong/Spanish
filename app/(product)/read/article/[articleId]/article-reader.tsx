@@ -204,7 +204,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, [closeTools, toolsOpen, toolsPinned]);
   useEffect(() => {
     if (!toolsPinned) return;
-    const unpinBelowDesktop = () => { if (window.innerWidth < 1280) { setToolsPinned(false); setTranslatorPosition(null); } };
+    const unpinBelowDesktop = () => { if (window.innerWidth < 1200) { setToolsPinned(false); setTranslatorPosition(null); } };
     window.addEventListener("resize", unpinBelowDesktop);
     return () => window.removeEventListener("resize", unpinBelowDesktop);
   }, [toolsPinned]);

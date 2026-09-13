@@ -12,6 +12,16 @@ async function authenticate(page: Page) {
   ]);
 }
 
+test("keeps the translator pin available at the desktop threshold", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium");
+  await authenticate(page);
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await page.goto("/read/article/article.sueno-first-cafe@1");
+  await page.getByRole("button", { name: /^café/ }).click();
+
+  await expect(page.getByRole("button", { name: "固定翻译器" })).toBeVisible();
+});
+
 test("moves an explicit article transfer into the oral practice context", async ({ page }) => {
   await authenticate(page);
   await page.goto("/read/article/article.sueno-first-cafe@1");
