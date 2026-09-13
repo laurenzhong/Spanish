@@ -8,10 +8,7 @@ export function ThemeInitializer() {
     const theme =
       storedTheme === "dark" || storedTheme === "light"
         ? storedTheme
-        : typeof window.matchMedia === "function" &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light";
+        : "light";
 
     document.documentElement.dataset.theme = theme;
   }, []);

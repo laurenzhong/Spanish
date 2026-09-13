@@ -22,6 +22,7 @@ describe("BottomNavigation", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("links every product area and exposes the current item", () => {
@@ -67,5 +68,15 @@ describe("BottomNavigation", () => {
     expect(
       screen.getByRole("button", { name: "切换到浅色模式" }),
     ).toBeVisible();
+  });
+
+  it("defaults to light even when the operating system prefers dark", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    const user = userEvent.setup();
+    render(<BottomNavigation />);
+
+    await user.click(screen.getByRole("button", { name: "打开账户菜单" }));
+    expect(screen.getByRole("button", { name: "切换到深色模式" })).toBeVisible();
+    expect(document.documentElement.dataset.theme).toBe("light");
   });
 });

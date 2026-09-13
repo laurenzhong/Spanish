@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ArticleReaderProjection, ArticleTransferType } from "@/src/modules/content/domain";
 import { articleTransferTask, articleTransferTypes, recommendedArticleTransferType } from "@/src/modules/content/domain";
 import { readingStatePatchSchema } from "@/src/modules/reading/domain/reading-state";
@@ -20,7 +20,8 @@ type SavedPhrase = Readonly<{ id: string; text: string; position: number }>;
 type Highlight = Readonly<{ id: string; text: string; position: number }>;
 type ReaderSettings = Readonly<{ fontSize: "default" | "large"; lineHeight: "default" | "relaxed"; width: "narrow" | "wide"; theme: "light" | "dim"; ttsRate: number }>;
 type ReaderState = Readonly<{ stableKey: string; version: number; contentHash: string; position: number; savedPhrases: readonly SavedPhrase[]; highlights: readonly Highlight[]; note: string; saved: boolean; settings?: ReaderSettings; transferDraft?: string; transferType?: ArticleTransferType | null; status?: "in_progress" | "completed"; lastOpenedAt?: string }>;
-type SelectedToken = Readonly<{ text: string; position: number; context: string; selectionType: "word" | "sentence" }>;
+type SelectedToken = Readonly<{ text: string; position: number; context: string; selectionType: "word" | "sentence"; tokenStart: number; tokenEnd: number }>;
+type TranslatorPosition = Readonly<{ left: number; top: number }>;
 type WordExplanationStatus = "idle" | "loading" | "success" | "error";
 type ReaderTool = "listen" | "explain" | "saved" | "settings";
 type ArticleReaderProps = Readonly<{ article: ArticleReaderProjection }>;
@@ -45,6 +46,14 @@ function remoteState(value: unknown) {
   return { ...parsed.data, highlights: parsed.data.highlights.map((item) => ({ ...item, id: item.position + ":" + item.text })), savedPhrases: parsed.data.savedPhrases.map((item) => ({ ...item, id: item.position + ":" + item.text })) };
 }
 function normalizeToken(value: string): string { return value.toLocaleLowerCase().replace(/^[^\p{L}¿¡]+|[^\p{L}¿¡]+$/gu, ""); }
+function clampTranslatorPosition(left: number, top: number, width: number, height: number): TranslatorPosition {
+  const edge = 8;
+  const topEdge = 72;
+  return {
+    left: Math.min(Math.max(edge, left), Math.max(edge, window.innerWidth - width - edge)),
+    top: Math.min(Math.max(topEdge, top), Math.max(topEdge, window.innerHeight - height - edge)),
+  };
+}
 
 function ListenIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6l-5 4H5zm12-1.5a5 5 0 0 1 0 7" /></svg>;
@@ -75,6 +84,8 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [activeTool, setActiveTool] = useState<ReaderTool>("explain");
   const [toolsOpen, setToolsOpenState] = useState(false);
   const [toolsPinned, setToolsPinned] = useState(false);
+  const [translatorPosition, setTranslatorPosition] = useState<TranslatorPosition | null>(null);
+  const [draggingTranslator, setDraggingTranslator] = useState(false);
   const [speakingPosition, setSpeakingPosition] = useState<number | "full" | "voice-preview" | null>(null);
   const [spanishVoices, setSpanishVoices] = useState<readonly SpeechSynthesisVoice[]>([]);
   const [selectedSpanishVoiceURI, setSelectedSpanishVoiceURI] = useState<string | null>(() => readSpanishVoicePreference());
@@ -92,6 +103,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const selectionHandledRef = useRef(false);
+  const translatorDragRef = useRef<Readonly<{ pointerId: number; startX: number; startY: number; originLeft: number; originTop: number; width: number; height: number }> | null>(null);
   const explanationRequestRef = useRef<{ generation: number; controller: AbortController } | null>(null);
   const explanationGenerationRef = useRef(0);
   const tts = useMemo(() => createBrowserTextToSpeech(), []);
@@ -108,7 +120,14 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const closeTools = useCallback(() => {
     explanationRequestRef.current?.controller.abort();
     setWordExplanationStatus("idle");
+    setSelectedToken(null);
+    setCommonEntry(null);
+    setWordExplanation(null);
+    setStreamPreview({});
     setToolsPinned(false);
+    setTranslatorPosition(null);
+    setDraggingTranslator(false);
+    translatorDragRef.current = null;
     setToolsOpenState(false);
   }, []);
   const toggleTool = useCallback((tool: ReaderTool, trigger: HTMLButtonElement) => {
@@ -119,6 +138,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     previouslyFocusedRef.current = trigger;
     setActiveTool(tool);
     setToolsPinned(false);
+    setTranslatorPosition(null);
     setToolsOpenState(true);
   }, [activeTool, closeTools, toolsOpen]);
 
@@ -184,10 +204,41 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, [closeTools, toolsOpen, toolsPinned]);
   useEffect(() => {
     if (!toolsPinned) return;
-    const unpinBelowDesktop = () => { if (window.innerWidth < 1200) setToolsPinned(false); };
+    const unpinBelowDesktop = () => { if (window.innerWidth < 1280) { setToolsPinned(false); setTranslatorPosition(null); } };
     window.addEventListener("resize", unpinBelowDesktop);
     return () => window.removeEventListener("resize", unpinBelowDesktop);
   }, [toolsPinned]);
+  useEffect(() => {
+    if (!translatorPosition || toolsPinned) return;
+    const keepTranslatorInViewport = () => {
+      const rect = toolsRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setTranslatorPosition((current) => current ? clampTranslatorPosition(current.left, current.top, rect.width, rect.height) : null);
+    };
+    window.addEventListener("resize", keepTranslatorInViewport);
+    return () => window.removeEventListener("resize", keepTranslatorInViewport);
+  }, [toolsPinned, translatorPosition]);
+  useEffect(() => {
+    if (!draggingTranslator) return;
+    const onPointerMove = (event: PointerEvent) => {
+      const drag = translatorDragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      setTranslatorPosition(clampTranslatorPosition(drag.originLeft + event.clientX - drag.startX, drag.originTop + event.clientY - drag.startY, drag.width, drag.height));
+    };
+    const stopDragging = (event: PointerEvent) => {
+      if (translatorDragRef.current && event.pointerId !== translatorDragRef.current.pointerId) return;
+      translatorDragRef.current = null;
+      setDraggingTranslator(false);
+    };
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", stopDragging);
+    document.addEventListener("pointercancel", stopDragging);
+    return () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", stopDragging);
+      document.removeEventListener("pointercancel", stopDragging);
+    };
+  }, [draggingTranslator]);
   useEffect(() => { restoredPositionRef.current = null; }, [article]);
   useEffect(() => { if (!hydrated || state.position <= 0 || restoredPositionRef.current !== null) return; restoredPositionRef.current = state.position; requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-reader-position=\"" + state.position + "\"]")?.scrollIntoView({ block: "center" })); }, [hydrated, state.position]);
   const updatePosition = useCallback(() => { const nodes = [...document.querySelectorAll<HTMLElement>("[data-reader-position]")]; const anchor = window.scrollY + window.innerHeight * 0.32; const current = nodes.reduce((candidate, node) => node.offsetTop <= anchor ? Number(node.dataset.readerPosition) : candidate, 0); if (current !== activePosition) setActivePosition(current); setState((previous) => previous.position === current ? previous : { ...previous, position: current }); }, [activePosition]);
@@ -303,9 +354,9 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       setWordExplanationError(error instanceof Error ? error.message : "解释暂时无法生成，请稍后重试。");
     });
   }, [article.locale]);
-  const selectToken = useCallback((text: string, position: number, context: string) => {
+  const selectToken = useCallback((text: string, position: number, context: string, tokenIndex: number) => {
     if (selectionHandledRef.current) return;
-    const token = { text, position, context, selectionType: "word" as const };
+    const token = { text, position, context, selectionType: "word" as const, tokenStart: tokenIndex, tokenEnd: tokenIndex };
     const entry = getCommonGlossaryEntry(normalizeToken(text));
     setCommonEntry(entry);
     setSelectedToken(token);
@@ -326,9 +377,16 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     if (!selection?.anchorNode || !selection.focusNode || !event.currentTarget.contains(selection.anchorNode) || !event.currentTarget.contains(selection.focusNode)) return;
     selectionHandledRef.current = true;
     window.setTimeout(() => { selectionHandledRef.current = false; }, 0);
+    const tokenElementForNode = (node: Node) => (node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement)?.closest<HTMLElement>("[data-reader-token-index]");
+    const anchorToken = tokenElementForNode(selection.anchorNode);
+    const focusToken = tokenElementForNode(selection.focusNode);
+    if (!anchorToken || !focusToken || !event.currentTarget.contains(anchorToken) || !event.currentTarget.contains(focusToken)) return;
+    const anchorIndex = Number(anchorToken.dataset.readerTokenIndex);
+    const focusIndex = Number(focusToken.dataset.readerTokenIndex);
+    if (!Number.isFinite(anchorIndex) || !Number.isFinite(focusIndex)) return;
     selection.removeAllRanges();
     explanationRequestRef.current?.controller.abort();
-    const token = { text: selectedText, position: segment.position, context: segment.text, selectionType: "sentence" as const };
+    const token = { text: selectedText, position: segment.position, context: segment.text, selectionType: "sentence" as const, tokenStart: Math.min(anchorIndex, focusIndex), tokenEnd: Math.max(anchorIndex, focusIndex) };
     setCommonEntry(null);
     setSelectedToken(token);
     setWordExplanation(null);
@@ -340,6 +398,15 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setToolsOpenState(true);
     requestWordExplanation(token);
   }, [requestWordExplanation]);
+  const startTranslatorDrag = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || toolsPinned || activeTool !== "explain" || window.innerWidth < 1200) return;
+    if (event.target instanceof Element && event.target.closest("button")) return;
+    const rect = toolsRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    event.preventDefault();
+    translatorDragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originLeft: rect.left, originTop: rect.top, width: rect.width, height: rect.height };
+    setDraggingTranslator(true);
+  }, [activeTool, toolsPinned]);
   const toggleSavedPhrase = () => { if (!selectedToken) return; const id = selectedToken.position + ":" + selectedToken.text; const exists = state.savedPhrases.some((item) => item.id === id); setState((previous) => ({ ...previous, savedPhrases: exists ? previous.savedPhrases.filter((item) => item.id !== id) : [...previous.savedPhrases, { id, text: selectedToken.text, position: selectedToken.position }] })); setStatus(exists ? "已从本篇 Words 移除。" : "已保存到本篇 Words。"); };
   const toggleHighlight = () => { if (!selectedToken) return; const id = selectedToken.position + ":" + selectedToken.text; const exists = state.highlights.some((item) => item.id === id); setState((previous) => ({ ...previous, highlights: exists ? previous.highlights.filter((item) => item.id !== id) : [...previous.highlights, { id, text: selectedToken.text, position: selectedToken.position }] })); setStatus(exists ? "已取消高亮。" : "已标记高亮。"); };
   const updateSetting = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => setState((previous) => ({ ...previous, settings: { ...(previous.settings ?? defaultSettings), [key]: value } }));
@@ -409,7 +476,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   return <div className={readerClass} data-online={online}>
     <header className="article-reader__topbar">
       <div className="article-reader__topbar-left"><Link className="text-link article-reader__back" href="/read"><span aria-hidden="true">←</span> 返回</Link></div>
-      <span className="article-reader__topbar-title" title={article.title}>{article.title}</span>
+      <h1 className="article-reader__topbar-title" title={article.title}>{article.title}</h1>
       <div className="article-reader__topbar-actions" ref={toolbarRef} aria-label="阅读工具栏">{toolbarTools.map((tool) => <button className={toolsOpen && activeTool === tool ? "is-active" : ""} type="button" key={tool} aria-label={toolLabels[tool]} aria-expanded={toolsOpen && activeTool === tool} aria-controls="article-reader-tool-panel" onClick={(event) => toggleTool(tool, event.currentTarget)}>{toolIcons[tool]}<span className="sr-only">{toolLabels[tool]}</span></button>)}</div>
       <div className="article-reader__progress" role="progressbar" aria-label="文章阅读进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}><span style={{ width: `${progressPercent}%` }} /></div>
     </header>
@@ -417,14 +484,11 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     {status ? <aside className="article-reader__notice" role="status">{status}</aside> : null}
     <div className="article-reader__layout">
       <main className="article-reader__content" ref={contentRef} aria-label="西语文章正文">
-        <header className="article-reader__document-header">
-          <h1>{article.title}</h1>
-        </header>
-        <div className="article-reader__body">{article.segments.map((segment) => { const highlighted = state.highlights.some((item) => item.position === segment.position); const listenTarget = toolsOpen && activeTool === "listen" && activePosition === segment.position; const words = segment.text.split(/(\s+)/u); return <p className={[highlighted ? "is-highlighted" : "", listenTarget ? "is-listen-target" : ""].filter(Boolean).join(" ")} aria-current={listenTarget ? "true" : undefined} data-reader-position={segment.position} key={segment.position} onMouseUp={(event) => handleTextSelection(segment, event)}>{words.map((word, index) => /\s+/u.test(word) ? <span key={segment.position + "-space-" + index}>{word}</span> : <span className="reader-token" role="button" tabIndex={0} key={segment.position + "-word-" + index} onClick={() => selectToken(word, segment.position, segment.text)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectToken(word, segment.position, segment.text); } }}>{word}</span>)}</p>; })}</div>
+        <div className="article-reader__body">{article.segments.map((segment) => { const highlighted = state.highlights.some((item) => item.position === segment.position); const listenTarget = toolsOpen && activeTool === "listen" && activePosition === segment.position; const words = segment.text.split(/(\s+)/u); return <p className={[highlighted ? "is-highlighted" : "", listenTarget ? "is-listen-target" : ""].filter(Boolean).join(" ")} aria-current={listenTarget ? "true" : undefined} data-reader-position={segment.position} key={segment.position} onMouseUp={(event) => handleTextSelection(segment, event)}>{words.map((word, index) => /\s+/u.test(word) ? <span key={segment.position + "-space-" + index}>{word}</span> : <span data-reader-token-index={index} className={["reader-token", toolsOpen && activeTool === "explain" && selectedToken?.position === segment.position && index >= selectedToken.tokenStart && index <= selectedToken.tokenEnd ? "is-translation-selection" : ""].filter(Boolean).join(" ")} role="button" tabIndex={0} key={segment.position + "-word-" + index} onClick={() => selectToken(word, segment.position, segment.text, index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectToken(word, segment.position, segment.text, index); } }}>{word}</span>)}</p>; })}</div>
         <div className="article-reader__complete"><strong>已读完</strong><span>本次只记录阅读活动，不会增加口语能力。</span>{article.attribution ? <span>{article.attribution}</span> : null}</div>
         <details className="article-reader__transfer-disclosure" open={transferOpen}><summary onClick={(event) => { event.preventDefault(); setTransferOpen((current) => !current); }}>读完后练口语</summary>{transferOpen ? renderTransferPanel() : null}</details>
       </main>
-      {toolsOpen ? <aside ref={toolsRef} tabIndex={-1} id="article-reader-tool-panel" className="article-reader__tools is-open" aria-label="阅读工具" role="dialog" aria-labelledby="article-reader-tools-title"><div className="article-reader__tools-header"><h2 id="article-reader-tools-title">{toolLabels[activeTool]}</h2>{activeTool === "explain" ? <button ref={toolsPinRef} className="article-reader__tools-pin" type="button" aria-label={toolsPinned ? "取消固定翻译器" : "固定翻译器"} aria-pressed={toolsPinned} title={toolsPinned ? "取消固定" : "固定在右侧"} onClick={() => setToolsPinned((current) => !current)}><PinIcon pinned={toolsPinned} /></button> : null}</div><div className="article-reader__tool-panel">{renderToolPanel()}</div></aside> : null}
+      {toolsOpen ? <aside ref={toolsRef} tabIndex={-1} id="article-reader-tool-panel" className={["article-reader__tools", "is-open", activeTool === "explain" && !toolsPinned ? "is-draggable" : "", draggingTranslator ? "is-dragging" : ""].filter(Boolean).join(" ")} style={activeTool === "explain" && !toolsPinned && translatorPosition ? { left: `${translatorPosition.left}px`, top: `${translatorPosition.top}px`, right: "auto", bottom: "auto", transform: "none" } satisfies CSSProperties : undefined} aria-label="阅读工具" role="dialog" aria-labelledby="article-reader-tools-title"><div className="article-reader__tools-header" data-testid={activeTool === "explain" ? "translator-drag-handle" : undefined} onPointerDown={startTranslatorDrag}><h2 id="article-reader-tools-title">{toolLabels[activeTool]}</h2>{activeTool === "explain" ? <button ref={toolsPinRef} className="article-reader__tools-pin" type="button" aria-label={toolsPinned ? "取消固定翻译器" : "固定翻译器"} aria-pressed={toolsPinned} title={toolsPinned ? "取消固定" : "固定在右侧"} onClick={() => { setTranslatorPosition(null); setToolsPinned((current) => !current); }}><PinIcon pinned={toolsPinned} /></button> : null}</div><div className="article-reader__tool-panel">{renderToolPanel()}</div></aside> : null}
     </div>
     {toolsOpen && !toolsPinned ? <div className="article-reader__scrim" aria-hidden="true" onClick={closeTools} /> : null}
   </div>;

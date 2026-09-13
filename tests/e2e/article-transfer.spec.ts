@@ -79,8 +79,11 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   await expect(page.getByRole("button", { name: "解释" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "词典" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "口语" })).toHaveCount(0);
+  await expect(page.locator(".article-reader__document-header")).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: /^café/ }).click();
+  const selectedWord = page.getByRole("button", { name: /^café/ });
+  await selectedWord.click();
+  await expect(selectedWord).toHaveClass(/is-translation-selection/u);
   const tools = page.getByRole("dialog", { name: "解释" });
   await expect(tools).toContainText("咖啡这种饮料；咖啡馆");
   expect(explanationApiCalled).toBe(false);
@@ -89,6 +92,17 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   expect(sidebarOverflow.panel).toBe(true);
 
   if (wideDesktop) {
+    const bodyWidthBeforePin = await page.locator(".article-reader__body").evaluate((node) => node.getBoundingClientRect().width);
+    const toolsBoxBeforeDrag = await activeTools.boundingBox();
+    const dragHandle = page.getByTestId("translator-drag-handle");
+    if (toolsBoxBeforeDrag) {
+      await dragHandle.hover({ position: { x: 24, y: 20 } });
+      await page.mouse.down();
+      await page.mouse.move(toolsBoxBeforeDrag.x - 120, toolsBoxBeforeDrag.y + 150);
+      await page.mouse.up();
+      const toolsBoxAfterDrag = await activeTools.boundingBox();
+      expect(toolsBoxAfterDrag?.x).not.toBe(toolsBoxBeforeDrag.x);
+    }
     const pin = page.getByRole("button", { name: "固定翻译器" });
     await pin.click();
     await expect(page.locator(".article-reader")).toHaveClass(/article-reader--tools-pinned/u);
@@ -96,11 +110,14 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
     expect(pinnedBoxes[0]).not.toBeNull();
     expect(pinnedBoxes[1]).not.toBeNull();
     if (pinnedBoxes[0] && pinnedBoxes[1]) expect(pinnedBoxes[0].x + pinnedBoxes[0].width).toBeLessThanOrEqual(pinnedBoxes[1].x);
+    const bodyWidthAfterPin = await page.locator(".article-reader__body").evaluate((node) => node.getBoundingClientRect().width);
+    expect(bodyWidthAfterPin).toBeGreaterThanOrEqual(bodyWidthBeforePin - 1);
     await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
     await expect(activeTools).toBeVisible();
     await page.getByRole("button", { name: "取消固定翻译器" }).click();
     await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
     await expect(activeTools).toHaveCount(0);
+    await expect(selectedWord).not.toHaveClass(/is-translation-selection/u);
   } else {
     await expect(page.getByRole("button", { name: "固定翻译器" })).toBeHidden();
     await page.locator(".article-reader__scrim").click({ position: { x: 8, y: 8 } });
@@ -170,5 +187,6 @@ test("explains a selected sentence", async ({ page }) => {
   });
   expect(selectedText).toContain("clase");
   await expect(page.getByRole("button", { name: "解析所选句子" })).toHaveCount(0);
+  await expect(paragraph.locator(".reader-token.is-translation-selection")).toHaveCount(3);
   await expect(page.getByRole("dialog", { name: "解释" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
 });

@@ -29,6 +29,7 @@ describe("normalized article reader", () => {
     Object.defineProperty(window, "speechSynthesis", { configurable: true, value: nativeSpeechSynthesis });
     Object.defineProperty(globalThis, "SpeechSynthesisUtterance", { configurable: true, value: nativeSpeechSynthesisUtterance });
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("returns only published article versions with ordered segments", async () => {
@@ -50,7 +51,8 @@ describe("normalized article reader", () => {
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
-    expect(screen.getByRole("heading", { name: result.article.title })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: result.article.title })).toHaveLength(1);
+    expect(document.querySelector(".article-reader__document-header")).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "文章阅读进度" })).toHaveAttribute("aria-valuenow", "0");
     expect(screen.getByRole("link", { name: "返回" })).toHaveAttribute("href", "/read");
     expect(screen.getByRole("heading", { name: result.article.title })).toBeVisible();
@@ -70,6 +72,7 @@ describe("normalized article reader", () => {
     if (!token) throw new Error("reader token missing");
     await user.click(token);
     expect(screen.getByRole("dialog", { name: "解释" })).toBeInTheDocument();
+    expect(token).toHaveClass("is-translation-selection");
     await user.click(screen.getByRole("button", { name: "保存词语" }));
     await user.click(screen.getByRole("button", { name: "收藏" }));
     expect(screen.getAllByText(token.textContent ?? "").length).toBeGreaterThan(0);
@@ -268,6 +271,7 @@ describe("normalized article reader", () => {
     if (!paragraph) throw new Error("article paragraph missing");
     fireEvent.mouseUp(paragraph);
     expect(screen.queryByRole("button", { name: "解析所选句子" })).not.toBeInTheDocument();
+    expect(tokens.slice(0, 3).every((token) => token.classList.contains("is-translation-selection"))).toBe(true);
     await waitFor(() => expect(screen.getByText("这句话交代了人物进入咖啡馆的时间、地点和原因。")).toBeInTheDocument());
     const requestBody = JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input).includes("word-explanation"))?.[1]?.body)) as { word?: string; selectionType?: string };
     expect(requestBody).toMatchObject({ word: "clase, Marta entra en", selectionType: "sentence" });
@@ -284,8 +288,30 @@ describe("normalized article reader", () => {
 
     await user.click(token);
     expect(screen.getByRole("dialog", { name: "解释" })).toBeInTheDocument();
+    expect(token).toHaveClass("is-translation-selection");
     await user.click(screen.getByRole("heading", { name: result.article.title }));
     expect(screen.queryByRole("dialog", { name: "解释" })).not.toBeInTheDocument();
+    expect(token).not.toHaveClass("is-translation-selection");
+  });
+
+  it("lets the unpinned translator be dragged within the desktop viewport", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const user = userEvent.setup();
+    vi.stubGlobal("innerWidth", 1440);
+    vi.stubGlobal("innerHeight", 900);
+    render(<ArticleReader article={result.article} />);
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("reader token missing");
+    await user.click(token);
+    const translator = screen.getByRole("dialog", { name: "解释" });
+    vi.spyOn(translator, "getBoundingClientRect").mockReturnValue({ x: 1000, y: 80, width: 360, height: 500, top: 80, right: 1360, bottom: 580, left: 1000, toJSON: () => ({}) });
+    const handle = screen.getByTestId("translator-drag-handle");
+    fireEvent.pointerDown(handle, { button: 0, clientX: 1060, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(document, { clientX: 420, clientY: 230, pointerId: 1 });
+    fireEvent.pointerUp(document, { pointerId: 1 });
+    expect(translator).toHaveStyle({ left: "360px", top: "210px" });
   });
 
   it("keeps a pinned translator open until it is unpinned", async () => {

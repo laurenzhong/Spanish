@@ -10,10 +10,7 @@ function getPreferredTheme(): Theme {
   const storedTheme = window.localStorage.getItem("spanish-theme");
   if (storedTheme === "dark" || storedTheme === "light") return storedTheme;
 
-  return typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return "light";
 }
 
 function subscribeToTheme(onStoreChange: () => void): () => void {
