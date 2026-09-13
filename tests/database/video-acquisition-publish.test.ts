@@ -18,7 +18,12 @@ const candidateId = "00000000-0000-4000-8000-000000000851";
 async function setupDatabase() {
   const client = new PGlite();
   await client.exec("create role anon nologin; create role authenticated nologin; create schema auth; create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}'::jsonb); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth, public to anon, authenticated; grant execute on function auth.uid() to anon, authenticated;");
-  for (const name of ["0000_big_phalanx.sql", "0024_media_library_foundation.sql", "0025_youtube_video_publication.sql"]) {
+  for (const name of [
+    "0000_big_phalanx.sql",
+    "0024_media_library_foundation.sql",
+    "0025_youtube_video_publication.sql",
+    "0026_brief_toro.sql",
+  ]) {
     const sql = (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
     await client.exec(sql);
   }

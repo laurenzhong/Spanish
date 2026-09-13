@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>Café de cada día</title>
+    <language>es</language>
+    <item>
+      <guid isPermaLink="false">episode-a</guid>
+      <title>Primera edición</title>
+      <link>https://podcast.example.test/episodes/shared</link>
+      <pubDate>Mon, 14 Sep 2026 08:00:00 GMT</pubDate>
+      <itunes:duration>05:30</itunes:duration>
+      <enclosure url="https://media.example.test/audio/shared.mp3" length="96" type="audio/mpeg" />
+    </item>
+    <item>
+      <guid isPermaLink="false">episode-a</guid>
+      <title>GUID duplicado</title>
+      <link>https://podcast.example.test/episodes/guid-duplicate</link>
+      <pubDate>Mon, 14 Sep 2026 07:00:00 GMT</pubDate>
+      <itunes:duration>05:30</itunes:duration>
+      <enclosure url="https://media.example.test/audio/guid-duplicate.mp3" length="96" type="audio/mpeg" />
+    </item>
+    <item>
+      <guid isPermaLink="false">episode-b</guid>
+      <title>URL duplicada</title>
+      <link>https://podcast.example.test/episodes/shared?utm_source=duplicate</link>
+      <pubDate>Mon, 14 Sep 2026 06:00:00 GMT</pubDate>
+      <itunes:duration>05:30</itunes:duration>
+      <enclosure url="https://media.example.test/audio/url-duplicate.mp3" length="96" type="audio/mpeg" />
+    </item>
+  </channel>
+</rss>

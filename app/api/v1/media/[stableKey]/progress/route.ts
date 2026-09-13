@@ -10,6 +10,7 @@ import {
   saveMediaProgressSchema,
 } from "@/src/modules/media";
 import { getVideoLearningE2eFixture } from "@/src/modules/media/testing/video-learning-e2e-fixture";
+import { getPodcastLearningE2eFixture } from "@/src/modules/media/testing/podcast-learning-e2e-fixture";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
@@ -46,7 +47,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
 
   try {
     const stableKey = decodeURIComponent((await params).stableKey);
-    const e2eFixture = getVideoLearningE2eFixture(stableKey);
+    const e2eFixture = getVideoLearningE2eFixture(stableKey) ?? getPodcastLearningE2eFixture(stableKey);
     if (e2eFixture) {
       const segmentExists = parsed.data.lastSegmentIndex === null
         || e2eFixture.segments.some((segment) => segment.index === parsed.data.lastSegmentIndex);

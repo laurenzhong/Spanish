@@ -157,7 +157,7 @@ UI / Route Handler → Application → Domain
 
 `content-acquisition` 只负责白名单来源、增量游标、发现、去重、初筛、处理编排、成本门禁和候选审核状态。它不能直接把候选标为正式文章或媒体，也不能写学习证据。每日自动化最多推进到候选审核库；正式 publisher 必须调用 `content`/article 或 `media` 的 application，并再次验证权利、两个审核维度、结构、哈希和 revision。`content_candidates.publication_status` 与采集状态独立，只保存正式模块返回的版本引用、发布时的候选 revision/hash 和撤下时间；正式内容实体仍由 article/media 模块拥有。
 
-所有者工作流通过服务端 `CONTENT_WORKFLOW_OWNER_USER_IDS` UUID allowlist 授权。页面隐藏只改善信息架构，每个 Route 和 application 都重新验证所有者身份，客户端角色字段不参与授权。审核按候选 revision 保存，`content-es-ES`、`teaching-zh-CN` 和结构结论不能互相替代；重新处理创建新 generation/revision 并保留旧备注。`ARTICLE-001` 与 `VIDEO-001` 已分别注册 article 和 YouTube video publisher；尚未实现 publisher 的播客类型仍必须返回 `CONTENT_PUBLISHER_NOT_AVAILABLE`。publisher 必须原子创建不可变正式版本；若随后工作流 CAS 失败，application 调用撤下补偿，避免半发布投影。
+所有者工作流通过服务端 `CONTENT_WORKFLOW_OWNER_USER_IDS` UUID allowlist 授权。页面隐藏只改善信息架构，每个 Route 和 application 都重新验证所有者身份，客户端角色字段不参与授权。审核按候选 revision 保存，`content-es-ES`、`teaching-zh-CN` 和结构结论不能互相替代；重新处理创建新 generation/revision 并保留旧备注。`ARTICLE-001`、`VIDEO-001` 与 `PODCAST-001` 已分别注册 article、YouTube video 和 podcast publisher。publisher 必须原子创建不可变正式版本；若随后工作流 CAS 失败，application 调用撤下补偿，避免半发布投影。
 
 文章 RSS 使用 `saxes` 解析 XML，文章页使用 `parse5` 生成不执行脚本的语法树。两层请求都只允许 HTTPS，并在每次重定向重新校验显式主机 allowlist、Content-Type、Content-Length、流式读取上限和字符编码；默认测试通过 fixture/fake fetch，不访问公网。文章来源的 `rights_policy` 必须明确 `contentMode=full_text`、许可、署名、许可证据、文章主机和教学默认字段。采集适配器把清洗后的纯文本段落和内容哈希写入候选 metadata，处理用例只把字段与哈希完全一致、权利已验证的文章推进到 `review_ready`。
 
@@ -166,6 +166,10 @@ article publisher 不直接由 `content-acquisition` 写表，而是调用 `cont
 YouTube 频道适配器只读取官方 Atom feed 和 Data API v3 元数据。频道来源必须为已启用、已验证的西语 `video-channel`，并在 `rights_policy` 中明确官方嵌入、许可/授权证据、地区、CEFR、主题和时长边界；API key 只从服务端 `YOUTUBE_DATA_API_KEY` 读取。适配器用 ETag/Last-Modified 和发布时间/视频 ID 游标增量发现，只接受频道一致、公开、可嵌入、目标地区可用且语言/时长合格的视频；Creative Commons 来源还要逐条验证平台许可。它不下载 YouTube 音视频，也不调用非公开字幕接口；没有合法字幕时只生成可播放候选。
 
 video publisher 调用 `media` application/repository，在单一事务内追加不可变 `media_versions`、官方 `youtube-nocookie.com` 播放资产、可选的已审核字幕时间轴、候选 provenance 和两份 `codex-ai-owner-authorized-review` 记录。同一 candidate revision/hash 幂等返回原版本，哈希不一致时冲突；撤下同时归档版本、撤下播放资产并清除当前公开版本。
+
+播客 RSS 与文章 RSS 共享 `saxes` XML 解析和有界 HTTPS 获取边界。来源必须是已启用、权利已验证的西语 `podcast-feed`，并显式列出 feed、episode、音频和可选 transcript 主机，以及许可、署名、证据、时长、体积、CEFR、主题和播放校验有效期。适配器用 GUID、规范化 episode URL 与确定性内容哈希形成候选；enclosure 只发起逐跳 allowlist 校验的 `HEAD`，验证 Content-Type 和 Content-Length，不在发现阶段下载音频。只接受来源声明的西语 `text/vtt`，解析失败或没有合法 transcript 时形成无逐句文本的可播放候选，不调用 ASR。enclosure 或已声明 transcript 的网络、`429`、`5xx` 错误会中止本轮并保留游标以便重试；永久 4xx、格式或权利错误才跳过或降级。
+
+podcast publisher 在播放校验未过期时调用 `media` application/repository，原子保存 feed/GUID/enclosure URL 哈希、带有效期的音频播放资产、可选已审核 transcript 时间轴和两份授权 Codex AI 审核记录。原始 enclosure URL 只存在服务端候选和播放资产，不写普通日志；公开投影仍受发布、版权、资产可用性与有效期共同约束。撤下会归档版本、标记资产为 `withdrawn` 并移除当前公开版本，保留来源和审核审计。
 
 文章继续由现有 article 表族拥有；视频和播客由 `media` 共享稳定身份、版本、资产和定时片段；旧 `content_packs` 冻结为历史兼容载体，不为新媒体增加字段。`lexicon-corpus` 通过只读投影索引已发布 article/media 版本，不修改来源内容。
 
@@ -177,9 +181,9 @@ video publisher 调用 `media` application/repository，在单一事务内追加
 
 `/learn` 是视频/播客目录和媒体学习器，不再读取推荐器生成“开始/继续”任务。`/read` 在文章之外提供词汇、短语、语料和文字考察。`training` 继续提供 attempt、录音、状态机和证据编排，但不再拥有任务式学习首页。
 
-`media` 的公开列表和详情只投影当前 `published + cleared + playable` 版本，稳定引用为 `stableKey@version`。播放接口要求用户会话，只返回 HTTPS 播放信息和最多 500 个已审核片段；临时播放地址过期、资产撤下或版本不可用时失败关闭。YouTube SDK 只存在于 `VideoPlayerAdapter`，通过 play/pause/seek/currentTime/destroy 小型端口驱动工作台，并用 generation 隔离旧播放器回调。工作台提供 A/S/D 逐句控制、Q 自动暂停、西语/双语/隐藏字幕和保留上下文的词句抽屉；词义与保存仍由后续词句任务负责。
+`media` 的公开列表和详情只投影当前 `published + cleared + playable` 版本，稳定引用为 `stableKey@version`。播放接口要求用户会话，只返回 HTTPS 播放信息和最多 500 个已审核片段；临时播放地址过期、资产撤下或版本不可用时失败关闭。YouTube SDK 只存在于 `VideoPlayerAdapter`；原生音频元素只存在于 `AudioPlayerAdapter`。两者都通过 play/pause/seek/currentTime/destroy 小型端口驱动同一工作台，并用 generation 隔离旧播放器回调。工作台提供 A/S/D 逐句控制、Q 自动暂停、西语/双语/隐藏字幕和保留上下文的词句抽屉；无已审核 transcript 的播客仍可播放，但逐句控制禁用并明确提示。词义与保存仍由后续词句任务负责。
 
-用户进度绑定具体媒体版本，以 revision/CAS 保存位置并允许相同旧请求幂等重放，不能把过期版本、未审核片段或越界位置写入进度。客户端串行同步最新位置，切换媒体或卸载时取消旧请求，并忽略旧 generation 响应；409 必须要求刷新，普通同步失败只提示可重试，均不写学习证据。`/learn` 在没有正式媒体时显示真实空状态，不用 fixture 或 AI 示例内容冒充已发布素材；唯一视频 E2E fixture 只在非生产且 `AUTH_E2E_ENABLED=1`、命中固定 stable key 时可用。旧 `/learn/practice` 保留为兼容 route，但不再从学习首页暴露。
+用户进度绑定具体媒体版本，以 revision/CAS 保存位置并允许相同旧请求幂等重放，不能把过期版本、未审核片段或越界位置写入进度。客户端串行同步最新位置，切换媒体或卸载时取消旧请求，并忽略旧 generation 响应；409 必须要求刷新，普通同步失败只提示可重试，均不写学习证据。`/learn` 在没有正式媒体时显示真实空状态，不用 fixture 或 AI 示例内容冒充已发布素材；视频与播客 E2E fixture 只在非生产且 `AUTH_E2E_ENABLED=1`、命中各自固定 stable key 时可用。旧 `/learn/practice` 保留为兼容 route，但不再从学习首页暴露。
 
 画像主投影为词汇与短语、交流运用、语音表达、跟读表现四个板块。底层 `evidence_events` 和 `user_skill_states` 继续按 skill key 保存并可重算；profile 只做版本化分组和解释。文字考察、文字对话、可信语音和跟读按输出方式进入不同 skill；观看、阅读、查词、收藏和时长均不写证据。
 

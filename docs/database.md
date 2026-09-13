@@ -42,6 +42,8 @@ MEDIA-001 新增迁移 `0024_media_library_foundation.sql` 及 `media_items`、`
 
 VIDEO-001 新增迁移 `0025_youtube_video_publication.sql`。`media_versions` 增加平台视频 ID、频道 ID、采集 candidate ID/revision、抓取时间、变更原因和审核说明；条件唯一索引保证一个 candidate revision 只能创建一个正式媒体版本，provenance 字段必须同时为空或同时有效。`media_segments.source_kind` 只允许 `platform_manual`、`platform_auto` 或后续 `asr`；历史/非采集片段可以为 null。该迁移不新增客户端表权限，也不建立跨模块外键。
 
+PODCAST-001 新增迁移 `0026_brief_toro.sql`。`media_versions.source_feed_url` 保存经过 HTTPS 校验的播客 feed 来源，`enclosure_url_hash` 保存播放 URL 的 SHA-256 审计指纹；两者不替代 `media_assets.playback_url`，也不扩散到公共卡片 DTO。正式音频资产使用 `kind=audio`、`provider_key=podcast-rss` 并必须保存 `playback_expires_at`；过期、撤下或版权不清晰的资产不能被公开查询、播放或继续写进度。迁移只扩展服务端媒体表，沿用现有 RLS，不建立到采集模块的跨模块外键。
+
 ALPHA-033 新增 `user_content_pack_states`（迁移 `0019`），保存用户对探索内容包的收藏与可恢复进度。状态以 `(user_id, pack_stable_key, pack_version)` 为边界，内容包换版后不会串用旧进度；`completed_steps` 由服务端按 `total_steps` 约束并在 upsert 时截断到合法范围。它属于用户私有的 discovery state，不是学习证据，不写入 `evidence_events`、`user_skill_states` 或口语评分。表启用 RLS，authenticated 只能读写自己的行，`profiles` 删除时级联清理；服务端 Route Handler 仍需执行会话和所有权校验。
 
 ALPHA-005 新增 `content_bundle_imports` 作为服务端导入登记表，保存 bundle 稳定 ID、版本、规范化内容哈希和实体数量。该表不向 `anon` 或 `authenticated` 开放。`expression_tags.scoring` 区分能力权值与元数据标签；`content_sources` 增加版权状态和内部审核说明。
@@ -104,6 +106,7 @@ pnpm db:migrate
 - `0014` 新增 `user_generated_articles`。每行绑定一个内部文章版本和一个用户，保存生成参数、MiniMax provider/model/request 元数据、内容哈希、幂等键和 `ready` 状态；用户只能读取、插入和删除自己的行。关联的文章载体使用级联删除，账号删除会先由 profile 外键清理生成记录及其内部版本，公共文章不受影响。重复的 `(user_id, idempotency_key)` 且参数一致时返回原文章，参数不一致返回 `409 CONFLICT`。
 - `0024` 的媒体版本、资产和片段只通过服务端 repository 访问；资产 URL 必须为 HTTPS，非官方嵌入必须有过期时间。进度保存重新验证当前版本、发布/版权状态、资产可用性、地址有效期、内容总时长和已审核片段，撤下后不能继续写入。
 - `0025` 的 YouTube 正式发布只接受精确的 `youtube-nocookie.com/embed/{videoId}` 官方嵌入。publisher 在同一事务内保存候选 provenance、资产、最多 500 个已审核片段和两份授权 Codex AI 审核记录；同 candidate revision/hash 重试幂等，不同哈希冲突，撤下不会删除审计历史。
+- `0026` 的播客正式发布要求 feed/enclosure 为无凭据 HTTPS、候选哈希与审核 revision 一致、播放校验未过期，且 transcript 状态与时间轴严格匹配。publisher 在同一事务内保存 RSS provenance、音频资产、可选已审核片段和两份授权 Codex AI 审核记录；无 transcript 可以播放但不会生成片段或能力证据，撤下保留审计历史。
 - `evidence_events` 只追加。首版迁移在 Supabase 角色存在时撤销 `anon` 和 `authenticated` 的 `UPDATE` / `DELETE` 权限。
 - `user_skill_states` 与 `user_scene_states` 是可重算快照，不能替代原始证据。
 - 尝试、证据和角色消息包含稳定客户端 ID、幂等键或 generation 标识，后续重试不能重复写入事实。
@@ -128,6 +131,7 @@ pnpm db:migrate
 - `0023_article_acquisition.sql` 为 `article_sources` 增加采集候选 ID/revision 与抓取时间，并用条件唯一索引保证同一候选修订版只对应一个正式来源记录。三个字段必须同时为空或同时有效；它们只保存内部 UUID、正整数 revision 和时间，不建立跨模块外键。正式文章发布仍在 article repository 事务内追加 `article_versions`、段落和两份审核记录，撤下不删除审计数据。
 - `0024_media_library_foundation.sql` 对四张正式媒体表和用户进度表启用 RLS；`anon`/`authenticated` 无权直接读取正式媒体内部表。`authenticated` 只能按 `user_id = auth.uid()` 读写自己的进度，Route Handler 和 application 仍负责重新验证版本、资产和 CAS 规则。
 - `0025_youtube_video_publication.sql` 只扩展现有服务端媒体表，沿用 `0024` 的 RLS 和权限；candidate UUID/revision 是审计引用，不会让媒体模块直接改写采集表。
+- `0026_brief_toro.sql` 只增加播客来源与 enclosure 哈希字段，继续沿用 `0024` 的 RLS 和服务端 repository 边界；原始播放 URL 仍只由鉴权播放投影在有效期内返回。
 - `0015` 为 `profiles` 增加不可变 `public_uid`、`avatar_kind`、`avatar_preset_id` 和受保护的 `avatar_path`，并新增仅服务端可访问的 `reserved_public_uids`。UID 由服务端函数随机生成、唯一索引保护；账号删除先登记 UID 与头像 Storage 清理任务，再级联删除 profile，后续生成器同时排除保留表中的 UID。客户端只能通过 `/api/v1/me` DTO 读取自己的身份资料，不能读取内部路径或保留表。
 - `diagnostic_events` 不开放客户端读写；内部查询只返回去掉 `user_id` 和 `dedupe_key` 的诊断投影。
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。
