@@ -6,7 +6,7 @@
 - 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
 - 总体状态：ALPHA-033 继续进行；当前成果只形成电脑端 Web 临时集成测试基线，不是发布候选。v2 内容、远端数据库导入和自动化回归已完成，但产品本人确认仍有未完成功能及明显的排版、按钮和交互缺陷；必须重新盘点并修复后再讨论发布候选。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012`、`UI-013`、`UI-014` 已完成并合并；UI-015 已解锁，下一步收敛对话页面。iPhone Safari/PWA 真机与 Flutter 继续延期并如实记录
+- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012`、`UI-013`、`UI-014` 已完成并合并；UI-015 对话页面密度收敛现已启动。iPhone Safari/PWA 真机与 Flutter 继续延期并如实记录
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -266,6 +266,8 @@
 
 - UI-014 合并完成：产品本人于 2026-09-13 确认阅读页面基本达到预期并要求开启下一项任务；`codex/ui-014-reading-density` 已通过 Merge Commit `5e2fde4` 合入 `main`。UI-014 状态改为 `done`，UI-015 解锁为 `ready`；本次合并不改变发布候选门禁、完整 E2E 延期项或 iPhone Safari/PWA 与 Flutter 真机限制。
 
+- UI-015 启动：已从包含 UI-014 合并与状态更新的最新 `main@99928bf` 创建 `codex/ui-015-conversation-density`。本任务只收敛对话页联系人列、当前对话、输入区、角色页头、按需消息操作、空态与错误恢复的呈现密度；不修改角色圣经、好友申请状态机、关系记忆、消息持久化、流式 `done`、安全门禁或 Provider 选择。负责人：Codex；状态：`in_progress`。
+
 ### READ-006：Generate Story 私有 AI 草稿文章
 
 - 状态：`done`
@@ -296,7 +298,7 @@
 
 ## 当前任务
 
-UI-012、UI-013、UI-014 已完成并合并；当前上位任务仍为 `ALPHA-033`，下一项任务为 `UI-015` 对话页面密度收敛，状态 `ready`。
+UI-012、UI-013、UI-014 已完成并合并；当前上位任务仍为 `ALPHA-033`，当前任务为 `UI-015` 对话页面密度收敛，状态 `in_progress`。
 
 当前任务为 `ALPHA-033`：电脑端 Web 的 Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等电脑端候选版本门禁通过后再启动。当前只做电脑端 Web 功能补齐、缺陷修复和局部/全量质量回归；响应式与 iPhone Safari/PWA 兼容保留但真机验收延期，Flutter 不恢复同步。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
@@ -319,7 +321,7 @@ UI-012、UI-013、UI-014 已完成并合并；当前上位任务仍为 `ALPHA-03
 - `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（done；实现 Commit `742d1e7`、产品反馈修正 `335c747`、Merge Commit `7f994e6`）
 - `UI-013`：学习首页与训练工作台密度收敛（done；实现 `ea91cc7`、Merge Commit `ef89207`）
 - `UI-014`：阅读书架与文章阅读器密度收敛（done；首版实现 `7a802de`；阅读器视觉反馈修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口修复 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4`）
-- `UI-015`：对话页面密度收敛（ready；依赖 UI-014 已完成）
+- `UI-015`：对话页面密度收敛（in_progress；分支 `codex/ui-015-conversation-density`）
 - `UI-016`：“我的”、设置与隐私密度收敛（blocked；依赖 UI-015）
 - `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（blocked；依赖 UI-012 至 UI-016）
 
@@ -1612,7 +1614,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-012 | done | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 实现 `742d1e7`、反馈修正 `335c747`、合并 `7f994e6` |
 | UI-013 | done | `codex/ui-013-learning-workbench-density` | Codex | 学习首页与训练工作台密度收敛 | 实现 `ea91cc7`、合并 `ef89207` |
 | UI-014 | done | `codex/ui-014-reading-density` | Codex | 阅读书架与文章阅读器密度收敛 | 首版 `7a802de`；视觉修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4` |
-| UI-015 | ready | `codex/ui-015-conversation-density` | 待领取 | 对话页面密度收敛 | UI-014 已完成 |
+| UI-015 | in_progress | `codex/ui-015-conversation-density` | Codex | 对话页面密度收敛 | UI-014 已完成 |
 | UI-016 | blocked | `codex/ui-016-profile-density` | 待领取 | “我的”、设置与隐私密度收敛 | UI-015 |
 | UI-017 | blocked | `codex/ui-017-collapsible-shell` | 待领取 | 公共壳层、可收缩侧边栏与全站一致性 | UI-012 至 UI-016 |
 | 阶段 8 | blocked | 待启动 | 产品本人 / Codex | 电脑端 Web 发布候选的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
@@ -1626,7 +1628,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 1 | UI-012 | Explore、场景详情、实战与复盘密度收敛 | 已完成并合并到 `main` |
 | 2 | UI-013 | 学习首页与训练工作台密度收敛 | 已完成并合并到 `main` |
 | 3 | UI-014 | 阅读书架与文章阅读器密度收敛 | 已完成并合并到 `main` |
-| 4 | UI-015 | 对话页面密度收敛 | `ready`；从最新 `main` 创建专用分支后开始 |
+| 4 | UI-015 | 对话页面密度收敛 | `in_progress`；仅处理已批准的对话页范围 |
 | 5 | UI-016 | “我的”、设置与隐私密度收敛 | UI-015 完成并确认 |
 | 6 | UI-017 | 公共壳层、可收缩侧边栏与全站一致性复核 | UI-012 至 UI-016 完成并确认 |
 | 7 | ALPHA-033 | 复核剩余功能缺口与发布候选门禁 | UI-017 全量门禁与真实登录复核完成 |
