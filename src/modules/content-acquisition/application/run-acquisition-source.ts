@@ -47,6 +47,7 @@ export type RunAcquisitionSourceResult = Readonly<{
   conflicts: number;
   nextCursor: string | null;
   estimatedCostMicros: number;
+  insertedCandidateIds: readonly string[];
 }>;
 
 export type RunAcquisitionDependencies = Readonly<{
@@ -127,6 +128,7 @@ export async function runAcquisitionSource(options: Readonly<{
         conflicts: 0,
         nextCursor: page.nextCursor,
         estimatedCostMicros: page.estimatedCostMicros,
+        insertedCandidateIds: [],
       };
     }
 

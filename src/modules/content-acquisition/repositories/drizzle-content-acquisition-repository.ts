@@ -19,7 +19,10 @@ import type {
 import type { CandidateReviewRecord } from "../domain";
 import type { CandidatePublicationRef } from "../publishers";
 
-function sourceRecord(row: typeof schema.acquisitionSources.$inferSelect): ContentSourceRecord {
+function sourceRecord(
+  row: typeof schema.acquisitionSources.$inferSelect,
+  includeRightsPolicy = false,
+): ContentSourceRecord {
   return {
     id: row.id,
     stableKey: row.stableKey,
@@ -31,6 +34,7 @@ function sourceRecord(row: typeof schema.acquisitionSources.$inferSelect): Conte
     region: row.region,
     enabled: row.enabled,
     rightsStatus: row.rightsStatus as ContentSourceRecord["rightsStatus"],
+    ...(includeRightsPolicy ? { rightsPolicy: row.rightsPolicy } : {}),
     cursor: row.cursor,
     revision: row.revision,
   };
@@ -126,7 +130,7 @@ export function createDrizzleContentAcquisitionRepository(
   return {
     async listSources() {
       const rows = await database.select().from(schema.acquisitionSources).orderBy(schema.acquisitionSources.displayName);
-      return rows.map(sourceRecord);
+      return rows.map((row) => sourceRecord(row));
     },
 
     async listRuns(input = {}) {
@@ -260,7 +264,7 @@ export function createDrizzleContentAcquisitionRepository(
         .from(schema.acquisitionSources)
         .where(eq(schema.acquisitionSources.stableKey, stableKey))
         .limit(1);
-      return row ? sourceRecord(row) : null;
+      return row ? sourceRecord(row, true) : null;
     },
 
     async createRun(input) {
@@ -288,6 +292,7 @@ export function createDrizzleContentAcquisitionRepository(
         let inserted = 0;
         let duplicates = 0;
         let conflicts = 0;
+        const insertedCandidateIds: string[] = [];
         for (const candidate of input.candidates) {
           const existing = await findIdentities(transaction, candidate);
           const resolution = resolveCandidateIdentity(existing, candidate);
@@ -323,6 +328,7 @@ export function createDrizzleContentAcquisitionRepository(
             .returning({ id: schema.contentCandidates.id });
           if (created.length > 0) {
             inserted += 1;
+            insertedCandidateIds.push(candidate.id);
             continue;
           }
           const concurrent = await findIdentities(transaction, candidate);
@@ -346,7 +352,7 @@ export function createDrizzleContentAcquisitionRepository(
         if (updatedSources.length !== 1) {
           throw new ContentAcquisitionConflictError("Content source cursor changed during discovery.");
         }
-        return { inserted, duplicates, conflicts };
+        return { inserted, duplicates, conflicts, insertedCandidateIds };
       });
     },
 

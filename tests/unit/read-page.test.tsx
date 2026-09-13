@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getArticles: vi.fn(),
   BundleArticleRepository: vi.fn(),
+  createRuntimeArticleRepository: vi.fn(() => ({})),
   listPrivateStories: vi.fn(),
   listReadingProgress: vi.fn(),
   listSavedArticles: vi.fn(),
@@ -13,7 +14,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/modules/content/application", () => ({ getArticles: mocks.getArticles }));
-vi.mock("@/src/modules/content/repositories", () => ({ BundleArticleRepository: mocks.BundleArticleRepository }));
+vi.mock("@/src/modules/content/repositories", () => ({
+  BundleArticleRepository: mocks.BundleArticleRepository,
+  createRuntimeArticleRepository: mocks.createRuntimeArticleRepository,
+}));
 vi.mock("@/src/modules/reading", () => ({
   listPrivateStories: mocks.listPrivateStories,
   listReadingProgress: mocks.listReadingProgress,

@@ -3,6 +3,7 @@ export * from "./archive-published-candidate";
 export * from "./get-candidate-review";
 export * from "./list-candidates";
 export * from "./process-candidate";
+export * from "./prepare-article-candidate-for-review";
 export * from "./publish-candidate";
 export * from "./register-source";
 export * from "./request-candidate-reprocessing";

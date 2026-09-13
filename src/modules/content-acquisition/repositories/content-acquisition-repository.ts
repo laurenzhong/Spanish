@@ -26,6 +26,7 @@ export type ContentSourceRecord = Readonly<{
   region: string | null;
   enabled: boolean;
   rightsStatus: SourceRightsStatus;
+  rightsPolicy?: Readonly<Record<string, unknown>>;
   cursor: string | null;
   revision: number;
 }>;
@@ -124,6 +125,7 @@ export type CommitDiscoveryPageResult = Readonly<{
   inserted: number;
   duplicates: number;
   conflicts: number;
+  insertedCandidateIds: readonly string[];
 }>;
 
 export type ProcessingAttemptInput = Readonly<{

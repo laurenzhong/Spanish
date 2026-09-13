@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getArticle } from "@/src/modules/content/application";
-import { BundleArticleRepository } from "@/src/modules/content/repositories";
+import { createRuntimeArticleRepository } from "@/src/modules/content/repositories";
 import { getPrivateStory } from "@/src/modules/reading/application";
 import { createDrizzleGeneratedArticleRepository } from "@/src/modules/reading/repositories";
 import { getCurrentUser } from "@/src/shared/auth/server";
@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: "阅读文章" };
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { articleId } = await params;
   const decodedId = decodeURIComponent(articleId);
-  const result = await getArticle(new BundleArticleRepository(), decodedId);
+  const result = await getArticle(createRuntimeArticleRepository(), decodedId);
   if (result.reason === "found" && result.article) return <ArticleReader article={result.article} />;
   if (process.env.DATABASE_URL) {
     const user = await getCurrentUser();

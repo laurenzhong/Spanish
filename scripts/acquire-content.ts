@@ -8,9 +8,11 @@ import {
   ContentSourceDisabledError,
   ContentSourceNotFoundError,
   FakeContentSourceAdapter,
+  createArticleRssAdapterFromSource,
   contentSourcePageSchema,
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
+  prepareArticleCandidateForReview,
   type ContentAcquisitionRepository,
   type ContentSourceAdapter,
 } from "../src/modules/content-acquisition/index";
@@ -88,18 +90,27 @@ export async function runAcquireContentCli(
     adapter: dependencies.adapter,
     input: options,
   });
+  let reviewReady = 0;
+  if (!result.dryRun && dependencies.adapter.key === "article-rss") {
+    for (const candidateId of result.insertedCandidateIds) {
+      await prepareArticleCandidateForReview(dependencies.repository, candidateId);
+      reviewReady += 1;
+    }
+  }
   dependencies.write(JSON.stringify({
     runId: result.runId,
     status: "succeeded",
     steps: {
       discovery: "completed",
       persistence: result.dryRun ? "skipped" : "completed",
+      ...(dependencies.adapter.key === "article-rss" ? { processing: result.dryRun ? "skipped" : "completed" } : {}),
     },
     counts: {
       discovered: result.discovered,
       inserted: result.inserted,
       duplicates: result.duplicates,
       conflicts: result.conflicts,
+      ...(dependencies.adapter.key === "article-rss" ? { reviewReady } : {}),
     },
     estimatedCostMicros: result.estimatedCostMicros,
   }));
@@ -129,10 +140,12 @@ async function main(): Promise<void> {
     const source = await repository.findSourceByStableKey(options.sourceStableKey);
     if (!source) throw new ContentSourceNotFoundError();
     if (!source.enabled) throw new ContentSourceDisabledError();
-    if (source.adapterType !== "fake") {
-      throw new ContentAcquisitionRunError("Only an injected fake adapter is available in ACQ-001.");
-    }
-    const adapter = await loadConfiguredFakeAdapter();
+    const adapter = source.adapterType === "fake"
+      ? await loadConfiguredFakeAdapter()
+      : source.adapterType === "article-rss"
+        ? createArticleRssAdapterFromSource(source)
+        : null;
+    if (!adapter) throw new ContentAcquisitionRunError("No runtime adapter is available for this source type.");
     await runAcquireContentCli(process.argv.slice(2), {
       repository,
       adapter,

@@ -179,6 +179,10 @@ Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生�
 
 候选审核记录绑定具体 candidate revision。请求修改、拒绝和后续批准必须保留已有备注；重新处理产生新 generation/revision，旧版本批准不能沿用。候选生成者信息、Provider 输出或客户端提交的角色字段都不能自动生成批准。当前个人 Alpha 的工作台明确显示审核身份为 Codex AI（所有者授权），记录使用 `codex-ai-owner-authorized-review`；批准后仍需单独点击发布，且缺少类型专用正式 publisher 时保持草稿并明确报告不可发布原因。
 
+文章 RSS 来源只有在 `rights_status=verified` 且 `rights_policy.contentMode=full_text` 时才允许抓取正文。策略还必须记录许可类型、署名、可核验的 HTTPS 许可证据、feed/文章主机 allowlist、CEFR、主题、地区、语域、格式和口语迁移默认值。文章 feed 与正文页的 HTTPS 请求不得跟随到 allowlist 之外的主机，也不得绕过 Content-Type、响应体积或字符编码限制；付费墙、登录墙、正文缺失和许可字段不完整的条目不能进入可审核草稿。
+
+采集后保存的是规范化 URL、纯文本段落、摘要、作者、发布日期、抓取时间和确定性内容哈希，不保存或向客户端返回可执行 HTML。新候选经过确定性校验后才推进到 `review_ready`。显式发布会在 article 模块的单一事务中保存正式版本、来源候选 revision、变更原因以及 `es-ES`、`zh-CN` 两份审核记录；同一候选 revision 的相同哈希幂等返回已有版本，不同哈希必须冲突，不能覆盖历史版本。撤下保留内部版本与审核审计，但公开目录和详情查询立即不可见。
+
 ### 8.1 阅读文章字段
 
 每篇可公开阅读的文章至少包含：

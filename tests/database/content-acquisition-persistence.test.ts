@@ -69,6 +69,9 @@ describe("content acquisition persistence", () => {
     const first = await registerSource();
     const repeated = await registerSource();
     expect(repeated).toEqual(first);
+    expect(await acquisition.listSources()).toEqual([
+      expect.not.objectContaining({ rightsPolicy: expect.anything() }),
+    ]);
 
     const updated = await acquisition.registerSource({
       id: sourceId,
@@ -138,7 +141,7 @@ describe("content acquisition persistence", () => {
       nextCursor: "page-2",
       candidates: [candidate],
     });
-    expect(committed).toEqual({ inserted: 1, duplicates: 0, conflicts: 0 });
+    expect(committed).toEqual({ inserted: 1, duplicates: 0, conflicts: 0, insertedCandidateIds: [candidateId] });
     await acquisition.completeRun({
       runId,
       ...committed,
@@ -165,7 +168,7 @@ describe("content acquisition persistence", () => {
       expectedSourceRevision: 2,
       nextCursor: "page-3",
       candidates: [{ ...candidate, id: "00000000-0000-4000-8000-000000000505", generationId: "generation-2" }],
-    })).resolves.toEqual({ inserted: 0, duplicates: 1, conflicts: 0 });
+    })).resolves.toEqual({ inserted: 0, duplicates: 1, conflicts: 0, insertedCandidateIds: [] });
 
     const [{ count }] = await database.select({ count: sql<number>`count(*)` }).from(schema.contentCandidates);
     expect(Number(count)).toBe(1);

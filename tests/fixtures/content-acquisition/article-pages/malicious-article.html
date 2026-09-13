@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="es">
+  <head><title>Contenido inseguro</title></head>
+  <body>
+    <article>
+      <script>globalThis.stolen = document.cookie</script>
+      <p onclick="steal()">  Texto   seguro para leer.  </p>
+      <style>body { display: none }</style>
+      <p>Segundo párrafo &amp; final.</p>
+    </article>
+  </body>
+</html>

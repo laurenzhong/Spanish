@@ -1,0 +1,5 @@
+ALTER TABLE "article_sources" ADD COLUMN "acquisition_candidate_id" uuid;--> statement-breakpoint
+ALTER TABLE "article_sources" ADD COLUMN "acquisition_candidate_revision" integer;--> statement-breakpoint
+ALTER TABLE "article_sources" ADD COLUMN "fetched_at" timestamp with time zone;--> statement-breakpoint
+CREATE UNIQUE INDEX "article_sources_candidate_revision_uidx" ON "article_sources" USING btree ("acquisition_candidate_id","acquisition_candidate_revision") WHERE "article_sources"."acquisition_candidate_id" is not null;--> statement-breakpoint
+ALTER TABLE "article_sources" ADD CONSTRAINT "article_sources_acquisition_provenance_check" CHECK (("article_sources"."acquisition_candidate_id" is null and "article_sources"."acquisition_candidate_revision" is null and "article_sources"."fetched_at" is null) or ("article_sources"."acquisition_candidate_id" is not null and "article_sources"."acquisition_candidate_revision" > 0 and "article_sources"."fetched_at" is not null));

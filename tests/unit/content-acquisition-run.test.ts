@@ -40,7 +40,7 @@ function repository(currentSource: ContentSourceRecord | null) {
       if (failCommit) throw new Error("database unavailable");
       commits.push(input);
       if (currentSource) currentSource = { ...currentSource, cursor: input.nextCursor, revision: currentSource.revision + 1 };
-      return { inserted: input.candidates.length, duplicates: 0, conflicts: 0 };
+      return { inserted: input.candidates.length, duplicates: 0, conflicts: 0, insertedCandidateIds: input.candidates.map((candidate) => candidate.id) };
     },
     completeRun: async () => undefined,
     failRun: async () => undefined,

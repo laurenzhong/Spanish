@@ -162,6 +162,13 @@
       "when": 1789260921590,
       "tag": "0022_empty_lenny_balinger",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789268022224,
+      "tag": "0023_article_acquisition",
+      "breakpoints": true
     }
   ]
 }

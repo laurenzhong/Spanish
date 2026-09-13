@@ -118,6 +118,7 @@ pnpm db:migrate
 - 7.4c 的账号数据删除由服务端事务执行：先删除 `evidence_events` 解除 `practice_attempts` 的 restrict 引用，再删除 `profiles` 触发用户私有表级联；`provider_calls` 在 profile 删除前置空 `user_id` 并替换 metadata 为匿名标记。`privacy_cleanup_tasks` 不含 `user_id`，只保存待清理的 bucket/path、状态、尝试次数和脱敏错误，RLS 对客户端完全关闭。
 - `0012` 的阅读表启用 RLS。`authenticated` 仅能按 `user_id = auth.uid()` 读写自己的阅读行；`anon` 没有表权限。删除账号时由 `profiles` 外键级联清理阅读进度、收藏、高亮、笔记和外部来源元数据，公共文章和文章版本不受影响。
 - `0014` 的生成文章表启用同样的用户级 RLS；内部文章版本只有在生成记录的用户所有权条件下才可被阅读状态 repository 解析，防止通过稳定文章 ID 横向读取其他用户的 draft。公共文章查询不 join 生成表。
+- `0023_article_acquisition.sql` 为 `article_sources` 增加采集候选 ID/revision 与抓取时间，并用条件唯一索引保证同一候选修订版只对应一个正式来源记录。三个字段必须同时为空或同时有效；它们只保存内部 UUID、正整数 revision 和时间，不建立跨模块外键。正式文章发布仍在 article repository 事务内追加 `article_versions`、段落和两份审核记录，撤下不删除审计数据。
 - `0015` 为 `profiles` 增加不可变 `public_uid`、`avatar_kind`、`avatar_preset_id` 和受保护的 `avatar_path`，并新增仅服务端可访问的 `reserved_public_uids`。UID 由服务端函数随机生成、唯一索引保护；账号删除先登记 UID 与头像 Storage 清理任务，再级联删除 profile，后续生成器同时排除保留表中的 UID。客户端只能通过 `/api/v1/me` DTO 读取自己的身份资料，不能读取内部路径或保留表。
 - `diagnostic_events` 不开放客户端读写；内部查询只返回去掉 `user_id` 和 `dedupe_key` 的诊断投影。
 - 表达、场景、内容包和角色必须同时满足已发布与审核通过才能公开。

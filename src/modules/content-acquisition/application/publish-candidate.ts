@@ -28,6 +28,7 @@ export async function publishCandidate(
     language: detail.candidate.language,
     normalizedUrl: detail.candidate.normalizedUrl,
     metadata: detail.candidate.metadata,
+    reviews: detail.reviews,
   });
   let candidate;
   try {

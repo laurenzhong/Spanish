@@ -1,4 +1,5 @@
 import type { ContentCandidateType } from "../schemas";
+import type { CandidateReviewRecord } from "../domain";
 
 export type CandidatePublicationRef = Readonly<{
   kind: "article" | "media";
@@ -15,6 +16,7 @@ export type CandidatePublisherInput = Readonly<{
   language: string;
   normalizedUrl: string;
   metadata: Readonly<Record<string, unknown>>;
+  reviews: readonly CandidateReviewRecord[];
 }>;
 
 export interface CandidatePublisher {
