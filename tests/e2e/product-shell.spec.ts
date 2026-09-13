@@ -426,12 +426,12 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await firstArticleLink.click();
   await expect(page).toHaveURL(/\/read\/article\/article\.sueno-first-cafe%401$/);
   await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "解释" })).toBeVisible();
   await expect(page.getByTestId("article-transfer")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toHaveCount(0);
-  await page.getByRole("button", { name: "保存" }).click();
+  await page.getByRole("button", { name: "收藏" }).click();
   await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toBeVisible();
-  await page.getByRole("button", { name: "口语" }).click();
+  await page.locator(".article-reader__tools-close").click();
+  await page.getByText("读完后练口语", { exact: true }).click();
   await expect(page.getByTestId("article-transfer")).toBeVisible();
   await page.goto("/read");
   await page.getByRole("link", { name: "我的文章" }).click();

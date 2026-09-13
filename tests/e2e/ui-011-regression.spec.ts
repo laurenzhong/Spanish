@@ -24,13 +24,13 @@ test("restores focus when the mobile reading assist drawer closes", async ({ pag
   await authenticate(page);
   await page.setViewportSize({ width: 375, height: 844 });
   await page.goto("/read/article/article.sueno-first-cafe@1");
-  const toggle = page.getByRole("button", { name: "解释" });
-  await toggle.focus();
-  await toggle.click();
+  const token = page.getByRole("button", { name: /^café/ });
+  await token.focus();
+  await token.click();
   const dialog = page.getByRole("dialog", { name: "解释" });
   await expect(dialog).toBeVisible();
   await expect(page.locator(".article-reader__tools-close")).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(toggle).toBeFocused();
+  await expect(token).toBeFocused();
 });

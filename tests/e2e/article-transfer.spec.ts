@@ -17,7 +17,7 @@ test("moves an explicit article transfer into the oral practice context", async 
   await page.goto("/read/article/article.sueno-first-cafe@1");
 
   await expect(page.getByTestId("article-transfer")).toHaveCount(0);
-  await page.getByRole("button", { name: "口语" }).click();
+  await page.getByText("读完后练口语", { exact: true }).click();
   await expect(page.getByTestId("article-transfer")).toBeVisible();
   await expect(page.getByRole("button", { name: /说说文章讲了什么/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /说说你的看法/ })).toBeVisible();
@@ -51,56 +51,28 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   const actions = page.locator(".article-reader__topbar-actions");
   await expect(topbar).toHaveCSS("position", "fixed");
   await expect(topbar).toHaveCSS("top", "0px");
-  await expect(topbar).toHaveCSS("border-bottom-width", "1px");
+  await expect(topbar).toHaveCSS("min-height", "64px");
   await expect(title).toContainText("Una conversación que empieza con un café");
   await expect(title).toHaveCSS("text-overflow", "ellipsis");
-  await expect(actions).toHaveCSS("gap", "2px");
+  await expect(actions.getByRole("button")).toHaveCount(3);
+  await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
+  await expect(page.getByText("Marta conoce a una compañera nueva en la cafetería del campus y descubre que una conversación sencilla puede abrir una relación inesperada.")).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "文章阅读进度" })).toBeVisible();
 
-  const toggle = page.getByRole("button", { name: "解释" });
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "朗读" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "收藏" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "设置" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "解释" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "词典" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "口语" })).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  const tools = page.getByRole("dialog", { name: "解释" });
-  await expect(tools).toBeVisible();
-  await expect(tools).toContainText("点击正文中的词语查看语境解释。");
-
-  const toolsBox = await tools.boundingBox();
-  expect(toolsBox).not.toBeNull();
-  if (toolsBox) {
-    if ((page.viewportSize()?.width ?? 0) >= 960) {
-      expect(toolsBox.width).toBeCloseTo(360, 0);
-      const toggleBox = await toggle.boundingBox();
-      expect(toggleBox).not.toBeNull();
-      if (toggleBox) {
-        const toggleIsTopmost = await toggle.evaluate((node) => {
-          const rect = node.getBoundingClientRect();
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          return hit === node || node.contains(hit);
-        });
-        expect(toggleIsTopmost).toBe(true);
-      }
-      const content = page.locator(".article-reader__content");
-      await expect(content).toHaveCSS("padding-right", "24px");
-    }
-  }
-
-  if ((page.viewportSize()?.width ?? 0) < 800) {
-    await page.locator(".article-reader__tools-close").click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-  }
   await page.getByRole("button", { name: /^café/ }).click();
+  const tools = page.getByRole("dialog", { name: "解释" });
   await expect(tools).toContainText("咖啡这种饮料；咖啡馆");
   expect(explanationApiCalled).toBe(false);
   const activeTools = page.getByRole("dialog", { name: "解释" });
   const sidebarOverflow = await activeTools.evaluate((node) => ({ panel: node.scrollWidth <= node.clientWidth }));
   expect(sidebarOverflow.panel).toBe(true);
-
-  await page.getByRole("button", { name: "词典" }).click();
-  await expect(page.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
-  await expect(page.getByRole("combobox", { name: "词典目标语言" })).toHaveValue("Chinese");
-  await expect(page.getByRole("dialog", { name: "词典" })).toContainText("还没有配置 Spanish → Chinese 词典。");
 
   await page.getByRole("button", { name: "设置" }).click();
   const settings = page.getByRole("dialog", { name: "设置" });
@@ -133,7 +105,9 @@ test("explains a selected sentence", async ({ page }) => {
     });
   });
   await page.goto("/read/article/article.sueno-first-cafe@1");
-  await page.getByRole("button", { name: "解释" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByRole("dialog", { name: "设置" }).waitFor();
+  await page.keyboard.press("Escape");
   const paragraph = page.locator('[data-reader-position="0"]');
   const selectedText = await paragraph.evaluate((node) => {
     const tokens = node.querySelectorAll<HTMLElement>(".reader-token");
@@ -146,7 +120,7 @@ test("explains a selected sentence", async ({ page }) => {
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
-    const value = selection?.toString() ?? "";
+    const value = range.toString();
     node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     return value;
   });

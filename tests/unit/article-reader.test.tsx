@@ -51,9 +51,16 @@ describe("normalized article reader", () => {
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
     expect(screen.getByRole("heading", { name: result.article.title })).toBeInTheDocument();
-    expect(screen.queryByRole("progressbar", { name: "文章阅读进度" })).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "文章阅读进度" })).toHaveAttribute("aria-valuenow", "0");
     expect(screen.getByRole("link", { name: "返回" })).toHaveAttribute("href", "/read");
-    expect(screen.getByRole("button", { name: "词典" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: result.article.title })).toBeVisible();
+    expect(screen.getByText(result.article.summary)).toBeVisible();
+    expect(screen.getByRole("button", { name: "朗读" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "收藏" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "解释" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "词典" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "口语" })).not.toBeInTheDocument();
     expect(document.querySelector(".article-reader__layout")?.children).toHaveLength(1);
     expect(screen.queryByRole("dialog", { name: "阅读工具" })).not.toBeInTheDocument();
     expect(screen.getByText(new RegExp(`${result.article.cefr}.*${result.article.estimatedReadingMinutes} 分钟`, "u"))).toBeInTheDocument();
@@ -61,14 +68,14 @@ describe("normalized article reader", () => {
     expect(token).toBeDefined();
     if (!token) throw new Error("reader token missing");
     await user.click(token);
-    expect(screen.getByRole("button", { name: "解释" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "解释" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "保存词语" }));
-    await user.click(screen.getByRole("button", { name: "保存" }));
+    await user.click(screen.getByRole("button", { name: "收藏" }));
     expect(screen.getAllByText(token.textContent ?? "").length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "设置" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "字号" }), "large");
     expect(screen.getByRole("combobox", { name: "字号" })).toHaveValue("large");
-    await user.click(screen.getByRole("button", { name: "保存" }));
+    await user.click(screen.getByRole("button", { name: "收藏" }));
     expect(screen.getByRole("textbox", { name: "文章个人笔记" })).toBeInTheDocument();
   });
 
@@ -83,7 +90,7 @@ describe("normalized article reader", () => {
     expect(screen.getByText(/来源已审核/u)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "朗读" }));
     expect(screen.getByRole("button", { name: "朗读本段" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "口语" }));
+    await user.click(screen.getByText("读完后练口语", { selector: "summary" }));
     expect(screen.getByTestId("article-transfer")).toBeInTheDocument();
   });
 
@@ -139,35 +146,22 @@ describe("normalized article reader", () => {
     expect(spoken.at(-1)?.voice).toBe(sofia);
   });
 
-  it("opens the assist panel on demand and shows the context-aware Explain and Dictionary states", async () => {
+  it("opens the contextual explanation only after selecting text", async () => {
     const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
 
-    const toggle = screen.getByRole("button", { name: "解释" });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "解释" })).not.toBeInTheDocument();
     expect(screen.queryByText("点击正文中的词语查看语境解释。")).not.toBeInTheDocument();
-
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(document.querySelector(".article-reader")?.className).toContain("article-reader--tools-open");
-    expect(screen.getByText("点击正文中的词语查看语境解释。")).toBeInTheDocument();
 
     const café = screen.getAllByRole("button").find((button) => button.textContent?.startsWith("café"));
     expect(café).toBeDefined();
     if (!café) throw new Error("glossary token missing");
     await user.click(café);
+    expect(screen.getByRole("dialog", { name: "解释" })).toBeInTheDocument();
     expect(screen.getByText("咖啡这种饮料；咖啡馆")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "词典" }));
-    expect(screen.getByRole("combobox", { name: "词典源语言" })).toHaveValue("Spanish");
-    expect(screen.getByRole("combobox", { name: "词典目标语言" })).toHaveValue("Chinese");
-    expect(screen.getByText("还没有配置 Spanish → Chinese 词典。")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "词典" }));
-    expect(screen.getByRole("button", { name: "词典" })).toHaveAttribute("aria-expanded", "false");
-    expect(document.querySelector(".article-reader")?.className).not.toContain("article-reader--tools-open");
+    expect(screen.queryByText("还没有配置 Spanish → Chinese 词典。")).not.toBeInTheDocument();
   });
 
   it("requests a MiniMax explanation when a word is selected and renders the response", async () => {
@@ -281,13 +275,15 @@ describe("normalized article reader", () => {
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
-    const toggle = screen.getByRole("button", { name: "解释" });
-    await user.click(toggle);
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("reader token missing");
+    await user.click(token);
     const close = document.querySelector<HTMLButtonElement>(".article-reader__tools-close");
     expect(close).not.toBeNull();
     expect(close).toHaveFocus();
     await user.keyboard("{Escape}");
-    expect(toggle).toHaveFocus();
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(token).toHaveFocus();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

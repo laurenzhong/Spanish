@@ -22,7 +22,7 @@ type ReaderSettings = Readonly<{ fontSize: "default" | "large"; lineHeight: "def
 type ReaderState = Readonly<{ stableKey: string; version: number; contentHash: string; position: number; savedPhrases: readonly SavedPhrase[]; highlights: readonly Highlight[]; note: string; saved: boolean; settings?: ReaderSettings; transferDraft?: string; transferType?: ArticleTransferType | null; status?: "in_progress" | "completed"; lastOpenedAt?: string }>;
 type SelectedToken = Readonly<{ text: string; position: number; context: string; selectionType: "word" | "sentence" }>;
 type WordExplanationStatus = "idle" | "loading" | "success" | "error";
-type ReaderTool = "listen" | "explain" | "dictionary" | "saved" | "transfer" | "settings";
+type ReaderTool = "listen" | "explain" | "saved" | "settings";
 type ArticleReaderProps = Readonly<{ article: ArticleReaderProjection }>;
 
 const readerStoragePrefix = "reading-reader:v1:";
@@ -46,6 +46,18 @@ function remoteState(value: unknown) {
 }
 function normalizeToken(value: string): string { return value.toLocaleLowerCase().replace(/^[^\p{L}¿¡]+|[^\p{L}¿¡]+$/gu, ""); }
 
+function ListenIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6l-5 4H5zm12-1.5a5 5 0 0 1 0 7" /></svg>;
+}
+
+function BookmarkIcon({ filled }: Readonly<{ filled: boolean }>) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6.5 4.5h11v15l-5.5-3.2-5.5 3.2z" fill={filled ? "currentColor" : "none"} /></svg>;
+}
+
+function SettingsIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M6 14v6" /></svg>;
+}
+
 export function ArticleReader({ article }: ArticleReaderProps) {
   const [state, setState] = useState<ReaderState>(() => initialState(article));
   const [hydrated, setHydrated] = useState(false);
@@ -66,12 +78,12 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [serverSync, setServerSync] = useState<"pending" | "available" | "unauthenticated" | "unavailable" | "conflict">("pending");
   const [status, setStatus] = useState("");
   const [activeTransfer, setActiveTransfer] = useState<ArticleTransferType | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
   const restoredPositionRef = useRef<number | null>(null);
   const previousOnlineRef = useRef(online);
   const contentRef = useRef<HTMLElement>(null);
   const toolsRef = useRef<HTMLElement>(null);
   const toolsCloseRef = useRef<HTMLButtonElement>(null);
-  const explainToggleRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const selectionHandledRef = useRef(false);
   const explanationRequestRef = useRef<{ generation: number; controller: AbortController } | null>(null);
@@ -147,12 +159,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   useEffect(() => {
     if (!toolsOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); closeTools(); return; }
-      if (event.key !== "Tab" || !toolsRef.current) return;
-      const focusable = [...toolsRef.current.querySelectorAll<HTMLElement>("button, [href], select, textarea")].filter((element) => !element.hasAttribute("disabled"));
-      if (!focusable.length) return;
-      const first = focusable[0]; const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (event.key === "Escape") { event.preventDefault(); closeTools(); }
     };
     document.addEventListener("keydown", onKeyDown); return () => document.removeEventListener("keydown", onKeyDown);
   }, [closeTools, toolsOpen]);
@@ -178,6 +185,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const transferTask = activeTransfer ? articleTransferTask(article, activeTransfer) : null;
   const recommendedTransfer = recommendedArticleTransferType(article.oralTransferType);
   const fullText = article.segments.map((segment) => segment.text).join(" ");
+  const progressPercent = article.segments.length <= 1 ? 100 : Math.round((state.position / (article.segments.length - 1)) * 100);
   const readerClass = "article-reader article-reader--" + settings.fontSize + " article-reader--" + settings.lineHeight + " article-reader--" + settings.width + " article-reader--" + settings.theme + (toolsOpen ? " article-reader--tools-open" : "");
   const requestWordExplanation = useCallback((token: SelectedToken) => {
     explanationRequestRef.current?.controller.abort();
@@ -276,7 +284,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setCommonEntry(entry);
     setSelectedToken(token);
     setActiveTool("explain");
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : explainToggleRef.current;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : contentRef.current;
     setToolsOpenState(true);
     setStreamPreview({});
     if (entry) {
@@ -302,13 +310,23 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setWordExplanationError("");
     setWordExplanationStatus("idle");
     setActiveTool("explain");
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : explainToggleRef.current;
+    previouslyFocusedRef.current = event.currentTarget;
     setToolsOpenState(true);
     requestWordExplanation(token);
   }, [requestWordExplanation]);
   const toggleSavedPhrase = () => { if (!selectedToken) return; const id = selectedToken.position + ":" + selectedToken.text; const exists = state.savedPhrases.some((item) => item.id === id); setState((previous) => ({ ...previous, savedPhrases: exists ? previous.savedPhrases.filter((item) => item.id !== id) : [...previous.savedPhrases, { id, text: selectedToken.text, position: selectedToken.position }] })); setStatus(exists ? "已从本篇 Words 移除。" : "已保存到本篇 Words。"); };
   const toggleHighlight = () => { if (!selectedToken) return; const id = selectedToken.position + ":" + selectedToken.text; const exists = state.highlights.some((item) => item.id === id); setState((previous) => ({ ...previous, highlights: exists ? previous.highlights.filter((item) => item.id !== id) : [...previous.highlights, { id, text: selectedToken.text, position: selectedToken.position }] })); setStatus(exists ? "已取消高亮。" : "已标记高亮。"); };
   const updateSetting = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => setState((previous) => ({ ...previous, settings: { ...(previous.settings ?? defaultSettings), [key]: value } }));
+  const renderTransferPanel = () => <section className="article-reader__transfer" data-testid="article-transfer" aria-labelledby="article-transfer-title">
+    <h2 id="article-transfer-title">选择口语方向</h2>
+    <div className="article-reader__transfer-options" role="group" aria-label="口语迁移方向">
+      {articleTransferTypes.map((type) => {
+        const task = articleTransferTask(article, type);
+        return <button className="article-reader__transfer-option" type="button" key={type} aria-pressed={activeTransfer === type} onClick={() => { setActiveTransfer(type); setState((previous) => ({ ...previous, transferType: type })); }}><strong>{task.label}</strong>{recommendedTransfer === type ? <small>推荐</small> : null}</button>;
+      })}
+    </div>
+    {transferTask ? <div className="article-reader__transfer-panel"><p>{transferTask.prompt}</p><textarea value={state.transferDraft ?? ""} onChange={(event) => setState((previous) => ({ ...previous, transferDraft: event.target.value.slice(0, 2_000) }))} placeholder="先写要点（可选）" aria-label="口语迁移草稿" /><div className="article-reader__transfer-actions"><Link className="primary-link" href={`/learn/practice?article=${encodeURIComponent(article.id)}&transfer=${transferTask.type}`}>进入口语复核</Link><button className="secondary-action" type="button" onClick={() => setStatus("草稿已保存；尚未产生口语证据。")}>保存草稿</button><button className="text-link" type="button" onClick={() => { setActiveTransfer(null); setState((previous) => ({ ...previous, transferDraft: "", transferType: null })); setStatus("已跳过口语迁移；阅读不会产生口语证据。"); }}>跳过</button></div></div> : <p className="article-reader__tool-note">只有进入口语复核才会评估口语。</p>}
+  </section>;
   const renderToolPanel = () => {
     if (activeTool === "listen") return <><div className="article-reader__tool-actions"><button className="secondary-action" type="button" onClick={() => { const segment = article.segments[state.position]; if (segment) void speak(segment.text, state.position); }} disabled={speakingPosition !== null}>{speakingPosition === state.position ? "正在朗读本段" : "朗读本段"}</button><button className="secondary-action" type="button" onClick={() => void speak(fullText, "full")} disabled={speakingPosition !== null}>{speakingPosition === "full" ? "正在朗读全文" : "朗读全文"}</button></div>{speakingPosition !== null ? <button className="text-link" type="button" onClick={() => { tts.stop(); setSpeakingPosition(null); }}>停止朗读</button> : null}{ttsError ? <p className="article-reader__tool-error" role="status">浏览器暂时无法朗读，正文阅读不受影响。</p> : null}</>;
     if (activeTool === "explain") {
@@ -345,15 +363,40 @@ export function ArticleReader({ article }: ArticleReaderProps) {
         <div className="article-reader__tool-actions"><button className="secondary-action" type="button" aria-pressed={phraseSaved} onClick={toggleSavedPhrase}>{phraseSaved ? "已保存" : "保存词语"}</button><button className="secondary-action" type="button" aria-pressed={highlighted} onClick={toggleHighlight}>{highlighted ? "取消高亮" : "高亮"}</button></div>
       </>;
     }
-    if (activeTool === "dictionary") return <><div className="article-reader__dictionary-languages"><select aria-label="词典源语言" defaultValue="Spanish"><option>Spanish</option></select><span aria-hidden="true">→</span><select aria-label="词典目标语言" defaultValue="Chinese"><option>Chinese</option></select></div><p>还没有配置 Spanish → Chinese 词典。</p>{selectedToken ? <button className="secondary-action" type="button" onClick={() => setActiveTool("explain")}>查看语境解释</button> : null}</>;
     if (activeTool === "saved") {
       const items = [...state.savedPhrases, ...state.highlights.map((item) => ({ ...item, id: "highlight-" + item.id, text: item.text + "（高亮）" }))];
       return <><button className="article-reader__save-article" type="button" aria-pressed={state.saved} onClick={() => { setState((previous) => ({ ...previous, saved: !previous.saved })); setStatus(state.saved ? "已取消收藏本文。" : "已收藏本文。"); }}>{state.saved ? "已收藏本文" : "收藏本文"}</button>{items.length ? <ul className="article-reader__saved-list">{items.map((item) => <li key={item.id}><span>{item.text}</span><button type="button" onClick={() => document.querySelector<HTMLElement>("[data-reader-position=\"" + item.position + "\"]")?.scrollIntoView({ block: "center" })}>跳转</button></li>)}</ul> : <p className="article-reader__tool-note">尚未保存词语或高亮。</p>}<label className="article-reader__note-field"><span>个人笔记</span><textarea value={state.note} onChange={(event) => setState((previous) => ({ ...previous, note: event.target.value.slice(0, 2_000) }))} placeholder="可以写中文或西语……" aria-label="文章个人笔记" /></label><button className="secondary-action" type="button" onClick={() => setStatus("笔记已保存在阅读状态中。")}>保存笔记</button></>;
     }
-    if (activeTool === "transfer") return <section className="article-reader__transfer" data-testid="article-transfer" aria-labelledby="article-transfer-title"><h2 id="article-transfer-title">选择口语方向</h2><div className="article-reader__transfer-options" role="group" aria-label="口语迁移方向">{articleTransferTypes.map((type) => { const task = articleTransferTask(article, type); return <button className="article-reader__transfer-option" type="button" key={type} aria-pressed={activeTransfer === type} onClick={() => { setActiveTransfer(type); setState((previous) => ({ ...previous, transferType: type })); }}><strong>{task.label}</strong>{recommendedTransfer === type ? <small>推荐</small> : null}</button>; })}</div>{transferTask ? <div className="article-reader__transfer-panel"><p>{transferTask.prompt}</p><textarea value={state.transferDraft ?? ""} onChange={(event) => setState((previous) => ({ ...previous, transferDraft: event.target.value.slice(0, 2_000) }))} placeholder="先写要点（可选）" aria-label="口语迁移草稿" /><div className="article-reader__transfer-actions"><Link className="primary-link" href={`/learn/practice?article=${encodeURIComponent(article.id)}&transfer=${transferTask.type}`}>进入口语复核</Link><button className="secondary-action" type="button" onClick={() => setStatus("草稿已保存；尚未产生口语证据。")}>保存草稿</button><button className="text-link" type="button" onClick={() => { setActiveTransfer(null); setState((previous) => ({ ...previous, transferDraft: "", transferType: null })); setStatus("已跳过口语迁移；阅读不会产生口语证据。"); }}>跳过</button></div></div> : <p className="article-reader__tool-note">只有进入口语复核才会评估口语。</p>}</section>;
     return <><section className="article-reader__voice-settings" aria-labelledby="spanish-voices-title"><div className="article-reader__voice-settings-heading"><div><p className="article-reader__tool-kicker">语音</p><h3 id="spanish-voices-title">Spanish voices</h3></div><span className="article-reader__voice-settings-current">{selectedSpanishVoice?.name ?? "未选择"}</span></div>{!tts.isSupported ? <p className="article-reader__tool-error" role="status">当前浏览器不支持语音合成。</p> : spanishVoices.length === 0 ? <p className="article-reader__tool-note" role="status">正在加载浏览器语音……</p> : <ul className="article-reader__voice-list" aria-label="Spanish voices">{spanishVoices.map((voice) => { const selected = selectedSpanishVoice?.voiceURI === voice.voiceURI || selectedSpanishVoice?.name === voice.name; return <li className={selected ? "is-selected" : undefined} key={voice.voiceURI || voice.name}><button type="button" className="article-reader__voice-option" aria-pressed={selected} onClick={() => selectSpanishVoice(voice)}><span>{voice.name}</span><small>{voice.lang}</small></button><button type="button" className="article-reader__voice-preview" aria-label={`试听 ${voice.name}`} disabled={speakingPosition !== null} onClick={() => void previewSpanishVoice(voice)}>试听</button></li>; })}</ul>}</section><label className="article-reader__setting"><span>字号</span><select aria-label="字号" value={settings.fontSize} onChange={(event) => updateSetting("fontSize", event.target.value as ReaderSettings["fontSize"])}><option value="default">标准</option><option value="large">大字</option></select></label><label className="article-reader__setting"><span>行距</span><select aria-label="行距" value={settings.lineHeight} onChange={(event) => updateSetting("lineHeight", event.target.value as ReaderSettings["lineHeight"])}><option value="default">舒适</option><option value="relaxed">宽松</option></select></label><label className="article-reader__setting"><span>正文宽度</span><select aria-label="正文宽度" value={settings.width} onChange={(event) => updateSetting("width", event.target.value as ReaderSettings["width"])}><option value="narrow">专注</option><option value="wide">宽屏</option></select></label><label className="article-reader__setting"><span>背景</span><select aria-label="阅读背景" value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as ReaderSettings["theme"])}><option value="light">浅色</option><option value="dim">柔和</option></select></label><label className="article-reader__setting"><span>朗读速度</span><select aria-label="TTS 速度" value={settings.ttsRate} onChange={(event) => updateSetting("ttsRate", Number(event.target.value))}><option value="0.7">慢速</option><option value="0.88">标准</option><option value="1.05">稍快</option></select></label></>;
   };
-  const toolLabels: Readonly<Record<ReaderTool, string>> = { listen: "朗读", explain: "解释", dictionary: "词典", saved: "保存", transfer: "口语", settings: "设置" };
-  const tools = Object.keys(toolLabels) as ReaderTool[];
-  return <div className={readerClass} data-online={online}><header className="article-reader__topbar"><div className="article-reader__topbar-left"><Link className="text-link article-reader__back" href="/read"><span aria-hidden="true">←</span> 返回</Link><span className="article-reader__topbar-title">{article.title}</span></div><div className="article-reader__topbar-actions" aria-label="阅读工具栏">{tools.map((tool) => <button ref={tool === "explain" ? explainToggleRef : undefined} className={toolsOpen && activeTool === tool ? "is-active" : ""} type="button" key={tool} aria-expanded={toolsOpen && activeTool === tool} aria-controls="article-reader-tool-panel" onClick={(event) => toggleTool(tool, event.currentTarget)}>{toolLabels[tool]}</button>)}</div></header>{!online ? <aside className="article-reader__notice" role="status">当前离线，阅读位置和标注会先保存在本机。</aside> : null}{status ? <aside className="article-reader__notice" role="status">{status}</aside> : null}<div className="article-reader__layout"><main className="article-reader__content" ref={contentRef} aria-label="西语文章正文"><h1 className="sr-only">{article.title}</h1><div className="article-reader__document-meta"><span>{article.cefr} · {article.estimatedReadingMinutes} 分钟</span><span>第 {Math.min(state.position + 1, article.segments.length)} / {article.segments.length} 段</span><span>来源已审核</span>{article.sourceUrl ? <a href={article.sourceUrl} target="_blank" rel="noreferrer">{article.sourceName}</a> : <span>{article.sourceName}</span>}{article.author ? <span>{article.author}</span> : null}</div>{article.segments.map((segment) => { const highlighted = state.highlights.some((item) => item.position === segment.position); const words = segment.text.split(/(\s+)/u); return <p className={highlighted ? "is-highlighted" : ""} data-reader-position={segment.position} key={segment.position} onMouseUp={(event) => handleTextSelection(segment, event)}>{words.map((word, index) => /\s+/u.test(word) ? <span key={segment.position + "-space-" + index}>{word}</span> : <span className="reader-token" role="button" tabIndex={0} key={segment.position + "-word-" + index} onClick={() => selectToken(word, segment.position, segment.text)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectToken(word, segment.position, segment.text); } }}>{word}</span>)}</p>; })}<div className="article-reader__complete"><strong>已读完</strong><span>本次只记录阅读活动，不会增加口语能力。</span>{article.attribution ? <span>{article.attribution}</span> : null}</div></main>{toolsOpen ? <aside ref={toolsRef} id="article-reader-tool-panel" className="article-reader__tools is-open" aria-label="阅读工具" role="dialog" aria-modal="true" aria-labelledby="article-reader-tools-title"><div className="article-reader__tools-header"><h2 id="article-reader-tools-title">{toolLabels[activeTool]}</h2><button ref={toolsCloseRef} className="article-reader__tools-close" type="button" aria-label="关闭阅读工具" onClick={closeTools}>×</button></div><div className="article-reader__tool-panel">{renderToolPanel()}</div></aside> : null}</div>{toolsOpen ? <button className="article-reader__scrim" type="button" aria-label="关闭阅读工具" onClick={closeTools} /> : null}</div>;
+  const toolLabels: Readonly<Record<ReaderTool, string>> = { listen: "朗读", explain: "解释", saved: "收藏", settings: "设置" };
+  const toolbarTools = ["listen", "saved", "settings"] as const;
+  const toolIcons: Readonly<Record<(typeof toolbarTools)[number], React.ReactNode>> = {
+    listen: <ListenIcon />,
+    saved: <BookmarkIcon filled={state.saved} />,
+    settings: <SettingsIcon />,
+  };
+  return <div className={readerClass} data-online={online}>
+    <header className="article-reader__topbar">
+      <div className="article-reader__topbar-left"><Link className="text-link article-reader__back" href="/read"><span aria-hidden="true">←</span> 返回</Link><span className="article-reader__topbar-title">{article.title}</span></div>
+      <div className="article-reader__topbar-actions" aria-label="阅读工具栏">{toolbarTools.map((tool) => <button className={toolsOpen && activeTool === tool ? "is-active" : ""} type="button" key={tool} aria-label={toolLabels[tool]} aria-expanded={toolsOpen && activeTool === tool} aria-controls="article-reader-tool-panel" onClick={(event) => toggleTool(tool, event.currentTarget)}>{toolIcons[tool]}<span className="sr-only">{toolLabels[tool]}</span></button>)}</div>
+      <div className="article-reader__progress" role="progressbar" aria-label="文章阅读进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}><span style={{ width: `${progressPercent}%` }} /></div>
+    </header>
+    {!online ? <aside className="article-reader__notice" role="status">当前离线，阅读位置和标注会先保存在本机。</aside> : null}
+    {status ? <aside className="article-reader__notice" role="status">{status}</aside> : null}
+    <div className="article-reader__layout">
+      <main className="article-reader__content" ref={contentRef} aria-label="西语文章正文">
+        <header className="article-reader__document-header">
+          <h1>{article.title}</h1>
+          <p className="article-reader__summary">{article.summary}</p>
+          <div className="article-reader__document-meta"><span>{article.cefr} · {article.estimatedReadingMinutes} 分钟</span><span>第 {Math.min(state.position + 1, article.segments.length)} / {article.segments.length} 段</span><span>来源已审核</span>{article.sourceUrl ? <a href={article.sourceUrl} target="_blank" rel="noreferrer">{article.sourceName}</a> : <span>{article.sourceName}</span>}{article.author ? <span>{article.author}</span> : null}</div>
+        </header>
+        <div className="article-reader__body">{article.segments.map((segment) => { const highlighted = state.highlights.some((item) => item.position === segment.position); const words = segment.text.split(/(\s+)/u); return <p className={highlighted ? "is-highlighted" : ""} data-reader-position={segment.position} key={segment.position} onMouseUp={(event) => handleTextSelection(segment, event)}>{words.map((word, index) => /\s+/u.test(word) ? <span key={segment.position + "-space-" + index}>{word}</span> : <span className="reader-token" role="button" tabIndex={0} key={segment.position + "-word-" + index} onClick={() => selectToken(word, segment.position, segment.text)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectToken(word, segment.position, segment.text); } }}>{word}</span>)}</p>; })}</div>
+        <div className="article-reader__complete"><strong>已读完</strong><span>本次只记录阅读活动，不会增加口语能力。</span>{article.attribution ? <span>{article.attribution}</span> : null}</div>
+        <details className="article-reader__transfer-disclosure" open={transferOpen}><summary onClick={(event) => { event.preventDefault(); setTransferOpen((current) => !current); }}>读完后练口语</summary>{transferOpen ? renderTransferPanel() : null}</details>
+      </main>
+      {toolsOpen ? <aside ref={toolsRef} id="article-reader-tool-panel" className="article-reader__tools is-open" aria-label="阅读工具" role="dialog" aria-labelledby="article-reader-tools-title"><div className="article-reader__tools-header"><h2 id="article-reader-tools-title">{toolLabels[activeTool]}</h2><button ref={toolsCloseRef} className="article-reader__tools-close" type="button" aria-label="关闭阅读工具" onClick={closeTools}>×</button></div><div className="article-reader__tool-panel">{renderToolPanel()}</div></aside> : null}
+    </div>
+    {toolsOpen ? <div className="article-reader__scrim" aria-hidden="true" onClick={closeTools} /> : null}
+  </div>;
 }
