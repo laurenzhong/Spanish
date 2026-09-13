@@ -21,10 +21,10 @@ const runId = "00000000-0000-4000-8000-000000000503";
 
 async function acquisitionMigration(): Promise<string> {
   const names = (await readdir(path.join(process.cwd(), "drizzle")))
-    .filter((name) => /^0021_.+\.sql$/u.test(name));
-  expect(names).toHaveLength(1);
-  return (await readFile(path.join(process.cwd(), "drizzle", names[0]!), "utf8"))
-    .replaceAll("--> statement-breakpoint", "");
+    .filter((name) => /^002[12]_.+\.sql$/u.test(name)).sort();
+  expect(names).toHaveLength(2);
+  return (await Promise.all(names.map((name) => readFile(path.join(process.cwd(), "drizzle", name), "utf8"))))
+    .join("\n").replaceAll("--> statement-breakpoint", "");
 }
 
 describe("content acquisition persistence", () => {

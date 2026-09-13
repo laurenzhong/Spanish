@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { candidateStatuses, sourceRightsStatuses } from "../domain";
+import {
+  candidateReviewDimensions,
+  candidateReviewStatuses,
+  candidateStatuses,
+  sourceRightsStatuses,
+} from "../domain";
 
 export const sourceAdapterTypes = [
   "fake",
@@ -65,9 +70,37 @@ export const candidateStateSchema = z.strictObject({
   generationId: z.string().min(1).max(160),
 });
 
+export const contentWorkflowCandidateQuerySchema = z.strictObject({
+  status: z.enum(candidateStatuses).optional(),
+  contentType: z.enum(contentCandidateTypes).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+export const submitCandidateReviewSchema = z.strictObject({
+  expectedRevision: z.number().int().positive(),
+  dimension: z.enum(candidateReviewDimensions).exclude(["owner-release"]),
+  status: z.enum(candidateReviewStatuses).exclude(["pending"]),
+  notes: z.string().trim().max(4_000).nullable().default(null),
+});
+
+export const reprocessCandidateSchema = z.strictObject({
+  expectedRevision: z.number().int().positive(),
+  notes: z.string().trim().min(1).max(4_000),
+});
+
+export const publishCandidateSchema = z.strictObject({
+  expectedRevision: z.number().int().positive(),
+  expectedContentHash: sha256Schema,
+});
+
+export const archiveCandidateSchema = z.strictObject({
+  expectedRevision: z.number().int().positive(),
+});
+
 export type RegisterContentSourceInput = z.infer<typeof registerContentSourceSchema>;
 export type DiscoveredContentItem = z.infer<typeof discoveredContentItemSchema>;
 export type ContentSourcePage = z.infer<typeof contentSourcePageSchema>;
 export type SourceAdapterType = (typeof sourceAdapterTypes)[number];
 export type SourceKind = (typeof sourceKinds)[number];
 export type ContentCandidateType = (typeof contentCandidateTypes)[number];
+export type SubmitCandidateReviewInput = z.infer<typeof submitCandidateReviewSchema>;

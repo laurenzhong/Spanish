@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser: vi.fn(async () => null) }));
+
 vi.mock("@/src/modules/profile/ui/profile-overview-panel", () => ({
   ProfileOverviewPanel: () => <div data-testid="profile-overview" />,
 }));
@@ -25,8 +27,8 @@ import ProfilePage from "@/app/(product)/me/page";
 afterEach(() => cleanup());
 
 describe("ProfilePage information architecture", () => {
-  it("exposes stable anchors for progress, relationship privacy, and account data", () => {
-    render(<ProfilePage />);
+  it("exposes stable anchors for progress, relationship privacy, and account data", async () => {
+    render(await ProfilePage());
 
     expect(screen.getByRole("navigation", { name: "我的页面分区" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "能力与活动" })).toHaveAttribute("href", "#profile-progress");
@@ -38,8 +40,8 @@ describe("ProfilePage information architecture", () => {
     expect(screen.getByTestId("account-data-controls")).toBeInTheDocument();
   });
 
-  it("switches sections instead of rendering every privacy panel at once", () => {
-    render(<ProfilePage />);
+  it("switches sections instead of rendering every privacy panel at once", async () => {
+    render(await ProfilePage());
 
     const progress = document.querySelector("#profile-progress");
     const relationships = document.querySelector("#profile-relationships");

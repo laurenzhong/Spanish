@@ -36,6 +36,7 @@ export default defineConfig({
     env: {
       ...process.env,
       AUTH_E2E_ENABLED: "1",
+      CONTENT_WORKFLOW_OWNER_USER_IDS: "00000000-0000-4000-8000-000000000001",
       // Keep E2E deterministic and prevent accidental writes to the local .env database.
       DATABASE_URL: "",
       // Never call a real or billable conversation provider from browser tests.

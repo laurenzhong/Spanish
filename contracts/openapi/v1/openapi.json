@@ -838,6 +838,79 @@
         }
       }
     },
+    "/internal/content-workflow/sources": {
+      "get": {
+        "summary": "List configured acquisition sources for the allowlisted owner",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Acquisition sources" }, "401": { "description": "Authentication required" }, "403": { "description": "Owner allowlist required" } }
+      }
+    },
+    "/internal/content-workflow/runs": {
+      "get": {
+        "summary": "List recent acquisition runs for the allowlisted owner",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Acquisition runs" }, "403": { "description": "Owner allowlist required" } }
+      }
+    },
+    "/internal/content-workflow/runs/{runId}": {
+      "get": {
+        "summary": "Read one acquisition run",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "runId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Acquisition run" }, "404": { "description": "Run not found" } }
+      }
+    },
+    "/internal/content-workflow/candidates": {
+      "get": {
+        "summary": "List content candidates for owner review",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Candidate list", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/content-workflow-candidate-list-response.schema.json" } } } }, "403": { "description": "Owner allowlist required" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}": {
+      "get": {
+        "summary": "Read one candidate review projection",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Candidate review detail", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/content-workflow-candidate-detail-response.schema.json" } } } }, "404": { "description": "Candidate not found" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}/reviews": {
+      "post": {
+        "summary": "Record an explicit owner-authorized review for the current revision",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision", "dimension", "status"], "properties": { "expectedRevision": { "type": "integer", "minimum": 1 }, "dimension": { "enum": ["rights", "content-es-ES", "teaching-zh-CN", "structure"] }, "status": { "enum": ["approved", "changes_requested", "rejected"] }, "notes": { "type": ["string", "null"], "maxLength": 4000 } } } } } },
+        "responses": { "200": { "description": "Review recorded", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/content-workflow-review-response.schema.json" } } } }, "400": { "description": "Invalid review" }, "409": { "description": "Stale revision" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}/reprocess": {
+      "post": {
+        "summary": "Preserve review notes and start a new processing generation",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision", "notes"], "properties": { "expectedRevision": { "type": "integer", "minimum": 1 }, "notes": { "type": "string", "minLength": 1, "maxLength": 4000 } } } } } },
+        "responses": { "200": { "description": "Reprocessing requested" }, "409": { "description": "Candidate state conflict" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}/publish": {
+      "post": {
+        "summary": "Publish a gate-complete immutable candidate revision",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision", "expectedContentHash"], "properties": { "expectedRevision": { "type": "integer", "minimum": 1 }, "expectedContentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" } } } } } },
+        "responses": { "200": { "description": "Candidate published", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/content-workflow-publication-response.schema.json" } } } }, "409": { "description": "Review incomplete or publication conflict" }, "503": { "description": "Type publisher is not available" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}/archive": {
+      "post": {
+        "summary": "Archive a published candidate through its type publisher",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision"], "properties": { "expectedRevision": { "type": "integer", "minimum": 1 } } } } } },
+        "responses": { "200": { "description": "Published projection removed and audit retained" }, "409": { "description": "Publication conflict" }, "503": { "description": "Type publisher is not available" } }
+      }
+    },
     "/me/avatar": {
       "post": {
         "summary": "Upload a normalized account avatar",

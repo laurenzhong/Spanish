@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "content-workflow-candidate-detail-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object", "additionalProperties": false, "required": ["candidate"],
+      "properties": { "candidate": {
+        "type": "object", "additionalProperties": false,
+        "required": ["candidate", "source", "artifacts", "attempts", "reviews", "publisherAvailable"],
+        "properties": {
+          "candidate": { "$ref": "content-workflow-candidate.schema.json" },
+          "source": { "type": "object" },
+          "artifacts": { "type": "array", "items": { "type": "object" } },
+          "attempts": { "type": "array", "items": { "type": "object" } },
+          "reviews": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "candidateId", "dimension", "status", "reviewerReference", "candidateRevision", "notes"], "properties": { "id": { "type": "string" }, "candidateId": { "type": "string", "format": "uuid" }, "dimension": { "enum": ["rights", "content-es-ES", "teaching-zh-CN", "structure", "owner-release"] }, "status": { "enum": ["pending", "approved", "changes_requested", "rejected"] }, "reviewerReference": { "type": ["string", "null"] }, "candidateRevision": { "type": "integer", "minimum": 1 }, "notes": { "type": ["string", "null"] } } } },
+          "publisherAvailable": { "type": "boolean" }
+        }
+      } }
+    }
+  }
+}

@@ -155,7 +155,9 @@ UI / Route Handler → Application → Domain
 
 ### 6.0 内容采集、正式内容与语料隔离
 
-`content-acquisition` 只负责白名单来源、增量游标、发现、去重、初筛、处理编排、成本门禁和候选审核状态。它不能直接把候选标为正式文章或媒体，也不能写学习证据。每日自动化最多推进到候选审核库；正式 publisher 必须调用 `content`/article 或 `media` 的 application，并再次验证权利、两个审核维度、结构、哈希和 revision。
+`content-acquisition` 只负责白名单来源、增量游标、发现、去重、初筛、处理编排、成本门禁和候选审核状态。它不能直接把候选标为正式文章或媒体，也不能写学习证据。每日自动化最多推进到候选审核库；正式 publisher 必须调用 `content`/article 或 `media` 的 application，并再次验证权利、两个审核维度、结构、哈希和 revision。`content_candidates.publication_status` 与采集状态独立，只保存正式模块返回的版本引用、发布时的候选 revision/hash 和撤下时间；正式内容实体仍由 article/media 模块拥有。
+
+所有者工作流通过服务端 `CONTENT_WORKFLOW_OWNER_USER_IDS` UUID allowlist 授权。页面隐藏只改善信息架构，每个 Route 和 application 都重新验证所有者身份，客户端角色字段不参与授权。审核按候选 revision 保存，`content-es-ES`、`teaching-zh-CN` 和结构结论不能互相替代；重新处理创建新 generation/revision 并保留旧备注。真实运行的 publisher registry 默认为空，直到类型任务注册正式 publisher 前必须返回 `CONTENT_PUBLISHER_NOT_AVAILABLE`。publisher 必须原子创建不可变正式版本；若随后工作流 CAS 失败，application 调用撤下补偿，避免半发布投影。
 
 文章继续由现有 article 表族拥有；视频和播客由 `media` 共享稳定身份、版本、资产和定时片段；旧 `content_packs` 冻结为历史兼容载体，不为新媒体增加字段。`lexicon-corpus` 通过只读投影索引已发布 article/media 版本，不修改来源内容。
 

@@ -8550,6 +8550,37 @@ body {
 :root[data-theme="dark"] .learn-page .focus-card { box-shadow: none; }
 :root[data-theme="dark"] .learn-empty-state { color: var(--muted); }
 
+/* REVIEW-001: owner-only candidate review stays a compact workflow, not a CMS. */
+.profile-page__owner-workflow { display: grid; gap: 4px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 14px; color: var(--foreground); background: var(--surface); text-decoration: none; }
+.profile-page__owner-workflow span, .profile-page__owner-workflow small { color: var(--muted); }
+.profile-page__owner-workflow strong { font-size: 1.05rem; }
+.content-workflow, .candidate-review { width: min(100%, 1180px); margin: 0 auto; }
+.content-workflow__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.content-workflow__summary div, .content-workflow__panel, .candidate-review__preview, .candidate-review__controls { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.content-workflow__summary div { display: grid; gap: 2px; padding: 16px; }
+.content-workflow__summary strong { font-size: 1.5rem; }
+.content-workflow__summary span, .content-workflow__panel li span, .content-workflow__panel li small { color: var(--muted); }
+.content-workflow__panel { padding: 18px; }
+.content-workflow__candidate-list, .content-workflow__panel ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.content-workflow__candidate-list a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 56px; padding: 10px; border-radius: 10px; color: var(--foreground); text-decoration: none; }
+.content-workflow__candidate-list a:hover { background: var(--surface-muted); }
+.content-workflow__candidate-list a > span:nth-child(2), .content-workflow__panel li { display: grid; gap: 3px; }
+.content-workflow__type { padding: 5px 8px; border-radius: 999px; background: color-mix(in srgb, var(--teal) 12%, transparent); color: var(--teal); font-size: .75rem; }
+.content-workflow__columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.candidate-review__header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: start; }
+.candidate-review__header > a { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--border); border-radius: 50%; color: var(--foreground); text-decoration: none; }
+.candidate-review__layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, .8fr); gap: 14px; align-items: start; }
+.candidate-review__preview, .candidate-review__controls { display: grid; gap: 14px; padding: 20px; }
+.candidate-review__preview dl { display: grid; gap: 8px; }
+.candidate-review__preview dl div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; }
+.candidate-review__preview pre { max-height: 380px; overflow: auto; padding: 14px; border-radius: 10px; background: var(--background); white-space: pre-wrap; overflow-wrap: anywhere; }
+.candidate-review__gate { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.candidate-review__gate > div { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.candidate-review__controls textarea { min-height: 100px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; color: var(--foreground); background: var(--background); }
+.candidate-review button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 9px; cursor: pointer; }
+.candidate-review button:disabled { cursor: not-allowed; opacity: .5; }
+@media (max-width: 760px) { .content-workflow__summary { grid-template-columns: 1fr 1fr; } .content-workflow__columns, .candidate-review__layout { grid-template-columns: 1fr; } .candidate-review__header { grid-template-columns: auto minmax(0, 1fr); } .candidate-review__header > span { grid-column: 2; } }
+
 @media (prefers-reduced-motion: reduce) {
   .learn-detail-disclosure > summary span:last-child,
   .training-loop__detail-disclosure > summary span:last-child { transition: none; }

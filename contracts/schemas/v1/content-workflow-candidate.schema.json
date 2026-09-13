@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "content-workflow-candidate.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "sourceId", "externalItemId", "normalizedUrl", "title", "contentType", "language", "metadata", "publishedAt", "contentHash", "status", "rightsStatus", "generationId", "revision", "lastActivityAt", "rejectedAt", "publicationStatus", "publicationRef", "publishedCandidateRevision", "publishedContentHash", "publishedAtInternal", "archivedAt"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "sourceId": { "type": "string", "format": "uuid" },
+    "externalItemId": { "type": "string" },
+    "normalizedUrl": { "type": "string", "format": "uri" },
+    "title": { "type": "string", "minLength": 1 },
+    "contentType": { "enum": ["video", "podcast", "article"] },
+    "language": { "type": "string", "minLength": 2 },
+    "metadata": { "type": "object" },
+    "publishedAt": { "type": ["string", "null"], "format": "date-time" },
+    "contentHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "status": { "enum": ["discovered", "screened", "acquiring", "processing", "review_ready", "failed", "rejected"] },
+    "rightsStatus": { "enum": ["unknown", "verified", "restricted", "revoked"] },
+    "generationId": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 1 },
+    "lastActivityAt": { "type": "string", "format": "date-time" },
+    "rejectedAt": { "type": ["string", "null"], "format": "date-time" },
+    "publicationStatus": { "enum": ["draft", "published", "archived"] },
+    "publicationRef": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "stableKey", "version"], "properties": { "kind": { "enum": ["article", "media"] }, "stableKey": { "type": "string", "minLength": 1 }, "version": { "type": "integer", "minimum": 1 } } }
+      ]
+    },
+    "publishedCandidateRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "publishedContentHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "publishedAtInternal": { "type": ["string", "null"], "format": "date-time" },
+    "archivedAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

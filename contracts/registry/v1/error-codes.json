@@ -30,5 +30,9 @@
   { "code": "CONTENT_RIGHTS_REQUIRED", "defaultRetryable": false },
   { "code": "CONTENT_BUDGET_EXHAUSTED", "defaultRetryable": true },
   { "code": "CONTENT_PROCESSING_FAILED", "defaultRetryable": true },
+  { "code": "CONTENT_WORKFLOW_FORBIDDEN", "defaultRetryable": false },
+  { "code": "CONTENT_REVIEW_INCOMPLETE", "defaultRetryable": false },
+  { "code": "CONTENT_PUBLISHER_NOT_AVAILABLE", "defaultRetryable": true },
+  { "code": "CONTENT_PUBLICATION_CONFLICT", "defaultRetryable": false },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }
 ]

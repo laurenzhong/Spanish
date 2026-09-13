@@ -1,4 +1,13 @@
-import type { CandidateState, CandidateStatus, SourceRightsStatus } from "../domain";
+import type {
+  CandidatePublicationStatus,
+  CandidateReviewDimension,
+  CandidateReviewRecord,
+  CandidateReviewStatus,
+  CandidateState,
+  CandidateStatus,
+  SourceRightsStatus,
+} from "../domain";
+import type { CandidatePublicationRef } from "../publishers";
 import type {
   ContentCandidateType,
   RegisterContentSourceInput,
@@ -26,11 +35,65 @@ export type ContentCandidateRecord = CandidateState & Readonly<{
   sourceId: string;
   externalItemId: string;
   normalizedUrl: string;
+  title: string;
+  language: string;
+  metadata: Readonly<Record<string, unknown>>;
+  publishedAt: Date | null;
   contentHash: string | null;
   contentType: ContentCandidateType;
   rightsStatus: SourceRightsStatus;
   lastActivityAt: Date;
   rejectedAt: Date | null;
+  publicationStatus: CandidatePublicationStatus;
+  publicationRef: CandidatePublicationRef | null;
+  publishedCandidateRevision: number | null;
+  publishedContentHash: string | null;
+  publishedAtInternal: Date | null;
+  archivedAt: Date | null;
+}>;
+
+export type AcquisitionRunRecord = Readonly<{
+  id: string;
+  sourceId: string;
+  generationId: string;
+  status: "running" | "succeeded" | "failed" | "cancelled";
+  initialCursor: string | null;
+  committedCursor: string | null;
+  insertedCount: number;
+  duplicateCount: number;
+  conflictCount: number;
+  estimatedCostMicros: number;
+  errorCode: string | null;
+  startedAt: Date;
+  completedAt: Date | null;
+}>;
+
+export type CandidateArtifactRecord = Readonly<{
+  id: string;
+  artifactType: string;
+  contentHash: string | null;
+  byteSize: number;
+  status: string;
+  ephemeral: boolean;
+}>;
+
+export type CandidateProcessingAttemptRecord = Readonly<{
+  id: string;
+  jobType: string;
+  generationId: string;
+  status: string;
+  estimatedCostMicros: number;
+  errorCode: string | null;
+  startedAt: Date;
+  completedAt: Date | null;
+}>;
+
+export type CandidateReviewDetail = Readonly<{
+  candidate: ContentCandidateRecord;
+  source: ContentSourceRecord;
+  artifacts: readonly CandidateArtifactRecord[];
+  attempts: readonly CandidateProcessingAttemptRecord[];
+  reviews: readonly CandidateReviewRecord[];
 }>;
 
 export type DiscoveryCandidateInput = Readonly<{
@@ -110,4 +173,44 @@ export interface ContentAcquisitionRepository {
     updatedAt: Date;
   }>): Promise<ContentCandidateRecord>;
   recordProcessingAttempt(input: ProcessingAttemptInput): Promise<void>;
+}
+
+export interface ContentWorkflowRepository {
+  listSources(): Promise<readonly ContentSourceRecord[]>;
+  listRuns(input?: Readonly<{ sourceId?: string; limit?: number }>): Promise<readonly AcquisitionRunRecord[]>;
+  findRunById(runId: string): Promise<AcquisitionRunRecord | null>;
+  listCandidates(input?: Readonly<{ status?: CandidateStatus; contentType?: ContentCandidateType; limit?: number }>): Promise<readonly ContentCandidateRecord[]>;
+  findCandidateById(candidateId: string): Promise<ContentCandidateRecord | null>;
+  getCandidateReview(candidateId: string): Promise<CandidateReviewDetail | null>;
+  saveCandidateReview(input: Readonly<{
+    id: string;
+    candidateId: string;
+    expectedRevision: number;
+    dimension: CandidateReviewDimension;
+    status: CandidateReviewStatus;
+    reviewerReference: string;
+    notes: string | null;
+    updatedAt: Date;
+  }>): Promise<CandidateReviewRecord>;
+  requestCandidateReprocessing(input: Readonly<{
+    candidateId: string;
+    expectedRevision: number;
+    generationId: string;
+    updatedAt: Date;
+  }>): Promise<ContentCandidateRecord>;
+  markCandidatePublished(input: Readonly<{
+    reviewId: string;
+    candidateId: string;
+    expectedRevision: number;
+    expectedContentHash: string;
+    publicationRef: CandidatePublicationRef;
+    reviewerReference: string;
+    publishedAt: Date;
+  }>): Promise<ContentCandidateRecord>;
+  markCandidateArchived(input: Readonly<{
+    candidateId: string;
+    expectedRevision: number;
+    publicationRef: CandidatePublicationRef;
+    archivedAt: Date;
+  }>): Promise<ContentCandidateRecord>;
 }
