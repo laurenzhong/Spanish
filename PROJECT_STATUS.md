@@ -258,6 +258,8 @@
 
 - UI-014 第二轮产品反馈修订：实现 Commit `78878a3`，状态进入 `review`。书架筛选与添加内容菜单改为互斥，并支持点击外部或按 `Escape` 关闭；文章摘要从列表移除，标题固定为单行省略并保留完整可访问标题。阅读器删除正文外框、阴影、摘要和标题下标签，顶栏文章标题相对整个顶栏居中；临时解释、朗读、收藏和设置面板支持点击外部关闭，解释面板删除关闭按钮并新增桌面固定图钉。固定后解释器成为右侧稳定栏，正文同步向左缩窄且不重叠；取消固定恢复临时浮层。朗读面板显示当前段号与正文预览，按钮明确为“朗读第 N 段”，正文对应段落显示轻量定位标记。既有解释请求 generation/取消、阅读断点、保存、口语迁移和证据边界未改。验证：阅读聚焦 Vitest `2 files / 20 tests`、全量 Vitest `155 files / 670 tests`、文章迁移/UI-011/书架阅读路径桌面与移动 Chromium `12/12`、`pnpm lint`、`pnpm typecheck`、`pnpm build` 和 `git diff --check` 通过；已检查 1280 桌面与 390 移动书架、默认阅读器及桌面固定解释器截图，确认无横向溢出或正文遮挡。限制：自动化使用 E2E 假登录、空数据库和禁用收费 Provider；未执行完整 `pnpm test:e2e`，未做真实账号/Provider、iPhone Safari/PWA 真机或 Flutter 验证。下一步：产品本人视觉确认并决定是否合并 UI-014；确认前不启动 UI-015。
 
+- UI-014 第三轮产品反馈修订：实现 Commit `98e0fbf`，状态保持 `review`。正文区删除与顶栏重复的文章大标题并上移正文起点；首次没有主题偏好时默认浅色，已保存选择继续生效，深色阅读面改为暖炭灰与柔和米灰组合。未固定解释器支持桌面鼠标拖动和视口边界约束；点击或拖选的当前翻译内容使用独立临时高亮，切换选区或关闭解释器后清除，不写入永久高亮。固定解释器仅在 `1280px` 以上开放，阅读器退出产品容器额外边距并把正文内边距压缩到必要值，1280px Playwright 实测固定前后正文均约 680px，不再因固定造成额外断行；移动顶栏标题参与正常布局，不遮挡工具按钮。验证：相关 Vitest `2 files / 15 tests`、阅读/迁移/跨视口目标 Playwright `12/12`、`pnpm lint`、`pnpm typecheck`、`pnpm build` 和 `git diff --check` 通过；全量单 worker Vitest 为 `154/155 files`、`671/672 tests`，唯一失败位于未改动的 `fake-training-loop` 时序测试，隔离复跑失败点漂移。已检查 1440 浅色浮动/拖动/固定和深色固定截图。限制：未执行完整 `pnpm test:e2e`，未做真实账号/Provider、iPhone Safari/PWA 真机或 Flutter 验证。下一步：产品本人视觉确认并决定是否合并 UI-014；确认前不启动 UI-015。
+
 ### READ-006：Generate Story 私有 AI 草稿文章
 
 - 状态：`done`
@@ -288,7 +290,7 @@
 
 ## 当前任务
 
-UI-012、UI-013 已完成并合并；当前上位任务仍为 `ALPHA-033`，`UI-014` 第二轮产品反馈修订已完成实现并处于 `review`，等待产品本人视觉确认；确认并合并前不启动 UI-015。
+UI-012、UI-013 已完成并合并；当前上位任务仍为 `ALPHA-033`，`UI-014` 第三轮产品反馈修订已完成实现并处于 `review`，等待产品本人视觉确认；确认并合并前不启动 UI-015。
 
 当前任务为 `ALPHA-033`：电脑端 Web 的 Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等电脑端候选版本门禁通过后再启动。当前只做电脑端 Web 功能补齐、缺陷修复和局部/全量质量回归；响应式与 iPhone Safari/PWA 兼容保留但真机验收延期，Flutter 不恢复同步。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
@@ -310,7 +312,7 @@ UI-012、UI-013 已完成并合并；当前上位任务仍为 `ALPHA-033`，`UI-
 - `UI-011`：跨视口、可访问性与行为回归（done；依赖 UI-006 至 UI-010）
 - `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（done；实现 Commit `742d1e7`、产品反馈修正 `335c747`、Merge Commit `7f994e6`）
 - `UI-013`：学习首页与训练工作台密度收敛（done；实现 `ea91cc7`、Merge Commit `ef89207`）
-- `UI-014`：阅读书架与文章阅读器密度收敛（review；首版实现 `7a802de`；阅读器视觉反馈修正版 `05d9e6c`；第二轮反馈修订 `78878a3`）
+- `UI-014`：阅读书架与文章阅读器密度收敛（review；首版实现 `7a802de`；阅读器视觉反馈修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`）
 - `UI-015`：对话页面密度收敛（blocked；依赖 UI-014）
 - `UI-016`：“我的”、设置与隐私密度收敛（blocked；依赖 UI-015）
 - `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（blocked；依赖 UI-012 至 UI-016）
@@ -1603,7 +1605,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | SCN-005 | done | `codex/scn-005-provider-pwa-hardening` | Codex / 产品本人 | Provider 设置、切换与电脑端 Web 发布门禁；iPhone 真机延期 | SCN-001 至 SCN-004 |
 | UI-012 | done | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 实现 `742d1e7`、反馈修正 `335c747`、合并 `7f994e6` |
 | UI-013 | done | `codex/ui-013-learning-workbench-density` | Codex | 学习首页与训练工作台密度收敛 | 实现 `ea91cc7`、合并 `ef89207` |
-| UI-014 | review | `codex/ui-014-reading-density` | Codex | 阅读书架与文章阅读器密度收敛 | 首版 `7a802de`；视觉修正版 `05d9e6c`；第二轮反馈修订 `78878a3` |
+| UI-014 | review | `codex/ui-014-reading-density` | Codex | 阅读书架与文章阅读器密度收敛 | 首版 `7a802de`；视觉修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf` |
 | UI-015 | blocked | `codex/ui-015-conversation-density` | 待领取 | 对话页面密度收敛 | UI-014 |
 | UI-016 | blocked | `codex/ui-016-profile-density` | 待领取 | “我的”、设置与隐私密度收敛 | UI-015 |
 | UI-017 | blocked | `codex/ui-017-collapsible-shell` | 待领取 | 公共壳层、可收缩侧边栏与全站一致性 | UI-012 至 UI-016 |
@@ -1617,7 +1619,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 |---|---|---|---|
 | 1 | UI-012 | Explore、场景详情、实战与复盘密度收敛 | 已完成并合并到 `main` |
 | 2 | UI-013 | 学习首页与训练工作台密度收敛 | 已完成并合并到 `main` |
-| 3 | UI-014 | 阅读书架与文章阅读器密度收敛 | `review`；第二轮产品反馈修订完成，等待视觉确认 |
+| 3 | UI-014 | 阅读书架与文章阅读器密度收敛 | `review`；第三轮产品反馈修订完成，等待视觉确认 |
 | 4 | UI-015 | 对话页面密度收敛 | UI-014 完成并确认 |
 | 5 | UI-016 | “我的”、设置与隐私密度收敛 | UI-015 完成并确认 |
 | 6 | UI-017 | 公共壳层、可收缩侧边栏与全站一致性复核 | UI-012 至 UI-016 完成并确认 |
