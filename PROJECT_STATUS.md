@@ -13,11 +13,11 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
-- 实现 Commit：`7e89a6d`、`7688e87`
-- 范围：Language Reactor 适配器保存视频返回的 HTTPS artwork，并在播客目录返回 `DATAURL` 时通过 iTunes 节目元数据解析可验证的 HTTPS 封面；播客学习播放器显示真实封面并保留图片失败降级。新增 `scripts/backfill-language-reactor-artwork.ts` 与 `pnpm content:backfill-artwork`，为已发布的 22 条旧媒体创建带 artwork 的不可变新版本，复制播放资产、字幕和审核记录，旧版本保留。
-- 验证：媒体相关 Vitest、路由合同和视频回归共 `4 files / 17 tests` 通过；视频 Playwright 桌面 `2/2` 通过；真实数据库 Playwright 冷启动在全新 `NEXT_DIST_DIR=.next/clean-debug` 下验证 `/learn` 与视频详情均为 200，YouTube API 被阻断时仍显示官方 iframe；20 个视频和 2 个播客当前版本 artwork 非空。RTVE 播客通过鉴权 `/api/v1/media/{stableKey}/stream` 转发 `Range` 请求后在真实浏览器达到 `readyState=4`；回填脚本连续执行第二次 `updated: 0`。
-- 限制：当前 Playwright 环境会阻断 YouTube 图片/API 外部域名，因此封面自然宽度无法在该环境证明；真实本地网络可用时仍使用官方缩略图 URL。旧版本的历史学习进度仍绑定旧版本，回填版本不会迁移进度；未完成 iPhone Safari 和真实账号登录验收。
-- 下一步：产品本人停止旧 Next 进程后用干净构建目录重启本地开发服务，打开 `/learn`，点开视频与两个播客确认封面和播放；确认后合并 LR-002。
+- 实现 Commit：`7e89a6d`、`7688e87`、`c27edab`
+- 范围：Language Reactor 适配器保存视频返回的 HTTPS artwork，并在播客目录返回 `DATAURL` 时通过 iTunes 节目元数据解析可验证的 HTTPS 封面；播客学习播放器显示真实封面并保留图片失败降级。新增 `scripts/backfill-language-reactor-artwork.ts` 与 `pnpm content:backfill-artwork`，为已发布的 22 条旧媒体创建带 artwork 的不可变新版本，复制播放资产、字幕和审核记录，旧版本保留。视频卡片现在通过鉴权本站 artwork route 代理 YouTube 缩略图，优先使用 `wsrv.nl`，失败时再尝试官方缩略图主机。
+- 验证：媒体相关 Vitest `6 files / 28 tests`、目标 ESLint、`pnpm db:check` 和 `git diff --check` 通过；媒体详情 Playwright 桌面 `4/4` 通过；真实数据库 Playwright 验证首个视频卡片 artwork 返回 `320x180`、视频详情为 200 且无错误页，之前已验证 18 张视频卡片均加载成功；20 个视频和 2 个播客当前版本 artwork 非空。RTVE 播客通过鉴权 `/api/v1/media/{stableKey}/stream` 转发 `Range` 请求后在真实浏览器达到 `readyState=4`；回填脚本连续执行第二次 `updated: 0`。
+- 限制：用户本地网络若无法访问 YouTube 图片 CDN，由本站 artwork route 代取；Playwright 环境对部分外部媒体域名仍会阻断。当前开发环境按播放有效期筛选后播客列表为空，需在有效期内或重新发布后验收两个播客；旧版本历史学习进度仍绑定旧版本，回填版本不会迁移进度；未完成 iPhone Safari 和真实账号登录验收。
+- 下一步：产品本人重启本地开发服务后打开 `/learn`，确认视频封面并点开视频；播客重新发布或恢复有效期后再点开两个播客确认封面和播放，确认后合并 LR-002。
 
 ### 2026-09-15：LEARN-MEDIA-DETAIL-001 媒体详情与视频学习器视觉设计
 
@@ -34,10 +34,10 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
-- 实现 Commit：`ab73cab`
+- 实现 Commit：`ab73cab`；视口回归：`1bdfb13`
 - 范围：详情页增加紧凑媒体元信息（来源、地区、时长、逐句文本状态）；工作台采用播放器/字幕双栏，补充“当前片段”上下文区、稳定 16:9 播放区、可访问的控制组和字幕模式组；移动断点统一为 `<960px`，词句上下文在 320/375/390/414/768px 使用避开底部导航的全宽底部抽屉；保留 A/S/D/Q、字幕定位、播放端口、进度 revision/CAS、错误和 generation 语义。
 - 修改文件：`app/(product)/learn/media/[stableKey]/page.tsx`、`app/globals.css`、`src/modules/media/ui/media-learning-workbench.tsx`、`tests/unit/video-learning-workbench.test.tsx`、`tests/e2e/video-learning.spec.ts`。
-- 验证：媒体工作台 Vitest `2 files / 8 tests` 通过；媒体详情 Playwright 视频/播客桌面与移动 `8/8` 通过；额外 Playwright 视口检查 `320/375/390/414/768/1024/1280/1440` 全部无横向溢出，词句抽屉在移动壳层导航上方，标题与详情控件可见；目标文件 ESLint、`git diff --check` 通过；Playwright 截图已检查桌面与移动首屏。
+- 验证：媒体工作台 Vitest `2 files / 8 tests` 通过；媒体详情 Playwright 视频/播客桌面与移动 `10/10` 通过，正式覆盖 `320/375/390/414/768/1024/1280/1440`；所有计划视口无横向溢出，词句抽屉在移动壳层导航上方，标题与详情控件可见；目标文件 ESLint、`git diff --check` 通过；Playwright 截图已检查桌面与移动首屏。
 - 限制：`pnpm typecheck` 仍被工作区已有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 阻断；空数据库手工截图中的进度接口返回 503，属于 fixture 环境降级，媒体详情仍正常渲染，E2E 已过滤该非目标错误并覆盖播放器/字幕/抽屉流程；未完成真实账号、iPhone Safari/PWA 和真实 YouTube iframe 播放质量验收。
 - 下一步：产品本人用真实登录会话复核桌面详情与 768px/390px 移动布局；确认后提交并合并本切片，再决定后续词库/ASR 任务。
 
@@ -1889,9 +1889,10 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-15 | LR-002 补齐视频封面代理与媒体详情回归，确认源站有封面但 YouTube 图片 CDN 在部分网络不可直连 | `c27edab` | 18 张视频卡片通过本站代理加载；播客需在播放有效期内重新发布后继续验收 |
 | 2026-09-15 | LR-001 完成 Language Reactor 实际来源接入、真实采集、所有者审核与首批发布，进入 review | 待提交 | 20 个视频和 2 个播客已在远端学习页可见；待产品确认播放后提交并决定后续 MEDIA-002 |
 | 2026-09-15 | 建立 LEARN-MEDIA-DETAIL-001 媒体详情与视频学习器视觉设计规格及实施计划 | `ab73cab` | 设计任务已完成；进入桌面与移动实现任务 |
-| 2026-09-15 | 完成 LEARN-MEDIA-DETAIL-002/003 媒体详情工作台实现、移动重排与可访问性回归，进入 review | `ab73cab` | 视频/播客详情桌面与移动路径、8 个视口和词句抽屉已由 Playwright 验证；等待产品视觉复核 |
+| 2026-09-15 | 完成 LEARN-MEDIA-DETAIL-002/003 媒体详情工作台实现、移动重排与可访问性回归，进入 review | `ab73cab`、`1bdfb13` | 视频/播客详情桌面与移动路径、8 个视口和词句抽屉已由 Playwright 验证；等待产品视觉复核 |
 | 2026-09-14 | LEARN-HOME-003 完成深色媒体学习首页 UI 与导航细化，进入 review | `24beadf`、`8f07ad9`、`fb6a8d9` | 等待产品本人视觉复核；下一项为 LEARN-HOME-004 |
 | 2026-09-14 | LEARN-HOME-002 完成媒体 artwork 版本化字段、YouTube/播客适配和公开投影，进入 review | `e3a31b8` | 等待产品复核；确认后实施 LEARN-HOME-003 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环，进入 review | `0e047ec` | 等待复核合并；MEDIA-002 继续 blocked |
