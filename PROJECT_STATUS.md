@@ -38,7 +38,7 @@
 - 范围：详情页增加紧凑媒体元信息（来源、地区、时长、逐句文本状态）；工作台采用播放器/字幕双栏，补充“当前片段”上下文区、稳定 16:9 播放区、可访问的控制组和字幕模式组；移动断点统一为 `<960px`，词句上下文在 320/375/390/414/768px 使用避开底部导航的全宽底部抽屉；保留 A/S/D/Q、字幕定位、播放端口、进度 revision/CAS、错误和 generation 语义。
 - 修改文件：`app/(product)/learn/media/[stableKey]/page.tsx`、`app/globals.css`、`src/modules/media/ui/media-learning-workbench.tsx`、`tests/unit/video-learning-workbench.test.tsx`、`tests/e2e/video-learning.spec.ts`。
 - 验证：媒体工作台 Vitest `2 files / 8 tests` 通过；媒体详情 Playwright 视频/播客桌面与移动 `10/10` 通过，正式覆盖 `320/375/390/414/768/1024/1280/1440`；所有计划视口无横向溢出，词句抽屉在移动壳层导航上方，标题与详情控件可见；目标文件 ESLint、`git diff --check` 通过；Playwright 截图已检查桌面与移动首屏。
-- 限制：`pnpm typecheck` 仍被工作区已有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 阻断；空数据库手工截图中的进度接口返回 503，属于 fixture 环境降级，媒体详情仍正常渲染，E2E 已过滤该非目标错误并覆盖播放器/字幕/抽屉流程；未完成真实账号、iPhone Safari/PWA 和真实 YouTube iframe 播放质量验收。
+- 限制：`pnpm typecheck` 仍被工作区已有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 阻断；`pnpm lint` 仍被工作区其他组件的 7 个既有 React hooks warning 阻断，详情目标文件无 lint 错误；空数据库手工截图中的进度接口返回 503，属于 fixture 环境降级，媒体详情仍正常渲染，E2E 已过滤该非目标错误并覆盖播放器/字幕/抽屉流程；未完成真实账号、iPhone Safari/PWA 和真实 YouTube iframe 播放质量验收。
 - 下一步：产品本人用真实登录会话复核桌面详情与 768px/390px 移动布局；确认后提交并合并本切片，再决定后续词库/ASR 任务。
 
 ### 2026-09-15：LR-001 Language Reactor 实际来源接入与首批发布
