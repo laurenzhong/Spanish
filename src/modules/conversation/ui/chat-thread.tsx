@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
 
 import {
@@ -15,7 +15,6 @@ import {
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
 import { ConversationContactRail } from "./conversation-contact-rail";
-import { ChatBubbleArt, useChatBubbleStyle } from "./chat-bubble-style";
 import {
   getCachedConversationHistory,
   loadConversationHistory,
@@ -42,13 +41,22 @@ type MessageTranslation =
   | Readonly<{ status: "success"; text: string }>
   | Readonly<{ status: "error"; message: string }>;
 
+type MessageMenuState = Readonly<{
+  messageId: string;
+  anchorX: number;
+  anchorTop: number;
+  anchorBottom: number;
+  align: "start" | "end";
+  x?: number;
+  y?: number;
+}>;
+
 function createId(prefix: string): string {
   const uuid = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `${prefix}-${uuid}`;
 }
 
 export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, avatarClassName = "avatar--lucia" }: ChatThreadProps) {
-  const router = useRouter();
   const targetMessageId = initialMessageId ?? (typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("message") ?? undefined
     : undefined);
@@ -58,21 +66,26 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">(initialMessages ? "available" : "loading");
   const [draft, setDraft] = useState("");
   const [quotedMessage, setQuotedMessage] = useState<ConversationState["messages"][number] | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<MessageMenuState | null>(null);
   const [translations, setTranslations] = useState<Record<string, MessageTranslation>>({});
   const [notice, setNotice] = useState<string | null>(null);
-  const [forwardingMessage, setForwardingMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [hasNewProactiveMessage, setHasNewProactiveMessage] = useState(false);
   const [showMobileConversations, setShowMobileConversations] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
-  const chatBubbleStyle = useChatBubbleStyle();
   const abortRef = useRef<AbortController | null>(null);
   const translationAbortRef = useRef<AbortController | null>(null);
   const translationRequestIdRef = useRef(0);
   const translationCharacterKeyRef = useRef(characterKey);
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const headerMenuRef = useRef<HTMLDivElement | null>(null);
+  const headerMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const messageMenuRef = useRef<HTMLDivElement | null>(null);
+  const messageMenuTriggerRef = useRef<HTMLElement | null>(null);
   const shouldFollowRef = useRef(true);
   const isNearBottomRef = useRef(true);
   const currentMessagesRef = useRef(state.messages);
@@ -84,6 +97,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   ));
   const serverHistoryLoadedRef = useRef(Boolean(initialMessages));
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
+  const contextMenuMessageId = contextMenu?.messageId;
 
   useEffect(() => {
     const isTyping = state.status === "streaming";
@@ -176,14 +190,56 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     translationCharacterKeyRef.current = characterKey;
   }, [characterKey]);
 
+  useLayoutEffect(() => {
+    if (!contextMenu || contextMenu.x !== undefined || contextMenu.y !== undefined || !messageMenuRef.current) return;
+    const menuRect = messageMenuRef.current.getBoundingClientRect();
+    const viewportMargin = 8;
+    const menuGap = 6;
+    const maxX = Math.max(viewportMargin, window.innerWidth - menuRect.width - viewportMargin);
+    const maxY = Math.max(viewportMargin, window.innerHeight - menuRect.height - viewportMargin);
+    const preferredX = contextMenu.align === "end"
+      ? contextMenu.anchorX - menuRect.width
+      : contextMenu.anchorX;
+    const preferredY = contextMenu.anchorBottom + menuGap + menuRect.height <= window.innerHeight - viewportMargin
+      ? contextMenu.anchorBottom + menuGap
+      : contextMenu.anchorTop - menuRect.height - menuGap;
+    const x = Math.max(viewportMargin, Math.min(preferredX, maxX));
+    const y = Math.max(viewportMargin, Math.min(preferredY, maxY));
+    setContextMenu((current) => current?.messageId === contextMenu.messageId && current.x === undefined
+      ? { ...current, x, y }
+      : current);
+  }, [contextMenu]);
+
   useEffect(() => {
-    if (!contextMenu) return;
+    if (!contextMenuMessageId) return;
+    const focusTimer = window.setTimeout(() => messageMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus(), 0);
     const close = () => setContextMenu(null);
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      close();
+      messageMenuTriggerRef.current?.focus();
+    };
     window.addEventListener("click", close);
     window.addEventListener("keydown", onKeyDown);
-    return () => { window.removeEventListener("click", close); window.removeEventListener("keydown", onKeyDown); };
-  }, [contextMenu]);
+    return () => { window.clearTimeout(focusTimer); window.removeEventListener("click", close); window.removeEventListener("keydown", onKeyDown); };
+  }, [contextMenuMessageId]);
+
+  useEffect(() => {
+    if (!showHeaderMenu) return;
+    const focusTimer = window.setTimeout(() => headerMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus(), 0);
+    const close = (event: MouseEvent) => {
+      if (event.target instanceof Node && (headerMenuRef.current?.contains(event.target) || headerMenuTriggerRef.current?.contains(event.target))) return;
+      setShowHeaderMenu(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setShowHeaderMenu(false);
+      headerMenuTriggerRef.current?.focus();
+    };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", onKeyDown);
+    return () => { window.clearTimeout(focusTimer); document.removeEventListener("click", close); document.removeEventListener("keydown", onKeyDown); };
+  }, [showHeaderMenu]);
 
   useEffect(() => {
     if (!notice) return;
@@ -265,20 +321,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.clearInterval(interval);
     };
-  }, [characterKey, initialMessages]);
+  }, [characterKey, historyReloadToken, initialMessages]);
 
   useEffect(() => {
     if (state.messages.length === 0) return;
     setCachedConversationHistory(characterKey, state.messages);
   }, [characterKey, state.messages]);
-
-  useEffect(() => {
-    const forwarded = sessionStorage.getItem("conversation-forward-draft");
-    if (!forwarded) return;
-    sessionStorage.removeItem("conversation-forward-draft");
-    const timer = window.setTimeout(() => setDraft(forwarded), 0);
-    return () => window.clearTimeout(timer);
-  }, [characterKey]);
 
   function apply(action: Parameters<typeof transitionConversationState>[1]) {
     setState((current) => transitionConversationState(current, action));
@@ -384,25 +432,39 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     apply({ type: "cancel", generationId });
   }
 
+  function retryHistory() {
+    setPersistenceStatus("loading");
+    setHistoryReloadToken((value) => value + 1);
+  }
+
   function openMessageMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     if (message.withdrawn || !message.text || !message.complete) return;
     event.preventDefault();
     event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const menuWidth = 176;
-    const menuHeight = message.role === "character" ? 140 : 230;
-    const preferredX = message.role === "user" ? rect.right - menuWidth : rect.left;
-    const preferredY = rect.bottom + 8;
-    setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(preferredX, window.innerWidth - menuWidth - 8)), y: Math.max(8, Math.min(preferredY, window.innerHeight - menuHeight - 8)) });
+    messageMenuTriggerRef.current = event.currentTarget;
+    const bubble = event.currentTarget.querySelector<HTMLElement>(".conversation-message__bubble");
+    const rect = bubble?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect();
+    setContextMenu({
+      messageId: message.id,
+      anchorX: message.role === "user" ? rect.right : rect.left,
+      anchorTop: rect.top,
+      anchorBottom: rect.bottom,
+      align: message.role === "user" ? "end" : "start",
+    });
   }
 
   function openMessageMenuFromKeyboard(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     if ((event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) && !message.withdrawn && message.text && message.complete) {
       event.preventDefault();
+      messageMenuTriggerRef.current = event.currentTarget;
       const rect = event.currentTarget.getBoundingClientRect();
-      const menuHeight = message.role === "character" ? 140 : 240;
-      const preferredX = message.role === "user" ? rect.right - 176 : rect.left;
-      setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(preferredX, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menuHeight)) });
+      setContextMenu({
+        messageId: message.id,
+        anchorX: message.role === "user" ? rect.right : rect.left,
+        anchorTop: rect.top,
+        anchorBottom: rect.bottom,
+        align: message.role === "user" ? "end" : "start",
+      });
     }
   }
 
@@ -410,9 +472,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     setExpandedTimestampId((current) => current === messageId ? null : messageId);
   }
 
-  function handleMessageClick(message: ConversationState["messages"][number]) {
-    if (!message.createdAt) return;
-    toggleMessageTimestamp(message.id);
+  function handleMessageClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
+    if (window.getSelection()?.toString()) return;
+    if (message.text && message.complete && !message.withdrawn) openMessageMenu(event, message);
+    if (message.createdAt) setExpandedTimestampId(message.id);
   }
 
   function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
@@ -430,9 +493,18 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
   function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     openMessageMenuFromKeyboard(event, message);
-    if ((event.key === "Enter" || event.key === " ") && message.createdAt) {
+    if ((event.key === "Enter" || event.key === " ") && message.text && message.complete && !message.withdrawn) {
       event.preventDefault();
-      toggleMessageTimestamp(message.id);
+      messageMenuTriggerRef.current = event.currentTarget;
+      const rect = event.currentTarget.getBoundingClientRect();
+      setContextMenu({
+        messageId: message.id,
+        anchorX: message.role === "user" ? rect.right : rect.left,
+        anchorTop: rect.top,
+        anchorBottom: rect.bottom,
+        align: message.role === "user" ? "end" : "start",
+      });
+      if (message.createdAt) setExpandedTimestampId(message.id);
     }
   }
 
@@ -496,19 +568,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     setContextMenu(null);
   }
 
-  function beginForward(message: ConversationState["messages"][number]) {
-    setForwardingMessage(message);
-    setContextMenu(null);
-  }
-
-  function forwardTo(target: "lucia" | "mateo" | "ines") {
-    if (!forwardingMessage) return;
-    const quote = `引用自 ${characterName}：\n> ${forwardingMessage.text.split("\n").join("\n> ")}`;
-    sessionStorage.setItem("conversation-forward-draft", quote);
-    setForwardingMessage(null);
-    router.push(`/chat/${target}`);
-  }
-
   async function deleteMessage(message: ConversationState["messages"][number]) {
     if (!window.confirm("删除后将从你的聊天记录中移除，是否继续？")) return;
     setContextMenu(null);
@@ -539,7 +598,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   return (
-    <section className="conversation-thread" aria-labelledby="conversation-title" data-testid="conversation-thread">
+    <section className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
       <header className="conversation-thread__header">
         <div className="conversation-thread__identity">
           <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
@@ -550,11 +609,30 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             ) : <p>{roleLabel}</p>}
           </div>
         </div>
-        <ConversationSearch compact />
-        <button className="conversation-thread__mobile-list" type="button" onClick={() => setShowMobileConversations(true)}>会话列表</button>
-        <span className="conversation-thread__status" data-status={state.status} role="status">
-          {state.status === "streaming" ? "正在回复" : state.status === "completed" ? "已完成" : state.status === "failed" ? "需要重试" : state.status === "cancelled" ? "已停止" : ""}
-        </span>
+        <div className="conversation-thread__header-actions">
+          <button className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表" onClick={() => setShowMobileConversations(true)}>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
+          </button>
+          <button
+            ref={headerMenuTriggerRef}
+            aria-expanded={showHeaderMenu}
+            aria-haspopup="menu"
+            aria-label="更多对话操作"
+            className="conversation-thread__more"
+            type="button"
+            onClick={() => setShowHeaderMenu((value) => !value)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></svg>
+          </button>
+        </div>
+        {showHeaderMenu ? <div ref={headerMenuRef} className="conversation-thread__header-menu" role="menu" aria-label="对话操作">
+          <button type="button" role="menuitem" onClick={() => { setShowHeaderMenu(false); setShowSearch(true); }}>搜索消息</button>
+          <Link role="menuitem" href="/me#profile-relationships" onClick={() => setShowHeaderMenu(false)}>关系资料与清理</Link>
+        </div> : null}
+        {showSearch ? <div className="conversation-thread__search-panel">
+          <ConversationSearch compact autoFocus onDismiss={() => { setShowSearch(false); headerMenuTriggerRef.current?.focus(); }} />
+          <button type="button" aria-label="关闭消息搜索" onClick={() => { setShowSearch(false); headerMenuTriggerRef.current?.focus(); }}>×</button>
+        </div> : null}
       </header>
 
       {showMobileConversations ? <div className="conversation-mobile-list" role="dialog" aria-modal="true" aria-label="会话列表">
@@ -564,17 +642,17 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
       <div ref={messagesRef} className="conversation-thread__messages" onScroll={handleMessagesScroll}>
         {persistenceStatus === "unavailable" ? (
-          <p className="conversation-thread__persistence-notice" aria-live="polite" data-testid="conversation-persistence-status">
-            聊天记录暂未保存：当前环境未连接消息数据库。配置 DATABASE_URL 后，切换页面仍可恢复记录。
-          </p>
+          <div className="conversation-thread__persistence-notice" role="alert" data-testid="conversation-persistence-status">
+            <span>暂时无法打开这段对话，请检查网络后重试。</span>
+            <button type="button" onClick={retryHistory}>重试</button>
+          </div>
         ) : null}
         {persistenceStatus === "loading" && state.messages.length === 0 ? (
           <div className="conversation-thread__loading" role="status" aria-live="polite"><span /><span /><span />正在加载聊天记录……</div>
         ) : null}
-        {persistenceStatus !== "loading" && state.messages.length === 0 ? (
+        {persistenceStatus === "available" && state.messages.length === 0 ? (
           <div className="conversation-thread__welcome">
-            <p className="eyebrow eyebrow--accent">{characterName} 的消息</p>
-            <p>¡Hola! Cuéntame algo de tu día. Yo te sigo la conversación.</p>
+            <p>¡Hola! Cuéntame algo de tu día.</p>
           </div>
         ) : null}
         {state.messages.map((message, index) => {
@@ -590,6 +668,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           const timestampExpanded = expandedTimestampId === message.id;
           const timestampValue = message.createdAt;
           const translation = message.role === "character" && translationCharacterKeyRef.current === characterKey ? translations[message.id] : undefined;
+          const bubbleText = message.withdrawn ? "你撤回了一条消息" : message.text || "…";
           return <Fragment key={message.id}>
           {(showTimestamp || timestampExpanded) && timestampValue ? <time className={`conversation-thread__timestamp${timestampExpanded ? " conversation-thread__timestamp--exact" : ""}`} dateTime={timestampValue}>
             {timestampExpanded ? formatFullTimestamp(timestampValue) : formatConversationTimestamp(timestampValue, dayChanged)}
@@ -602,11 +681,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             data-complete={message.complete}
             data-withdrawn={message.withdrawn ? "true" : undefined}
             aria-live={message.role === "character" && message.id === state.activeMessageId ? "polite" : undefined}
-            onClick={() => handleMessageClick(message)}
+            onClick={(event) => handleMessageClick(event, message)}
             onContextMenu={(event) => handleMessageContextMenu(event, message)}
             onDoubleClick={(event) => handleMessageDoubleClick(event, message)}
             onKeyDown={(event) => handleMessageKeyDown(event, message)}
-            tabIndex={message.createdAt ? 0 : undefined}
+            tabIndex={message.text && message.complete && !message.withdrawn ? 0 : undefined}
+            aria-expanded={contextMenu?.messageId === message.id ? true : undefined}
           >
             <div
               className={`avatar conversation-message__avatar ${message.role === "user" ? "conversation-message__avatar--user" : avatarClassName}`}
@@ -616,10 +696,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
               {message.role === "user" ? (userProfile?.avatar.url ? null : userProfile?.avatar.initials ?? "你") : characterName.slice(0, 1)}
             </div>
             <div className="conversation-message__content">
-              <div className={`conversation-message__bubble${message.withdrawn ? "" : " conversation-message__bubble--art"}`}>
-                {message.withdrawn ? <div className="conversation-message__text">你撤回了一条消息</div> : <ChatBubbleArt text={message.text} style={message.role === "user" ? chatBubbleStyle : "pink-frog"} />}
-                {message.role === "user" && !message.withdrawn ? <button className="conversation-message__more" type="button" aria-label="消息操作" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ messageId: message.id, x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 240)) }); }}>•••</button> : null}
-              </div>
+              <ConversationMessageBubble text={bubbleText} />
               {translation ? <div className="conversation-message__translation" aria-live="polite">
                 {translation.status === "loading" ? "正在翻译……" : translation.status === "error" ? <button type="button" onClick={() => void translateMessage(message)}>{translation.message}</button> : translation.text}
               </div> : null}
@@ -633,7 +710,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {hasNewProactiveMessage && !isNearBottom ? <button className="conversation-thread__new-proactive" type="button" onClick={scrollToBottom}>有一条新消息</button> : null}
 
       {contextMenu && selectedMessage() && typeof document !== "undefined" ? createPortal(
-        <div className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
+        <div ref={messageMenuRef} className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x ?? contextMenu.anchorX, top: contextMenu.y ?? contextMenu.anchorBottom, visibility: contextMenu.x === undefined ? "hidden" : undefined }} onClick={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
           {selectedMessage()?.role === "character" ? (() => {
             const selected = selectedMessage()!;
@@ -642,7 +719,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           })() : null}
           <button type="button" role="menuitem" onClick={() => quoteMessage(selectedMessage()!)}>引用回复</button>
           {selectedMessage()?.role === "user" ? <>
-            <button type="button" role="menuitem" onClick={() => beginForward(selectedMessage()!)}>转发</button>
             <button type="button" role="menuitem" onClick={() => void withdrawMessage(selectedMessage()!)}>撤回</button>
             <button className="conversation-message-menu__danger" type="button" role="menuitem" onClick={() => void deleteMessage(selectedMessage()!)}>删除</button>
           </> : null}
@@ -650,20 +726,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         document.body,
       ) : null}
 
-      {forwardingMessage ? (
-        <div className="conversation-forward-dialog" role="dialog" aria-modal="true" aria-labelledby="conversation-forward-title">
-          <div className="conversation-forward-dialog__panel">
-            <h2 id="conversation-forward-title">转发给</h2>
-            <p>{forwardingMessage.text}</p>
-            <div className="conversation-forward-dialog__targets">
-              <button type="button" onClick={() => forwardTo("lucia")}>Lucía</button>
-              <button type="button" onClick={() => forwardTo("mateo")}>Mateo</button>
-              <button type="button" onClick={() => forwardTo("ines")}>Inés</button>
-            </div>
-            <button className="secondary-action" type="button" onClick={() => setForwardingMessage(null)}>取消</button>
-          </div>
-        </div>
-      ) : null}
       {notice ? <p className="conversation-thread__action-notice" role="status">{notice}</p> : null}
 
       {state.status === "failed" || state.status === "cancelled" ? (
@@ -672,9 +734,99 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {retryMessage ? <button className="secondary-action" onClick={retry} type="button">重新发送</button> : null}
         </div>
       ) : null}
-      <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
+      <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
     </section>
   );
+}
+
+function cssPixels(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getRenderedLineWidths(fragments: DOMRect[], lineHeight: number): number[] {
+  const lines: Array<{ centerY: number; left: number; right: number }> = [];
+  const sameLineTolerance = Math.max(1, lineHeight / 3);
+
+  for (const fragment of [...fragments].sort((left, right) => left.top - right.top || left.left - right.left)) {
+    const centerY = fragment.top + fragment.height / 2;
+    const line = lines.find((candidate) => Math.abs(candidate.centerY - centerY) <= sameLineTolerance);
+    if (line) {
+      line.left = Math.min(line.left, fragment.left);
+      line.right = Math.max(line.right, fragment.right);
+      continue;
+    }
+    lines.push({ centerY, left: fragment.left, right: fragment.right });
+  }
+
+  return lines.map((line) => line.right - line.left);
+}
+
+function fitBubbleToRenderedText(bubble: HTMLDivElement, text: HTMLDivElement): void {
+  bubble.style.removeProperty("inline-size");
+  bubble.removeAttribute("data-fitted");
+
+  const range = document.createRange();
+  range.selectNodeContents(text);
+  if (typeof range.getClientRects !== "function") return;
+  const fragments = Array.from(range.getClientRects()).filter((rect) => rect.width > 0);
+  if (fragments.length === 0) return;
+
+  const style = getComputedStyle(bubble);
+  const textStyle = getComputedStyle(text);
+  const renderedLineWidths = getRenderedLineWidths(fragments, cssPixels(textStyle.lineHeight));
+  const widestLine = Math.max(...renderedLineWidths);
+  const horizontalChrome = cssPixels(style.paddingLeft)
+    + cssPixels(style.paddingRight)
+    + cssPixels(style.borderLeftWidth)
+    + cssPixels(style.borderRightWidth);
+  const fittedWidth = Math.ceil(widestLine + (style.boxSizing === "border-box" ? horizontalChrome : 0) + 0.5);
+  bubble.style.inlineSize = `${fittedWidth}px`;
+  bubble.dataset.fitted = "true";
+}
+
+function ConversationMessageBubble({ text }: Readonly<{ text: string }>) {
+  const bubbleRef = useRef<HTMLDivElement | null>(null);
+  const textRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const bubble = bubbleRef.current;
+    const textElement = textRef.current;
+    if (!bubble || !textElement) return;
+
+    let cancelled = false;
+    let frameId: number | null = null;
+    const fit = () => {
+      if (!cancelled) fitBubbleToRenderedText(bubble, textElement);
+    };
+    const scheduleFit = () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        fit();
+      });
+    };
+
+    fit();
+    const messageViewport = bubble.closest<HTMLElement>(".conversation-thread__messages");
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleFit);
+    if (messageViewport) resizeObserver?.observe(messageViewport);
+    window.addEventListener("resize", scheduleFit);
+    if (document.fonts) void document.fonts.ready.then(scheduleFit);
+
+    return () => {
+      cancelled = true;
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", scheduleFit);
+      bubble.style.removeProperty("inline-size");
+      bubble.removeAttribute("data-fitted");
+    };
+  }, [text]);
+
+  return <div ref={bubbleRef} className="conversation-message__bubble">
+    <div ref={textRef} className="conversation-message__text">{text}</div>
+  </div>;
 }
 
 function formatClockTime(value: string): string {

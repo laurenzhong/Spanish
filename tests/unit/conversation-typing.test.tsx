@@ -53,7 +53,9 @@ describe("conversation typing status", () => {
     );
     expect(screen.getByText("主要好友")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" }), {
+    const composer = screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+    await waitFor(() => expect(composer).toBeEnabled());
+    fireEvent.change(composer, {
       target: { value: "Hola" },
     });
     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));

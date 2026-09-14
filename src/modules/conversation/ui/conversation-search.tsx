@@ -12,7 +12,11 @@ type SearchResult = Readonly<{
   createdAt: string;
 }>;
 
-export function ConversationSearch({ compact = false }: Readonly<{ compact?: boolean }>) {
+export function ConversationSearch({ compact = false, autoFocus = false, onDismiss }: Readonly<{
+  compact?: boolean;
+  autoFocus?: boolean;
+  onDismiss?: () => void;
+}>) {
   const [value, setValue] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [results, setResults] = useState<readonly SearchResult[]>([]);
@@ -57,10 +61,17 @@ export function ConversationSearch({ compact = false }: Readonly<{ compact?: boo
 
   return (
     <div className={`conversation-search ${compact ? "conversation-search--compact" : ""}`}>
-      <form className="conversation-search__form" onSubmit={submit} role="search">
+      <form aria-label="搜索对话" className="conversation-search__form" onSubmit={submit} role="search">
         <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
         <input
           aria-label="搜索对话"
+          autoFocus={autoFocus}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && onDismiss) {
+              event.preventDefault();
+              onDismiss();
+            }
+          }}
           onChange={(event) => setValue(event.target.value)}
           placeholder="搜索对话"
           type="search"

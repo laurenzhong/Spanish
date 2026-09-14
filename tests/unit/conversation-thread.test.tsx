@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
-import { CHAT_BUBBLE_STYLE_STORAGE_KEY, ChatBubbleArt } from "@/src/modules/conversation/ui/chat-bubble-style";
 import { clearConversationHistoryCache, getCachedConversationHistory } from "@/src/modules/conversation/ui/conversation-history-cache";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -20,82 +20,58 @@ describe("ChatThread persistence status", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows a visible explanation when conversation history is unavailable", async () => {
+  it("shows one recoverable error and disables the composer when conversation history is unavailable", async () => {
     render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("conversation-persistence-status")).toHaveTextContent("聊天记录暂未保存");
+      expect(screen.getByTestId("conversation-persistence-status")).toHaveTextContent("暂时无法打开这段对话");
     });
+    expect(screen.getAllByRole("button", { name: "重试" })).toHaveLength(1);
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
+    expect(screen.queryByText(/DATABASE_URL/)).not.toBeInTheDocument();
   });
 
-  it("uses the selected original-art bubble for my messages", async () => {
-    window.localStorage.setItem(CHAT_BUBBLE_STYLE_STORAGE_KEY, "dog-long");
-    const historyResponse = {
-      ok: true,
-      headers: new Headers([["x-conversation-persistence", "available"]]),
-      json: async () => ({ data: { messages: [{ id: "style-1", role: "user", text: "Hola", complete: true }] } }),
-    } as Response;
-    vi.mocked(fetch).mockImplementation(async (input) => String(input) === "/api/v1/me"
-      ? ({ ok: false, status: 404 } as Response)
-      : historyResponse);
+  it("keeps the header to identity, relationship state, and one contextual menu", async () => {
+    const user = userEvent.setup();
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" roleLabel="熟悉的朋友" characterVersion={1} initialMessages={[]} />);
 
-    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
-
-    expect(await screen.findByText("Hola")).toBeInTheDocument();
-    await waitFor(() => expect(document.querySelector(".conversation-art-bubble--dog")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "Lucía Martín" })).toBeInTheDocument();
+    expect(screen.getByText("熟悉的朋友")).toBeInTheDocument();
+    expect(screen.queryByRole("search", { name: "搜索对话" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "更多对话操作" }));
+    expect(screen.getByRole("menu", { name: "对话操作" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "搜索消息" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "关系资料与清理" })).toHaveAttribute("href", "/me#profile-relationships");
   });
 
-  it("uses the light frog bubble for character messages on every conversation", async () => {
+  it("uses one natural sentence for an empty conversation", () => {
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[]} />);
+
+    expect(screen.getByText("¡Hola! Cuéntame algo de tu día.")).toBeInTheDocument();
+    expect(screen.queryByText("Lucía Martín 的消息")).not.toBeInTheDocument();
+    expect(screen.queryByText("Yo te sigo la conversación.")).not.toBeInTheDocument();
+  });
+
+  it("uses plain adaptive bubbles for both sides without decorative image assets", async () => {
     render(
       <ChatThread
         characterKey="mateo"
         characterName="Mateo Ruiz"
         characterVersion={1}
-        initialMessages={[{ id: "mateo-character-1", role: "character", text: "Hola", complete: true }]}
+        initialMessages={[
+          { id: "mateo-character-1", role: "character", text: "Hola", complete: true },
+          { id: "mateo-user-1", role: "user", text: "Primera línea\nSegunda línea", complete: true },
+        ]}
       />,
     );
 
-    expect(await screen.findByText("Hola")).toBeInTheDocument();
-    expect(document.querySelector(".conversation-art-bubble--pink")).toBeInTheDocument();
-    expect(document.querySelector(".conversation-art-bubble--dog")).not.toBeInTheDocument();
-  });
-
-  it("keeps bubble text in a centered block for short messages and a left-aligned block for wrapped text", () => {
-    const { rerender } = render(<ChatBubbleArt text="Hola" style="dog-long" />);
-    const shortText = document.querySelector<HTMLElement>(".conversation-art-bubble__text");
-    expect(shortText).toHaveTextContent("Hola");
-    expect(shortText?.parentElement).toHaveClass("conversation-art-bubble__text-layer");
-
-    rerender(<ChatBubbleArt text={"Primera línea\nSegunda línea"} style="dog-long" />);
-    const wrappedText = document.querySelector<HTMLElement>(".conversation-art-bubble__text");
-    expect(wrappedText?.textContent).toBe("Primera línea\nSegunda línea");
-    expect(wrappedText).toHaveClass("conversation-art-bubble__text");
-  });
-
-  it("uses the original compact, medium, and long dog frames without reusing one stretched image", () => {
-    const { rerender } = render(<ChatBubbleArt text="Hola" style="dog-long" />);
-    let bubble = document.querySelector<HTMLElement>(".conversation-art-bubble--dog");
-    let art = bubble?.querySelector<HTMLImageElement>(".conversation-art-bubble__dog-art");
-    expect(bubble).toHaveAttribute("data-dog-frame", "compact");
-    expect(art?.getAttribute("src")).toContain("dog-compact-frame.png");
-    expect(art).toHaveAttribute("width", "225");
-    expect(art).toHaveAttribute("height", "145");
-
-    rerender(<ChatBubbleArt text="¿Te hace ilusión volver a viajar este otoño?" style="dog-long" />);
-    bubble = document.querySelector<HTMLElement>(".conversation-art-bubble--dog");
-    art = bubble?.querySelector<HTMLImageElement>(".conversation-art-bubble__dog-art");
-    expect(bubble).toHaveAttribute("data-dog-frame", "medium");
-    expect(art?.getAttribute("src")).toContain("dog-third-frame.png");
-    expect(art).toHaveAttribute("width", "555");
-    expect(art).toHaveAttribute("height", "145");
-
-    rerender(<ChatBubbleArt text="Hoy caminé por el centro y encontré una librería pequeña que me encantó." style="dog-long" />);
-    bubble = document.querySelector<HTMLElement>(".conversation-art-bubble--dog");
-    art = bubble?.querySelector<HTMLImageElement>(".conversation-art-bubble__dog-art");
-    expect(bubble).toHaveAttribute("data-dog-frame", "long");
-    expect(art?.getAttribute("src")).toContain("dog-long-frame.png");
-    expect(art).toHaveAttribute("width", "650");
-    expect(art).toHaveAttribute("height", "145");
+    const shortBubble = screen.getByText("Hola").closest<HTMLElement>(".conversation-message__bubble");
+    const multilineBubble = screen.getByText(/Primera línea/).closest<HTMLElement>(".conversation-message__bubble");
+    expect(shortBubble).toBeInTheDocument();
+    expect(multilineBubble).toBeInTheDocument();
+    expect(document.querySelector(".conversation-art-bubble")).not.toBeInTheDocument();
+    expect(document.querySelector(".conversation-message__bubble img")).not.toBeInTheDocument();
   });
 
   it("keeps the history loader visible until the response body has hydrated", async () => {
@@ -148,7 +124,7 @@ describe("ChatThread persistence status", () => {
 
   it("opens the sent-message menu and copies only the visible text", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     const historyResponse = {
       ok: true,
       headers: new Headers([["x-conversation-persistence", "available"]]),
@@ -160,13 +136,16 @@ describe("ChatThread persistence status", () => {
     render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
 
     const message = await screen.findByText("Hola desde el chat");
-    fireEvent.contextMenu(message.closest("article")!);
+    expect(screen.queryByRole("button", { name: "消息操作" })).not.toBeInTheDocument();
+    fireEvent.click(message.closest("article")!);
     expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "引用回复", "撤回", "删除"]);
+    expect(screen.queryByRole("menuitem", { name: "转发" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "复制" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("Hola desde el chat"));
   });
 
-  it("aligns my message menu to the bubble edge instead of the right-click point", async () => {
+  it("aligns the context menu to the selected bubble instead of the pointer", async () => {
     const historyResponse = {
       ok: true,
       headers: new Headers([["x-conversation-persistence", "available"]]),
@@ -177,10 +156,19 @@ describe("ChatThread persistence status", () => {
       : historyResponse);
     render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
     const message = (await screen.findByText("位置测试")).closest("article")!;
-    vi.spyOn(message, "getBoundingClientRect").mockReturnValue({ left: 300, right: 500, top: 100, bottom: 200, width: 200, height: 100, x: 300, y: 100, toJSON: () => ({}) });
-    fireEvent.contextMenu(message, { clientX: 20, clientY: 20 });
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getRect(this: HTMLElement) {
+      if (this.classList.contains("conversation-message__bubble")) {
+        return { left: 300, right: 500, top: 100, bottom: 200, width: 200, height: 100, x: 300, y: 100, toJSON: () => ({}) };
+      }
+      if (this.classList.contains("conversation-message-menu")) {
+        return { left: 0, right: 152, top: 0, bottom: 146, width: 152, height: 146, x: 0, y: 0, toJSON: () => ({}) };
+      }
+      return { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) };
+    });
+    fireEvent.contextMenu(message, { clientX: 420, clientY: 150 });
     const menu = screen.getByRole("menu");
-    expect(menu).toHaveStyle({ left: "324px", top: "208px" });
+    rectSpy.mockRestore();
+    expect(menu).toHaveStyle({ left: "348px", top: "206px" });
   });
 
   it("shows the quote in the composer without sending it", async () => {

@@ -7,6 +7,43 @@ async function authenticate(page: Page) {
   await page.context().addCookies([
     { name: "spanish-e2e-user", value: e2eUserId, url: e2eBaseUrl },
   ]);
+  await page.route("**/api/v1/conversations", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          conversations: [{ conversationId: "conversation-lucia", characterKey: "lucia", characterName: "Lucía Martín", avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null }],
+        },
+      }),
+    });
+  });
+  await page.route("**/api/v1/character-network/lucia-contact", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey: "lucia", status: "active", relationshipStage: "familiar", conversationId: "conversation-lucia" } }) });
+  });
+  await page.route("**/api/v1/character-network/introductions", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { offers: [] } }) });
+  });
+  await page.route("**/api/v1/conversations/*", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const url = new URL(route.request().url());
+    const characterKey = url.pathname.split("/").at(-1) ?? "lucia";
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey, messages: [] } }) });
+  });
+  await page.route("**/api/v1/conversations/*/stream", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const request = route.request().postDataJSON() as { generationId: string };
+    const characterKey = new URL(route.request().url()).pathname.split("/").at(-2) ?? "lucia";
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/x-ndjson", "x-conversation-persistence": "available" },
+      body: [
+        JSON.stringify({ type: "meta", protocolVersion: "v1", characterKey, characterVersion: 1, generationId: request.generationId, messageId: `reply-${request.generationId}` }),
+        JSON.stringify({ type: "delta", generationId: request.generationId, messageId: `reply-${request.generationId}`, text: "Qué alegría leerte." }),
+        JSON.stringify({ type: "done", generationId: request.generationId, messageId: `reply-${request.generationId}` }),
+      ].join("\n") + "\n",
+    });
+  });
 }
 
 test("sends a message and completes the Lucía stream", async ({ page }) => {
@@ -41,7 +78,7 @@ test("offers retry when the stream fails before the first character event", asyn
   let attempts = 0;
   await page.route("**/api/v1/conversations/lucia", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not configured" }) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey: "lucia", messages: [] } }) });
       return;
     }
     await route.continue();
@@ -82,7 +119,7 @@ test("can stop before the first character event and retry the same user message"
   let attempts = 0;
   await page.route("**/api/v1/conversations/lucia", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not configured" }) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey: "lucia", messages: [] } }) });
       return;
     }
     await route.continue();
@@ -154,8 +191,71 @@ test("keeps the conversation thread within a phone viewport", async ({ page }) =
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/chat/lucia");
-  const width = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
-  expect(width.scroll).toBeLessThanOrEqual(width.client);
+  const viewport = await page.evaluate(() => ({
+    width: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    height: window.innerHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }));
+  expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.width);
+  expect(viewport.scrollHeight).toBeLessThanOrEqual(viewport.height + 2);
+});
+
+test("marks the current contact without wrapping it in a card surface", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/chat/lucia");
+
+  const activeContact = page.locator(".conversation-contact-row--active");
+  await expect(activeContact).toHaveAttribute("aria-current", "page");
+  const appearance = await activeContact.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const indicator = getComputedStyle(element, "::before");
+    const avatar = element.querySelector<HTMLElement>(".avatar");
+    const name = element.querySelector<HTMLElement>(".conversation-contact-row__body strong");
+    return {
+      avatarBoxShadow: avatar ? getComputedStyle(avatar).boxShadow : null,
+      background: style.backgroundColor,
+      borderRadius: style.borderRadius,
+      boxShadow: style.boxShadow,
+      indicatorHeight: Number.parseFloat(indicator.height),
+      indicatorOpacity: indicator.opacity,
+      indicatorWidth: Number.parseFloat(indicator.width),
+      nameIsClipped: name ? name.scrollWidth > name.clientWidth : null,
+    };
+  });
+
+  expect(appearance.avatarBoxShadow).toBe("none");
+  expect(appearance.background).toBe("rgba(0, 0, 0, 0)");
+  expect(appearance.borderRadius).toBe("0px");
+  expect(appearance.boxShadow).toBe("none");
+  expect(appearance.indicatorWidth).toBe(3);
+  expect(appearance.indicatorHeight).toBe(28);
+  expect(appearance.indicatorOpacity).toBe("1");
+  expect(appearance.nameIsClipped).toBe(false);
+  await expect(activeContact.getByText("置顶", { exact: true })).toHaveCount(0);
+  await expect(activeContact.getByText("开始对话", { exact: true })).toHaveCount(0);
+});
+
+test("shows one retry path and disables composing when history is unavailable", async ({ page }) => {
+  await authenticate(page);
+  let historyAttempts = 0;
+  await page.route("**/api/v1/conversations/lucia", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    historyAttempts += 1;
+    if (historyAttempts === 1) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "CONVERSATION_UNAVAILABLE" } }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { characterKey: "lucia", messages: [] } }) });
+  });
+
+  await page.goto("/chat/lucia");
+  await expect(page.getByTestId("conversation-persistence-status")).toContainText("暂时无法打开这段对话");
+  await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "发送消息" })).toBeDisabled();
+  await page.getByTestId("conversation-persistence-status").getByRole("button", { name: "重试" }).click();
+  await expect(page.getByText("¡Hola! Cuéntame algo de tu día.")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeEnabled();
 });
 
 test("keeps sent messages right anchored while their text stays left aligned", async ({ page }) => {
@@ -211,8 +311,10 @@ test("keeps sent messages right anchored while their text stays left aligned", a
   await expect(page.locator(".conversation-thread__timestamp--exact")).toHaveCount(1);
 });
 
-test("applies and restores the selected user bubble style", async ({ page }) => {
+test("uses adaptive solid bubbles without decorative image assets", async ({ page }) => {
   await authenticate(page);
+  await page.addInitScript(() => window.localStorage.setItem("spanish-theme", "dark"));
+  await page.setViewportSize({ width: 1552, height: 838 });
   await page.route("**/api/v1/conversations/lucia", async (route) => {
     await route.fulfill({
       status: 200,
@@ -220,38 +322,67 @@ test("applies and restores the selected user bubble style", async ({ page }) => 
       body: JSON.stringify({
         data: {
           characterKey: "lucia",
-          messages: [{ id: "bubble-style-user", role: "user", text: "Hola", complete: true }],
+          messages: [
+            { id: "bubble-style-character", role: "character", text: "Hola", complete: true },
+            { id: "bubble-style-user", role: "user", text: "Una respuesta breve.", complete: true },
+            { id: "bubble-length-character", role: "character", text: "¡Hola! 😊 Me alegra leerte de nuevo, aunque sea solo un saludo.", complete: true },
+            { id: "bubble-length-user", role: "user", text: "¡Hola! 😊 Me alegra leerte de nuevo, aunque sea solo un saludo.", complete: true },
+            { id: "bubble-long-character", role: "character", text: "Ah, me lo vuelves a contar; antes me dijiste que ya habías vuelto del puerto. ¿Te refieres a volver esta tarde o a otro plan de fotos?", complete: true },
+            { id: "bubble-long-user", role: "user", text: "Sí, vuelvo esta tarde; quiero hacer algunas fotos con otra luz.", complete: true },
+            { id: "bubble-longer-character", role: "character", text: "Ah, entendido: vuelves esta tarde y quieres probar otra luz. Puede cambiar muchísimo el ambiente de las fotos; seguro que notas nuevos detalles en el puerto.", complete: true },
+          ],
         },
       }),
     });
   });
 
   await page.goto("/chat/lucia");
-  const userMessage = page.locator(".conversation-message--user");
-  const dogBubble = userMessage.locator(".conversation-art-bubble--dog");
-  await expect(dogBubble).toBeVisible();
-  await expect(dogBubble).toHaveAttribute("data-dog-frame", "compact");
-  await expect.poll(() => dogBubble.locator("img").evaluate((image) => (
-    image instanceof HTMLImageElement && image.complete ? image.naturalWidth : 0
-  ))).toBe(225);
-  const dogBubbleStyle = await dogBubble.evaluate((element) => {
-    const box = element.getBoundingClientRect();
+  await expect(page.locator(".conversation-message__bubble")).toHaveCount(7);
+  await expect(page.locator('.conversation-message__bubble[data-fitted="true"]')).toHaveCount(7);
+  await expect(page.locator(".conversation-art-bubble")).toHaveCount(0);
+  await expect(page.locator(".conversation-message__bubble img")).toHaveCount(0);
+  const bubbles = await page.locator(".conversation-message__bubble").evaluateAll((elements) => elements.map((element) => {
+    const text = element.querySelector<HTMLElement>(".conversation-message__text");
     return {
-      aspectRatio: box.width / box.height,
-      backgroundColor: getComputedStyle(element).backgroundColor,
+      background: getComputedStyle(element).backgroundColor,
+      width: element.getBoundingClientRect().width,
+      textWrapStyle: text ? getComputedStyle(text).textWrapStyle : "",
     };
-  });
-  expect(dogBubbleStyle.aspectRatio).toBeCloseTo(225 / 145, 1);
-  expect(dogBubbleStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
-
-  await page.evaluate(() => {
-    window.localStorage.setItem("sueno-chat-bubble-style", "pink-frog");
-    window.dispatchEvent(new CustomEvent("chat-bubble-style-updated", { detail: "pink-frog" }));
-  });
-  await expect(userMessage.locator(".conversation-art-bubble--pink")).toBeVisible();
-
-  await page.reload();
-  await expect(page.locator(".conversation-message--user .conversation-art-bubble--pink")).toBeVisible();
+  }));
+  expect(bubbles[0].background).not.toBe("rgba(0, 0, 0, 0)");
+  expect(bubbles[1].background).not.toBe("rgba(0, 0, 0, 0)");
+  expect(bubbles[0].width).toBeLessThan(220);
+  expect(bubbles[1].width).toBeLessThan(260);
+  expect(bubbles[2].width).toBeLessThanOrEqual(360);
+  expect(bubbles[3].width).toBeLessThanOrEqual(360);
+  expect(bubbles[2].textWrapStyle).toBe("balance");
+  expect(bubbles[3].textWrapStyle).toBe("balance");
+  const fittedSpacing = await page.locator(".conversation-message__bubble").evaluateAll((elements) => elements.slice(2).map((element) => {
+    const bubble = element as HTMLElement;
+    const text = bubble.querySelector<HTMLElement>(".conversation-message__text");
+    if (!text) throw new Error("message text is missing");
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    const fragments = Array.from(range.getClientRects()).filter((rect) => rect.width > 0);
+    if (fragments.length === 0) throw new Error("message text has no rendered fragments");
+    const bubbleRect = bubble.getBoundingClientRect();
+    const style = getComputedStyle(bubble);
+    return {
+      bubbleWidth: bubbleRect.width,
+      inlineSize: style.inlineSize,
+      maxInlineSize: style.maxInlineSize,
+      leftGap: Math.min(...fragments.map((rect) => rect.left)) - bubbleRect.left,
+      rightGap: bubbleRect.right - Math.max(...fragments.map((rect) => rect.right)),
+      expectedLeftGap: Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.borderLeftWidth),
+      expectedRightGap: Number.parseFloat(style.paddingRight) + Number.parseFloat(style.borderRightWidth),
+      lineWidths: fragments.map((rect) => rect.width),
+    };
+  }));
+  for (const [index, spacing] of fittedSpacing.entries()) {
+    const diagnostic = `bubble ${index + 2} spacing: ${JSON.stringify(spacing)}`;
+    expect(Math.abs(spacing.leftGap - spacing.expectedLeftGap), diagnostic).toBeLessThanOrEqual(2);
+    expect(Math.abs(spacing.rightGap - spacing.expectedRightGap), diagnostic).toBeLessThanOrEqual(2);
+  }
 });
 
 test("opens the mobile conversation list without a redundant back link", async ({ page }) => {
@@ -260,7 +391,7 @@ test("opens the mobile conversation list without a redundant back link", async (
   await page.goto("/chat/lucia");
 
   await expect(page.getByRole("link", { name: "返回对话列表" })).toHaveCount(0);
-  await page.getByRole("button", { name: "会话列表" }).click();
+  await page.getByRole("button", { name: "打开会话列表" }).click();
   await expect(page.getByRole("dialog", { name: "会话列表" })).toBeVisible();
 });
 
@@ -283,6 +414,8 @@ test("searches conversation history and opens the matching message", async ({ pa
   });
 
   await page.goto("/chat");
+  await page.getByRole("button", { name: "更多对话操作" }).click();
+  await page.getByRole("menuitem", { name: "搜索消息" }).click();
   await page.getByRole("searchbox", { name: "搜索对话" }).fill("café");
   await page.getByRole("button", { name: "提交对话搜索" }).click();
   await expect(page.getByRole("link", { name: /Hablamos del café/ })).toBeVisible();
@@ -302,6 +435,7 @@ test("renders the selected character identity for Mateo and Inés", async ({ pag
 
 test("opens sent-message actions and marks a withdrawn message without memory text", async ({ page }) => {
   await authenticate(page);
+  await page.addInitScript(() => window.localStorage.setItem("spanish-theme", "dark"));
   const messageId = "00000000-0000-4000-8000-000000000123";
   await page.route("**/api/v1/conversations/lucia", async (route) => {
     await route.fulfill({
@@ -323,11 +457,19 @@ test("opens sent-message actions and marks a withdrawn message without memory te
   const messageMenu = page.getByRole("menu", { name: "你的消息操作" });
   await expect(messageMenu).toBeVisible();
   const menuBox = await messageMenu.boundingBox();
+  const bubbleBox = await message.locator(".conversation-message__bubble").boundingBox();
   const viewport = page.viewportSize();
   expect(menuBox).not.toBeNull();
+  expect(bubbleBox).not.toBeNull();
   expect(viewport).not.toBeNull();
   expect((menuBox?.x ?? 0) + (menuBox?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
+  expect(menuBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(156);
+  expect(menuBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((viewport?.width ?? 0) < 600 ? 196 : 156);
+  expect(Math.abs((menuBox?.x ?? 0) + (menuBox?.width ?? 0) - ((bubbleBox?.x ?? 0) + (bubbleBox?.width ?? 0)))).toBeLessThanOrEqual(1);
+  expect(menuBox?.y ?? 0).toBeGreaterThanOrEqual((bubbleBox?.y ?? 0) + (bubbleBox?.height ?? 0) + 5);
+  await expect(messageMenu).toHaveCSS("background-color", "rgb(48, 52, 45)");
   await expect(page.getByRole("menuitem", { name: "复制" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "转发" })).toHaveCount(0);
   await page.getByRole("menuitem", { name: "引用回复" }).click();
   await expect(page.getByTestId("conversation-composer-quote")).toContainText("Me gusta el senderismo");
   await message.click({ button: "right" });
