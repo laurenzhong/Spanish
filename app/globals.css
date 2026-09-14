@@ -9196,3 +9196,50 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .article-reader__progress span { transition: none; }
 }
+
+/* UI-017: one responsive navigation model with a persistent desktop rail. */
+.desktop-navigation { display: none; }
+
+@media (min-width: 960px) {
+  .product-shell { grid-template-columns: 204px minmax(0, 1fr); }
+  .primary-navigation { display: none; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) { grid-template-columns: 72px minmax(0, 1fr); }
+  .desktop-navigation { position: sticky; top: 0; z-index: 30; display: flex; width: 100%; height: 100vh; flex-direction: column; border-right: 1px solid var(--border); background: var(--surface); }
+  .desktop-navigation__brand { display: flex; min-height: 64px; gap: 8px; align-items: center; justify-content: space-between; padding: 14px 12px 10px 16px; border-bottom: 1px solid var(--border); }
+  .desktop-navigation__wordmark { display: inline-flex; min-width: 0; gap: 8px; align-items: center; color: var(--foreground); font-family: var(--font-display); font-size: 22px; font-style: italic; font-weight: 700; letter-spacing: -.06em; line-height: 1; text-decoration: none; }
+  .desktop-navigation__wordmark span span { color: var(--terracotta); }
+  .desktop-navigation__mark { display: none; width: 34px; height: 34px; place-items: center; border-radius: 9px; color: var(--surface); background: var(--terracotta); font-size: 18px; font-style: normal; letter-spacing: 0; }
+  .desktop-navigation__toggle { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; }
+  .desktop-navigation__toggle:hover, .desktop-navigation__toggle:focus-visible { border-color: var(--terracotta); color: var(--terracotta); background: var(--surface-soft); }
+  .desktop-navigation__toggle svg { width: 18px; height: 18px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+  .desktop-navigation__groups { display: grid; gap: 18px; padding: 18px 10px; }
+  .desktop-navigation__group { display: grid; gap: 5px; }
+  .desktop-navigation__group-label { padding: 0 11px 3px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+  .desktop-navigation__items { display: grid; gap: 3px; }
+  .desktop-navigation__link { position: relative; display: flex; min-height: 40px; gap: 10px; align-items: center; padding: 6px 10px; border-radius: 8px; color: var(--muted); font-size: 13px; font-weight: 650; text-decoration: none; }
+  .desktop-navigation__link::before { position: absolute; left: 0; width: 3px; height: 22px; border-radius: 0 3px 3px 0; background: transparent; content: ""; }
+  .desktop-navigation__link:hover, .desktop-navigation__link:focus-visible { color: var(--foreground); background: var(--surface-soft); }
+  .desktop-navigation__link[aria-current="page"] { color: var(--terracotta); background: color-mix(in srgb, var(--terracotta) 10%, var(--surface)); font-weight: 750; }
+  .desktop-navigation__link[aria-current="page"]::before { background: var(--terracotta); }
+  .desktop-navigation__icon { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; }
+  .desktop-navigation__icon svg { width: 19px; height: 19px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; }
+  .desktop-navigation__account { margin-top: auto; padding: 12px 10px 16px; border-top: 1px solid var(--border); }
+  .desktop-navigation__account .account-menu__trigger { min-height: 44px; }
+  .desktop-navigation__account .account-menu__popover { right: auto; bottom: 10px; left: calc(100% + 20px); }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__brand { justify-content: center; padding-inline: 8px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__word { display: none; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__mark { display: grid; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__toggle { width: 34px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__groups { padding-inline: 8px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__group-label { display: none; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link { justify-content: center; padding: 6px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link::before { left: -8px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account { padding-inline: 14px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__trigger { justify-content: center; padding: 4px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__trigger-copy, .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__chevron { display: none; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__popover { left: calc(100% + 24px); }
+}
+
+@media (max-width: 959px) { .desktop-navigation { display: none; } }
+@media (prefers-reduced-motion: reduce) { .desktop-navigation, .desktop-navigation__link, .desktop-navigation__toggle { transition: none; } }

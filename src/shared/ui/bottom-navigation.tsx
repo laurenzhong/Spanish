@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AccountMenu } from "./account-menu";
 
-const navigationGroups = [
+export const navigationGroups = [
   {
     label: "开始",
     items: [
@@ -25,9 +24,9 @@ const navigationGroups = [
   },
 ] as const;
 
-type NavigationIconName = "learn" | "read" | "explore" | "chat" | "profile";
+export type NavigationIconName = "learn" | "read" | "explore" | "chat" | "profile";
 
-function NavigationIcon({ name }: Readonly<{ name: NavigationIconName }>) {
+export function NavigationIcon({ name }: Readonly<{ name: NavigationIconName }>) {
   if (name === "learn") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -108,9 +107,6 @@ export function BottomNavigation() {
             </div>
           </div>
         ))}
-      </div>
-      <div className="navigation-account">
-        <AccountMenu />
       </div>
     </nav>
   );

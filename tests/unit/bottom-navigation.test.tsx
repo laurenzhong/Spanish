@@ -1,16 +1,11 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import userEvent from "@testing-library/user-event";
 
 import { BottomNavigation } from "@/src/shared/ui/bottom-navigation";
 
 const usePathname = vi.fn();
-const replace = vi.fn();
-const refresh = vi.fn();
-
 vi.mock("next/navigation", () => ({
   usePathname: () => usePathname(),
-  useRouter: () => ({ replace, refresh }),
 }));
 
 describe("BottomNavigation", () => {
@@ -55,28 +50,4 @@ describe("BottomNavigation", () => {
     );
   });
 
-  it("toggles and persists the visual theme", async () => {
-    const user = userEvent.setup();
-    render(<BottomNavigation />);
-
-    await user.click(screen.getByRole("button", { name: "打开账户菜单" }));
-    const toggle = screen.getByRole("button", { name: "切换到深色模式" });
-    await user.click(toggle);
-
-    expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(window.localStorage.getItem("spanish-theme")).toBe("dark");
-    expect(
-      screen.getByRole("button", { name: "切换到浅色模式" }),
-    ).toBeVisible();
-  });
-
-  it("defaults to light even when the operating system prefers dark", async () => {
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
-    const user = userEvent.setup();
-    render(<BottomNavigation />);
-
-    await user.click(screen.getByRole("button", { name: "打开账户菜单" }));
-    expect(screen.getByRole("button", { name: "切换到深色模式" })).toBeVisible();
-    expect(document.documentElement.dataset.theme).toBe("light");
-  });
 });
