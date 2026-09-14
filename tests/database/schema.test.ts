@@ -296,6 +296,7 @@ describe("database schema", () => {
           "0024_media_library_foundation.sql",
           "0025_youtube_video_publication.sql",
           "0026_brief_toro.sql",
+          "0027_pale_colossus.sql",
         ]) {
         const migrationPath = path.join(
           process.cwd(),

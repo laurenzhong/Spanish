@@ -41,6 +41,7 @@ type PodcastSource = Readonly<{
   attribution: string;
   licenseEvidence: string;
   allowedFeedHosts: readonly string[];
+  allowedArtworkHosts?: readonly string[];
   allowedEpisodeHosts: readonly string[];
   allowedAudioHosts: readonly string[];
   allowedTranscriptHosts: readonly string[];
@@ -112,6 +113,26 @@ function safeEpisodeUrl(raw: string, allowedHosts: readonly string[]): string | 
   } catch {
     return null;
   }
+}
+
+function channelArtwork(
+  channel: XmlFeedNode | null,
+  programName: string,
+  allowedHosts: readonly string[],
+): PodcastCandidateDraft["artwork"] {
+  if (!channel) return null;
+  const imageNodes = xmlChildren(channel, "image");
+  for (const image of imageNodes) {
+    const raw = image.attributes.href ?? xmlText(xmlFirst(image, "url"));
+    try {
+      const url = new URL(raw);
+      if (url.protocol !== "https:" || url.username || url.password || !allowedHosts.includes(url.hostname.toLowerCase())) continue;
+      return { url: url.toString(), alt: programName.slice(0, 300), source: "podcast-feed", width: null, height: null, expiresAt: null };
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 async function transcriptSegments(
@@ -187,6 +208,7 @@ export class PodcastRssAdapter implements ContentSourceAdapter {
 
     const document = parseXmlFeed(feed.text);
     const channel = xmlFindFirst(document, "channel");
+    const artwork = channelArtwork(channel, this.options.source.programName, this.options.source.allowedArtworkHosts ?? this.options.source.allowedFeedHosts);
     const declaredLanguage = xmlText(channel ? xmlFirst(channel, "language") : null);
     if (declaredLanguage && !/^es(?:-|$)/iu.test(declaredLanguage)) {
       return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor: input.cursor, estimatedCostMicros: 0, items: [] };
@@ -275,6 +297,7 @@ export class PodcastRssAdapter implements ContentSourceAdapter {
           attribution: this.options.source.attribution,
           licenseEvidence: this.options.source.licenseEvidence,
           copyrightStatus: "cleared",
+          artwork,
           transcriptStatus: transcript.status,
           transcriptUrl: transcript.url,
           segments: transcript.segments,

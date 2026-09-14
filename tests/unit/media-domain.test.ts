@@ -26,6 +26,14 @@ describe("media domain", () => {
     expect(() => parseMediaDocumentId("media.fixture.cafe@0")).toThrow("MEDIA_ID_INVALID");
   });
 
+  it("keeps valid artwork, but degrades malformed or expired artwork to null", () => {
+    const now = new Date("2026-09-13T10:00:00.000Z");
+    const artwork = { url: "https://images.example.test/cafe.jpg", alt: "Conversación en una cafetería", source: "youtube" as const, width: 1280, height: 720, expiresAt: null };
+    expect(projectMediaCard({ ...raw, artwork }, now)?.artwork).toEqual(artwork);
+    expect(projectMediaCard({ ...raw, artwork: { ...artwork, url: "http://images.example.test/cafe.jpg" } }, now)?.artwork).toBeNull();
+    expect(projectMediaCard({ ...raw, artwork: { ...artwork, expiresAt: new Date("2026-09-13T09:00:00.000Z") } }, now)?.artwork).toBeNull();
+  });
+
   it("rejects expired playback and returns only approved bounded segments", () => {
     const now = new Date("2026-09-13T10:00:00.000Z");
     expect(() => projectMediaPlayback({ card: projectMediaCard(raw)!, asset: {

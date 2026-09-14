@@ -1,4 +1,5 @@
 import type { DraftMediaSegment } from "../domain";
+import type { MediaArtwork } from "../domain";
 import type { AcquiredMediaPublication, AcquiredMediaReview } from "./acquired-video-repository";
 
 export type AcquiredPodcastDraft = Readonly<{
@@ -25,6 +26,7 @@ export type AcquiredPodcastDraft = Readonly<{
   attribution: string;
   licenseEvidence: string;
   copyrightStatus: "cleared";
+  artwork: MediaArtwork | null;
   transcriptStatus: "unavailable" | "platform_manual" | "platform_auto";
   transcriptUrl: string | null;
   segments: readonly DraftMediaSegment[];

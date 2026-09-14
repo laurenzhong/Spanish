@@ -8,6 +8,7 @@ export const mediaKindEnum = pgEnum("media_kind", ["video", "podcast"]);
 export const mediaAssetKindEnum = pgEnum("media_asset_kind", ["official_embed", "audio", "video"]);
 export const mediaAssetAvailabilityEnum = pgEnum("media_asset_availability", ["available", "unavailable", "withdrawn"]);
 export const mediaProgressStatusEnum = pgEnum("media_progress_status", ["in_progress", "completed"]);
+export const mediaArtworkSourceEnum = pgEnum("media_artwork_source", ["youtube", "podcast-feed", "fallback"]);
 
 export const mediaItems = pgTable("media_items", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -53,6 +54,12 @@ export const mediaVersions = pgTable("media_versions", {
   fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "date" }),
   changeReason: text("change_reason"),
   reviewNotes: text("review_notes"),
+  artworkUrl: text("artwork_url"),
+  artworkAlt: text("artwork_alt"),
+  artworkSource: mediaArtworkSourceEnum("artwork_source"),
+  artworkWidth: integer("artwork_width"),
+  artworkHeight: integer("artwork_height"),
+  artworkExpiresAt: timestamp("artwork_expires_at", { withTimezone: true, mode: "date" }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
@@ -69,6 +76,8 @@ export const mediaVersions = pgTable("media_versions", {
   check("media_versions_source_feed_url_check", sql`${table.sourceFeedUrl} is null or ${table.sourceFeedUrl} ~ '^https://'`),
   check("media_versions_enclosure_url_hash_check", sql`${table.enclosureUrlHash} is null or ${table.enclosureUrlHash} ~ '^[a-f0-9]{64}$'`),
   check("media_versions_acquisition_provenance_check", sql`(${table.acquisitionCandidateId} is null and ${table.acquisitionCandidateRevision} is null and ${table.fetchedAt} is null) or (${table.acquisitionCandidateId} is not null and ${table.acquisitionCandidateRevision} > 0 and ${table.fetchedAt} is not null)`),
+  check("media_versions_artwork_url_check", sql`${table.artworkUrl} is null or ${table.artworkUrl} ~ '^https://'`),
+  check("media_versions_artwork_fields_check", sql`(${table.artworkUrl} is null and ${table.artworkAlt} is null and ${table.artworkSource} is null and ${table.artworkWidth} is null and ${table.artworkHeight} is null and ${table.artworkExpiresAt} is null) or (${table.artworkUrl} is not null and ${table.artworkAlt} is not null and ${table.artworkSource} is not null and ((${table.artworkWidth} is null and ${table.artworkHeight} is null) or (${table.artworkWidth} > 0 and ${table.artworkHeight} > 0)))`),
 ]);
 
 export const mediaAssets = pgTable("media_assets", {

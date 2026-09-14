@@ -62,6 +62,12 @@ describe("YouTube source adapter contract", () => {
           embedUrl: "https://www.youtube-nocookie.com/embed/publicVideo1?enablejsapi=1",
           durationMs: 245_000,
           captionStatus: "unavailable",
+          artwork: {
+            url: "https://i.ytimg.com/vi/publicVideo1/maxresdefault.jpg",
+            source: "youtube",
+            width: 1280,
+            height: 720,
+          },
         },
       },
     });

@@ -18,7 +18,7 @@ const candidateId = "00000000-0000-4000-8000-000000000951";
 async function setupDatabase() {
   const client = new PGlite();
   await client.exec("create role anon nologin; create role authenticated nologin; create schema auth; create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}'::jsonb); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth, public to anon, authenticated; grant execute on function auth.uid() to anon, authenticated;");
-  for (const name of ["0000_big_phalanx.sql", "0024_media_library_foundation.sql", "0025_youtube_video_publication.sql", "0026_brief_toro.sql"]) {
+  for (const name of ["0000_big_phalanx.sql", "0024_media_library_foundation.sql", "0025_youtube_video_publication.sql", "0026_brief_toro.sql", "0027_pale_colossus.sql"]) {
     const sql = (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
     await client.exec(sql);
   }
@@ -34,6 +34,7 @@ function draft() {
     region: "es-ES", cefr: "A2", topics: ["topic.daily-life"], durationMs: 360_000,
     publicationDate: "2026-09-13T08:00:00.000Z", fetchedAt: "2026-09-14T10:00:00.000Z", license: "licensed",
     attribution: "Café de cada día", licenseEvidence: "https://podcast.example.test/license", copyrightStatus: "cleared",
+    artwork: { url: "https://images.example.test/cafe.jpg", alt: "Café de cada día", source: "podcast-feed" as const, width: null, height: null, expiresAt: null },
     transcriptStatus: "platform_manual", transcriptUrl: "https://transcripts.example.test/42.vtt",
     segments: [{ index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días.", translation: null, speaker: null, confidence: null, sourceKind: "platform_manual" }],
     changeReason: "Reviewed podcast candidate.",
@@ -68,7 +69,10 @@ describe("reviewed podcast publication persistence", () => {
       sourceFeedUrl: podcast.feedUrl,
       enclosureUrlHash: podcast.enclosureUrlHash,
       acquisitionCandidateRevision: 5,
+      artworkUrl: podcast.artwork?.url,
+      artworkSource: "podcast-feed",
     });
+    await expect(repository().list({ pageSize: 24, sort: "recently_added" })).resolves.toMatchObject({ items: [{ artwork: { url: podcast.artwork?.url, source: "podcast-feed" } }] });
     const [reviewCount] = await database.select({ value: count() }).from(schema.contentReviews).where(eq(schema.contentReviews.entityType, "media"));
     expect(reviewCount?.value).toBe(2);
     await expect(repository().publishAcquiredPodcast({ ...input, contentHash: "f".repeat(64) })).rejects.toBeInstanceOf(AcquiredPodcastPersistenceConflictError);

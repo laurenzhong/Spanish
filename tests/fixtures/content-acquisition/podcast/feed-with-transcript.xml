@@ -6,6 +6,7 @@
     <title>Café de cada día</title>
     <link>https://podcast.example.test/</link>
     <language>es-ES</language>
+    <itunes:image href="https://images.example.test/cafe.jpg" />
     <item>
       <guid isPermaLink="false">episode-42</guid>
       <title>Una mañana en el mercado</title>

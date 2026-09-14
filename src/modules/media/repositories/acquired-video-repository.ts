@@ -1,4 +1,5 @@
 import type { DraftMediaSegment } from "../domain";
+import type { MediaArtwork } from "../domain";
 
 export type AcquiredMediaReview = Readonly<{
   locale: "es-ES" | "zh-CN";
@@ -28,6 +29,7 @@ export type AcquiredVideoDraft = Readonly<{
   attribution: string;
   licenseEvidence: string;
   copyrightStatus: "cleared";
+  artwork: MediaArtwork | null;
   captionStatus: "unavailable" | "platform_manual" | "platform_auto";
   segments: readonly DraftMediaSegment[];
   contentHash: string;

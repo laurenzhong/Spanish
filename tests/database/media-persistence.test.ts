@@ -39,6 +39,7 @@ describe("media persistence", () => {
     await client.exec(await migration("0024_media_library_foundation.sql"));
     await client.exec(await migration("0025_youtube_video_publication.sql"));
     await client.exec(await migration("0026_brief_toro.sql"));
+    await client.exec(await migration("0027_pale_colossus.sql"));
     database = drizzle(client, { schema });
     await client.exec("insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000e1', 'a@example.test'), ('00000000-0000-4000-8000-0000000000e2', 'b@example.test'); insert into profiles (id) values ('00000000-0000-4000-8000-0000000000e1'), ('00000000-0000-4000-8000-0000000000e2')");
     await database.insert(schema.mediaItems).values({ id: itemId, stableKey: "media.fixture.cafe", kind: "podcast", currentVersion: 1 });

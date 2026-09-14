@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { mediaSegmentSourceKinds } from "@/src/modules/media/domain";
+import { mediaArtworkSchema } from "@/src/modules/media/schemas";
 
 const stableKeySchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -43,6 +44,7 @@ export const podcastCandidateDraftSchema = z.strictObject({
   attribution: z.string().trim().min(1).max(1_000),
   licenseEvidence: httpsUrlSchema,
   copyrightStatus: z.literal("cleared"),
+  artwork: mediaArtworkSchema.nullable().default(null),
   transcriptStatus: z.enum(["unavailable", "platform_manual", "platform_auto"]),
   transcriptUrl: httpsUrlSchema.nullable(),
   segments: z.array(podcastCandidateSegmentSchema).max(500),
@@ -51,7 +53,7 @@ export const podcastCandidateDraftSchema = z.strictObject({
 });
 
 export type PodcastCandidateDraft = z.infer<typeof podcastCandidateDraftSchema>;
-type PodcastDraftInput = Omit<PodcastCandidateDraft, "contentHash" | "enclosureUrlHash">;
+type PodcastDraftInput = Omit<PodcastCandidateDraft, "contentHash" | "enclosureUrlHash" | "artwork"> & { artwork?: PodcastCandidateDraft["artwork"] };
 
 export function calculatePodcastEnclosureUrlHash(url: string): string {
   return createHash("sha256").update(url).digest("hex");

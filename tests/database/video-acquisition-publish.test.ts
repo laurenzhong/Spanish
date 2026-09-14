@@ -23,6 +23,7 @@ async function setupDatabase() {
     "0024_media_library_foundation.sql",
     "0025_youtube_video_publication.sql",
     "0026_brief_toro.sql",
+    "0027_pale_colossus.sql",
   ]) {
     const sql = (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
     await client.exec(sql);
@@ -36,6 +37,7 @@ function draft() {
     canonicalUrl: "https://www.youtube.com/watch?v=publicVideo1", embedUrl: "https://www.youtube-nocookie.com/embed/publicVideo1?enablejsapi=1",
     title: "Cómo pedir un café", summary: "Una conversación breve.", sourceName: "Español con calma", language: "es", region: "es-ES", cefr: "A2", topics: ["topic.daily-life"], durationMs: 245_000,
     publicationDate: "2026-09-13T08:00:00.000Z", fetchedAt: "2026-09-13T10:00:00.000Z", license: "licensed", attribution: "Español con calma en YouTube", licenseEvidence: "https://www.youtube.com/t/terms", copyrightStatus: "cleared",
+    artwork: { url: "https://i.ytimg.com/vi/publicVideo1/maxresdefault.jpg", alt: "Cómo pedir un café", source: "youtube" as const, width: 1280, height: 720, expiresAt: null },
     captionStatus: "platform_manual", segments: [{ index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, confidence: null, sourceKind: "platform_manual" }], changeReason: "Reviewed YouTube candidate.",
   });
 }
@@ -63,7 +65,8 @@ describe("reviewed YouTube video publication persistence", () => {
       segments: [{ sourceText: "Buenos días." }],
     });
     const [version] = await database.select().from(schema.mediaVersions).where(eq(schema.mediaVersions.acquisitionCandidateId, candidateId));
-    expect(version).toMatchObject({ acquisitionCandidateRevision: 5, fetchedAt: new Date(video.fetchedAt), changeReason: video.changeReason });
+    expect(version).toMatchObject({ acquisitionCandidateRevision: 5, fetchedAt: new Date(video.fetchedAt), changeReason: video.changeReason, artworkUrl: video.artwork?.url, artworkSource: "youtube" });
+    await expect(repository().list({ pageSize: 24, sort: "recently_added" })).resolves.toMatchObject({ items: [{ artwork: { url: video.artwork?.url, source: "youtube" } }] });
     const [reviewCount] = await database.select({ value: count() }).from(schema.contentReviews).where(eq(schema.contentReviews.entityType, "media"));
     expect(reviewCount?.value).toBe(2);
     await expect(repository().publishAcquiredVideo({ ...input, contentHash: "f".repeat(64) })).rejects.toBeInstanceOf(AcquiredVideoPersistenceConflictError);

@@ -3,7 +3,7 @@
   "$id": "media-item.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "stableKey", "version", "kind", "title", "summary", "sourceName", "language", "region", "cefr", "topics", "durationMs", "publishedAt", "curatedAt", "contentHash", "progress"],
+  "required": ["id", "stableKey", "version", "kind", "title", "summary", "sourceName", "language", "region", "cefr", "topics", "durationMs", "publishedAt", "curatedAt", "contentHash", "artwork", "progress"],
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}@[1-9][0-9]*$" },
     "stableKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$" },
@@ -20,6 +20,24 @@
     "publishedAt": { "type": ["string", "null"], "format": "date-time" },
     "curatedAt": { "type": "string", "format": "date-time" },
     "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "artwork": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "alt", "source", "width", "height", "expiresAt"],
+          "properties": {
+            "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+            "alt": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "source": { "enum": ["youtube", "podcast-feed", "fallback"] },
+            "width": { "type": ["integer", "null"], "minimum": 1 },
+            "height": { "type": ["integer", "null"], "minimum": 1 },
+            "expiresAt": { "type": ["string", "null"], "format": "date-time" }
+          }
+        }
+      ]
+    },
     "progress": {
       "oneOf": [
         { "type": "null" },

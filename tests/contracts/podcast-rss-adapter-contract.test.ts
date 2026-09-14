@@ -24,6 +24,7 @@ function adapter(fetchImpl: typeof fetch) {
       attribution: "Café de cada día",
       licenseEvidence: "https://podcast.example.test/license",
       allowedFeedHosts: ["podcast.example.test"],
+      allowedArtworkHosts: ["images.example.test"],
       allowedEpisodeHosts: ["podcast.example.test"],
       allowedAudioHosts: ["media.example.test"],
       allowedTranscriptHosts: ["transcripts.example.test"],
@@ -73,6 +74,7 @@ describe("podcast RSS adapter contract", () => {
           enclosureMimeType: "audio/mpeg",
           enclosureByteSize: 128,
           transcriptStatus: "platform_manual",
+          artwork: { url: "https://images.example.test/cafe.jpg", source: "podcast-feed", width: null, height: null },
           segments: expect.arrayContaining([expect.objectContaining({ index: 0, sourceText: "Buenos días, ¿qué te pongo?" })]),
         },
       },
@@ -147,6 +149,19 @@ describe("podcast RSS adapter contract", () => {
     });
 
     expect(page.items[0]?.metadata).toMatchObject({ podcastDraft: { transcriptStatus: "unavailable", segments: [] } });
+    expect(page.items[0]?.metadata).toMatchObject({ podcastDraft: { artwork: null } });
+  });
+
+  it("drops artwork when the feed points to a host outside the artwork allowlist", async () => {
+    const feed = (await fixture("feed-with-transcript.xml")).replace("images.example.test", "untrusted.example.test");
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("feed.xml")) return new Response(feed, { headers: { "content-type": "application/rss+xml" } });
+      if (url.endsWith(".mp3")) return new Response(null, { headers: { "content-type": "audio/mpeg", "content-length": "128" } });
+      return new Response("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHola", { headers: { "content-type": "text/vtt" } });
+    });
+    const page = await adapter(fetchMock).discover({ sourceStableKey: "podcast.cafe-diario", externalSourceId: "https://podcast.example.test/feed.xml", cursor: null, limit: 20 });
+    expect(page.items[0]?.metadata).toMatchObject({ podcastDraft: { artwork: null } });
   });
 
   it("falls back to playback-only metadata when a declared transcript is invalid", async () => {

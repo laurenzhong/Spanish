@@ -21,7 +21,7 @@ const item = {
   id: "media.fixture.cafe@1", stableKey: "media.fixture.cafe", version: 1, kind: "video",
   title: "Una charla", summary: "Resumen", sourceName: "Canal", language: "es", region: "es-ES", cefr: "A2",
   topics: ["topic.daily-life"], durationMs: 60_000, publishedAt: null, curatedAt: "2026-09-13T00:00:00.000Z",
-  contentHash: "a".repeat(64), progress: null,
+  contentHash: "a".repeat(64), artwork: null, progress: null,
 };
 
 describe("media v1 contracts", () => {

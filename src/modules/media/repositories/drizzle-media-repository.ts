@@ -84,8 +84,18 @@ function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date):
     status: row.version.status,
     copyrightStatus: row.version.copyrightStatus as "unverified" | "cleared" | "restricted",
     playable: isPlayable(row, now),
+    artwork: row.version.artworkUrl && row.version.artworkAlt && row.version.artworkSource
+      ? {
+          url: row.version.artworkUrl,
+          alt: row.version.artworkAlt,
+          source: row.version.artworkSource,
+          width: row.version.artworkWidth,
+          height: row.version.artworkHeight,
+          expiresAt: row.version.artworkExpiresAt,
+        }
+      : null,
     progress,
-  });
+  }, now);
 }
 
 function encodeCursor(item: MediaCard): string {
@@ -260,6 +270,12 @@ export function createDrizzleMediaRepository(
           platformSourceId: input.draft.episodeGuid,
           sourceFeedUrl: input.draft.feedUrl,
           enclosureUrlHash: input.draft.enclosureUrlHash,
+          artworkUrl: input.draft.artwork?.url ?? null,
+          artworkAlt: input.draft.artwork?.alt ?? null,
+          artworkSource: input.draft.artwork?.source ?? null,
+          artworkWidth: input.draft.artwork?.width ?? null,
+          artworkHeight: input.draft.artwork?.height ?? null,
+          artworkExpiresAt: input.draft.artwork?.expiresAt ? new Date(input.draft.artwork.expiresAt) : null,
           language: input.draft.language,
           region: input.draft.region,
           cefr: input.draft.cefr,
@@ -424,6 +440,12 @@ export function createDrizzleMediaRepository(
           sourceUrl: input.draft.canonicalUrl,
           platformSourceId: input.draft.platformVideoId,
           sourceChannelId: input.draft.sourceChannelId,
+          artworkUrl: input.draft.artwork?.url ?? null,
+          artworkAlt: input.draft.artwork?.alt ?? null,
+          artworkSource: input.draft.artwork?.source ?? null,
+          artworkWidth: input.draft.artwork?.width ?? null,
+          artworkHeight: input.draft.artwork?.height ?? null,
+          artworkExpiresAt: input.draft.artwork?.expiresAt ? new Date(input.draft.artwork.expiresAt) : null,
           language: input.draft.language,
           region: input.draft.region,
           cefr: input.draft.cefr,
