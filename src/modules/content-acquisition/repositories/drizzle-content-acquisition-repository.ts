@@ -12,6 +12,7 @@ import type {
   CommitDiscoveryPageInput,
   ContentAcquisitionRepository,
   ContentCandidateRecord,
+  ContentCleanupArtifactRecord,
   ContentSourceRecord,
   ContentWorkflowRepository,
   ProcessingAttemptInput,
@@ -452,6 +453,55 @@ export function createDrizzleContentAcquisitionRepository(
       ) {
         throw new ContentAcquisitionConflictError("Processing attempt idempotency key conflicts with existing input.");
       }
+    },
+
+    async listCandidatesForCleanup(input) {
+      const limit = Math.min(Math.max(input.limit, 1), 500);
+      const rows = await database.select().from(schema.contentCandidates)
+        .orderBy(schema.contentCandidates.lastActivityAt)
+        .limit(limit);
+      return rows.map(candidateRecord);
+    },
+
+    async listCandidateArtifactsForCleanup(candidateId) {
+      const [artifacts, attempts] = await Promise.all([
+        database.select().from(schema.candidateArtifacts)
+          .where(eq(schema.candidateArtifacts.candidateId, candidateId))
+          .orderBy(schema.candidateArtifacts.createdAt),
+        database.select({ status: schema.candidateProcessingAttempts.status })
+          .from(schema.candidateProcessingAttempts)
+          .where(eq(schema.candidateProcessingAttempts.candidateId, candidateId))
+          .orderBy(desc(schema.candidateProcessingAttempts.startedAt)),
+      ]);
+      const processingStatus = (attempts[0]?.status ?? "pending") as ContentCleanupArtifactRecord["processingStatus"];
+      return artifacts.map((artifact) => ({
+        id: artifact.id,
+        kind: artifact.artifactType,
+        byteSize: artifact.byteSize,
+        ephemeral: artifact.ephemeral,
+        processingStatus,
+      }));
+    },
+
+    async deleteCandidateArtifact(artifactId) {
+      const rows = await database.update(schema.candidateArtifacts).set({
+        status: "deleted",
+        deletedAt: new Date(),
+        storageKey: null,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(schema.candidateArtifacts.id, artifactId),
+        or(eq(schema.candidateArtifacts.status, "available"), eq(schema.candidateArtifacts.status, "delete-pending"), eq(schema.candidateArtifacts.status, "failed")),
+      )).returning({ id: schema.candidateArtifacts.id });
+      if (rows.length !== 1) throw new ContentAcquisitionConflictError("Candidate artifact is already deleted or unavailable.");
+    },
+
+    async purgeCandidate(candidateId) {
+      const rows = await database.delete(schema.contentCandidates).where(and(
+        eq(schema.contentCandidates.id, candidateId),
+        eq(schema.contentCandidates.publicationStatus, "draft"),
+      )).returning({ id: schema.contentCandidates.id });
+      if (rows.length !== 1) throw new ContentAcquisitionConflictError("Candidate is published or already purged.");
     },
 
     async saveCandidateReview(input) {

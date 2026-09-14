@@ -8,6 +8,7 @@ export type CandidateRetentionInput = Readonly<{
   candidate: Readonly<{
     id: string;
     status: CandidateStatus;
+    publicationStatus?: "draft" | "published" | "archived";
     lastActivityAt: Date;
     rejectedAt: Date | null;
   }>;
@@ -63,11 +64,13 @@ export function planCandidateCleanup(input: CandidateRetentionInput): readonly C
       });
     }
   }
-  instructions.push({
-    kind: "purge-candidate",
-    targetId: input.candidate.id,
-    dueAt: new Date(input.candidate.lastActivityAt.getTime() + unpublishedRetentionMs),
-    reason: "unpublished-retention-expired",
-  });
+  if (input.candidate.publicationStatus !== "published" && input.candidate.publicationStatus !== "archived") {
+    instructions.push({
+      kind: "purge-candidate",
+      targetId: input.candidate.id,
+      dueAt: new Date(input.candidate.lastActivityAt.getTime() + unpublishedRetentionMs),
+      reason: "unpublished-retention-expired",
+    });
+  }
   return instructions;
 }

@@ -78,6 +78,14 @@ export type CandidateArtifactRecord = Readonly<{
   ephemeral: boolean;
 }>;
 
+export type ContentCleanupArtifactRecord = Readonly<{
+  id: string;
+  kind: string;
+  byteSize: number;
+  ephemeral: boolean;
+  processingStatus: "pending" | "running" | "succeeded" | "failed" | "cancelled" | "timed_out";
+}>;
+
 export type CandidateProcessingAttemptRecord = Readonly<{
   id: string;
   jobType: string;
@@ -178,6 +186,10 @@ export interface ContentAcquisitionRepository {
     updatedAt: Date;
   }>): Promise<ContentCandidateRecord>;
   recordProcessingAttempt(input: ProcessingAttemptInput): Promise<void>;
+  listCandidatesForCleanup?(input: Readonly<{ limit: number }>): Promise<readonly ContentCandidateRecord[]>;
+  listCandidateArtifactsForCleanup?(candidateId: string): Promise<readonly ContentCleanupArtifactRecord[]>;
+  deleteCandidateArtifact?(artifactId: string): Promise<void>;
+  purgeCandidate?(candidateId: string): Promise<void>;
 }
 
 export interface ContentWorkflowRepository {
