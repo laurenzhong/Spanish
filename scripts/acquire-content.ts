@@ -16,6 +16,7 @@ import {
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
   runContentCleanup,
+  planContentPipelineSources,
   prepareArticleCandidateForReview,
   preparePodcastCandidateForReview,
   prepareVideoCandidateForReview,
@@ -201,7 +202,9 @@ async function main(): Promise<void> {
     }
     let sources: ContentSourceRecord[];
     if (options.allEnabled) {
-      sources = [...(await repository.listSources?.() ?? []).filter((candidate) => candidate.enabled)];
+      const configuredSources = await repository.listSources();
+      const plans = planContentPipelineSources({ sources: configuredSources, limit: options.limit });
+      sources = plans.map((plan) => configuredSources.find((source) => source.stableKey === plan.sourceStableKey)).filter((source): source is ContentSourceRecord => Boolean(source));
     } else {
       const source = await repository.findSourceByStableKey(options.sourceStableKey);
       if (!source) throw new ContentSourceNotFoundError();
