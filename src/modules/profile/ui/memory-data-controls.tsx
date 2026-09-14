@@ -19,7 +19,13 @@ const characterNames: Record<string, string> = {
   mateo: "Mateo Ruiz",
 };
 
-export function MemoryDataControls() {
+type MemoryDataControlsProps = Readonly<{
+  onError?: () => void;
+  retryToken?: number;
+  showError?: boolean;
+}>;
+
+export function MemoryDataControls({ onError, retryToken = 0, showError = true }: MemoryDataControlsProps = {}) {
   const [memories, setMemories] = useState<readonly MemoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -42,14 +48,15 @@ export function MemoryDataControls() {
       .catch(() => {
         if (active) {
           setLoadError(true);
-          setMessage("暂时无法读取你的关系记忆。");
+          setMessage(showError ? "暂时无法读取你的关系记忆。" : null);
+          onError?.();
         }
       })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [reloadToken]);
+  }, [reloadToken, retryToken]);
 
   async function remove(memory: MemoryRecord) {
     if (!window.confirm("删除后这条关系记忆和相关共享授权都无法恢复，确定删除吗？")) return;
@@ -77,7 +84,7 @@ export function MemoryDataControls() {
         <p>这些资料只用于你授权的角色关系。删除后会同时撤销相关共享，能力证据不会被删除。</p>
       </header>
       {loading ? <p className="surface-state__message">正在读取关系记忆……</p> : null}
-      {!loading && loadError ? <div className="profile-data-warning" role="alert"><span>关系记忆暂时不可用。</span><button type="button" onClick={() => { setLoading(true); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
+      {!loading && loadError && showError ? <div className="profile-data-warning" role="alert"><span>关系记忆暂时不可用。</span><button type="button" onClick={() => { setLoading(true); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
       {!loading && memories.length === 0 ? <p className="surface-state__message">目前没有保存的关系记忆。</p> : null}
       {memories.map((memory) => (
         <article className="privacy-permission-card" key={memory.id}>

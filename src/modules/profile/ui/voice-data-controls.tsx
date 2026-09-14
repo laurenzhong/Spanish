@@ -35,7 +35,13 @@ function formatDuration(durationMs: number | null): string {
   return `${Math.max(1, Math.round(durationMs / 1000))} 秒`;
 }
 
-export function VoiceDataControls() {
+type VoiceDataControlsProps = Readonly<{
+  onError?: () => void;
+  retryToken?: number;
+  showError?: boolean;
+}>;
+
+export function VoiceDataControls({ onError, retryToken = 0, showError = true }: VoiceDataControlsProps = {}) {
   const [data, setData] = useState<VoiceData>({ audio: [], transcripts: [] });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -61,14 +67,15 @@ export function VoiceDataControls() {
       .catch(() => {
         if (active) {
           setLoadError(true);
-          setMessage("暂时无法读取已保存的语音资料。");
+          setMessage(showError ? "暂时无法读取已保存的语音资料。" : null);
+          onError?.();
         }
       })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [reloadToken]);
+  }, [reloadToken, retryToken]);
 
   async function remove(kind: "audio" | "transcript", id: string) {
     const label = kind === "audio" ? "这段录音" : "这条转写";
@@ -102,7 +109,7 @@ export function VoiceDataControls() {
         <p>普通练习录音不会出现在这里；这里的删除只影响原始语音资料，不删除能力证据。</p>
       </header>
       {loading ? <p className="surface-state__message">正在读取语音资料……</p> : null}
-      {!loading && loadError ? <div className="profile-data-warning" role="alert"><span>已保存的语音资料暂时不可用。</span><button type="button" onClick={() => { setLoading(true); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
+      {!loading && loadError && showError ? <div className="profile-data-warning" role="alert"><span>已保存的语音资料暂时不可用。</span><button type="button" onClick={() => { setLoading(true); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
       {!loading && !hasData ? <p className="surface-state__message">目前没有已保存的录音或转写。</p> : null}
       {data.audio.map((audio) => (
         <article className="privacy-permission-card" key={`audio:${audio.id}`}>

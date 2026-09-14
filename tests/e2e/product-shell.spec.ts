@@ -508,7 +508,7 @@ test("redirects readers to login when their save session expires", async ({ page
   await expect(page).toHaveURL(/\/login\?next=%2Fread$/);
 });
 
-test("keeps the profile axes visible and selectable", async ({
+test("keeps the profile empty state focused before evidence exists", async ({
   page,
 }) => {
   await authenticate(page);
@@ -516,23 +516,14 @@ test("keeps the profile axes visible and selectable", async ({
 
   const overview = page.getByTestId("profile-overview");
   await expect(overview).toBeVisible();
-  await expect(
-    overview.locator(".profile-axis-list").getByRole("button", { name: /迁移表达/ }),
-  ).toBeVisible();
-
-  await overview
-    .locator(".profile-axis-list")
-    .getByRole("button", { name: /迁移表达/ })
-    .click();
-  await expect(
-    overview.getByRole("heading", { name: "迁移表达" }),
-  ).toBeVisible();
+  await expect(overview.getByLabel("能力证据空状态").getByText("0 / 8")).toBeVisible();
+  await expect(overview.getByRole("link", { name: /开始第一次口语练习/ })).toBeVisible();
+  await expect(overview.locator(".profile-axis-list")).toHaveCount(0);
 
   const heatmap = page.getByTestId("learning-heatmap");
   await expect(heatmap).toBeVisible();
-  const visibleDay = heatmap.locator("[data-date]").first();
-  await visibleDay.click();
-  await expect(heatmap.getByTestId("heatmap-day-detail")).toBeVisible();
+  await expect(heatmap.getByTestId("learning-heatmap-empty")).toBeVisible();
+  await expect(heatmap.locator("[data-date]")).toHaveCount(0);
 });
 
 test("shows provider settings and keeps them usable across the release viewport matrix", async ({ page }) => {

@@ -18,7 +18,13 @@ const characterNames: Record<string, string> = {
   ines: "Inés García",
 };
 
-export function SharedMemoryPermissions() {
+type SharedMemoryPermissionsProps = Readonly<{
+  onError?: () => void;
+  retryToken?: number;
+  showError?: boolean;
+}>;
+
+export function SharedMemoryPermissions({ onError, retryToken = 0, showError = true }: SharedMemoryPermissionsProps = {}) {
   const [permissions, setPermissions] = useState<readonly Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -43,13 +49,14 @@ export function SharedMemoryPermissions() {
         if (active) {
           setPermissions([]);
           setLoadError(true);
+          onError?.();
         }
       })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [reloadToken]);
+  }, [reloadToken, retryToken]);
 
   function retry() {
     setLoading(true);
@@ -84,7 +91,7 @@ export function SharedMemoryPermissions() {
         <p>这里的授权只对指定角色生效。撤销后，原始记忆仍保留在你的账户中。</p>
       </header>
       {loading ? <p className="surface-state__message">正在读取授权资料……</p> : null}
-      {!loading && loadError ? (
+      {!loading && loadError && showError ? (
         <div className="surface-state__message" role="alert">
           <p>暂时无法读取授权资料。</p>
           <button type="button" className="button--quiet" onClick={retry}>
