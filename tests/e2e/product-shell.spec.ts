@@ -395,7 +395,7 @@ test("requires explicit confirmation before deleting account data", async ({ pag
   await expect(page.getByTestId("account-data-controls").getByRole("status")).toHaveText("账号数据已删除。");
 });
 
-test("preserves the selected discovery direction on the learning page", async ({
+test("keeps legacy learning query state from restoring the former task card", async ({
   page,
 }) => {
   await authenticate(page);
@@ -408,7 +408,8 @@ test("preserves the selected discovery direction on the learning page", async ({
 
   await page.goto("/learn?focus=needs");
   await expect(page).toHaveURL(/\/learn\?focus=needs$/);
-  await expect(page.locator(".focus-card")).toHaveAttribute("data-focus", "needs");
+  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
+  await expect(page.locator(".focus-card")).toHaveCount(0);
 });
 
 test("opens the published reading shelf and article reader", async ({ page }) => {

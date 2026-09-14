@@ -23,7 +23,7 @@ test("keeps the corpus placeholder explicit and layout usable on phone widths", 
     await page.setViewportSize({ width, height: 760 });
     await page.goto("/read/corpus");
     await expect(page.getByRole("heading", { name: "语料", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "语料查询即将接入" })).toBeVisible();
+    await expect(page.getByText("从已发布的文章、视频和播客中查找真实用法。")).toBeVisible();
     const dimensions = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
     expect(dimensions.scroll, `reading lexicon overflows at ${width}px`).toBeLessThanOrEqual(dimensions.client + 1);
   }
