@@ -104,6 +104,9 @@ export function parseContentPipelineArguments(args: readonly string[]): ContentP
     const parsed = parseAcquireContentArguments(["--source", "all-enabled", ...withoutSource]);
     return { command: command ?? "discover", allEnabled: true, ...parsed };
   }
+  if (command !== "discover" && !flags.includes("--source")) {
+    return { command: command ?? "discover", allEnabled: false, ...parseAcquireContentArguments(["--source", "pipeline", ...flags]) };
+  }
   return { command: command ?? "discover", allEnabled: false, ...parseAcquireContentArguments(flags) };
 }
 
@@ -200,17 +203,6 @@ async function main(): Promise<void> {
       process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { cleanup: options.dryRun ? "skipped" : "completed" }, counts: { candidates: result.candidates, attemptedArtifacts: result.attemptedArtifacts, deletedArtifacts: result.deletedArtifacts, deferredArtifacts: result.deferredArtifacts, purgedCandidates: result.purgedCandidates } })}\n`);
       return;
     }
-    let sources: ContentSourceRecord[];
-    if (options.allEnabled) {
-      const configuredSources = await repository.listSources();
-      const plans = planContentPipelineSources({ sources: configuredSources, limit: options.limit });
-      sources = plans.map((plan) => configuredSources.find((source) => source.stableKey === plan.sourceStableKey)).filter((source): source is ContentSourceRecord => Boolean(source));
-    } else {
-      const source = await repository.findSourceByStableKey(options.sourceStableKey);
-      if (!source) throw new ContentSourceNotFoundError();
-      sources = [source];
-    }
-    const outputLines: string[] = [];
     if (options.command === "process") {
       const candidates = await repository.listCandidates({ limit: options.limit });
       let processed = 0;
@@ -224,7 +216,17 @@ async function main(): Promise<void> {
       process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { processing: options.dryRun ? "skipped" : "completed" }, counts: { candidates: candidates.length, processed } })}\n`);
       return;
     }
-
+    let sources: ContentSourceRecord[];
+    if (options.allEnabled) {
+      const configuredSources = await repository.listSources();
+      const plans = planContentPipelineSources({ sources: configuredSources, limit: options.limit });
+      sources = plans.map((plan) => configuredSources.find((source) => source.stableKey === plan.sourceStableKey)).filter((source): source is ContentSourceRecord => Boolean(source));
+    } else {
+      const source = await repository.findSourceByStableKey(options.sourceStableKey);
+      if (!source) throw new ContentSourceNotFoundError();
+      sources = [source];
+    }
+    const outputLines: string[] = [];
     for (const source of sources) {
       if (!source.enabled) throw new ContentSourceDisabledError();
       const adapter = source.adapterType === "fake"
