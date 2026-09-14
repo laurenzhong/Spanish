@@ -7,6 +7,7 @@ export * from "./domain/proactive-message";
 export * from "./domain/character-catalog";
 export * from "./application/build-reply-context";
 export * from "./application/list-history";
+export * from "./application/list-previews";
 export * from "./application/generate-character-reply";
 export * from "./application/generate-proactive-message";
 export * from "./repositories";
