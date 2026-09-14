@@ -37,7 +37,7 @@ describe("ProfilePage information architecture", () => {
     expect(screen.getByRole("heading", { name: "能力与活动" })).toHaveAttribute("id", "profile-progress-title");
     expect(screen.getByTestId("profile-overview")).toBeInTheDocument();
     expect(screen.getByTestId("learning-heatmap")).toBeInTheDocument();
-    expect(screen.getByTestId("account-data-controls")).toBeInTheDocument();
+    expect(screen.queryByTestId("account-data-controls")).not.toBeInTheDocument();
   });
 
   it("switches sections instead of rendering every privacy panel at once", async () => {
@@ -60,5 +60,7 @@ describe("ProfilePage information architecture", () => {
     expect(relationships).toHaveAttribute("hidden");
     expect(data).not.toHaveAttribute("hidden");
     expect(window.location.hash).toBe("#profile-data");
+    expect(screen.getByTestId("account-data-controls")).toBeInTheDocument();
+    expect(screen.queryByTestId("profile-overview")).not.toBeInTheDocument();
   });
 });

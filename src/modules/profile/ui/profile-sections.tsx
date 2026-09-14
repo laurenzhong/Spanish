@@ -27,6 +27,8 @@ function sectionFromHash(hash: string): ProfileSectionKey {
 
 export function ProfileSections() {
   const [activeSection, setActiveSection] = useState<ProfileSectionKey>("progress");
+  const [sectionError, setSectionError] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     const syncFromLocation = () => setActiveSection(sectionFromHash(window.location.hash));
@@ -41,8 +43,21 @@ export function ProfileSections() {
 
   function selectSection(section: typeof sections[number]) {
     setActiveSection(section.key);
+    setSectionError(false);
     window.history.pushState(null, "", `#${section.id}`);
   }
+
+  function retrySection() {
+    setSectionError(false);
+    setRetryToken((token) => token + 1);
+  }
+
+  const errorNotice = sectionError ? (
+    <div className="profile-section-warning" role="alert">
+      <span>这个分区暂时无法读取最新资料，现有记录没有改变。</span>
+      <button type="button" onClick={retrySection}>重试</button>
+    </div>
+  ) : null;
 
   return (
     <>
@@ -66,26 +81,38 @@ export function ProfileSections() {
 
       <section id="profile-progress" className="profile-page__group" aria-labelledby="profile-progress-title" hidden={activeSection !== "progress"}>
         <h2 id="profile-progress-title" className="sr-only">能力与活动</h2>
-        <ProfileOverviewPanel />
-        <LearningHeatmap />
+        {activeSection === "progress" ? <>
+          {errorNotice}
+          <ProfileOverviewPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <LearningHeatmap onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+        </> : null}
       </section>
 
       <section id="profile-relationships" className="profile-page__group profile-page__group--privacy" aria-labelledby="profile-relationships-title" hidden={activeSection !== "relationships"}>
         <h2 id="profile-relationships-title" className="sr-only">关系隐私</h2>
-        <SharedMemoryPermissions />
-        <MemoryDataControls />
+        {activeSection === "relationships" ? <>
+          {errorNotice}
+          <SharedMemoryPermissions onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <MemoryDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+        </> : null}
       </section>
 
       <section id="profile-data" className="profile-page__group profile-page__group--privacy" aria-labelledby="profile-data-title" hidden={activeSection !== "data"}>
         <h2 id="profile-data-title" className="sr-only">数据与隐私</h2>
-        <VoiceDataControls />
-        <AccountDataControls />
+        {activeSection === "data" ? <>
+          {errorNotice}
+          <VoiceDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <AccountDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+        </> : null}
       </section>
 
       <section id="preferences" className="profile-page__group profile-page__group--privacy" aria-labelledby="preferences-section-title" hidden={activeSection !== "preferences"}>
         <h2 id="preferences-section-title" className="sr-only">偏好设置</h2>
-        <PreferencesPanel />
-        <ProviderSettingsPanel />
+        {activeSection === "preferences" ? <>
+          {errorNotice}
+          <PreferencesPanel />
+          <ProviderSettingsPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+        </> : null}
       </section>
     </>
   );
