@@ -43,7 +43,7 @@ export const podcastCandidateDraftSchema = z.strictObject({
   attribution: z.string().trim().min(1).max(1_000),
   licenseEvidence: httpsUrlSchema,
   copyrightStatus: z.literal("cleared"),
-  transcriptStatus: z.enum(["unavailable", "platform_manual", "platform_auto"]),
+  transcriptStatus: z.enum(["unavailable", "platform_manual", "platform_auto", "asr"]),
   transcriptUrl: httpsUrlSchema.nullable(),
   segments: z.array(podcastCandidateSegmentSchema).max(500),
   contentHash: hashSchema,

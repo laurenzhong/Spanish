@@ -145,6 +145,7 @@ export type ProcessingAttemptInput = Readonly<{
 export interface ContentAcquisitionRepository {
   registerSource(input: RegisterContentSourceInput): Promise<ContentSourceRecord>;
   findSourceByStableKey(stableKey: string): Promise<ContentSourceRecord | null>;
+  findSourceById?(sourceId: string): Promise<ContentSourceRecord | null>;
   createRun(input: Readonly<{
     id: string;
     sourceId: string;
@@ -172,6 +173,8 @@ export interface ContentAcquisitionRepository {
     status: CandidateStatus;
     generationId: string;
     rejectedAt?: Date | null;
+    metadata?: Readonly<Record<string, unknown>>;
+    contentHash?: string | null;
     updatedAt: Date;
   }>): Promise<ContentCandidateRecord>;
   recordProcessingAttempt(input: ProcessingAttemptInput): Promise<void>;

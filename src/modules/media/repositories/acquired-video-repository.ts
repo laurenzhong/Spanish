@@ -28,7 +28,7 @@ export type AcquiredVideoDraft = Readonly<{
   attribution: string;
   licenseEvidence: string;
   copyrightStatus: "cleared";
-  captionStatus: "unavailable" | "platform_manual" | "platform_auto";
+  captionStatus: "unavailable" | "platform_manual" | "platform_auto" | "asr";
   segments: readonly DraftMediaSegment[];
   contentHash: string;
   changeReason: string;
