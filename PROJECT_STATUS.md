@@ -24,7 +24,7 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
-- 实现 Commit：`24beadf`；后置修正 `8f07ad9`、待提交 S 图标修正
+- 实现 Commit：`24beadf`；后置修正 `8f07ad9`、`fd95699`
 - 范围：将 `/learn` 重做为内容优先的深色媒体工作台；桌面固定 `88px` 窄侧栏，五项导航统一为图标在上、文字在下，不再提供侧栏收缩/展开按钮或“开始/发现/账户”分组说明；`1440/1280/1024px` 分别为 5/4/3 列；小于 `960px` 切换页面顶部品牌与搜索、横向频道、双列（`320px` 单列）媒体流和既有底部五项导航。移除 Hero、任务式 CTA、时间线和解释性大段文案，保留每张媒体卡作为等权详情入口。
 - 交互与真实性：`S` 图标位于桌面导航首位，学习页仅显示文字 `Sueño` logo，账户入口只显示头像；新增顶部频道、搜索、排序和 URL 可恢复筛选；筛选在桌面以内嵌面板、移动端底部面板呈现，Escape/取消恢复筛选按钮焦点。卡片使用 `MediaCard.artwork` 的真实图片，加载失败或缺失时明确显示“暂无封面”，不再生成 CSS/随机字母假封面。未改媒体数据、播放详情、进度 revision/CAS、评分、证据或采集逻辑。
 - 修改：`app/globals.css`、`src/modules/media/ui/{index,media-artwork,media-card,media-library,media-library-toolbar}.tsx`、学习页/壳层相关 Vitest 与 Playwright 回归。
