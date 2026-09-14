@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -14,10 +15,12 @@ import {
   contentSourcePageSchema,
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
+  runContentCleanup,
   prepareArticleCandidateForReview,
   preparePodcastCandidateForReview,
   prepareVideoCandidateForReview,
   type ContentAcquisitionRepository,
+  type ContentSourceRecord,
   type ContentSourceAdapter,
 } from "../src/modules/content-acquisition/index";
 import { createDatabaseConnection } from "../src/shared/db/client";
@@ -35,6 +38,13 @@ export type AcquireContentCliOptions = Readonly<{
   sourceStableKey: string;
   dryRun: boolean;
   limit: number;
+}>;
+
+export type ContentPipelineCommand = "discover" | "process" | "cleanup" | "report";
+
+export type ContentPipelineCliOptions = AcquireContentCliOptions & Readonly<{
+  command: ContentPipelineCommand;
+  allEnabled: boolean;
 }>;
 
 export type AcquireContentCliDependencies = Readonly<{
@@ -82,6 +92,18 @@ export function parseAcquireContentArguments(args: readonly string[]): AcquireCo
   }
 
   return { sourceStableKey, dryRun, limit };
+}
+
+export function parseContentPipelineArguments(args: readonly string[]): ContentPipelineCliOptions {
+  const command = args.find((argument) => ["discover", "process", "cleanup", "report"].includes(argument)) as ContentPipelineCommand | undefined;
+  const allEnabled = args.includes("--all-enabled");
+  const flags = args.filter((argument) => argument !== command && argument !== "--all-enabled");
+  if (allEnabled) {
+    const withoutSource = flags.filter((argument, index) => argument !== "--source" && flags[index - 1] !== "--source");
+    const parsed = parseAcquireContentArguments(["--source", "all-enabled", ...withoutSource]);
+    return { command: command ?? "discover", allEnabled: true, ...parsed };
+  }
+  return { command: command ?? "discover", allEnabled: false, ...parseAcquireContentArguments(flags) };
 }
 
 export async function runAcquireContentCli(
@@ -139,7 +161,8 @@ async function loadConfiguredFakeAdapter(): Promise<FakeContentSourceAdapter> {
 }
 
 async function main(): Promise<void> {
-  const options = parseAcquireContentArguments(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const options = parseContentPipelineArguments(args);
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl || !/^postgres(?:ql)?:\/\//u.test(databaseUrl)) {
     throw new AcquireContentCliInputError("DATABASE_URL must be a PostgreSQL connection string.");
@@ -148,24 +171,77 @@ async function main(): Promise<void> {
   const connection = createDatabaseConnection(databaseUrl);
   try {
     const repository = createDrizzleContentAcquisitionRepository(connection.db);
-    const source = await repository.findSourceByStableKey(options.sourceStableKey);
-    if (!source) throw new ContentSourceNotFoundError();
-    if (!source.enabled) throw new ContentSourceDisabledError();
-    const adapter = source.adapterType === "fake"
-      ? await loadConfiguredFakeAdapter()
-      : source.adapterType === "article-rss"
-        ? createArticleRssAdapterFromSource(source)
-        : source.adapterType === "podcast-rss"
-          ? createPodcastRssAdapterFromSource(source)
-        : source.adapterType === "youtube"
-          ? createYouTubeChannelAdapterFromSource(source)
-        : null;
-    if (!adapter) throw new ContentAcquisitionRunError("No runtime adapter is available for this source type.");
-    await runAcquireContentCli(process.argv.slice(2), {
-      repository,
-      adapter,
-      write: (line) => process.stdout.write(`${line}\n`),
-    });
+    if (options.command === "report") {
+      const [sources, runs, candidates] = await Promise.all([
+        repository.listSources(),
+        repository.listRuns({ limit: options.limit }),
+        repository.listCandidates({ limit: options.limit }),
+      ]);
+      process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { report: "completed" }, counts: { sources: sources.length, runs: runs.length, candidates: candidates.length } })}\n`);
+      return;
+    }
+    if (options.command === "cleanup") {
+      if (!repository.listCandidatesForCleanup || !repository.listCandidateArtifactsForCleanup || !repository.deleteCandidateArtifact || !repository.purgeCandidate) {
+        throw new AcquireContentCliInputError("The configured repository does not support cleanup.");
+      }
+      const result = await runContentCleanup({
+        repository: {
+          listCandidatesForCleanup: repository.listCandidatesForCleanup,
+          listCandidateArtifactsForCleanup: repository.listCandidateArtifactsForCleanup,
+          deleteCandidateArtifact: repository.deleteCandidateArtifact,
+          purgeCandidate: repository.purgeCandidate,
+        },
+        now: new Date(),
+        largeArtifactThresholdBytes: Number(process.env.CONTENT_LARGE_ARTIFACT_THRESHOLD_BYTES ?? 1_000_000),
+        limit: options.limit,
+        dryRun: options.dryRun,
+      });
+      process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { cleanup: options.dryRun ? "skipped" : "completed" }, counts: { candidates: result.candidates, attemptedArtifacts: result.attemptedArtifacts, deletedArtifacts: result.deletedArtifacts, deferredArtifacts: result.deferredArtifacts, purgedCandidates: result.purgedCandidates } })}\n`);
+      return;
+    }
+    let sources: ContentSourceRecord[];
+    if (options.allEnabled) {
+      sources = [...(await repository.listSources?.() ?? []).filter((candidate) => candidate.enabled)];
+    } else {
+      const source = await repository.findSourceByStableKey(options.sourceStableKey);
+      if (!source) throw new ContentSourceNotFoundError();
+      sources = [source];
+    }
+    const outputLines: string[] = [];
+    if (options.command === "process") {
+      const candidates = await repository.listCandidates({ limit: options.limit });
+      let processed = 0;
+      for (const candidate of candidates) {
+        if (options.dryRun) continue;
+        if (candidate.contentType === "article") await prepareArticleCandidateForReview(repository, candidate.id);
+        else if (candidate.contentType === "podcast") await preparePodcastCandidateForReview(repository, candidate.id);
+        else await prepareVideoCandidateForReview(repository, candidate.id);
+        processed += 1;
+      }
+      process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { processing: options.dryRun ? "skipped" : "completed" }, counts: { candidates: candidates.length, processed } })}\n`);
+      return;
+    }
+
+    for (const source of sources) {
+      if (!source.enabled) throw new ContentSourceDisabledError();
+      const adapter = source.adapterType === "fake"
+        ? await loadConfiguredFakeAdapter()
+        : source.adapterType === "article-rss"
+          ? createArticleRssAdapterFromSource(source)
+          : source.adapterType === "podcast-rss"
+            ? createPodcastRssAdapterFromSource(source)
+            : source.adapterType === "youtube"
+              ? createYouTubeChannelAdapterFromSource(source)
+              : null;
+      if (!adapter) throw new ContentAcquisitionRunError("No runtime adapter is available for this source type.");
+      const sourceArgs = ["--source", source.stableKey, "--limit", String(options.limit), ...(options.dryRun ? ["--dry-run"] : [])];
+      await runAcquireContentCli(sourceArgs, {
+        repository,
+        adapter,
+        write: (line) => outputLines.push(line),
+      });
+    }
+    for (const line of outputLines) process.stdout.write(`${line}\n`);
   } finally {
     await connection.client.end();
   }

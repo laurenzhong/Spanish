@@ -13,4 +13,7 @@ export * from "./register-source";
 export * from "./request-candidate-reprocessing";
 export * from "./retry-processing-step";
 export * from "./run-acquisition-source";
+export * from "./content-acquisition-scheduler";
+export * from "./content-pipeline-observability";
+export * from "./content-cleanup-runner";
 export * from "./submit-candidate-review";

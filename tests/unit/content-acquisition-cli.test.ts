@@ -11,6 +11,7 @@ import {
 import {
   AcquireContentCliInputError,
   parseAcquireContentArguments,
+  parseContentPipelineArguments,
   runAcquireContentCli,
 } from "@/scripts/acquire-content";
 
@@ -59,6 +60,11 @@ describe("content acquisition CLI", () => {
       "--limit",
       "2",
     ])).toEqual({ sourceStableKey: "fixture.spanish.daily", dryRun: true, limit: 2 });
+  });
+
+  it("parses the scheduled all-enabled discovery command", () => {
+    expect(parseContentPipelineArguments(["discover", "--all-enabled", "--dry-run", "--limit", "2"]))
+      .toMatchObject({ command: "discover", allEnabled: true, dryRun: true, limit: 2 });
   });
 
   it("prints only the internal run summary, step states, counts and estimated cost", async () => {
