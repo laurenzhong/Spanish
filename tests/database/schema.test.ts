@@ -66,6 +66,12 @@ import {
   userSavedArticleSources,
   userSceneStates,
   userSkillStates,
+  lexemes,
+  lexemeForms,
+  phraseEntries,
+  phraseVariants,
+  corpusOccurrences,
+  userLexicalIntents,
 } from "@/src/shared/db/schema";
 
 const allTables = [
@@ -125,6 +131,12 @@ const allTables = [
   userArticleHighlights,
   userSavedArticleSources,
   userMediaProgress,
+  lexemes,
+  lexemeForms,
+  phraseEntries,
+  phraseVariants,
+  corpusOccurrences,
+  userLexicalIntents,
 ] as const;
 
 const userOwnedTables = [
@@ -147,6 +159,7 @@ const userOwnedTables = [
   messages,
   userContentPackStates,
   userMediaProgress,
+  userLexicalIntents,
 ] as const;
 
 describe("database schema", () => {
@@ -209,6 +222,12 @@ describe("database schema", () => {
         "user_saved_article_sources",
         "user_scene_states",
         "user_skill_states",
+        "corpus_occurrences",
+        "lexeme_forms",
+        "lexemes",
+        "phrase_entries",
+        "phrase_variants",
+        "user_lexical_intents",
       ].sort(),
     );
   });
@@ -296,6 +315,7 @@ describe("database schema", () => {
           "0024_media_library_foundation.sql",
           "0025_youtube_video_publication.sql",
           "0026_brief_toro.sql",
+          "0027_wide_puff_adder.sql",
         ]) {
         const migrationPath = path.join(
           process.cwd(),

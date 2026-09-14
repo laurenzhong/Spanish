@@ -9200,7 +9200,28 @@ body {
 }
 
 @media (max-width: 520px) {
-  .read-library__source-tabs a { flex: 1; justify-content: center; padding-inline: 8px; }
+.read-library__source-tabs a { flex: 1; justify-content: center; padding-inline: 8px; }
+
+.read-section-navigation { display: flex; gap: 0; overflow-x: auto; border-bottom: 1px solid var(--border); }
+.read-section-navigation a { flex: 0 0 auto; padding: 10px 18px; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 650; text-decoration: none; white-space: nowrap; }
+.read-section-navigation a[aria-current="page"] { border-bottom-color: var(--terracotta); color: var(--foreground); }
+.lexicon-library { margin-top: 24px; }
+.lexicon-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.lexicon-entry { min-width: 0; padding: 18px; border: 1px solid var(--border); background: var(--surface); }
+.lexicon-entry__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lexicon-entry__heading h2 { margin: 0; overflow-wrap: anywhere; font-size: 1.12rem; }
+.lexicon-entry__heading span, .lexicon-entry__meta { color: var(--muted); font-size: .82rem; }
+.lexicon-entry__meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.lexicon-entry__purpose { color: var(--muted); font-size: .9rem; }
+.lexicon-intent-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.lexicon-intent-actions button { padding: 6px 9px; border: 1px solid var(--border); color: var(--foreground); background: transparent; cursor: pointer; font: inherit; font-size: .78rem; }
+.lexicon-intent-actions button[aria-pressed="true"] { border-color: var(--terracotta); background: color-mix(in srgb, var(--terracotta) 12%, transparent); }
+.lexicon-intent-actions button:disabled { cursor: wait; opacity: .55; }
+.lexicon-empty { margin-top: 24px; padding: 28px; border: 1px dashed var(--border); background: var(--surface-soft); }
+.lexicon-empty h2 { margin: 0 0 8px; font-size: 1.08rem; }
+.lexicon-empty p { margin: 0; color: var(--muted); }
+@media (max-width: 900px) { .lexicon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .lexicon-grid { grid-template-columns: minmax(0, 1fr); } .read-section-navigation a { flex: 1 0 auto; padding-inline: 14px; text-align: center; } }
   .read-library__toolbar-actions { grid-template-columns: 1fr 1fr; }
   .read-add-menu { grid-column: 1 / -1; }
   .read-article-row { grid-template-columns: minmax(0, 1fr) 46px; }

@@ -8,4 +8,5 @@ export * from "./media";
 export * from "./training";
 export * from "./users";
 export * from "./reading";
+export * from "./lexicon-corpus";
 export * from "./scenario-practice";

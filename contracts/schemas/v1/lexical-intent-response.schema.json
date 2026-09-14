@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/lexical-intent-response.schema.json",
+  "title": "Lexical intent response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryKind", "entryId", "intent", "revision"],
+      "properties": {
+        "entryKind": { "enum": ["lexeme", "phrase"] },
+        "entryId": { "type": "string", "format": "uuid" },
+        "intent": { "enum": ["familiar", "revisit", "ignore"] },
+        "revision": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

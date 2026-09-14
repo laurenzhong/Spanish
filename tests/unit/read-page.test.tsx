@@ -109,7 +109,7 @@ describe("read page data loading", () => {
 
     expect(mocks.getArticles).toHaveBeenCalledTimes(1);
     expect(mocks.getArticles).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ cursor: "24", pageSize: 12 }));
-    expect(rendered.props.children[1].props).toEqual(expect.objectContaining({
+    expect(rendered.props.children[2].props).toEqual(expect.objectContaining({
       result: expect.objectContaining({ articles: pageArticles }),
       page: 3,
       pageSize: 12,

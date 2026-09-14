@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/lexicon-item.schema.json",
+  "title": "Lexicon item",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "meaningZh", "occurrenceCount", "intent", "revision"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "lemma": { "type": "string", "minLength": 1 },
+    "normalizedLemma": { "type": "string", "minLength": 1 },
+    "partOfSpeech": { "type": ["string", "null"] },
+    "lemmaStatus": { "enum": ["verified", "pending"] },
+    "expression": { "type": "string", "minLength": 1 },
+    "normalizedExpression": { "type": "string", "minLength": 1 },
+    "meaningZh": { "type": ["string", "null"] },
+    "pragmaticPurpose": { "type": ["string", "null"] },
+    "register": { "type": ["string", "null"] },
+    "region": { "type": ["string", "null"] },
+    "cefr": { "type": ["string", "null"] },
+    "forms": { "type": "array", "items": { "type": "string" } },
+    "variants": { "type": "array", "items": { "type": "string" } },
+    "occurrenceCount": { "type": "integer", "minimum": 0 },
+    "intent": { "enum": ["familiar", "revisit", "ignore", null] },
+    "revision": { "type": "integer", "minimum": 1 }
+  }
+}

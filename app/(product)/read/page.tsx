@@ -6,6 +6,7 @@ import { listPrivateStories, listReadingProgress, listSavedArticles } from "@/sr
 import { createDrizzleGeneratedArticleRepository, createDrizzleReadingRepository } from "@/src/modules/reading/repositories";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
+import { ReadSectionNavigation } from "@/src/modules/lexicon-corpus";
 
 import { ReadShelf } from "./read-shelf";
 
@@ -91,6 +92,7 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   return (
     <div className="page-stack read-page">
       <h1 className="sr-only">阅读</h1>
+      <ReadSectionNavigation active="articles" />
       <ReadShelf result={result} page={page} pageSize={ARTICLE_PAGE_SIZE} search={search ?? ""} topic={topic ?? ""} cefr={cefr ?? ""} minutes={minutes ?? ""} source={source} sort={sort} savedOnly={savedOnly} initialReaderProgress={initialReaderProgress} generatedArticles={initialGeneratedArticles} />
     </div>
   );

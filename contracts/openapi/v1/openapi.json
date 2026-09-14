@@ -478,6 +478,52 @@
       "get": { "summary": "Read one private generated draft", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Private generated article", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/generated-story-detail-response.schema.json" } } } }, "404": { "description": "Not found or not owned", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } } },
       "delete": { "summary": "Delete one private generated draft", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Draft deleted" }, "404": { "description": "Not found or not owned", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } } }
     },
+    "/lexicon/vocabulary": {
+      "get": {
+        "summary": "List vocabulary indexed from published article and media versions",
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
+          { "name": "intent", "in": "query", "schema": { "enum": ["familiar", "revisit", "ignore"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 } }
+        ],
+        "responses": {
+          "200": { "description": "Vocabulary page", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexicon-list-response.schema.json" } } } },
+          "400": { "description": "Invalid vocabulary filters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Vocabulary unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/lexicon/phrases": {
+      "get": {
+        "summary": "List approved public and owned phrase entries",
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 120 } },
+          { "name": "intent", "in": "query", "schema": { "enum": ["familiar", "revisit", "ignore"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 } }
+        ],
+        "responses": {
+          "200": { "description": "Phrase page", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexicon-list-response.schema.json" } } } },
+          "400": { "description": "Invalid phrase filters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Phrases unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/lexicon/intents/{entryId}": {
+      "put": {
+        "summary": "Set a user's private vocabulary or phrase review intent",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "entryId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-intent-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Intent saved", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-intent-response.schema.json" } } } },
+          "400": { "description": "Invalid intent", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Stale intent revision", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/auth/session": {
       "get": {
         "summary": "Verify the current authenticated session",

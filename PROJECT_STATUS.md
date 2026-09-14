@@ -4,9 +4,21 @@
 
 - 最后更新：2026-09-14
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`MEDIA-002` 已完成并合入 `main`，ASR/翻译草稿、成本与资格门禁、切句、低置信度阻塞、临时音频清理和超时/取消可靠性已接入；`LEX-001` 为下一项 ready 任务，阶段 8 未启动
+- 总体状态：`LEX-001` 已完成实现并进入 `review`，词汇/短语浏览、跨文章与媒体出现索引、个人复习意图和阅读子导航已接入；阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
+
+### 2026-09-14：LEX-001 词汇、短语与出现索引
+
+- 状态：`review`
+- 负责人：Codex
+- 分支：`codex/lex-001-lexicon-corpus-foundation`
+- 实现 Commit：待提交
+- 范围：新增西语 tokenization、重音/大小写归一化、明确 lemma 的 `verified/pending` 状态、短语边界匹配与重叠出现；新增 `ContentDocumentRef`/`SourcePosition`，并建立 `lexemes`、`lexeme_forms`、`phrase_entries`、`phrase_variants`、`corpus_occurrences`、`user_lexical_intents` 迁移和 Drizzle schema。阅读页新增文章、词汇、短语、语料四项子导航；词汇/短语页展示出现次数、词形/变体、释义和个人 `familiar/revisit/ignore` 意图。
+- 可见性与可靠性：公开短语必须审核通过；私人短语只对所有者可见并保持待审核；词汇搜索覆盖 lemma 与词形；分页先取条目再聚合词形/变体/出现次数，避免多变体导致页面缩水；意图写入使用服务端条目/所有权校验与 revision CAS。阅读、查词、收藏和意图不写 `evidence/profile` 能力事实。
+- 契约与测试：新增词汇列表、意图请求/响应 JSON Schema 与 OpenAPI 路径；新增 API、页面、持久化和 RLS 回归。LEX 聚焦 `5 files / 14 tests`，schema/阅读相关回归 `7 files / 23 tests`，全量 Vitest `211 files / 844 tests`，桌面学习/产品壳层 Playwright `25/25`，`pnpm lint`、`pnpm typecheck`、`pnpm db:check` 已通过。
+- 限制：未执行远端 `0027_wide_puff_adder.sql` 迁移，未运行真实文章/媒体索引导入；`/read/corpus` 仍是下一阶段 KWIC 查询占位页，文字考察和能力证据留给 `LEX-002`。未做 iPhone Safari/PWA 真机或 Flutter 验证。
+- 下一步：产品复核并合入 `LEX-001` 后，再领取 `LEX-002`（语料查询、文字考察与词句证据）；不得在确认前实现 `PROFILE-001`。
 
 ### 2026-09-14：PODCAST-001 播客 RSS 纵向闭环
 
