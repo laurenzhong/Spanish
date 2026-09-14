@@ -414,7 +414,7 @@
 上方 UI/ALPHA 记录是历史交接事实；当前任务和下一项以本页 IA-001 记录、新实施计划及任务表为准。
 
 - 已完成的 UI、SCN、READ 和 ALPHA 任务继续作为实现基线，但不代表新信息架构或自动供应链已经交付。
-- `UI-014` 已完成并合并；`UI-015` 至 `UI-017` 不继续按旧顺序实施，现有分支和用户未提交改动继续保留，等待新内容队列完成后重新排期或明确接收范围。
+- `UI-014`、`UI-015` 已完成并合并；`UI-016`、`UI-017` 不继续按旧顺序实施，等待新内容队列完成后重新排期或明确接收范围。
 - `ALPHA-033` 的旧发布候选出口失效；OPS-001 完成后必须基于新路径重新定义并执行全量门禁。
 
 ### 待执行 UI 批次
@@ -428,7 +428,7 @@
 - `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（done；实现 Commit `742d1e7`、产品反馈修正 `335c747`、Merge Commit `7f994e6`）
 - `UI-013`：学习首页与训练工作台密度收敛（done；实现 `ea91cc7`、Merge Commit `ef89207`）
 - `UI-014`：阅读书架与文章阅读器密度收敛（done；首版实现 `7a802de`；阅读器视觉反馈修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口修复 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4`）
-- `UI-015`：对话页面密度收敛（blocked；等待新队列完成后重新排期）
+- `UI-015`：对话页面密度收敛（done；实现 `0bb0097`、`1b18b2e`；合并 `待本次合并`）
 - `UI-016`：“我的”、设置与隐私密度收敛（blocked；画像部分由 PROFILE-001 取代，其他范围待重排）
 - `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（blocked；等待新 IA 和移动头像规则落地后重排）
 
@@ -1729,7 +1729,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-012 | done | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 实现 `742d1e7`、反馈修正 `335c747`、合并 `7f994e6` |
 | UI-013 | done | `codex/ui-013-learning-workbench-density` | Codex | 学习首页与训练工作台密度收敛 | 实现 `ea91cc7`、合并 `ef89207` |
 | UI-014 | done | `codex/ui-014-reading-density` | Codex | 阅读书架与文章阅读器密度收敛 | 首版 `7a802de`；视觉修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4` |
-| UI-015 | blocked | `codex/ui-015-conversation-density` | 待重排 | 对话页面密度收敛 | 新内容队列完成后重新排期 |
+| UI-015 | done | `codex/ui-015-conversation-density` | Codex | 对话页面密度收敛 | 实现 `0bb0097`、`1b18b2e`；待本次合并 |
 | UI-016 | blocked | `codex/ui-016-profile-density` | 待重排 | “我的”、设置与隐私密度收敛 | PROFILE-001 取代画像范围后重排 |
 | UI-017 | blocked | `codex/ui-017-collapsible-shell` | 待重排 | 公共壳层、可收缩侧边栏与全站一致性 | 新信息架构和移动头像规则落地后重排 |
 | IA-001 | done | `codex/ia-001-content-supply-design` | Codex / 产品本人 | 内容驱动学习、自动供应、词句语料和四板块画像规划 | 设计 `241c47a`、计划 `e43130c` |
