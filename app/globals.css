@@ -10618,6 +10618,13 @@ body {
   .media-card__art { transition: none; }
 }
 
+.audio-player-adapter__art img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 /* Learning home refresh: a compact desktop media feed with a persistent channel bar. */
 .product-shell:has(.media-library) {
   background: #f4f6f8;

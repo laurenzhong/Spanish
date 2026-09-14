@@ -16,6 +16,7 @@ function playback(withTranscript = true) {
       title: "Una mañana en el mercado", summary: "Una charla breve.", sourceName: "Café de cada día", language: "es",
       region: "es-ES", cefr: "A2" as const, topics: ["topic.daily-life"], durationMs: 7_000,
       publishedAt: "2026-09-13T08:00:00.000Z", curatedAt: "2026-09-14T10:00:00.000Z", contentHash: "a".repeat(64),
+      artwork: { url: "https://images.example.test/podcast.jpg", alt: "Café de cada día", source: "podcast-feed" as const, width: 600, height: 600, expiresAt: null },
       progress: { lastPositionMs: 0, lastSegmentIndex: withTranscript ? 0 : null, status: "in_progress" as const, revision: 2 },
     },
     asset: { kind: "audio" as const, url: "https://media.example.test/episode-42.mp3", expiresAt: "2026-09-21T10:00:00.000Z" },
@@ -55,6 +56,7 @@ describe("podcast audio player", () => {
     render(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={playback()} />);
     act(() => player.lifecycle().onReady());
     expect(screen.getByLabelText("Una mañana en el mercado 播放器")).toBeInTheDocument();
+    expect(screen.getByAltText("Café de cada día")).toHaveAttribute("src", "https://images.example.test/podcast.jpg");
 
     await user.click(screen.getByRole("button", { name: "下一句" }));
     expect(player.port.seek).toHaveBeenLastCalledWith(2_200);

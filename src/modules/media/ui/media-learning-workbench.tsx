@@ -182,7 +182,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     <section aria-label={playback.media.kind === "podcast" ? "播客学习器" : "视频学习器"} className="media-learning-workbench__main">
       <div className={`media-detail__player media-detail__player--${playback.media.kind}`}>
         {playback.media.kind === "podcast" && playback.asset.kind === "audio"
-          ? <AudioPlayerAdapter audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
+          ? <AudioPlayerAdapter artwork={playback.media.artwork} audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />
           : <VideoPlayerAdapter embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}

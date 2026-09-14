@@ -8,6 +8,17 @@
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
+### 2026-09-15：LR-002 Language Reactor 媒体封面与播客详情修复
+
+- 状态：`review`
+- 负责人：Codex
+- 分支：`codex/ui-017-collapsible-shell`
+- 实现 Commit：`7e89a6d`
+- 范围：Language Reactor 适配器保存视频返回的 HTTPS artwork，并在播客目录返回 `DATAURL` 时通过 iTunes 节目元数据解析可验证的 HTTPS 封面；播客学习播放器显示真实封面并保留图片失败降级。新增 `scripts/backfill-language-reactor-artwork.ts` 与 `pnpm content:backfill-artwork`，为已发布的 22 条旧媒体创建带 artwork 的不可变新版本，复制播放资产、字幕和审核记录，旧版本保留。
+- 验证：Language Reactor、播客播放器和媒体库相关 Vitest `3 files / 13 tests` 通过；目标文件 ESLint 通过；回填脚本远端首次更新 22 条、第二次 `updated: 0`；远端媒体列表返回 22 条且当前版本 artwork 非空；新 `NEXT_DIST_DIR=.next/dev-fix` 开发服务 `/learn` 返回 200，未再出现 `Cannot find module './media-library'`。
+- 限制：旧版本的历史学习进度仍绑定旧版本，回填版本不会迁移进度；播客封面回填按节目名查询 iTunes，若某节目未命中则保留无封面降级；未完成真实账号登录、iPhone Safari 和 YouTube iframe 实际播放验收。
+- 下一步：产品本人重启本地开发服务后打开 `/learn`，点开视频与播客确认卡片封面、详情封面和播放；确认后合并 LR-002。
+
 ### 2026-09-15：LR-001 Language Reactor 实际来源接入与首批发布
 
 - 状态：`review`

@@ -25,6 +25,7 @@
     "content:validate": "tsx scripts/validate-content.ts",
     "content:import": "tsx scripts/import-content.ts",
     "content:acquire": "tsx scripts/acquire-content.ts",
+    "content:backfill-artwork": "tsx scripts/backfill-language-reactor-artwork.ts",
     "content:register-language-reactor": "tsx scripts/register-language-reactor-sources.ts",
     "character:import": "tsx scripts/import-character.ts",
     "character:publish": "tsx scripts/publish-character.ts",

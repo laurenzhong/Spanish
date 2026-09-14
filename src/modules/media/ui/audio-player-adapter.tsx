@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import type { MediaArtwork } from "../domain";
 
 export type AudioPlayerState = "ready" | "playing" | "paused" | "ended";
 export type AudioPlayerLifecycle = Readonly<{
@@ -60,6 +62,7 @@ export const nativeAudioPlayerFactory: AudioPlayerFactory = (element, input) => 
 
 export function AudioPlayerAdapter({
   audioUrl,
+  artwork,
   title,
   factory,
   onPortChange,
@@ -67,6 +70,7 @@ export function AudioPlayerAdapter({
   onError,
 }: Readonly<{
   audioUrl: string;
+  artwork?: MediaArtwork | null;
   title: string;
   factory?: AudioPlayerFactory;
   onPortChange: (port: AudioPlayerPort | null) => void;
@@ -75,6 +79,8 @@ export function AudioPlayerAdapter({
 }>) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const generationRef = useRef(0);
+  const [failedArtworkUrl, setFailedArtworkUrl] = useState<string | null>(null);
+  const displayArtwork = artwork && failedArtworkUrl !== artwork.url ? artwork : null;
 
   useEffect(() => {
     if (!audioRef.current) return;
@@ -106,8 +112,11 @@ export function AudioPlayerAdapter({
 
   return (
     <div className="audio-player-adapter">
-      <div aria-hidden="true" className="audio-player-adapter__art">
-        <svg viewBox="0 0 24 24"><path d="M7 13.5v-3a5 5 0 0 1 10 0v3" /><path d="M7 12H5.5A1.5 1.5 0 0 0 4 13.5v3A1.5 1.5 0 0 0 5.5 18H8v-6H7ZM17 12h1.5a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5H16v-6h1Z" /></svg>
+      <div aria-label={displayArtwork?.alt ?? "播客封面"} className="audio-player-adapter__art" role="img">
+        {displayArtwork ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt={displayArtwork.alt} height={displayArtwork.height ?? 600} onError={() => setFailedArtworkUrl(displayArtwork.url)} src={displayArtwork.url} width={displayArtwork.width ?? 600} />
+        ) : <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 13.5v-3a5 5 0 0 1 10 0v3" /><path d="M7 12H5.5A1.5 1.5 0 0 0 4 13.5v3A1.5 1.5 0 0 0 5.5 18H8v-6H7ZM17 12h1.5a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5H16v-6h1Z" /></svg>}
       </div>
       <audio aria-label={title} controls ref={audioRef}>当前浏览器无法播放音频。</audio>
     </div>

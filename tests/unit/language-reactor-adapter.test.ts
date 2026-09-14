@@ -49,6 +49,7 @@ describe("Language Reactor adapter", () => {
           mediaClass: "YOUTUBE",
           source: "YOUTUBE",
           info: { videoId: "Eog6R528OMo", channelId: "UCabcdefghijklmnopqrstuv", channelName: "Canal Español" },
+          image: { type: "URL", src: "https://img.youtube.com/vi/Eog6R528OMo/mqdefault.jpg" },
           duration_ms: 120_000,
           diocoDocId: "yt_Eog6R528OMo",
           diocoDocName: "Una conversación breve",
@@ -68,10 +69,39 @@ describe("Language Reactor adapter", () => {
       platformVideoId: "Eog6R528OMo",
       embedUrl: "https://www.youtube-nocookie.com/embed/Eog6R528OMo?enablejsapi=1",
       captionStatus: "unavailable",
+      artwork: { url: "https://img.youtube.com/vi/Eog6R528OMo/mqdefault.jpg", source: "youtube", width: 1280, height: 720 },
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe("https://api-cdn.dioco.io/base_media_getMediaDocs_5");
     expect(fetchImpl.mock.calls[0]?.[1]).toMatchObject({ method: "POST" });
+  });
+
+  it("resolves podcast DATAURL artwork through the verified iTunes podcast record", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response({
+        status: "success",
+        data: { docs_metadata: [{
+          mediaClass: "AUDIO_FILE",
+          source: "PODCAST",
+          info: { feedTitle: "How to Spanish Podcast", itunesId: "1458420685" },
+          audioFileURL: "https://audio.example.test/episode.mp3",
+          duration_ms: 90_000,
+          diocoDocId: "it_episode_artwork",
+          diocoDocName: "Una charla con portada",
+          description: "Escucha en español.",
+          lang_G: "es",
+        }] },
+      }))
+      .mockResolvedValueOnce(new Response(null, { status: 200, headers: { "content-type": "audio/mpeg", "content-length": "240000" } }))
+      .mockResolvedValueOnce(response({ results: [{ artworkUrl600: "https://is1-ssl.mzstatic.com/image/thumb/podcast.jpg" }] }, { "content-type": "text/javascript" }));
+    const adapter = new LanguageReactorAdapter({ fetch: fetchImpl, source: source("podcast-feed"), now: () => new Date("2026-09-15T00:00:00.000Z") });
+
+    const page = await adapter.discover({ sourceStableKey: "lr-podcast", externalSourceId: "t_pd_mix_es", cursor: null, limit: 1 });
+
+    expect(page.items[0]?.metadata.podcastDraft).toMatchObject({
+      artwork: { url: "https://is1-ssl.mzstatic.com/image/thumb/podcast.jpg", source: "podcast-feed", width: 600, height: 600 },
+    });
+    expect(String(fetchImpl.mock.calls[2]?.[0])).toContain("https://itunes.apple.com/lookup");
   });
 
   it("accepts YouTube IDs beginning with a separator", async () => {
