@@ -3,13 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  CHAT_BUBBLE_STYLE_OPTIONS,
-  ChatBubbleStyleSample,
-  saveChatBubbleStyle,
-  useChatBubbleStyle,
-} from "@/src/modules/conversation/ui/chat-bubble-style";
-
 const presets = [
   ["sunlit-window", "日光窗边", "#d67d5d"],
   ["terracotta-scarf", "赤陶围巾", "#a95845"],
@@ -33,7 +26,6 @@ export function ProfileEditor() {
   const [uploading, setUploading] = useState(false);
   const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const chatBubbleStyle = useChatBubbleStyle();
   const [notice, setNotice] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -95,31 +87,6 @@ export function ProfileEditor() {
         <section className="profile-editor-card"><div className="profile-editor-card__title"><h2>选择头像</h2><p>你可以随时切换，不会影响 UID。</p></div>
           <div className="profile-editor-options"><button type="button" className={avatarKind === "initials" && !pendingAvatarFile ? "is-selected" : ""} onClick={() => { setAvatarKind("initials"); setPresetId(null); setPendingAvatarFile(null); setAvatarPreview(null); }}><span className="avatar-option avatar-option--initials">{initials}</span><span>首字母</span></button>{presets.map(([id, label, color]) => <button type="button" key={id} className={avatarKind === "preset" && presetId === id && !pendingAvatarFile ? "is-selected" : ""} onClick={() => { setAvatarKind("preset"); setPresetId(id); setPendingAvatarFile(null); setAvatarPreview(null); }}><span className="avatar-option" style={{ background: color }}>{label.slice(0, 1)}</span><span>{label}</span></button>)}<label className={`profile-editor-upload${pendingAvatarFile ? " is-selected" : ""}`}><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setPendingAvatarFile(file); setAvatarKind("upload"); setPresetId(null); setAvatarPreview(URL.createObjectURL(file)); setNotice("照片已选择，点击“保存资料”后生效"); } event.currentTarget.value = ""; }} disabled={uploading || saving} /><span className="avatar-option avatar-option--upload">↑</span><span>{uploading ? "上传中…" : "上传照片"}</span></label></div>
           <p className="profile-editor-hint">支持 JPG、PNG、WebP 等图片。选择后不会立即上传，点击“保存资料”才会更新账户头像；服务端会自动裁剪并转换为 WebP。</p>
-        </section>
-        <section className="profile-editor-card" aria-labelledby="chat-bubble-style-title">
-          <div className="profile-editor-card__title"><h2 id="chat-bubble-style-title">消息气泡</h2><p>仅影响你发送的消息，保存在当前设备。</p></div>
-          <div className="chat-bubble-style-options" role="radiogroup" aria-labelledby="chat-bubble-style-title">
-            {CHAT_BUBBLE_STYLE_OPTIONS.map((option) => (
-              <label
-                key={option.id}
-                className={chatBubbleStyle === option.id ? "is-selected" : ""}
-              >
-                <input
-                  className="chat-bubble-style-option__input"
-                  type="radio"
-                  name="chat-bubble-style"
-                  value={option.id}
-                  checked={chatBubbleStyle === option.id}
-                  onChange={() => {
-                    const saved = saveChatBubbleStyle(option.id);
-                    setNotice(saved ? `${option.label}已应用` : "当前浏览器无法保存气泡偏好");
-                  }}
-                />
-                <span className="chat-bubble-style-option__sample" aria-hidden="true"><ChatBubbleStyleSample style={option.id} /></span>
-                <span className="chat-bubble-style-option__copy"><strong>{option.label}</strong><small>{option.description}</small></span>
-              </label>
-            ))}
-          </div>
         </section>
         <div className="profile-editor-actions"><Link href="/me" className="button button--quiet">取消</Link><button type="button" className="button button--primary" onClick={save} disabled={saving}>{saving ? "保存中…" : "保存资料"}</button></div>
         {notice ? <p className="profile-editor-notice" role="status">{notice}</p> : null}

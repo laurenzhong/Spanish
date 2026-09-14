@@ -422,10 +422,9 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
                   ) : <small>{conversation.roleLabel}</small>}
                   {conversation.lastMessage ? <span className="conversation-contact-row__preview">{conversation.lastMessage.snippet}</span> : null}
                 </span>
-                {preference.isPinned ? <span className="conversation-contact-row__marker" aria-label="已置顶">置顶</span> : null}
                 {isUnread ? <span className="conversation-contact-row__unread" aria-label="未读" /> : null}
                 {preference.isMuted ? <span className="conversation-contact-row__muted" aria-label="已静音">静音</span> : null}
-                {conversation.lastMessageAt ? <time className="conversation-contact-row__time" dateTime={conversation.lastMessageAt}>{formatConversationTime(conversation.lastMessageAt)}</time> : <span className="conversation-contact-row__new">开始对话</span>}
+                {conversation.lastMessageAt ? <time className="conversation-contact-row__time" dateTime={conversation.lastMessageAt}>{formatConversationTime(conversation.lastMessageAt)}</time> : null}
               </Link>
             </div>
           );
