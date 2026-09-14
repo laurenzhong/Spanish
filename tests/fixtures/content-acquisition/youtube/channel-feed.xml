@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns="http://www.w3.org/2005/Atom">
+  <title>Español con calma</title>
+  <yt:channelId>UCabcdefghijklmnopqrstuv</yt:channelId>
+  <entry>
+    <id>yt:video:publicVideo1</id>
+    <yt:videoId>publicVideo1</yt:videoId>
+    <yt:channelId>UCabcdefghijklmnopqrstuv</yt:channelId>
+    <title>Cómo pedir un café en Madrid</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=publicVideo1" />
+    <published>2026-09-13T08:00:00+00:00</published>
+    <updated>2026-09-13T08:00:00+00:00</updated>
+  </entry>
+  <entry>
+    <id>yt:video:privateVideo2</id>
+    <yt:videoId>privateVideo2</yt:videoId>
+    <yt:channelId>UCabcdefghijklmnopqrstuv</yt:channelId>
+    <title>Private video</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=privateVideo2" />
+    <published>2026-09-12T08:00:00+00:00</published>
+    <updated>2026-09-12T08:00:00+00:00</updated>
+  </entry>
+  <entry>
+    <id>yt:video:publicVideo1</id>
+    <yt:videoId>publicVideo1</yt:videoId>
+    <title>Duplicate</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=publicVideo1" />
+    <published>2026-09-13T08:00:00+00:00</published>
+  </entry>
+</feed>

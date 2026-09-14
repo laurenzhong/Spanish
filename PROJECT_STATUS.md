@@ -2,11 +2,90 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-13
-- 当前里程碑：个人 Alpha 阶段 7.7——Web/PWA 个人学习闭环与场景实战重排
-- 总体状态：ALPHA-033 继续进行；当前成果只形成电脑端 Web 临时集成测试基线，不是发布候选。v2 内容、远端数据库导入和自动化回归已完成，但产品本人确认仍有未完成功能及明显的排版、按钮和交互缺陷；必须重新盘点并修复后再讨论发布候选。阶段 8 未启动
+- 最后更新：2026-09-14
+- 当前里程碑：内容驱动学习与自动内容供应重构
+- 总体状态：`VIDEO-001` 已通过合并复核并进入 `main`；YouTube 官方来源、视频 publisher、版本化字幕时间轴和视频学习工作台已形成纵向闭环。`PODCAST-001` 现为唯一 ready 任务，尚未领取。阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：未放行发布候选。`alpha.core@2` 与 `alpha.scenario-practice@2` 已通过审核、校验和数据库导入，只证明内容数据具备测试条件；自动化测试通过和真实登录页面可访问，也不能替代功能完整性、视觉排版、按钮语义及端到端可用性验收。电脑端 Web 密度与操作层级书面规格已由产品本人确认，`UI-012`、`UI-013`、`UI-014` 已完成并合并；UI-015 对话页面密度收敛已实现并进入视觉确认。iPhone Safari/PWA 真机与 Flutter 继续延期并如实记录
+- 当前门禁：文章与 YouTube 视频只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。YouTube 视频 publisher 已注册，尚未实现的播客类型仍不能正式发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
+
+### 2026-09-14：VIDEO-001 YouTube 白名单视频纵向闭环
+
+- 状态：`done`
+- 负责人：Codex
+- 分支：`codex/video-001-youtube-learning`
+- 实现 Commit：`7884a86`
+- Merge Commit：`77998c9`
+- 范围：新增 YouTube 官方频道 Atom feed 与 Data API v3 适配器、ETag/Last-Modified/发布时间游标、服务器 API key、语言/频道/公开/嵌入/地区/时长/许可门禁和确定性视频候选；接入采集 CLI、候选处理与正式 video publisher。新增 WebVTT 毫秒时间轴、最多 500 段及 `platform_manual/platform_auto/asr` 来源语义；迁移 `0025_youtube_video_publication.sql` 保存平台 ID、频道、candidate revision、抓取时间、变更原因和审核审计。
+- 发布与安全：不下载 YouTube 音视频，不调用非公开字幕或下载接口；当前真实适配器没有合法字幕来源时生成“仅播放”候选。显式发布再次校验候选 hash/revision、精确官方 `youtube-nocookie.com` 嵌入、字幕状态和两份当前授权审核，在媒体事务中幂等追加不可变版本、资产、片段和审核；撤下归档版本、撤下资产并清除当前公开版本。每日自动化仍不能直接发布，观看、播放、查词和进度不写能力证据。
+- 学习体验：视频详情使用小型 YouTube player port，支持 A/S/D 上一句/重播/下一句、Q 自动暂停、西语/双语/隐藏字幕、点击时间跳转、点击词语打开上下文抽屉和关闭后恢复焦点。桌面为播放器/字幕双栏，手机为全宽播放器、主滚动字幕与不遮挡底部导航的词句抽屉。进度 PUT 串行使用 revision/CAS，媒体切换/卸载取消旧请求并忽略旧 generation 回调，失败和 409 都有明确状态。
+- 验证：聚焦新增/相关 Vitest `7 files / 19 tests`、媒体数据库回归 `4 files / 12 tests`、全量 Vitest `189 files / 780 tests`、新增视频 Playwright 桌面/移动 `2/2`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright `144/150` 通过、`1` 跳过；4 条失败为已记录的移动 Lucía 联系人/介绍延期项，另 1 条既有桌面导航偶发超时隔离复跑 `1/1` 通过，本次视频路径无新增失败。
+- 限制：未执行远端数据库迁移，未访问真实公网频道或收费 Data API，仓库没有预置真实白名单频道；正式资料库只有在所有者登记可核验的频道权利策略、运行采集、完成三维审核并显式发布后才会出现内容。未接播客 RSS、ASR、翻译、词句保存/释义或能力画像；未做真实账号、iPhone Safari/PWA 真机或 Flutter 验证。
+- 下一步：只领取 `PODCAST-001` 的播客 RSS 纵向闭环；不得提前接 ASR、词句语料或画像。
+
+### 2026-09-13：MEDIA-001 统一媒体领域与学习资料库
+
+- 状态：`done`
+- 负责人：Codex
+- 分支：`codex/media-001-library-foundation`
+- 实现 Commit：`7cd67b7`
+- Merge Commit：`683cff9`
+- 范围：新增视频/播客共享领域、稳定 `stableKey@version` DTO、公开列表/详情、鉴权播放投影和 revision/CAS 进度 API；新增 `media_items`、`media_versions`、`media_assets`、`media_segments`、`user_media_progress` 与迁移 `0024_media_library_foundation.sql`。`/learn` 已移除旧 Hero、开始/继续 CTA 和任务时间线，直接展示全部/视频/播客、搜索、地区/难度/时长/排序筛选、内容卡或真实空状态；新增媒体详情播放器与最多 500 段已审核字幕，移动顶部头像移除而桌面侧栏账户菜单保留。旧 `/learn/practice` route、训练状态机和历史数据保持兼容。
+- 数据与安全：公开目录只投影当前 `published + cleared + playable` 版本；撤下、过期、非 HTTPS 播放信息失败关闭。非官方嵌入资产必须有过期时间；进度按用户和不可变版本唯一，保存时重新验证当前版本、资产、总时长、片段审核状态和 revision，重复请求幂等，跨用户由 RLS 与服务端所有权双重隔离。观看和进度不写能力证据。
+- 验证：全量 Vitest `182 files / 752 tests`、媒体/学习页相关 Playwright `10/10`、壳层相关 Playwright `8/8`、旧训练兼容 Playwright `2/2`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright 在兼容断言修正前为 `139/146`；相关 2 条已隔离复测通过，剩余 5 条与前序状态一致，均为既有 `mobile-chromium` 延期项（文章拖选 1 条、Lucía 联系人/介绍 4 条）。
+- 限制：未执行远端数据库迁移，未注册媒体 publisher，未接真实 YouTube、播客 RSS、ASR、翻译或收费 Provider；正式库因此保持真实空状态。未做真实账号、iPhone Safari/PWA 真机或 Flutter 验证。
+- 下一步：只实施 `VIDEO-001` 的 YouTube 白名单视频纵向闭环；不得混入播客 RSS、ASR、词句语料或能力画像。
+
+### 2026-09-13：ARTICLE-001 自动文章采集与正式发布
+
+- 状态：`done`
+- 负责人：Codex
+- 分支：`codex/article-001-automated-article-ingestion`
+- 实现 Commit：`bf5ea3b`
+- 范围：新增使用 `saxes` 的 RSS/Atom 解析、使用 `parse5` 的非执行式文章正文抽取、HTTPS 主机 allowlist、逐跳重定向与 Content-Type/体积/编码限制、ETag/Last-Modified 和分页游标；新增纯文本文章候选规范化、确定性 stable key/content hash、自动候选处理，以及接入 REVIEW-001 registry 的正式 article publisher。公开阅读列表、详情和 API 现在组合 bundle 与数据库中的已发布文章，继续复用既有阅读器路由。
+- 发布与数据安全：只有 `verified` 且明确允许 `full_text` 的来源可以抓取；许可、署名和 HTTPS 许可证据缺失时失败关闭。候选不保存原始 HTML，只保存纯文本段落和来源元数据。正式发布在 article repository 单一事务中创建稳定身份、不可变版本、段落、来源 provenance 和当前修订版的 `es-ES`、`zh-CN` 审核记录；同 revision/hash 幂等，不同 hash 冲突。撤下后公开列表与详情不可见但审计保留；内部 `rights_policy` 不进入来源列表或候选 API 投影。媒体类型继续返回 `CONTENT_PUBLISHER_NOT_AVAILABLE`。
+- 数据与文档：迁移 `0023_article_acquisition.sql` 为 `article_sources` 增加候选 ID/revision、抓取时间、条件唯一索引和完整性约束；同步架构、内容制作、数据库和环境示例。新增 `parse5@8.0.1`、`saxes@6.0.0`。
+- 验证：聚焦回归最终 `3 files / 10 tests`，此前新旧相关回归 `13 files / 50 tests`、全量 Vitest `175 files / 733 tests`、专用桌面 Chromium `1/1`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright `135/140`，新增文章路径桌面/移动均通过；5 条失败均为既有 `mobile-chromium` 延期项（文章拖选 1 条、Lucía 联系人/介绍 4 条）。
+- 限制：未执行远端数据库迁移，未访问真实公网来源，未接媒体、YouTube、播客、ASR 或收费 Provider；未做真实账号、iPhone Safari/PWA 真机或 Flutter 验证。
+- 下一步：只领取 `MEDIA-001`，建立统一媒体领域和视频/播客资料库基础；不得在同一任务提前接 YouTube、播客 RSS、真实 ASR、词句语料或能力画像。
+
+### 2026-09-13：REVIEW-001 所有者审核与发布门禁
+
+- 状态：`done`
+- 负责人：Codex
+- 分支：`codex/review-001-owner-content-workflow`
+- 实现 Commit：`e15cc81`
+- 范围：新增服务端 UUID allowlist 和“我的 → 内容工作流”所有者入口；新增来源/运行/候选内部 API、候选列表与审核工作台、按 candidate revision 保存的 `es-ES`、`zh-CN`、结构审核以及请求修改、拒绝和重新处理；新增 article/media publisher 端口与注册表，真实运行注册表为空时明确返回 `CONTENT_PUBLISHER_NOT_AVAILABLE`。
+- 发布安全：采集、审核和公开状态保持分离；发布在调用 publisher 前后分别校验 `review_ready`、verified rights、当前 revision/hash 和三个批准门禁，数据库使用行锁及事务重校验，工作流 CAS 失败时撤下 publisher 的公开投影；撤下保留内部审计。审核身份固定记录为 `codex-ai-owner-authorized-review`，不会信任客户端角色或生成者元数据，也不写学习证据、画像或关系记忆。
+- 数据与合同：迁移 `0022_empty_lenny_balinger.sql` 为候选增加 draft/published/archived 公开投影、不可变正式版本引用、发布 revision/hash 和撤下时间；新增候选列表、详情、审核和发布 JSON Schema、OpenAPI 路径与四个稳定错误码。浏览器角色仍不能直读写内部采集表。
+- 验证：聚焦 unit/database `8 files / 27 tests`、合同 `12 files / 47 tests`、全量 Vitest `170 files / 723 tests`、专用桌面 Chromium `2/2`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright `131/138`；内容工作流桌面/移动 `4/4` 通过，6 条既有移动 Chromium 延期项保持不变，另 1 条既有桌面阅读布局/状态时序偶发失败隔离重跑 `1/1` 通过。
+- 限制：未执行远端数据库迁移，未接公网、真实文章/媒体来源、真实 ASR 或收费 Provider；运行时 publisher registry 刻意为空，因此当前工作台可以审核和修订候选但不能冒充正式发布成功；未做真实账号、iPhone Safari/PWA 真机或 Flutter 验证。
+- 下一步：只领取 `ARTICLE-001`，接入白名单文章 RSS/专用适配器并通过 article publisher 创建正式不可变文章版本；不得在同一任务提前建设媒体库、YouTube、播客或 ASR。
+
+### 2026-09-13：ACQ-001 自动采集领域与持久化基础
+
+- 状态：`done`
+- 负责人：Codex
+- 分支：`codex/acq-001-content-acquisition-foundation`
+- 实现 Commit：`cfd1e00`
+- 范围：新增纯 TypeScript 候选状态机、来源权利与处理预算门禁、三层候选去重、30/7 天及临时 ASR 资产清理计划、来源适配器端口与 deterministic fake；新增来源、运行、候选、产物、处理 attempt、审核六张内部表及事务游标、CAS、幂等 repository；新增只接受显式来源、dry-run 和有界 limit 的采集 CLI，并同步 v1 稳定错误合同。
+- 数据安全：六张内部工作流表全部启用 RLS，`anon` 与 `authenticated` 没有直读写权限；CLI 与 application 不发布正式内容、不写学习证据，dry-run 不写来源、运行或候选。
+- 验证：聚焦 unit/contract/database/schema 回归 `11 files / 52 tests`、全量 Vitest `164 files / 705 tests`、`pnpm db:check`、`pnpm lint`、`pnpm typecheck`、`pnpm build` 和 `git diff --check` 通过。全量 Playwright `127/134`；6 条失败与状态页已记录的 `mobile-chromium` 延期项一致，另 1 条既有桌面导航超时隔离重跑 `1/1` 通过，本任务未修改页面或 Playwright 断言。
+- 限制：未访问公网、未接真实 YouTube/RSS/ASR 或收费 Provider、未执行远端数据库迁移、未发布或删除正式内容、未修改用户页面；CLI 当前只能通过 `CONTENT_ACQUISITION_FAKE_FIXTURE` 注入确定性页面。
+- 下一步：只领取 `REVIEW-001`，实现所有者候选审核、版本化修订、双维度批准和发布门禁；不得在同一任务提前接入真实文章或媒体来源。
+
+### 2026-09-12：IA-001 内容驱动学习与自动供应设计
+
+- 状态：`done`
+- 负责人：Codex / 产品本人
+- 分支：`codex/ia-001-content-supply-design`
+- 设计 Commit：`241c47a`
+- 实施计划 Commit：`e43130c`
+- 决定：保留“学习、阅读、探索、对话、我的”五项导航；`/learn` 直接展示视频与播客资料库，`/read` 承载文章、词汇、短语、语料和文字考察，`/explore` 保留场景实战，`/chat` 保留长期角色；移动端顶部不常驻头像。能力主展示改为词汇与短语、交流运用、语音表达、跟读表现四板块。
+- 内容供应：每日只从所有者白名单 YouTube、播客 RSS、文章 RSS/专用适配器增量获取候选；自动化不得直接发布。无字幕媒体通过来源、相关性、语言、时长、权利和预算门禁后才可 ASR，所有者完成双维度审核并显式发布。
+- 文档：[`自动内容供应与词句学习重构设计`](docs/superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md)、[`ADR-0008`](docs/adr/0008-content-led-learning-and-automated-ingestion.md)、[`详细实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)。
+- 验证：逐项产品方案已由产品本人确认；本任务只改文档，不运行代码测试。Markdown 链接、占位符和 diff 检查结果记录在本分支交接。
+- 限制：尚未实现抓取、审核页面、媒体库、语料、词句考察或四板块画像；未访问公网、未调用真实 ASR、未发布或删除内容。
+- 下一步：只领取 `ACQ-001`。
 
 ### 2026-09-11：Web/PWA 个人学习与场景实战重排
 
@@ -266,10 +345,6 @@
 
 - UI-014 合并完成：产品本人于 2026-09-13 确认阅读页面基本达到预期并要求开启下一项任务；`codex/ui-014-reading-density` 已通过 Merge Commit `5e2fde4` 合入 `main`。UI-014 状态改为 `done`，UI-015 解锁为 `ready`；本次合并不改变发布候选门禁、完整 E2E 延期项或 iPhone Safari/PWA 与 Flutter 真机限制。
 
-- UI-015 启动：已从包含 UI-014 合并与状态更新的最新 `main@99928bf` 创建 `codex/ui-015-conversation-density`。本任务只收敛对话页联系人列、当前对话、输入区、角色页头、按需消息操作、空态与错误恢复的呈现密度；不修改角色圣经、好友申请状态机、关系记忆、消息持久化、流式 `done`、安全门禁或 Provider 选择。负责人：Codex；状态：`in_progress`。
-
-- UI-015 对话页面密度收敛：实现 Commit `0bb0097`，状态进入 `review`。联系人不足 8 人时不显示搜索，删除好友数量、“最近”和会话保存说明；待处理入口只在存在申请或介绍时显示真实数量。角色页头默认只保留头像、姓名、关系状态、移动会话入口和更多菜单，消息搜索及关系资料/清理按需出现；消息操作改为点击、右键或键盘选中后出现，不再常驻操作按钮。空会话收敛为一句自然开场；历史不可用合并为一个错误状态和一个重试动作，并同步禁用输入、语音和发送。消息正文提升到 15–16px，辅助信息保持 12–13px，补齐深浅主题、焦点、菜单和输入区细节；移动端对话页单独消除公共壳层叠加造成的页面空白滚动，390×844 下页面高度严格等于视口。联系人缓存会在账号退出事件后清理，避免跨用户残留。验证：对话聚焦 Vitest `3 files / 30 tests`、typing 回归 `1/1`、全量单 worker Vitest `155 files / 677 tests`、桌面与移动 Chromium 对话 Playwright `28/28`、`pnpm lint`、`pnpm typecheck`、`pnpm build` 和 `git diff --check` 全部通过；已检查 1440/1280/390 浅色及 1440 深色视觉，确认无横向溢出、选中态撞色、资源缺失或输入区遮挡。限制：自动化使用 E2E 假登录、空数据库和禁用收费 Provider；未执行完整 `pnpm test:e2e`、真实账号/Provider、iPhone Safari/PWA 真机或 Flutter；没有修改对话业务状态机、记忆、持久化和 Provider。下一步：产品本人视觉确认并决定是否合并 UI-015；确认前不启动 UI-016。
-
 ### READ-006：Generate Story 私有 AI 草稿文章
 
 - 状态：`done`
@@ -300,17 +375,17 @@
 
 ## 当前任务
 
-UI-012、UI-013、UI-014 已完成并合并；当前上位任务仍为 `ALPHA-033`，当前任务为 `UI-015` 对话页面密度收敛，状态 `review`。
+`VIDEO-001` 已合并到 `main`。当前没有进行中的实现任务；唯一可领取任务是 `PODCAST-001`，分支应为 `codex/podcast-001-rss-learning`。
 
-当前任务为 `ALPHA-033`：电脑端 Web 的 Alpha 功能缺口收敛与发布候选准备。阶段 8 个人 Alpha 人工体验不是当前开发任务，必须等电脑端候选版本门禁通过后再启动。当前只做电脑端 Web 功能补齐、缺陷修复和局部/全量质量回归；响应式与 iPhone Safari/PWA 兼容保留但真机验收延期，Flutter 不恢复同步。阶段记录见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
+当前任务顺序以 [`自动内容供应与词句学习重构实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。阶段 8 个人 Alpha 人工体验仍不是当前开发任务；必须等新队列完成、重新建立发布候选门禁并由产品本人确认后才可启动。阶段记录继续见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
 ### 当前工作边界
 
-上方 UI-009 句子是历史交接记录；当前任务和下一项以本页 `ALPHA-033` 状态及任务表为准。
+上方 UI/ALPHA 记录是历史交接事实；当前任务和下一项以本页 IA-001 记录、新实施计划及任务表为准。
 
-- UI-001 至 UI-005 已完成，但不代表整个产品已经达到人工体验条件。
-- 在 Alpha 功能缺口和已知缺陷收敛前，只验证按钮、状态流转、错误恢复和局部用户路径；不启动阶段 8 的连续使用配额、周度复盘或全面主观体验。
-- `ALPHA-033` 完成后，先形成发布候选并通过质量门禁，再由产品本人确认是否进入阶段 8 人工体验。
+- 已完成的 UI、SCN、READ 和 ALPHA 任务继续作为实现基线，但不代表新信息架构或自动供应链已经交付。
+- `UI-014` 已完成并合并；`UI-015` 至 `UI-017` 不继续按旧顺序实施，现有分支和用户未提交改动继续保留，等待新内容队列完成后重新排期或明确接收范围。
+- `ALPHA-033` 的旧发布候选出口失效；OPS-001 完成后必须基于新路径重新定义并执行全量门禁。
 
 ### 待执行 UI 批次
 
@@ -323,14 +398,21 @@ UI-012、UI-013、UI-014 已完成并合并；当前上位任务仍为 `ALPHA-03
 - `UI-012`：Explore、场景详情、场景实战与复盘密度收敛（done；实现 Commit `742d1e7`、产品反馈修正 `335c747`、Merge Commit `7f994e6`）
 - `UI-013`：学习首页与训练工作台密度收敛（done；实现 `ea91cc7`、Merge Commit `ef89207`）
 - `UI-014`：阅读书架与文章阅读器密度收敛（done；首版实现 `7a802de`；阅读器视觉反馈修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口修复 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4`）
-- `UI-015`：对话页面密度收敛（review；实现 Commit `0bb0097`；分支 `codex/ui-015-conversation-density`）
-- `UI-016`：“我的”、设置与隐私密度收敛（blocked；依赖 UI-015）
-- `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（blocked；依赖 UI-012 至 UI-016）
+- `UI-015`：对话页面密度收敛（blocked；等待新队列完成后重新排期）
+- `UI-016`：“我的”、设置与隐私密度收敛（blocked；画像部分由 PROFILE-001 取代，其他范围待重排）
+- `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（blocked；等待新 IA 和移动头像规则落地后重排）
 
-### 当前 Alpha 收敛任务
+### 当前内容供应重构任务
 
-- `ALPHA-033`：电脑端 Web Alpha 功能缺口收敛与发布候选准备（in_progress；协调分支 `main`）。
-- 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；仅在 `ALPHA-033` 退出条件满足且产品本人确认后启动）。
+- `IA-001`：规格、ADR、实施计划与权威文档同步（done；`codex/ia-001-content-supply-design`）。
+- `ACQ-001`：自动采集领域与持久化基础（done；实现 Commit `cfd1e00`）。
+- `REVIEW-001`：所有者候选审核、修订、双维度批准和发布门禁（done；实现 Commit `e15cc81`）。
+- `ARTICLE-001`：文章 RSS/专用适配器接入现有 article 模型（done；实现 Commit `bf5ea3b`）。
+- `MEDIA-001`：统一媒体领域与视频/播客学习资料库（done；实现 `7cd67b7`，合并 `683cff9`）。
+- `VIDEO-001`：YouTube 白名单视频纵向闭环（done；实现 `7884a86`，合并 `77998c9`）。
+- `PODCAST-001`：播客 RSS 纵向闭环（ready；尚未领取，计划分支 `codex/podcast-001-rss-learning`）。
+- `ALPHA-033`：旧电脑端 Web 发布候选门禁（blocked；等待 OPS-001 后按新路径重新定义）。
+- 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待新发布候选门禁与产品本人确认）。
 
 ### 后续路线（不进入当前 Alpha）
 
@@ -1607,7 +1689,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-004 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 画像、热力图和隐私数据控制闭环 | UI-003 |
 | UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
-| ALPHA-033 | in_progress | `main` | Codex | Alpha 功能缺口收敛与发布候选准备 | 阶段 7、UI-006 至 UI-011、READ-001 至 READ-005 |
+| ALPHA-033 | blocked | `main` | 待重排 | 旧 Alpha 发布候选门禁；等待按内容驱动新路径重新定义 | OPS-001 与产品本人确认 |
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
@@ -1616,10 +1698,22 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-012 | done | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 实现 `742d1e7`、反馈修正 `335c747`、合并 `7f994e6` |
 | UI-013 | done | `codex/ui-013-learning-workbench-density` | Codex | 学习首页与训练工作台密度收敛 | 实现 `ea91cc7`、合并 `ef89207` |
 | UI-014 | done | `codex/ui-014-reading-density` | Codex | 阅读书架与文章阅读器密度收敛 | 首版 `7a802de`；视觉修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4` |
-| UI-015 | review | `codex/ui-015-conversation-density` | Codex | 对话页面密度收敛 | 实现 `0bb0097`；等待产品本人视觉确认 |
-| UI-016 | blocked | `codex/ui-016-profile-density` | 待领取 | “我的”、设置与隐私密度收敛 | UI-015 |
-| UI-017 | blocked | `codex/ui-017-collapsible-shell` | 待领取 | 公共壳层、可收缩侧边栏与全站一致性 | UI-012 至 UI-016 |
-| 阶段 8 | blocked | 待启动 | 产品本人 / Codex | 电脑端 Web 发布候选的个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
+| UI-015 | blocked | `codex/ui-015-conversation-density` | 待重排 | 对话页面密度收敛 | 新内容队列完成后重新排期 |
+| UI-016 | blocked | `codex/ui-016-profile-density` | 待重排 | “我的”、设置与隐私密度收敛 | PROFILE-001 取代画像范围后重排 |
+| UI-017 | blocked | `codex/ui-017-collapsible-shell` | 待重排 | 公共壳层、可收缩侧边栏与全站一致性 | 新信息架构和移动头像规则落地后重排 |
+| IA-001 | done | `codex/ia-001-content-supply-design` | Codex / 产品本人 | 内容驱动学习、自动供应、词句语料和四板块画像规划 | 设计 `241c47a`、计划 `e43130c` |
+| ACQ-001 | done | `codex/acq-001-content-acquisition-foundation` | Codex | 自动采集领域、持久化、CLI、预算/保留与 fake | 实现 `cfd1e00` |
+| REVIEW-001 | done | `codex/review-001-owner-content-workflow` | Codex | 所有者候选审核、修订、双维度批准和发布门禁 | 实现 `e15cc81` |
+| ARTICLE-001 | done | `codex/article-001-automated-article-ingestion` | Codex | 文章 RSS/专用适配器接入现有 article 模型 | 实现 `bf5ea3b` |
+| MEDIA-001 | done | `codex/media-001-library-foundation` | Codex | 统一媒体领域与视频/播客学习资料库 | 实现 `7cd67b7`；合并 `683cff9` |
+| VIDEO-001 | done | `codex/video-001-youtube-learning` | Codex | YouTube 白名单视频纵向闭环 | 实现 `7884a86`；合并 `77998c9` |
+| PODCAST-001 | ready | `codex/podcast-001-rss-learning` | 待领取 | 播客 RSS 纵向闭环 | MEDIA-001、VIDEO-001 已完成 |
+| MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 |
+| LEX-001 | blocked | `codex/lex-001-lexicon-corpus-foundation` | 待领取 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 |
+| LEX-002 | blocked | `codex/lex-002-corpus-assessment` | 待领取 | KWIC 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 |
+| PROFILE-001 | blocked | `codex/profile-001-four-capability-profile` | 待领取 | 四板块能力投影、历史映射和“我的”替换 | LEX-002 与现有交流/语音/跟读证据 |
+| OPS-001 | blocked | `codex/ops-001-daily-content-pipeline` | 待领取 | 每日生产调度、清理、观测和全链路门禁 | ACQ-001 至 PROFILE-001 |
+| 阶段 8 | blocked | 待启动 | 产品本人 / Codex | 新发布候选的个人 Alpha 使用周期与人工体验复核 | OPS-001 后重建的发布门禁与产品本人确认 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
 
@@ -1627,16 +1721,20 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 顺序 | 任务 ID | 任务 | 开始条件 |
 |---|---|---|---|
-| 1 | UI-012 | Explore、场景详情、实战与复盘密度收敛 | 已完成并合并到 `main` |
-| 2 | UI-013 | 学习首页与训练工作台密度收敛 | 已完成并合并到 `main` |
-| 3 | UI-014 | 阅读书架与文章阅读器密度收敛 | 已完成并合并到 `main` |
-| 4 | UI-015 | 对话页面密度收敛 | `review`；实现 `0bb0097`，等待产品本人视觉确认 |
-| 5 | UI-016 | “我的”、设置与隐私密度收敛 | UI-015 完成并确认 |
-| 6 | UI-017 | 公共壳层、可收缩侧边栏与全站一致性复核 | UI-012 至 UI-016 完成并确认 |
-| 7 | ALPHA-033 | 复核剩余功能缺口与发布候选门禁 | UI-017 全量门禁与真实登录复核完成 |
-| 8 | 阶段 8 | 电脑端 Web 个人 Alpha 使用周期与人工体验复核 | ALPHA-033 退出条件与产品本人确认 |
+| 1 | IA-001 | 规格、ADR、详细计划与权威文档同步 | 已完成；设计 `241c47a`，计划 `e43130c` |
+| 2 | ACQ-001 | 自动采集领域与持久化基础 | 已完成；实现 `cfd1e00` |
+| 3 | REVIEW-001 | 所有者审核与发布门禁 | 已完成；实现 `e15cc81` |
+| 4 | ARTICLE-001 | 文章 RSS 与正式 article 接入 | 已完成；实现 `bf5ea3b` |
+| 5 | MEDIA-001 | 统一媒体领域与学习资料库 | 已完成；实现 `7cd67b7`，合并 `683cff9` |
+| 6 | VIDEO-001 | YouTube 白名单视频纵向闭环 | 已完成；实现 `7884a86`，合并 `77998c9` |
+| 7 | PODCAST-001 | 播客 RSS 纵向闭环 | `ready`；唯一可领取任务 |
+| 8 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 完成并确认 |
+| 9 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
+| 10 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
+| 11 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
+| 12 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整任务顺序以实施计划的“首批可执行任务顺序”为准。本文件只展示最近任务，不复制全部 backlog。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前唯一 ready 任务为 `PODCAST-001`，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
@@ -1652,24 +1750,30 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 ## 当前关键决定
 
 - 目标用户：学过语法和词汇但无法自然开口的 A2–B1 学习者。
-- 首发形态：Next.js 完整 Web/PWA + Flutter iOS 同步个人 Alpha。
-- 后续客户端：Flutter 同一代码线扩展 Android、Windows、macOS。
-- 技术路线：Next.js/React/TypeScript Web，Flutter/Dart 客户端，Supabase、Drizzle、Zod、Vercel 远程模块化单体。
-- 架构：单仓库、两条客户端代码线、版本化 API 和共同 JSON fixtures；不在 Alpha 提前拆微服务。
-- iOS 不采用 Capacitor WebView；必要平台能力使用少量 Swift 桥接。
+- 首发形态：Next.js 响应式 Web/PWA；当前以电脑端 Web 为主要验收环境，iPhone Safari/PWA 真机验收延期。
+- Flutter 与原生客户端保留现状但暂停功能同步，不新增平台插件或 Swift/Kotlin/Windows 桥接。
+- 技术路线：Next.js/React/TypeScript、Supabase、Drizzle、Zod、Vercel 远程模块化单体；版本化 API 继续为未来客户端保留边界。
+- 架构：单仓库；新增 `content-acquisition`、`media`、`lexicon-corpus`，文章继续使用现有 article 模型，旧 `content_packs` 冻结为历史兼容载体。
 - 当前有 iPhone、无 Mac；iOS 编译、签名和真机音频验收尚不具备本地条件。
-- 当前产品壳层设计为五项导航：学习、阅读、探索、对话、我的；历史 UI-001 的四栏实现记录代表当时基线，阅读扩展待后续 UI/READ 切片实施。
-- 首页按学习状态提供唯一真实主动作：无学习记录时为“开始第一次练习”，有稳定断点时为“继续学习”；时长、模式和内容调整不作为进入前置条件，是否提供可选入口由可用性验证决定。
+- 五项导航保留并重新定义：学习是视频/播客资料库；阅读是文章/词汇/短语/语料/文字考察；探索是场景实战；对话是长期 AI 角色；我的承载四板块能力、设置和仅所有者可见的内容工作流。
+- `/learn` 打开即展示内容卡，无 Hero、无开始/继续 CTA、无唯一任务动作、无时长或模式前置选择；移动端顶部不常驻头像，底部“我的”是账户入口。
+- 每日自动化只从所有者白名单 YouTube、播客 RSS、文章 RSS/专用适配器形成候选；双维度审核与显式发布不可省略。
+- 无字幕媒体只有在来源、相关性、语言、时长、权利和预算门禁通过后才可 ASR；候选草稿保留 30 天，拒绝候选大型产物 7 天删除，ASR 临时音频在所有终态立即删除。
+- 能力主展示为词汇与短语、交流运用、语音表达、跟读表现；历史八维证据保留且不伪造映射。
 - 听说是强核心；读写用于静默环境并需要后续口语验证。
+- 词汇与短语考察不要求口头回答；文字、语音、跟读证据按输出方式分别路由。
 - AI 社交世界首个主要好友：Lucía Martín，固定生活在马德里。
 - Echo-Loop 当前只作为流程、Flutter 边界和可靠性参考；未来源码复用必须先记录作者授权范围、其他贡献者权利和许可义务。
 
 权威细节见：
 
 - `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`
+- `docs/superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md`
 - `docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md`
 - `docs/adr/0001-nextjs-web-flutter-clients.md`
+- `docs/adr/0008-content-led-learning-and-automated-ingestion.md`
 - `docs/plans/2026-08-20-personal-alpha-implementation-plan.md`
+- `docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md`
 - `docs/architecture.md`
 - `docs/content-authoring.md`
 - `docs/testing-strategy.md`
@@ -1678,6 +1782,12 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-14 | VIDEO-001 通过合并复核并进入 `main` | `7884a86`、`77998c9` | PODCAST-001 解锁为唯一 ready 任务；ASR 与词句任务继续阻塞 |
+| 2026-09-13 | MEDIA-001 通过合并复核并进入 `main` | `7cd67b7`、`683cff9` | VIDEO-001 解锁并作为唯一进行中的任务；播客与 ASR 继续阻塞 |
+| 2026-09-13 | 完成 ARTICLE-001 白名单文章 RSS、纯文本规范化、候选处理、正式 article publisher 与数据库公开读取 | `bf5ea3b` | MEDIA-001 解锁为唯一 ready 任务；真实媒体来源仍未接入 |
+| 2026-09-13 | 完成 REVIEW-001 所有者审核、版本化修订、双维度批准和发布/撤下门禁 | `e15cc81` | ARTICLE-001 解锁为唯一 ready 任务；真实 publisher 尚未接入 |
+| 2026-09-13 | 完成 ACQ-001 自动采集领域、六表持久化、CLI、预算/保留与 deterministic fake | `cfd1e00` | REVIEW-001 解锁为唯一 ready 任务 |
+| 2026-09-12 | 完成 IA-001 内容驱动学习、自动供应、词句语料与四板块画像规划 | `241c47a`、`e43130c` | 旧 UI/ALPHA 队列阻塞；唯一下一项为 ACQ-001 |
 | 2026-08-20 | 完成并批准七节产品设计 | `6564952` | 可以编写个人 Alpha 实施文档 |
 | 2026-08-20 | 完成实施计划、AGENTS、架构、内容、测试和 Echo-Loop 评审 | `494f270` | 可以开始 ALPHA-001 |
 | 2026-08-20 | 完成 Next.js/PWA 脚手架、测试基线和响应式验证页 | `dba8bfb` | 可以开始 ALPHA-002 |

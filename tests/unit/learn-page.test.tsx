@@ -1,131 +1,63 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { LearnPageContent } from "@/app/(product)/learn/learn-page-content";
+import type { MediaCard } from "@/src/modules/media";
+
+const item: MediaCard = {
+  id: "media.fixture.cafe@1",
+  stableKey: "media.fixture.cafe",
+  version: 1,
+  kind: "video",
+  title: "Una charla en el café",
+  summary: "Una conversación cotidiana.",
+  sourceName: "Canal ejemplo",
+  language: "es",
+  region: "es-ES",
+  cefr: "A2",
+  topics: ["topic.daily-life"],
+  durationMs: 180_000,
+  publishedAt: "2026-09-12T08:00:00.000Z",
+  curatedAt: "2026-09-13T08:00:00.000Z",
+  contentHash: "a".repeat(64),
+  progress: null,
+};
+
+afterEach(cleanup);
 
 describe("LearnPage", () => {
-  beforeEach(() => {
-    cleanup();
-    window.localStorage.clear();
-    window.history.replaceState(null, "", "/learn");
+  it("opens directly on the honest media library without the former task UI", () => {
+    render(<LearnPageContent query={{}} result={{ items: [], nextCursor: null, hasMore: false }} />);
+
+    expect(screen.getByRole("heading", { name: "看点、听点真实西语" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "媒体资料库正在准备中" })).toBeInTheDocument();
+    expect(screen.queryByText(/开始第一次练习|继续学习|当前沟通目标|练习任务时间线/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /开始|继续/ })).not.toBeInTheDocument();
   });
 
-  it("shows a first-practice empty state without invented progress", async () => {
-    render(<LearnPageContent userId="new-user" />);
+  it("exposes direct type navigation, search, and practical filters", () => {
+    render(<LearnPageContent query={{ kind: "podcast", cefr: "B1" }} result={{ items: [], nextCursor: null, hasMore: false }} />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "从一句真实表达开始" })).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole("link", { name: "开始第一次练习" })).toHaveAttribute(
-      "href",
-      "/learn/practice",
-    );
-    expect(screen.getAllByTestId("learn-primary-action")).toHaveLength(1);
-    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
-    expect(screen.queryByText(/最近获得的能力/)).not.toBeInTheDocument();
-    expect(screen.getByTestId("learn-timeline")).toBeInTheDocument();
-    expect(screen.getByTestId("learn-timeline")).toHaveTextContent("听懂情境");
-    expect(screen.getByTestId("learn-timeline")).toHaveTextContent("当前步骤");
-    expect(screen.getByTestId("learn-detail-disclosure")).not.toHaveAttribute("open");
-    expect(screen.getByText("先听一遍，抓住语气和关键信息。")).not.toBeVisible();
-    expect(screen.queryByText("文章库正在准备中，稍后会在这里出现。")).not.toBeInTheDocument();
-    expect(screen.queryByText("每完成一句都会保存进度，随时停下也不会失去本次练习。")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("learn-empty-state")).toHaveLength(1);
-    for (const name of ["阅读", "和 Lucía 聊聊", "探索", "练习历史"]) {
-      expect(screen.getByRole("link", { name })).not.toHaveClass("primary-action");
-    }
+    expect(screen.getByRole("link", { name: "全部" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "视频" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "播客" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "难度" })).toHaveValue("B1");
+    expect(screen.getByRole("combobox", { name: "时长" })).toBeInTheDocument();
   });
 
-  it("keeps a selected goal title and practice route together", async () => {
-    window.history.replaceState(null, "", "/learn?goal=communication.relationship.ask-name");
-    render(<LearnPageContent userId="goal-user" />);
+  it("renders every eligible item as an equal-weight direct content link", () => {
+    render(<LearnPageContent query={{}} result={{ items: [item, { ...item, id: "media.fixture.radio@1", stableKey: "media.fixture.radio", kind: "podcast", title: "Radio de barrio" }], nextCursor: null, hasMore: false }} />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "询问姓名" })).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole("link", { name: "开始第一次练习" })).toHaveAttribute(
-      "href",
-      "/learn/practice?goal=communication.relationship.ask-name",
-    );
+    expect(screen.getByRole("link", { name: /Una charla en el café/ })).toHaveAttribute("href", "/learn/media/media.fixture.cafe");
+    expect(screen.getByRole("link", { name: /Radio de barrio/ })).toHaveAttribute("href", "/learn/media/media.fixture.radio");
+    expect(screen.getAllByRole("article")).toHaveLength(2);
   });
 
-  it("restores the real expression position from a stable checkpoint", async () => {
-    const user = userEvent.setup();
-    window.localStorage.setItem(
-      "spanish.training.checkpoint.v1:test-user",
-      JSON.stringify({
-        schemaVersion: 1,
-        contentBundleKey: "alpha.core",
-        contentBundleVersion: 1,
-        contentKey: "relationship.como-se-llama",
-        goalKey: "communication.relationship.ask-name",
-        status: "awaiting-output",
-        outputMode: "speech",
-        hintLevel: 0,
-        generationId: 2,
-        transcript: null,
-        evaluation: null,
-        error: null,
-      }),
-    );
-
-    render(<LearnPageContent userId="test-user" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "让对话继续往前走" })).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole("link", { name: "继续学习" })).toHaveAttribute(
-      "href",
-      "/learn/practice",
-    );
-    const details = screen.getByTestId("learn-detail-disclosure");
-    expect(details).not.toHaveAttribute("open");
-    await user.click(screen.getByText("练习详情"));
-    expect(details).toHaveAttribute("open");
-    expect(screen.getByRole("progressbar", { name: "这组表达进度" })).toHaveAttribute(
-      "aria-valuenow",
-      "2",
-    );
-    expect(screen.getByText("2 / 4")).toBeInTheDocument();
-    expect(details).toHaveTextContent("录音隐私");
-    expect(screen.getByTestId("learn-timeline")).toHaveTextContent("自己表达");
-  });
-
-  it("clears an invalid checkpoint instead of showing phantom progress", async () => {
-    window.localStorage.setItem(
-      "spanish.training.checkpoint.v1:invalid-user",
-      JSON.stringify({ schemaVersion: 999, status: "completed" }),
-    );
-
-    render(<LearnPageContent userId="invalid-user" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "从一句真实表达开始" })).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole("link", { name: "开始第一次练习" })).toBeInTheDocument();
-    expect(screen.getByTestId("learn-detail-disclosure")).not.toHaveAttribute("open");
-    expect(screen.queryByRole("progressbar", { name: "这组表达进度" })).not.toBeInTheDocument();
-  });
-
-  it("shows exactly one due-repetition action when no stable checkpoint exists", async () => {
-    render(<LearnPageContent userId="due-user" dueRepetition={{ id: "repetition-1", goalSnapshot: "在新条件下确认材料", dueAt: "2026-09-11T08:00:00.000Z" }} />);
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "在新条件下确认材料" })).toBeInTheDocument());
-    expect(screen.getAllByTestId("learn-primary-action")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "开始到期复现" })).toHaveAttribute("href", "/learn/repetitions/repetition-1");
-  });
-
-  it("keeps a real checkpoint ahead of a due repetition", async () => {
-    window.localStorage.setItem("spanish.training.checkpoint.v1:resume-user", JSON.stringify({ schemaVersion: 1, contentBundleKey: "alpha.core", contentBundleVersion: 1, contentKey: "relationship.como-se-llama", goalKey: "communication.relationship.ask-name", status: "awaiting-output", outputMode: "speech", hintLevel: 0, generationId: 2, transcript: null, evaluation: null, error: null }));
-    render(<LearnPageContent userId="resume-user" dueRepetition={{ id: "repetition-1", goalSnapshot: "到期任务", dueAt: "2026-09-11T08:00:00.000Z" }} />);
-
-    await waitFor(() => expect(screen.getByRole("link", { name: "继续学习" })).toBeInTheDocument());
-    expect(screen.getAllByTestId("learn-primary-action")).toHaveLength(1);
-    expect(screen.queryByRole("link", { name: "开始到期复现" })).not.toBeInTheDocument();
+  it("makes a data outage explicit without fabricating content", () => {
+    render(<LearnPageContent unavailable query={{}} result={{ items: [], nextCursor: null, hasMore: false }} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("媒体资料库暂时无法读取");
+    expect(screen.queryAllByRole("article")).toHaveLength(0);
   });
 });

@@ -1,0 +1,32 @@
+{
+  "sourceStableKey": "fixture.spanish.daily",
+  "cursor": "page-1",
+  "nextCursor": "page-2",
+  "estimatedCostMicros": 0,
+  "items": [
+    {
+      "externalItemId": "video-001",
+      "canonicalUrl": "https://example.test/watch?v=video-001&utm_source=fixture",
+      "title": "Una conversación cotidiana",
+      "contentType": "video",
+      "language": "es",
+      "publishedAt": "2026-09-12T08:00:00.000Z",
+      "contentHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "metadata": {
+        "durationSeconds": 180
+      }
+    },
+    {
+      "externalItemId": "podcast-001",
+      "canonicalUrl": "https://example.test/podcast/episode-001",
+      "title": "Noticias en español",
+      "contentType": "podcast",
+      "language": "es",
+      "publishedAt": "2026-09-12T09:00:00.000Z",
+      "contentHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "metadata": {
+        "durationSeconds": 600
+      }
+    }
+  ]
+}

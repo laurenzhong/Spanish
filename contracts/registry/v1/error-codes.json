@@ -24,5 +24,18 @@
   { "code": "SAVED_EXPRESSION_UNAVAILABLE", "defaultRetryable": true },
   { "code": "PERSONAL_SCENARIO_SOURCE_NOT_FOUND", "defaultRetryable": false },
   { "code": "PERSONAL_SCENARIO_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "CONTENT_SOURCE_NOT_FOUND", "defaultRetryable": false },
+  { "code": "CONTENT_SOURCE_DISABLED", "defaultRetryable": false },
+  { "code": "CONTENT_ACQUISITION_CONFLICT", "defaultRetryable": false },
+  { "code": "CONTENT_RIGHTS_REQUIRED", "defaultRetryable": false },
+  { "code": "CONTENT_BUDGET_EXHAUSTED", "defaultRetryable": true },
+  { "code": "CONTENT_PROCESSING_FAILED", "defaultRetryable": true },
+  { "code": "CONTENT_WORKFLOW_FORBIDDEN", "defaultRetryable": false },
+  { "code": "CONTENT_REVIEW_INCOMPLETE", "defaultRetryable": false },
+  { "code": "CONTENT_PUBLISHER_NOT_AVAILABLE", "defaultRetryable": true },
+  { "code": "CONTENT_PUBLICATION_CONFLICT", "defaultRetryable": false },
+  { "code": "MEDIA_NOT_FOUND", "defaultRetryable": false },
+  { "code": "MEDIA_NOT_AVAILABLE", "defaultRetryable": true },
+  { "code": "MEDIA_PROGRESS_CONFLICT", "defaultRetryable": false },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }
 ]

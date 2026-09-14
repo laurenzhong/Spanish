@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Noticias de ejemplo</title>
+    <atom:link href="https://feeds.example.test/archive?page=2" rel="next" type="application/rss+xml" />
+    <item>
+      <guid isPermaLink="false">noticia-uno</guid>
+      <link>https://news.example.test/noticias/uno?utm_source=rss</link>
+      <title>Una noticia para aprender</title>
+      <author>María Ejemplo</author>
+      <pubDate>Fri, 12 Sep 2026 08:30:00 +0200</pubDate>
+      <description><![CDATA[<p>Un resumen breve de la noticia.</p>]]></description>
+    </item>
+  </channel>
+</rss>

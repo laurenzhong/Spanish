@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "pages": [
+    {
+      "file": "fake-source-page.json",
+      "sourceStableKey": "fixture.spanish.daily",
+      "itemCount": 2,
+      "nextCursor": "page-2"
+    }
+  ]
+}

@@ -61,7 +61,7 @@ test("navigates between all four product areas", async ({ page }) => {
     { name: "探索", path: "/explore", heading: "校园办事：注册与材料" },
     { name: "对话", path: "/chat", heading: "Lucía Martín" },
     { name: "我的", path: "/me", heading: "我的进步" },
-    { name: "学习", path: "/learn", heading: "从一句真实表达开始" },
+    { name: "学习", path: "/learn", heading: "看点、听点真实西语" },
   ]) {
     await navigation.getByRole("link", { name: destination.name }).click();
     await expect(page).toHaveURL(new RegExp(`${destination.path}$`));
@@ -84,9 +84,23 @@ test("keeps the shell usable at desktop width", async ({ page }) => {
   const shell = page.getByTestId("product-shell");
   await expect(shell).toBeVisible();
   await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
+  await expect(page.locator(".mobile-product-header").getByRole("button", { name: "打开账户菜单" })).toHaveCount(0);
+  await expect(page.locator(".navigation-account").getByRole("button", { name: "打开账户菜单" })).toHaveCount(1);
 
   const manifestResponse = await page.request.get("/manifest.webmanifest");
   expect(manifestResponse.ok()).toBeTruthy();
+});
+
+test("keeps the mobile header lightweight without a persistent account trigger", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/learn");
+
+  const mobileHeader = page.locator(".mobile-product-header");
+  await expect(mobileHeader).toBeVisible();
+  await expect(mobileHeader.getByRole("link", { name: "Sueño 首页" })).toBeVisible();
+  await expect(mobileHeader.getByRole("button", { name: "打开账户菜单" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "我的" })).toBeVisible();
 });
 
 test("keeps discovery and conversation entry points visible", async ({
@@ -359,7 +373,7 @@ test("requires explicit confirmation before deleting account data", async ({ pag
   await expect(page.getByTestId("account-data-controls").getByRole("status")).toHaveText("账号数据已删除。");
 });
 
-test("preserves the selected discovery direction on the learning page", async ({
+test("keeps legacy task parameters from restoring the removed learning task UI", async ({
   page,
 }) => {
   await authenticate(page);
@@ -372,7 +386,9 @@ test("preserves the selected discovery direction on the learning page", async ({
 
   await page.goto("/learn?focus=needs");
   await expect(page).toHaveURL(/\/learn\?focus=needs$/);
-  await expect(page.locator(".focus-card")).toHaveAttribute("data-focus", "needs");
+  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
+  await expect(page.locator(".focus-card")).toHaveCount(0);
+  await expect(page.getByText(/开始第一次练习|继续学习/)).toHaveCount(0);
 });
 
 test("opens the published reading shelf and article reader", async ({ page }) => {

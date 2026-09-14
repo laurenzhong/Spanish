@@ -9,18 +9,24 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import {
+  acquisitionRuns,
+  acquisitionSources,
   articleAssets,
   articleSegments,
   articleSources,
   articleVersions,
   articles,
   audioAssets,
+  candidateArtifacts,
+  candidateProcessingAttempts,
+  candidateReviews,
   characterCanonFacts,
   characterIntroductionOffers,
   characterRelationships,
   characters,
   communicationDomains,
   contentBundleImports,
+  contentCandidates,
   contentPackActivities,
   contentPackSegments,
   contentPacks,
@@ -35,6 +41,10 @@ import {
   idempotencyKeys,
   learningBreakpoints,
   learningGoals,
+  mediaAssets,
+  mediaItems,
+  mediaSegments,
+  mediaVersions,
   memorySharingPermissions,
   messages,
   practiceAttempts,
@@ -51,6 +61,7 @@ import {
   userArticleHighlights,
   userArticleSaves,
   userContentPackStates,
+  userMediaProgress,
   userReadingProgress,
   userSavedArticleSources,
   userSceneStates,
@@ -58,6 +69,12 @@ import {
 } from "@/src/shared/db/schema";
 
 const allTables = [
+  acquisitionSources,
+  acquisitionRuns,
+  contentCandidates,
+  candidateArtifacts,
+  candidateProcessingAttempts,
+  candidateReviews,
   profiles,
   userPreferences,
   communicationDomains,
@@ -95,6 +112,10 @@ const allTables = [
   articleSources,
   articleVersions,
   articles,
+  mediaItems,
+  mediaVersions,
+  mediaAssets,
+  mediaSegments,
   providerCalls,
   diagnosticEvents,
   privacyCleanupTasks,
@@ -103,6 +124,7 @@ const allTables = [
   userArticleSaves,
   userArticleHighlights,
   userSavedArticleSources,
+  userMediaProgress,
 ] as const;
 
 const userOwnedTables = [
@@ -124,13 +146,16 @@ const userOwnedTables = [
   conversations,
   messages,
   userContentPackStates,
+  userMediaProgress,
 ] as const;
 
 describe("database schema", () => {
   it("defines the current versioned database table set", () => {
     expect(allTables.map(getTableName).sort()).toEqual(
       [
-      "audio_assets",
+        "acquisition_runs",
+        "acquisition_sources",
+        "audio_assets",
         "article_assets",
         "article_segments",
         "article_sources",
@@ -140,8 +165,12 @@ describe("database schema", () => {
         "character_introduction_offers",
         "character_relationships",
         "characters",
+        "candidate_artifacts",
+        "candidate_processing_attempts",
+        "candidate_reviews",
         "communication_domains",
         "content_bundle_imports",
+        "content_candidates",
         "content_pack_activities",
         "content_pack_segments",
         "content_packs",
@@ -156,6 +185,10 @@ describe("database schema", () => {
         "idempotency_keys",
         "learning_breakpoints",
         "learning_goals",
+        "media_assets",
+        "media_items",
+        "media_segments",
+        "media_versions",
         "memory_sharing_permissions",
         "messages",
         "practice_attempts",
@@ -170,6 +203,7 @@ describe("database schema", () => {
         "tags",
         "user_article_highlights",
         "user_article_saves",
+        "user_media_progress",
         "user_preferences",
         "user_reading_progress",
         "user_saved_article_sources",
@@ -256,7 +290,11 @@ describe("database schema", () => {
         "0009_oval_namora.sql",
         "0010_watery_ogun.sql",
         "0011_early_colleen_wing.sql",
+        "0023_article_acquisition.sql",
         "0012_wakeful_spiral.sql",
+        "0021_shallow_killmonger.sql",
+        "0024_media_library_foundation.sql",
+        "0025_youtube_video_publication.sql",
       ]) {
         const migrationPath = path.join(
           process.cwd(),
