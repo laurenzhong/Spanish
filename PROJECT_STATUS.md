@@ -34,8 +34,8 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
-- 实现 Commit：`24beadf`；后置修正 `8f07ad9`、`fd95699`
-- 范围：将 `/learn` 重做为内容优先的深色媒体工作台；桌面固定 `88px` 窄侧栏，五项导航统一为图标在上、文字在下，不再提供侧栏收缩/展开按钮或“开始/发现/账户”分组说明；`1440/1280/1024px` 分别为 5/4/3 列；小于 `960px` 切换页面顶部品牌与搜索、横向频道、双列（`320px` 单列）媒体流和既有底部五项导航。移除 Hero、任务式 CTA、时间线和解释性大段文案，保留每张媒体卡作为等权详情入口。
+- 实现 Commit：`24beadf`；后置修正 `8f07ad9`、`fd95699`、`fb6a8d9`
+- 范围：将 `/learn` 重做为内容优先的深色媒体工作台；桌面固定 `88px` 窄侧栏，五项导航统一为图标在上、文字在下，不再提供侧栏收缩/展开按钮或“开始/发现/账户”分组说明；`1440/1280/1024px` 分别为 5/4/3 列；小于 `960px` 切换页面顶部品牌与搜索、横向频道、双列（`320px` 单列）媒体流和既有底部五项导航。移除 Hero、任务式 CTA、时间线和解释性大段文案，保留每张媒体卡作为等权详情入口。后置修正学习页 logo 的 flex `gap`，消除 `e-ñ` 与 `ñ-o` 间额外空隙。
 - 交互与真实性：`S` 图标位于桌面导航首位，学习页仅显示文字 `Sueño` logo，账户入口只显示头像；新增顶部频道、搜索、排序和 URL 可恢复筛选；筛选在桌面以内嵌面板、移动端底部面板呈现，Escape/取消恢复筛选按钮焦点。卡片使用 `MediaCard.artwork` 的真实图片，加载失败或缺失时明确显示“暂无封面”，不再生成 CSS/随机字母假封面。未改媒体数据、播放详情、进度 revision/CAS、评分、证据或采集逻辑。
 - 修改：`app/globals.css`、`src/modules/media/ui/{index,media-artwork,media-card,media-library,media-library-toolbar}.tsx`、学习页/壳层相关 Vitest 与 Playwright 回归。
 - 验证：媒体/学习页/合同 Vitest `3 files / 12 tests` 通过；导航/账户/媒体回归 Vitest `4 files / 15 tests` 通过；学习页 Playwright 桌面 `3/3`、移动 `3/3` 通过，修正后的壳层/学习页桌面专项 `7/7` 通过；本次修改文件 ESLint 通过，`git diff --check` 通过。`pnpm typecheck` 仍仅命中既有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 的错误。
@@ -1759,7 +1759,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | VIDEO-001 | done | `codex/video-001-youtube-learning` | Codex | YouTube 白名单视频纵向闭环 | 实现 `7884a86`；合并 `77998c9` |
 | PODCAST-001 | review | `codex/podcast-001-rss-learning` | Codex | 播客 RSS 纵向闭环 | 实现 `0e047ec`；等待复核合并 |
 | LEARN-HOME-002 | review | `codex/ui-017-collapsible-shell` | Codex | 媒体 artwork 数据与公开投影 | 实现 `e3a31b8`；等待产品复核 |
-| LEARN-HOME-003 | review | `codex/ui-017-collapsible-shell` | Codex | 暗色桌面媒体学习首页 UI | 实现 `24beadf`；后置修正 `8f07ad9`；等待产品本人视觉复核 |
+| LEARN-HOME-003 | review | `codex/ui-017-collapsible-shell` | Codex | 暗色桌面媒体学习首页 UI | 实现 `24beadf`；后置修正 `8f07ad9`、`fb6a8d9`；等待产品本人视觉复核 |
 | MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 |
 | LEX-001 | blocked | `codex/lex-001-lexicon-corpus-foundation` | 待领取 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 |
 | LEX-002 | blocked | `codex/lex-002-corpus-assessment` | 待领取 | KWIC 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 |
@@ -1836,7 +1836,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
-| 2026-09-14 | LEARN-HOME-003 完成深色媒体学习首页 UI 与导航细化，进入 review | `24beadf`、`8f07ad9` | 等待产品本人视觉复核；下一项为 LEARN-HOME-004 |
+| 2026-09-14 | LEARN-HOME-003 完成深色媒体学习首页 UI 与导航细化，进入 review | `24beadf`、`8f07ad9`、`fb6a8d9` | 等待产品本人视觉复核；下一项为 LEARN-HOME-004 |
 | 2026-09-14 | LEARN-HOME-002 完成媒体 artwork 版本化字段、YouTube/播客适配和公开投影，进入 review | `e3a31b8` | 等待产品复核；确认后实施 LEARN-HOME-003 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环，进入 review | `0e047ec` | 等待复核合并；MEDIA-002 继续 blocked |
 | 2026-09-14 | VIDEO-001 通过合并复核并进入 `main` | `7884a86`、`77998c9` | PODCAST-001 解锁为唯一 ready 任务；ASR 与词句任务继续阻塞 |
