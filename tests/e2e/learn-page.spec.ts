@@ -18,6 +18,7 @@ test("opens directly on video and podcast content discovery", async ({ page }) =
   await expect(page.getByRole("link", { name: "视频" })).toBeVisible();
   await expect(page.getByRole("link", { name: "播客" })).toBeVisible();
   await expect(page.locator(".media-library__wordmark")).toHaveCSS("letter-spacing", "normal");
+  await expect(page.locator(".media-library__wordmark")).toHaveCSS("gap", "0px");
   await expect(page.getByRole("searchbox", { name: "搜索视频和播客" })).toBeVisible();
   await page.getByRole("button", { name: /筛选/ }).click();
   await expect(page.getByRole("combobox", { name: "地区" })).toBeVisible();
