@@ -4,7 +4,7 @@
 
 - 最后更新：2026-09-14
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`LEX-001` 已完成实现并进入 `review`，词汇/短语浏览、跨文章与媒体出现索引、个人复习意图和阅读子导航已接入；阶段 8 未启动
+- 总体状态：`LEX-001` 与 `LEX-002` 已完成实现并进入 `review`，阅读页现已包含词汇、短语、KWIC 语料查询和文字考察；阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
@@ -19,6 +19,18 @@
 - 契约与测试：新增词汇列表、意图请求/响应 JSON Schema 与 OpenAPI 路径；新增 API、页面、持久化和 RLS 回归。LEX 聚焦 `5 files / 14 tests`，schema/阅读相关回归 `7 files / 23 tests`，全量 Vitest `211 files / 844 tests`，桌面学习/产品壳层 Playwright `25/25`，`pnpm lint`、`pnpm typecheck`、`pnpm db:check` 已通过。
 - 限制：未执行远端 `0027_wide_puff_adder.sql` 迁移，未运行真实文章/媒体索引导入；`/read/corpus` 仍是下一阶段 KWIC 查询占位页，文字考察和能力证据留给 `LEX-002`。未做 iPhone Safari/PWA 真机或 Flutter 验证。
 - 下一步：产品复核并合入 `LEX-001` 后，再领取 `LEX-002`（语料查询、文字考察与词句证据）；不得在确认前实现 `PROFILE-001`。
+
+### 2026-09-14：LEX-002 语料查询、文字考察与词句证据
+
+- 状态：`review`
+- 负责人：Codex
+- 分支：`codex/lex-002-corpus-assessment`
+- 实现 Commit：`09af8ac`
+- 范围：新增西语查询归一化与多词 KWIC 匹配、文章/视频/播客公开版本与私人 occurrence 可见性过滤；新增版本化词句考察题目、纯文字 cloze/recall 服务端评分、自然等价答案归一化、幂等提交和归档题目门禁。`/read/corpus` 已从占位页改为查询界面，并可按 assessment 参数加载文字考察。
+- 证据与隐私：文字考察只接受服务端读取的题目和答案，客户端不能提交 score、skill、confidence 或 contentVersion；通过与失败分别追加 `lexical.*` typing evidence（权重 0.54/0.27），不写 pronunciation、fluency、reaction 或口语证据；重复幂等键不重复写 evidence，题目响应不返回 accepted answers 或 skill key。新增 assessment 表启用 RLS，浏览器角色不能写 evidence/user_skill_states。
+- 契约与测试：新增 corpus/assessment JSON Schema、OpenAPI 路径、Route Handler 和应用层；聚焦单元/契约/数据库回归 `7 files / 20 tests`，全量 Vitest `215 files / 854 tests`，`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、`git diff --check` 通过。
+- 限制：未执行远端 `0028_neat_gargoyle.sql` 迁移，未导入真实语料或题目，未运行真实账号、iPhone Safari/PWA、Flutter 或收费 Provider 验证；当前页面需数据库中存在已发布 occurrence/assessment 才显示真实结果。
+- 下一步：产品复核并合入 `LEX-002` 后，再进入 `PROFILE-001`；继续保持证据只由服务器确认的文字考察或口语评估产生。
 
 ### 2026-09-14：PODCAST-001 播客 RSS 纵向闭环
 
