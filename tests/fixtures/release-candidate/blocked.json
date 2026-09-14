@@ -1,0 +1,14 @@
+{
+  "checks": {
+    "lint": { "status": "passed" },
+    "typecheck": { "status": "passed" },
+    "unit": { "status": "passed" },
+    "e2eDesktop": { "status": "blocked" },
+    "build": { "status": "passed" },
+    "databaseRls": { "status": "passed" },
+    "contentPrivacy": { "status": "passed" }
+  },
+  "openP0": 0,
+  "openP1": 1,
+  "productConfirmed": false
+}
