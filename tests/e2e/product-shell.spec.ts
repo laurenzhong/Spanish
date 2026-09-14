@@ -113,54 +113,43 @@ test("opens the desktop account menu beside the rail without viewport clipping",
   expect((popoverBox?.x ?? 0) + (popoverBox?.width ?? 0)).toBeLessThanOrEqual(1280);
 });
 
-test("collapses the desktop rail without covering the main content", async ({ page }) => {
+test("keeps the compact desktop rail and icon-over-label navigation", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/learn");
 
   const rail = page.locator(".desktop-navigation");
   await expect(rail).toBeVisible();
-  await expect(rail.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
-  const expandedBox = await rail.boundingBox();
-  expect(expandedBox?.width).toBeGreaterThanOrEqual(222);
-  expect(expandedBox?.width).toBeLessThanOrEqual(226);
-
-  await rail.getByRole("button", { name: "收起侧边栏" }).click();
-  await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
-  const collapsedBox = await rail.boundingBox();
+  await expect(rail.getByRole("button", { name: /侧边栏/ })).toHaveCount(0);
+  const railBox = await rail.boundingBox();
   const contentBox = await page.locator(".product-content").boundingBox();
-  expect(collapsedBox?.width).toBeGreaterThanOrEqual(86);
-  expect(collapsedBox?.width).toBeLessThanOrEqual(90);
-  expect(contentBox?.x).toBeGreaterThanOrEqual((collapsedBox?.x ?? 0) + (collapsedBox?.width ?? 0));
+  expect(railBox?.width).toBeGreaterThanOrEqual(86);
+  expect(railBox?.width).toBeLessThanOrEqual(90);
+  expect(contentBox?.x).toBeGreaterThanOrEqual((railBox?.x ?? 0) + (railBox?.width ?? 0));
   await expect(page.locator(".desktop-navigation__link[aria-current='page']")).toHaveAttribute("title", "学习");
-  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("sueno-desktop-navigation-v1"))).toBe("collapsed");
-
-  await page.reload();
-  await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
+  await expect(rail.locator(".desktop-navigation__link")).toHaveCount(5);
 });
 
-test("defaults the desktop rail to collapsed at intermediate widths", async ({ page }) => {
+test("keeps the compact desktop rail at intermediate widths", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.goto("/learn");
 
   const rail = page.locator(".desktop-navigation");
-  await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
   const box = await rail.boundingBox();
   expect(box?.width).toBeGreaterThanOrEqual(86);
   expect(box?.width).toBeLessThanOrEqual(90);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1024);
 });
 
-test("keeps the mobile header lightweight without a persistent account trigger", async ({ page }) => {
+test("keeps the learning header focused on brand and discovery", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/learn");
 
-  const mobileHeader = page.locator(".mobile-product-header");
-  await expect(mobileHeader).toBeVisible();
-  await expect(mobileHeader.getByRole("link", { name: "Sueño 首页" })).toBeVisible();
-  await expect(mobileHeader.getByRole("button", { name: "打开账户菜单" })).toHaveCount(0);
+  await expect(page.locator(".mobile-product-header")).toBeHidden();
+  await expect(page.locator(".media-library__wordmark")).toBeVisible();
+  await expect(page.locator(".media-library__search")).toBeVisible();
   await expect(page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "我的" })).toBeVisible();
 });
 

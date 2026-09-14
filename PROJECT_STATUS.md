@@ -25,8 +25,8 @@
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
 - 实现 Commit：`24beadf`
-- 范围：将 `/learn` 重做为内容优先的深色媒体工作台；桌面侧栏按 `224px` 展开 / `88px` 收缩，`1440/1280/1024px` 分别为 5/4/3 列；小于 `960px` 切换顶部品牌与搜索、横向频道、双列（`320px` 单列）媒体流和既有底部五项导航。移除 Hero、任务式 CTA、时间线和解释性大段文案，保留每张媒体卡作为等权详情入口。
-- 交互与真实性：新增顶部频道、搜索、排序和 URL 可恢复筛选；筛选在桌面以内嵌面板、移动端底部面板呈现，Escape/取消恢复筛选按钮焦点。卡片使用 `MediaCard.artwork` 的真实图片，加载失败或缺失时明确显示“暂无封面”，不再生成 CSS/随机字母假封面。未改媒体数据、播放详情、进度 revision/CAS、评分、证据或采集逻辑。
+- 范围：将 `/learn` 重做为内容优先的深色媒体工作台；桌面固定 `88px` 窄侧栏，五项导航统一为图标在上、文字在下，不再提供侧栏收缩/展开按钮或“开始/发现/账户”分组说明；`1440/1280/1024px` 分别为 5/4/3 列；小于 `960px` 切换页面顶部品牌与搜索、横向频道、双列（`320px` 单列）媒体流和既有底部五项导航。移除 Hero、任务式 CTA、时间线和解释性大段文案，保留每张媒体卡作为等权详情入口。
+- 交互与真实性：品牌 logo 位于学习页顶部，账户入口只显示头像；新增顶部频道、搜索、排序和 URL 可恢复筛选；筛选在桌面以内嵌面板、移动端底部面板呈现，Escape/取消恢复筛选按钮焦点。卡片使用 `MediaCard.artwork` 的真实图片，加载失败或缺失时明确显示“暂无封面”，不再生成 CSS/随机字母假封面。未改媒体数据、播放详情、进度 revision/CAS、评分、证据或采集逻辑。
 - 修改：`app/globals.css`、`src/modules/media/ui/{index,media-artwork,media-card,media-library,media-library-toolbar}.tsx`、学习页/壳层相关 Vitest 与 Playwright 回归。
 - 验证：媒体/学习页/合同 Vitest `3 files / 12 tests` 通过；学习页 Playwright 桌面 `3/3`、移动 `3/3` 通过，壳层折叠/中等桌面宽度及 provider 子集 `6/6` 通过；本次修改文件 ESLint 通过，`git diff --check` 通过。`pnpm typecheck` 仍仅命中既有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 的错误。
 - 限制与下一步：未运行全量 `pnpm test:e2e`、`pnpm build`，未做真实账号、真实媒体数据、远端迁移、iPhone Safari/PWA 或 Flutter 验证；当前本地资料库为空时继续显示诚实空状态。下一项为 `LEARN-HOME-004` 视觉与响应式验收，完成产品本人复核后再合并本实现。

@@ -84,7 +84,6 @@ export function BottomNavigation() {
       <div className="navigation-groups">
         {navigationGroups.map((group) => (
           <div className="navigation-group" key={group.label}>
-            <span className="navigation-group__label">{group.label}</span>
             <div className="navigation-items">
               {group.items.map((item) => {
                 const isCurrent =

@@ -121,8 +121,6 @@ export function AccountMenu() {
     <div className="account-menu" ref={menuRef}>
       <button className="account-menu__trigger" type="button" aria-expanded={open} aria-haspopup="menu" aria-label="打开账户菜单" onClick={() => setOpen((current) => !current)}>
         <Avatar profile={profile} />
-        <span className="account-menu__trigger-copy"><strong>{displayName}</strong><small>{language}</small></span>
-        <span className="account-menu__chevron" aria-hidden="true">↗</span>
       </button>
       {open ? (
         <div className="account-menu__popover" role="menu" aria-label="账户菜单">
