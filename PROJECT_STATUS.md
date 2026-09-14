@@ -469,7 +469,7 @@
 - `LEX-001`：词汇、短语与出现索引（review；实现 Commit `ed5aa6c`）。
 - `LEX-002`：KWIC 语料查询、文字考察与词句证据（review；实现 Commit `09af8ac`）。
 - `PROFILE-001`：四板块能力画像与“我的”替换（review；实现 Commit `db68587`）。
-- `OPS-001`：每日生产调度与全链路门禁（review；实现 Commit `f1fb75b`）。
+- `OPS-001`：每日生产调度与全链路门禁（review；实现 Commit `f1fb75b`、`217b9e1`）。
 - `ALPHA-033`：旧电脑端 Web 发布候选门禁（blocked；等待 OPS-001 后按新路径重新定义）。
 - 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待新发布候选门禁与产品本人确认）。
 
@@ -1842,7 +1842,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
 | 2026-09-14 | 完成 PROFILE-001 四板块能力画像、兼容 API 与“我的”页面替换 | `db68587` | 产品复核后解锁 OPS-001；保留历史八维证据与响应 |
-| 2026-09-14 | 完成 OPS-001 每日 CI 调度、discover/process/cleanup/report、清理重试、脱敏观测与运行手册 | `f1fb75b` | 产品复核后重建发布候选门禁；自动化仍不直接发布 |
+| 2026-09-14 | 完成 OPS-001 每日 CI 调度、discover/process/cleanup/report、清理重试、脱敏观测与运行手册 | `f1fb75b`、`217b9e1` | 产品复核后重建发布候选门禁；自动化仍不直接发布 |
 | 2026-09-14 | MEDIA-002 完成媒体 ASR/翻译编排、成本/资格门禁、低置信度阻塞、超时取消与临时音频清理并合入 main | `efcfda4`、`0d955f4`、`4938d97` | LEX-001 提升为唯一 ready 任务 |
 | 2026-09-14 | MEDIA-002 完成媒体 ASR/翻译编排、成本/资格门禁、低置信度阻塞、超时取消与临时音频清理，进入 review | `efcfda4`、`0d955f4` | 产品复核后解锁 LEX-001 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环并合入 main | `0e047ec`、`bede042` | MEDIA-002 提升为唯一 ready 任务 |
