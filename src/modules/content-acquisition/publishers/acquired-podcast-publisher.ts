@@ -45,6 +45,10 @@ export class AcquiredPodcastPublisher implements CandidatePublisher {
     } catch {
       throw new PodcastPublicationConflictError("The reviewed podcast draft or transcript timeline is invalid.");
     }
+    const processingReview = input.metadata.mediaProcessingReview;
+    if (processingReview && typeof processingReview === "object" && "status" in processingReview && processingReview.status === "blocked") {
+      throw new PodcastPublicationConflictError("The media processing review is blocked by low-confidence transcript segments.");
+    }
     const transcriptMatches = draft.transcriptStatus === "unavailable"
       ? draft.transcriptUrl === null && draft.segments.length === 0
       : draft.segments.length > 0

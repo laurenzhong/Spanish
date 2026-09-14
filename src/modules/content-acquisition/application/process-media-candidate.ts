@@ -88,6 +88,7 @@ export async function processMediaCandidate(
     const nextDraft = { ...video!.draft, captionStatus: "asr" as const, segments: [...result.segments] };
     nextMetadata.videoDraft = { ...nextDraft, contentHash: calculateVideoCandidateContentHash(nextDraft) };
   }
+  nextMetadata.mediaProcessingReview = result.review;
   const now = (dependencies.now ?? (() => new Date()))();
   const updated = await repository.compareAndSwapCandidate({
     candidateId: candidate.id,

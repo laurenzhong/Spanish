@@ -38,6 +38,9 @@ export async function consumeMediaTranscription(
     if (event.type === "done") done = event;
   }
   if (!done) throw new MediaProcessingError("MEDIA_TRANSCRIPTION_INCOMPLETE", "Media transcription ended without a done event.", true);
+  if (!Number.isSafeInteger(done.estimatedCostMicros) || done.estimatedCostMicros < 0) {
+    throw new MediaProcessingError("MEDIA_TRANSCRIPTION_FAILED", "Media transcription returned an invalid cost.");
+  }
   return { segments, providerRequestId: done.providerRequestId, modelVersion: done.modelVersion, estimatedCostMicros: done.estimatedCostMicros };
 }
 

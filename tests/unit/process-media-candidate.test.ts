@@ -54,6 +54,7 @@ describe("processMediaCandidate", () => {
     });
     expect(updated.status).toBe("review_ready");
     expect(updated.revision).toBe(4);
+    expect(updated.metadata.mediaProcessingReview).toEqual({ status: "review_ready", reason: "translated" });
     expect(updated.metadata.podcastDraft).toMatchObject({ transcriptStatus: "asr", transcriptUrl: null, segments: [{ sourceKind: "asr", translation: "你好" }] });
     expect(state.compareAndSwapCandidate).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: 3, status: "review_ready" }));
     expect(state.attempts).toHaveLength(1);
@@ -69,6 +70,7 @@ describe("processMediaCandidate", () => {
       ]), makeAttemptId: () => "00000000-0000-4000-8000-000000000924", now: () => new Date("2026-09-14T11:00:00.000Z"),
     });
     expect(updated.status).toBe("processing");
+    expect(updated.metadata.mediaProcessingReview).toEqual({ status: "blocked", reason: "low-confidence" });
     expect(updated.metadata.podcastDraft).toMatchObject({ transcriptStatus: "asr", segments: [{ sourceKind: "asr", confidence: 0.2 }] });
     expect(state.attempts[0]).toMatchObject({ status: "failed", errorCode: "MEDIA_ASR_LOW_CONFIDENCE" });
   });

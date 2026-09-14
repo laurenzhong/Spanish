@@ -19,7 +19,7 @@ describe("media processing orchestrator", () => {
   it("keeps Spanish segments when translation fails and blocks low confidence", async () => {
     const artifacts = store();
     const result = await processMediaTranscript({
-      input: { ...input, estimatedCostMicros: 10 },
+      input,
       policy,
       artifactStore: artifacts,
       transcriptionProvider: new FakeMediaTranscriptionProvider([
@@ -65,7 +65,7 @@ describe("media processing orchestrator", () => {
   it("rejects a provider result that exceeds the hard budget", async () => {
     const artifacts = store();
     await expect(processMediaTranscript({
-      input,
+      input: { ...input, estimatedCostMicros: 10 },
       policy: { ...policy, maxEstimatedCostMicros: 10 },
       artifactStore: artifacts,
       transcriptionProvider: new FakeMediaTranscriptionProvider([{ type: "done", providerRequestId: "req", modelVersion: "fake", estimatedCostMicros: 11 }]),

@@ -58,6 +58,10 @@ export async function prepareVideoCandidateForReview(
   ) {
     throw new VideoCandidateValidationError("candidate fields do not match the immutable draft.");
   }
+  const processingReview = initial.metadata.mediaProcessingReview;
+  if (processingReview && typeof processingReview === "object" && "status" in processingReview && processingReview.status === "blocked") {
+    throw new VideoCandidateValidationError("media processing review is blocked by low-confidence transcript segments.");
+  }
   if (initial.status === "review_ready") return initial;
   if (!(initial.status in nextEvent)) {
     throw new VideoCandidateValidationError(`candidate cannot be prepared from ${initial.status}.`);

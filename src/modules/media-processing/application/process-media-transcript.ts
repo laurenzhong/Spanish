@@ -129,11 +129,15 @@ export async function processMediaTranscript(options: Readonly<{
       try {
         await options.artifactStore.delete(artifact.id);
       } catch (error) {
-        await options.artifactStore.recordDeletionFailure?.({
-          artifactId: artifact.id,
-          error: error instanceof Error ? error.message : "unknown storage error",
-          occurredAt: new Date(),
-        });
+        try {
+          await options.artifactStore.recordDeletionFailure?.({
+            artifactId: artifact.id,
+            error: error instanceof Error ? error.message : "unknown storage error",
+            occurredAt: new Date(),
+          });
+        } catch {
+          // The cleanup error remains the stable public failure; the retry record is best effort.
+        }
         throw new MediaProcessingError("MEDIA_CLEANUP_FAILED", "Temporary media could not be deleted.", true);
       }
     }
