@@ -34,7 +34,7 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
-- 实现 Commit：待提交（当前工作树）
+- 实现 Commit：`ab73cab`
 - 范围：详情页增加紧凑媒体元信息（来源、地区、时长、逐句文本状态）；工作台采用播放器/字幕双栏，补充“当前片段”上下文区、稳定 16:9 播放区、可访问的控制组和字幕模式组；移动断点统一为 `<960px`，词句上下文在 320/375/390/414/768px 使用避开底部导航的全宽底部抽屉；保留 A/S/D/Q、字幕定位、播放端口、进度 revision/CAS、错误和 generation 语义。
 - 修改文件：`app/(product)/learn/media/[stableKey]/page.tsx`、`app/globals.css`、`src/modules/media/ui/media-learning-workbench.tsx`、`tests/unit/video-learning-workbench.test.tsx`、`tests/e2e/video-learning.spec.ts`。
 - 验证：媒体工作台 Vitest `2 files / 8 tests` 通过；媒体详情 Playwright 视频/播客桌面与移动 `8/8` 通过；额外 Playwright 视口检查 `320/375/390/414/768/1024/1280/1440` 全部无横向溢出，词句抽屉在移动壳层导航上方，标题与详情控件可见；目标文件 ESLint、`git diff --check` 通过；Playwright 截图已检查桌面与移动首屏。
@@ -1890,8 +1890,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
 | 2026-09-15 | LR-001 完成 Language Reactor 实际来源接入、真实采集、所有者审核与首批发布，进入 review | 待提交 | 20 个视频和 2 个播客已在远端学习页可见；待产品确认播放后提交并决定后续 MEDIA-002 |
-| 2026-09-15 | 建立 LEARN-MEDIA-DETAIL-001 媒体详情与视频学习器视觉设计规格及实施计划 | 未提交 | 设计任务已完成；进入桌面与移动实现任务 |
-| 2026-09-15 | 完成 LEARN-MEDIA-DETAIL-002/003 媒体详情工作台实现、移动重排与可访问性回归，进入 review | 待提交 | 视频/播客详情桌面与移动路径、8 个视口和词句抽屉已由 Playwright 验证；等待产品视觉复核 |
+| 2026-09-15 | 建立 LEARN-MEDIA-DETAIL-001 媒体详情与视频学习器视觉设计规格及实施计划 | `ab73cab` | 设计任务已完成；进入桌面与移动实现任务 |
+| 2026-09-15 | 完成 LEARN-MEDIA-DETAIL-002/003 媒体详情工作台实现、移动重排与可访问性回归，进入 review | `ab73cab` | 视频/播客详情桌面与移动路径、8 个视口和词句抽屉已由 Playwright 验证；等待产品视觉复核 |
 | 2026-09-14 | LEARN-HOME-003 完成深色媒体学习首页 UI 与导航细化，进入 review | `24beadf`、`8f07ad9`、`fb6a8d9` | 等待产品本人视觉复核；下一项为 LEARN-HOME-004 |
 | 2026-09-14 | LEARN-HOME-002 完成媒体 artwork 版本化字段、YouTube/播客适配和公开投影，进入 review | `e3a31b8` | 等待产品复核；确认后实施 LEARN-HOME-003 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环，进入 review | `0e047ec` | 等待复核合并；MEDIA-002 继续 blocked |
