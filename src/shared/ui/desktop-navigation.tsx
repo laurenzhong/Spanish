@@ -29,6 +29,8 @@ export function DesktopNavigation() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // The preference must be read after hydration so SSR and browser markup match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(readStoredState() ?? defaultState());
     setReady(true);
   }, []);
