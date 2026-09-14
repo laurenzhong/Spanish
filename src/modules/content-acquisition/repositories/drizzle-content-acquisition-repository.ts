@@ -267,6 +267,11 @@ export function createDrizzleContentAcquisitionRepository(
       return row ? sourceRecord(row, true) : null;
     },
 
+    async findSourceById(sourceId) {
+      const [row] = await database.select().from(schema.acquisitionSources).where(eq(schema.acquisitionSources.id, sourceId)).limit(1);
+      return row ? sourceRecord(row, true) : null;
+    },
+
     async createRun(input) {
       await database.insert(schema.acquisitionRuns).values({
         id: input.id,
@@ -410,6 +415,8 @@ export function createDrizzleContentAcquisitionRepository(
           revision: input.expectedRevision + 1,
           lastActivityAt: input.updatedAt,
           rejectedAt: input.rejectedAt,
+          ...(input.metadata ? { metadata: input.metadata } : {}),
+          ...(input.contentHash !== undefined ? { contentHash: input.contentHash } : {}),
           updatedAt: input.updatedAt,
         })
         .where(and(

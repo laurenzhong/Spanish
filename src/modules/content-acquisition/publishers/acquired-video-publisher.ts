@@ -45,6 +45,10 @@ export class AcquiredVideoPublisher implements CandidatePublisher {
     } catch {
       throw new VideoPublicationConflictError("The reviewed video draft or segment timeline is invalid.");
     }
+    const processingReview = input.metadata.mediaProcessingReview;
+    if (processingReview && typeof processingReview === "object" && "status" in processingReview && processingReview.status === "blocked") {
+      throw new VideoPublicationConflictError("The media processing review is blocked by low-confidence transcript segments.");
+    }
     const captionMatches = draft.captionStatus === "unavailable"
       ? draft.segments.length === 0
       : draft.segments.length > 0 && draft.segments.every((segment) => segment.sourceKind === draft.captionStatus);

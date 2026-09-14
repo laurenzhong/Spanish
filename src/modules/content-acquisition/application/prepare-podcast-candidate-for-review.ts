@@ -40,8 +40,9 @@ export async function preparePodcastCandidateForReview(
   }
   const transcriptMatches = draft.transcriptStatus === "unavailable"
     ? draft.transcriptUrl === null && draft.segments.length === 0
-    : draft.transcriptUrl !== null && draft.segments.length > 0
-      && draft.segments.every((segment) => segment.sourceKind === draft.transcriptStatus);
+    : draft.segments.length > 0
+      && draft.segments.every((segment) => segment.sourceKind === draft.transcriptStatus)
+      && (draft.transcriptStatus === "asr" ? draft.transcriptUrl === null : draft.transcriptUrl !== null);
   if (!transcriptMatches) throw new PodcastCandidateValidationError("transcript state does not match the reviewed timeline.");
   if (draft.segments.length > 0) {
     try {
@@ -58,6 +59,10 @@ export async function preparePodcastCandidateForReview(
     || initial.externalItemId !== draft.episodeGuid
   ) {
     throw new PodcastCandidateValidationError("candidate fields do not match the immutable draft.");
+  }
+  const processingReview = initial.metadata.mediaProcessingReview;
+  if (processingReview && typeof processingReview === "object" && "status" in processingReview && processingReview.status === "blocked") {
+    throw new PodcastCandidateValidationError("media processing review is blocked by low-confidence transcript segments.");
   }
   if (initial.status === "review_ready") return initial;
   if (!(initial.status in nextEvent)) {

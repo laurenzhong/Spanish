@@ -3,6 +3,8 @@ export * from "./archive-published-candidate";
 export * from "./get-candidate-review";
 export * from "./list-candidates";
 export * from "./process-candidate";
+export * from "./process-media-candidate";
+export * from "./cleanup-candidate-artifacts";
 export * from "./prepare-article-candidate-for-review";
 export * from "./prepare-podcast-candidate-for-review";
 export * from "./prepare-video-candidate-for-review";
