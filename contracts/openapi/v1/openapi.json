@@ -661,6 +661,17 @@
         }
       }
     },
+    "/profile": {
+      "get": {
+        "summary": "Read the authenticated user's legacy axes and four capability groups",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profile capability overview", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/profile-overview-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Profile unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/profile/memories": {
       "get": {
         "summary": "List the authenticated user's relationship memories",

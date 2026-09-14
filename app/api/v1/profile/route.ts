@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getProfileOverview } from "@/src/modules/profile/application";
+import { getFourCapabilityOverview, getProfileOverview } from "@/src/modules/profile/application";
 import { createDrizzleProfileRepository } from "@/src/modules/profile/repositories";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION } from "@/src/shared/contracts/v1/api-contract";
@@ -30,12 +30,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const overview = await getProfileOverview(
-      createDrizzleProfileRepository(getDatabase()),
-      user.id,
-    );
+    const repository = createDrizzleProfileRepository(getDatabase());
+    const [overview, fourCapability] = await Promise.all([
+      getProfileOverview(repository, user.id),
+      getFourCapabilityOverview(repository, user.id),
+    ]);
 
-    return NextResponse.json({ apiVersion: API_VERSION, data: overview });
+    return NextResponse.json({ apiVersion: API_VERSION, data: { ...overview, capabilityGroups: fourCapability.capabilityGroups, capabilitySummary: fourCapability.summary } });
   } catch {
     return NextResponse.json(
       {

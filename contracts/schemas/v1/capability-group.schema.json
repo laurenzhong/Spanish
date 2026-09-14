@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/capability-group.schema.json",
+  "title": "Four capability group",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key", "label", "description", "mastery", "confidence", "evidenceCount", "lastEvidenceAt", "oralCoverage", "previousMastery", "previousConfidence", "representativeAttempts", "skillKeys", "skills", "status"],
+  "properties": {
+    "key": { "enum": ["lexical", "communication", "voice", "shadowing"] },
+    "label": { "type": "string" }, "description": { "type": "string" },
+    "mastery": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "evidenceCount": { "type": "integer", "minimum": 0 },
+    "lastEvidenceAt": { "type": ["string", "null"], "format": "date-time" },
+    "oralCoverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "previousMastery": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "previousConfidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "representativeAttempts": { "type": "array", "maxItems": 3, "items": { "type": "object" } },
+    "skillKeys": { "type": "array", "items": { "type": "string" } },
+    "skills": { "type": "array", "items": { "type": "object" } },
+    "status": { "enum": ["data-insufficient", "accumulating", "developing", "verified"] }
+  }
+}
