@@ -401,7 +401,7 @@
 - `UI-014` 已完成并合并；`UI-015` 至 `UI-017` 不继续按旧顺序实施，现有分支和用户未提交改动继续保留，等待新内容队列完成后重新排期或明确接收范围。
 - UI-015 分支后置修复交接（2026-09-14）：在不改变当前新内容队列和发布候选结论的前提下，完成对话工作区的气泡与菜单收敛。移除装饰气泡选择器和转发入口；消息气泡改为按真实渲染文本行宽自适应，合并 emoji/字体回退产生的同一行 Range 片段，避免用户消息左侧及角色消息右侧多余空白；右键菜单保持不透明并按实际气泡边缘与视口尺寸定位；联系人行继续保持低冗余信息。实现 Commit：`1b18b2e`。修改：`app/globals.css`、`src/modules/conversation/ui/chat-thread.tsx`、`src/modules/conversation/ui/conversation-contact-rail.tsx`、个人资料编辑器和对话/产品壳层回归测试；删除 `src/modules/conversation/ui/chat-bubble-style.tsx`。验证：对话 E2E 桌面/移动 `30/30`，气泡专项桌面/移动像素回归通过；对话线程 Vitest `16/16`、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。未完成：全量 Vitest 在 Windows 资源受限环境长时间无输出后停止；未运行 build、真实账号/Provider、iPhone Safari/PWA 或 Flutter。当前分支仍不是发布候选；下一项按新队列由协调者重新排期。
 - UI-016 “我的”、设置与隐私密度收敛：产品本人要求在旧队列阻塞期间执行现有页面范围；实现 Commit `05c9951`，状态进入 `review`。只调整呈现层和按需加载：四个分区只挂载当前分区并合并页面级失败提示；无证据时仅显示 `0 / 8`、一次口语练习入口和紧凑空态，不绘制八维数据不足按钮；无有效活动时不渲染完整热力图；有证据/活动时保留可追溯详情。压缩账户资料、帮助、隐私危险操作和 Provider 面板的标题、间距与按钮层级，删除、授权、Provider 选择、画像 API、掌握度/可信度和数据删除确认语义均未改变。修改：`app/globals.css`、画像/隐私/Provider UI 组件、`tests/unit/profile-page.test.tsx`、`tests/unit/learning-heatmap-panel.test.tsx`、`tests/e2e/product-shell.spec.ts`。验证：聚焦 Vitest `3 files / 6 tests`、画像空态 Playwright `1/1`、画像/隐私/Provider 相关桌面 E2E `5/6`（唯一失败为既有对话好友介绍入口超时）、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。未运行全量 Vitest、全量 E2E、`pnpm build`、真实账号/Provider、iPhone Safari/PWA 或 Flutter；等待产品本人视觉确认后再决定合并。下一项仍按新内容队列重新排期。
-- UI-017 公共壳层、可收缩侧边栏与全站一致性复核：产品本人于 2026-09-14 明确确认开启本 UI 任务；实现 Commit `91e9a65`，状态进入 `review`。新增桌面可收缩侧栏（宽屏默认展开、中等桌面默认收缩、本地偏好持久化）、共享导航配置、移动端保留底部五项导航，并将账户菜单移入桌面侧栏账户区域；主内容随侧栏宽度重排，不使用覆盖式浮层。修改：`src/shared/ui/app-shell.tsx`、`src/shared/ui/desktop-navigation.tsx`、`src/shared/ui/bottom-navigation.tsx`、`app/globals.css`、相关单元与产品壳层 E2E。验证：聚焦 Vitest `3 files / 8 tests`、桌面 Product Shell Playwright `6/6`、移动 Product Shell Playwright `3/3`、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。全量 Vitest 在 Windows 资源受限环境运行超过两分钟无输出后停止；`pnpm build` 编译阶段通过但 TypeScript 阶段被其他任务的媒体 `artwork` DTO fixture/test 未同步阻断，未在本 UI 任务修复；未做真实账号/Provider、iPhone Safari/PWA 或 Flutter 验证。UI-017 后置修复 Commit `587c522`：修正桌面账户菜单从侧栏底部向左展开造成的视口裁切，弹层改为在侧栏右侧展开，并新增几何 E2E；专项桌面 Product Shell `3/3` 通过。当前仍等待产品本人视觉确认后合并。
+- UI-017 公共壳层、可收缩侧边栏与全站一致性复核：产品本人于 2026-09-14 确认视觉结果并完成合并；实现 Commit `91e9a65`，后置修复 `587c522`，Merge Commit `b5845e8`，状态 `done`。新增桌面可收缩侧栏（宽屏默认展开、中等桌面默认收缩、本地偏好持久化）、共享导航配置、移动端保留底部五项导航，并将账户菜单移入桌面侧栏账户区域；主内容随侧栏宽度重排，不使用覆盖式浮层。账户弹层另修正为从侧栏右侧展开，避免右下区域被裁切。修改：`src/shared/ui/app-shell.tsx`、`src/shared/ui/desktop-navigation.tsx`、`src/shared/ui/bottom-navigation.tsx`、`app/globals.css`、相关单元与产品壳层 E2E。验证：聚焦 Vitest `3 files / 8 tests`、账户/导航单元 `7/7`、桌面账户弹层与侧栏 Playwright `3/3`、移动 Product Shell `3/3`、定向 lint、`git diff --check` 通过。全量 Vitest 在 Windows 资源受限环境运行超过两分钟无输出后停止；全局 lint/typecheck 仍受其他任务已有 Hook/DTO fixture 问题影响；未做真实账号/Provider、iPhone Safari/PWA 或 Flutter 验证。下一项按新内容供应队列执行，不改变其任务状态。
 - `ALPHA-033` 的旧发布候选出口失效；OPS-001 完成后必须基于新路径重新定义并执行全量门禁。
 
 ### 待执行 UI 批次
@@ -417,7 +417,7 @@
 - `UI-014`：阅读书架与文章阅读器密度收敛（done；首版实现 `7a802de`；阅读器视觉反馈修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口修复 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4`）
 - `UI-015`：对话页面密度收敛（blocked；等待新队列完成后重新排期）
 - `UI-016`：“我的”、设置与隐私密度收敛（review；实现 `05c9951`；画像语义仍由 PROFILE-001 取代）
-- `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（review；实现 `91e9a65`；产品本人已确认开启，等待视觉确认后合并）
+- `UI-017`：公共壳层、可收缩侧边栏与全站一致性复核（done；实现 `91e9a65`、后置修复 `587c522`、Merge Commit `b5845e8`）
 
 ### 当前内容供应重构任务
 
@@ -1717,7 +1717,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-014 | done | `codex/ui-014-reading-density` | Codex | 阅读书架与文章阅读器密度收敛 | 首版 `7a802de`；视觉修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4` |
 | UI-015 | blocked | `codex/ui-015-conversation-density` | 待重排 | 对话页面密度收敛 | 新内容队列完成后重新排期 |
 | UI-016 | review | `codex/ui-016-profile-density` | Codex | “我的”、设置与隐私密度收敛 | 产品本人视觉确认；画像语义仍由 PROFILE-001 取代 |
-| UI-017 | review | `codex/ui-017-collapsible-shell` | Codex | 公共壳层、可收缩侧边栏与全站一致性 | 实现 `91e9a65`；产品本人视觉确认后合并 |
+| UI-017 | done | `codex/ui-017-collapsible-shell` | Codex | 公共壳层、可收缩侧边栏与全站一致性 | 实现 `91e9a65`、后置修复 `587c522`；合并 `b5845e8` |
 | IA-001 | done | `codex/ia-001-content-supply-design` | Codex / 产品本人 | 内容驱动学习、自动供应、词句语料和四板块画像规划 | 设计 `241c47a`、计划 `e43130c` |
 | ACQ-001 | done | `codex/acq-001-content-acquisition-foundation` | Codex | 自动采集领域、持久化、CLI、预算/保留与 fake | 实现 `cfd1e00` |
 | REVIEW-001 | done | `codex/review-001-owner-content-workflow` | Codex | 所有者候选审核、修订、双维度批准和发布门禁 | 实现 `e15cc81` |
