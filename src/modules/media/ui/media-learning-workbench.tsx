@@ -34,6 +34,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [progressSyncState, setProgressSyncState] = useState<ProgressSyncState>("idle");
   const [lexicalSelection, setLexicalSelection] = useState<{ word: string; sentence: string } | null>(null);
+  const currentSegment = activeIndex === null ? null : playback.segments[activeIndex] ?? null;
   const playerRef = useRef<VideoPlayerPort | AudioPlayerPort | null>(null);
   const lexicalTriggerRef = useRef<HTMLButtonElement | null>(null);
   const activeIndexRef = useRef<number | null>(initialActiveIndex);
@@ -187,11 +188,15 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
           : <VideoPlayerAdapter embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
       </div>
-      <div aria-label="逐句播放控制" className="media-sentence-controls">
+      <div aria-label="逐句播放控制" className="media-sentence-controls" role="group">
         <button aria-label="上一句" disabled={playback.segments.length === 0} onClick={previous} type="button"><kbd>A</kbd><span>上一句</span></button>
         <button aria-label="重播当前句" disabled={playback.segments.length === 0} onClick={replay} type="button"><kbd>S</kbd><span>重播当前句</span></button>
         <button aria-label="下一句" disabled={playback.segments.length === 0} onClick={next} type="button"><kbd>D</kbd><span>下一句</span></button>
         <label><input aria-label="自动暂停" checked={autoPause} onChange={(event) => setAutoPause(event.target.checked)} type="checkbox" /><span>自动暂停</span><kbd>Q</kbd></label>
+      </div>
+      <div aria-label="当前片段" className="media-current-segment" role="group">
+        <span className="media-current-segment__label">当前片段</span>
+        {captionMode === "hidden" ? <p>字幕已隐藏</p> : currentSegment ? <p lang="es">{currentSegment.sourceText}</p> : <p>暂无当前片段</p>}
       </div>
       <p className="media-player-status" role={playerError ? "alert" : "status"}>{playerError ?? (playerState === "loading" ? "播放器准备中…" : playerState === "playing" ? "正在播放" : playerState === "ended" ? "播放结束" : "播放器已就绪")}</p>
       {progressSyncState === "conflict" ? <p className="media-progress-status is-error" role="alert">进度已在其他页面更新，请刷新后继续。</p>
@@ -201,7 +206,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     </section>
     <section aria-labelledby="media-transcript-title" className="media-learning-workbench__transcript">
       <header><div><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
-        <div aria-label="字幕模式" className="caption-mode">{(["es", "bilingual", "hidden"] as const).map((mode) => <button aria-pressed={captionMode === mode} key={mode} onClick={() => setCaptionMode(mode)} type="button">{mode === "es" ? "西语" : mode === "bilingual" ? "双语" : "隐藏"}</button>)}</div></header>
+        <div aria-label="字幕模式" className="caption-mode" role="group">{(["es", "bilingual", "hidden"] as const).map((mode) => <button aria-pressed={captionMode === mode} key={mode} onClick={() => setCaptionMode(mode)} type="button">{mode === "es" ? "西语" : mode === "bilingual" ? "双语" : "隐藏"}</button>)}</div></header>
       <SegmentTranscript activeIndex={activeIndex} captionMode={captionMode} mediaKind={playback.media.kind} onSeek={selectSegment} onWord={openWord} segments={playback.segments} />
     </section>
     {lexicalSelection ? <LexicalDrawer onClose={closeWord} sentence={lexicalSelection.sentence} word={lexicalSelection.word} /> : null}

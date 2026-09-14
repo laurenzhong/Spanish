@@ -4,7 +4,7 @@
 
 - 最后更新：2026-09-15
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`LR-001` Language Reactor 实际来源接入与首批真实媒体发布已在当前工作树完成并进入 `review`；远端已注册播客/YouTube 来源，发布 20 个视频和 2 个播客。新增 `LEARN-MEDIA-DETAIL-001` 媒体详情与视频学习器视觉设计任务，当前为 `ready`，不改变现有 review 任务状态；产品确认前不提升后续 ASR/词句任务。阶段 8 未启动
+- 总体状态：`LR-001` Language Reactor 实际来源接入与首批真实媒体发布已在当前工作树完成并进入 `review`；远端已注册播客/YouTube 来源，发布 20 个视频和 2 个播客。`LEARN-MEDIA-DETAIL-001` 媒体详情与视频学习器视觉设计已完成，`LEARN-MEDIA-DETAIL-002/003` 实现与回归进入 `review`；产品确认前不提升后续 ASR/词句任务。阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
@@ -18,6 +18,28 @@
 - 验证：媒体相关 Vitest、路由合同和视频回归共 `4 files / 17 tests` 通过；视频 Playwright 桌面 `2/2` 通过；真实数据库 Playwright 冷启动在全新 `NEXT_DIST_DIR=.next/clean-debug` 下验证 `/learn` 与视频详情均为 200，YouTube API 被阻断时仍显示官方 iframe；20 个视频和 2 个播客当前版本 artwork 非空。RTVE 播客通过鉴权 `/api/v1/media/{stableKey}/stream` 转发 `Range` 请求后在真实浏览器达到 `readyState=4`；回填脚本连续执行第二次 `updated: 0`。
 - 限制：当前 Playwright 环境会阻断 YouTube 图片/API 外部域名，因此封面自然宽度无法在该环境证明；真实本地网络可用时仍使用官方缩略图 URL。旧版本的历史学习进度仍绑定旧版本，回填版本不会迁移进度；未完成 iPhone Safari 和真实账号登录验收。
 - 下一步：产品本人停止旧 Next 进程后用干净构建目录重启本地开发服务，打开 `/learn`，点开视频与两个播客确认封面和播放；确认后合并 LR-002。
+
+### 2026-09-15：LEARN-MEDIA-DETAIL-001 媒体详情与视频学习器视觉设计
+
+- 状态：`done`
+- 负责人：Codex
+- 分支：`codex/ui-017-collapsible-shell`
+- 范围：建立 `/learn/media/[stableKey]` 的独立视觉与响应式规格，明确桌面播放器/逐句区双栏、移动全宽播放器/主滚动字幕/词句底部抽屉、A/S/D/Q 与字幕模式、加载/错误/无字幕/进度冲突状态、焦点恢复和视口验收；不修改产品代码、媒体 DTO、数据库、评分或词库能力。
+- 文档：[`媒体详情与视频学习器视觉设计`](docs/superpowers/specs/2026-09-15-media-detail-learning-workbench-design.md)、[`媒体详情与视频学习器实施计划`](docs/plans/2026-09-15-media-detail-learning-workbench-implementation-plan.md)。
+- 验证：文档链接、范围和任务拆分已自检；设计任务不运行代码测试。
+- 限制与下一步：设计已落实到 `LEARN-MEDIA-DETAIL-002/003`；当前两个实现任务进入 review。不得在这两个任务中混入 ASR、词库、跟读评分或能力画像。
+
+### 2026-09-15：LEARN-MEDIA-DETAIL-002/003 媒体详情工作台实现与移动/可访问性回归
+
+- 状态：`review`
+- 负责人：Codex
+- 分支：`codex/ui-017-collapsible-shell`
+- 实现 Commit：待提交（当前工作树）
+- 范围：详情页增加紧凑媒体元信息（来源、地区、时长、逐句文本状态）；工作台采用播放器/字幕双栏，补充“当前片段”上下文区、稳定 16:9 播放区、可访问的控制组和字幕模式组；移动断点统一为 `<960px`，词句上下文在 320/375/390/414/768px 使用避开底部导航的全宽底部抽屉；保留 A/S/D/Q、字幕定位、播放端口、进度 revision/CAS、错误和 generation 语义。
+- 修改文件：`app/(product)/learn/media/[stableKey]/page.tsx`、`app/globals.css`、`src/modules/media/ui/media-learning-workbench.tsx`、`tests/unit/video-learning-workbench.test.tsx`、`tests/e2e/video-learning.spec.ts`。
+- 验证：媒体工作台 Vitest `2 files / 8 tests` 通过；媒体详情 Playwright 视频/播客桌面与移动 `8/8` 通过；额外 Playwright 视口检查 `320/375/390/414/768/1024/1280/1440` 全部无横向溢出，词句抽屉在移动壳层导航上方，标题与详情控件可见；目标文件 ESLint、`git diff --check` 通过；Playwright 截图已检查桌面与移动首屏。
+- 限制：`pnpm typecheck` 仍被工作区已有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 阻断；空数据库手工截图中的进度接口返回 503，属于 fixture 环境降级，媒体详情仍正常渲染，E2E 已过滤该非目标错误并覆盖播放器/字幕/抽屉流程；未完成真实账号、iPhone Safari/PWA 和真实 YouTube iframe 播放质量验收。
+- 下一步：产品本人用真实登录会话复核桌面详情与 768px/390px 移动布局；确认后提交并合并本切片，再决定后续词库/ASR 任务。
 
 ### 2026-09-15：LR-001 Language Reactor 实际来源接入与首批发布
 
@@ -1784,6 +1806,9 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | LR-001 | review | `codex/ui-017-collapsible-shell` | Codex | Language Reactor 实际播客/视频来源接入与首批发布 | 迁移、注册、真实采集和 22 条媒体发布已完成；待产品确认与实现提交 |
 | LEARN-HOME-002 | review | `codex/ui-017-collapsible-shell` | Codex | 媒体 artwork 数据与公开投影 | 实现 `e3a31b8`；等待产品复核 |
 | LEARN-HOME-003 | review | `codex/ui-017-collapsible-shell` | Codex | 暗色桌面媒体学习首页 UI | 实现 `24beadf`；后置修正 `8f07ad9`、`fb6a8d9`；等待产品本人视觉复核 |
+| LEARN-MEDIA-DETAIL-001 | done | `codex/ui-017-collapsible-shell` | Codex | 媒体详情与视频学习器视觉设计 | 规格与实施计划已建立并执行 |
+| LEARN-MEDIA-DETAIL-002 | review | `codex/ui-017-collapsible-shell` | Codex | 桌面媒体详情工作台实现 | 当前工作树实现，等待产品复核 |
+| LEARN-MEDIA-DETAIL-003 | review | `codex/ui-017-collapsible-shell` | Codex | 移动端与可访问性回归 | 当前工作树实现，等待产品复核 |
 | MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001、LR-001 |
 | LEX-001 | blocked | `codex/lex-001-lexicon-corpus-foundation` | 待领取 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 |
 | LEX-002 | blocked | `codex/lex-002-corpus-assessment` | 待领取 | KWIC 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 |
@@ -1807,13 +1832,16 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 8 | LEARN-HOME-002 | 媒体 artwork 数据与公开投影 | `review`；实现 `e3a31b8`，等待产品复核 |
 | 9 | LEARN-HOME-003 | 暗色桌面媒体学习首页 UI | `review`；实现 `24beadf`、后置修正 `8f07ad9`，等待产品本人视觉复核 |
 | 10 | LR-001 | Language Reactor 实际来源接入与首批发布 | `review`；远端已发布 20 个视频和 2 个播客，待产品确认 |
-| 11 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001、LR-001 完成并确认 |
-| 12 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
-| 13 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
-| 14 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
-| 15 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
+| 11 | LEARN-MEDIA-DETAIL-001 | 媒体详情与视频学习器视觉设计 | 已完成；规格与实施计划已建立 |
+| 12 | LEARN-MEDIA-DETAIL-002 | 桌面媒体详情工作台实现 | `review`；当前工作树实现，等待产品复核 |
+| 13 | LEARN-MEDIA-DETAIL-003 | 移动端与可访问性回归 | `review`；当前工作树实现，等待产品复核 |
+| 14 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001、LR-001 完成并确认 |
+| 15 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
+| 16 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
+| 17 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
+| 18 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前复核 `LR-001`，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 及各任务补充计划为准；`LEARN-MEDIA-DETAIL-001` 的补充计划见 [`媒体详情与视频学习器实施计划`](docs/plans/2026-09-15-media-detail-learning-workbench-implementation-plan.md)。一次只领取一项；当前复核 `LR-001` 与 `LEARN-MEDIA-DETAIL-002/003`，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
@@ -1862,6 +1890,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
 | 2026-09-15 | LR-001 完成 Language Reactor 实际来源接入、真实采集、所有者审核与首批发布，进入 review | 待提交 | 20 个视频和 2 个播客已在远端学习页可见；待产品确认播放后提交并决定后续 MEDIA-002 |
+| 2026-09-15 | 建立 LEARN-MEDIA-DETAIL-001 媒体详情与视频学习器视觉设计规格及实施计划 | 未提交 | 设计任务已完成；进入桌面与移动实现任务 |
+| 2026-09-15 | 完成 LEARN-MEDIA-DETAIL-002/003 媒体详情工作台实现、移动重排与可访问性回归，进入 review | 待提交 | 视频/播客详情桌面与移动路径、8 个视口和词句抽屉已由 Playwright 验证；等待产品视觉复核 |
 | 2026-09-14 | LEARN-HOME-003 完成深色媒体学习首页 UI 与导航细化，进入 review | `24beadf`、`8f07ad9`、`fb6a8d9` | 等待产品本人视觉复核；下一项为 LEARN-HOME-004 |
 | 2026-09-14 | LEARN-HOME-002 完成媒体 artwork 版本化字段、YouTube/播客适配和公开投影，进入 review | `e3a31b8` | 等待产品复核；确认后实施 LEARN-HOME-003 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环，进入 review | `0e047ec` | 等待复核合并；MEDIA-002 继续 blocked |

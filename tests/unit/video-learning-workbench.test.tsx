@@ -54,6 +54,16 @@ afterEach(() => {
 });
 
 describe("video learning workbench", () => {
+  it("exposes a structured current-segment context for the responsive detail layout", () => {
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+
+    expect(screen.getByRole("region", { name: "视频学习器" })).toHaveClass("media-learning-workbench__main");
+    expect(screen.getByRole("region", { name: "字幕与文本" })).toHaveClass("media-learning-workbench__transcript");
+    expect(screen.getByLabelText("当前片段")).toHaveClass("media-current-segment");
+    expect(screen.getByLabelText("当前片段")).toHaveTextContent("Buenos días.");
+  });
+
   it("supports transcript seeking, A/S/D/Q controls, caption modes and focus-restoring lexical drawer", async () => {
     const player = fakePlayer();
     const user = userEvent.setup();

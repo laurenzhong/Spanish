@@ -45,6 +45,8 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
 
   await expect(page.getByRole("heading", { name: "Cómo pedir un café" })).toBeVisible();
   await expect(page.getByLabel("Cómo pedir un café 播放器")).toHaveAttribute("data-video-id", "e2eCafe1234");
+  await expect(page.getByRole("group", { name: "当前片段" })).toContainText("Buenos días.");
+  await expect(page.getByRole("group", { name: "逐句播放控制" })).toBeVisible();
   await expect(page.getByText("播放器已就绪")).toBeVisible();
 
   await page.getByRole("button", { name: "下一句" }).click();
@@ -91,4 +93,23 @@ test("keeps the video detail usable when the YouTube API cannot load", async ({ 
   await expect(page.getByText("播放器准备中…")).toBeVisible();
   await expect(page.locator(".video-player-adapter iframe")).toBeVisible({ timeout: 7_000 });
   await expect(page.getByText("播放器已就绪")).toBeVisible();
+});
+
+test("uses the bottom-sheet word context at the mobile shell breakpoint", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`);
+
+  const word = page.getByRole("button", { name: "查看词语 Buenos" });
+  await word.click();
+  const drawer = page.getByRole("dialog", { name: "词句上下文" });
+  const navigation = page.getByRole("navigation", { name: "主要导航" });
+  const drawerBox = await drawer.boundingBox();
+  const navigationBox = await navigation.boundingBox();
+  expect(drawerBox).not.toBeNull();
+  expect(navigationBox).not.toBeNull();
+  expect(drawerBox!.x).toBe(0);
+  expect(drawerBox!.width).toBe(768);
+  expect(drawerBox!.y + drawerBox!.height).toBeLessThanOrEqual(navigationBox!.y + 1);
+  await page.getByRole("button", { name: "关闭词句上下文" }).click();
+  await expect(word).toBeFocused();
 });

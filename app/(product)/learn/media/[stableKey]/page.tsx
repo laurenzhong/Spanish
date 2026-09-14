@@ -43,6 +43,14 @@ function UnavailableDetail() {
   );
 }
 
+function formatDuration(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1_000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds} 秒`;
+  return seconds === 0 ? `${minutes} 分钟` : `${minutes} 分 ${String(seconds).padStart(2, "0")} 秒`;
+}
+
 function clientPlayback(stableKey: string, playback: MediaPlayback): MediaPlayback {
   if (playback.media.kind !== "podcast" || playback.asset.kind !== "audio") return playback;
   try {
@@ -81,11 +89,16 @@ export default async function MediaDetailPage({ params }: Context) {
   return (
     <article className="media-detail">
       <Link className="media-detail__back" href="/learn">← 返回学习资料库</Link>
-      <header>
+      <header className="media-detail__header">
         <p className="eyebrow eyebrow--accent">{playback.media.kind === "video" ? "视频" : "播客"} · {playback.media.cefr ?? "未分级"}</p>
         <h1>{playback.media.title}</h1>
         <p>{playback.media.summary}</p>
-        <span>{playback.media.sourceName} · {playback.media.region ?? "地区未知"}</span>
+        <div aria-label="媒体信息" className="media-detail__meta">
+          <span>{playback.media.sourceName}</span>
+          <span>{playback.media.region ?? "地区未知"}</span>
+          <span>{formatDuration(playback.media.durationMs)}</span>
+          <span>{playback.segments.length > 0 ? "有逐句文本" : "无逐句文本"}</span>
+        </div>
       </header>
       {(playback.media.kind === "video" && playback.asset.kind === "official_embed")
         || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench playback={browserPlayback} /> : <>
