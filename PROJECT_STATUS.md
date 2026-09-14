@@ -14,6 +14,7 @@
 - `OPS-001`：实现 `discover`、`process`、`cleanup`、`report` 每日内容供应 CLI，支持来源/limit/dry-run，增加 GitHub Actions 调度、互斥、候选清理、临时资产删除重试、脱敏观测和运行手册；自动化不直接发布。实现 Commit：`f1fb75b`、`217b9e1`；Merge Commit：`a991db2`。专项验证：OPS 测试 `17/17`、内容采集回归 `55/55`、workflow smoke `1/1`。
 - `ALPHA-033`：新增 `pnpm release:check -- --input <report.json>`，统一 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 与 P0/P1/产品确认门禁。实现 Commit：`44e87a2`、`1d2a1cd`；Merge Commit：`1e8ba94`。门禁单测 `4/4`，passing 报告返回 `eligible`，blocked 报告返回阻断和非零退出码。
 - 合并后限制：本轮尚未执行全量 `pnpm test --run`、全量 `pnpm test:e2e`、`pnpm build` 作为最终候选门禁；未执行远端迁移、真实 GitHub Actions secrets/来源抓取、真实登录桌面复核、iPhone Safari/PWA 或 Flutter 验证。产品本人确认前不得启动阶段 8。
+- 合并后复核（2026-09-15）：`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build`、聚焦任务测试 `10 files / 26 tests`、完整桌面 Chromium `81/81`、`git diff --check` 通过；`pnpm release:check` passing fixture 返回 `eligible`，blocked fixture 正确返回非零退出及三项阻断原因。全量 `pnpm test --run --maxWorkers=1` 在 Windows/PGlite 环境约两分钟无输出后中止，未获得全量断言结果；iPhone Safari/PWA、Flutter、远端迁移、真实 secrets/来源仍未执行，故当前不能宣称候选放行。
 
 ### 2026-09-14：PODCAST-001 播客 RSS 纵向闭环
 
