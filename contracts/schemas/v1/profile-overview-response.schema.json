@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/profile-overview-response.schema.json",
+  "title": "Profile overview response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": ["axes", "generatedAt", "summary", "capabilityGroups", "capabilitySummary"],
+      "properties": {
+        "axes": { "type": "array", "items": { "type": "object" } },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "summary": { "type": "object" },
+        "capabilityGroups": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "https://spanish.local/contracts/v1/capability-group.schema.json" } },
+        "capabilitySummary": { "type": "object", "additionalProperties": false, "required": ["totalEvidence", "totalGroups", "verifiedGroups"], "properties": { "totalEvidence": { "type": "integer", "minimum": 0 }, "totalGroups": { "const": 4 }, "verifiedGroups": { "type": "integer", "minimum": 0 } } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

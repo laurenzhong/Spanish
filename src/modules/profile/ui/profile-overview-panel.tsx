@@ -5,9 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   PROFILE_AXIS_DEFINITIONS,
   profileOverviewSchema,
+  fourCapabilityOverviewSchema,
   type ProfileAxis,
   type ProfileOverview,
 } from "@/src/modules/profile/domain";
+import { FourCapabilityPanel } from "./four-capability-panel";
+import type { FourCapabilityOverview } from "@/src/modules/profile/domain";
 import { SurfaceState } from "@/src/shared/ui/surface-state";
 
 const statusLabels: Record<ProfileAxis["status"], string> = {
@@ -72,7 +75,9 @@ function axisPoints(
     .join(" ");
 }
 
-async function fetchProfileOverview(): Promise<ProfileOverview> {
+type ProfileApiOverview = ProfileOverview & Readonly<{ capabilityGroups?: FourCapabilityOverview["capabilityGroups"]; capabilitySummary?: FourCapabilityOverview["summary"] }>;
+
+async function fetchProfileOverview(): Promise<ProfileApiOverview> {
   const response = await fetch("/api/v1/profile", {
     cache: "no-store",
     credentials: "same-origin",
@@ -82,7 +87,10 @@ async function fetchProfileOverview(): Promise<ProfileOverview> {
   if (!payload || typeof payload !== "object" || !("data" in payload)) {
     throw new Error("profile-response-invalid");
   }
-  return profileOverviewSchema.parse(payload.data);
+  const data = payload.data as Record<string, unknown>;
+  const overview = profileOverviewSchema.parse(data);
+  const capabilities = data.capabilityGroups && data.capabilitySummary ? fourCapabilityOverviewSchema.parse({ capabilityGroups: data.capabilityGroups, generatedAt: data.generatedAt, summary: data.capabilitySummary }) : null;
+  return capabilities ? { ...overview, capabilityGroups: capabilities.capabilityGroups, capabilitySummary: capabilities.summary } : overview;
 }
 
 function RadarGraphic({ axes }: Readonly<{ axes: readonly ProfileAxis[] }>) {
@@ -139,16 +147,19 @@ function RadarGraphic({ axes }: Readonly<{ axes: readonly ProfileAxis[] }>) {
 }
 
 export function ProfileOverviewPanel() {
-  const [overview, setOverview] = useState<ProfileOverview>(emptyOverview);
+  const [overview, setOverview] = useState<ProfileApiOverview>(emptyOverview);
   const [selectedKey, setSelectedKey] = useState(PROFILE_AXIS_DEFINITIONS[0].key);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [capabilityOverview, setCapabilityOverview] = useState<FourCapabilityOverview | null>(null);
 
   async function loadOverview() {
     setLoading(true);
     setError(false);
     try {
-      setOverview(await fetchProfileOverview());
+      const next = await fetchProfileOverview();
+      setCapabilityOverview(next.capabilityGroups && next.capabilitySummary ? { capabilityGroups: next.capabilityGroups, generatedAt: next.generatedAt, summary: next.capabilitySummary } as FourCapabilityOverview : null);
+      setOverview(next);
     } catch {
       setError(true);
     } finally {
@@ -161,6 +172,7 @@ export function ProfileOverviewPanel() {
     void fetchProfileOverview()
       .then((nextOverview) => {
         if (!active) return;
+        setCapabilityOverview(nextOverview.capabilityGroups && nextOverview.capabilitySummary ? { capabilityGroups: nextOverview.capabilityGroups, generatedAt: nextOverview.generatedAt, summary: nextOverview.capabilitySummary } as FourCapabilityOverview : null);
         setOverview(nextOverview);
         setLoading(false);
       })
@@ -205,6 +217,8 @@ export function ProfileOverviewPanel() {
       </div>
     );
   }
+
+  if (capabilityOverview) return <FourCapabilityPanel overview={capabilityOverview} />;
 
   return (
     <div className="profile-dashboard" data-testid="profile-overview">

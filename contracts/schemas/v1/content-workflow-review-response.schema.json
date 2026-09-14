@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "content-workflow-review-response.schema.json",
+  "type": "object", "additionalProperties": false, "required": ["apiVersion", "data"],
+  "properties": { "apiVersion": { "const": "v1" }, "data": { "type": "object", "additionalProperties": false, "required": ["review"], "properties": { "review": { "type": "object", "additionalProperties": false, "required": ["id", "candidateId", "dimension", "status", "reviewerReference", "candidateRevision", "notes"], "properties": { "id": { "type": "string" }, "candidateId": { "type": "string", "format": "uuid" }, "dimension": { "enum": ["rights", "content-es-ES", "teaching-zh-CN", "structure"] }, "status": { "enum": ["approved", "changes_requested", "rejected"] }, "reviewerReference": { "const": "codex-ai-owner-authorized-review" }, "candidateRevision": { "type": "integer", "minimum": 1 }, "notes": { "type": ["string", "null"] } } } } } }
+}

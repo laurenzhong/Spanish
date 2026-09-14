@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/lexical-intent-request.schema.json",
+  "title": "Lexical intent request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entryKind", "intent"],
+  "properties": {
+    "entryKind": { "enum": ["lexeme", "phrase"] },
+    "intent": { "enum": ["familiar", "revisit", "ignore"] },
+    "expectedRevision": { "type": "integer", "minimum": 1 }
+  }
+}

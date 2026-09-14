@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/lexical-assessment-attempt-request.schema.json",
+  "title": "Lexical assessment attempt request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["answer"],
+  "properties": { "answer": { "type": "string", "minLength": 1, "maxLength": 500 } }
+}

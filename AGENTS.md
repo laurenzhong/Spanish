@@ -8,9 +8,9 @@
 
 1. 阅读 `README.md`。
 2. 阅读 `PROJECT_STATUS.md`，确认当前任务 ID、状态、分支、依赖和验收条件。
-3. 阅读 `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`。
-4. 阅读 `docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md` 和 `docs/adr/0002-web-pwa-first-personal-alpha.md`；`2026-08-20` 多平台规格与 ADR-0001 只作为历史背景。
-5. 阅读 `docs/plans/2026-08-20-personal-alpha-implementation-plan.md` 的当前任务章节。
+3. 阅读 `docs/superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md` 和 `docs/adr/0008-content-led-learning-and-automated-ingestion.md`。
+4. 阅读 `docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md` 的当前任务章节。
+5. 阅读 `docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md`、`docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md` 和 `docs/adr/0002-web-pwa-first-personal-alpha.md`；其中被 2026-09-12 规格取代的入口、画像和队列只作为历史背景。
 6. 阅读与任务相关的 `docs/architecture.md`、`docs/content-authoring.md` 或 `docs/testing-strategy.md`。
 7. 检查 `git status --short --branch` 和最近提交，保留用户及其他代理已有改动。
 8. 明确本次只完成一个任务 ID；如果范围跨多个阶段，先拆分。
@@ -32,12 +32,14 @@
 
 任何实现不得破坏以下规则：
 
-- 首页必须根据学习状态提供唯一且真实的主动作：没有学习记录时显示“开始第一次练习”，存在稳定断点时优先显示“继续学习”；两种状态都不要求先选择时长、模式或内容类型，调整入口只能渐进式提供。
+- 登录后的“学习”页必须直接展示真实可用的视频与播客资料库；不显示 Hero、“开始学习”“继续学习”或唯一任务 CTA，也不要求先选择时长、模式或内容类型。每张内容卡本身就是等权、真实的开始入口。
 - 听说是核心；读写是静默环境下的延续，不等价于口语证据。
 - 用户完整表达前不得纠错或打断。
 - 评分以语境成功为先，不要求匹配唯一参考句。
 - 自然替代表达可以完成交际任务。
 - 打字不能提高发音、语流或真实口头反应。
+- 词汇与短语考察不要求口头回答；选择、判断、语境填空和少量完整输入只更新适用的词句能力。
+- 跟读证据只更新跟读表现，不能替代自主表达或交流运用证据。
 - 低置信度转写和技术失败不能产生负面能力证据。
 - 熟练度 `mastery` 与可信度 `confidence` 分离。
 - 学习时长只用于热力图，不参与能力评分。
@@ -60,12 +62,15 @@
 
 这些能力是延后，不是永久取消。需要时先更新设计或 ADR，再进入实施计划。
 
+当前允许实现仅供项目所有者使用的轻量“内容工作流”，用于白名单来源、候选审核、双维度批准、发布和撤下；它不是通用 CMS，不开放角色、用户、权限或页面搭建能力。
+
 ## 4. 架构规则
 
 - 使用单仓库和远程模块化单体，不随意创建新的服务边界或新 Git 仓库。
 - 目录优先按业务 feature 组织。
 - 服务端 `domain` 保持纯 TypeScript，不依赖 React、Next.js、Drizzle、Supabase 或供应商 SDK。
 - 当前活动客户端只有 Next.js 响应式 Web/PWA，覆盖桌面浏览器与 iPhone Safari；现有 Flutter 客户端保留在 `apps/mobile`，暂停功能同步，不删除或假称与 Web 等价。
+- `content-acquisition`、`media` 和 `lexicon-corpus` 是独立业务模块；文章继续使用现有 article 模型，旧 `content_packs` 只作为历史兼容载体，不继续扩展为通用媒体库。
 - 继续维护明确 DTO、OpenAPI/JSON Schema 和稳定错误码，为未来恢复多客户端保留边界；当前不要求 TypeScript/Dart 功能同步。
 - 客户端状态不能成为能力事实；评分、证据、画像、记忆权限和角色安全必须由服务端重新校验。
 - 未经新的 ADR，不新增 Flutter 平台插件、Swift/Kotlin/Windows 桥接或原生页面。
@@ -114,6 +119,8 @@
 ## 8. 内容规则
 
 - 正式内容遵循 `docs/content-authoring.md`。
+- 自动采集只允许所有者配置的白名单来源；每日任务最多把素材推进到候选审核库，不能自动直接发布。
+- 无字幕媒体只有在来源、相关性、语言、时长、权利和预算门禁通过后才能生成 ASR 草稿；临时音频在成功、失败、取消或超时后立即删除。
 - 核心表达必须包含语境、语用、变式、提示、标签权值和审核状态。
 - 未审核内容不能在生产环境发布。
 - 当前仅供项目所有者本人使用的产品阶段，由 Codex 独立完成核心表达/语用的 `es-ES` 语言审核与中文教学说明的 `zh-CN` 教学审核；记录必须使用 `codex-ai-owner-authorized-review` 并明确 AI 身份，不得描述为真人、母语者或教学专家签字。
@@ -121,6 +128,7 @@
 - 内容导入必须先完整校验，再事务写入；失败时不得部分发布。
 - 已产生学习证据的内容版本不能静默覆盖。
 - 外刊和第三方内容必须保存来源与许可；禁止未经授权复制全文。
+- 非盈利、个人使用或尚未发布不取消来源、平台条款、许可、署名和撤下义务；不得绕过付费墙、访问控制、DRM 或平台下载限制。
 - AI 生成内容仍先进入草稿，不因生成者与审核者同为 Codex 而自动获得发布资格；必须经过独立的双维度审核、版本化修订和完整校验。
 
 ## 9. 角色与记忆规则

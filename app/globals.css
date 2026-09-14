@@ -9243,3 +9243,44 @@ body {
 
 @media (max-width: 959px) { .desktop-navigation { display: none; } }
 @media (prefers-reduced-motion: reduce) { .desktop-navigation, .desktop-navigation__link, .desktop-navigation__toggle { transition: none; } }
+
+/* Four-capability profile projection. */
+.profile-dashboard--capabilities { gap: 16px; }
+.capability-summary, .capability-detail { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-soft); }
+.capability-summary { display: grid; gap: 20px; padding: 24px; }
+.capability-summary h2, .capability-detail h2 { margin: 8px 0 0; color: var(--foreground); font-size: 1.45rem; }
+.capability-summary p:last-child, .capability-detail__heading p { max-width: 58ch; margin: 10px 0 0; color: var(--muted); line-height: 1.6; }
+.capability-summary__stats { display: flex; gap: 10px; flex-wrap: wrap; }
+.capability-summary__stats div { display: grid; gap: 4px; min-width: 120px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-soft); }
+.capability-summary__stats strong { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.capability-summary__stats span, .capability-group__status, .capability-group__metrics small, .capability-detail__metrics span, .capability-detail__skills small, .capability-detail__attempts { color: var(--muted); font-size: .75rem; }
+.capability-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.capability-group { display: grid; gap: 10px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; color: var(--foreground); background: var(--surface); text-align: left; cursor: pointer; font: inherit; }
+.capability-group.is-selected, .capability-group:hover { border-color: var(--terracotta); }
+.capability-group__label { overflow-wrap: anywhere; font-weight: 750; }
+.capability-group__track { display: block; height: 5px; overflow: hidden; background: var(--surface-soft); }
+.capability-group__track i { display: block; height: 100%; background: var(--terracotta); }
+.capability-group__metrics { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.capability-group__metrics b { font-size: .92rem; }
+.capability-detail { display: grid; gap: 20px; padding: 24px; }
+.capability-detail__heading { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+.capability-detail__heading > span { flex: 0 0 auto; }
+.capability-detail__metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.capability-detail__metrics div { display: grid; gap: 4px; min-width: 0; padding: 10px 12px; border-top: 1px solid var(--border); }
+.capability-detail__metrics strong { font-size: 1.05rem; }
+.capability-detail__skills h3, .capability-detail__attempts h3 { margin: 0 0 8px; color: var(--foreground); font-size: .92rem; }
+.capability-detail__skills ul, .capability-detail__attempts ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.capability-detail__skills li, .capability-detail__attempts li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.capability-detail__skills li span { flex: 1; overflow-wrap: anywhere; font-size: .82rem; }
+.capability-detail__attempts li time { color: var(--foreground); font-size: .78rem; }
+
+@media (max-width: 900px) {
+  .capability-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .capability-detail__metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .capability-summary, .capability-detail { padding: 18px; }
+  .capability-groups, .capability-detail__metrics { grid-template-columns: minmax(0, 1fr); }
+  .capability-detail__heading { display: grid; }
+}

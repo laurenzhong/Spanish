@@ -148,6 +148,62 @@
       "when": 1789094405172,
       "tag": "0020_volatile_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789255884201,
+      "tag": "0021_shallow_killmonger",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789260921590,
+      "tag": "0022_empty_lenny_balinger",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789268022224,
+      "tag": "0023_article_acquisition",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789286686512,
+      "tag": "0024_media_library_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789304942974,
+      "tag": "0025_youtube_video_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789320476462,
+      "tag": "0026_brief_toro",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789385149674,
+      "tag": "0027_wide_puff_adder",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789391341177,
+      "tag": "0028_neat_gargoyle",
+      "breakpoints": true
     }
   ]
 }

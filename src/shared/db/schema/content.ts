@@ -438,14 +438,24 @@ export const articleSources = pgTable(
     licenseEvidence: text("license_evidence"),
     copyrightStatus: text("copyright_status").default("unverified").notNull(),
     reviewNotes: text("review_notes"),
+    acquisitionCandidateId: uuid("acquisition_candidate_id"),
+    acquisitionCandidateRevision: integer("acquisition_candidate_revision"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "date" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
     index("article_sources_license_idx").on(table.license, table.copyrightStatus),
+    uniqueIndex("article_sources_candidate_revision_uidx")
+      .on(table.acquisitionCandidateId, table.acquisitionCandidateRevision)
+      .where(sql`${table.acquisitionCandidateId} is not null`),
     check(
       "article_sources_copyright_status_check",
       sql`${table.copyrightStatus} in ('unverified', 'cleared', 'restricted')`,
+    ),
+    check(
+      "article_sources_acquisition_provenance_check",
+      sql`(${table.acquisitionCandidateId} is null and ${table.acquisitionCandidateRevision} is null and ${table.fetchedAt} is null) or (${table.acquisitionCandidateId} is not null and ${table.acquisitionCandidateRevision} > 0 and ${table.fetchedAt} is not null)`,
     ),
   ],
 );

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "content-workflow-candidate-list-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": { "type": "object", "additionalProperties": false, "required": ["candidates"], "properties": { "candidates": { "type": "array", "items": { "$ref": "content-workflow-candidate.schema.json" }, "maxItems": 200 } } }
+  }
+}

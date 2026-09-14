@@ -1,0 +1,41 @@
+{
+  "items": [
+    {
+      "id": "publicVideo1",
+      "snippet": {
+        "channelId": "UCabcdefghijklmnopqrstuv",
+        "channelTitle": "Español con calma",
+        "title": "Cómo pedir un café en Madrid",
+        "description": "Una conversación breve y natural.",
+        "publishedAt": "2026-09-13T08:00:00Z",
+        "defaultAudioLanguage": "es"
+      },
+      "contentDetails": {
+        "duration": "PT4M5S",
+        "regionRestriction": { "blocked": ["DE"] }
+      },
+      "status": {
+        "privacyStatus": "public",
+        "embeddable": true,
+        "license": "youtube"
+      }
+    },
+    {
+      "id": "privateVideo2",
+      "snippet": {
+        "channelId": "UCabcdefghijklmnopqrstuv",
+        "channelTitle": "Español con calma",
+        "title": "Private video",
+        "description": "",
+        "publishedAt": "2026-09-12T08:00:00Z",
+        "defaultAudioLanguage": "es"
+      },
+      "contentDetails": { "duration": "PT2M" },
+      "status": {
+        "privacyStatus": "private",
+        "embeddable": false,
+        "license": "youtube"
+      }
+    }
+  ]
+}

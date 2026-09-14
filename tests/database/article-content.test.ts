@@ -29,6 +29,7 @@ const migrationNames = [
   "0009_oval_namora.sql",
   "0010_watery_ogun.sql",
   "0011_early_colleen_wing.sql",
+  "0023_article_acquisition.sql",
 ];
 
 async function setup() {

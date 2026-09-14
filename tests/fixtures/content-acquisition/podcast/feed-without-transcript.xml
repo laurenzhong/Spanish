@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>Café de cada día</title>
+    <link>https://podcast.example.test/</link>
+    <language>es</language>
+    <item>
+      <guid isPermaLink="false">episode-43</guid>
+      <title>El trayecto al trabajo</title>
+      <link>https://podcast.example.test/episodes/43</link>
+      <description>Un episodio sin transcripción publicada.</description>
+      <pubDate>Mon, 14 Sep 2026 08:00:00 GMT</pubDate>
+      <itunes:duration>05:30</itunes:duration>
+      <enclosure url="https://media.example.test/audio/episode-43.mp3" length="96" type="audio/mpeg" />
+    </item>
+  </channel>
+</rss>

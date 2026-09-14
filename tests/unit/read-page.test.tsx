@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getArticles: vi.fn(),
   BundleArticleRepository: vi.fn(),
+  createRuntimeArticleRepository: vi.fn(() => ({})),
   listPrivateStories: vi.fn(),
   listReadingProgress: vi.fn(),
   listSavedArticles: vi.fn(),
@@ -14,7 +15,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/modules/content/application", () => ({ getArticles: mocks.getArticles }));
-vi.mock("@/src/modules/content/repositories", () => ({ BundleArticleRepository: mocks.BundleArticleRepository }));
+vi.mock("@/src/modules/content/repositories", () => ({
+  BundleArticleRepository: mocks.BundleArticleRepository,
+  createRuntimeArticleRepository: mocks.createRuntimeArticleRepository,
+}));
 vi.mock("@/src/modules/reading", () => ({
   listPrivateStories: mocks.listPrivateStories,
   listReadingProgress: mocks.listReadingProgress,
@@ -105,7 +109,7 @@ describe("read page data loading", () => {
 
     expect(mocks.getArticles).toHaveBeenCalledTimes(1);
     expect(mocks.getArticles).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ cursor: "24", pageSize: 12 }));
-    expect(rendered.props.children[1].props).toEqual(expect.objectContaining({
+    expect(rendered.props.children[2].props).toEqual(expect.objectContaining({
       result: expect.objectContaining({ articles: pageArticles }),
       page: 3,
       pageSize: 12,

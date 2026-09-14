@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/lexical-assessment-item.schema.json",
+  "title": "Lexical assessment item",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "assessmentKey", "version", "entryKind", "entryId", "promptType", "prompt", "options", "sourceReference", "contentVersion"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "assessmentKey": { "type": "string" },
+    "version": { "type": "integer", "minimum": 1 },
+    "entryKind": { "enum": ["lexeme", "phrase"] },
+    "entryId": { "type": ["string", "null"], "format": "uuid" },
+    "promptType": { "enum": ["choice", "judgement", "cloze", "recall"] },
+    "prompt": { "type": "string" },
+    "options": { "type": "array", "items": { "type": "string" } },
+    "sourceReference": { "type": "object" },
+    "contentVersion": { "type": "integer", "minimum": 1 }
+  }
+}

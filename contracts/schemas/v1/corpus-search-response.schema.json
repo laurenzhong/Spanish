@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/corpus-search-response.schema.json",
+  "title": "Corpus search response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "page", "pageSize", "total"],
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "https://spanish.local/contracts/v1/corpus-item.schema.json" } },
+        "page": { "type": "integer", "minimum": 1 },
+        "pageSize": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "total": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

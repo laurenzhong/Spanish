@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 
 import { getArticles } from "@/src/modules/content/application";
-import { BundleArticleRepository } from "@/src/modules/content/repositories";
+import { createRuntimeArticleRepository } from "@/src/modules/content/repositories";
 import { listPrivateStories, listReadingProgress, listSavedArticles } from "@/src/modules/reading";
 import { createDrizzleGeneratedArticleRepository, createDrizzleReadingRepository } from "@/src/modules/reading/repositories";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
+import { ReadSectionNavigation } from "@/src/modules/lexicon-corpus";
 
 import { ReadShelf } from "./read-shelf";
 
@@ -34,7 +35,7 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   const sort: ReadSort = sortParam === "newest" || sortParam === "shortest" ? sortParam : "hot";
   const parsedPage = Number.parseInt(first(params.page) ?? "1", 10);
   const requestedPage = Number.isSafeInteger(parsedPage) ? Math.max(parsedPage, 1) : 1;
-  const repository = new BundleArticleRepository();
+  const repository = createRuntimeArticleRepository();
   let savedArticleIds: readonly string[] | undefined;
   let initialReaderProgress: Record<string, { position: number; status: "in_progress" | "completed"; lastOpenedAt: string }> = {};
   let savedFilterAvailable = false;
@@ -91,6 +92,7 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   return (
     <div className="page-stack read-page">
       <h1 className="sr-only">阅读</h1>
+      <ReadSectionNavigation active="articles" />
       <ReadShelf result={result} page={page} pageSize={ARTICLE_PAGE_SIZE} search={search ?? ""} topic={topic ?? ""} cefr={cefr ?? ""} minutes={minutes ?? ""} source={source} sort={sort} savedOnly={savedOnly} initialReaderProgress={initialReaderProgress} generatedArticles={initialGeneratedArticles} />
     </div>
   );

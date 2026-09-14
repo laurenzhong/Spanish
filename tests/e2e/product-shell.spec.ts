@@ -61,7 +61,7 @@ test("navigates between all four product areas", async ({ page }) => {
     { name: "探索", path: "/explore", heading: "校园办事：注册与材料" },
     { name: "对话", path: "/chat", heading: "Lucía Martín" },
     { name: "我的", path: "/me", heading: "我的进步" },
-    { name: "学习", path: "/learn", heading: "从一句真实表达开始" },
+    { name: "学习", path: "/learn", heading: "看点、听点真实西语" },
   ]) {
     await navigation.getByRole("link", { name: destination.name }).click();
     await expect(page).toHaveURL(new RegExp(`${destination.path}$`));

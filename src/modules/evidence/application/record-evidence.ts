@@ -1,5 +1,6 @@
 import {
   evaluateAttempt,
+  type EvidenceEventDraft,
 } from "../domain";
 import {
   EvidenceOwnershipError,
@@ -39,6 +40,7 @@ export async function recordEvidence(
 
   const result = await repository.transaction(async (transaction) => {
     const firstEvent = evaluation.events[0]!;
+    if (!firstEvent.practiceAttemptId) throw new EvidenceOwnershipError();
     const ownsAttempt = await transaction.assertPracticeAttemptBelongsToUser(
       firstEvent.userId,
       firstEvent.practiceAttemptId,
@@ -105,4 +107,35 @@ export async function recordEvidence(
     skillStates: result.skillStates,
     status: result.status,
   };
+}
+
+export type RecordLexicalEvidenceInput = Readonly<{
+  event: EvidenceEventDraft;
+}>;
+
+export type RecordLexicalEvidenceResult = Omit<RecordEvidenceResult, "status"> & Readonly<{
+  status: "duplicate" | "recorded";
+}>;
+
+export async function recordLexicalEvidenceWithinTransaction(
+  repository: EvidenceRepository,
+  input: RecordLexicalEvidenceInput,
+): Promise<RecordLexicalEvidenceResult> {
+  if (input.event.sourceType !== "lexical_assessment" || input.event.practiceAttemptId !== null) {
+    throw new Error("LEXICAL_EVIDENCE_SOURCE_INVALID");
+  }
+  const existing = await repository.findByIdempotencyKeys(input.event.userId, [input.event.idempotencyKey]);
+  if (existing.length === 0) await repository.append([input.event]);
+  const persisted = await repository.findByIdempotencyKeys(input.event.userId, [input.event.idempotencyKey]);
+  const skillEvidence = await repository.listBySkill(input.event.userId, input.event.skillKey);
+  const state = rebuildSkillState(input.event.userId, input.event.skillKey, skillEvidence);
+  await repository.upsertSkillState(state);
+  return { events: persisted, skillStates: [state], status: existing.length > 0 ? "duplicate" : "recorded" };
+}
+
+export async function recordLexicalEvidence(
+  repository: EvidenceRepository,
+  input: RecordLexicalEvidenceInput,
+): Promise<RecordLexicalEvidenceResult> {
+  return repository.transaction((transaction) => recordLexicalEvidenceWithinTransaction(transaction, input));
 }

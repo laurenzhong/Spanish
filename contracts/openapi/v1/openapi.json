@@ -3,7 +3,7 @@
   "info": {
     "title": "Spanish speaking platform API",
     "version": "1.0.0",
-    "description": "Versioned protocol baseline shared by the Next.js Web product and Flutter clients."
+    "description": "Versioned protocol baseline for the Web product, including internal content-acquisition error semantics."
   },
   "servers": [
     {
@@ -12,6 +12,63 @@
     }
   ],
   "paths": {
+    "/media": {
+      "get": {
+        "summary": "List playable published video and podcast versions",
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 120 } },
+          { "name": "kind", "in": "query", "schema": { "enum": ["video", "podcast"] } },
+          { "name": "region", "in": "query", "schema": { "type": "string", "maxLength": 40 } },
+          { "name": "cefr", "in": "query", "schema": { "enum": ["A2", "B1"] } },
+          { "name": "duration", "in": "query", "schema": { "enum": ["short", "medium", "long"] } },
+          { "name": "sort", "in": "query", "schema": { "enum": ["newest", "recently_added", "recently_played"], "default": "recently_added" } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string", "maxLength": 500 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 18 } }
+        ],
+        "responses": {
+          "200": { "description": "Bounded media page", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-list-response.schema.json" } } } },
+          "400": { "description": "Invalid filter or cursor" },
+          "503": { "description": "Media library unavailable" }
+        }
+      }
+    },
+    "/media/{stableKey}": {
+      "get": {
+        "summary": "Read one current playable media version",
+        "parameters": [{ "name": "stableKey", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Published media detail", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-detail-response.schema.json" } } } },
+          "404": { "description": "Media not found or withdrawn" }
+        }
+      }
+    },
+    "/media/{stableKey}/playback": {
+      "get": {
+        "summary": "Issue validated playback information with bounded approved segments",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "stableKey", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Playback projection", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-playback-response.schema.json" } } } },
+          "401": { "description": "Authentication required" },
+          "404": { "description": "Media unavailable" }
+        }
+      }
+    },
+    "/media/{stableKey}/progress": {
+      "put": {
+        "summary": "Save an owned immutable-version playback position with revision CAS",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "stableKey", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-progress-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Progress saved", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-progress-response.schema.json" } } } },
+          "400": { "description": "Invalid progress" },
+          "401": { "description": "Authentication required" },
+          "404": { "description": "Media unavailable" },
+          "409": { "description": "Stale progress revision" }
+        }
+      }
+    },
     "/providers/status": {
       "get": {
         "summary": "Read configured and recently observed provider status by capability",
@@ -421,6 +478,95 @@
       "get": { "summary": "Read one private generated draft", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Private generated article", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/generated-story-detail-response.schema.json" } } } }, "404": { "description": "Not found or not owned", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } } },
       "delete": { "summary": "Delete one private generated draft", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "articleId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Draft deleted" }, "404": { "description": "Not found or not owned", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } } } }
     },
+    "/lexicon/vocabulary": {
+      "get": {
+        "summary": "List vocabulary indexed from published article and media versions",
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
+          { "name": "intent", "in": "query", "schema": { "enum": ["familiar", "revisit", "ignore"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 } }
+        ],
+        "responses": {
+          "200": { "description": "Vocabulary page", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexicon-list-response.schema.json" } } } },
+          "400": { "description": "Invalid vocabulary filters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Vocabulary unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/lexicon/phrases": {
+      "get": {
+        "summary": "List approved public and owned phrase entries",
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 120 } },
+          { "name": "intent", "in": "query", "schema": { "enum": ["familiar", "revisit", "ignore"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 } }
+        ],
+        "responses": {
+          "200": { "description": "Phrase page", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexicon-list-response.schema.json" } } } },
+          "400": { "description": "Invalid phrase filters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Phrases unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/corpus/search": {
+      "get": {
+        "summary": "Search published article and media occurrences with KWIC context",
+        "parameters": [
+          { "name": "query", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 120 } },
+          { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },
+          { "name": "sourceKind", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
+          { "name": "stableKey", "in": "query", "schema": { "type": "string", "maxLength": 240 } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "KWIC corpus results", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/corpus-search-response.schema.json" } } } },
+          "400": { "description": "Invalid corpus query", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Corpus unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/lexicon/assessments/{assessmentId}": {
+      "get": {
+        "summary": "Read one public or owned lexical assessment item without accepted answers",
+        "parameters": [{ "name": "assessmentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Lexical assessment item", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-assessment-response.schema.json" } } } },
+          "404": { "description": "Assessment not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/lexicon/assessments/{assessmentId}/attempts": {
+      "post": {
+        "summary": "Submit a server-scored typing answer and append lexical evidence idempotently",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "assessmentId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-assessment-attempt-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Scored lexical attempt", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-assessment-attempt-response.schema.json" } } } },
+          "400": { "description": "Invalid answer", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "404": { "description": "Assessment not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Idempotency conflict", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/lexicon/intents/{entryId}": {
+      "put": {
+        "summary": "Set a user's private vocabulary or phrase review intent",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "entryId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-intent-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Intent saved", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-intent-response.schema.json" } } } },
+          "400": { "description": "Invalid intent", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Stale intent revision", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/auth/session": {
       "get": {
         "summary": "Verify the current authenticated session",
@@ -512,6 +658,17 @@
               }
             }
           }
+        }
+      }
+    },
+    "/profile": {
+      "get": {
+        "summary": "Read the authenticated user's legacy axes and four capability groups",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profile capability overview", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/profile-overview-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Profile unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
       }
     },
@@ -836,6 +993,79 @@
           "400": { "description": "Invalid profile input" },
           "409": { "description": "Concurrent profile update" }
         }
+      }
+    },
+    "/internal/content-workflow/sources": {
+      "get": {
+        "summary": "List configured acquisition sources for the allowlisted owner",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Acquisition sources" }, "401": { "description": "Authentication required" }, "403": { "description": "Owner allowlist required" } }
+      }
+    },
+    "/internal/content-workflow/runs": {
+      "get": {
+        "summary": "List recent acquisition runs for the allowlisted owner",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Acquisition runs" }, "403": { "description": "Owner allowlist required" } }
+      }
+    },
+    "/internal/content-workflow/runs/{runId}": {
+      "get": {
+        "summary": "Read one acquisition run",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "runId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Acquisition run" }, "404": { "description": "Run not found" } }
+      }
+    },
+    "/internal/content-workflow/candidates": {
+      "get": {
+        "summary": "List content candidates for owner review",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Candidate list", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/content-workflow-candidate-list-response.schema.json" } } } }, "403": { "description": "Owner allowlist required" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}": {
+      "get": {
+        "summary": "Read one candidate review projection",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Candidate review detail", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/content-workflow-candidate-detail-response.schema.json" } } } }, "404": { "description": "Candidate not found" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}/reviews": {
+      "post": {
+        "summary": "Record an explicit owner-authorized review for the current revision",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision", "dimension", "status"], "properties": { "expectedRevision": { "type": "integer", "minimum": 1 }, "dimension": { "enum": ["rights", "content-es-ES", "teaching-zh-CN", "structure"] }, "status": { "enum": ["approved", "changes_requested", "rejected"] }, "notes": { "type": ["string", "null"], "maxLength": 4000 } } } } } },
+        "responses": { "200": { "description": "Review recorded", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/content-workflow-review-response.schema.json" } } } }, "400": { "description": "Invalid review" }, "409": { "description": "Stale revision" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}/reprocess": {
+      "post": {
+        "summary": "Preserve review notes and start a new processing generation",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision", "notes"], "properties": { "expectedRevision": { "type": "integer", "minimum": 1 }, "notes": { "type": "string", "minLength": 1, "maxLength": 4000 } } } } } },
+        "responses": { "200": { "description": "Reprocessing requested" }, "409": { "description": "Candidate state conflict" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}/publish": {
+      "post": {
+        "summary": "Publish a gate-complete immutable candidate revision",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision", "expectedContentHash"], "properties": { "expectedRevision": { "type": "integer", "minimum": 1 }, "expectedContentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" } } } } } },
+        "responses": { "200": { "description": "Candidate published", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/content-workflow-publication-response.schema.json" } } } }, "409": { "description": "Review incomplete or publication conflict" }, "503": { "description": "Type publisher is not available" } }
+      }
+    },
+    "/internal/content-workflow/candidates/{candidateId}/archive": {
+      "post": {
+        "summary": "Archive a published candidate through its type publisher",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision"], "properties": { "expectedRevision": { "type": "integer", "minimum": 1 } } } } } },
+        "responses": { "200": { "description": "Published projection removed and audit retained" }, "409": { "description": "Publication conflict" }, "503": { "description": "Type publisher is not available" } }
       }
     },
     "/me/avatar": {

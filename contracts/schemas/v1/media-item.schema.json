@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-item.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "stableKey", "version", "kind", "title", "summary", "sourceName", "language", "region", "cefr", "topics", "durationMs", "publishedAt", "curatedAt", "contentHash", "progress"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}@[1-9][0-9]*$" },
+    "stableKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "kind": { "enum": ["video", "podcast"] },
+    "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "summary": { "type": "string", "maxLength": 4000 },
+    "sourceName": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "language": { "const": "es" },
+    "region": { "type": ["string", "null"], "maxLength": 40 },
+    "cefr": { "type": ["string", "null"], "enum": ["A2", "B1", null] },
+    "topics": { "type": "array", "maxItems": 50, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$" } },
+    "durationMs": { "type": "integer", "minimum": 1 },
+    "publishedAt": { "type": ["string", "null"], "format": "date-time" },
+    "curatedAt": { "type": "string", "format": "date-time" },
+    "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "progress": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "media-progress.schema.json" }
+      ]
+    }
+  }
+}

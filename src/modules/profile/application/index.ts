@@ -1,4 +1,5 @@
 export { getProfileOverview } from "./get-profile-overview";
+export { getFourCapabilityOverview } from "./get-four-capability-overview";
 export { getLearningHeatmap } from "./get-learning-heatmap";
 export {
   LearningActivitySessionClosedError,
