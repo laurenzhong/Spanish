@@ -4,7 +4,7 @@
 
 - 最后更新：2026-09-14
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`MEDIA-002` 已完成并进入 review，ASR/翻译草稿、成本与资格门禁、切句、低置信度阻塞、临时音频清理和超时/取消可靠性已接入；`LEX-001` 待产品确认后解锁，阶段 8 未启动
+- 总体状态：`MEDIA-002` 已完成并合入 `main`，ASR/翻译草稿、成本与资格门禁、切句、低置信度阻塞、临时音频清理和超时/取消可靠性已接入；`LEX-001` 为下一项 ready 任务，阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
@@ -21,11 +21,12 @@
 - 验证：最终聚焦 Vitest `12 files / 40 tests`、全部契约 `16 files / 64 tests`、新增播客 Playwright 桌面/移动 `2/2`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。首次全量 Vitest 为 `195 files / 801 tests` 全过；最终可靠性修正后的第二次全量为 `194 files / 801 tests` 通过、1 条未改动的 `fake-training-loop` localStorage 即时断言失败，隔离复跑仍失败，未越界修改训练模块。全量 Playwright 为 `145/152` 通过、1 跳过；4 条失败是已记录的移动 Lucía 联系人/介绍延期项，另 2 条既有导航超时隔离复跑桌面/移动 `2/2` 通过，播客路径无新增失败。
 - 限制：未执行远端数据库迁移，未访问真实公网 RSS，未预置真实播客白名单，也未调用真实收费 Provider。播放地址当前依来源策略保存显式有效期，过期后的重新校验/续期留给 `MEDIA-002`。本地 `.mp3` fixture 只验证受控媒体端口与页面流程，不代表真实音频质量、编解码或 iPhone Safari/PWA 真机结果；Flutter 未验证。
 - 合并：专项回归 `31/31` 通过；Merge Commit `bede042` 已推送到 `origin/main`。
-- 下一步：实施 `MEDIA-002`；只处理 ASR、翻译、成本门禁、临时音频清理和媒体失效恢复，不提前实现词句语料或画像。
+- 合并：媒体处理专项回归通过；Merge Commit `4938d97`。
+- 下一步：实施 `LEX-001`；只处理词汇、短语和跨文章/媒体的出现索引，不提前实现语料查询、文字考察或能力画像。
 
 ### 2026-09-14：MEDIA-002 媒体 ASR、翻译、成本与可靠性
 
-- 状态：`review`
+- 状态：`done`
 - 负责人：Codex
 - 分支：`codex/media-002-asr-processing`
 - 实现 Commit：`efcfda4`、`0d955f4`
@@ -35,6 +36,7 @@
 - 验证：MEDIA-002 专项 Vitest `7 files / 21 tests`，低置信度门禁与媒体回归 `8 files / 22 tests`，`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`pnpm build` 和 `git diff --check` 通过。全量 `pnpm test --run` 曾运行超过约一分钟无输出后停止，未将其描述为通过；未访问公网、未调用真实 ASR/翻译或执行远端迁移。
 - 限制：当前 artifact store/provider 为端口与 fake，尚未接入真实媒体下载、ASR/翻译供应商或定时调度；音频哈希跨候选去费、分块转写和真实清理 worker 留给后续 OPS/供应商接入评估。低置信度草稿需所有者审核修订后才能发布。
 - 下一步：产品本人复核 MEDIA-002 后，解锁 `LEX-001` 词汇、短语与出现索引；不得在确认前实现 LEX-002 或 PROFILE-001。
+- 合并：Merge Commit `4938d97` 已推送到 `origin/main`。
 
 ### 2026-09-14：VIDEO-001 YouTube 白名单视频纵向闭环
 
@@ -1737,7 +1739,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | MEDIA-001 | done | `codex/media-001-library-foundation` | Codex | 统一媒体领域与视频/播客学习资料库 | 实现 `7cd67b7`；合并 `683cff9` |
 | VIDEO-001 | done | `codex/video-001-youtube-learning` | Codex | YouTube 白名单视频纵向闭环 | 实现 `7884a86`；合并 `77998c9` |
 | PODCAST-001 | done | `codex/podcast-001-rss-learning` | Codex | 播客 RSS 纵向闭环 | 实现 `0e047ec`；合并 `bede042` |
-| MEDIA-002 | review | `codex/media-002-asr-processing` | Codex | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001；实现 `efcfda4`、`0d955f4` |
+| MEDIA-002 | done | `codex/media-002-asr-processing` | Codex | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001；实现 `efcfda4`、`0d955f4`；合并 `4938d97` |
 | LEX-001 | ready | `codex/lex-001-lexicon-corpus-foundation` | 待产品确认 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 |
 | LEX-002 | blocked | `codex/lex-002-corpus-assessment` | 待领取 | KWIC 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 |
 | PROFILE-001 | blocked | `codex/profile-001-four-capability-profile` | 待领取 | 四板块能力投影、历史映射和“我的”替换 | LEX-002 与现有交流/语音/跟读证据 |
@@ -1757,13 +1759,13 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 5 | MEDIA-001 | 统一媒体领域与学习资料库 | 已完成；实现 `7cd67b7`，合并 `683cff9` |
 | 6 | VIDEO-001 | YouTube 白名单视频纵向闭环 | 已完成；实现 `7884a86`，合并 `77998c9` |
 | 7 | PODCAST-001 | 播客 RSS 纵向闭环 | 已完成；实现 `0e047ec`，合并 `bede042` |
-| 8 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | 已完成实现 `efcfda4`，等待产品复核 |
+| 8 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | 已完成并合入 `main`；实现 `efcfda4`、`0d955f4`；合并 `4938d97` |
 | 9 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认；MEDIA-002 已完成实现 |
 | 10 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
 | 11 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
 | 12 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前 `MEDIA-002` 等待产品复核，`LEX-001` 为下一项 ready 任务，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前 `LEX-001` 为唯一 ready 任务，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
@@ -1811,6 +1813,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-14 | MEDIA-002 完成媒体 ASR/翻译编排、成本/资格门禁、低置信度阻塞、超时取消与临时音频清理并合入 main | `efcfda4`、`0d955f4`、`4938d97` | LEX-001 提升为唯一 ready 任务 |
 | 2026-09-14 | MEDIA-002 完成媒体 ASR/翻译编排、成本/资格门禁、低置信度阻塞、超时取消与临时音频清理，进入 review | `efcfda4`、`0d955f4` | 产品复核后解锁 LEX-001 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环并合入 main | `0e047ec`、`bede042` | MEDIA-002 提升为唯一 ready 任务 |
 | 2026-09-14 | VIDEO-001 通过合并复核并进入 `main` | `7884a86`、`77998c9` | PODCAST-001 解锁为唯一 ready 任务；ASR 与词句任务继续阻塞 |
