@@ -6,11 +6,12 @@ export type CaptionMode = "es" | "bilingual" | "hidden";
 const timeLabel = (milliseconds: number) => { const seconds = Math.floor(milliseconds / 1_000); return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; };
 const tokens = (text: string) => text.match(/[\p{L}\p{M}]+(?:['’][\p{L}\p{M}]+)?|[^\p{L}\p{M}]+/gu) ?? [text];
 
-export function SegmentTranscript({ segments, activeIndex, captionMode, onSeek, onWord }: Readonly<{
+export function SegmentTranscript({ segments, activeIndex, captionMode, mediaKind, onSeek, onWord }: Readonly<{
   segments: MediaPlayback["segments"]; activeIndex: number | null; captionMode: CaptionMode;
+  mediaKind: MediaPlayback["media"]["kind"];
   onSeek: (index: number) => void; onWord: (word: string, sentence: string, trigger: HTMLButtonElement) => void;
 }>) {
-  if (segments.length === 0) return <p className="media-transcript__empty">这项视频可以播放，但目前没有已审核的逐句字幕。</p>;
+  if (segments.length === 0) return <p className="media-transcript__empty">{mediaKind === "podcast" ? "这期播客可以播放，但目前没有已审核的逐句文本。" : "这项视频可以播放，但目前没有已审核的逐句字幕。"}</p>;
   if (captionMode === "hidden") return <p className="media-transcript__empty">字幕已隐藏，仍可使用上/重播/下一句控制。</p>;
   return <ol className="segment-transcript">{segments.map((segment) => <li className={segment.index === activeIndex ? "is-active" : undefined} key={segment.id}>
     <button aria-label={`跳到 ${timeLabel(segment.startMs)}`} className="segment-transcript__time" onClick={() => onSeek(segment.index)} type="button">{timeLabel(segment.startMs)}</button>

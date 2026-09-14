@@ -1,0 +1,39 @@
+import type { MediaPlayback } from "../domain";
+
+export const podcastLearningE2eStableKey = "podcast.e2e-cafe";
+
+export function getPodcastLearningE2eFixture(stableKey: string): MediaPlayback | null {
+  if (process.env.NODE_ENV === "production" || process.env.AUTH_E2E_ENABLED !== "1" || stableKey !== podcastLearningE2eStableKey) {
+    return null;
+  }
+  return {
+    media: {
+      id: `${podcastLearningE2eStableKey}@1`,
+      stableKey: podcastLearningE2eStableKey,
+      version: 1,
+      kind: "podcast",
+      title: "Una mañana en el mercado",
+      summary: "Un episodio breve para escuchar una compra cotidiana.",
+      sourceName: "Café de cada día · prueba autorizada",
+      language: "es",
+      region: "es-ES",
+      cefr: "A2",
+      topics: ["topic.daily-life"],
+      durationMs: 7_000,
+      publishedAt: "2026-09-14T08:00:00.000Z",
+      curatedAt: "2026-09-14T10:00:00.000Z",
+      contentHash: "b".repeat(64),
+      progress: { lastPositionMs: 0, lastSegmentIndex: 0, status: "in_progress", revision: 0 },
+    },
+    asset: {
+      kind: "audio",
+      url: "https://media.example.test/audio/podcast-sample.mp3",
+      expiresAt: "2026-09-21T10:00:00.000Z",
+    },
+    segments: [
+      { id: "podcast-e2e-0", index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días, ¿qué te pongo?", translation: null, speaker: null },
+      { id: "podcast-e2e-1", index: 1, startMs: 2_200, endMs: 5_000, sourceText: "Quería medio kilo de naranjas, por favor.", translation: null, speaker: null },
+      { id: "podcast-e2e-2", index: 2, startMs: 5_000, endMs: 7_000, sourceText: "Claro, ahora mismo.", translation: null, speaker: null },
+    ],
+  };
+}

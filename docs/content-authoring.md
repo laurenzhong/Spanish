@@ -187,6 +187,10 @@ YouTube 来源必须使用 `adapter_type=youtube`、`source_kind=video-channel`�
 
 频道 Atom feed 只负责增量发现，Data API 再确认频道、公开状态、可嵌入状态、声明语言、区域限制和时长。当前真实适配器不读取非公开字幕或下载接口，因此默认候选为 `captionStatus=unavailable` 且片段为空；这类内容可以在三维审核后以“仅播放”方式发布。以后从平台允许渠道取得的人工/自动字幕仍必须标记 `platform_manual`/`platform_auto`，解析成最多 500 段、不重叠且不越过视频时长的毫秒时间轴，再独立审核后发布。
 
+播客来源必须使用 `adapter_type=podcast-rss`、`source_kind=podcast-feed`、credential-free HTTPS feed URL、`language=es` 和 `rights_status=verified`。`rights_policy` 必须声明 `contentMode=enclosure_playback`、许可、署名、HTTPS 许可证据、feed/episode/audio/transcript 主机 allowlist、允许的音频 MIME、enclosure 与 transcript 体积上限、播放校验有效期、CEFR、主题及最短/最长时长。发现阶段只对 enclosure 发起 `HEAD` 并逐跳校验 HTTPS、主机、重定向、Content-Type 和 Content-Length，不下载完整音频；URL 不进入普通日志。
+
+播客 episode 先按 GUID 和规范化 URL 去重，再用排除抓取时间、播放到期时间与流程备注的确定性哈希识别重发和内容变化。只有来源明确声明的西语 `text/vtt` 可进入候选；解析成功的时间轴标记 `platform_manual` 或 `platform_auto`，必须不重叠、不越界且不超过 500 段。缺失、永久失效或非法 transcript 诚实降级为无逐句文本候选；临时网络、`429` 或 `5xx` 失败必须保留游标重试，不能把临时失败固化成无 transcript 版本。`PODCAST-001` 不下载音频、不接 ASR、不生成翻译；这些处理只属于后续 `MEDIA-002`。
+
 ### 8.1 阅读文章字段
 
 每篇可公开阅读的文章至少包含：
@@ -243,7 +247,7 @@ YouTube 来源必须使用 `adapter_type=youtube`、`source_kind=video-channel`�
 - 按时间排序的西语片段、可选 `zh-CN` 翻译、说话者、`startMs/endMs`、字幕来源和置信度。
 - 内容、语言、教学和权利审核记录，以及版本变更原因。
 
-YouTube 只允许精确匹配 `https://www.youtube-nocookie.com/embed/{videoId}` 的官方隐私增强嵌入，只读取平台允许取得的元数据/字幕，不下载视频或音频。候选内容哈希排除抓取时间与流程备注，避免相同内容因每日抓取产生伪变更；标题、摘要、播放身份、时长、许可或字幕内容改变时仍会形成新哈希。播客 enclosure 只有在权利策略允许时才能用于播放或临时处理。来源失效、嵌入受限、许可撤销或权利存疑时停止公开投影和语料查询，并保留必要审计记录。
+YouTube 只允许精确匹配 `https://www.youtube-nocookie.com/embed/{videoId}` 的官方隐私增强嵌入，只读取平台允许取得的元数据/字幕，不下载视频或音频。候选内容哈希排除抓取时间与流程备注，避免相同内容因每日抓取产生伪变更；标题、摘要、播放身份、时长、许可或字幕内容改变时仍会形成新哈希。播客正式版本额外保存 feed URL、episode GUID、enclosure URL 哈希和带到期时间的音频资产；完整播放 URL 不进入目录卡片或普通诊断日志。enclosure 只有在权利策略允许且校验仍有效时才能发布播放，过期后服务端停止返回；重新校验与续期由后续可靠性任务处理。来源失效、节目/episode 下架、嵌入受限、许可撤销或权利存疑时停止公开投影和语料查询，并保留必要审计记录。
 
 ### 8.3 词汇、短语与语料
 

@@ -293,9 +293,10 @@ describe("database schema", () => {
         "0023_article_acquisition.sql",
         "0012_wakeful_spiral.sql",
         "0021_shallow_killmonger.sql",
-        "0024_media_library_foundation.sql",
-        "0025_youtube_video_publication.sql",
-      ]) {
+          "0024_media_library_foundation.sql",
+          "0025_youtube_video_publication.sql",
+          "0026_brief_toro.sql",
+        ]) {
         const migrationPath = path.join(
           process.cwd(),
           "drizzle",

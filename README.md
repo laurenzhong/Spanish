@@ -93,7 +93,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 
 实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
 
-基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。响应式 Web/PWA 产品壳层保留“学习、阅读、探索、对话、我的”五项导航；新一轮实施将把学习替换为视频/播客资料库，并把词汇、短语和语料纳入阅读。Flutter 代码保留但暂停同步。
+基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。响应式 Web/PWA 产品壳层保留“学习、阅读、探索、对话、我的”五项导航；“学习”已是视频/播客资料库，词汇、短语和语料将在后续任务纳入“阅读”。Flutter 代码保留但暂停同步。
 
 本地环境要求：
 

@@ -1,5 +1,6 @@
 import { CandidatePublisherRegistry } from "./candidate-publisher-registry";
 import { AcquiredArticlePublisher } from "./acquired-article-publisher";
+import { AcquiredPodcastPublisher } from "./acquired-podcast-publisher";
 import { AcquiredVideoPublisher } from "./acquired-video-publisher";
 import { createDrizzleArticleRepository } from "@/src/modules/content/repositories";
 import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
@@ -12,7 +13,11 @@ const lazyArticleRepository = {
     createDrizzleArticleRepository(getDatabase()).archiveAcquired(...args),
 };
 
-const lazyVideoRepository = {
+const lazyMediaRepository = {
+  publishAcquiredPodcast: (...args: Parameters<ReturnType<typeof createDrizzleMediaRepository>["publishAcquiredPodcast"]>) =>
+    createDrizzleMediaRepository(getDatabase()).publishAcquiredPodcast(...args),
+  archiveAcquiredPodcast: (...args: Parameters<ReturnType<typeof createDrizzleMediaRepository>["archiveAcquiredPodcast"]>) =>
+    createDrizzleMediaRepository(getDatabase()).archiveAcquiredPodcast(...args),
   publishAcquiredVideo: (...args: Parameters<ReturnType<typeof createDrizzleMediaRepository>["publishAcquiredVideo"]>) =>
     createDrizzleMediaRepository(getDatabase()).publishAcquiredVideo(...args),
   archiveAcquiredVideo: (...args: Parameters<ReturnType<typeof createDrizzleMediaRepository>["archiveAcquiredVideo"]>) =>
@@ -21,5 +26,6 @@ const lazyVideoRepository = {
 
 export const contentWorkflowPublishers = new CandidatePublisherRegistry([
   new AcquiredArticlePublisher(lazyArticleRepository),
-  new AcquiredVideoPublisher(lazyVideoRepository),
+  new AcquiredPodcastPublisher(lazyMediaRepository),
+  new AcquiredVideoPublisher(lazyMediaRepository),
 ]);

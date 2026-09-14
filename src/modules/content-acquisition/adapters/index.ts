@@ -3,5 +3,7 @@ export * from "./fake-content-source-adapter";
 export * from "./articles/article-source-adapter";
 export * from "./articles/runtime-article-adapter";
 export * from "./rss/article-rss-adapter";
+export * from "./rss/podcast-rss-adapter";
+export * from "./podcast/podcast-policy";
 export * from "./youtube/youtube-channel-adapter";
 export * from "./youtube/youtube-policy";

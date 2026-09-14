@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { findSegmentIndexAt, type MediaPlayback } from "../domain";
+import { AudioPlayerAdapter, type AudioPlayerFactory, type AudioPlayerPort, type AudioPlayerState } from "./audio-player-adapter";
 import { LexicalDrawer } from "./lexical-drawer";
 import { SegmentTranscript, type CaptionMode } from "./segment-transcript";
 import { VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type VideoPlayerState } from "./video-player-adapter";
@@ -10,11 +11,19 @@ import { VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type
 type ProgressSnapshot = Readonly<{ lastPositionMs: number; lastSegmentIndex: number | null; status: "in_progress" | "completed" }>;
 type ProgressSyncState = "idle" | "saving" | "saved" | "conflict" | "error";
 
-export function MediaLearningWorkbench({ playback, playerFactory }: Readonly<{ playback: MediaPlayback; playerFactory?: VideoPlayerFactory }>) {
-  return <MediaLearningWorkbenchSession key={playback.media.id} playback={playback} playerFactory={playerFactory} />;
+export function MediaLearningWorkbench({ playback, playerFactory, audioPlayerFactory }: Readonly<{
+  playback: MediaPlayback;
+  playerFactory?: VideoPlayerFactory;
+  audioPlayerFactory?: AudioPlayerFactory;
+}>) {
+  return <MediaLearningWorkbenchSession audioPlayerFactory={audioPlayerFactory} key={playback.media.id} playback={playback} playerFactory={playerFactory} />;
 }
 
-function MediaLearningWorkbenchSession({ playback, playerFactory }: Readonly<{ playback: MediaPlayback; playerFactory?: VideoPlayerFactory }>) {
+function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFactory }: Readonly<{
+  playback: MediaPlayback;
+  playerFactory?: VideoPlayerFactory;
+  audioPlayerFactory?: AudioPlayerFactory;
+}>) {
   const initialActiveIndex = playback.media.progress?.lastSegmentIndex ?? (playback.segments.length > 0 ? 0 : null);
   const initialPositionMs = playback.media.progress?.lastPositionMs ?? 0;
   const initialRevision = playback.media.progress?.revision ?? 0;
@@ -25,7 +34,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory }: Readonly<{ p
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [progressSyncState, setProgressSyncState] = useState<ProgressSyncState>("idle");
   const [lexicalSelection, setLexicalSelection] = useState<{ word: string; sentence: string } | null>(null);
-  const playerRef = useRef<VideoPlayerPort | null>(null);
+  const playerRef = useRef<VideoPlayerPort | AudioPlayerPort | null>(null);
   const lexicalTriggerRef = useRef<HTMLButtonElement | null>(null);
   const activeIndexRef = useRef<number | null>(initialActiveIndex);
   const progressRevisionRef = useRef(initialRevision);
@@ -99,7 +108,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory }: Readonly<{ p
     sendProgressRef.current = sendProgress;
   }, [sendProgress]);
 
-  const progressSnapshot = useCallback((state: VideoPlayerState | "paused-by-segment"): ProgressSnapshot => {
+  const progressSnapshot = useCallback((state: VideoPlayerState | AudioPlayerState | "paused-by-segment"): ProgressSnapshot => {
     const rawPosition = state === "ended" ? playback.media.durationMs : (playerRef.current?.currentTime() ?? 0);
     const lastPositionMs = Math.min(playback.media.durationMs, Math.max(0, Math.round(rawPosition)));
     const lastSegmentIndex = findSegmentIndexAt(playback.segments, lastPositionMs) ?? activeIndexRef.current;
@@ -157,10 +166,10 @@ function MediaLearningWorkbenchSession({ playback, playerFactory }: Readonly<{ p
     return () => window.clearInterval(timer);
   }, [activeIndex, autoPause, playback.segments, playerState, progressSnapshot, sendProgress, updateActiveIndex]);
 
-  const handlePortChange = useCallback((port: VideoPlayerPort | null) => {
+  const handlePortChange = useCallback((port: VideoPlayerPort | AudioPlayerPort | null) => {
     playerRef.current = port;
   }, []);
-  const handleStateChange = useCallback((state: VideoPlayerState) => {
+  const handleStateChange = useCallback((state: VideoPlayerState | AudioPlayerState) => {
     setPlayerState(state);
     if (state === "ready" && initialPositionMs) playerRef.current?.seek(initialPositionMs);
     if (state === "paused" || state === "ended") sendProgress(progressSnapshot(state));
@@ -170,9 +179,14 @@ function MediaLearningWorkbenchSession({ playback, playerFactory }: Readonly<{ p
   const closeWord = useCallback(() => { setLexicalSelection(null); window.setTimeout(() => lexicalTriggerRef.current?.focus(), 0); }, []);
 
   return <div className="media-learning-workbench">
-    <section aria-label="视频学习器" className="media-learning-workbench__main">
-      <div className="media-detail__player"><VideoPlayerAdapter embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
-        onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} /></div>
+    <section aria-label={playback.media.kind === "podcast" ? "播客学习器" : "视频学习器"} className="media-learning-workbench__main">
+      <div className={`media-detail__player media-detail__player--${playback.media.kind}`}>
+        {playback.media.kind === "podcast" && playback.asset.kind === "audio"
+          ? <AudioPlayerAdapter audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
+              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />
+          : <VideoPlayerAdapter embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
+              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
+      </div>
       <div aria-label="逐句播放控制" className="media-sentence-controls">
         <button aria-label="上一句" disabled={playback.segments.length === 0} onClick={previous} type="button"><kbd>A</kbd><span>上一句</span></button>
         <button aria-label="重播当前句" disabled={playback.segments.length === 0} onClick={replay} type="button"><kbd>S</kbd><span>重播当前句</span></button>
@@ -188,7 +202,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory }: Readonly<{ p
     <section aria-labelledby="media-transcript-title" className="media-learning-workbench__transcript">
       <header><div><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
         <div aria-label="字幕模式" className="caption-mode">{(["es", "bilingual", "hidden"] as const).map((mode) => <button aria-pressed={captionMode === mode} key={mode} onClick={() => setCaptionMode(mode)} type="button">{mode === "es" ? "西语" : mode === "bilingual" ? "双语" : "隐藏"}</button>)}</div></header>
-      <SegmentTranscript activeIndex={activeIndex} captionMode={captionMode} onSeek={selectSegment} onWord={openWord} segments={playback.segments} />
+      <SegmentTranscript activeIndex={activeIndex} captionMode={captionMode} mediaKind={playback.media.kind} onSeek={selectSegment} onWord={openWord} segments={playback.segments} />
     </section>
     {lexicalSelection ? <LexicalDrawer onClose={closeWord} sentence={lexicalSelection.sentence} word={lexicalSelection.word} /> : null}
   </div>;
