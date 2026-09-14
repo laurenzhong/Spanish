@@ -183,11 +183,14 @@ test("adds Lucía as a pinned contact only after explicit approval", async ({ pa
   await expect(page.getByRole("navigation", { name: "好友列表" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Lucía Martín.*主要好友/ })).toHaveCount(0);
   await expect(page.getByText("还没有联系人。你可以先查看新的好友申请。")).toBeVisible();
-  await page.getByRole("button", { name: "查看好友申请和介绍" }).click();
+  await page.getByRole("button", { name: /待处理/ }).click();
   await expect(page.getByTestId("lucia-contact-request")).toBeVisible();
   await page.getByRole("button", { name: "通过申请" }).click();
-  await expect(page.getByRole("link", { name: /Lucía Martín.*主要好友/ })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByLabel("已置顶")).toBeVisible();
+  const luciaContact = page.getByRole("link", { name: /Lucía Martín.*主要好友/ });
+  await expect(luciaContact).toHaveAttribute("aria-current", "page");
+  await page.getByRole("button", { name: "关闭好友申请与介绍" }).click();
+  await luciaContact.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "取消置顶" })).toBeVisible();
 });
 
 test("shows a contextual friend introduction and requires explicit consent", async ({ page }) => {

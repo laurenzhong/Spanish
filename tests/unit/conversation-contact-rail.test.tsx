@@ -97,9 +97,12 @@ describe("ConversationContactRail", () => {
     await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("link", { name: /Lucía Martín/ }) });
     expect(screen.getByRole("menu", { name: "Lucía Martín 的好友操作" })).toBeInTheDocument();
     await user.click(screen.getByRole("menuitem", { name: "取消置顶" }));
-    expect(screen.queryByLabelText("已置顶")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("已取消置顶"));
     expect(vi.mocked(fetch).mock.calls.some(([, init]) => typeof init?.body === "string" && init.body.includes('"isPinned":false'))).toBe(true);
+
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("link", { name: /Lucía Martín/ }) });
+    expect(screen.getByRole("menuitem", { name: "置顶此好友" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
 
     await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("link", { name: /Lucía Martín/ }) });
     await user.click(screen.getByRole("menuitem", { name: "静音通知" }));
