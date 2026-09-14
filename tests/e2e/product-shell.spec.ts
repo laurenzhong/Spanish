@@ -91,6 +91,24 @@ test("keeps the shell usable at desktop width", async ({ page }) => {
   expect(manifestResponse.ok()).toBeTruthy();
 });
 
+test("opens the desktop account menu beside the rail without viewport clipping", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/learn");
+
+  const rail = page.locator(".desktop-navigation");
+  const trigger = rail.getByRole("button", { name: "打开账户菜单" });
+  await trigger.click();
+
+  const popover = page.locator(".desktop-navigation__account .account-menu__popover");
+  await expect(popover).toBeVisible();
+  const railBox = await rail.boundingBox();
+  const popoverBox = await popover.boundingBox();
+  expect(popoverBox?.x).toBeGreaterThanOrEqual((railBox?.x ?? 0) + (railBox?.width ?? 0) - 1);
+  expect(popoverBox?.x).toBeLessThan(1280);
+  expect((popoverBox?.x ?? 0) + (popoverBox?.width ?? 0)).toBeLessThanOrEqual(1280);
+});
+
 test("collapses the desktop rail without covering the main content", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -105,20 +123,6 @@ test("collapses the desktop rail without covering the main content", async ({ pa
   expect(collapsedBox?.width).toBeLessThanOrEqual(72);
   expect(contentBox?.x).toBeGreaterThanOrEqual((collapsedBox?.x ?? 0) + (collapsedBox?.width ?? 0));
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("sueno-desktop-navigation-v1"))).toBe("collapsed");
-});
-
-test("opens the desktop account menu beside the rail without viewport clipping", async ({ page }) => {
-  await authenticate(page);
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/learn");
-  const rail = page.locator(".desktop-navigation");
-  await rail.getByRole("button", { name: "打开账户菜单" }).click();
-  const popover = page.locator(".desktop-navigation__account .account-menu__popover");
-  await expect(popover).toBeVisible();
-  const railBox = await rail.boundingBox();
-  const popoverBox = await popover.boundingBox();
-  expect(popoverBox?.x).toBeGreaterThanOrEqual((railBox?.x ?? 0) + (railBox?.width ?? 0) - 1);
-  expect((popoverBox?.x ?? 0) + (popoverBox?.width ?? 0)).toBeLessThanOrEqual(1280);
 });
 
 test("keeps discovery and conversation entry points visible", async ({
