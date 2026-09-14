@@ -30,8 +30,9 @@ describe("DesktopNavigation", () => {
   it("keeps the five product destinations visible without a collapse control", () => {
     render(<DesktopNavigation />);
 
+    expect(screen.getByRole("link", { name: "Sueño 首页" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "学习" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getAllByRole("link")).toHaveLength(5);
+    expect(screen.getAllByRole("link", { name: /^(学习|阅读|探索|对话|我的)$/ })).toHaveLength(5);
     expect(screen.queryByRole("button", { name: /侧边栏/ })).not.toBeInTheDocument();
     expect(screen.queryByText("开始")).not.toBeInTheDocument();
     expect(screen.queryByText("发现")).not.toBeInTheDocument();

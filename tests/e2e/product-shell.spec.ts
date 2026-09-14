@@ -128,6 +128,7 @@ test("keeps the compact desktop rail and icon-over-label navigation", async ({ p
   expect(contentBox?.x).toBeGreaterThanOrEqual((railBox?.x ?? 0) + (railBox?.width ?? 0));
   await expect(page.locator(".desktop-navigation__link[aria-current='page']")).toHaveAttribute("title", "学习");
   await expect(rail.locator(".desktop-navigation__link")).toHaveCount(5);
+  await expect(rail.getByRole("link", { name: "Sueño 首页" })).toBeVisible();
 });
 
 test("keeps the compact desktop rail at intermediate widths", async ({ page }) => {
@@ -149,6 +150,7 @@ test("keeps the learning header focused on brand and discovery", async ({ page }
 
   await expect(page.locator(".mobile-product-header")).toBeHidden();
   await expect(page.locator(".media-library__wordmark")).toBeVisible();
+  await expect(page.locator(".media-library__wordmark-mark")).toHaveCount(0);
   await expect(page.locator(".media-library__search")).toBeVisible();
   await expect(page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "我的" })).toBeVisible();
 });

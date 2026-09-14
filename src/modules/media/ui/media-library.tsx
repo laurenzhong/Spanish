@@ -26,7 +26,7 @@ export function MediaLibrary({ result, query, unavailable = false }: Readonly<{ 
   return (
     <div className="page-stack media-library" data-testid="media-library">
       <header className="media-library__topbar">
-        <Link className="media-library__wordmark" href="/learn" aria-label="Sueño 学习首页"><span className="media-library__wordmark-mark">S</span><span>Sue<span>ñ</span>o</span></Link>
+        <Link className="media-library__wordmark" href="/learn" aria-label="Sueño 学习首页">Sue<span>ñ</span>o</Link>
         <nav className="media-library__topnav" aria-label="学习频道">
           {tabs.map(([kind, label]) => <Link aria-current={query.kind === kind || (!query.kind && !kind) ? "page" : undefined} href={queryHref(query, { cursor: undefined, kind })} key={label}>{label}</Link>)}
         </nav>

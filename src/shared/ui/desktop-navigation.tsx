@@ -14,6 +14,9 @@ export function DesktopNavigation() {
       aria-label="桌面主要导航"
       className="desktop-navigation"
     >
+      <Link className="desktop-navigation__brand-link" href="/" aria-label="Sueño 首页">
+        <span aria-hidden="true">S</span>
+      </Link>
       <div className="desktop-navigation__groups">
         {navigationGroups.map((group) => (
           <div className="desktop-navigation__group" key={group.label}>

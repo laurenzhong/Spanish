@@ -10939,6 +10939,10 @@ body {
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) { grid-template-columns: 88px minmax(0, 1fr); }
   .desktop-navigation { width: 88px; }
   .product-shell:has(.media-library) .desktop-navigation { width: 88px; }
+  .desktop-navigation__brand-link { display: grid; width: 100%; min-height: 58px; place-items: center; border-bottom: 1px solid var(--border); color: var(--foreground); font-family: var(--font-display); font-size: 22px; font-style: italic; font-weight: 800; text-decoration: none; }
+  .desktop-navigation__brand-link span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; color: var(--surface); background: var(--terracotta); font-style: normal; letter-spacing: 0; }
+  .desktop-navigation__brand-link:hover,
+  .desktop-navigation__brand-link:focus-visible { color: var(--foreground); background: var(--surface-soft); }
   .desktop-navigation__brand { min-height: 16px; padding: 0; border: 0; }
   .desktop-navigation__brand > * { display: none; }
   .desktop-navigation__groups { gap: 8px; padding: 16px 8px; }
@@ -10958,8 +10962,7 @@ body {
 
 .product-shell:has(.media-library) .media-library__topbar { grid-template-columns: auto minmax(0, 1fr) minmax(280px, 420px); }
 .product-shell:has(.media-library) .media-library__wordmark { display: inline-flex; gap: 8px; align-items: center; color: var(--learn-text); font-size: 24px; font-weight: 700; }
-.product-shell:has(.media-library) .media-library__wordmark-mark { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 8px; color: var(--learn-bg); background: var(--learn-accent); font-family: var(--font-display); font-size: 16px; font-style: normal; letter-spacing: 0; }
-.product-shell:has(.media-library) .media-library__wordmark > span:last-child > span { color: var(--learn-accent); }
+.product-shell:has(.media-library) .media-library__wordmark > span { color: var(--learn-accent); }
 
 @media (max-width: 959px) {
   .product-shell:has(.media-library) .mobile-product-header { display: none; }
