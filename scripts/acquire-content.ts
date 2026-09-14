@@ -11,6 +11,7 @@ import {
   createArticleRssAdapterFromSource,
   createPodcastRssAdapterFromSource,
   createYouTubeChannelAdapterFromSource,
+  createLanguageReactorAdapterFromSource,
   contentSourcePageSchema,
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
@@ -95,15 +96,20 @@ export async function runAcquireContentCli(
     input: options,
   });
   let reviewReady = 0;
-  const supportsAutomaticPreparation = ["article-rss", "podcast-rss", "youtube"].includes(dependencies.adapter.key);
+  const supportsAutomaticPreparation = ["article-rss", "podcast-rss", "youtube", "language-reactor"].includes(dependencies.adapter.key);
   if (!result.dryRun && supportsAutomaticPreparation) {
     for (const candidateId of result.insertedCandidateIds) {
       if (dependencies.adapter.key === "article-rss") {
         await prepareArticleCandidateForReview(dependencies.repository, candidateId);
       } else if (dependencies.adapter.key === "podcast-rss") {
         await preparePodcastCandidateForReview(dependencies.repository, candidateId);
-      } else {
+      } else if (dependencies.adapter.key === "youtube") {
         await prepareVideoCandidateForReview(dependencies.repository, candidateId);
+      } else {
+        const candidate = await dependencies.repository.findCandidateById(candidateId);
+        if (!candidate) throw new ContentAcquisitionRunError("The acquired candidate disappeared before preparation.");
+        if (candidate.contentType === "video") await prepareVideoCandidateForReview(dependencies.repository, candidateId);
+        else if (candidate.contentType === "podcast") await preparePodcastCandidateForReview(dependencies.repository, candidateId);
       }
       reviewReady += 1;
     }
@@ -159,6 +165,8 @@ async function main(): Promise<void> {
           ? createPodcastRssAdapterFromSource(source)
         : source.adapterType === "youtube"
           ? createYouTubeChannelAdapterFromSource(source)
+        : source.adapterType === "language-reactor"
+          ? createLanguageReactorAdapterFromSource(source)
         : null;
     if (!adapter) throw new ContentAcquisitionRunError("No runtime adapter is available for this source type.");
     await runAcquireContentCli(process.argv.slice(2), {

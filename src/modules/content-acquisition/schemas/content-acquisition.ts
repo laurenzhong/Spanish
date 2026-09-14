@@ -11,6 +11,7 @@ export const sourceAdapterTypes = [
   "fake",
   "youtube",
   "podcast-rss",
+  "language-reactor",
   "article-rss",
   "custom",
 ] as const;

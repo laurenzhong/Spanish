@@ -2,11 +2,23 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-14
+- 最后更新：2026-09-15
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`PODCAST-001` 已完成实现并进入 `review`，分支为 `codex/podcast-001-rss-learning`，实现 Commit `0e047ec`；播客 RSS、审核发布、带有效期的音频资产和共享媒体学习工作台已形成纵向闭环。合并与产品确认前不领取 `MEDIA-002`。阶段 8 未启动
+- 总体状态：`LR-001` Language Reactor 实际来源接入与首批真实媒体发布已在当前工作树完成并进入 `review`；远端已注册播客/YouTube 来源，发布 20 个视频和 2 个播客。代码尚未形成独立实现 Commit，产品确认前不提升后续 ASR/词句任务。阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
+
+### 2026-09-15：LR-001 Language Reactor 实际来源接入与首批发布
+
+- 状态：`review`
+- 负责人：Codex
+- 分支：`codex/ui-017-collapsible-shell`
+- 实现 Commit：待提交（当前工作树）
+- 范围：新增 Language Reactor JSON 目录适配器、严格授权策略、播客音频 HEAD/MIME/大小/重定向门禁、YouTube 官方嵌入候选、来源注册脚本和 `language-reactor` 数据库约束；授权记录见 `docs/references/language-reactor-authorization.md`。
+- 真实运行：已应用迁移 `0028_skinny_wraith.sql`；已注册并启用 `language-reactor.podcast-mix-es` 与 `language-reactor.youtube-mix-es`；真实采集生成 20 个视频候选和 2 个播客候选，均自动进入 `review_ready`；使用 `codex-ai-owner-authorized-review` 完成 `content-es-ES`、`teaching-zh-CN`、`structure` 三项审核并显式发布，远端媒体版本为 20 个视频、2 个播客。
+- 验证：Language Reactor 适配器/采集 CLI/采集运行测试 `4 files / 14 tests` 通过；目标文件 ESLint、`pnpm db:check`、远端迁移和来源注册通过；隔离 Playwright 真实数据库检查 `/learn` 卡片与视频/播客详情，播客原生 `<audio>` 地址可见且无控制台错误。全仓 typecheck/lint 仍受既有无关改动阻断。
+- 限制：当前条目没有逐句字幕；播客仅保留实测可完成 HEAD 校验的 Libsyn、Megaphone、RTVE 主机，其他目录条目会跳过；当前来源未保存封面图片，卡片可能显示“暂无封面”；Playwright 环境无法加载 YouTube iframe API，视频播放器未在该环境完成实际播放点击验证；真实账号、iPhone Safari/PWA 和 Flutter 未验证。内容播放有效期到期后需重新采集/发布。
+- 下一步：产品本人打开 `/learn`，筛选“视频/播客”并分别点播确认；补齐本地/部署环境的 `CONTENT_WORKFLOW_OWNER_USER_IDS` 后继续审核工作流验收，再决定合并并提升 `MEDIA-002`。
 
 ### 2026-09-14：UI-017 对话联系人与画像标签回归修复
 
@@ -1758,9 +1770,10 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | MEDIA-001 | done | `codex/media-001-library-foundation` | Codex | 统一媒体领域与视频/播客学习资料库 | 实现 `7cd67b7`；合并 `683cff9` |
 | VIDEO-001 | done | `codex/video-001-youtube-learning` | Codex | YouTube 白名单视频纵向闭环 | 实现 `7884a86`；合并 `77998c9` |
 | PODCAST-001 | review | `codex/podcast-001-rss-learning` | Codex | 播客 RSS 纵向闭环 | 实现 `0e047ec`；等待复核合并 |
+| LR-001 | review | `codex/ui-017-collapsible-shell` | Codex | Language Reactor 实际播客/视频来源接入与首批发布 | 迁移、注册、真实采集和 22 条媒体发布已完成；待产品确认与实现提交 |
 | LEARN-HOME-002 | review | `codex/ui-017-collapsible-shell` | Codex | 媒体 artwork 数据与公开投影 | 实现 `e3a31b8`；等待产品复核 |
 | LEARN-HOME-003 | review | `codex/ui-017-collapsible-shell` | Codex | 暗色桌面媒体学习首页 UI | 实现 `24beadf`；后置修正 `8f07ad9`、`fb6a8d9`；等待产品本人视觉复核 |
-| MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 |
+| MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001、LR-001 |
 | LEX-001 | blocked | `codex/lex-001-lexicon-corpus-foundation` | 待领取 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 |
 | LEX-002 | blocked | `codex/lex-002-corpus-assessment` | 待领取 | KWIC 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 |
 | PROFILE-001 | blocked | `codex/profile-001-four-capability-profile` | 待领取 | 四板块能力投影、历史映射和“我的”替换 | LEX-002 与现有交流/语音/跟读证据 |
@@ -1782,13 +1795,14 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 7 | PODCAST-001 | 播客 RSS 纵向闭环 | `review`；实现 `0e047ec`，等待复核合并 |
 | 8 | LEARN-HOME-002 | 媒体 artwork 数据与公开投影 | `review`；实现 `e3a31b8`，等待产品复核 |
 | 9 | LEARN-HOME-003 | 暗色桌面媒体学习首页 UI | `review`；实现 `24beadf`、后置修正 `8f07ad9`，等待产品本人视觉复核 |
-| 10 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 完成并确认 |
-| 11 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
-| 12 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
-| 13 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
-| 14 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
+| 10 | LR-001 | Language Reactor 实际来源接入与首批发布 | `review`；远端已发布 20 个视频和 2 个播客，待产品确认 |
+| 11 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001、LR-001 完成并确认 |
+| 12 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
+| 13 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
+| 14 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
+| 15 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前复核 `LEARN-HOME-002`，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前复核 `LR-001`，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
@@ -1836,6 +1850,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-15 | LR-001 完成 Language Reactor 实际来源接入、真实采集、所有者审核与首批发布，进入 review | 待提交 | 20 个视频和 2 个播客已在远端学习页可见；待产品确认播放后提交并决定后续 MEDIA-002 |
 | 2026-09-14 | LEARN-HOME-003 完成深色媒体学习首页 UI 与导航细化，进入 review | `24beadf`、`8f07ad9`、`fb6a8d9` | 等待产品本人视觉复核；下一项为 LEARN-HOME-004 |
 | 2026-09-14 | LEARN-HOME-002 完成媒体 artwork 版本化字段、YouTube/播客适配和公开投影，进入 review | `e3a31b8` | 等待产品复核；确认后实施 LEARN-HOME-003 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环，进入 review | `0e047ec` | 等待复核合并；MEDIA-002 继续 blocked |

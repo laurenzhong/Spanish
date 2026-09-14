@@ -112,6 +112,17 @@ pnpm dev
 
 Web 登录需要在本地 `.env` 中配置公开的 Supabase 项目 URL 和 publishable key：
 
+Language Reactor 来源需要先应用数据库迁移，再运行一次所有者来源注册：
+
+```powershell
+pnpm db:migrate
+pnpm content:register-language-reactor
+pnpm content:acquire -- --source language-reactor.podcast-mix-es --limit 20
+pnpm content:acquire -- --source language-reactor.youtube-mix-es --limit 20
+```
+
+采集只会生成候选并自动推进到审核待命；在 `/me/content-workflow` 完成审核并显式发布后，内容才会出现在 `/learn`。播客 enclosure 仍需通过无凭据 HTTPS、主机白名单、HEAD 类型/大小和有效期检查。
+
 普通用户入口是邮箱六位 OTP；密码登录只保留给预建测试账号，不在普通入口并列展示。完整配置、安全边界和本地测试说明见 [认证与会话](docs/authentication.md)。
 
 质量检查：

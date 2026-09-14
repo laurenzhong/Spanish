@@ -197,6 +197,13 @@
       "when": 1789391029579,
       "tag": "0027_pale_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789403029787,
+      "tag": "0028_skinny_wraith",
+      "breakpoints": true
     }
   ]
 }

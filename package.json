@@ -25,6 +25,7 @@
     "content:validate": "tsx scripts/validate-content.ts",
     "content:import": "tsx scripts/import-content.ts",
     "content:acquire": "tsx scripts/acquire-content.ts",
+    "content:register-language-reactor": "tsx scripts/register-language-reactor-sources.ts",
     "character:import": "tsx scripts/import-character.ts",
     "character:publish": "tsx scripts/publish-character.ts",
     "conversation:ab": "node --use-env-proxy --conditions=react-server --import tsx/esm scripts/run-lucia-provider-ab.ts",

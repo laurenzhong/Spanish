@@ -40,7 +40,7 @@ export const acquisitionSources = pgTable(
     uniqueIndex("acquisition_sources_adapter_external_uidx").on(table.adapterType, table.externalSourceId),
     index("acquisition_sources_enabled_schedule_idx").on(table.enabled, table.updatedAt),
     check("acquisition_sources_revision_positive_check", sql`${table.revision} > 0`),
-    check("acquisition_sources_adapter_check", sql`${table.adapterType} in ('fake', 'youtube', 'podcast-rss', 'article-rss', 'custom')`),
+    check("acquisition_sources_adapter_check", sql`${table.adapterType} in ('fake', 'youtube', 'podcast-rss', 'language-reactor', 'article-rss', 'custom')`),
     check("acquisition_sources_kind_check", sql`${table.sourceKind} in ('video-channel', 'podcast-feed', 'article-feed', 'article-site')`),
     check("acquisition_sources_rights_check", sql`${table.rightsStatus} in ('unknown', 'verified', 'restricted', 'revoked')`),
   ],
