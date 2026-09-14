@@ -29,7 +29,7 @@ describe("LearnPage", () => {
   it("opens directly on the honest media library without the former task UI", () => {
     render(<LearnPageContent query={{}} result={{ items: [], nextCursor: null, hasMore: false }} />);
 
-    expect(screen.getByRole("heading", { name: "看点、听点真实西语" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "学习媒体库" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "媒体资料库正在准备中" })).toBeInTheDocument();
     expect(screen.queryByText(/开始第一次练习|继续学习|当前沟通目标|练习任务时间线/)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /开始|继续/ })).not.toBeInTheDocument();
@@ -42,9 +42,8 @@ describe("LearnPage", () => {
     expect(screen.getByRole("link", { name: "视频" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "播客" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "难度" })).toHaveValue("B1");
-    expect(screen.getByRole("combobox", { name: "时长" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "地区" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /筛选/ })).toBeInTheDocument();
   });
 
   it("renders every eligible item as an equal-weight direct content link", () => {

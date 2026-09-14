@@ -19,7 +19,7 @@ test("keeps the legacy phone training route usable without restoring a learning-
   await page.goto("/learn");
   await expect(page.getByRole("progressbar", { name: "这组表达进度" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "开始第一次练习" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "学习媒体库" })).toBeVisible();
 
   await page.goto("/learn/practice");
   const loop = page.getByTestId("training-loop");

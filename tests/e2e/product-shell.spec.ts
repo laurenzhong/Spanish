@@ -65,7 +65,7 @@ test("navigates between all four product areas", async ({ page }) => {
     { name: "探索", path: "/explore", heading: "校园办事：注册与材料" },
     { name: "对话", path: "/chat", heading: "Lucía Martín" },
     { name: "我的", path: "/me", heading: "我的进步" },
-    { name: "学习", path: "/learn", heading: "看点、听点真实西语" },
+    { name: "学习", path: "/learn", heading: "学习媒体库" },
   ]) {
     await navigation.getByRole("link", { name: destination.name }).click();
     await expect(page).toHaveURL(new RegExp(`${destination.path}$`));
@@ -122,15 +122,15 @@ test("collapses the desktop rail without covering the main content", async ({ pa
   await expect(rail).toBeVisible();
   await expect(rail.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
   const expandedBox = await rail.boundingBox();
-  expect(expandedBox?.width).toBeGreaterThanOrEqual(200);
-  expect(expandedBox?.width).toBeLessThanOrEqual(208);
+  expect(expandedBox?.width).toBeGreaterThanOrEqual(222);
+  expect(expandedBox?.width).toBeLessThanOrEqual(226);
 
   await rail.getByRole("button", { name: "收起侧边栏" }).click();
   await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
   const collapsedBox = await rail.boundingBox();
   const contentBox = await page.locator(".product-content").boundingBox();
-  expect(collapsedBox?.width).toBeGreaterThanOrEqual(68);
-  expect(collapsedBox?.width).toBeLessThanOrEqual(72);
+  expect(collapsedBox?.width).toBeGreaterThanOrEqual(86);
+  expect(collapsedBox?.width).toBeLessThanOrEqual(90);
   expect(contentBox?.x).toBeGreaterThanOrEqual((collapsedBox?.x ?? 0) + (collapsedBox?.width ?? 0));
   await expect(page.locator(".desktop-navigation__link[aria-current='page']")).toHaveAttribute("title", "学习");
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("sueno-desktop-navigation-v1"))).toBe("collapsed");
@@ -147,8 +147,8 @@ test("defaults the desktop rail to collapsed at intermediate widths", async ({ p
   const rail = page.locator(".desktop-navigation");
   await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
   const box = await rail.boundingBox();
-  expect(box?.width).toBeGreaterThanOrEqual(68);
-  expect(box?.width).toBeLessThanOrEqual(72);
+  expect(box?.width).toBeGreaterThanOrEqual(86);
+  expect(box?.width).toBeLessThanOrEqual(90);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1024);
 });
 
@@ -450,7 +450,7 @@ test("keeps legacy task parameters from restoring the removed learning task UI",
 
   await page.goto("/learn?focus=needs");
   await expect(page).toHaveURL(/\/learn\?focus=needs$/);
-  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "学习媒体库" })).toBeVisible();
   await expect(page.locator(".focus-card")).toHaveCount(0);
   await expect(page.getByText(/开始第一次练习|继续学习/)).toHaveCount(0);
 });
