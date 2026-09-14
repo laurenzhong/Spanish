@@ -399,6 +399,7 @@
 
 - 已完成的 UI、SCN、READ 和 ALPHA 任务继续作为实现基线，但不代表新信息架构或自动供应链已经交付。
 - `UI-014` 已完成并合并；`UI-015` 至 `UI-017` 不继续按旧顺序实施，现有分支和用户未提交改动继续保留，等待新内容队列完成后重新排期或明确接收范围。
+- UI-015 分支后置修复交接（2026-09-14）：在不改变当前新内容队列和发布候选结论的前提下，完成对话工作区的气泡与菜单收敛。移除装饰气泡选择器和转发入口；消息气泡改为按真实渲染文本行宽自适应，合并 emoji/字体回退产生的同一行 Range 片段，避免用户消息左侧及角色消息右侧多余空白；右键菜单保持不透明并按实际气泡边缘与视口尺寸定位；联系人行继续保持低冗余信息。实现 Commit：`1b18b2e`。修改：`app/globals.css`、`src/modules/conversation/ui/chat-thread.tsx`、`src/modules/conversation/ui/conversation-contact-rail.tsx`、个人资料编辑器和对话/产品壳层回归测试；删除 `src/modules/conversation/ui/chat-bubble-style.tsx`。验证：对话 E2E 桌面/移动 `30/30`，气泡专项桌面/移动像素回归通过；对话线程 Vitest `16/16`、`pnpm lint`、`pnpm typecheck`、`git diff --check` 通过。未完成：全量 Vitest 在 Windows 资源受限环境长时间无输出后停止；未运行 build、真实账号/Provider、iPhone Safari/PWA 或 Flutter。当前分支仍不是发布候选；下一项按新队列由协调者重新排期。
 - `ALPHA-033` 的旧发布候选出口失效；OPS-001 完成后必须基于新路径重新定义并执行全量门禁。
 
 ### 待执行 UI 批次
