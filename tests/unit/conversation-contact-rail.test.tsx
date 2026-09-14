@@ -27,6 +27,33 @@ describe("ConversationContactRail", () => {
     expect(screen.queryByRole("link", { name: /Inés García/ })).not.toBeInTheDocument();
   });
 
+  it("renders server-prefetched contacts before the client refresh completes", () => {
+    vi.mocked(fetch).mockReturnValue(new Promise<Response>(() => {}));
+
+    render(
+      <ConversationContactRail
+        activeCharacterKey="mateo"
+        initialConversations={[
+          {
+            conversationId: "c-mateo",
+            characterKey: "mateo",
+            characterName: "Mateo Ruiz",
+            avatarUrl: null,
+            avatarClass: "avatar--mateo",
+            roleLabel: "好友",
+            lastMessageAt: null,
+            lastMessage: null,
+            isPinned: false,
+            isMuted: false,
+            sortRank: null,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /Mateo Ruiz/ })).toBeInTheDocument();
+  });
+
   it("shows Typing only while a friend is actively replying", async () => {
     render(<ConversationContactRail activeCharacterKey="lucia" />);
     await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());

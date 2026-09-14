@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createDrizzleConversationRepository } from "@/src/modules/conversation";
-import { findConversationCharacter } from "@/src/modules/conversation";
+import { createDrizzleConversationRepository, toConversationPreviews } from "@/src/modules/conversation";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -13,28 +12,7 @@ export async function GET(request: NextRequest) {
     const records = await createDrizzleConversationRepository(getDatabase()).listConversations(user.id);
     return NextResponse.json({
       data: {
-        conversations: records.map((record) => {
-          const character = findConversationCharacter(record.characterKey);
-          return {
-            conversationId: record.conversationId,
-            characterKey: record.characterKey,
-            characterName: record.characterName,
-            avatarUrl: record.avatarUrl,
-            avatarClass: character?.avatarClass ?? "avatar--lucia",
-            roleLabel: character?.roleLabel ?? "角色",
-            lastMessageAt: record.lastMessageAt?.toISOString() ?? null,
-            isPinned: record.isPinned,
-            isMuted: record.isMuted,
-            sortRank: record.sortRank,
-            lastMessage: record.lastMessage
-              ? {
-                  role: record.lastMessage.role,
-                  snippet: record.lastMessage.content.slice(0, 160),
-                  createdAt: record.lastMessage.createdAt.toISOString(),
-                }
-              : null,
-          };
-        }),
+        conversations: toConversationPreviews(records),
       },
     }, { headers: { "cache-control": "no-store", "x-conversation-persistence": "available" } });
   } catch {
