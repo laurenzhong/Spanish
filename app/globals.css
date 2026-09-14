@@ -8732,6 +8732,11 @@ body {
     border-top: 1px solid var(--border);
   }
   .desktop-navigation__account .account-menu__trigger { min-height: 44px; }
+  .desktop-navigation__account .account-menu__popover {
+    right: auto;
+    bottom: 10px;
+    left: calc(100% + 20px);
+  }
 
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__brand {
     justify-content: center;
@@ -8749,7 +8754,7 @@ body {
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__trigger { justify-content: center; padding: 4px; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__trigger-copy,
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__chevron { display: none; }
-  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__popover { right: auto; bottom: 10px; left: 60px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__popover { left: calc(100% + 24px); }
 }
 
 @media (max-width: 959px) {
