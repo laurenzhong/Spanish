@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { BottomNavigation } from "@/src/shared/ui/bottom-navigation";
 import { ConnectivityBanner } from "@/src/shared/ui/connectivity-banner";
+import { DesktopNavigation } from "@/src/shared/ui/desktop-navigation";
 
 type AppShellProps = Readonly<{
   children: ReactNode;
@@ -14,6 +15,7 @@ export function AppShell({ children }: AppShellProps) {
       <a className="skip-link" href="#main-content">
         跳到主要内容
       </a>
+      <DesktopNavigation />
       <BottomNavigation />
       <div className="product-stage">
         <div className="mobile-product-header">

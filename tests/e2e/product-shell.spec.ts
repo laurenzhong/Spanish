@@ -13,6 +13,10 @@ async function authenticate(page: Page) {
   ]);
 }
 
+function visibleNavigation(page: Page) {
+  return page.locator(".desktop-navigation:visible, .primary-navigation:visible");
+}
+
 test("shows the public introduction without requiring a session", async ({
   page,
 }) => {
@@ -51,7 +55,7 @@ test("navigates between all four product areas", async ({ page }) => {
   await authenticate(page);
   await page.goto("/learn");
 
-  const navigation = page.getByRole("navigation", { name: "主要导航" });
+  const navigation = visibleNavigation(page);
   await expect(navigation.getByRole("link", { name: "学习" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -83,12 +87,51 @@ test("keeps the shell usable at desktop width", async ({ page }) => {
 
   const shell = page.getByTestId("product-shell");
   await expect(shell).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
+  await expect(page.locator(".desktop-navigation")).toBeVisible();
   await expect(page.locator(".mobile-product-header").getByRole("button", { name: "打开账户菜单" })).toHaveCount(0);
-  await expect(page.locator(".navigation-account").getByRole("button", { name: "打开账户菜单" })).toHaveCount(1);
+  await expect(page.locator(".desktop-navigation__account").getByRole("button", { name: "打开账户菜单" })).toHaveCount(1);
 
   const manifestResponse = await page.request.get("/manifest.webmanifest");
   expect(manifestResponse.ok()).toBeTruthy();
+});
+
+test("collapses the desktop rail without covering the main content", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/learn");
+
+  const rail = page.locator(".desktop-navigation");
+  await expect(rail).toBeVisible();
+  await expect(rail.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
+  const expandedBox = await rail.boundingBox();
+  expect(expandedBox?.width).toBeGreaterThanOrEqual(200);
+  expect(expandedBox?.width).toBeLessThanOrEqual(208);
+
+  await rail.getByRole("button", { name: "收起侧边栏" }).click();
+  await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
+  const collapsedBox = await rail.boundingBox();
+  const contentBox = await page.locator(".product-content").boundingBox();
+  expect(collapsedBox?.width).toBeGreaterThanOrEqual(68);
+  expect(collapsedBox?.width).toBeLessThanOrEqual(72);
+  expect(contentBox?.x).toBeGreaterThanOrEqual((collapsedBox?.x ?? 0) + (collapsedBox?.width ?? 0));
+  await expect(page.locator(".desktop-navigation__link[aria-current='page']")).toHaveAttribute("title", "学习");
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("sueno-desktop-navigation-v1"))).toBe("collapsed");
+
+  await page.reload();
+  await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
+});
+
+test("defaults the desktop rail to collapsed at intermediate widths", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto("/learn");
+
+  const rail = page.locator(".desktop-navigation");
+  await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
+  const box = await rail.boundingBox();
+  expect(box?.width).toBeGreaterThanOrEqual(68);
+  expect(box?.width).toBeLessThanOrEqual(72);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1024);
 });
 
 test("keeps the mobile header lightweight without a persistent account trigger", async ({ page }) => {
@@ -110,7 +153,7 @@ test("keeps discovery and conversation entry points visible", async ({
   await page.goto("/explore");
 
   await expect(page.getByRole("searchbox", { name: "搜索场景" })).toBeVisible();
-  const learnLink = page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "学习" });
+  const learnLink = visibleNavigation(page).getByRole("link", { name: "学习" });
   await expect(learnLink).toHaveAttribute("href", "/learn");
   await learnLink.click();
   await expect(page).toHaveURL(/\/learn$/);
