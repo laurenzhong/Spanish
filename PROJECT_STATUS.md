@@ -8,6 +8,17 @@
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
+### 2026-09-14：LEARN-HOME-002 媒体 artwork 数据与公开投影
+
+- 状态：`review`
+- 负责人：Codex
+- 分支：`codex/ui-017-collapsible-shell`
+- 实现 Commit：`e3a31b8`
+- 范围：为不可变 `media_versions` 增加 HTTPS artwork 字段与迁移 `0027_pale_colossus.sql`；候选 content hash 纳入 artwork，YouTube 从官方 `i.ytimg.com` 视频 ID 确定性生成 1280×720 缩略图，播客解析白名单 feed 的 `itunes:image`/通用 image。公开 `MediaCard`/JSON Schema 增加可空 `artwork`，保留 alt、来源、尺寸与可选有效期。
+- 安全与降级：播客 artwork 只接受 HTTPS、无凭据且命中 artwork/feed host allowlist；发布事务按版本保存，不把候选/草稿数据公开。公开投影验证 URL、alt、来源、成对正尺寸和有效期；失效或 malformed artwork 降级为 `null`，媒体仍可播放和列出。无 artwork 的历史/fixture 内容继续投影 `null`。
+- 验证：媒体/采集合同、数据库、RLS 与领域聚焦 Vitest `21 files / 78 tests` 通过；`pnpm db:check`、本次修改文件 ESLint、`git diff --check` 通过。全仓 `pnpm typecheck` 仍被既有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 阻断；全仓 `pnpm lint` 仍被既有 `src/shared/ui/desktop-navigation.tsx` 的 `react-hooks/set-state-in-effect` 阻断。
+- 限制与下一步：未访问公网、未执行远端迁移、未在本任务改学习页 UI。下一项为 `LEARN-HOME-003`：基于本 DTO 实现暗色桌面媒体首页与真实 artwork/无封面状态；开始前需产品本人复核本任务并确认进入 UI 实施。
+
 ### 2026-09-14：PODCAST-001 播客 RSS 纵向闭环
 
 - 状态：`review`
@@ -1725,6 +1736,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | MEDIA-001 | done | `codex/media-001-library-foundation` | Codex | 统一媒体领域与视频/播客学习资料库 | 实现 `7cd67b7`；合并 `683cff9` |
 | VIDEO-001 | done | `codex/video-001-youtube-learning` | Codex | YouTube 白名单视频纵向闭环 | 实现 `7884a86`；合并 `77998c9` |
 | PODCAST-001 | review | `codex/podcast-001-rss-learning` | Codex | 播客 RSS 纵向闭环 | 实现 `0e047ec`；等待复核合并 |
+| LEARN-HOME-002 | review | `codex/ui-017-collapsible-shell` | Codex | 媒体 artwork 数据与公开投影 | 实现 `e3a31b8`；等待产品复核 |
+| LEARN-HOME-003 | blocked | 待领取 | 待确认 | 暗色桌面媒体学习首页 UI | LEARN-HOME-002 产品确认 |
 | MEDIA-002 | blocked | `codex/media-002-asr-processing` | 待领取 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 |
 | LEX-001 | blocked | `codex/lex-001-lexicon-corpus-foundation` | 待领取 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 |
 | LEX-002 | blocked | `codex/lex-002-corpus-assessment` | 待领取 | KWIC 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 |
@@ -1745,13 +1758,15 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 5 | MEDIA-001 | 统一媒体领域与学习资料库 | 已完成；实现 `7cd67b7`，合并 `683cff9` |
 | 6 | VIDEO-001 | YouTube 白名单视频纵向闭环 | 已完成；实现 `7884a86`，合并 `77998c9` |
 | 7 | PODCAST-001 | 播客 RSS 纵向闭环 | `review`；实现 `0e047ec`，等待复核合并 |
-| 8 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 完成并确认 |
-| 9 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
-| 10 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
-| 11 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
-| 12 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
+| 8 | LEARN-HOME-002 | 媒体 artwork 数据与公开投影 | `review`；实现 `e3a31b8`，等待产品复核 |
+| 9 | LEARN-HOME-003 | 暗色桌面媒体学习首页 UI | LEARN-HOME-002 完成并确认 |
+| 10 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 完成并确认 |
+| 11 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
+| 12 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
+| 13 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
+| 14 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前复核 `PODCAST-001`，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前复核 `LEARN-HOME-002`，其余未完成任务保持 `blocked`。
 
 ## 分支任务交接规则
 
@@ -1799,6 +1814,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-14 | LEARN-HOME-002 完成媒体 artwork 版本化字段、YouTube/播客适配和公开投影，进入 review | `e3a31b8` | 等待产品复核；确认后实施 LEARN-HOME-003，暂不改学习页 UI |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环，进入 review | `0e047ec` | 等待复核合并；MEDIA-002 继续 blocked |
 | 2026-09-14 | VIDEO-001 通过合并复核并进入 `main` | `7884a86`、`77998c9` | PODCAST-001 解锁为唯一 ready 任务；ASR 与词句任务继续阻塞 |
 | 2026-09-13 | MEDIA-001 通过合并复核并进入 `main` | `7cd67b7`、`683cff9` | VIDEO-001 解锁并作为唯一进行中的任务；播客与 ASR 继续阻塞 |
