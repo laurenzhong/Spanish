@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const fixtureStableKey = "youtube.e2e-cafe";
+const detailViewportWidths = [320, 375, 390, 414, 768, 1024, 1280, 1440];
 
 test.beforeEach(async ({ context, page, baseURL }) => {
   await context.addCookies([{
@@ -112,4 +113,17 @@ test("uses the bottom-sheet word context at the mobile shell breakpoint", async 
   expect(drawerBox!.y + drawerBox!.height).toBeLessThanOrEqual(navigationBox!.y + 1);
   await page.getByRole("button", { name: "关闭词句上下文" }).click();
   await expect(word).toBeFocused();
+});
+
+test("keeps the media detail workbench usable across planned viewports", async ({ page }) => {
+  for (const width of detailViewportWidths) {
+    await page.setViewportSize({ width, height: width < 600 ? 760 : 900 });
+    await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`);
+
+    await expect(page.getByRole("heading", { name: "Cómo pedir un café" })).toBeVisible();
+    await expect(page.getByLabel("Cómo pedir un café 播放器")).toBeVisible();
+    await expect(page.getByRole("group", { name: "逐句播放控制" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "当前片段" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
 });
