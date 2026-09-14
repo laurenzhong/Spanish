@@ -13,7 +13,7 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/lex-001-lexicon-corpus-foundation`
-- 实现 Commit：待提交
+- 实现 Commit：`ed5aa6c`
 - 范围：新增西语 tokenization、重音/大小写归一化、明确 lemma 的 `verified/pending` 状态、短语边界匹配与重叠出现；新增 `ContentDocumentRef`/`SourcePosition`，并建立 `lexemes`、`lexeme_forms`、`phrase_entries`、`phrase_variants`、`corpus_occurrences`、`user_lexical_intents` 迁移和 Drizzle schema。阅读页新增文章、词汇、短语、语料四项子导航；词汇/短语页展示出现次数、词形/变体、释义和个人 `familiar/revisit/ignore` 意图。
 - 可见性与可靠性：公开短语必须审核通过；私人短语只对所有者可见并保持待审核；词汇搜索覆盖 lemma 与词形；分页先取条目再聚合词形/变体/出现次数，避免多变体导致页面缩水；意图写入使用服务端条目/所有权校验与 revision CAS。阅读、查词、收藏和意图不写 `evidence/profile` 能力事实。
 - 契约与测试：新增词汇列表、意图请求/响应 JSON Schema 与 OpenAPI 路径；新增 API、页面、持久化和 RLS 回归。LEX 聚焦 `5 files / 14 tests`，schema/阅读相关回归 `7 files / 23 tests`，全量 Vitest `211 files / 844 tests`，桌面学习/产品壳层 Playwright `25/25`，`pnpm lint`、`pnpm typecheck`、`pnpm db:check` 已通过。
