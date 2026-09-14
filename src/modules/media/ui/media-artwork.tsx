@@ -24,11 +24,22 @@ function MissingArtwork({ kind, title }: Readonly<{ kind: MediaKind; title: stri
 
 export function MediaArtworkView({ artwork, kind, title }: Readonly<{ artwork?: MediaArtwork | null; kind: MediaKind; title: string }>) {
   const [failed, setFailed] = useState(false);
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
   if (!artwork || failed) return <MissingArtwork kind={kind} title={title} />;
+  const imageUrl = fallbackUrl ?? artwork.url;
   return (
     <div className={`media-card__art media-card__art--${kind}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={artwork.url} alt={artwork.alt} width={artwork.width ?? 16} height={artwork.height ?? 9} loading="lazy" onError={() => setFailed(true)} />
+      <img src={imageUrl} alt={artwork.alt} width={artwork.width ?? 16} height={artwork.height ?? 9} loading="lazy" onError={() => {
+        if (!fallbackUrl) {
+          const match = /^https:\/\/(?:img|i)\.youtube\.com\/vi\/([A-Za-z0-9_-]{6,64})\/(?:mqdefault|maxresdefault)\.jpg$/u.exec(artwork.url);
+          if (match) {
+            setFallbackUrl(`https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg`);
+            return;
+          }
+        }
+        setFailed(true);
+      }} />
       <span className="media-card__play" aria-hidden="true"><ArtworkIcon kind={kind} /></span>
     </div>
   );

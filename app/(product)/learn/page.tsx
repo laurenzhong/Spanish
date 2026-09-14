@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import { createDrizzleMediaRepository, listMedia, mediaListQuerySchema } from "@/src/modules/media";
+import { listMedia } from "@/src/modules/media/application";
+import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
+import { mediaListQuerySchema } from "@/src/modules/media/schemas";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 

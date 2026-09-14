@@ -13,11 +13,11 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
-- 实现 Commit：`7e89a6d`
+- 实现 Commit：`7e89a6d`；本轮详情播放与缓存修复待提交
 - 范围：Language Reactor 适配器保存视频返回的 HTTPS artwork，并在播客目录返回 `DATAURL` 时通过 iTunes 节目元数据解析可验证的 HTTPS 封面；播客学习播放器显示真实封面并保留图片失败降级。新增 `scripts/backfill-language-reactor-artwork.ts` 与 `pnpm content:backfill-artwork`，为已发布的 22 条旧媒体创建带 artwork 的不可变新版本，复制播放资产、字幕和审核记录，旧版本保留。
-- 验证：Language Reactor、播客播放器和媒体库相关 Vitest `3 files / 13 tests` 通过；目标文件 ESLint 通过；回填脚本远端首次更新 22 条、第二次 `updated: 0`；远端媒体列表返回 22 条且当前版本 artwork 非空；新 `NEXT_DIST_DIR=.next/dev-fix` 开发服务 `/learn` 返回 200，未再出现 `Cannot find module './media-library'`。
-- 限制：旧版本的历史学习进度仍绑定旧版本，回填版本不会迁移进度；播客封面回填按节目名查询 iTunes，若某节目未命中则保留无封面降级；未完成真实账号登录、iPhone Safari 和 YouTube iframe 实际播放验收。
-- 下一步：产品本人重启本地开发服务后打开 `/learn`，点开视频与播客确认卡片封面、详情封面和播放；确认后合并 LR-002。
+- 验证：媒体相关 Vitest、路由合同和视频回归共 `4 files / 17 tests` 通过；视频 Playwright 桌面 `2/2` 通过；真实数据库 Playwright 冷启动在全新 `NEXT_DIST_DIR=.next/clean-debug` 下验证 `/learn` 与视频详情均为 200，YouTube API 被阻断时仍显示官方 iframe；20 个视频和 2 个播客当前版本 artwork 非空。RTVE 播客通过鉴权 `/api/v1/media/{stableKey}/stream` 转发 `Range` 请求后在真实浏览器达到 `readyState=4`；回填脚本连续执行第二次 `updated: 0`。
+- 限制：当前 Playwright 环境会阻断 YouTube 图片/API 外部域名，因此封面自然宽度无法在该环境证明；真实本地网络可用时仍使用官方缩略图 URL。旧版本的历史学习进度仍绑定旧版本，回填版本不会迁移进度；未完成 iPhone Safari 和真实账号登录验收。
+- 下一步：产品本人停止旧 Next 进程后用干净构建目录重启本地开发服务，打开 `/learn`，点开视频与两个播客确认封面和播放；确认后合并 LR-002。
 
 ### 2026-09-15：LR-001 Language Reactor 实际来源接入与首批发布
 

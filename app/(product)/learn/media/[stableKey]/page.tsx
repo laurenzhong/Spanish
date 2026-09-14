@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import {
-  createDrizzleMediaRepository,
-  getMediaPlayback,
-  MediaLearningWorkbench,
-  mediaStableKeySchema,
-  type MediaPlayback,
-} from "@/src/modules/media";
+import { getMediaPlayback } from "@/src/modules/media/application";
+import type { MediaPlayback } from "@/src/modules/media/domain";
+import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
+import { mediaStableKeySchema } from "@/src/modules/media/schemas";
+import { MediaLearningWorkbench } from "@/src/modules/media/ui/media-learning-workbench";
 import { getVideoLearningE2eFixture } from "@/src/modules/media/testing/video-learning-e2e-fixture";
 import { getPodcastLearningE2eFixture } from "@/src/modules/media/testing/podcast-learning-e2e-fixture";
 import { getCurrentUser } from "@/src/shared/auth/server";
@@ -45,6 +43,17 @@ function UnavailableDetail() {
   );
 }
 
+function clientPlayback(stableKey: string, playback: MediaPlayback): MediaPlayback {
+  if (playback.media.kind !== "podcast" || playback.asset.kind !== "audio") return playback;
+  try {
+    const host = new URL(playback.asset.url).hostname.toLowerCase();
+    if (host !== "ztnr.rtve.es" && host !== "rtve-mediavod-lote3.rtve.es") return playback;
+  } catch {
+    return playback;
+  }
+  return { ...playback, asset: { ...playback.asset, url: `/api/v1/media/${encodeURIComponent(stableKey)}/stream` } };
+}
+
 export default async function MediaDetailPage({ params }: Context) {
   let stableKey: string;
   try {
@@ -68,6 +77,7 @@ export default async function MediaDetailPage({ params }: Context) {
     }
   }
 
+  const browserPlayback = clientPlayback(stableKey, playback);
   return (
     <article className="media-detail">
       <Link className="media-detail__back" href="/learn">← 返回学习资料库</Link>
@@ -78,8 +88,8 @@ export default async function MediaDetailPage({ params }: Context) {
         <span>{playback.media.sourceName} · {playback.media.region ?? "地区未知"}</span>
       </header>
       {(playback.media.kind === "video" && playback.asset.kind === "official_embed")
-        || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench playback={playback} /> : <>
-        <div className="media-detail__player"><PlaybackSurface playback={playback} /></div>
+        || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench playback={browserPlayback} /> : <>
+        <div className="media-detail__player"><PlaybackSurface playback={browserPlayback} /></div>
         <section className="media-transcript" aria-labelledby="media-transcript-title">
         <div className="media-transcript__heading"><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
         {playback.segments.length > 0 ? (

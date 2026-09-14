@@ -54,6 +54,22 @@
         }
       }
     },
+    "/media/{stableKey}/stream": {
+      "get": {
+        "summary": "Stream an authenticated RTVE podcast asset with byte-range support",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "stableKey", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "Range", "in": "header", "schema": { "type": "string", "pattern": "^bytes=\\d+-\\d*$" } }
+        ],
+        "responses": {
+          "206": { "description": "Partial audio stream", "content": { "audio/mpeg": {} } },
+          "401": { "description": "Authentication required" },
+          "404": { "description": "Media unavailable or not an RTVE audio asset" },
+          "502": { "description": "Upstream audio unavailable" }
+        }
+      }
+    },
     "/media/{stableKey}/progress": {
       "put": {
         "summary": "Save an owned immutable-version playback position with revision CAS",

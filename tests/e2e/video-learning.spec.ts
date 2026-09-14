@@ -80,3 +80,15 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
   await page.getByRole("button", { name: "关闭词句上下文" }).click();
   await expect(word).toBeFocused();
 });
+
+test("keeps the video detail usable when the YouTube API cannot load", async ({ page }) => {
+  await page.route("https://www.youtube.com/iframe_api", async (route) => {
+    await route.abort("failed");
+  });
+  await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`);
+
+  await expect(page.getByRole("heading", { name: "Cómo pedir un café" })).toBeVisible();
+  await expect(page.getByText("播放器准备中…")).toBeVisible();
+  await expect(page.locator(".video-player-adapter iframe")).toBeVisible({ timeout: 7_000 });
+  await expect(page.getByText("播放器已就绪")).toBeVisible();
+});

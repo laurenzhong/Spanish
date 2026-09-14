@@ -53,12 +53,12 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onS
   const targetId = `youtube-player-${rawId.replace(/[^A-Za-z0-9_-]/gu, "")}`;
   const targetRef = useRef<HTMLDivElement>(null);
   const generationRef = useRef(0);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [scriptFailed, setScriptFailed] = useState(false);
   const videoId = videoIdFromEmbed(embedUrl);
 
   useEffect(() => {
-    if (factory || !scriptLoaded) return;
+    if (factory || sdkReady || scriptFailed) return;
     const ready = () => Boolean((window as YouTubeWindow).YT?.Player);
     const timer = window.setInterval(() => {
       if (!ready()) return;
@@ -68,13 +68,15 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onS
     }, 50);
     const timeout = window.setTimeout(() => {
       window.clearInterval(timer);
-      onError("YouTube 播放器脚本加载超时，请稍后重试。");
-    }, 10_000);
+      setScriptFailed(true);
+      onStateChange("ready");
+      onError(null);
+    }, 5_000);
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(timeout);
     };
-  }, [factory, onError, scriptLoaded]);
+  }, [factory, onError, onStateChange, sdkReady, scriptFailed]);
 
   useEffect(() => {
     if (!targetRef.current || !videoId || (!factory && !sdkReady)) return;
@@ -102,11 +104,10 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onS
   }, [embedUrl, factory, onError, onPortChange, onStateChange, sdkReady, videoId]);
 
   return <div className="video-player-adapter">
-    <div aria-label={title} id={targetId} ref={targetRef} />
-    {!factory ? <Script id="youtube-iframe-api" onError={() => onError("YouTube 播放器脚本加载失败，请稍后重试。")}
+    {scriptFailed && !factory ? <iframe allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen aria-label={title} src={embedUrl} title={title} /> : <div aria-label={title} id={targetId} ref={targetRef} />}
+    {!factory && !scriptFailed ? <Script id="youtube-iframe-api" onError={() => { setScriptFailed(true); onStateChange("ready"); onError(null); }}
       onReady={() => {
         if ((window as YouTubeWindow).YT?.Player) setSdkReady(true);
-        else setScriptLoaded(true);
       }} src="https://www.youtube.com/iframe_api" strategy="afterInteractive" /> : null}
     {!videoId ? <p role="alert">播放地址无效。</p> : null}
   </div>;

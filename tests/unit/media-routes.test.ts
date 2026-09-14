@@ -30,6 +30,7 @@ vi.mock("@/src/modules/media/repositories", async (importOriginal) => {
 
 import { GET as getMediaList } from "@/app/api/v1/media/route";
 import { GET as getPlayback } from "@/app/api/v1/media/[stableKey]/playback/route";
+import { GET as getStream } from "@/app/api/v1/media/[stableKey]/stream/route";
 import { PUT as putProgress } from "@/app/api/v1/media/[stableKey]/progress/route";
 
 const user = { id: "00000000-0000-4000-8000-000000000001", email: null };
@@ -89,6 +90,32 @@ describe("media API routes", () => {
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toMatchObject({ error: { code: "MEDIA_NOT_AVAILABLE" } });
+  });
+
+  it("proxies approved RTVE audio with a byte range for browser playback", async () => {
+    mocks.repository.getPlayback.mockResolvedValue({
+      media: { kind: "podcast" },
+      asset: { kind: "audio", url: "https://rtve-mediavod-lote3.rtve.es/audio.mp3" },
+      segments: [],
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response("audio", {
+      status: 206,
+      headers: { "content-type": "audio/mpeg", "content-range": "bytes 0-4/5", "content-length": "5" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await getStream(request("http://localhost/api/v1/media/media.test/stream", {
+      headers: { range: "bytes=0-4" },
+    }), { params: Promise.resolve({ stableKey: "media.test" }) });
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-type")).toBe("audio/mpeg");
+    expect(response.headers.get("content-range")).toBe("bytes 0-4/5");
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({ headers: { range: "bytes=0-4" } }),
+    );
+    await expect(response.text()).resolves.toBe("audio");
   });
 
   it("validates progress before repository access and requires authentication", async () => {
