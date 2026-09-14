@@ -35,6 +35,9 @@ describe("ProfilePage information architecture", () => {
     expect(screen.getByRole("link", { name: "关系隐私" })).toHaveAttribute("href", "#profile-relationships");
     expect(screen.getByRole("link", { name: "数据与隐私" })).toHaveAttribute("href", "#profile-data");
     expect(screen.getByRole("heading", { name: "能力与活动" })).toHaveAttribute("id", "profile-progress-title");
+    expect(screen.getByRole("link", { name: "能力与活动" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "关系隐私" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "数据与隐私" })).not.toHaveAttribute("aria-current");
     expect(screen.getByTestId("profile-overview")).toBeInTheDocument();
     expect(screen.getByTestId("learning-heatmap")).toBeInTheDocument();
     expect(screen.queryByTestId("account-data-controls")).not.toBeInTheDocument();
@@ -60,6 +63,9 @@ describe("ProfilePage information architecture", () => {
     expect(relationships).toHaveAttribute("hidden");
     expect(data).not.toHaveAttribute("hidden");
     expect(window.location.hash).toBe("#profile-data");
+    expect(screen.getByRole("link", { name: "数据与隐私" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "能力与活动" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "关系隐私" })).not.toHaveAttribute("aria-current");
     expect(screen.getByTestId("account-data-controls")).toBeInTheDocument();
     expect(screen.queryByTestId("profile-overview")).not.toBeInTheDocument();
   });

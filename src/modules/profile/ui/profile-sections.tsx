@@ -68,6 +68,7 @@ export function ProfileSections() {
             aria-controls={section.id}
             className={activeSection === section.key ? "is-active" : undefined}
             href={`#${section.id}`}
+            style={{ borderBottomColor: activeSection === section.key ? "var(--profile-terra)" : "transparent", color: activeSection === section.key ? "var(--profile-terra)" : "var(--profile-muted)" }}
             key={section.key}
             onClick={(event) => {
               event.preventDefault();

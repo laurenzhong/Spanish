@@ -6,9 +6,11 @@ import { ConversationSearch } from "./conversation-search";
 import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
 import { prefetchConversationHistory } from "./conversation-history-cache";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
+import type { ConversationPreview } from "../application/list-previews";
 
 type ConversationContactRailProps = Readonly<{
   activeCharacterKey?: string;
+  initialConversations?: readonly ConversationPreview[];
 }>;
 
 let cachedConversations: readonly ConversationPreview[] | null = null;
@@ -101,9 +103,9 @@ function syncCachedConversationPreferences(updates: Readonly<Record<string, Part
   });
 }
 
-export function ConversationContactRail({ activeCharacterKey }: ConversationContactRailProps) {
-  const [conversations, setConversations] = useState<readonly ConversationPreview[]>(cachedConversations ?? []);
-  const [status, setStatus] = useState(cachedStatus);
+export function ConversationContactRail({ activeCharacterKey, initialConversations }: ConversationContactRailProps) {
+  const [conversations, setConversations] = useState<readonly ConversationPreview[]>(initialConversations ?? cachedConversations ?? []);
+  const [status, setStatus] = useState(initialConversations ? "available" : cachedStatus);
   const [showIntroductions, setShowIntroductions] = useState(false);
   const [pendingIntroductionCount, setPendingIntroductionCount] = useState(0);
   const [preferences, setPreferences] = useState<ConversationPreferences>({});
@@ -124,6 +126,10 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
 
   useEffect(() => {
     let active = true;
+    if (initialConversations && cachedConversations === null) {
+      cachedConversations = initialConversations;
+      cachedStatus = "available";
+    }
     void loadConversationList().then(() => {
       if (!active) return;
       const nextConversations = cachedConversations ?? [];
@@ -136,7 +142,7 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
       setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0));
     });
     return () => { active = false; };
-  }, []);
+  }, [initialConversations]);
 
   useEffect(() => {
     if (!showIntroductions) return;
@@ -456,20 +462,6 @@ export function ConversationContactRail({ activeCharacterKey }: ConversationCont
     </aside>
   );
 }
-
-type ConversationPreview = Readonly<{
-  conversationId: string;
-  characterKey: string;
-  characterName: string;
-  avatarClass: string;
-  roleLabel: string;
-  homeLocation?: string;
-  lastMessageAt: string | null;
-  lastMessage: { snippet: string } | null;
-  isPinned?: boolean;
-  isMuted?: boolean;
-  sortRank?: number | null;
-}>;
 
 type LuciaContactPreview = Readonly<{
   characterKey: "lucia";
