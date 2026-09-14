@@ -72,6 +72,8 @@ import {
   phraseVariants,
   corpusOccurrences,
   userLexicalIntents,
+  lexicalAssessmentItems,
+  lexicalAssessmentAttempts,
 } from "@/src/shared/db/schema";
 
 const allTables = [
@@ -137,6 +139,8 @@ const allTables = [
   phraseVariants,
   corpusOccurrences,
   userLexicalIntents,
+  lexicalAssessmentItems,
+  lexicalAssessmentAttempts,
 ] as const;
 
 const userOwnedTables = [
@@ -160,6 +164,7 @@ const userOwnedTables = [
   userContentPackStates,
   userMediaProgress,
   userLexicalIntents,
+  lexicalAssessmentAttempts,
 ] as const;
 
 describe("database schema", () => {
@@ -228,6 +233,8 @@ describe("database schema", () => {
         "phrase_entries",
         "phrase_variants",
         "user_lexical_intents",
+        "lexical_assessment_items",
+        "lexical_assessment_attempts",
       ].sort(),
     );
   });
@@ -316,6 +323,7 @@ describe("database schema", () => {
           "0025_youtube_video_publication.sql",
           "0026_brief_toro.sql",
           "0027_wide_puff_adder.sql",
+          "0028_neat_gargoyle.sql",
         ]) {
         const migrationPath = path.join(
           process.cwd(),

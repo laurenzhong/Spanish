@@ -18,10 +18,10 @@ export type EvidenceEventDraft = Readonly<{
   modality: "speech" | "typing";
   occurredAt: Date;
   outcomeScore: number;
-  practiceAttemptId: string;
+  practiceAttemptId: string | null;
   skillKey: string;
   sourceReference: Record<string, unknown>;
-  sourceType: "practice_attempt";
+  sourceType: "practice_attempt" | "lexical_assessment";
   userId: string;
 }>;
 

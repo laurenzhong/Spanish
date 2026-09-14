@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/lexical-assessment-attempt-response.schema.json",
+  "title": "Lexical assessment attempt response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attemptId", "assessmentKey", "version", "answer", "passed", "score", "normalizedAnswer", "duplicate", "evidence"],
+      "properties": {
+        "attemptId": { "type": "string", "format": "uuid" },
+        "assessmentKey": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1 },
+        "answer": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "score": { "enum": [0, 1] },
+        "normalizedAnswer": { "type": "string" },
+        "duplicate": { "type": "boolean" },
+        "evidence": { "enum": ["recorded", "duplicate"] }
+      }
+    }
+  }
+}

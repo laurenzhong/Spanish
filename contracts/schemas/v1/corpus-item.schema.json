@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/corpus-item.schema.json",
+  "title": "Corpus KWIC item",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["leftContext", "keyword", "rightContext", "sourceTitle", "sourceKind", "document", "location", "entryKind", "entryId", "surfaceText"],
+  "properties": {
+    "leftContext": { "type": "string" },
+    "keyword": { "type": "string" },
+    "rightContext": { "type": "string" },
+    "sourceTitle": { "type": "string" },
+    "sourceKind": { "type": "string" },
+    "document": { "type": "object", "additionalProperties": false, "required": ["kind", "stableKey", "version"], "properties": { "kind": { "enum": ["article", "media"] }, "stableKey": { "type": "string" }, "version": { "type": "integer", "minimum": 1 } } },
+    "location": { "type": "object" },
+    "entryKind": { "enum": ["lexeme", "phrase"] },
+    "entryId": { "type": "string", "format": "uuid" },
+    "surfaceText": { "type": "string" }
+  }
+}

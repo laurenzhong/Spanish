@@ -510,6 +510,49 @@
         }
       }
     },
+    "/corpus/search": {
+      "get": {
+        "summary": "Search published article and media occurrences with KWIC context",
+        "parameters": [
+          { "name": "query", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 120 } },
+          { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },
+          { "name": "sourceKind", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
+          { "name": "stableKey", "in": "query", "schema": { "type": "string", "maxLength": 240 } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "KWIC corpus results", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/corpus-search-response.schema.json" } } } },
+          "400": { "description": "Invalid corpus query", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Corpus unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/lexicon/assessments/{assessmentId}": {
+      "get": {
+        "summary": "Read one public or owned lexical assessment item without accepted answers",
+        "parameters": [{ "name": "assessmentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Lexical assessment item", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-assessment-response.schema.json" } } } },
+          "404": { "description": "Assessment not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/lexicon/assessments/{assessmentId}/attempts": {
+      "post": {
+        "summary": "Submit a server-scored typing answer and append lexical evidence idempotently",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "assessmentId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-assessment-attempt-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Scored lexical attempt", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/lexical-assessment-attempt-response.schema.json" } } } },
+          "400": { "description": "Invalid answer", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "404": { "description": "Assessment not found", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Idempotency conflict", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/lexicon/intents/{entryId}": {
       "put": {
         "summary": "Set a user's private vocabulary or phrase review intent",

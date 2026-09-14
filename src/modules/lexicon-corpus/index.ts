@@ -4,4 +4,6 @@ export * from "./repositories";
 export * from "./schemas";
 export * from "./ui/phrase-library";
 export * from "./ui/read-section-navigation";
+export * from "./ui/corpus-search";
+export * from "./ui/lexical-assessment";
 export * from "./ui/vocabulary-library";

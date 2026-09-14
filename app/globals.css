@@ -9220,8 +9220,32 @@ body {
 .lexicon-empty { margin-top: 24px; padding: 28px; border: 1px dashed var(--border); background: var(--surface-soft); }
 .lexicon-empty h2 { margin: 0 0 8px; font-size: 1.08rem; }
 .lexicon-empty p { margin: 0; color: var(--muted); }
+.read-page__intro { margin: 8px 0 0; color: var(--muted); }
+.corpus-search { display: grid; gap: 18px; margin-top: 24px; }
+.corpus-search__form { display: grid; grid-template-columns: minmax(0, 1fr) 180px auto; gap: 10px; align-items: end; }
+.corpus-search__input, .corpus-search__filter { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: .78rem; font-weight: 650; }
+.corpus-search__input input, .corpus-search__filter select, .lexical-assessment input { width: 100%; min-height: 42px; border: 1px solid var(--border); padding: 9px 11px; color: var(--foreground); background: var(--surface); font: inherit; }
+.corpus-search__form button, .lexical-assessment button { min-height: 42px; padding: 9px 16px; border: 1px solid var(--terracotta); color: var(--surface); background: var(--terracotta); cursor: pointer; font: inherit; font-weight: 700; }
+.corpus-search__form button:disabled, .lexical-assessment button:disabled { cursor: wait; opacity: .55; }
+.corpus-search__status { min-height: 22px; color: var(--muted); font-size: .86rem; }
+.corpus-search__status p { margin: 0; }
+.corpus-results { display: grid; gap: 10px; }
+.corpus-result { min-width: 0; padding: 16px 18px; border: 1px solid var(--border); background: var(--surface); }
+.corpus-result__context { margin: 0; overflow-wrap: anywhere; color: var(--muted); line-height: 1.65; }
+.corpus-result__context mark { padding: 2px 4px; color: var(--foreground); background: color-mix(in srgb, var(--terracotta) 18%, transparent); }
+.corpus-result__meta { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-top: 12px; color: var(--muted); font-size: .78rem; }
+.corpus-result__meta a { color: var(--terracotta); font-weight: 700; text-decoration: none; }
+.lexical-assessment { display: grid; gap: 12px; margin-top: 28px; padding: 20px; border: 1px solid var(--border); background: var(--surface-soft); }
+.lexical-assessment h2 { margin: 0; font-size: 1.05rem; }
+.lexical-assessment p { margin: 0; line-height: 1.6; }
+.lexical-assessment__heading { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.lexical-assessment__heading span { color: var(--muted); font-size: .78rem; }
+.lexical-assessment form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.lexical-assessment__result { font-weight: 700; }
+.lexical-assessment__result.is-passed { color: var(--success, #2d7a52); }
+.lexical-assessment__result.is-failed { color: var(--terracotta); }
 @media (max-width: 900px) { .lexicon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .lexicon-grid { grid-template-columns: minmax(0, 1fr); } .read-section-navigation a { flex: 1 0 auto; padding-inline: 14px; text-align: center; } }
+@media (max-width: 560px) { .lexicon-grid { grid-template-columns: minmax(0, 1fr); } .read-section-navigation a { flex: 1 0 auto; padding-inline: 14px; text-align: center; } .corpus-search__form, .lexical-assessment form { grid-template-columns: minmax(0, 1fr); } .corpus-search__form button, .lexical-assessment button { width: 100%; } .corpus-result { padding-inline: 14px; } }
   .read-library__toolbar-actions { grid-template-columns: 1fr 1fr; }
   .read-add-menu { grid-column: 1 / -1; }
   .read-article-row { grid-template-columns: minmax(0, 1fr) 46px; }

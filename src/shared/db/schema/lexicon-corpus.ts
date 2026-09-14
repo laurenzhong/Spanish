@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { createdAt, reviewStatusEnum, updatedAt } from "./common";
 import { profiles } from "./users";
@@ -108,6 +108,59 @@ export const userLexicalIntents = pgTable("user_lexical_intents", {
   check("user_lexical_intents_revision_check", sql`${table.revision} > 0`),
 ]);
 
+export const lexicalAssessmentItems = pgTable("lexical_assessment_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  assessmentKey: text("assessment_key").notNull(),
+  version: integer("version").default(1).notNull(),
+  entryKind: text("entry_kind").notNull(),
+  entryId: uuid("entry_id"),
+  promptType: text("prompt_type").notNull(),
+  prompt: text("prompt").notNull(),
+  options: jsonb("options").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  acceptedAnswers: jsonb("accepted_answers").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  sourceReference: jsonb("source_reference").notNull(),
+  skillKey: text("skill_key").notNull(),
+  contentVersion: integer("content_version").notNull(),
+  ownerUserId: uuid("owner_user_id").references(() => profiles.id, { onDelete: "cascade" }),
+  status: text("status").default("published").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("lexical_assessment_items_key_version_uidx").on(table.assessmentKey, table.version),
+  index("lexical_assessment_items_visibility_idx").on(table.ownerUserId, table.status),
+  check("lexical_assessment_items_version_positive_check", sql`${table.version} > 0`),
+  check("lexical_assessment_items_kind_check", sql`${table.entryKind} in ('lexeme', 'phrase')`),
+  check("lexical_assessment_items_prompt_type_check", sql`${table.promptType} in ('choice', 'judgement', 'cloze', 'recall')`),
+  check("lexical_assessment_items_skill_check", sql`${table.skillKey} like 'lexical.%'`),
+  check("lexical_assessment_items_content_version_check", sql`${table.contentVersion} > 0`),
+  check("lexical_assessment_items_status_check", sql`${table.status} in ('published', 'archived')`),
+]);
+
+export const lexicalAssessmentAttempts = pgTable("lexical_assessment_attempts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  assessmentItemId: uuid("assessment_item_id").notNull().references(() => lexicalAssessmentItems.id, { onDelete: "restrict" }),
+  idempotencyKey: text("idempotency_key").notNull(),
+  requestHash: text("request_hash").notNull(),
+  answer: text("answer").notNull(),
+  normalizedAnswer: text("normalized_answer").notNull(),
+  score: integer("score").notNull(),
+  passed: boolean("passed").notNull(),
+  inputMode: text("input_mode").default("typing").notNull(),
+  algorithmVersion: text("algorithm_version").notNull(),
+  contentVersion: integer("content_version").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("lexical_assessment_attempts_user_idempotency_uidx").on(table.userId, table.idempotencyKey),
+  index("lexical_assessment_attempts_user_item_idx").on(table.userId, table.assessmentItemId, table.createdAt),
+  check("lexical_assessment_attempts_score_check", sql`${table.score} in (0, 1)`),
+  check("lexical_assessment_attempts_input_mode_check", sql`${table.inputMode} = 'typing'`),
+  check("lexical_assessment_attempts_content_version_check", sql`${table.contentVersion} > 0`),
+]);
+
 export type LexemeRow = typeof lexemes.$inferSelect;
 export type PhraseEntryRow = typeof phraseEntries.$inferSelect;
 export type CorpusOccurrenceRow = typeof corpusOccurrences.$inferSelect;
+export type LexicalAssessmentItemRow = typeof lexicalAssessmentItems.$inferSelect;
+export type LexicalAssessmentAttemptRow = typeof lexicalAssessmentAttempts.$inferSelect;

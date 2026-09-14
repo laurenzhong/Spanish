@@ -1,10 +1,13 @@
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 
+import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, type SourcePosition } from "../domain";
+import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
+import { createDrizzleEvidenceRepository } from "@/src/modules/evidence/repositories";
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
 import { normalizeLexeme } from "../domain";
 import type { LexicalIntent } from "../schemas/lexicon";
-import type { LexiconCorpusRepository, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
+import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusItem, CorpusQuery, LexiconCorpusRepository, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
 
 export class LexicalIntentConflictError extends Error {
   readonly code = "LEXICAL_INTENT_CONFLICT" as const;
@@ -13,6 +16,41 @@ export class LexicalIntentConflictError extends Error {
     super(message);
     this.name = "LexicalIntentConflictError";
   }
+}
+
+export class LexicalAssessmentConflictError extends Error {
+  readonly code = "LEXICAL_ASSESSMENT_CONFLICT" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "LexicalAssessmentConflictError";
+  }
+}
+
+export class LexicalAssessmentNotFoundError extends Error {
+  readonly code = "LEXICAL_ASSESSMENT_NOT_FOUND" as const;
+
+  constructor(message = "Assessment is not available.") {
+    super(message);
+    this.name = "LexicalAssessmentNotFoundError";
+  }
+}
+
+function assessmentItem(row: typeof schema.lexicalAssessmentItems.$inferSelect): AssessmentItem {
+  return {
+    id: row.id,
+    assessmentKey: row.assessmentKey,
+    version: row.version,
+    entryKind: row.entryKind as "lexeme" | "phrase",
+    entryId: row.entryId,
+    promptType: row.promptType as AssessmentItem["promptType"],
+    prompt: row.prompt,
+    options: row.options ?? [],
+    acceptedAnswers: row.acceptedAnswers ?? [],
+    sourceReference: row.sourceReference as Record<string, unknown>,
+    skillKey: row.skillKey,
+    contentVersion: row.contentVersion,
+  };
 }
 
 function intentMap(rows: readonly typeof schema.userLexicalIntents.$inferSelect[]): Map<string, { intent: LexicalIntent; revision: number }> {
@@ -159,6 +197,67 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         if (input.variant && input.normalizedVariant) await transaction.insert(schema.phraseVariants).values({ phraseEntryId: entry.id, expression: input.variant, normalizedExpression: input.normalizedVariant }).onConflictDoNothing();
         await transaction.insert(schema.corpusOccurrences).values({ phraseEntryId: entry.id, documentKind: input.reference.document.kind, documentStableKey: input.reference.document.stableKey, documentVersion: input.reference.document.version, sourcePosition: input.reference.position, surfaceText: input.expression, normalizedText: input.normalizedExpression, contextBefore: input.reference.contextBefore, contextAfter: input.reference.contextAfter, sourceTitle, sourceKind, ownerUserId: input.ownerUserId ?? null }).onConflictDoNothing();
         return entry.id;
+      });
+    },
+
+    async searchCorpus(userId, query: CorpusQuery) {
+      const tokens = normalizeCorpusQuery(query.query);
+      if (tokens.length === 0) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+      const publicArticle = sql`exists (select 1 from ${schema.articles} a inner join ${schema.articleVersions} av on av.article_id = a.id where a.stable_key = ${schema.corpusOccurrences.documentStableKey} and av.version = ${schema.corpusOccurrences.documentVersion} and av.status = 'published')`;
+      const publicMedia = sql`exists (select 1 from ${schema.mediaItems} mi inner join ${schema.mediaVersions} mv on mv.media_item_id = mi.id where mi.stable_key = ${schema.corpusOccurrences.documentStableKey} and mv.version = ${schema.corpusOccurrences.documentVersion} and mv.status = 'published' and mv.copyright_status = 'cleared')`;
+      const visible = userId
+        ? or(eq(schema.corpusOccurrences.ownerUserId, userId), and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia))))
+        : and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia)));
+      const where = and(
+        visible,
+        ...tokens.map((token) => ilike(schema.corpusOccurrences.normalizedText, `%${token}%`)),
+        query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,
+        query.sourceKind ? eq(schema.corpusOccurrences.sourceKind, query.sourceKind) : undefined,
+        query.stableKey ? eq(schema.corpusOccurrences.documentStableKey, query.stableKey) : undefined,
+      );
+      const [rows, countRows] = await Promise.all([
+        database.select().from(schema.corpusOccurrences).where(where).orderBy(desc(schema.corpusOccurrences.createdAt)).limit(query.pageSize).offset((query.page - 1) * query.pageSize),
+        database.select({ count: sql<number>`count(*)` }).from(schema.corpusOccurrences).where(where),
+      ]);
+      const items: CorpusItem[] = rows.map((row) => buildKwic({
+        surfaceText: row.surfaceText,
+        contextBefore: row.contextBefore,
+        contextAfter: row.contextAfter,
+        sourceTitle: row.sourceTitle,
+        sourceKind: row.sourceKind,
+        documentKind: row.documentKind as "article" | "media",
+        documentStableKey: row.documentStableKey,
+        documentVersion: row.documentVersion,
+        sourcePosition: row.sourcePosition as SourcePosition,
+      }) as CorpusItem).map((item, index) => ({ ...item, entryKind: rows[index]!.lexemeId ? "lexeme" : "phrase", entryId: (rows[index]!.lexemeId ?? rows[index]!.phraseEntryId)!, surfaceText: rows[index]!.surfaceText }));
+      return { items, page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
+    },
+
+    async getAssessment(userId, assessmentKey) {
+      const visibility = userId
+        ? and(eq(schema.lexicalAssessmentItems.status, "published"), or(isNull(schema.lexicalAssessmentItems.ownerUserId), eq(schema.lexicalAssessmentItems.ownerUserId, userId)))
+        : and(isNull(schema.lexicalAssessmentItems.ownerUserId), eq(schema.lexicalAssessmentItems.status, "published"));
+      const [row] = await database.select().from(schema.lexicalAssessmentItems).where(and(eq(schema.lexicalAssessmentItems.assessmentKey, assessmentKey), visibility)).orderBy(desc(schema.lexicalAssessmentItems.version)).limit(1);
+      return row ? assessmentItem(row) : null;
+    },
+
+    async submitAssessment(userId, assessmentKey, input: AssessmentAttemptInput): Promise<AssessmentAttemptResult> {
+      return database.transaction(async (transaction) => {
+        const visibility = and(eq(schema.lexicalAssessmentItems.status, "published"), or(isNull(schema.lexicalAssessmentItems.ownerUserId), eq(schema.lexicalAssessmentItems.ownerUserId, userId)));
+        const [row] = await transaction.select().from(schema.lexicalAssessmentItems).where(and(eq(schema.lexicalAssessmentItems.assessmentKey, assessmentKey), visibility)).orderBy(desc(schema.lexicalAssessmentItems.version)).limit(1);
+        if (!row) throw new LexicalAssessmentNotFoundError();
+        const [existing] = await transaction.select().from(schema.lexicalAssessmentAttempts).where(and(eq(schema.lexicalAssessmentAttempts.userId, userId), eq(schema.lexicalAssessmentAttempts.idempotencyKey, input.idempotencyKey))).limit(1);
+        if (existing) {
+          if (existing.requestHash !== input.requestHash || existing.assessmentItemId !== row.id) throw new LexicalAssessmentConflictError("Assessment attempt idempotency key was reused.");
+          return { attemptId: existing.id, assessmentKey, version: row.version, answer: existing.answer, passed: existing.passed, score: existing.score as 0 | 1, normalizedAnswer: existing.normalizedAnswer, duplicate: true, evidence: "duplicate" };
+        }
+        const item = assessmentItem(row);
+        const result = evaluateLexicalAnswer(item, input.answer);
+        const [attempt] = await transaction.insert(schema.lexicalAssessmentAttempts).values({ userId, assessmentItemId: row.id, idempotencyKey: input.idempotencyKey, requestHash: input.requestHash, answer: input.answer, normalizedAnswer: result.normalizedAnswer, score: result.score, passed: result.passed, inputMode: "typing", algorithmVersion: "lexical-assessment-v1", contentVersion: row.contentVersion }).returning({ id: schema.lexicalAssessmentAttempts.id });
+        if (!attempt) throw new Error("LEXICAL_ASSESSMENT_ATTEMPT_WRITE_FAILED");
+        const evidence = buildLexicalEvidenceDraft({ userId, assessmentAttemptId: attempt.id, idempotencyKey: `lexical:${input.idempotencyKey}`, assessmentItemId: row.id, contentVersion: row.contentVersion, skillKey: row.skillKey, score: result.score, confidence: result.passed ? 0.9 : 0.75, occurredAt: new Date() });
+        const evidenceResult = await recordLexicalEvidenceWithinTransaction(createDrizzleEvidenceRepository(transaction), { event: evidence });
+        return { attemptId: attempt.id, assessmentKey, version: row.version, answer: input.answer, passed: result.passed, score: result.score, normalizedAnswer: result.normalizedAnswer, duplicate: false, evidence: evidenceResult.status };
       });
     },
   };

@@ -44,4 +44,17 @@ describe("lexicon v1 contracts", () => {
     expect(openapi.paths["/lexicon/phrases"]).toBeDefined();
     expect(openapi.paths["/lexicon/intents/{entryId}"].put.requestBody.content["application/json"].schema.$ref).toContain("lexical-intent-request");
   });
+
+  it("keeps corpus and assessment contracts bounded", () => {
+    const corpus = validator("corpus-search-response.schema.json");
+    expect(corpus({ apiVersion: "v1", data: { items: [{ leftContext: "Quiero", keyword: "comer", rightContext: " aquí.", sourceTitle: "Una historia", sourceKind: "article-rss", document: { kind: "article", stableKey: "article.one", version: 1 }, location: { kind: "text", paragraphId: "p1", segmentIndex: 0 }, entryKind: "lexeme", entryId: vocabulary.id, surfaceText: "comer" }], page: 1, pageSize: 20, total: 1 } }), JSON.stringify(corpus.errors)).toBe(true);
+    const assessment = validator("lexical-assessment-response.schema.json");
+    expect(assessment({ apiVersion: "v1", data: { id: vocabulary.id, assessmentKey: "lexical.core", version: 1, entryKind: "lexeme", entryId: null, promptType: "recall", prompt: "回忆", options: [], sourceReference: {}, contentVersion: 1 } })).toBe(true);
+    expect(assessment({ apiVersion: "v1", data: { id: vocabulary.id, assessmentKey: "lexical.core", version: 1, entryKind: "lexeme", entryId: null, promptType: "recall", prompt: "回忆", options: [], acceptedAnswers: ["comer"], sourceReference: {}, contentVersion: 1 } })).toBe(false);
+    const attempt = validator("lexical-assessment-attempt-response.schema.json");
+    expect(attempt({ apiVersion: "v1", data: { attemptId: vocabulary.id, assessmentKey: "lexical.core", version: 1, answer: "comer", passed: true, score: 1, normalizedAnswer: "comer", duplicate: false, evidence: "recorded" } })).toBe(true);
+    const openapi = JSON.parse(readFileSync(path.join(process.cwd(), "contracts", "openapi", "v1", "openapi.json"), "utf8"));
+    expect(openapi.paths["/corpus/search"].get.responses["200"].content["application/json"].schema.$ref).toContain("corpus-search-response");
+    expect(openapi.paths["/lexicon/assessments/{assessmentId}/attempts"].post.parameters.some((parameter: { name: string }) => parameter.name === "Idempotency-Key")).toBe(true);
+  });
 });
