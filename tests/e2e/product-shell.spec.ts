@@ -83,10 +83,46 @@ test("keeps the shell usable at desktop width", async ({ page }) => {
 
   const shell = page.getByTestId("product-shell");
   await expect(shell).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
+  await expect(page.locator(".desktop-navigation")).toBeVisible();
+  await expect(page.locator(".mobile-product-header").getByRole("button", { name: "打开账户菜单" })).toHaveCount(0);
+  await expect(page.locator(".desktop-navigation__account").getByRole("button", { name: "打开账户菜单" })).toHaveCount(1);
 
   const manifestResponse = await page.request.get("/manifest.webmanifest");
   expect(manifestResponse.ok()).toBeTruthy();
+});
+
+test("opens the desktop account menu beside the rail without viewport clipping", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/learn");
+
+  const rail = page.locator(".desktop-navigation");
+  const trigger = rail.getByRole("button", { name: "打开账户菜单" });
+  await trigger.click();
+
+  const popover = page.locator(".desktop-navigation__account .account-menu__popover");
+  await expect(popover).toBeVisible();
+  const railBox = await rail.boundingBox();
+  const popoverBox = await popover.boundingBox();
+  expect(popoverBox?.x).toBeGreaterThanOrEqual((railBox?.x ?? 0) + (railBox?.width ?? 0) - 1);
+  expect(popoverBox?.x).toBeLessThan(1280);
+  expect((popoverBox?.x ?? 0) + (popoverBox?.width ?? 0)).toBeLessThanOrEqual(1280);
+});
+
+test("collapses the desktop rail without covering the main content", async ({ page }) => {
+  await authenticate(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/learn");
+  const rail = page.locator(".desktop-navigation");
+  await expect(rail.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
+  await rail.getByRole("button", { name: "收起侧边栏" }).click();
+  await expect(rail.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
+  const collapsedBox = await rail.boundingBox();
+  const contentBox = await page.locator(".product-content").boundingBox();
+  expect(collapsedBox?.width).toBeGreaterThanOrEqual(68);
+  expect(collapsedBox?.width).toBeLessThanOrEqual(72);
+  expect(contentBox?.x).toBeGreaterThanOrEqual((collapsedBox?.x ?? 0) + (collapsedBox?.width ?? 0));
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("sueno-desktop-navigation-v1"))).toBe("collapsed");
 });
 
 test("keeps discovery and conversation entry points visible", async ({
