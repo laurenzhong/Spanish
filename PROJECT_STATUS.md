@@ -4,9 +4,16 @@
 
 - 最后更新：2026-09-14
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`PODCAST-001` 已完成实现并进入 `review`，分支为 `codex/podcast-001-rss-learning`，实现 Commit `0e047ec`；播客 RSS、审核发布、带有效期的音频资产和共享媒体学习工作台已形成纵向闭环。合并与产品确认前不领取 `MEDIA-002`。阶段 8 未启动
+- 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
+- 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。每日自动化只进入候选审核库，不能直接发布。ALPHA-033 最终门禁要求 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 全部通过，且 P0/P1 清零并有产品本人确认。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter、远端迁移、真实来源抓取和真实收费 Provider 继续如实记录
+
+### 2026-09-14：PROFILE-001、OPS-001、ALPHA-033 合并到 main
+
+- `PROFILE-001`：实现四板块能力投影（词汇与短语、交流运用、语音表达、跟读表现），保留旧八维字段与历史证据，兼容 `/api/v1/profile` 新旧结构并切换“我的”页面展示。实现 Commit：`db68587`、`0d0f149`；Merge Commit：`c95fca4`。专项验证：四板块/画像相关测试通过，受影响 lint、typecheck、db:check 与 diff check 已通过。
+- `OPS-001`：实现 `discover`、`process`、`cleanup`、`report` 每日内容供应 CLI，支持来源/limit/dry-run，增加 GitHub Actions 调度、互斥、候选清理、临时资产删除重试、脱敏观测和运行手册；自动化不直接发布。实现 Commit：`f1fb75b`、`217b9e1`；Merge Commit：`a991db2`。专项验证：OPS 测试 `17/17`、内容采集回归 `55/55`、workflow smoke `1/1`。
+- `ALPHA-033`：新增 `pnpm release:check -- --input <report.json>`，统一 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 与 P0/P1/产品确认门禁。实现 Commit：`44e87a2`、`1d2a1cd`；Merge Commit：`1e8ba94`。门禁单测 `4/4`，passing 报告返回 `eligible`，blocked 报告返回阻断和非零退出码。
+- 合并后限制：本轮尚未执行全量 `pnpm test --run`、全量 `pnpm test:e2e`、`pnpm build` 作为最终候选门禁；未执行远端迁移、真实 GitHub Actions secrets/来源抓取、真实登录桌面复核、iPhone Safari/PWA 或 Flutter 验证。产品本人确认前不得启动阶段 8。
 
 ### 2026-09-14：PODCAST-001 播客 RSS 纵向闭环
 
@@ -428,8 +435,10 @@
 - `MEDIA-001`：统一媒体领域与视频/播客学习资料库（done；实现 `7cd67b7`，合并 `683cff9`）。
 - `VIDEO-001`：YouTube 白名单视频纵向闭环（done；实现 `7884a86`，合并 `77998c9`）。
 - `PODCAST-001`：播客 RSS 纵向闭环（review；实现 Commit `0e047ec`，分支 `codex/podcast-001-rss-learning`）。
-- `ALPHA-033`：旧电脑端 Web 发布候选门禁（blocked；等待 OPS-001 后按新路径重新定义）。
-- 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待新发布候选门禁与产品本人确认）。
+- `PROFILE-001`：四板块能力画像（done；实现 `db68587`、`0d0f149`，Merge Commit `c95fca4`）。
+- `OPS-001`：每日生产调度与全链路门禁（done；实现 `f1fb75b`、`217b9e1`，Merge Commit `a991db2`）。
+- `ALPHA-033`：发布候选门禁（review；实现 `44e87a2`、`1d2a1cd`，Merge Commit `1e8ba94`；等待合并后全量门禁及产品本人确认）。
+- 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待 ALPHA-033 全量门禁和产品本人确认）。
 
 ### 后续路线（不进入当前 Alpha）
 
@@ -1748,10 +1757,12 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 8 | MEDIA-002 | ASR、翻译、成本与媒体可靠性 | VIDEO-001、PODCAST-001 完成并确认 |
 | 9 | LEX-001 | 词汇、短语与出现索引 | ARTICLE-001、MEDIA-001 完成并确认 |
 | 10 | LEX-002 | 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 完成并确认 |
-| 11 | PROFILE-001 | 四板块能力画像 | LEX-002 与既有证据接入完成并确认 |
-| 12 | OPS-001 | 每日生产调度与全链路门禁 | ACQ-001 至 PROFILE-001 全部完成并确认 |
+| 11 | PROFILE-001 | 四板块能力画像 | 已完成并合入 `main`（`c95fca4`） |
+| 12 | OPS-001 | 每日生产调度与全链路门禁 | 已完成并合入 `main`（`a991db2`） |
+| 13 | ALPHA-033 | 合并后最终发布候选门禁 | 实现已合入 `main`（`1e8ba94`）；执行全量检查并取得产品本人确认 |
+| 14 | 阶段 8 | 电脑端 Web 个人 Alpha 连续使用与人工体验复核 | ALPHA-033 全量门禁通过且产品本人确认 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前复核 `PODCAST-001`，其余未完成任务保持 `blocked`。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。当前先执行合并后的 ALPHA-033 最终门禁；在产品本人确认前不得启动阶段 8，也不领取后续 ASR/词句扩展任务。
 
 ## 分支任务交接规则
 
@@ -1799,6 +1810,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-14 | PROFILE-001、OPS-001、ALPHA-033 实现按顺序合入 `main` | `c95fca4`、`a991db2`、`1e8ba94` | 执行合并后最终发布候选门禁；阶段 8 仍需产品本人确认 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环，进入 review | `0e047ec` | 等待复核合并；MEDIA-002 继续 blocked |
 | 2026-09-14 | VIDEO-001 通过合并复核并进入 `main` | `7884a86`、`77998c9` | PODCAST-001 解锁为唯一 ready 任务；ASR 与词句任务继续阻塞 |
 | 2026-09-13 | MEDIA-001 通过合并复核并进入 `main` | `7cd67b7`、`683cff9` | VIDEO-001 解锁并作为唯一进行中的任务；播客与 ASR 继续阻塞 |
