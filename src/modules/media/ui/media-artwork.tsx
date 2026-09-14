@@ -22,16 +22,18 @@ function MissingArtwork({ kind, title }: Readonly<{ kind: MediaKind; title: stri
   );
 }
 
-export function MediaArtworkView({ artwork, kind, title }: Readonly<{ artwork?: MediaArtwork | null; kind: MediaKind; title: string }>) {
+export function MediaArtworkView({ artwork, kind, stableKey, title }: Readonly<{ artwork?: MediaArtwork | null; kind: MediaKind; stableKey?: string; title: string }>) {
   const [failed, setFailed] = useState(false);
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
   if (!artwork || failed) return <MissingArtwork kind={kind} title={title} />;
-  const imageUrl = fallbackUrl ?? artwork.url;
+  const useArtworkProxy = kind === "video" && stableKey && artwork.source === "youtube"
+    && /^https:\/\/(?:img|i)\.youtube\.com\/vi\/[A-Za-z0-9_-]{6,64}\/(?:mqdefault|maxresdefault|hqdefault)\.jpg$/u.test(artwork.url);
+  const imageUrl = fallbackUrl ?? (useArtworkProxy ? `/api/v1/media/${encodeURIComponent(stableKey)}/artwork` : artwork.url);
   return (
     <div className={`media-card__art media-card__art--${kind}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={imageUrl} alt={artwork.alt} width={artwork.width ?? 16} height={artwork.height ?? 9} loading="lazy" onError={() => {
-        if (!fallbackUrl) {
+        if (!fallbackUrl && !useArtworkProxy) {
           const match = /^https:\/\/(?:img|i)\.youtube\.com\/vi\/([A-Za-z0-9_-]{6,64})\/(?:mqdefault|maxresdefault)\.jpg$/u.exec(artwork.url);
           if (match) {
             setFallbackUrl(`https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg`);

@@ -70,6 +70,19 @@
         }
       }
     },
+    "/media/{stableKey}/artwork": {
+      "get": {
+        "summary": "Proxy an authenticated published YouTube thumbnail",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "stableKey", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "JPEG thumbnail", "content": { "image/jpeg": {} } },
+          "401": { "description": "Authentication required" },
+          "404": { "description": "Media or artwork unavailable" },
+          "502": { "description": "Upstream thumbnail unavailable" }
+        }
+      }
+    },
     "/media/{stableKey}/progress": {
       "put": {
         "summary": "Save an owned immutable-version playback position with revision CAS",

@@ -31,6 +31,7 @@ vi.mock("@/src/modules/media/repositories", async (importOriginal) => {
 import { GET as getMediaList } from "@/app/api/v1/media/route";
 import { GET as getPlayback } from "@/app/api/v1/media/[stableKey]/playback/route";
 import { GET as getStream } from "@/app/api/v1/media/[stableKey]/stream/route";
+import { GET as getArtwork } from "@/app/api/v1/media/[stableKey]/artwork/route";
 import { PUT as putProgress } from "@/app/api/v1/media/[stableKey]/progress/route";
 
 const user = { id: "00000000-0000-4000-8000-000000000001", email: null };
@@ -116,6 +117,28 @@ describe("media API routes", () => {
       expect.objectContaining({ headers: { range: "bytes=0-4" } }),
     );
     await expect(response.text()).resolves.toBe("audio");
+  });
+
+  it("proxies only the published YouTube artwork for the requested media", async () => {
+    mocks.repository.findByStableKey.mockResolvedValue({
+      reason: "found",
+      media: {
+        kind: "video",
+        artwork: { url: "https://img.youtube.com/vi/publicVideo1/mqdefault.jpg" },
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("jpeg", {
+      status: 200,
+      headers: { "content-type": "image/jpeg" },
+    })));
+
+    const response = await getArtwork(request("http://localhost/api/v1/media/media.test/artwork"), {
+      params: Promise.resolve({ stableKey: "media.test" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    await expect(response.text()).resolves.toBe("jpeg");
   });
 
   it("validates progress before repository access and requires authentication", async () => {

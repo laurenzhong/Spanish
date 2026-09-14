@@ -20,7 +20,7 @@ export function MediaCardView({ item }: Readonly<{ item: MediaCard }>) {
   return (
     <article className="media-card">
       <Link className="media-card__link" href={`/learn/media/${encodeURIComponent(item.stableKey)}`}>
-        <MediaArtworkView artwork={item.artwork} kind={item.kind} title={item.title} />
+        <MediaArtworkView artwork={item.artwork} kind={item.kind} stableKey={item.stableKey} title={item.title} />
         <div className="media-card__body">
           <p className="media-card__meta"><span>{item.kind === "video" ? "视频" : "播客"}</span><span>{formatTime(item.durationMs)} · {item.cefr ?? "未分级"}</span></p>
           <h2>{item.title}</h2>
