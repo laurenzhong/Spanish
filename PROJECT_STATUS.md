@@ -4,7 +4,7 @@
 
 - 最后更新：2026-09-14
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`LEX-001`、`LEX-002`、`PROFILE-001` 与 `OPS-001` 已完成实现并进入 `review`，阅读页现已包含词汇、短语、KWIC 语料查询和文字考察，“我的”已切换为四板块能力画像；每日内容供应运行手册、CI 调度、清理和报告已接入；阶段 8 未启动
+- 总体状态：`LEX-001`、`LEX-002`、`PROFILE-001` 与 `OPS-001` 已完成实现并进入 `review`，`ALPHA-033` 发布候选门禁正在实施；阅读页现已包含词汇、短语、KWIC 语料查询和文字考察，“我的”已切换为四板块能力画像；阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
@@ -429,7 +429,7 @@
 
 ## 当前任务
 
-`OPS-001` 正在 review，目标分支为 `codex/ops-001-daily-content-pipeline`。范围是将白名单来源接入每日 CI 调度，提供 discover/process/cleanup/report、并发互斥、dry-run、预算/失败汇总、清理重试、脱敏观测和运行手册；不得自动发布、修改 Flutter、执行远端迁移或引入新服务边界。
+`ALPHA-033` 正在 review，目标分支为 `codex/alpha-033-release-candidate-gate`。本切片已将内容驱动路径的发布候选门禁固化为可审计检查器，要求代码质量、桌面 E2E、数据库/RLS、内容隐私、P0/P1 和产品确认全部满足；iPhone Safari/PWA 与 Flutter 仍只记录延期，不自动启动阶段 8。
 
 当前任务顺序以 [`自动内容供应与词句学习重构实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。阶段 8 个人 Alpha 人工体验仍不是当前开发任务；必须等新队列完成、重新建立发布候选门禁并由产品本人确认后才可启动。阶段记录继续见 [`docs/tasks/STAGE-8-PERSONAL-ALPHA.md`](docs/tasks/STAGE-8-PERSONAL-ALPHA.md)。
 
@@ -470,7 +470,7 @@
 - `LEX-002`：KWIC 语料查询、文字考察与词句证据（review；实现 Commit `09af8ac`）。
 - `PROFILE-001`：四板块能力画像与“我的”替换（review；实现 Commit `db68587`）。
 - `OPS-001`：每日生产调度与全链路门禁（review；实现 Commit `f1fb75b`、`217b9e1`）。
-- `ALPHA-033`：旧电脑端 Web 发布候选门禁（blocked；等待 OPS-001 后按新路径重新定义）。
+- `ALPHA-033`：内容驱动发布候选门禁（review；实现 Commit `44e87a2`；分支 `codex/alpha-033-release-candidate-gate`）。
 - 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待新发布候选门禁与产品本人确认）。
 
 ### 后续路线（不进入当前 Alpha）
@@ -1772,6 +1772,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | LEX-002 | review | `codex/lex-002-corpus-assessment` | Codex / 产品本人 | KWIC 语料查询、文字考察与词句证据 | LEX-001、MEDIA-002 |
 | PROFILE-001 | review | `codex/profile-001-four-capability-profile` | Codex / 产品本人 | 四板块能力投影、历史映射和“我的”替换 | LEX-002 与现有交流/语音/跟读证据 |
 | OPS-001 | review | `codex/ops-001-daily-content-pipeline` | Codex / 产品本人 | 每日生产调度、清理、观测和全链路门禁 | ACQ-001 至 PROFILE-001 |
+| ALPHA-033 | review | `codex/alpha-033-release-candidate-gate` | Codex / 产品本人 | 内容驱动发布候选门禁与阶段 8 前置检查 | OPS-001、UI/核心路径、内容审核 |
 | 阶段 8 | blocked | 待启动 | 产品本人 / Codex | 新发布候选的个人 Alpha 使用周期与人工体验复核 | OPS-001 后重建的发布门禁与产品本人确认 |
 
 状态只使用：`ready`、`in_progress`、`blocked`、`review`、`done`。
@@ -1792,8 +1793,9 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 10 | LEX-002 | 语料查询、文字考察与词句证据 | 已完成实现，待产品复核 |
 | 11 | PROFILE-001 | 四板块能力画像 | 已完成实现，待产品复核 |
 | 12 | OPS-001 | 每日生产调度与全链路门禁 | 已完成实现，待产品复核 |
+| 13 | ALPHA-033 | 内容驱动发布候选门禁 | 已完成实现，待产品复核 |
 
-完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；`OPS-001` 等待产品复核，后续为基于新路径重建的发布候选门禁与阶段 8 评估。
+完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。一次只领取一项；当前仅实施 `ALPHA-033` 发布候选门禁，完成后仍需产品本人确认，不能自动启动阶段 8。
 
 ## 分支任务交接规则
 
@@ -1843,6 +1845,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 |---|---|---|---|
 | 2026-09-14 | 完成 PROFILE-001 四板块能力画像、兼容 API 与“我的”页面替换 | `db68587` | 产品复核后解锁 OPS-001；保留历史八维证据与响应 |
 | 2026-09-14 | 完成 OPS-001 每日 CI 调度、discover/process/cleanup/report、清理重试、脱敏观测与运行手册 | `f1fb75b`、`217b9e1` | 产品复核后重建发布候选门禁；自动化仍不直接发布 |
+| 2026-09-14 | 完成 ALPHA-033 内容驱动发布候选门禁、CLI 报告和运行手册 | `44e87a2` | 产品复核后决定是否启动阶段 8；真实设备仍为延期验证 |
 | 2026-09-14 | MEDIA-002 完成媒体 ASR/翻译编排、成本/资格门禁、低置信度阻塞、超时取消与临时音频清理并合入 main | `efcfda4`、`0d955f4`、`4938d97` | LEX-001 提升为唯一 ready 任务 |
 | 2026-09-14 | MEDIA-002 完成媒体 ASR/翻译编排、成本/资格门禁、低置信度阻塞、超时取消与临时音频清理，进入 review | `efcfda4`、`0d955f4` | 产品复核后解锁 LEX-001 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环并合入 main | `0e047ec`、`bede042` | MEDIA-002 提升为唯一 ready 任务 |
