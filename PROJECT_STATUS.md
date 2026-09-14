@@ -4,7 +4,7 @@
 
 - 最后更新：2026-09-15
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`LR-001` Language Reactor 实际来源接入与首批真实媒体发布已在当前工作树完成并进入 `review`；远端已注册播客/YouTube 来源，发布 20 个视频和 2 个播客。代码尚未形成独立实现 Commit，产品确认前不提升后续 ASR/词句任务。阶段 8 未启动
+- 总体状态：`LR-001` Language Reactor 实际来源接入与首批真实媒体发布已在当前工作树完成并进入 `review`；远端已注册播客/YouTube 来源，发布 20 个视频和 2 个播客。新增 `LEARN-MEDIA-DETAIL-001` 媒体详情与视频学习器视觉设计任务，当前为 `ready`，不改变现有 review 任务状态；产品确认前不提升后续 ASR/词句任务。阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
@@ -13,7 +13,7 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
-- 实现 Commit：`7e89a6d`；本轮详情播放与缓存修复待提交
+- 实现 Commit：`7e89a6d`、`7688e87`
 - 范围：Language Reactor 适配器保存视频返回的 HTTPS artwork，并在播客目录返回 `DATAURL` 时通过 iTunes 节目元数据解析可验证的 HTTPS 封面；播客学习播放器显示真实封面并保留图片失败降级。新增 `scripts/backfill-language-reactor-artwork.ts` 与 `pnpm content:backfill-artwork`，为已发布的 22 条旧媒体创建带 artwork 的不可变新版本，复制播放资产、字幕和审核记录，旧版本保留。
 - 验证：媒体相关 Vitest、路由合同和视频回归共 `4 files / 17 tests` 通过；视频 Playwright 桌面 `2/2` 通过；真实数据库 Playwright 冷启动在全新 `NEXT_DIST_DIR=.next/clean-debug` 下验证 `/learn` 与视频详情均为 200，YouTube API 被阻断时仍显示官方 iframe；20 个视频和 2 个播客当前版本 artwork 非空。RTVE 播客通过鉴权 `/api/v1/media/{stableKey}/stream` 转发 `Range` 请求后在真实浏览器达到 `readyState=4`；回填脚本连续执行第二次 `updated: 0`。
 - 限制：当前 Playwright 环境会阻断 YouTube 图片/API 外部域名，因此封面自然宽度无法在该环境证明；真实本地网络可用时仍使用官方缩略图 URL。旧版本的历史学习进度仍绑定旧版本，回填版本不会迁移进度；未完成 iPhone Safari 和真实账号登录验收。
