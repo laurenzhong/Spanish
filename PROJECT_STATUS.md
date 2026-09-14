@@ -1725,9 +1725,9 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-012 | done | `codex/ui-012-explore-scenario-density` | Codex | Explore、场景详情、实战与复盘密度收敛 | 实现 `742d1e7`、反馈修正 `335c747`、合并 `7f994e6` |
 | UI-013 | done | `codex/ui-013-learning-workbench-density` | Codex | 学习首页与训练工作台密度收敛 | 实现 `ea91cc7`、合并 `ef89207` |
 | UI-014 | done | `codex/ui-014-reading-density` | Codex | 阅读书架与文章阅读器密度收敛 | 首版 `7a802de`；视觉修正版 `05d9e6c`；第二轮反馈修订 `78878a3`；第三轮反馈修订 `98e0fbf`；固定入口 `2dee69e`；紧凑分页 `bdebcb9`；合并 `5e2fde4` |
-| UI-015 | blocked | `codex/ui-015-conversation-density` | 待重排 | 对话页面密度收敛 | 新内容队列完成后重新排期 |
-| UI-016 | review | `codex/ui-016-profile-density` | Codex | “我的”、设置与隐私密度收敛 | 产品本人视觉确认；画像语义仍由 PROFILE-001 取代 |
-| UI-017 | done | `codex/ui-017-collapsible-shell` | Codex | 公共壳层、可收缩侧边栏与全站一致性 | 实现 `91e9a65`、后置修复 `587c522`；合并 `b5845e8` |
+| UI-015 | done | `codex/ui-015-conversation-density` | Codex | 对话页面密度收敛 | 合并 `f9d2063` |
+| UI-016 | done | `codex/ui-016-profile-density` | Codex | “我的”、设置与隐私密度收敛 | 合并 `faf2662`；画像语义由 PROFILE-001 提供 |
+| UI-017 | done | `codex/ui-017-collapsible-shell` | Codex | 公共壳层、可收缩侧边栏与全站一致性 | 基础壳层已在 `b5845e8`；补丁合并 `4df79f7` |
 | IA-001 | done | `codex/ia-001-content-supply-design` | Codex / 产品本人 | 内容驱动学习、自动供应、词句语料和四板块画像规划 | 设计 `241c47a`、计划 `e43130c` |
 | ACQ-001 | done | `codex/acq-001-content-acquisition-foundation` | Codex | 自动采集领域、持久化、CLI、预算/保留与 fake | 实现 `cfd1e00` |
 | REVIEW-001 | done | `codex/review-001-owner-content-workflow` | Codex | 所有者候选审核、修订、双维度批准和发布门禁 | 实现 `e15cc81` |
