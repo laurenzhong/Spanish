@@ -8,6 +8,16 @@
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
+### 2026-09-14：UI-017 对话联系人与画像标签回归修复
+
+- 状态：`review`
+- 负责人：Codex
+- 分支：`codex/ui-017-collapsible-shell`
+- 实现 Commit：`832625b`
+- 范围：对话列表页与角色详情页在服务端并行预取当前用户聊天历史和好友预览，并将联系人预览直接注入联系人栏，避免右侧聊天信息先出现而好友栏延迟加载；客户端 API 仍保留为刷新与无数据库环境的降级路径。画像分区导航改为仅由当前分区 `aria-current` 与 inline 状态样式控制，修复“能力与活动”和“数据与隐私”同时显示下划线的问题。
+- 验证：相关 Vitest `6 files / 18 tests`、目标文件 ESLint、对话桌面 Chromium 回归 `3/3`、`git diff --check` 通过。`pnpm typecheck` 仍被其他任务新增的 `tests/unit/composite-article-repository.test.ts` repository mock 缺少 `list` 阻断，未越界修改。
+- 限制与下一步：未运行全量 `pnpm test --run`、全量 E2E 或 `pnpm build`；等待产品本人视觉确认后合并 UI-017，并继续处理状态页中已记录的其他 UI 延期项。
+
 ### 2026-09-14：LEARN-HOME-002 媒体 artwork 数据与公开投影
 
 - 状态：`review`
