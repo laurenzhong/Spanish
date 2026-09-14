@@ -78,7 +78,13 @@ function DayDetail({ day }: Readonly<{ day: HeatmapDay }>) {
   );
 }
 
-export function LearningHeatmap() {
+type LearningHeatmapProps = Readonly<{
+  onError?: () => void;
+  retryToken?: number;
+  showError?: boolean;
+}>;
+
+export function LearningHeatmap({ onError, retryToken = 0, showError = true }: LearningHeatmapProps = {}) {
   const [heatmap, setHeatmap] = useState<LearningHeatmap>(emptyHeatmap);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,6 +97,7 @@ export function LearningHeatmap() {
       setHeatmap(await fetchHeatmap());
     } catch {
       setError(true);
+      onError?.();
     } finally {
       setLoading(false);
     }
@@ -107,12 +114,13 @@ export function LearningHeatmap() {
       .catch(() => {
         if (!active) return;
         setError(true);
+        onError?.();
         setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [retryToken]);
 
   const selectedDay = useMemo(() => {
     const date = selectedDate ?? heatmap.range.to;
@@ -131,7 +139,7 @@ export function LearningHeatmap() {
 
   return (
     <section className="learning-heatmap profile-dashboard__section" data-testid="learning-heatmap" aria-labelledby="learning-heatmap-title">
-      {error ? (
+      {error && showError ? (
         <div className="profile-data-warning" role="alert">
           <span>暂时无法读取学习活动，当前只显示空状态。</span>
           <button onClick={() => void loadHeatmap()} type="button">重试</button>
@@ -149,6 +157,12 @@ export function LearningHeatmap() {
         </div>
       </div>
 
+      {heatmap.totals.activeDays === 0 ? (
+        <div className="learning-heatmap__empty" data-testid="learning-heatmap-empty">
+          <strong>还没有有效学习记录</strong>
+          <span>完成一次有实际表达的学习后，这里会开始记录活动；学习时长不会参与能力评分。</span>
+        </div>
+      ) : <>
       <div className="learning-heatmap__scroll" role="group" aria-label="最近 12 周学习活动">
         <div className="learning-heatmap__weekdays" aria-hidden="true">
           <span>一</span><span>三</span><span>五</span>
@@ -182,6 +196,7 @@ export function LearningHeatmap() {
       </div>
 
       {selectedDay ? <DayDetail day={selectedDay} /> : null}
+      </>}
     </section>
   );
 }

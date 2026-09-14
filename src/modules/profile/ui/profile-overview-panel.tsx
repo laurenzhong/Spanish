@@ -138,7 +138,13 @@ function RadarGraphic({ axes }: Readonly<{ axes: readonly ProfileAxis[] }>) {
   );
 }
 
-export function ProfileOverviewPanel() {
+type ProfileOverviewPanelProps = Readonly<{
+  onError?: () => void;
+  retryToken?: number;
+  showError?: boolean;
+}>;
+
+export function ProfileOverviewPanel({ onError, retryToken = 0, showError = true }: ProfileOverviewPanelProps = {}) {
   const [overview, setOverview] = useState<ProfileOverview>(emptyOverview);
   const [selectedKey, setSelectedKey] = useState(PROFILE_AXIS_DEFINITIONS[0].key);
   const [loading, setLoading] = useState(true);
@@ -151,6 +157,7 @@ export function ProfileOverviewPanel() {
       setOverview(await fetchProfileOverview());
     } catch {
       setError(true);
+      onError?.();
     } finally {
       setLoading(false);
     }
@@ -167,12 +174,13 @@ export function ProfileOverviewPanel() {
       .catch(() => {
         if (!active) return;
         setError(true);
+        onError?.();
         setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [retryToken]);
 
   const selectedAxis = useMemo(
     () => overview.axes.find((axis) => axis.key === selectedKey) ?? overview.axes[0],
@@ -208,7 +216,7 @@ export function ProfileOverviewPanel() {
 
   return (
     <div className="profile-dashboard" data-testid="profile-overview">
-      {error ? (
+      {error && showError ? (
         <div className="profile-data-warning" role="alert">
           <span>暂时无法读取最新能力证据，当前只显示空状态。</span>
           <button onClick={() => void loadOverview()} type="button">重试</button>
@@ -234,10 +242,22 @@ export function ProfileOverviewPanel() {
             <span>有口语覆盖</span>
           </div>
         </div>
-        {hasEvidence ? <a className="profile-dashboard__primary-action" href={nextActionHref}>继续练习 <span aria-hidden="true">→</span></a> : null}
+        <a className="profile-dashboard__primary-action" href={nextActionHref}>
+          {hasEvidence ? "继续练习" : "开始第一次口语练习"} <span aria-hidden="true">→</span>
+        </a>
       </section>
 
-      <section className="profile-dashboard__overview" aria-labelledby="profile-axis-title">
+      {!hasEvidence ? (
+        <section className="profile-dashboard__empty" aria-label="能力证据空状态">
+          <span className="profile-dashboard__empty-mark" aria-hidden="true">0 / 8</span>
+          <div>
+            <h2>还没有可验证的能力证据</h2>
+            <p>完成一次完整表达后，这里会显示掌握度、可信度和口语覆盖，不会用空分数填满页面。</p>
+          </div>
+        </section>
+      ) : null}
+
+      {hasEvidence ? <section className="profile-dashboard__overview" aria-labelledby="profile-axis-title">
         <div className="profile-dashboard__chart">
           <div className="section-heading">
             <div>
@@ -268,9 +288,9 @@ export function ProfileOverviewPanel() {
             </button>
           ))}
         </div>
-      </section>
+      </section> : null}
 
-      {selectedAxis ? (
+      {hasEvidence && selectedAxis ? (
         <section className="profile-axis-detail" aria-live="polite" aria-labelledby="profile-axis-detail-title">
           <div>
             <p className="eyebrow eyebrow--accent">维度详情</p>
@@ -306,7 +326,7 @@ export function ProfileOverviewPanel() {
         </section>
       ) : null}
 
-      <section className="profile-evidence" aria-labelledby="profile-evidence-title">
+      {hasEvidence ? <section className="profile-evidence" aria-labelledby="profile-evidence-title">
         <div className="section-heading">
           <div>
             <p className="eyebrow eyebrow--accent">为什么这样判断</p>
@@ -329,9 +349,9 @@ export function ProfileOverviewPanel() {
         ) : (
           <p className="profile-evidence__empty">完成可追溯表达后，这里会解释你的能力状态。</p>
         )}
-      </section>
+      </section> : null}
 
-      <details className="profile-axis-table">
+      {hasEvidence ? <details className="profile-axis-table">
         <summary>查看完整证据明细</summary>
         <div className="section-heading">
           <div>
@@ -357,7 +377,7 @@ export function ProfileOverviewPanel() {
             </tbody>
           </table>
         </div>
-      </details>
+      </details> : null}
     </div>
   );
 }

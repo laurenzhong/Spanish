@@ -20,7 +20,13 @@ const statusLabels = {
   unavailable: "未配置",
 } as const;
 
-export function ProviderSettingsPanel() {
+type ProviderSettingsPanelProps = Readonly<{
+  onError?: () => void;
+  retryToken?: number;
+  showError?: boolean;
+}>;
+
+export function ProviderSettingsPanel({ onError, retryToken = 0, showError = true }: ProviderSettingsPanelProps = {}) {
   const [status, setStatus] = useState<ProviderStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,13 +38,16 @@ export function ProviderSettingsPanel() {
     void loadProviderStatus(controller.signal)
       .then(setStatus)
       .catch(() => {
-        if (!controller.signal.aborted) setError(messageForError());
+        if (!controller.signal.aborted) {
+          setError(messageForError());
+          onError?.();
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [retryToken]);
 
   async function retry() {
     setLoading(true);
@@ -85,7 +94,7 @@ export function ProviderSettingsPanel() {
       <p className="provider-settings__intro">按能力选择服务。选择“自动”时，会优先使用运行正常的 Provider，并在安全条件下最多切换一次。</p>
 
       {loading && !status ? <p className="provider-settings__loading" role="status">正在读取 Provider 状态…</p> : null}
-      {error ? (
+      {error && showError ? (
         <div className="provider-settings__error" role="alert">
           <span>{error}</span>
           {!status ? <button className="button button--quiet" type="button" onClick={() => void retry()}>重新加载 Provider 状态</button> : null}
