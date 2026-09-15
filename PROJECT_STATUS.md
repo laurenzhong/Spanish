@@ -12,6 +12,7 @@
 
 - 状态：`review`
 - 负责人：Codex
+- 实现 Commit：`61b0fd7`
 - 范围：Language Reactor 播客流代理在已过期的 RTVE/Libsyn 签名地址上先按 stable key 重新查询有限播客目录，再转发浏览器 `Range` 请求；播放器失败时显示可重新创建媒体元素的“重试播放”入口，避免只留下不可用的 `0:00 / 0:00` 原生控件。
 - 修改文件：`app/api/v1/media/[stableKey]/stream/route.ts`、`src/modules/media/ui/media-learning-workbench.tsx`、`app/globals.css`、`tests/unit/media-routes.test.ts`、`tests/unit/podcast-audio-player.test.tsx`。
 - 验证：相关 Vitest `2 files / 13 tests` 通过；目标 ESLint 通过；Playwright/Chrome 真实数据验证两条授权播客详情页均返回 `206 audio/mpeg`，第一条 `readyState=4` 且时长 `3548s`，第二条返回 `206`；全量 typecheck 仍被已有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 阻断。
