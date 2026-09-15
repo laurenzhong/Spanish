@@ -27,4 +27,16 @@ describe("owner content workflow UI", () => {
     expect(screen.getByRole("button", { name: "显式发布" })).toBeDisabled();
     expect(screen.getByText(/尚无正式 publisher/u)).toBeInTheDocument();
   });
+
+  it("surfaces ASR confidence and blocks publication for low-confidence drafts", () => {
+    render(<CandidateReviewWorkbench initialData={{
+      candidate: { id: "00000000-0000-4000-8000-000000000733", title: "Podcast con ASR", normalizedUrl: "https://example.test/podcast", contentType: "podcast", language: "es", contentHash: "c".repeat(64), metadata: { mediaTranscriptDraft: { provider: "fake", modelVersion: "fake-v1", lowConfidence: true, segments: [{ index: 0, startMs: 0, endMs: 1000, sourceText: "Hola.", translation: null, confidence: 0.62 }] } }, status: "review_ready", rightsStatus: "verified", revision: 4, publicationStatus: "draft" },
+      source: { displayName: "Fixture", rightsStatus: "verified" }, reviews: [], artifacts: [], attempts: [], publisherAvailable: true,
+    }} />);
+    expect(screen.getByRole("heading", { name: "ASR 字幕草稿" })).toBeInTheDocument();
+    expect(screen.getByText("低置信度，需重新处理")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("当前版本不能发布");
+    expect(screen.getByRole("button", { name: "显式发布" })).toBeDisabled();
+    expect(screen.getByText("暂无中文翻译")).toBeInTheDocument();
+  });
 });

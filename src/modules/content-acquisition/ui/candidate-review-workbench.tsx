@@ -13,6 +13,19 @@ type Review = Readonly<{
   reviewerReference: string | null;
 }>;
 
+type MediaTranscriptDraft = Readonly<{
+  provider?: string;
+  modelVersion?: string;
+  lowConfidence?: boolean;
+  segments?: readonly Readonly<{
+    index: number;
+    startMs: number;
+    sourceText: string;
+    translation: string | null;
+    confidence: number | null;
+  }>[];
+}>;
+
 export type CandidateReviewWorkbenchData = Readonly<{
   candidate: Readonly<{
     id: string;
@@ -40,14 +53,29 @@ const dimensions = [
   ["structure", "结构校验"],
 ] as const;
 
+function readMediaTranscriptDraft(metadata: Readonly<Record<string, unknown>>): MediaTranscriptDraft | null {
+  const value = metadata.mediaTranscriptDraft;
+  if (!value || typeof value !== "object") return null;
+  const draft = value as MediaTranscriptDraft;
+  return Array.isArray(draft.segments) ? draft : null;
+}
+
+function timeLabel(milliseconds: number): string {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1_000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 export function CandidateReviewWorkbench({ initialData }: Readonly<{ initialData: CandidateReviewWorkbenchData }>) {
   const [data, setData] = useState(initialData);
   const [notes, setNotes] = useState("");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const currentReviews = useMemo(() => data.reviews.filter((review) => review.candidateRevision === data.candidate.revision), [data]);
+  const transcriptDraft = useMemo(() => readMediaTranscriptDraft(data.candidate.metadata), [data.candidate.metadata]);
+  const lowConfidence = transcriptDraft?.lowConfidence === true;
+  const transcriptSegments = transcriptDraft?.segments ?? [];
   const allApproved = dimensions.every(([dimension]) => currentReviews.some((review) => review.dimension === dimension && review.status === "approved"));
-  const publishable = data.candidate.status === "review_ready" && data.candidate.rightsStatus === "verified" && Boolean(data.candidate.contentHash) && allApproved && data.candidate.publicationStatus === "draft" && data.publisherAvailable;
+  const publishable = data.candidate.status === "review_ready" && data.candidate.rightsStatus === "verified" && Boolean(data.candidate.contentHash) && allApproved && !lowConfidence && data.candidate.publicationStatus === "draft" && data.publisherAvailable;
 
   async function mutate(path: string, body: Record<string, unknown>) {
     setPending(true);
@@ -85,6 +113,18 @@ export function CandidateReviewWorkbench({ initialData }: Readonly<{ initialData
           <a href={data.candidate.normalizedUrl} target="_blank" rel="noreferrer">打开原始来源 ↗</a>
           <dl><div><dt>权利状态</dt><dd>{data.candidate.rightsStatus}</dd></div><div><dt>内容哈希</dt><dd><code>{data.candidate.contentHash ?? "尚未生成"}</code></dd></div></dl>
           <details open><summary>结构化候选数据</summary><pre>{JSON.stringify(data.candidate.metadata, null, 2)}</pre></details>
+          {transcriptDraft ? (
+            <section className={`candidate-review__transcript${lowConfidence ? " is-blocked" : ""}`} aria-labelledby="media-transcript-draft-title">
+              <div className="candidate-review__transcript-heading">
+                <div><h3 id="media-transcript-draft-title">ASR 字幕草稿</h3><p>{transcriptDraft.provider ?? "未知 provider"}{transcriptDraft.modelVersion ? ` · ${transcriptDraft.modelVersion}` : ""} · {transcriptSegments.length} 段</p></div>
+                <span>{lowConfidence ? "低置信度，需重新处理" : "等待审核"}</span>
+              </div>
+              {lowConfidence ? <p className="candidate-review__warning" role="alert">至少有一段转写置信度低于审核阈值。当前版本不能发布，请使用“按备注重新处理”生成新版本。</p> : null}
+              <ol className="candidate-review__transcript-list">
+                {transcriptSegments.slice(0, 500).map((segment) => <li key={`${segment.index}-${segment.startMs}`}><span>{timeLabel(segment.startMs)}</span><div><strong>{segment.sourceText}</strong>{segment.translation ? <small>{segment.translation}</small> : <small className="is-missing">暂无中文翻译</small>}</div>{typeof segment.confidence === "number" ? <em>{Math.round(segment.confidence * 100)}%</em> : <em>置信度不可用</em>}</li>)}
+              </ol>
+            </section>
+          ) : null}
           <h3>处理产物</h3>
           {data.artifacts.length ? <ul>{data.artifacts.map((artifact) => <li key={artifact.id}>{artifact.artifactType} · {artifact.status} · {artifact.byteSize} bytes</li>)}</ul> : <p>尚无处理产物。</p>}
           <h3>处理记录</h3>
@@ -102,6 +142,7 @@ export function CandidateReviewWorkbench({ initialData }: Readonly<{ initialData
           })}
           <button className="secondary-action" disabled={pending || !notes.trim() || data.candidate.publicationStatus !== "draft"} onClick={() => void mutate("reprocess", { expectedRevision: data.candidate.revision, notes })}>按备注重新处理</button>
           {data.candidate.publicationStatus === "published" ? <button className="danger-action" disabled={pending || !data.publisherAvailable} onClick={() => void mutate("archive", { expectedRevision: data.candidate.revision })}>撤下内容</button> : <button className="primary-action" disabled={pending || !publishable} onClick={() => void mutate("publish", { expectedRevision: data.candidate.revision, expectedContentHash: data.candidate.contentHash })}>显式发布</button>}
+          {lowConfidence ? <p className="candidate-review__publish-block" role="status">低置信度字幕已阻止发布。审核记录不会绕过这一门禁。</p> : null}
           {!data.publisherAvailable ? <p role="status">当前内容类型尚无正式 publisher；发布与撤下保持禁用。</p> : null}
           {message ? <p role="status">{message}</p> : null}
         </aside>
