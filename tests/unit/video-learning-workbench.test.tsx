@@ -64,6 +64,17 @@ describe("video learning workbench", () => {
     expect(screen.getByLabelText("当前片段")).toHaveTextContent("Buenos días.");
   });
 
+  it("uses the native hosted video element for self-hosted assets", () => {
+    const hosted = { ...playback(), asset: { kind: "video" as const, url: "https://media.example.test/video.mp4", expiresAt: null } };
+    render(<MediaLearningWorkbench playback={hosted} />);
+
+    const video = screen.getByRole("region", { name: "视频学习器" }).querySelector("video");
+    expect(video).toHaveAttribute("src", "https://media.example.test/video.mp4");
+    expect(video).toHaveAttribute("controls");
+    fireEvent.loadedMetadata(video!);
+    expect(screen.getByText("播放器已就绪")).toBeVisible();
+  });
+
   it("supports transcript seeking, A/S/D/Q controls, caption modes and focus-restoring lexical drawer", async () => {
     const player = fakePlayer();
     const user = userEvent.setup();

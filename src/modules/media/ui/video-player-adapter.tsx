@@ -132,3 +132,54 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onS
     {!videoId ? <p role="alert">播放地址无效。</p> : null}
   </div>;
 }
+
+export function HostedVideoPlayerAdapter({ videoUrl, title, onPortChange, onStateChange, onTimeUpdate, onError }: Readonly<{
+  videoUrl: string;
+  title: string;
+  onPortChange: (port: VideoPlayerPort | null) => void;
+  onStateChange: (state: VideoPlayerState) => void;
+  onTimeUpdate: (positionMs: number) => void;
+  onError: (message: string | null) => void;
+}>) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const port: VideoPlayerPort = {
+      play: () => { void video.play(); },
+      pause: () => video.pause(),
+      seek: (positionMs) => { video.currentTime = positionMs / 1_000; },
+      currentTime: () => Math.max(0, Math.round(video.currentTime * 1_000)),
+      destroy: () => video.pause(),
+    };
+    const loaded = () => { onError(null); onStateChange("ready"); };
+    const playing = () => onStateChange("playing");
+    const paused = () => onStateChange("paused");
+    const ended = () => onStateChange("ended");
+    const timeUpdate = () => onTimeUpdate(Math.max(0, Math.round(video.currentTime * 1_000)));
+    const error = () => onError("本站视频资源暂时无法播放，请重试或检查媒体托管状态。");
+    video.addEventListener("loadedmetadata", loaded);
+    video.addEventListener("play", playing);
+    video.addEventListener("playing", playing);
+    video.addEventListener("pause", paused);
+    video.addEventListener("ended", ended);
+    video.addEventListener("timeupdate", timeUpdate);
+    video.addEventListener("error", error);
+    onPortChange(port);
+    if (video.readyState >= 1) loaded();
+    return () => {
+      video.removeEventListener("loadedmetadata", loaded);
+      video.removeEventListener("play", playing);
+      video.removeEventListener("playing", playing);
+      video.removeEventListener("pause", paused);
+      video.removeEventListener("ended", ended);
+      video.removeEventListener("timeupdate", timeUpdate);
+      video.removeEventListener("error", error);
+      onPortChange(null);
+      port.destroy();
+    };
+  }, [onError, onPortChange, onStateChange, onTimeUpdate]);
+
+  return <video aria-label={title} controls playsInline preload="metadata" ref={videoRef} src={videoUrl} />;
+}

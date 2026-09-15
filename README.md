@@ -131,6 +131,15 @@ pnpm content:host-language-reactor-audio
 
 该脚本需要服务端 `SUPABASE_SECRET_KEY`（或旧版 `SUPABASE_SERVICE_ROLE_KEY`）；它不会下载 YouTube 视频。
 
+如果已单独确认某个 YouTube 来源的下载与再分发授权，并希望让视频脱离 YouTube 网络播放，可在提供 `yt-dlp` 与 ffmpeg 的服务端环境运行：
+
+```powershell
+$env:MEDIA_VIDEO_HOSTING_CONFIRM="I_HAVE_AUTHORIZATION"
+pnpm content:host-authorized-youtube-video
+```
+
+脚本只处理已发布且版权状态为 `cleared` 的官方嵌入视频；成功后切换到 `media-video` Storage 的稳定 MP4 URL，失败则保留原嵌入资产。
+
 采集只会生成候选并自动推进到审核待命；在 `/me/content-workflow` 完成审核并显式发布后，内容才会出现在 `/learn`。播客 enclosure 仍需通过无凭据 HTTPS、主机白名单、HEAD 类型/大小和有效期检查。
 
 普通用户入口是邮箱六位 OTP；密码登录只保留给预建测试账号，不在普通入口并列展示。完整配置、安全边界和本地测试说明见 [认证与会话](docs/authentication.md)。

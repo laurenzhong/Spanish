@@ -17,6 +17,14 @@
 - 验证：普通 Playwright（Browser plugin 不可用）视频详情 E2E 桌面与移动共 `10/10` 通过；目标 ESLint 与 `git diff --check` 通过；真实 Playwright 访问 `/learn/media/youtube.e2e-cafe` 记录 iframe 请求超时/503，并显示网络限制降级界面。
 - 限制与下一步：当前网络仍无法连接 YouTube，因此页面不能凭空恢复视频播放；这不是本站详情页错误。若要摆脱第三方网络依赖，必须另行确认视频下载/再分发授权、平台条款、托管成本与撤下流程后实施合法托管，不通过代理绕过 YouTube 访问限制。
 
+### 2026-09-15：HOSTED-MEDIA-002 授权视频本站托管策略
+
+- 状态：`in_progress`
+- 负责人：Codex
+- 范围：新增 `media-video` Supabase Storage provider、授权视频回填脚本 `pnpm content:host-authorized-youtube-video`，以及 hosted MP4 的原生 `<video>` 学习器；回填要求 `MEDIA_VIDEO_HOSTING_CONFIRM=I_HAVE_AUTHORIZATION`、`yt-dlp` 和 ffmpeg，只处理已发布且 `copyrightStatus=cleared` 的官方嵌入视频。未托管视频继续保留 YouTube 降级。
+- 验证：目标 ESLint、Drizzle schema check、媒体相关 Vitest `3 files / 18 tests`、视频 Playwright hosted/official 桌面与移动 `4/4` 通过；全量 typecheck 被工作树中其他代理新增的 `cleanup-candidate-artifacts.ts` 语法错误阻断。当前网络对 YouTube 下载仍超时，因此本轮未声称已完成真实视频回填。
+- 下一步：在可访问 YouTube 且具备授权的服务端环境安装 yt-dlp/ffmpeg，运行回填脚本并核验 `media-video` 对象返回 `200 video/mp4`；成功后再补真实数据库 Playwright 验收和撤下清理任务。
+
 ### 2026-09-15：播客字幕播放同步与无字幕状态修复
 
 - 状态：`review`

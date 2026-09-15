@@ -1,15 +1,16 @@
 import type { MediaPlayback } from "../domain";
 
 export const videoLearningE2eStableKey = "youtube.e2e-cafe";
+export const hostedVideoLearningE2eStableKey = "video.e2e-hosted";
 
 export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | null {
-  if (process.env.NODE_ENV === "production" || process.env.AUTH_E2E_ENABLED !== "1" || stableKey !== videoLearningE2eStableKey) {
+  if (process.env.NODE_ENV === "production" || process.env.AUTH_E2E_ENABLED !== "1" || ![videoLearningE2eStableKey, hostedVideoLearningE2eStableKey].includes(stableKey)) {
     return null;
   }
   return {
     media: {
-      id: `${videoLearningE2eStableKey}@1`,
-      stableKey: videoLearningE2eStableKey,
+      id: `${stableKey}@1`,
+      stableKey,
       version: 1,
       kind: "video",
       title: "Cómo pedir un café",
@@ -26,8 +27,8 @@ export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | n
       progress: { lastPositionMs: 0, lastSegmentIndex: 0, status: "in_progress", revision: 0 },
     },
     asset: {
-      kind: "official_embed",
-      url: "https://www.youtube-nocookie.com/embed/e2eCafe1234?enablejsapi=1",
+      kind: stableKey === hostedVideoLearningE2eStableKey ? "video" : "official_embed",
+      url: stableKey === hostedVideoLearningE2eStableKey ? "https://media.example.test/media/video.e2e-hosted/1/video.mp4" : "https://www.youtube-nocookie.com/embed/e2eCafe1234?enablejsapi=1",
       expiresAt: null,
     },
     segments: [

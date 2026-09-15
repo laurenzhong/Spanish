@@ -27,6 +27,7 @@
     "content:acquire": "tsx scripts/acquire-content.ts",
     "content:backfill-artwork": "tsx scripts/backfill-language-reactor-artwork.ts",
     "content:host-language-reactor-audio": "tsx scripts/host-language-reactor-audio.ts",
+    "content:host-authorized-youtube-video": "tsx scripts/host-authorized-youtube-video.ts",
     "content:register-language-reactor": "tsx scripts/register-language-reactor-sources.ts",
     "character:import": "tsx scripts/import-character.ts",
     "character:publish": "tsx scripts/publish-character.ts",

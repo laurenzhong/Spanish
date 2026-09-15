@@ -6,7 +6,7 @@ import { findSegmentIndexAt, type MediaPlayback } from "../domain";
 import { AudioPlayerAdapter, type AudioPlayerFactory, type AudioPlayerPort, type AudioPlayerState } from "./audio-player-adapter";
 import { LexicalDrawer } from "./lexical-drawer";
 import { SegmentTranscript, type CaptionMode } from "./segment-transcript";
-import { VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type VideoPlayerState } from "./video-player-adapter";
+import { HostedVideoPlayerAdapter, VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type VideoPlayerState } from "./video-player-adapter";
 
 type ProgressSnapshot = Readonly<{ lastPositionMs: number; lastSegmentIndex: number | null; status: "in_progress" | "completed" }>;
 type ProgressSyncState = "idle" | "saving" | "saved" | "conflict" | "error";
@@ -195,6 +195,9 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
         {playback.media.kind === "podcast" && playback.asset.kind === "audio"
           ? <AudioPlayerAdapter key={`audio-${playerAttempt}`} artwork={playback.media.artwork} audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate} title={`${playback.media.title} 播放器`} />
+          : playback.asset.kind === "video"
+            ? <HostedVideoPlayerAdapter key={`hosted-video-${playerAttempt}`} onError={handlePlayerError} onPortChange={handlePortChange}
+                onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
           : <VideoPlayerAdapter key={`video-${playerAttempt}`} embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
       </div>

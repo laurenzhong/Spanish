@@ -100,7 +100,7 @@ export default async function MediaDetailPage({ params }: Context) {
           <span>{playback.segments.length > 0 ? "有逐句文本" : "无逐句文本"}</span>
         </div>
       </header>
-      {(playback.media.kind === "video" && playback.asset.kind === "official_embed")
+      {(playback.media.kind === "video" && (playback.asset.kind === "official_embed" || playback.asset.kind === "video"))
         || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench playback={browserPlayback} /> : <>
         <div className="media-detail__player"><PlaybackSurface playback={browserPlayback} /></div>
         <section className="media-transcript" aria-labelledby="media-transcript-title">

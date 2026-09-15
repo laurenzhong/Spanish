@@ -84,6 +84,16 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
   await expect(word).toBeFocused();
 });
 
+test("plays a hosted video through the native media element", async ({ page }) => {
+  await page.goto("/learn/media/video.e2e-hosted");
+
+  const video = page.getByLabel("Cómo pedir un café 播放器");
+  await expect(video).toHaveAttribute("src", "https://media.example.test/media/video.e2e-hosted/1/video.mp4");
+  await expect(video).toHaveAttribute("controls", "");
+  await expect(page.getByRole("group", { name: "逐句播放控制" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "当前片段" })).toContainText("Buenos días.");
+});
+
 test("keeps the video detail usable when the YouTube API cannot load", async ({ page }) => {
   await page.route("https://www.youtube.com/iframe_api", async (route) => {
     await route.abort("failed");
