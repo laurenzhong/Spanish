@@ -141,6 +141,14 @@ test("keeps detail styling aligned with the dark learning workspace", async ({ p
   expect(player!.width).toBeGreaterThan(transcript!.width);
   expect(transcript!.height).toBeGreaterThanOrEqual(390);
 
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.reload();
+  const tabletPlayer = await page.locator(".media-detail__player").boundingBox();
+  const tabletTranscript = await page.locator(".media-learning-workbench__transcript").boundingBox();
+  expect(tabletPlayer).not.toBeNull();
+  expect(tabletTranscript).not.toBeNull();
+  expect(tabletTranscript!.y).toBeGreaterThan(tabletPlayer!.y + tabletPlayer!.height - 1);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.locator(".mobile-product-header")).toBeHidden();

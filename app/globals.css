@@ -11339,7 +11339,18 @@ body {
   }
   .media-detail__meta { gap: 4px 10px; font-size: .7rem; }
   .media-detail__meta span + span::before { margin-right: 10px; }
-  .media-current-segment { min-height: 64px; padding: 11px 12px; }
+  .media-current-segment {
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 50px;
+    gap: 10px;
+    align-items: baseline;
+    padding: 10px 12px;
+  }
+
+  .media-current-segment__label {
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
   .media-sentence-controls { gap: 4px; }
   .media-sentence-controls button, .media-sentence-controls label { min-height: 44px; }
   .media-learning-workbench__transcript { margin-right: -8px; margin-left: -8px; border-radius: 9px; }
