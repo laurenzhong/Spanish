@@ -69,6 +69,8 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [探索页桌面 Web 实施计划](docs/plans/2026-08-28-explore-page-desktop-web-implementation-plan.md)
 - [电脑端 Web 界面密度与操作层级收敛设计](docs/superpowers/specs/2026-09-12-desktop-web-interface-density-and-action-hierarchy-design.md)
 - [电脑端 Web 界面密度与操作层级收敛实施计划](docs/plans/2026-09-12-desktop-web-interface-density-and-action-hierarchy-implementation-plan.md)
+- [媒体详情与视频学习器视觉设计](docs/superpowers/specs/2026-09-15-media-detail-learning-workbench-design.md)
+- [媒体详情与视频学习器实施计划](docs/plans/2026-09-15-media-detail-learning-workbench-implementation-plan.md)
 - [历史：Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
 - [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](docs/architecture.md)
@@ -120,6 +122,14 @@ pnpm content:register-language-reactor
 pnpm content:acquire -- --source language-reactor.podcast-mix-es --limit 20
 pnpm content:acquire -- --source language-reactor.youtube-mix-es --limit 20
 ```
+
+已明确授权的 Language Reactor 播客可在发布后复制到 Supabase Storage，使用稳定本站对象 URL 播放：
+
+```powershell
+pnpm content:host-language-reactor-audio
+```
+
+该脚本需要服务端 `SUPABASE_SECRET_KEY`（或旧版 `SUPABASE_SERVICE_ROLE_KEY`）；它不会下载 YouTube 视频。
 
 采集只会生成候选并自动推进到审核待命；在 `/me/content-workflow` 完成审核并显式发布后，内容才会出现在 `/learn`。播客 enclosure 仍需通过无凭据 HTTPS、主机白名单、HEAD 类型/大小和有效期检查。
 

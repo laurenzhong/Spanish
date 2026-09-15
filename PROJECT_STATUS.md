@@ -8,6 +8,15 @@
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
+### 2026-09-15：HOSTED-MEDIA-001 授权播客 Storage 托管
+
+- 状态：`in_progress`
+- 负责人：Codex
+- 规格与 ADR：`docs/plans/2026-09-15-hosted-media-assets-implementation-plan.md`、`docs/adr/0009-hosted-media-assets.md`
+- 实现 Commit：待提交
+- 当前实现：新增 Supabase Storage 媒体资产 provider、迁移 `0030_glossy_norrin_radd.sql` 与 `pnpm content:host-language-reactor-audio` 回填脚本；脚本会刷新过期 Language Reactor 地址、校验来源/MIME/大小、按稳定路径上传并更新已发布播客资产，失败时清理对象。真实回填已完成：1 条播客托管成功，1 条因 Supabase 当前单对象上限超过 50 MB 跳过。
+- 下一步：为超限音频配置更高 Storage 上限或增加服务端转码后再次托管；随后补充 provider/脚本契约测试和撤下清理任务。
+
 ### 2026-09-15：LR-003 播客播放失败降级与过期地址刷新
 
 - 状态：`review`
