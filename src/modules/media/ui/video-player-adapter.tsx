@@ -55,6 +55,8 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onS
   const generationRef = useRef(0);
   const [sdkReady, setSdkReady] = useState(false);
   const [scriptFailed, setScriptFailed] = useState(false);
+  const [fallbackHost, setFallbackHost] = useState<"www.youtube-nocookie.com" | "www.youtube.com">("www.youtube-nocookie.com");
+  const [fallbackTimedOut, setFallbackTimedOut] = useState(false);
   const videoId = videoIdFromEmbed(embedUrl);
 
   useEffect(() => {
@@ -69,14 +71,21 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onS
     const timeout = window.setTimeout(() => {
       window.clearInterval(timer);
       setScriptFailed(true);
-      onStateChange("ready");
-      onError(null);
     }, 5_000);
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(timeout);
     };
   }, [factory, onError, onStateChange, sdkReady, scriptFailed]);
+
+  useEffect(() => {
+    if (factory || !scriptFailed || !videoId) return;
+    const timer = window.setTimeout(() => {
+      setFallbackTimedOut(true);
+      onError("YouTube 播放器加载超时，可能受当前网络限制。");
+    }, 8_000);
+    return () => window.clearTimeout(timer);
+  }, [factory, fallbackHost, onError, scriptFailed, videoId]);
 
   useEffect(() => {
     if (!targetRef.current || !videoId || (!factory && !sdkReady)) return;
@@ -103,9 +112,20 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onS
     };
   }, [embedUrl, factory, onError, onPortChange, onStateChange, sdkReady, videoId]);
 
+  const fallbackUrl = videoId ? `https://${fallbackHost}/embed/${videoId}?enablejsapi=1&playsinline=1` : embedUrl;
+  const watchUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
   return <div className="video-player-adapter">
-    {scriptFailed && !factory ? <iframe allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen aria-label={title} src={embedUrl} title={title} /> : <div aria-label={title} id={targetId} ref={targetRef} />}
-    {!factory && !scriptFailed ? <Script id="youtube-iframe-api" onError={() => { setScriptFailed(true); onStateChange("ready"); onError(null); }}
+    {scriptFailed && !factory ? <>
+      <iframe allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen aria-label={title} src={fallbackUrl} title={title} />
+      {fallbackTimedOut ? <div className="video-player-adapter__fallback" role="status">
+        <p>YouTube 播放器暂时无法连接，可能是当前网络限制。</p>
+        <div>
+          <button onClick={() => { setFallbackTimedOut(false); onError(null); setFallbackHost((host) => host === "www.youtube-nocookie.com" ? "www.youtube.com" : "www.youtube-nocookie.com"); }} type="button">重试播放器</button>
+          {watchUrl ? <a href={watchUrl} rel="noreferrer" target="_blank">在 YouTube 打开</a> : null}
+        </div>
+      </div> : null}
+    </> : <div aria-label={title} id={targetId} ref={targetRef} />}
+    {!factory && !scriptFailed ? <Script id="youtube-iframe-api" onError={() => { setScriptFailed(true); }}
       onReady={() => {
         if ((window as YouTubeWindow).YT?.Player) setSdkReady(true);
       }} src="https://www.youtube.com/iframe_api" strategy="afterInteractive" /> : null}

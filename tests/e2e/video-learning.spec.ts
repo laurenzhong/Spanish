@@ -93,7 +93,14 @@ test("keeps the video detail usable when the YouTube API cannot load", async ({ 
   await expect(page.getByRole("heading", { name: "Cómo pedir un café" })).toBeVisible();
   await expect(page.getByText("播放器准备中…")).toBeVisible();
   await expect(page.locator(".video-player-adapter iframe")).toBeVisible({ timeout: 7_000 });
-  await expect(page.getByText("播放器已就绪")).toBeVisible();
+  await expect(page.getByText("YouTube 播放器暂时无法连接，可能是当前网络限制。")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "重试播放器" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "在 YouTube 打开" })).toHaveAttribute("href", "https://www.youtube.com/watch?v=e2eCafe1234");
+
+  const iframe = page.locator(".video-player-adapter iframe");
+  await expect(iframe).toHaveAttribute("src", /youtube-nocookie\.com\/embed\/e2eCafe1234/);
+  await page.getByRole("button", { name: "重试播放器" }).click();
+  await expect(iframe).toHaveAttribute("src", /www\.youtube\.com\/embed\/e2eCafe1234/);
 });
 
 test("uses the bottom-sheet word context at the mobile shell breakpoint", async ({ page }) => {
