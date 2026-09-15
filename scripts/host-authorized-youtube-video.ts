@@ -76,6 +76,7 @@ try {
       eq(schema.mediaVersions.copyrightStatus, "cleared"),
       eq(schema.mediaAssets.kind, "official_embed"),
       eq(schema.mediaAssets.providerKey, "youtube"),
+      eq(schema.mediaAssets.availability, "available"),
     ));
 
   for (const row of rows) {
