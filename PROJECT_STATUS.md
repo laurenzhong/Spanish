@@ -13,11 +13,11 @@
 - 状态：`review`
 - 负责人：Codex
 - 分支：`codex/ui-017-collapsible-shell`
-- 实现 Commit：`7e89a6d`、`7688e87`、`c27edab`
-- 范围：Language Reactor 适配器保存视频返回的 HTTPS artwork，并在播客目录返回 `DATAURL` 时通过 iTunes 节目元数据解析可验证的 HTTPS 封面；播客学习播放器显示真实封面并保留图片失败降级。新增 `scripts/backfill-language-reactor-artwork.ts` 与 `pnpm content:backfill-artwork`，为已发布的 22 条旧媒体创建带 artwork 的不可变新版本，复制播放资产、字幕和审核记录，旧版本保留。视频卡片现在通过鉴权本站 artwork route 代理 YouTube 缩略图，优先使用 `wsrv.nl`，失败时再尝试官方缩略图主机。
-- 验证：媒体相关 Vitest `6 files / 28 tests`、目标 ESLint、`pnpm db:check` 和 `git diff --check` 通过；媒体详情 Playwright 桌面 `4/4` 通过；真实数据库 Playwright 验证首个视频卡片 artwork 返回 `320x180`、视频详情为 200 且无错误页，之前已验证 18 张视频卡片均加载成功；20 个视频和 2 个播客当前版本 artwork 非空。RTVE 播客通过鉴权 `/api/v1/media/{stableKey}/stream` 转发 `Range` 请求后在真实浏览器达到 `readyState=4`；回填脚本连续执行第二次 `updated: 0`。
-- 限制：用户本地网络若无法访问 YouTube 图片 CDN，由本站 artwork route 代取；Playwright 环境对部分外部媒体域名仍会阻断。当前开发环境按播放有效期筛选后播客列表为空，需在有效期内或重新发布后验收两个播客；旧版本历史学习进度仍绑定旧版本，回填版本不会迁移进度；未完成 iPhone Safari 和真实账号登录验收。
-- 下一步：产品本人重启本地开发服务后打开 `/learn`，确认视频封面并点开视频；播客重新发布或恢复有效期后再点开两个播客确认封面和播放，确认后合并 LR-002。
+- 实现 Commit：`7e89a6d`、`7688e87`、`c27edab`、`c1f0d65`
+- 范围：Language Reactor 适配器保存视频返回的 HTTPS artwork，并在播客目录返回 `DATAURL` 时通过 iTunes 节目元数据解析可验证的 HTTPS 封面；播客学习播放器显示真实封面并保留图片失败降级。新增 `scripts/backfill-language-reactor-artwork.ts` 与 `pnpm content:backfill-artwork`，为已发布的 22 条旧媒体创建带 artwork 的不可变新版本，复制播放资产、字幕和审核记录，旧版本保留。视频卡片现在通过鉴权本站 artwork route 代理 YouTube 缩略图，优先使用 `wsrv.nl`，失败时再尝试官方缩略图主机。经产品确认，Language Reactor 授权播客改为永久播放资格：新增 `playbackProvider=language-reactor`，允许 `playbackExpiresAt=null`，迁移既有两条播客资产并更新来源注册策略；普通 RSS 仍保留有限有效期。
+- 验证：媒体与采集相关 Vitest `4 files / 14 tests` 通过，目标 ESLint、`pnpm db:check`、数据库迁移和类型检查（仅剩既有 composite article mock 缺少 `list`）通过；真实数据库 Playwright 验证 `/learn?kind=podcast` 显示 2 张卡片、播客封面 `600x600`，点击详情页返回 200、音频元素存在且无错误页；视频封面和详情回归仍按上一条记录通过。迁移 `0029_amusing_blue_marvel.sql` 将既有 Language Reactor 音频资产标为永久播放。
+- 限制：永久播放资格不等于第三方服务器永久在线；音频源实际失效时仍会播放失败并需要重新采集。旧版本历史学习进度仍绑定旧版本；未完成 iPhone Safari 和真实账号登录验收。
+- 下一步：产品本人重启本地开发服务后打开 `/learn`，视频与两个播客都应保持显示并可进入详情；若某个音频源实际失效，再单独重新采集/发布，不会因租约自动消失。
 
 ### 2026-09-15：LEARN-MEDIA-DETAIL-001 媒体详情与视频学习器视觉设计
 
@@ -1889,7 +1889,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
-| 2026-09-15 | LR-002 补齐视频封面代理与媒体详情回归，确认源站有封面但 YouTube 图片 CDN 在部分网络不可直连 | `c27edab` | 18 张视频卡片通过本站代理加载；播客需在播放有效期内重新发布后继续验收 |
+| 2026-09-15 | 按产品确认取消 Language Reactor 授权播客的播放租约，到期不再隐藏；迁移既有两条播客资产并验证永久显示与播放 | `c1f0d65` | `/learn?kind=podcast` 显示 2 条带封面的播客；普通 RSS 仍使用有限有效期 |
+| 2026-09-15 | LR-002 补齐视频封面代理与媒体详情回归，确认源站有封面但 YouTube 图片 CDN 在部分网络不可直连 | `c27edab` | 18 张视频卡片通过本站代理加载；播客永久播放资格由后续迁移补齐 |
 | 2026-09-15 | LR-001 完成 Language Reactor 实际来源接入、真实采集、所有者审核与首批发布，进入 review | 待提交 | 20 个视频和 2 个播客已在远端学习页可见；待产品确认播放后提交并决定后续 MEDIA-002 |
 | 2026-09-15 | 建立 LEARN-MEDIA-DETAIL-001 媒体详情与视频学习器视觉设计规格及实施计划 | `ab73cab` | 设计任务已完成；进入桌面与移动实现任务 |
 | 2026-09-15 | 完成 LEARN-MEDIA-DETAIL-002/003 媒体详情工作台实现、移动重排与可访问性回归，进入 review | `ab73cab`、`1bdfb13` | 视频/播客详情桌面与移动路径、8 个视口和词句抽屉已由 Playwright 验证；等待产品视觉复核 |
