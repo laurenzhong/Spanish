@@ -8,6 +8,7 @@ export type AudioPlayerState = "ready" | "playing" | "paused" | "ended";
 export type AudioPlayerLifecycle = Readonly<{
   onReady: () => void;
   onStateChange: (state: AudioPlayerState) => void;
+  onTimeUpdate: (positionMs: number) => void;
   onError: (message: string) => void;
 }>;
 export interface AudioPlayerPort {
@@ -29,11 +30,13 @@ export const nativeAudioPlayerFactory: AudioPlayerFactory = (element, input) => 
     if (!element.ended) input.lifecycle.onStateChange("paused");
   };
   const onEnded = () => input.lifecycle.onStateChange("ended");
+  const onTimeUpdate = () => input.lifecycle.onTimeUpdate(Math.max(0, Math.round(element.currentTime * 1_000)));
   const onError = () => input.lifecycle.onError("播客音频暂时无法播放，请检查网络后重试。");
   element.addEventListener("canplay", onReady);
   element.addEventListener("play", onPlay);
   element.addEventListener("pause", onPause);
   element.addEventListener("ended", onEnded);
+  element.addEventListener("timeupdate", onTimeUpdate);
   element.addEventListener("error", onError);
   element.src = input.url;
   element.preload = "metadata";
@@ -52,6 +55,7 @@ export const nativeAudioPlayerFactory: AudioPlayerFactory = (element, input) => 
       element.removeEventListener("play", onPlay);
       element.removeEventListener("pause", onPause);
       element.removeEventListener("ended", onEnded);
+      element.removeEventListener("timeupdate", onTimeUpdate);
       element.removeEventListener("error", onError);
       element.pause();
       element.removeAttribute("src");
@@ -67,6 +71,7 @@ export function AudioPlayerAdapter({
   factory,
   onPortChange,
   onStateChange,
+  onTimeUpdate,
   onError,
 }: Readonly<{
   audioUrl: string;
@@ -75,6 +80,7 @@ export function AudioPlayerAdapter({
   factory?: AudioPlayerFactory;
   onPortChange: (port: AudioPlayerPort | null) => void;
   onStateChange: (state: AudioPlayerState) => void;
+  onTimeUpdate: (positionMs: number) => void;
   onError: (message: string | null) => void;
 }>) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -94,6 +100,7 @@ export function AudioPlayerAdapter({
         lifecycle: {
           onReady: () => { if (current()) onStateChange("ready"); },
           onStateChange: (state) => { if (current()) onStateChange(state); },
+          onTimeUpdate: (positionMs) => { if (current()) onTimeUpdate(positionMs); },
           onError: (message) => { if (current()) onError(message); },
         },
       });
@@ -108,7 +115,7 @@ export function AudioPlayerAdapter({
       onPortChange(null);
       port.destroy();
     };
-  }, [audioUrl, factory, onError, onPortChange, onStateChange]);
+  }, [audioUrl, factory, onError, onPortChange, onStateChange, onTimeUpdate]);
 
   return (
     <div className="audio-player-adapter">

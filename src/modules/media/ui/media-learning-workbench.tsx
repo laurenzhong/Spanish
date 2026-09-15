@@ -176,6 +176,10 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     if (state === "ready" && initialPositionMs) playerRef.current?.seek(initialPositionMs);
     if (state === "paused" || state === "ended") sendProgress(progressSnapshot(state));
   }, [initialPositionMs, progressSnapshot, sendProgress]);
+  const handleTimeUpdate = useCallback((positionMs: number) => {
+    const found = findSegmentIndexAt(playback.segments, positionMs);
+    if (found !== null) updateActiveIndex(found);
+  }, [playback.segments, updateActiveIndex]);
   const handlePlayerError = useCallback((message: string | null) => setPlayerError(message), []);
   const retryPlayer = useCallback(() => {
     setPlayerError(null);
@@ -190,7 +194,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
       <div className={`media-detail__player media-detail__player--${playback.media.kind}`}>
         {playback.media.kind === "podcast" && playback.asset.kind === "audio"
           ? <AudioPlayerAdapter key={`audio-${playerAttempt}`} artwork={playback.media.artwork} audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
-              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />
+              onPortChange={handlePortChange} onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate} title={`${playback.media.title} 播放器`} />
           : <VideoPlayerAdapter key={`video-${playerAttempt}`} embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
       </div>
@@ -213,7 +217,8 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     </section>
     <section aria-labelledby="media-transcript-title" className="media-learning-workbench__transcript">
       <header><div><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
-        <div aria-label="字幕模式" className="caption-mode" role="group">{(["es", "bilingual", "hidden"] as const).map((mode) => <button aria-pressed={captionMode === mode} key={mode} onClick={() => setCaptionMode(mode)} type="button">{mode === "es" ? "西语" : mode === "bilingual" ? "双语" : "隐藏"}</button>)}</div></header>
+        {playback.segments.length > 0 ? <div aria-label="字幕模式" className="caption-mode" role="group">{(["es", "bilingual", "hidden"] as const).map((mode) => <button aria-pressed={captionMode === mode} key={mode} onClick={() => setCaptionMode(mode)} type="button">{mode === "es" ? "西语" : mode === "bilingual" ? "双语" : "隐藏"}</button>)}</div>
+          : <span className="caption-mode__unavailable">暂无已审核字幕</span>}</header>
       <SegmentTranscript activeIndex={activeIndex} captionMode={captionMode} mediaKind={playback.media.kind} onSeek={selectSegment} onWord={openWord} segments={playback.segments} />
     </section>
     {lexicalSelection ? <LexicalDrawer onClose={closeWord} sentence={lexicalSelection.sentence} word={lexicalSelection.word} /> : null}

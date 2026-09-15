@@ -68,6 +68,8 @@ describe("podcast audio player", () => {
     expect(word).toHaveFocus();
 
     player.setCurrentTime(3_000);
+    act(() => player.lifecycle().onTimeUpdate(3_000));
+    expect(screen.getAllByRole("listitem")[1]).toHaveClass("is-active");
     act(() => player.lifecycle().onStateChange("paused"));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(
       "/api/v1/media/podcast.episode42/progress",
@@ -99,6 +101,8 @@ describe("podcast audio player", () => {
     const player = fakePlayer();
     render(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={playback(false)} />);
     expect(screen.getByText("这期播客可以播放，但目前没有已审核的逐句文本。")).toBeVisible();
+    expect(screen.getByText("暂无已审核字幕")).toBeVisible();
+    expect(screen.queryByRole("group", { name: "字幕模式" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "上一句" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "下一句" })).toBeDisabled();
   });
@@ -113,5 +117,20 @@ describe("podcast audio player", () => {
     expect(screen.getByRole("button", { name: "重试播放" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "重试播放" }));
     expect(screen.queryByRole("button", { name: "重试播放" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the active transcript line in sync while audio is playing", () => {
+    vi.useFakeTimers();
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={playback()} />);
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onStateChange("playing"));
+
+    player.setCurrentTime(3_000);
+    act(() => vi.advanceTimersByTime(300));
+
+    const lines = screen.getAllByRole("listitem");
+    expect(lines[1]).toHaveClass("is-active");
+    expect(lines[0]).not.toHaveClass("is-active");
   });
 });

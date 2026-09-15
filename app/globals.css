@@ -10509,6 +10509,12 @@ body {
   font-size: .7rem;
 }
 
+.caption-mode__unavailable {
+  color: var(--learn-muted, var(--muted));
+  font-size: .72rem;
+  font-weight: 650;
+}
+
 .caption-mode {
   display: inline-flex;
   padding: 2px;

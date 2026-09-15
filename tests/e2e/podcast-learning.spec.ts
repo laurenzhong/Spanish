@@ -63,6 +63,19 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
   await expect(audio).toBeVisible();
   await expect(page.getByText("播放器已就绪")).toBeVisible();
 
+  await page.evaluate(() => {
+    const element = document.querySelector("audio")!;
+    element.currentTime = 3;
+    element.dispatchEvent(new Event("timeupdate"));
+  });
+  await expect(page.getByRole("listitem").nth(1)).toHaveClass(/is-active/);
+  await page.evaluate(() => {
+    const element = document.querySelector("audio")!;
+    element.currentTime = 0;
+    element.dispatchEvent(new Event("timeupdate"));
+  });
+  await expect(page.getByRole("listitem").nth(0)).toHaveClass(/is-active/);
+
   await page.getByRole("button", { name: "下一句" }).click();
   await expect(audio).toHaveAttribute("data-current-time", "2.2");
   await page.keyboard.press("a");
