@@ -32,6 +32,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
   const [autoPause, setAutoPause] = useState(false);
   const [playerState, setPlayerState] = useState<VideoPlayerState | "loading">("loading");
   const [playerError, setPlayerError] = useState<string | null>(null);
+  const [playerAttempt, setPlayerAttempt] = useState(0);
   const [progressSyncState, setProgressSyncState] = useState<ProgressSyncState>("idle");
   const [lexicalSelection, setLexicalSelection] = useState<{ word: string; sentence: string } | null>(null);
   const currentSegment = activeIndex === null ? null : playback.segments[activeIndex] ?? null;
@@ -176,6 +177,11 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     if (state === "paused" || state === "ended") sendProgress(progressSnapshot(state));
   }, [initialPositionMs, progressSnapshot, sendProgress]);
   const handlePlayerError = useCallback((message: string | null) => setPlayerError(message), []);
+  const retryPlayer = useCallback(() => {
+    setPlayerError(null);
+    setPlayerState("loading");
+    setPlayerAttempt((attempt) => attempt + 1);
+  }, []);
   const openWord = useCallback((word: string, sentence: string, trigger: HTMLButtonElement) => { lexicalTriggerRef.current = trigger; setLexicalSelection({ word, sentence }); }, []);
   const closeWord = useCallback(() => { setLexicalSelection(null); window.setTimeout(() => lexicalTriggerRef.current?.focus(), 0); }, []);
 
@@ -183,9 +189,9 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     <section aria-label={playback.media.kind === "podcast" ? "播客学习器" : "视频学习器"} className="media-learning-workbench__main">
       <div className={`media-detail__player media-detail__player--${playback.media.kind}`}>
         {playback.media.kind === "podcast" && playback.asset.kind === "audio"
-          ? <AudioPlayerAdapter artwork={playback.media.artwork} audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
+          ? <AudioPlayerAdapter key={`audio-${playerAttempt}`} artwork={playback.media.artwork} audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />
-          : <VideoPlayerAdapter embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
+          : <VideoPlayerAdapter key={`video-${playerAttempt}`} embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
       </div>
       <div aria-label="逐句播放控制" className="media-sentence-controls" role="group">
@@ -199,6 +205,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
         {captionMode === "hidden" ? <p>字幕已隐藏</p> : currentSegment ? <p lang="es">{currentSegment.sourceText}</p> : <p>暂无当前片段</p>}
       </div>
       <p className="media-player-status" role={playerError ? "alert" : "status"}>{playerError ?? (playerState === "loading" ? "播放器准备中…" : playerState === "playing" ? "正在播放" : playerState === "ended" ? "播放结束" : "播放器已就绪")}</p>
+      {playerError ? <button className="media-player-retry" onClick={retryPlayer} type="button">重试播放</button> : null}
       {progressSyncState === "conflict" ? <p className="media-progress-status is-error" role="alert">进度已在其他页面更新，请刷新后继续。</p>
         : progressSyncState === "error" ? <p className="media-progress-status is-error" role="status">本次进度未能同步，暂停或继续播放时会重试。</p>
           : progressSyncState === "saving" ? <p className="media-progress-status" role="status">正在同步进度…</p>

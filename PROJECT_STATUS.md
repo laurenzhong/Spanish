@@ -8,6 +8,16 @@
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
 
+### 2026-09-15：LR-003 播客播放失败降级与过期地址刷新
+
+- 状态：`review`
+- 负责人：Codex
+- 范围：Language Reactor 播客流代理在已过期的 RTVE/Libsyn 签名地址上先按 stable key 重新查询有限播客目录，再转发浏览器 `Range` 请求；播放器失败时显示可重新创建媒体元素的“重试播放”入口，避免只留下不可用的 `0:00 / 0:00` 原生控件。
+- 修改文件：`app/api/v1/media/[stableKey]/stream/route.ts`、`src/modules/media/ui/media-learning-workbench.tsx`、`app/globals.css`、`tests/unit/media-routes.test.ts`、`tests/unit/podcast-audio-player.test.tsx`。
+- 验证：相关 Vitest `2 files / 13 tests` 通过；目标 ESLint 通过；Playwright/Chrome 真实数据验证两条授权播客详情页均返回 `206 audio/mpeg`，第一条 `readyState=4` 且时长 `3548s`，第二条返回 `206`；全量 typecheck 仍被已有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 阻断。
+- 限制：本站当前仍是受鉴权保护的流代理，数据库保存的播放资产仍来自第三方；“永久显示资格”不等于第三方永久在线。要在源站下线后仍可播放，下一项必须新增授权媒体下载、Supabase Storage/CDN 托管、校验、撤下和存储成本策略，不能继续把第三方 URL 当作永久副本。
+- 下一步：单独建立媒体资产托管任务并先补 ADR/实施计划；在该任务完成前，源站失效时保留清晰错误和重试，不自动伪造可播放状态。
+
 ### 2026-09-15：LR-002 Language Reactor 媒体封面与播客详情修复
 
 - 状态：`review`

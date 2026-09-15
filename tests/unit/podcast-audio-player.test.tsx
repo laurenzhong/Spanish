@@ -110,5 +110,8 @@ describe("podcast audio player", () => {
     act(() => player.lifecycle().onError("播客音频暂时无法播放，请检查网络后重试。"));
 
     expect(screen.getByRole("alert")).toHaveTextContent("播客音频暂时无法播放，请检查网络后重试。");
+    expect(screen.getByRole("button", { name: "重试播放" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "重试播放" }));
+    expect(screen.queryByRole("button", { name: "重试播放" })).not.toBeInTheDocument();
   });
 });

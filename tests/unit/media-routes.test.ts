@@ -119,6 +119,57 @@ describe("media API routes", () => {
     await expect(response.text()).resolves.toBe("audio");
   });
 
+  it("proxies approved Libsyn audio with a byte range for browser playback", async () => {
+    mocks.repository.getPlayback.mockResolvedValue({
+      media: { kind: "podcast" },
+      asset: { kind: "audio", url: "https://content.libsyn.com/audio/podcast.mp3" },
+      segments: [],
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response("audio", {
+      status: 206,
+      headers: { "content-type": "audio/mpeg", "content-range": "bytes 0-4/5", "content-length": "5" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await getStream(request("http://localhost/api/v1/media/media.test/stream", {
+      headers: { range: "bytes=0-4" },
+    }), { params: Promise.resolve({ stableKey: "media.test" }) });
+
+    expect(response.status).toBe(206);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({ headers: { range: "bytes=0-4" } }),
+    );
+    await expect(response.text()).resolves.toBe("audio");
+  });
+
+  it("refreshes an expired Language Reactor audio URL before streaming", async () => {
+    mocks.repository.getPlayback.mockResolvedValue({
+      media: { kind: "podcast", stableKey: "podcast.language-reactor.it_episode_1" },
+      asset: { kind: "audio", url: "https://rtve-mediavod-lote3.rtve.es/expired.mp3?download-token=1_old" },
+      segments: [],
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { docs_metadata: [{ diocoDocId: "it_episode_1", audioFileURL: "https://content.libsyn.com/fresh.mp3" }] } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response("audio", {
+        status: 206,
+        headers: { "content-type": "audio/mpeg", "content-range": "bytes 0-4/5", "content-length": "5" },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await getStream(request("http://localhost/api/v1/media/podcast.language-reactor.it_episode_1/stream", {
+      headers: { range: "bytes=0-4" },
+    }), { params: Promise.resolve({ stableKey: "podcast.language-reactor.it_episode_1" }) });
+
+    expect(response.status).toBe(206);
+    await expect(response.text()).resolves.toBe("audio");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({ body: expect.stringContaining('"limit":100') }));
+  });
+
   it("proxies only the published YouTube artwork for the requested media", async () => {
     mocks.repository.findByStableKey.mockResolvedValue({
       reason: "found",

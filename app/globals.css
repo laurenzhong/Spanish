@@ -143,6 +143,8 @@ a {
   color: var(--accent);
 }
 
+.navigation-link[data-pending="true"] { opacity: .55; }
+
 .navigation-link[aria-current="page"]::before {
   background: var(--accent);
 }
@@ -8709,6 +8711,7 @@ body {
     background: color-mix(in srgb, var(--terracotta) 10%, var(--surface));
     font-weight: 750;
   }
+  .desktop-navigation__link[data-pending="true"] { opacity: .55; }
   .desktop-navigation__link[aria-current="page"]::before { background: var(--terracotta); }
   .desktop-navigation__icon {
     display: grid;
@@ -10451,6 +10454,24 @@ body {
   color: #9f3427;
 }
 
+.media-player-retry {
+  justify-self: start;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--foreground);
+  background: var(--surface);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.media-player-retry:hover,
+.media-player-retry:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .media-learning-workbench__transcript {
   min-width: 0;
   overflow: hidden;
@@ -11254,9 +11275,31 @@ body {
 .media-player-status { padding: 0 2px; }
 .media-progress-status { padding: 0 2px; }
 
-@media (min-width: 961px) {
+/* The transcript needs enough width for readable Spanish lines. Keep the
+   workbench stacked through tablet-sized desktop viewports, then enable the
+   two-column layout once both panes can breathe. */
+@media (min-width: 1120px) {
   .product-shell:has(.media-detail) .media-learning-workbench__transcript { height: clamp(320px, 28vw, 460px); }
   .product-shell:has(.media-detail) .media-learning-workbench__transcript .segment-transcript { height: calc(100% - 58px); max-height: none; }
+}
+
+@media (min-width: 960px) and (max-width: 1119px) {
+  .product-shell:has(.media-detail) .media-learning-workbench {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .product-shell:has(.media-detail) .media-learning-workbench__main {
+    position: static;
+  }
+
+  .product-shell:has(.media-detail) .media-learning-workbench__transcript {
+    min-height: 340px;
+  }
+
+  .product-shell:has(.media-detail) .media-learning-workbench__transcript .segment-transcript {
+    max-height: 460px;
+  }
 }
 
 @media (max-width: 959px) {
@@ -11270,12 +11313,35 @@ body {
 }
 
 @media (max-width: 560px) {
+  .product-shell:has(.media-detail) .product-content {
+    padding-top: 10px;
+  }
+
+  .product-shell:has(.media-detail) .media-detail {
+    gap: 12px;
+  }
+
+  .product-shell:has(.media-detail) .media-detail__back {
+    min-height: 36px;
+  }
+
+  .product-shell:has(.media-detail) .media-detail > header {
+    gap: 6px;
+  }
+
   .media-detail__header h1 { font-size: 1.7rem; }
-  .media-detail__header > p:not(.eyebrow) { font-size: .84rem; }
+  .media-detail__header > p:not(.eyebrow) {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: .82rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
   .media-detail__meta { gap: 4px 10px; font-size: .7rem; }
   .media-detail__meta span + span::before { margin-right: 10px; }
   .media-current-segment { min-height: 64px; padding: 11px 12px; }
-  .media-sentence-controls button, .media-sentence-controls label { min-height: 48px; }
+  .media-sentence-controls { gap: 4px; }
+  .media-sentence-controls button, .media-sentence-controls label { min-height: 44px; }
   .media-learning-workbench__transcript { margin-right: -8px; margin-left: -8px; border-radius: 9px; }
   .media-learning-workbench__transcript > header { position: static; }
 }
