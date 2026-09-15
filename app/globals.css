@@ -10286,7 +10286,7 @@ body {
 
 .media-learning-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(340px, .82fr);
+  grid-template-columns: minmax(0, 1.28fr) minmax(340px, .82fr);
   gap: 24px;
   align-items: start;
 }
@@ -11052,11 +11052,193 @@ body {
   .product-shell:has(.media-library) .media-library__topbar { grid-template-columns: auto minmax(0, 1fr); }
 }
 
-/* Media detail refinement: keep the player dominant while making the study rail scannable. */
-.product-shell:has(.media-detail) { background: #eef2f1; }
-.product-shell:has(.media-detail) .product-content { width: min(100%, 1280px); padding: 28px clamp(20px, 4vw, 60px) 52px; }
-.product-shell:has(.media-detail) .media-detail { max-width: 1240px; margin: 0 auto; }
-.product-shell:has(.media-detail) .media-detail__player { border-color: #263330; }
+/* Media detail refinement: use the same dark learning workspace as /learn. */
+.product-shell:has(.media-detail) {
+  --learn-bg: #111315;
+  --learn-surface: #191c20;
+  --learn-surface-raised: #22262b;
+  --learn-line: #30353b;
+  --learn-text: #f1f3f5;
+  --learn-muted: #9aa2ab;
+  --learn-accent: #e76f9a;
+  --learn-positive: #76c7b4;
+  --background: var(--learn-bg);
+  --surface: var(--learn-surface);
+  --surface-soft: var(--learn-surface-raised);
+  --foreground: var(--learn-text);
+  --muted: var(--learn-muted);
+  --border: var(--learn-line);
+  --border-strong: #48505a;
+  --accent: var(--learn-accent);
+  --accent-strong: #f08bab;
+  --accent-soft: rgb(231 111 154 / 14%);
+  color: var(--learn-text);
+  background: var(--learn-bg);
+}
+
+.product-shell:has(.media-detail) .desktop-navigation,
+.product-shell:has(.media-detail) .primary-navigation,
+.product-shell:has(.media-detail) .mobile-product-header {
+  color: var(--learn-text);
+  border-color: var(--learn-line);
+  background: var(--learn-surface);
+}
+
+.product-shell:has(.media-detail) .product-stage,
+.product-shell:has(.media-detail) .product-content {
+  background: var(--learn-bg);
+}
+
+.product-shell:has(.media-detail) .product-content {
+  width: 100%;
+  max-width: none;
+  padding: 18px clamp(18px, 3vw, 44px) 72px;
+}
+
+.product-shell:has(.media-detail) .media-detail {
+  width: min(100%, 1600px);
+  max-width: none;
+  margin: 0 auto;
+}
+
+.product-shell:has(.media-detail) .desktop-navigation__brand-link,
+.product-shell:has(.media-detail) .desktop-navigation__link,
+.product-shell:has(.media-detail) .desktop-navigation__toggle {
+  color: var(--learn-text);
+}
+
+.product-shell:has(.media-detail) .desktop-navigation__link:not([aria-current="page"]),
+.product-shell:has(.media-detail) .desktop-navigation__group-label {
+  color: var(--learn-muted);
+}
+
+.product-shell:has(.media-detail) .desktop-navigation__link:hover,
+.product-shell:has(.media-detail) .desktop-navigation__link:focus-visible {
+  color: var(--learn-text);
+  background: var(--learn-surface-raised);
+}
+
+.product-shell:has(.media-detail) .desktop-navigation__link[aria-current="page"] {
+  color: var(--learn-accent);
+  background: rgb(231 111 154 / 12%);
+}
+
+.product-shell:has(.media-detail) .desktop-navigation__link[aria-current="page"]::before {
+  background: var(--learn-accent);
+}
+
+.product-shell:has(.media-detail) .desktop-navigation__account {
+  border-color: var(--learn-line);
+}
+
+.product-shell:has(.media-detail) .primary-navigation {
+  box-shadow: 0 -8px 24px rgb(0 0 0 / 30%);
+}
+
+.product-shell:has(.media-detail) .mobile-product-header__wordmark {
+  color: var(--learn-text);
+}
+
+.product-shell:has(.media-detail) .mobile-product-header__wordmark span {
+  color: var(--learn-accent);
+}
+
+.product-shell:has(.media-detail) .media-detail__back {
+  color: var(--learn-muted);
+}
+
+.product-shell:has(.media-detail) .media-detail__back:hover,
+.product-shell:has(.media-detail) .media-detail__back:focus-visible {
+  color: var(--learn-text);
+}
+
+.product-shell:has(.media-detail) .media-detail__header h1,
+.product-shell:has(.media-detail) .media-detail__header > p:not(.eyebrow),
+.product-shell:has(.media-detail) .media-detail__meta {
+  color: var(--learn-text);
+}
+
+.product-shell:has(.media-detail) .media-detail__header > p:not(.eyebrow),
+.product-shell:has(.media-detail) .media-detail__meta {
+  color: var(--learn-muted);
+}
+
+.product-shell:has(.media-detail) .media-detail__meta span + span::before {
+  color: var(--learn-line);
+}
+
+.product-shell:has(.media-detail) .media-detail__player {
+  border-color: var(--learn-line);
+  background: #0d1012;
+  box-shadow: 0 18px 38px rgb(0 0 0 / 28%);
+}
+
+.product-shell:has(.media-detail) .media-learning-workbench__transcript {
+  border-color: var(--learn-line);
+  background: var(--learn-surface);
+  box-shadow: 0 14px 32px rgb(0 0 0 / 20%);
+}
+
+.product-shell:has(.media-detail) .media-learning-workbench__transcript > header {
+  border-bottom-color: var(--learn-line);
+  background: var(--learn-surface);
+}
+
+.product-shell:has(.media-detail) .media-current-segment {
+  border-left-color: var(--learn-accent);
+  background: var(--learn-surface-raised);
+}
+
+.product-shell:has(.media-detail) .media-sentence-controls button,
+.product-shell:has(.media-detail) .media-sentence-controls label {
+  border-color: var(--learn-line);
+  color: var(--learn-text);
+  background: var(--learn-surface);
+}
+
+.product-shell:has(.media-detail) .media-sentence-controls button:not(:disabled):hover,
+.product-shell:has(.media-detail) .media-sentence-controls label:hover {
+  border-color: var(--learn-accent);
+  background: var(--learn-surface-raised);
+}
+
+.product-shell:has(.media-detail) .media-sentence-controls kbd {
+  border-color: var(--border-strong);
+  color: var(--learn-muted);
+  background: var(--learn-surface-raised);
+}
+
+.product-shell:has(.media-detail) .segment-transcript > li {
+  border-bottom-color: var(--learn-line);
+}
+
+.product-shell:has(.media-detail) .segment-transcript > li.is-active {
+  background: rgb(231 111 154 / 12%);
+  box-shadow: inset 3px 0 var(--learn-accent);
+}
+
+.product-shell:has(.media-detail) .segment-transcript {
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+
+.product-shell:has(.media-detail) .segment-transcript__word:hover,
+.product-shell:has(.media-detail) .segment-transcript__word:focus-visible {
+  color: var(--learn-accent);
+  background: rgb(231 111 154 / 14%);
+}
+
+.product-shell:has(.media-detail) .lexical-drawer {
+  border-color: var(--learn-line);
+  background: var(--learn-surface);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 42%);
+}
+
+.product-shell:has(.media-detail) .lexical-drawer header button {
+  border-color: var(--learn-line);
+  color: var(--learn-muted);
+  background: var(--learn-surface-raised);
+}
 
 .media-detail__header h1 { text-wrap: balance; }
 .media-detail__header > p:not(.eyebrow) { max-width: 760px; font-size: .9rem; }
@@ -11073,14 +11255,17 @@ body {
 .media-progress-status { padding: 0 2px; }
 
 @media (min-width: 961px) {
-  .media-learning-workbench__transcript { max-height: min(76vh, 760px); }
-  .media-learning-workbench__transcript .segment-transcript { max-height: none; }
+  .product-shell:has(.media-detail) .media-learning-workbench__transcript { height: clamp(320px, 28vw, 460px); }
+  .product-shell:has(.media-detail) .media-learning-workbench__transcript .segment-transcript { height: calc(100% - 58px); max-height: none; }
 }
 
 @media (max-width: 959px) {
-  .product-shell:has(.media-detail) .product-content { padding: 18px 14px calc(94px + env(safe-area-inset-bottom)); }
+  .product-shell:has(.media-detail) .mobile-product-header { display: none; }
+  .product-shell:has(.media-detail) .product-content { padding: 16px 14px calc(94px + env(safe-area-inset-bottom)); }
   .media-learning-workbench__transcript { min-height: 0; }
-  .lexical-drawer { z-index: 30; right: 0; bottom: calc(72px + env(safe-area-inset-bottom)); left: 0; width: 100%; max-height: min(58dvh, 520px); padding: 10px 18px 18px; border-width: 1px 0 0; border-radius: 18px 18px 0 0; }
+  .product-shell:has(.media-detail) .media-detail__player { margin-right: calc(-1 * 14px); margin-left: calc(-1 * 14px); border-radius: 0; }
+  .product-shell:has(.media-detail) .media-learning-workbench__transcript { margin-right: 0; margin-left: 0; border-radius: 8px; }
+  .product-shell:has(.media-detail) .lexical-drawer { z-index: 30; right: 0; bottom: calc(72px + env(safe-area-inset-bottom)); left: 0; width: 100%; max-height: min(58dvh, 520px); padding: 10px 18px 18px; border-width: 1px 0 0; border-radius: 18px 18px 0 0; }
   .lexical-drawer__handle { display: block; width: 42px; height: 4px; justify-self: center; border-radius: 999px; background: var(--border-strong); }
 }
 

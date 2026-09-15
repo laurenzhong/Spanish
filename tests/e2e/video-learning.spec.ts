@@ -127,3 +127,25 @@ test("keeps the media detail workbench usable across planned viewports", async (
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
 });
+
+test("keeps detail styling aligned with the dark learning workspace", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`);
+
+  await expect(page.locator(".product-shell")).toHaveCSS("background-color", "rgb(17, 19, 21)");
+  const player = await page.locator(".media-detail__player").boundingBox();
+  const transcript = await page.locator(".media-learning-workbench__transcript").boundingBox();
+  expect(player).not.toBeNull();
+  expect(transcript).not.toBeNull();
+  expect(player!.x).toBeGreaterThanOrEqual(88);
+  expect(player!.width).toBeGreaterThan(transcript!.width);
+  expect(transcript!.height).toBeGreaterThanOrEqual(390);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.locator(".mobile-product-header")).toBeHidden();
+  const mobilePlayer = await page.locator(".media-detail__player").boundingBox();
+  expect(mobilePlayer).not.toBeNull();
+  expect(mobilePlayer!.x).toBe(0);
+  expect(mobilePlayer!.width).toBe(390);
+});
