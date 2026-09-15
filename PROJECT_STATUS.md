@@ -14,7 +14,7 @@
 - 负责人：Codex
 - 规格与 ADR：`docs/plans/2026-09-15-hosted-media-assets-implementation-plan.md`、`docs/adr/0009-hosted-media-assets.md`
 - 实现 Commit：`446b603`
-- 当前实现：新增 Supabase Storage 媒体资产 provider、迁移 `0030_glossy_norrin_radd.sql` 与 `pnpm content:host-language-reactor-audio` 回填脚本；脚本会刷新过期 Language Reactor 地址、校验来源/MIME/大小、按稳定路径上传并更新已发布播客资产，失败时清理对象。真实回填已完成：1 条播客托管成功，1 条因 Supabase 当前单对象上限超过 50 MB 跳过。
+- 当前实现：新增 Supabase Storage 媒体资产 provider、迁移 `0030_glossy_norrin_radd.sql` 与 `pnpm content:host-language-reactor-audio` 回填脚本；脚本会刷新过期 Language Reactor 地址、校验来源/MIME/大小、按稳定路径上传并更新已发布播客资产，失败时清理对象。实现 Commit：`446b603`。真实回填已完成：1 条播客托管成功，1 条因 Supabase 当前单对象上限超过 50 MB 跳过；已托管详情页的 `<audio>` 使用稳定 Storage URL，并返回 `200 audio/mpeg`。
 - 下一步：为超限音频配置更高 Storage 上限或增加服务端转码后再次托管；随后补充 provider/脚本契约测试和撤下清理任务。
 
 ### 2026-09-15：LR-003 播客播放失败降级与过期地址刷新
