@@ -12,3 +12,5 @@ export * from "./request-candidate-reprocessing";
 export * from "./retry-processing-step";
 export * from "./run-acquisition-source";
 export * from "./submit-candidate-review";
+export * from "./process-media-candidate";
+export * from "./cleanup-candidate-artifacts";
