@@ -12,6 +12,7 @@
 
 - 状态：`review`
 - 负责人：Codex
+- 实现 Commit：`32fa257`
 - 范围：YouTube iframe API 或嵌入页加载失败时，不再错误显示“播放器已就绪”；8 秒无响应后在播放器内显示网络限制说明、播放器重试和 YouTube 外链，重试在 `youtube-nocookie.com` 与 `www.youtube.com` 间切换。补充暗色工作台遮罩样式与桌面/移动 E2E 断言。
 - 验证：普通 Playwright（Browser plugin 不可用）视频详情 E2E 桌面与移动共 `10/10` 通过；目标 ESLint 与 `git diff --check` 通过；真实 Playwright 访问 `/learn/media/youtube.e2e-cafe` 记录 iframe 请求超时/503，并显示网络限制降级界面。
 - 限制与下一步：当前网络仍无法连接 YouTube，因此页面不能凭空恢复视频播放；这不是本站详情页错误。若要摆脱第三方网络依赖，必须另行确认视频下载/再分发授权、平台条款、托管成本与撤下流程后实施合法托管，不通过代理绕过 YouTube 访问限制。
