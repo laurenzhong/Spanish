@@ -47,7 +47,7 @@ export class AcquiredPodcastPublisher implements CandidatePublisher {
     }
     const transcriptMatches = draft.transcriptStatus === "unavailable"
       ? draft.transcriptUrl === null && draft.segments.length === 0
-      : draft.transcriptUrl !== null && draft.segments.length > 0
+      : (draft.transcriptStatus === "asr" ? draft.transcriptUrl === null : draft.transcriptUrl !== null) && draft.segments.length > 0
         && draft.segments.every((segment) => segment.sourceKind === draft.transcriptStatus);
     if (
       input.contentType !== "podcast"

@@ -28,7 +28,7 @@ export type AcquiredPodcastDraft = Readonly<{
   licenseEvidence: string;
   copyrightStatus: "cleared";
   artwork: MediaArtwork | null;
-  transcriptStatus: "unavailable" | "platform_manual" | "platform_auto";
+  transcriptStatus: "unavailable" | "platform_manual" | "platform_auto" | "asr";
   transcriptUrl: string | null;
   segments: readonly DraftMediaSegment[];
   contentHash: string;

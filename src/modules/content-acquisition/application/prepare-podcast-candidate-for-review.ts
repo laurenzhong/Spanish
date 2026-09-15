@@ -40,7 +40,7 @@ export async function preparePodcastCandidateForReview(
   }
   const transcriptMatches = draft.transcriptStatus === "unavailable"
     ? draft.transcriptUrl === null && draft.segments.length === 0
-    : draft.transcriptUrl !== null && draft.segments.length > 0
+    : (draft.transcriptStatus === "asr" ? draft.transcriptUrl === null : draft.transcriptUrl !== null) && draft.segments.length > 0
       && draft.segments.every((segment) => segment.sourceKind === draft.transcriptStatus);
   if (!transcriptMatches) throw new PodcastCandidateValidationError("transcript state does not match the reviewed timeline.");
   if (draft.segments.length > 0) {

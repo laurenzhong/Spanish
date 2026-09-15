@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createDrizzleContentAcquisitionRepository,
+  createPodcastCandidateDraft,
   type ContentAcquisitionRepository,
 } from "@/src/modules/content-acquisition";
 import { assertCandidatePublishable, ContentReviewIncompleteError } from "@/src/modules/content-acquisition/domain";
@@ -55,6 +56,9 @@ describe("media processing transaction", () => {
       cursor: null,
     });
     await repository.createRun({ id: "00000000-0000-4000-8000-000000000704", sourceId, generationId: "generation-1", initialCursor: null, startedAt: new Date("2026-09-15T00:00:00.000Z") });
+    const podcastDraft = createPodcastCandidateDraft({
+      stableKey: "podcast.fixture.processing", feedUrl: "https://fixture.example.test/feed.xml", episodeGuid: "episode-1", canonicalUrl: "https://fixture.example.test/episode-1", enclosureUrl: "https://fixture.example.test/episode-1.mp3", enclosureMimeType: "audio/mpeg", enclosureByteSize: 128, playbackExpiresAt: "2026-09-30T00:00:00.000Z", title: "Episode 1", summary: "Fixture", sourceName: "Fixture", language: "es", region: "es-ES", cefr: "A2", topics: ["topic.fixture"], durationMs: 10_000, publicationDate: "2026-09-15T00:00:00.000Z", fetchedAt: "2026-09-15T00:00:00.000Z", license: "licensed", attribution: "Fixture", licenseEvidence: "https://fixture.example.test/license", copyrightStatus: "cleared", transcriptStatus: "unavailable", transcriptUrl: null, segments: [], changeReason: "fixture",
+    });
     await repository.commitDiscoveryPage({
       runId: "00000000-0000-4000-8000-000000000704",
       sourceId,
@@ -70,7 +74,7 @@ describe("media processing transaction", () => {
         language: "es",
         publishedAt: null,
         contentHash: "a".repeat(64),
-        metadata: {},
+        metadata: { podcastDraft },
         rightsStatus: "verified",
         generationId: "generation-1",
         discoveredAt: new Date("2026-09-15T00:00:00.000Z"),
@@ -83,10 +87,12 @@ describe("media processing transaction", () => {
   });
 
   it("commits an immutable transcript draft and ephemeral artifact idempotently", async () => {
+    const currentCandidate = await repository.findCandidateById(candidateId);
+    expect(currentCandidate).toMatchObject({ revision: 1, generationId: "generation-1" });
     const commit = {
       candidateId,
-      expectedRevision: 1,
-      generationId: "generation-1",
+      expectedRevision: currentCandidate!.revision,
+      generationId: currentCandidate!.generationId,
       artifactId,
       artifactStorageKey: "ephemeral/candidate-1.mp3",
       audioHash,
@@ -107,6 +113,7 @@ describe("media processing transaction", () => {
     const [candidate] = await database.select().from(schema.contentCandidates).where(eq(schema.contentCandidates.id, candidateId));
     const artifacts = await database.select().from(schema.candidateArtifacts).where(and(eq(schema.candidateArtifacts.candidateId, candidateId), eq(schema.candidateArtifacts.contentHash, audioHash)));
     expect(candidate.metadata).toMatchObject({ mediaTranscriptReviewStatus: "blocked-low-confidence", mediaTranscriptDraft: { audioHash, provider: "fake" } });
+    expect(candidate.metadata).toHaveProperty("mediaTranscriptDraftHistory", []);
     expect(artifacts).toHaveLength(1);
     expect(artifacts[0]).toMatchObject({ artifactType: "asr-temporary-audio", ephemeral: true, status: "available" });
   });

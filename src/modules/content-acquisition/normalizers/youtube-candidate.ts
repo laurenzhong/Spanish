@@ -41,7 +41,7 @@ export const videoCandidateDraftSchema = z.strictObject({
   licenseEvidence: z.url().startsWith("https://"),
   copyrightStatus: z.literal("cleared"),
   artwork: mediaArtworkSchema.nullable().default(null),
-  captionStatus: z.enum(["unavailable", "platform_manual", "platform_auto"]),
+  captionStatus: z.enum(["unavailable", "platform_manual", "platform_auto", "asr"]),
   segments: z.array(videoCandidateSegmentSchema).max(500),
   contentHash: hashSchema,
   changeReason: z.string().trim().min(1).max(1_000),

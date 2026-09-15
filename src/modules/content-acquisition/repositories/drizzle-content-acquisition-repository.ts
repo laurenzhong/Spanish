@@ -3,6 +3,8 @@ import { and, desc, eq, or, sql } from "drizzle-orm";
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
 import type { DraftMediaSegment } from "@/src/modules/media/domain";
+import { calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers/podcast-candidate";
+import { calculateVideoCandidateContentHash, videoCandidateDraftSchema } from "../normalizers/youtube-candidate";
 import {
   ContentAcquisitionConflictError,
   assertCandidatePublishable,
@@ -121,6 +123,26 @@ function parseMediaTranscriptDraft(value: unknown): MediaTranscriptDraftRecord |
     lowConfidence: record.lowConfidence,
     createdAt,
   };
+}
+
+function mergeTranscriptIntoCandidateMetadata(
+  metadata: Readonly<Record<string, unknown>>,
+  contentType: string,
+  segments: readonly DraftMediaSegment[],
+): Readonly<Record<string, unknown>> {
+  if (contentType === "podcast") {
+    const parsed = podcastCandidateDraftSchema.safeParse(metadata.podcastDraft);
+    if (!parsed.success) throw new ContentAcquisitionConflictError("The podcast draft is invalid before ASR merge.");
+    const draft = { ...parsed.data, transcriptStatus: "asr" as const, transcriptUrl: null, segments: [...segments] };
+    return { ...metadata, podcastDraft: { ...draft, contentHash: calculatePodcastCandidateContentHash(draft) } };
+  }
+  if (contentType === "video") {
+    const parsed = videoCandidateDraftSchema.safeParse(metadata.videoDraft);
+    if (!parsed.success) throw new ContentAcquisitionConflictError("The video draft is invalid before ASR merge.");
+    const draft = { ...parsed.data, captionStatus: "asr" as const, segments: [...segments] };
+    return { ...metadata, videoDraft: { ...draft, contentHash: calculateVideoCandidateContentHash(draft) } };
+  }
+  throw new ContentAcquisitionConflictError("Only video and podcast candidates can receive media transcripts.");
 }
 
 function sourceConfigMatches(
@@ -503,13 +525,15 @@ export function createDrizzleContentAcquisitionRepository(
       }
       await database.transaction(async (transaction) => {
         const [candidate] = await transaction
-          .select({ revision: schema.contentCandidates.revision, generationId: schema.contentCandidates.generationId, metadata: schema.contentCandidates.metadata, publicationStatus: schema.contentCandidates.publicationStatus })
+          .select({ revision: schema.contentCandidates.revision, generationId: schema.contentCandidates.generationId, contentType: schema.contentCandidates.contentType, metadata: schema.contentCandidates.metadata, publicationStatus: schema.contentCandidates.publicationStatus })
           .from(schema.contentCandidates)
           .where(eq(schema.contentCandidates.id, input.candidateId))
           .limit(1)
           .for("update");
+        const existingDraft = parseMediaTranscriptDraft(candidate?.metadata?.mediaTranscriptDraft);
+        if (candidate && candidate.revision !== input.expectedRevision && existingDraft?.audioHash === input.audioHash) return;
         if (!candidate || candidate.revision !== input.expectedRevision || candidate.generationId !== input.generationId || candidate.publicationStatus !== "draft") {
-          throw new ContentAcquisitionConflictError("Candidate changed before the media transcript draft was committed.");
+          throw new ContentAcquisitionConflictError(`Candidate changed before the media transcript draft was committed (${candidate?.revision ?? "missing"}/${candidate?.generationId ?? "missing"}/${candidate?.publicationStatus ?? "missing"}).`);
         }
         const existingArtifact = await transaction
           .select({ id: schema.candidateArtifacts.id })
@@ -532,19 +556,29 @@ export function createDrizzleContentAcquisitionRepository(
             ephemeral: true,
           });
         }
+        const mergedMetadata = mergeTranscriptIntoCandidateMetadata(candidate.metadata, candidate.contentType, input.draft.segments);
+        const previousDraftHistory = Array.isArray(candidate.metadata.mediaTranscriptDraftHistory)
+          ? candidate.metadata.mediaTranscriptDraftHistory
+          : [];
+        const nextDraftHistory = existingDraft
+          ? [...previousDraftHistory, candidate.metadata.mediaTranscriptDraft].slice(-10)
+          : previousDraftHistory;
         await transaction.update(schema.contentCandidates).set({
           metadata: {
-            ...candidate.metadata,
+            ...mergedMetadata,
+            mediaTranscriptDraftHistory: nextDraftHistory,
             mediaTranscriptDraft: {
-              audioHash: input.draft.audioHash,
-              segments: input.draft.segments,
-              provider: input.draft.provider,
-              modelVersion: input.draft.modelVersion,
-              lowConfidence: input.draft.lowConfidence,
-              createdAt: input.draft.createdAt.toISOString(),
+              audioHash: input.draft.audioHash, segments: input.draft.segments, provider: input.draft.provider,
+              modelVersion: input.draft.modelVersion, lowConfidence: input.draft.lowConfidence, createdAt: input.draft.createdAt.toISOString(),
             },
             mediaTranscriptReviewStatus: input.draft.lowConfidence ? "blocked-low-confidence" : "pending-owner-review",
           },
+          contentHash: candidate.contentType === "podcast"
+            ? (mergedMetadata.podcastDraft as { contentHash: string }).contentHash
+            : (mergedMetadata.videoDraft as { contentHash: string }).contentHash,
+          revision: input.expectedRevision + 1,
+          status: "review_ready",
+          generationId: input.generationId,
           updatedAt: input.draft.createdAt,
           lastActivityAt: input.draft.createdAt,
         }).where(and(

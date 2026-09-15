@@ -217,7 +217,7 @@ export function createDrizzleMediaRepository(
       }
       const transcriptMatches = input.draft.transcriptStatus === "unavailable"
         ? input.draft.transcriptUrl === null && input.draft.segments.length === 0
-        : input.draft.transcriptUrl !== null && input.draft.segments.length > 0
+        : (input.draft.transcriptStatus === "asr" ? input.draft.transcriptUrl === null : input.draft.transcriptUrl !== null) && input.draft.segments.length > 0
           && input.draft.segments.every((segment) => segment.sourceKind === input.draft.transcriptStatus);
       if (!transcriptMatches) {
         throw new AcquiredPodcastPersistenceConflictError("The podcast transcript state does not match its reviewed timeline.");
