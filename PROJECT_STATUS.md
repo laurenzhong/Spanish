@@ -4,9 +4,18 @@
 
 - 最后更新：2026-09-15
 - 当前里程碑：内容驱动学习与自动内容供应重构
-- 总体状态：`LR-001` Language Reactor 实际来源接入与首批真实媒体发布已在当前工作树完成并进入 `review`；远端已注册播客/YouTube 来源，发布 20 个视频和 2 个播客。`LEARN-MEDIA-DETAIL-001` 媒体详情与视频学习器视觉设计已完成，`LEARN-MEDIA-DETAIL-002/003` 实现与回归进入 `review`；产品确认前不提升后续 ASR/词句任务。阶段 8 未启动
+- 总体状态：`LR-001` Language Reactor 实际来源接入与首批真实媒体发布已在当前工作树完成并进入 `review`；远端已注册播客/YouTube 来源，发布 20 个视频和 2 个播客。`LEARN-MEDIA-DETAIL-001` 媒体详情与视频学习器视觉设计已完成，`LEARN-MEDIA-DETAIL-002/003` 实现与回归进入 `review`；`MEDIA-002` 媒体 ASR/翻译/清理核心编排已开始，默认只使用 fake provider，数据库事务与审核工作流尚未接入。阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。article、video 和 podcast publisher 均已注册，自动采集仍不能直接发布。`UI-014` 已完成并作为阅读体验基线保留；`UI-015` 至 `UI-017` 与 `ALPHA-033` 的旧退出门禁因 ADR-0008 阻塞，等待按新信息架构重排。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter 及既有移动 Chromium 延期项继续如实记录
+
+### 2026-09-15：MEDIA-002 媒体 ASR、翻译、成本与清理核心编排
+
+- 状态：`in_progress`
+- 负责人：Codex
+- 范围：新增媒体 ASR eligibility 领域门禁、媒体音频分块与西语切句、可注入 transcription/translation provider 边界、翻译失败保留西语、低置信度标记、同音频哈希缓存查询、临时音频 finally 清理与可重试清理执行器；ASR 结果仅保存为审核草稿，不自动发布。
+- 修改文件：`src/modules/content-acquisition/domain/media-asr-eligibility.ts`、`src/modules/content-acquisition/processors/`、`src/modules/content-acquisition/application/process-media-candidate.ts`、`src/modules/content-acquisition/application/cleanup-candidate-artifacts.ts`、`src/modules/providers/media-transcription/`、`src/modules/providers/media-translation/` 及对应单元/契约测试。
+- 验证：新增媒体处理 Vitest `6 files / 13 tests`、现有媒体 Vitest `1 file / 4 tests`、目标 ESLint、`git diff --check` 通过。全量 `tsc` 仍被工作树已有 `tests/unit/composite-article-repository.test.ts` mock 缺少 `list` 阻断；未调用真实 ASR/翻译 provider，未执行数据库事务与审核 E2E。
+- 限制与下一步：当前编排器的持久化使用可注入 repository callback，尚未将 ASR 草稿/音频 artifact/attempt 写入 Drizzle 事务，也未接入 owner review UI。下一项补充数据库 repository 事务、artifact 删除重试记录、低置信度审核阻断和 `media-processing-review` E2E；保持默认 fake provider 和单候选硬预算。
 
 ### 2026-09-15：VIDEO-PLAYBACK-RELIABILITY-001 YouTube 网络失败降级
 
@@ -21,8 +30,9 @@
 
 - 状态：`in_progress`
 - 负责人：Codex
+- 实现 Commit：`e804a0b`、`cffed05`
 - 范围：新增 `media-video` Supabase Storage provider、授权视频回填脚本 `pnpm content:host-authorized-youtube-video`，以及 hosted MP4 的原生 `<video>` 学习器；回填要求 `MEDIA_VIDEO_HOSTING_CONFIRM=I_HAVE_AUTHORIZATION`、`yt-dlp` 和 ffmpeg，只处理已发布且 `copyrightStatus=cleared` 的官方嵌入视频。未托管视频继续保留 YouTube 降级。
-- 验证：目标 ESLint、Drizzle schema check、媒体相关 Vitest `3 files / 18 tests`、视频 Playwright hosted/official 桌面与移动 `4/4` 通过；全量 typecheck 被工作树中其他代理新增的 `cleanup-candidate-artifacts.ts` 语法错误阻断。当前网络对 YouTube 下载仍超时，因此本轮未声称已完成真实视频回填。
+- 验证：目标 ESLint、Drizzle schema check、媒体相关 Vitest `3 files / 18 tests`、视频 Playwright hosted/official 桌面与移动 `4/4` 通过；真实数据库安全演练结果 `hosted:0, skipped:20`，原因是当前环境没有 `yt-dlp`，没有更新资产。全量 typecheck 被工作树中其他代理新增的 `cleanup-candidate-artifacts.ts` 语法错误阻断。
 - 下一步：在可访问 YouTube 且具备授权的服务端环境安装 yt-dlp/ffmpeg，运行回填脚本并核验 `media-video` 对象返回 `200 video/mp4`；成功后再补真实数据库 Playwright 验收和撤下清理任务。
 
 ### 2026-09-15：播客字幕播放同步与无字幕状态修复
