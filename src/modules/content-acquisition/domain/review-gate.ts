@@ -31,6 +31,7 @@ export type PublishableCandidate = Readonly<{
   revision: number;
   contentHash: string | null;
   publicationStatus: CandidatePublicationStatus;
+  metadata?: Readonly<Record<string, unknown>>;
 }>;
 
 export class ContentReviewIncompleteError extends Error {
@@ -74,6 +75,10 @@ export function assertCandidatePublishable(
   }
   if (!/^[a-f0-9]{64}$/u.test(candidate.contentHash)) {
     throw new ContentReviewIncompleteError("The candidate does not have a valid immutable content hash.");
+  }
+  const mediaTranscriptDraft = candidate.metadata?.mediaTranscriptDraft;
+  if (mediaTranscriptDraft && typeof mediaTranscriptDraft === "object" && "lowConfidence" in mediaTranscriptDraft && mediaTranscriptDraft.lowConfidence === true) {
+    throw new ContentReviewIncompleteError("Low-confidence media transcript segments must be reviewed or replaced before publication.");
   }
   for (const dimension of ["content-es-ES", "teaching-zh-CN", "structure"] as const) {
     const approved = reviews.some((review) =>

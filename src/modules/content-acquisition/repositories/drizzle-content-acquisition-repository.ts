@@ -1,7 +1,8 @@
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
+import type { DraftMediaSegment } from "@/src/modules/media/domain";
 import {
   ContentAcquisitionConflictError,
   assertCandidatePublishable,
@@ -15,6 +16,8 @@ import type {
   ContentSourceRecord,
   ContentWorkflowRepository,
   ProcessingAttemptInput,
+  MediaTranscriptDraftRecord,
+  MediaTranscriptDraftCommitInput,
 } from "./content-acquisition-repository";
 import type { CandidateReviewRecord } from "../domain";
 import type { CandidatePublicationRef } from "../publishers";
@@ -81,6 +84,43 @@ function reviewRecord(row: typeof schema.candidateReviews.$inferSelect): Candida
 
 function jsonEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function parseMediaTranscriptDraft(value: unknown): MediaTranscriptDraftRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.audioHash !== "string"
+    || !/^[a-f0-9]{64}$/u.test(record.audioHash)
+    || typeof record.provider !== "string"
+    || typeof record.modelVersion !== "string"
+    || typeof record.lowConfidence !== "boolean"
+    || typeof record.createdAt !== "string"
+    || !Array.isArray(record.segments)
+  ) return null;
+  const segments = record.segments.filter((segment): segment is DraftMediaSegment => {
+    if (!segment || typeof segment !== "object") return false;
+    const item = segment as Record<string, unknown>;
+    return Number.isInteger(item.index)
+      && Number.isInteger(item.startMs)
+      && Number.isInteger(item.endMs)
+      && typeof item.sourceText === "string"
+      && (item.translation === null || typeof item.translation === "string")
+      && (item.speaker === null || typeof item.speaker === "string")
+      && (item.confidence === null || typeof item.confidence === "number")
+      && ["platform_manual", "platform_auto", "asr"].includes(String(item.sourceKind));
+  });
+  if (segments.length !== record.segments.length) return null;
+  const createdAt = new Date(record.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return null;
+  return {
+    audioHash: record.audioHash,
+    segments,
+    provider: record.provider,
+    modelVersion: record.modelVersion,
+    lowConfidence: record.lowConfidence,
+    createdAt,
+  };
 }
 
 function sourceConfigMatches(
@@ -445,6 +485,83 @@ export function createDrizzleContentAcquisitionRepository(
       ) {
         throw new ContentAcquisitionConflictError("Processing attempt idempotency key conflicts with existing input.");
       }
+    },
+
+    async findTranscriptByAudioHash(audioHash: string) {
+      if (!/^[a-f0-9]{64}$/u.test(audioHash)) return null;
+      const rows = await database
+        .select({ metadata: schema.contentCandidates.metadata })
+        .from(schema.contentCandidates)
+        .where(sql`${schema.contentCandidates.metadata}->'mediaTranscriptDraft'->>'audioHash' = ${audioHash}`)
+        .limit(1);
+      return parseMediaTranscriptDraft(rows[0]?.metadata?.mediaTranscriptDraft)?.segments ?? null;
+    },
+
+    async commitMediaTranscriptDraft(input: MediaTranscriptDraftCommitInput) {
+      if (!/^[a-f0-9]{64}$/u.test(input.audioHash) || input.draft.audioHash !== input.audioHash) {
+        throw new ContentAcquisitionConflictError("The media transcript hash is invalid or inconsistent.");
+      }
+      await database.transaction(async (transaction) => {
+        const [candidate] = await transaction
+          .select({ revision: schema.contentCandidates.revision, generationId: schema.contentCandidates.generationId, metadata: schema.contentCandidates.metadata, publicationStatus: schema.contentCandidates.publicationStatus })
+          .from(schema.contentCandidates)
+          .where(eq(schema.contentCandidates.id, input.candidateId))
+          .limit(1)
+          .for("update");
+        if (!candidate || candidate.revision !== input.expectedRevision || candidate.generationId !== input.generationId || candidate.publicationStatus !== "draft") {
+          throw new ContentAcquisitionConflictError("Candidate changed before the media transcript draft was committed.");
+        }
+        const existingArtifact = await transaction
+          .select({ id: schema.candidateArtifacts.id })
+          .from(schema.candidateArtifacts)
+          .where(and(
+            eq(schema.candidateArtifacts.candidateId, input.candidateId),
+            eq(schema.candidateArtifacts.artifactType, "asr-temporary-audio"),
+            eq(schema.candidateArtifacts.contentHash, input.audioHash),
+          ))
+          .limit(1);
+        if (existingArtifact.length === 0) {
+          await transaction.insert(schema.candidateArtifacts).values({
+            id: input.artifactId,
+            candidateId: input.candidateId,
+            artifactType: "asr-temporary-audio",
+            storageKey: input.artifactStorageKey,
+            contentHash: input.audioHash,
+            byteSize: input.byteSize,
+            status: "available",
+            ephemeral: true,
+          });
+        }
+        await transaction.update(schema.contentCandidates).set({
+          metadata: {
+            ...candidate.metadata,
+            mediaTranscriptDraft: {
+              audioHash: input.draft.audioHash,
+              segments: input.draft.segments,
+              provider: input.draft.provider,
+              modelVersion: input.draft.modelVersion,
+              lowConfidence: input.draft.lowConfidence,
+              createdAt: input.draft.createdAt.toISOString(),
+            },
+            mediaTranscriptReviewStatus: input.draft.lowConfidence ? "blocked-low-confidence" : "pending-owner-review",
+          },
+          updatedAt: input.draft.createdAt,
+          lastActivityAt: input.draft.createdAt,
+        }).where(and(
+          eq(schema.contentCandidates.id, input.candidateId),
+          eq(schema.contentCandidates.revision, input.expectedRevision),
+          eq(schema.contentCandidates.generationId, input.generationId),
+        ));
+      });
+    },
+
+    async markArtifactCleanup(input: Readonly<{ artifactId: string; status: "deleted" | "delete-pending" | "failed"; deletedAt: Date | null }>) {
+      const [updated] = await database.update(schema.candidateArtifacts).set({
+        status: input.status,
+        deletedAt: input.deletedAt,
+        updatedAt: input.deletedAt ?? new Date(),
+      }).where(eq(schema.candidateArtifacts.id, input.artifactId)).returning({ id: schema.candidateArtifacts.id });
+      if (!updated) throw new ContentAcquisitionConflictError("The candidate artifact no longer exists.");
     },
 
     async saveCandidateReview(input) {

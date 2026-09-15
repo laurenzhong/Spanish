@@ -21,7 +21,7 @@ export type MediaProcessingCandidate = Readonly<{
   automaticSegments?: readonly DraftMediaSegment[];
 }>;
 
-export type TemporaryMediaAudio = Readonly<{ bytes: Uint8Array; mimeType: string; fileName: string; contentHash: string }>;
+export type TemporaryMediaAudio = Readonly<{ bytes: Uint8Array; mimeType: string; fileName: string; contentHash: string; storageKey?: string | null }>;
 
 export type MediaAudioAssetProvider = Readonly<{
   acquire: (candidate: MediaProcessingCandidate, options?: Readonly<{ signal?: AbortSignal }>) => Promise<TemporaryMediaAudio>;
@@ -66,6 +66,8 @@ export class MediaProcessingError extends Error {
 export interface MediaProcessingRepository {
   findTranscriptByAudioHash?: (audioHash: string) => Promise<readonly DraftMediaSegment[] | null>;
   saveTranscriptDraft?: (input: Readonly<{ candidateId: string; audioHash: string; segments: readonly DraftMediaSegment[]; provider: string; modelVersion: string; lowConfidence: boolean }>) => Promise<void>;
+  commitTranscriptDraft?: (input: Readonly<{ candidateId: string; expectedRevision: number; generationId: string; artifactId: string; artifactStorageKey: string | null; audioHash: string; byteSize: number; segments: readonly DraftMediaSegment[]; provider: string; modelVersion: string; lowConfidence: boolean; createdAt: Date }>) => Promise<void>;
+  markArtifactCleanup?: (input: Readonly<{ artifactId: string; status: "deleted" | "delete-pending" | "failed"; deletedAt: Date | null }>) => Promise<void>;
   recordAttempt?: (attempt: MediaProcessingAttempt) => Promise<void>;
 }
 
@@ -124,6 +126,7 @@ export async function processMediaCandidate(input: Readonly<{
   let totalCost = 0;
   let result: MediaProcessingResult | null = null;
   let attempt: MediaProcessingAttempt | null = null;
+  let artifactId: string | null = null;
   try {
     asset = await input.audio.acquire(input.candidate, { signal: input.signal });
     const cached = input.repository?.findTranscriptByAudioHash ? await input.repository.findTranscriptByAudioHash(asset.contentHash) : null;
@@ -141,7 +144,25 @@ export async function processMediaCandidate(input: Readonly<{
         totalCost += translated.estimatedCostMicros;
       }
       const isLowConfidence = lowConfidence(segments);
-      await input.repository?.saveTranscriptDraft?.({ candidateId: input.candidate.id, audioHash: asset.contentHash, segments, provider: transcription.provider, modelVersion: transcription.modelVersion, lowConfidence: isLowConfidence });
+      artifactId = randomUUID();
+      if (input.repository?.commitTranscriptDraft) {
+        await input.repository.commitTranscriptDraft({
+          candidateId: input.candidate.id,
+          expectedRevision: input.expectedRevision ?? 1,
+          generationId: input.generationId ?? "generation-1",
+          artifactId,
+          artifactStorageKey: asset.storageKey ?? null,
+          audioHash: asset.contentHash,
+          byteSize: asset.bytes.byteLength,
+          segments,
+          provider: transcription.provider,
+          modelVersion: transcription.modelVersion,
+          lowConfidence: isLowConfidence,
+          createdAt: now(),
+        });
+      } else {
+        await input.repository?.saveTranscriptDraft?.({ candidateId: input.candidate.id, audioHash: asset.contentHash, segments, provider: transcription.provider, modelVersion: transcription.modelVersion, lowConfidence: isLowConfidence });
+      }
       result = { status: "succeeded", transcriptSource: "asr", segments, lowConfidence: isLowConfidence, translationFailedCount, estimatedCostMicros: totalCost, cleanupStatus: "not-required", attempt: null };
     }
   } catch (error) {
@@ -151,6 +172,13 @@ export async function processMediaCandidate(input: Readonly<{
     if (asset) {
       let cleanupStatus: "deleted" | "delete-pending" | "failed" = "failed";
       try { cleanupStatus = await input.audio.release(asset); } catch { cleanupStatus = "failed"; }
+      if (artifactId && input.repository?.markArtifactCleanup) {
+        try {
+          await input.repository.markArtifactCleanup({ artifactId, status: cleanupStatus, deletedAt: cleanupStatus === "deleted" ? now() : null });
+        } catch {
+          cleanupStatus = "failed";
+        }
+      }
       if (result) result = { ...result, cleanupStatus };
     }
     if (input.repository?.recordAttempt) {

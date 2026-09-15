@@ -14,6 +14,7 @@ import type {
   SourceAdapterType,
   SourceKind,
 } from "../schemas";
+import type { DraftMediaSegment } from "@/src/modules/media/domain";
 
 export type ContentSourceRecord = Readonly<{
   id: string;
@@ -142,6 +143,26 @@ export type ProcessingAttemptInput = Readonly<{
   errorCode: string | null;
 }>;
 
+export type MediaTranscriptDraftRecord = Readonly<{
+  audioHash: string;
+  segments: readonly DraftMediaSegment[];
+  provider: string;
+  modelVersion: string;
+  lowConfidence: boolean;
+  createdAt: Date;
+}>;
+
+export type MediaTranscriptDraftCommitInput = Readonly<{
+  candidateId: string;
+  expectedRevision: number;
+  generationId: string;
+  artifactId: string;
+  artifactStorageKey: string | null;
+  audioHash: string;
+  byteSize: number;
+  draft: MediaTranscriptDraftRecord;
+}>;
+
 export interface ContentAcquisitionRepository {
   registerSource(input: RegisterContentSourceInput): Promise<ContentSourceRecord>;
   findSourceByStableKey(stableKey: string): Promise<ContentSourceRecord | null>;
@@ -175,6 +196,9 @@ export interface ContentAcquisitionRepository {
     updatedAt: Date;
   }>): Promise<ContentCandidateRecord>;
   recordProcessingAttempt(input: ProcessingAttemptInput): Promise<void>;
+  findTranscriptByAudioHash?(audioHash: string): Promise<readonly DraftMediaSegment[] | null>;
+  commitMediaTranscriptDraft?(input: MediaTranscriptDraftCommitInput): Promise<void>;
+  markArtifactCleanup?(input: Readonly<{ artifactId: string; status: "deleted" | "delete-pending" | "failed"; deletedAt: Date | null }>): Promise<void>;
 }
 
 export interface ContentWorkflowRepository {
