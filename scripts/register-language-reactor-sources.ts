@@ -51,7 +51,7 @@ function sourceInput(kind: "video-channel" | "podcast-feed") {
       maxDurationMs: isPodcast ? 3_600_000 : 43_200_000,
       maxApiBytes: 5_000_000,
       maxEnclosureBytes: 1_000_000_000,
-      playbackValidityHours: 168,
+      playbackValidityHours: null,
       authorization: authorizationNote,
     },
     schedule: { mode: "manual", note: "Run explicitly until OPS-001 schedules this source." },

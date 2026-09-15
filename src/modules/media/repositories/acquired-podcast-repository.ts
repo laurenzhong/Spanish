@@ -11,7 +11,8 @@ export type AcquiredPodcastDraft = Readonly<{
   enclosureUrlHash: string;
   enclosureMimeType: "audio/mpeg" | "audio/mp4" | "audio/aac" | "audio/ogg" | "audio/webm" | "application/ogg";
   enclosureByteSize: number;
-  playbackExpiresAt: string;
+  playbackProvider: "podcast-rss" | "language-reactor";
+  playbackExpiresAt: string | null;
   title: string;
   summary: string;
   sourceName: string;

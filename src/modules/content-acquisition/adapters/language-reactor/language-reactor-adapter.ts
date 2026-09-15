@@ -69,7 +69,7 @@ export const languageReactorRightsPolicySchema = z.strictObject({
   maxDurationMs: z.number().int().min(15_000).max(43_200_000).default(3_600_000),
   maxApiBytes: z.number().int().min(1_024).max(5_000_000).default(5_000_000),
   maxEnclosureBytes: z.number().int().min(1).max(1_000_000_000),
-  playbackValidityHours: z.number().int().min(1).max(720).default(168),
+  playbackValidityHours: z.number().int().min(1).max(720).nullable().default(168),
 });
 
 type LanguageReactorPolicy = z.infer<typeof languageReactorRightsPolicySchema>;
@@ -277,7 +277,10 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           enclosureUrl: audio.url,
           enclosureMimeType: audio.contentType as "audio/mpeg" | "audio/mp4" | "audio/aac" | "audio/ogg" | "audio/webm" | "application/ogg",
           enclosureByteSize: audio.contentLength,
-          playbackExpiresAt: new Date(fetchedAt.getTime() + policy.playbackValidityHours * 3_600_000).toISOString(),
+          playbackProvider: "language-reactor",
+          playbackExpiresAt: policy.playbackValidityHours === null
+            ? null
+            : new Date(fetchedAt.getTime() + policy.playbackValidityHours * 3_600_000).toISOString(),
           title,
           summary: doc.description.trim().slice(0, 4_000),
           sourceName: doc.info.feedTitle?.trim() || this.options.source.displayName,

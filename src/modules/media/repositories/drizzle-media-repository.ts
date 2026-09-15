@@ -202,7 +202,7 @@ export function createDrizzleMediaRepository(
       } catch {
         throw new AcquiredPodcastPersistenceConflictError("The podcast feed or enclosure URL is invalid.");
       }
-      const playbackExpiresAt = new Date(input.draft.playbackExpiresAt);
+      const playbackExpiresAt = input.draft.playbackExpiresAt ? new Date(input.draft.playbackExpiresAt) : null;
       if (
         feedUrl.protocol !== "https:"
         || enclosureUrl.protocol !== "https:"
@@ -210,8 +210,8 @@ export function createDrizzleMediaRepository(
         || feedUrl.password
         || enclosureUrl.username
         || enclosureUrl.password
-        || Number.isNaN(playbackExpiresAt.getTime())
-        || playbackExpiresAt.getTime() <= input.publishedAt.getTime()
+        || (playbackExpiresAt !== null && (Number.isNaN(playbackExpiresAt.getTime())
+          || playbackExpiresAt.getTime() <= input.publishedAt.getTime()))
       ) {
         throw new AcquiredPodcastPersistenceConflictError("The podcast playback asset is not safely usable at publication time.");
       }
@@ -300,7 +300,7 @@ export function createDrizzleMediaRepository(
         await transaction.insert(schema.mediaAssets).values({
           mediaVersionId: version.id,
           kind: "audio",
-          providerKey: "podcast-rss",
+          providerKey: input.draft.playbackProvider,
           playbackUrl: input.draft.enclosureUrl,
           playbackExpiresAt,
           mimeType: input.draft.enclosureMimeType,

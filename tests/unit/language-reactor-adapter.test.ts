@@ -23,7 +23,7 @@ const policy = languageReactorRightsPolicySchema.parse({
   playbackValidityHours: 168,
 });
 
-function source(sourceKind: "video-channel" | "podcast-feed") {
+function source(sourceKind: "video-channel" | "podcast-feed", sourcePolicy = policy) {
   return {
     sourceKind,
     playlistId: sourceKind === "video-channel" ? "t_yt_mix_es" : "t_pd_mix_es",
@@ -32,7 +32,7 @@ function source(sourceKind: "video-channel" | "podcast-feed") {
       : "https://www.languagereactor.com/c/es/pd/t_pd_mix_es",
     displayName: "Language Reactor",
     region: "es-ES",
-    policy,
+    policy: sourcePolicy,
   };
 }
 
@@ -102,6 +102,34 @@ describe("Language Reactor adapter", () => {
       artwork: { url: "https://is1-ssl.mzstatic.com/image/thumb/podcast.jpg", source: "podcast-feed", width: 600, height: 600 },
     });
     expect(String(fetchImpl.mock.calls[2]?.[0])).toContain("https://itunes.apple.com/lookup");
+  });
+
+  it("marks owner-authorized podcast audio as permanently playable", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response({
+        status: "success",
+        data: { docs_metadata: [{
+          mediaClass: "AUDIO_FILE",
+          source: "PODCAST",
+          info: { feedTitle: "Podcast autorizado" },
+          audioFileURL: "https://audio.example.test/episode.mp3",
+          duration_ms: 90_000,
+          diocoDocId: "it_permanent_episode",
+          diocoDocName: "Una charla permanente",
+          description: "Escucha en español.",
+          lang_G: "es",
+        }] },
+      }))
+      .mockResolvedValueOnce(new Response(null, { status: 200, headers: { "content-type": "audio/mpeg", "content-length": "240000" } }));
+    const permanentPolicy = { ...policy, playbackValidityHours: null };
+    const adapter = new LanguageReactorAdapter({ fetch: fetchImpl, source: source("podcast-feed", permanentPolicy), now: () => new Date("2026-09-15T00:00:00.000Z") });
+
+    const page = await adapter.discover({ sourceStableKey: "lr-podcast", externalSourceId: "t_pd_mix_es", cursor: null, limit: 1 });
+
+    expect(page.items[0]?.metadata.podcastDraft).toMatchObject({
+      playbackProvider: "language-reactor",
+      playbackExpiresAt: null,
+    });
   });
 
   it("accepts YouTube IDs beginning with a separator", async () => {

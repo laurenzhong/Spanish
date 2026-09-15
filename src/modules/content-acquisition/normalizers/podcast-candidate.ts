@@ -29,7 +29,8 @@ export const podcastCandidateDraftSchema = z.strictObject({
   enclosureUrlHash: hashSchema,
   enclosureMimeType: z.enum(["audio/mpeg", "audio/mp4", "audio/aac", "audio/ogg", "audio/webm", "application/ogg"]),
   enclosureByteSize: z.number().int().positive(),
-  playbackExpiresAt: z.iso.datetime({ offset: true }),
+  playbackProvider: z.enum(["podcast-rss", "language-reactor"]).default("podcast-rss"),
+  playbackExpiresAt: z.iso.datetime({ offset: true }).nullable(),
   title: z.string().trim().min(1).max(500),
   summary: z.string().trim().max(4_000),
   sourceName: z.string().trim().min(1).max(200),
@@ -53,7 +54,10 @@ export const podcastCandidateDraftSchema = z.strictObject({
 });
 
 export type PodcastCandidateDraft = z.infer<typeof podcastCandidateDraftSchema>;
-type PodcastDraftInput = Omit<PodcastCandidateDraft, "contentHash" | "enclosureUrlHash" | "artwork"> & { artwork?: PodcastCandidateDraft["artwork"] };
+type PodcastDraftInput = Omit<PodcastCandidateDraft, "contentHash" | "enclosureUrlHash" | "artwork" | "playbackProvider"> & {
+  playbackProvider?: PodcastCandidateDraft["playbackProvider"];
+  artwork?: PodcastCandidateDraft["artwork"];
+};
 
 export function calculatePodcastEnclosureUrlHash(url: string): string {
   return createHash("sha256").update(url).digest("hex");
@@ -70,7 +74,7 @@ export function createPodcastCandidateDraft(input: PodcastDraftInput): PodcastCa
     enclosureUrlHash: calculatePodcastEnclosureUrlHash(input.enclosureUrl),
     contentHash: "0".repeat(64),
   });
-  if (new Date(normalized.playbackExpiresAt).getTime() <= new Date(normalized.fetchedAt).getTime()) {
+  if (normalized.playbackExpiresAt && new Date(normalized.playbackExpiresAt).getTime() <= new Date(normalized.fetchedAt).getTime()) {
     throw new Error("Podcast playback expiry must be later than the enclosure validation time.");
   }
   return { ...normalized, contentHash: calculatePodcastCandidateContentHash(normalized) };

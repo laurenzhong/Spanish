@@ -282,6 +282,7 @@ export class PodcastRssAdapter implements ContentSourceAdapter {
           enclosureUrl: audio.url,
           enclosureMimeType: audio.contentType as PodcastCandidateDraft["enclosureMimeType"],
           enclosureByteSize: audio.contentLength,
+          playbackProvider: "podcast-rss",
           playbackExpiresAt: new Date(fetchedAt.getTime() + this.options.source.playbackValidityHours * 3_600_000).toISOString(),
           title,
           summary: extractPlainTextFragment(xmlText(xmlFirst(item.entry, "description", "summary", "content"))).slice(0, 4_000),

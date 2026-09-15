@@ -95,7 +95,7 @@ export const mediaAssets = pgTable("media_assets", {
   uniqueIndex("media_assets_version_kind_uidx").on(table.mediaVersionId, table.kind),
   index("media_assets_availability_idx").on(table.availability),
   check("media_assets_https_check", sql`${table.playbackUrl} ~ '^https://'`),
-  check("media_assets_expiry_policy_check", sql`${table.kind} = 'official_embed' or ${table.playbackExpiresAt} is not null`),
+  check("media_assets_expiry_policy_check", sql`${table.kind} = 'official_embed' or ${table.providerKey} = 'language-reactor' or ${table.playbackExpiresAt} is not null`),
 ]);
 
 export const mediaSegments = pgTable("media_segments", {

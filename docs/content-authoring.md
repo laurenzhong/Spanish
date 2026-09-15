@@ -187,7 +187,7 @@ YouTube 来源必须使用 `adapter_type=youtube`、`source_kind=video-channel`�
 
 频道 Atom feed 只负责增量发现，Data API 再确认频道、公开状态、可嵌入状态、声明语言、区域限制和时长。当前真实适配器不读取非公开字幕或下载接口，因此默认候选为 `captionStatus=unavailable` 且片段为空；这类内容可以在三维审核后以“仅播放”方式发布。以后从平台允许渠道取得的人工/自动字幕仍必须标记 `platform_manual`/`platform_auto`，解析成最多 500 段、不重叠且不越过视频时长的毫秒时间轴，再独立审核后发布。
 
-播客来源必须使用 `adapter_type=podcast-rss`、`source_kind=podcast-feed`、credential-free HTTPS feed URL、`language=es` 和 `rights_status=verified`。`rights_policy` 必须声明 `contentMode=enclosure_playback`、许可、署名、HTTPS 许可证据、feed/episode/audio/transcript 主机 allowlist、允许的音频 MIME、enclosure 与 transcript 体积上限、播放校验有效期、CEFR、主题及最短/最长时长。发现阶段只对 enclosure 发起 `HEAD` 并逐跳校验 HTTPS、主机、重定向、Content-Type 和 Content-Length，不下载完整音频；URL 不进入普通日志。
+播客来源必须使用 `adapter_type=podcast-rss`、`source_kind=podcast-feed`、credential-free HTTPS feed URL、`language=es` 和 `rights_status=verified`。`rights_policy` 必须声明 `contentMode=enclosure_playback`、许可、署名、HTTPS 许可证据、feed/episode/audio/transcript 主机 allowlist、允许的音频 MIME、enclosure 与 transcript 体积上限、播放校验策略、CEFR、主题及最短/最长时长。普通 RSS 来源使用有限 `playbackValidityHours`；只有明确授权且稳定的来源适配器才能使用 `playbackProvider=language-reactor` 与 `playbackExpiresAt=null`，这表示永久保留可播放资格，不保证第三方服务器永远在线。发现阶段仍只对 enclosure 发起 `HEAD` 并逐跳校验 HTTPS、主机、重定向、Content-Type 和 Content-Length，不下载完整音频；URL 不进入普通日志。
 
 播客 episode 先按 GUID 和规范化 URL 去重，再用排除抓取时间、播放到期时间与流程备注的确定性哈希识别重发和内容变化。只有来源明确声明的西语 `text/vtt` 可进入候选；解析成功的时间轴标记 `platform_manual` 或 `platform_auto`，必须不重叠、不越界且不超过 500 段。缺失、永久失效或非法 transcript 诚实降级为无逐句文本候选；临时网络、`429` 或 `5xx` 失败必须保留游标重试，不能把临时失败固化成无 transcript 版本。`PODCAST-001` 不下载音频、不接 ASR、不生成翻译；这些处理只属于后续 `MEDIA-002`。
 

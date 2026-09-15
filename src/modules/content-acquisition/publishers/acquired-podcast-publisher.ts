@@ -61,7 +61,7 @@ export class AcquiredPodcastPublisher implements CandidatePublisher {
       throw new PodcastPublicationConflictError("The podcast candidate no longer matches its reviewed draft.");
     }
     const publishedAt = (this.dependencies.now ?? (() => new Date()))();
-    if (new Date(draft.playbackExpiresAt).getTime() <= publishedAt.getTime()) {
+    if (draft.playbackExpiresAt && new Date(draft.playbackExpiresAt).getTime() <= publishedAt.getTime()) {
       throw new PodcastPublicationConflictError("The reviewed podcast enclosure validation has expired.");
     }
     const reviews = [

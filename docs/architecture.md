@@ -167,9 +167,9 @@ YouTube 频道适配器只读取官方 Atom feed 和 Data API v3 元数据。频
 
 video publisher 调用 `media` application/repository，在单一事务内追加不可变 `media_versions`、官方 `youtube-nocookie.com` 播放资产、可选的已审核字幕时间轴、候选 provenance 和两份 `codex-ai-owner-authorized-review` 记录。同一 candidate revision/hash 幂等返回原版本，哈希不一致时冲突；撤下同时归档版本、撤下播放资产并清除当前公开版本。
 
-播客 RSS 与文章 RSS 共享 `saxes` XML 解析和有界 HTTPS 获取边界。来源必须是已启用、权利已验证的西语 `podcast-feed`，并显式列出 feed、episode、音频和可选 transcript 主机，以及许可、署名、证据、时长、体积、CEFR、主题和播放校验有效期。适配器用 GUID、规范化 episode URL 与确定性内容哈希形成候选；enclosure 只发起逐跳 allowlist 校验的 `HEAD`，验证 Content-Type 和 Content-Length，不在发现阶段下载音频。只接受来源声明的西语 `text/vtt`，解析失败或没有合法 transcript 时形成无逐句文本的可播放候选，不调用 ASR。enclosure 或已声明 transcript 的网络、`429`、`5xx` 错误会中止本轮并保留游标以便重试；永久 4xx、格式或权利错误才跳过或降级。
+播客 RSS 与文章 RSS 共享 `saxes` XML 解析和有界 HTTPS 获取边界。来源必须是已启用、权利已验证的西语 `podcast-feed`，并显式列出 feed、episode、音频和可选 transcript 主机，以及许可、署名、证据、时长、体积、CEFR、主题和播放校验策略。普通 RSS 音频保存有限播放校验有效期；明确标记为 `language-reactor` 的所有者授权稳定资产可以保存空有效期，表示不因租约到期而隐藏，但播放失败仍必须诚实返回错误。适配器用 GUID、规范化 episode URL 与确定性内容哈希形成候选；enclosure 只发起逐跳 allowlist 校验的 `HEAD`，验证 Content-Type 和 Content-Length，不在发现阶段下载音频。只接受来源声明的西语 `text/vtt`，解析失败或没有合法 transcript 时形成无逐句文本的可播放候选，不调用 ASR。enclosure 或已声明 transcript 的网络、`429`、`5xx` 错误会中止本轮并保留游标以便重试；永久 4xx、格式或权利错误才跳过或降级。
 
-podcast publisher 在播放校验未过期时调用 `media` application/repository，原子保存 feed/GUID/enclosure URL 哈希、带有效期的音频播放资产、可选已审核 transcript 时间轴和两份授权 Codex AI 审核记录。原始 enclosure URL 只存在服务端候选和播放资产，不写普通日志；公开投影仍受发布、版权、资产可用性与有效期共同约束。撤下会归档版本、标记资产为 `withdrawn` 并移除当前公开版本，保留来源和审核审计。
+podcast publisher 在播放校验有效或来源声明为稳定播放资产时调用 `media` application/repository，原子保存 feed/GUID/enclosure URL 哈希、带有效期或永久标记的音频播放资产、可选已审核 transcript 时间轴和两份授权 Codex AI 审核记录。原始 enclosure URL 只存在服务端候选和播放资产，不写普通日志；公开投影仍受发布、版权和资产可用性约束，有限租约还需满足有效期。撤下会归档版本、标记资产为 `withdrawn` 并移除当前公开版本，保留来源和审核审计。
 
 文章继续由现有 article 表族拥有；视频和播客由 `media` 共享稳定身份、版本、资产和定时片段；旧 `content_packs` 冻结为历史兼容载体，不为新媒体增加字段。`lexicon-corpus` 通过只读投影索引已发布 article/media 版本，不修改来源内容。
 
