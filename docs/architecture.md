@@ -1,6 +1,6 @@
 # 个人 Alpha Web/PWA 架构边界
 
-- 状态：实施基线
+- 状态：架构与目标边界基线；不作为当前分支已实现清单，集成/验收状态见 [PROJECT_STATUS](../PROJECT_STATUS.md)
 - 适用范围：个人 Alpha
 - 详细产品要求：[设计规范](superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
 - 当前客户端设计：[Web 优先的个人学习产品与场景实战设计](superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
@@ -177,6 +177,10 @@ podcast publisher 在播放校验有效或来源声明为稳定播放资产时�
 
 长任务由定时 CI runner 调用 TypeScript CLI。每次运行/步骤携带 `runId`、`jobId`、`generationId` 和 revision；游标只在已承诺写入完成后推进。Route Handler 只承担所有者短操作，不承担抓取、下载或 ASR。
 
+当前工作树媒体字幕回填通过内部 `SpeechToTextProvider` 选择 MiniMax `asr-1.0` 或 OpenAI；MiniMax 使用官方 `/v1/speech_to_text` 的 `verbose_json` 句段时间戳（当前实现按单次 500 秒/50 MB 门槛处理，非本次对供应商上限的外部核验），在 application 层按 25 MB 和 500 秒切块后合并为最多 500 段毫秒时间轴。provider 只返回统一 DTO，包含脱敏 request ID、模型、延迟、可选说话人/置信度和 `ephemeral` 保留策略；ASR 结果先写 owner-only 草稿，三维审核通过后才追加不可变媒体版本，临时音频在所有终态删除。
+
+媒体操作/环境配置统一见 [媒体运行手册](operations/media-content-workflow.md)；Bunny 的供应商决定以 ADR-0009 对应提交为准，适配器存在本身不代表决策或迁移验收完成。定时 runner 图描述目标架构，不证明当前分支包含 workflow 或部署已启用。
+
 ### 6.1 学习、阅读与能力入口
 
 `/learn` 是视频/播客目录和媒体学习器，不再读取推荐器生成“开始/继续”任务。`/read` 在文章之外提供词汇、短语、语料和文字考察。`training` 继续提供 attempt、录音、状态机和证据编排，但不再拥有任务式学习首页。
@@ -186,7 +190,7 @@ podcast publisher 在播放校验有效或来源声明为稳定播放资产时�
 
 用户进度绑定具体媒体版本，以 revision/CAS 保存位置并允许相同旧请求幂等重放，不能把过期版本、未审核片段或越界位置写入进度。客户端串行同步最新位置，切换媒体或卸载时取消旧请求，并忽略旧 generation 响应；409 必须要求刷新，普通同步失败只提示可重试，均不写学习证据。`/learn` 在没有正式媒体时显示真实空状态，不用 fixture 或 AI 示例内容冒充已发布素材；视频与播客 E2E fixture 只在非生产且 `AUTH_E2E_ENABLED=1`、命中各自固定 stable key 时可用。旧 `/learn/practice` 保留为兼容 route，但不再从学习首页暴露。
 
-画像主投影为词汇与短语、交流运用、语音表达、跟读表现四个板块。底层 `evidence_events` 和 `user_skill_states` 继续按 skill key 保存并可重算；profile 只做版本化分组和解释。文字考察、文字对话、可信语音和跟读按输出方式进入不同 skill；观看、阅读、查词、收藏和时长均不写证据。
+目标画像主投影为词汇与短语、交流运用、语音表达、跟读表现四个板块；PROFILE-001 的分支集成状态见状态页，不表示所有工作树均已采用。底层 `evidence_events` 和 `user_skill_states` 继续按 skill key 保存并可重算；profile 只做版本化分组和解释。文字考察、文字对话、可信语音和跟读按输出方式进入不同 skill；观看、阅读、查词、收藏和时长均不写证据。
 
 ### 6.2 场景实战与长期角色隔离
 

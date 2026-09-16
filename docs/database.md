@@ -34,9 +34,9 @@ ALPHA-003 建立 Supabase PostgreSQL / Drizzle 基础；ALPHA-004 在第二版�
 
 READ-001 新增 `articles`、`article_versions`、`article_sources`、`article_segments` 和 `article_assets` 表族。文章版本以 `(article_id, version)` 唯一，保存规范化内容哈希、版权来源、段落和资产声明；公开 RLS 只允许已发布且在 `content_reviews` 中获批的文章版本及其从属行。文章关联的表达、目标和标签作为稳定 key 快照保存，阅读数据不写入 `evidence_events`、`user_skill_states` 或 `user_scene_states`。
 
-READ-002 的 `GET /api/v1/content/articles` 只返回已发布文章的卡片 DTO，使用服务端分页、主题和搜索过滤；不会把文章正文或用户阅读状态放入列表响应。当前 bundle 只有 draft 文章，因此 Web 与 Flutter 均显示可解释的空状态。
+READ-002 的 `GET /api/v1/content/articles` 只返回已发布文章的卡片 DTO，使用服务端分页、主题和搜索过滤；不会把文章正文或用户阅读状态放入列表响应。这是 READ-002 当时仅有 draft bundle 的记录，不代表当前目录或数据库内容；当前数据/发布状态须按目标环境核对，Flutter 仍暂停同步。
 
-READ-003 增加 `GET /api/v1/content/articles/:articleId`，只返回已发布且版权清晰的规范化正文和稳定段落。Alpha 阅读器当前将位置、短语、高亮和笔记按文章 `stableKey`、版本与 `contentHash` 保存在 Web localStorage 或 Flutter `SecureStorage`，这是阅读 UI 的恢复缓存，不是学习证据权威来源；后续服务端用户阅读表接入时必须沿用同一版本边界和 RLS，不得把阅读活动写入口语画像。
+READ-003 增加 `GET /api/v1/content/articles/:articleId`，只返回已发布且版权清晰的规范化正文和稳定段落。READ-003 当时将位置、短语、高亮和笔记按文章 `stableKey`、版本与 `contentHash` 保存在 Web localStorage 或 Flutter `SecureStorage`，这是阅读 UI 的恢复缓存，不是学习证据权威来源；READ-005 后续已引入服务端阅读状态（见本文件相关表与状态历史）；当前实现仍必须沿用同一版本边界和 RLS，不得把阅读活动写入口语画像。
 
 MEDIA-001 新增迁移 `0024_media_library_foundation.sql` 及 `media_items`、`media_versions`、`media_assets`、`media_segments`、`user_media_progress`。`media_items.current_version` 指向当前不可变版本号；正式投影还必须同时满足版本已发布、版权已清晰、资产可用且播放信息未过期。非官方嵌入资产必须保存过期时间，片段以版本内 `segment_index` 唯一并校验毫秒区间。用户进度以 `(user_id, media_version_id)` 唯一，revision/CAS 防止并发静默覆盖，账号删除时随 profile 级联清理；播放、观看时长和进度都不是能力证据。
 
@@ -70,7 +70,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
 - `DATABASE_URL` 用于应用运行时；托管 Supabase 环境优先使用 transaction pooler。
-- `DIRECT_DATABASE_URL` 用于迁移；应使用直接 PostgreSQL 连接。
+- `DIRECT_DATABASE_URL` 用于迁移；应使用直接 PostgreSQL 连接。[drizzle.config.ts](../drizzle.config.ts) 实际依次读取 `DIRECT_DATABASE_URL ?? DATABASE_URL ?? 本机默认地址`，空字符串不会触发回退；存在远程 `DATABASE_URL` 时不能以为遗漏 DIRECT 就一定迁移本地库。dotenv 加载根目录 `.env`，现有进程变量优先；迁移前在本机确认目标，不打印连接字符串。
 - Drizzle 命令在没有环境变量时只回退到 Supabase CLI 的本机默认端口 `127.0.0.1:54322`，不会回退到任何远程环境。
 - 浏览器和 Flutter 代码不得读取这两个变量；它们不能使用 `NEXT_PUBLIC_` 前缀。
 - `NEXT_PUBLIC_SUPABASE_*` 只包含公开项目标识和 publishable key；service role key 永远不能使用公开前缀或进入客户端构建。

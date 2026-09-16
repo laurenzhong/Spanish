@@ -53,37 +53,35 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 
 自动内容供应继续运行在同一仓库和模块化单体边界内：`content-acquisition` 负责来源、候选和处理编排，`media` 负责视频/播客版本与播放，`lexicon-corpus` 负责词句和语料。长任务由定时 CI runner 调用 TypeScript CLI，不在 Vercel 请求中运行，也不提前引入微服务或消息队列。
 
-## 文档
+## 文档与当前状态
 
-- [当前任务与项目状态](PROJECT_STATUS.md)
-- [完整产品设计](docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
-- [Web 优先的个人学习产品与场景实战设计](docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
-- [自动内容供应与词句学习重构设计](docs/superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md)
-- [自动内容供应与词句学习重构实施计划](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)
-- [Web/PWA 场景学习闭环实施计划](docs/plans/2026-09-11-web-first-scenario-practice-implementation-plan.md)
-- [阅读库与西语文章内容体系设计](docs/superpowers/specs/2026-08-26-reading-library-and-article-content-design.md)
-- [UI-009：Readlang 阅读工作台技术设计](docs/superpowers/specs/2026-08-26-readlang-reading-workbench-technical-design.md)
-- [Web UI 设计研究与页面方案](docs/superpowers/specs/2026-08-26-web-ui-design-research-and-scheme.md)
-- [探索页桌面 Web 技术调研](docs/superpowers/specs/2026-08-28-explore-page-desktop-web-technical-research.md)
-- [探索页桌面 Web 视觉与交互方案](docs/superpowers/specs/2026-08-28-explore-page-desktop-web-design.md)
-- [探索页桌面 Web 实施计划](docs/plans/2026-08-28-explore-page-desktop-web-implementation-plan.md)
-- [电脑端 Web 界面密度与操作层级收敛设计](docs/superpowers/specs/2026-09-12-desktop-web-interface-density-and-action-hierarchy-design.md)
-- [电脑端 Web 界面密度与操作层级收敛实施计划](docs/plans/2026-09-12-desktop-web-interface-density-and-action-hierarchy-implementation-plan.md)
-- [媒体详情与视频学习器视觉设计](docs/superpowers/specs/2026-09-15-media-detail-learning-workbench-design.md)
-- [媒体详情与视频学习器实施计划](docs/plans/2026-09-15-media-detail-learning-workbench-implementation-plan.md)
-- [历史：Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
-- [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
-- [架构边界](docs/architecture.md)
-- [数据库与迁移](docs/database.md)
-- [认证与会话](docs/authentication.md)
-- [跨客户端 API 契约](contracts/README.md)
-- [ADR-0002：个人 Alpha 改为 Web/PWA 优先](docs/adr/0002-web-pwa-first-personal-alpha.md)
-- [ADR-0008：内容驱动学习入口与自动采集审核链路](docs/adr/0008-content-led-learning-and-automated-ingestion.md)
-- [历史 ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
-- [内容制作与审核规范](docs/content-authoring.md)
-- [测试与质量策略](docs/testing-strategy.md)
-- [Echo-Loop 参考评审](docs/references/echo-loop-review.md)
-- [编码代理工作规范](AGENTS.md)
+- 领取或交接任务时看 [PROJECT_STATUS](PROJECT_STATUS.md)：分支、当前核对、阻塞和下一步。
+- 按任务查资料见 [文档导航](docs/README.md)：规格、操作指南、配置、测试和历史的分工。
+- AI 先读 [AGENTS](AGENTS.md)，再按任务阅读完整约束与设计。
+
+这里的核心体验描述产品目标，不是完成声明。当前工作树与本地 main 含不同任务，不能用一个分支的页面代表整个项目；词汇/语料与四板块画像的集成状态见状态页。Flutter 保留但暂停同步。
+
+## 首次运行
+
+- Node.js 24.x，以 [.nvmrc](.nvmrc) 和 [package.json](package.json) engines 为准。
+- pnpm 精确版本由 package.json 的 packageManager 固定。
+- 在仓库根目录先执行一次 `pnpm install`，不要同时启动多个会自动安装依赖的检查。
+- 根据 [.env.example](.env.example) 在未提交的本地 `.env` 中设置所需值；登录至少需要公开 Supabase URL 和 publishable key，完整步骤见 [认证与会话](docs/authentication.md)。服务端密钥不得带 NEXT_PUBLIC_ 前缀。
+
+```powershell
+pnpm install
+pnpm dev
+```
+
+普通登录使用邮箱六位 OTP；密码入口仅供预建测试账号。不要把所有者工作流 allowlist 误认为全站已关闭注册，当前限制见认证文档。
+
+数据库连接与迁移见 [数据库指南](docs/database.md)，只向明确的本地/测试目标运行迁移。网站启动不要求先采集或发布内容；无配置/无内容时应诚实显示不可用或空态。
+
+## 验证与素材操作
+
+测试命令、隔离环境和验收边界统一见 [测试策略](docs/testing-strategy.md)。Playwright 当前要求本机 Google Chrome，默认端口 **3101**，构建目录 `.next/e2e`；真实 iPhone Safari/PWA 不能用 Chromium 手机视口冒充通过。
+
+采集、托管、字幕回填、审核发布统一见 [媒体素材运行手册](docs/operations/media-content-workflow.md)。这些操作可能写库、访问外网或产生费用，不属于快速启动步骤。版本化内容校验/导入见 [内容源](content/README.md) 和 [内容制作规范](docs/content-authoring.md)。
 
 ## 参考项目
 
@@ -91,92 +89,6 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 
 本项目与它的产品核心不同：Echo-Loop 围绕一段音频练透，本项目围绕交际目标、自由表达和长期 AI 社交关系建立可迁移口语能力。Echo-Loop 使用 AGPL-3.0；当前仓库没有复制其实现代码或资源。用户说明自己曾参与该项目并得到作者允许，未来如需源码复用，将先把授权范围、涉及文件、其他贡献者权利和发布义务记录清楚，再单独实施。
 
-## 开发状态
-
-实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
-
-基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。响应式 Web/PWA 产品壳层保留“学习、阅读、探索、对话、我的”五项导航；“学习”已是视频/播客资料库，词汇、短语和语料将在后续任务纳入“阅读”。Flutter 代码保留但暂停同步。
-
-本地环境要求：
-
-- Node.js 24.x，仓库通过 `.nvmrc` 和 `engines` 固定大版本。
-- pnpm 11.x，精确版本记录在 `package.json`。
-- 执行 E2E 时需要本机安装 Google Chrome。
-- `pnpm test:e2e` 默认使用隔离的 `127.0.0.1:3100` 和 `.next/e2e` 构建目录，不会抢占正在运行的 3000 开发服务；如需更换端口可设置 `PLAYWRIGHT_PORT`。
-- iPhone Safari 的麦克风、键盘、安全区、前后台恢复和 PWA 主屏模式需要真实设备验收。
-
-首次运行：
-
-```powershell
-pnpm install
-pnpm dev
-```
-
-Web 登录需要在本地 `.env` 中配置公开的 Supabase 项目 URL 和 publishable key：
-
-Language Reactor 来源需要先应用数据库迁移，再运行一次所有者来源注册：
-
-```powershell
-pnpm db:migrate
-pnpm content:register-language-reactor
-pnpm content:acquire -- --source language-reactor.podcast-mix-es --limit 20
-pnpm content:acquire -- --source language-reactor.youtube-mix-es --limit 20
-```
-
-已明确授权的 Language Reactor 播客可在发布后复制到 Supabase Storage，使用稳定本站对象 URL 播放：
-
-```powershell
-pnpm content:host-language-reactor-audio
-```
-
-该脚本需要服务端 `SUPABASE_SECRET_KEY`（或旧版 `SUPABASE_SERVICE_ROLE_KEY`）；它不会下载 YouTube 视频。
-
-如果已单独确认某个 YouTube 来源的下载与再分发授权，并希望让视频脱离 YouTube 网络播放，可在提供 `yt-dlp` 与 ffmpeg 的服务端环境运行：
-
-```powershell
-$env:MEDIA_VIDEO_HOSTING_CONFIRM="I_HAVE_AUTHORIZATION"
-pnpm content:host-authorized-youtube-video
-```
-
-脚本只处理已发布且版权状态为 `cleared` 的官方嵌入视频；成功后切换到 `media-video` Storage 的稳定 MP4 URL，失败则保留原嵌入资产。
-
-采集只会生成候选并自动推进到审核待命；在 `/me/content-workflow` 完成审核并显式发布后，内容才会出现在 `/learn`。播客 enclosure 仍需通过无凭据 HTTPS、主机白名单、HEAD 类型/大小和有效期检查。
-
-普通用户入口是邮箱六位 OTP；密码登录只保留给预建测试账号，不在普通入口并列展示。完整配置、安全边界和本地测试说明见 [认证与会话](docs/authentication.md)。
-
-质量检查：
-
-```powershell
-pnpm lint
-pnpm typecheck
-pnpm test --run
-pnpm test:contracts
-pnpm db:check
-pnpm test:e2e
-pnpm build
-```
-
-数据库 Schema 变更使用 `pnpm db:generate` 生成向前迁移；只有在明确配置本地或测试 PostgreSQL 连接后才运行 `pnpm db:migrate`。真实连接信息只放在未提交的本地 `.env` 中。
-
-版本化内容在写库前先校验，正式语料从 ALPHA-006 开始放入 `content/bundles/`：
-
-```powershell
-pnpm content:validate -- content/bundles/alpha-core-v1.json
-pnpm content:import -- content/bundles/alpha-core-v1.json
-```
-
-内容契约、幂等与版本规则见 [版本化内容源](content/README.md) 和 [内容制作规范](docs/content-authoring.md)。
-
-只有任务明确修改暂停维护的 Flutter 代码时，才额外运行：
-
-```powershell
-cd apps/mobile
-flutter analyze
-flutter test
-```
-
-完整路线以实施计划为准，实时任务以 `PROJECT_STATUS.md` 为准。
-
 ## 开发协作
 
-开始任何编码任务前先阅读 [AGENTS.md](AGENTS.md) 和 [PROJECT_STATUS.md](PROJECT_STATUS.md)。每次只完成一个任务 ID，保留用户及其他模型已有改动，并把评分、隐私、角色一致性和失败降级作为核心质量要求。
+每轮一个任务 ID；先核对工作树，保留用户及其他模型已有改动。不要因为历史交接写“完成”就跳过当前分支、提交、真实运行和发布验收。交接与文档维护约定见文档导航。

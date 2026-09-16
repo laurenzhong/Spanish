@@ -30,7 +30,7 @@
 
 ## 2. 工具基线
 
-计划使用：
+当前工具基线（版本以 [package.json](../package.json) 为准）：
 
 - Vitest：领域和 application 单元测试。
 - React Testing Library：组件交互和可访问性。
@@ -48,7 +48,7 @@
 - 媒体资料库必须覆盖发布/版权/可播放三重投影门禁、稳定版本 ID、过期播放地址、最多 500 个已审核片段、进度 revision/CAS 与相同请求幂等回放。Route 测试覆盖列表参数、鉴权、400/404/409/503 映射；数据库测试覆盖撤下后不可播放或写进度以及跨用户隔离。页面和 Playwright 必须确认 `/learn` 不再出现旧 Hero、开始/继续 CTA 或任务时间线，并在 320–1440px 直接显示搜索、类型导航、地区/难度/时长筛选、媒体卡或真实空状态；手机顶部不得出现重复头像入口。
 - OpenAPI/JSON Schema 与稳定错误码：保证当前 Web 契约明确，并为未来恢复其他客户端保留边界。
 
-具体版本在工程脚手架阶段锁定。
+具体版本已由 package.json 与锁文件管理，不在本文件复制版本号。
 
 ## 3. 测试层级
 
@@ -73,7 +73,7 @@
 - 不访问网络和真实数据库。
 - 时间、随机数和 ID 可注入。
 - 同一输入产生确定结果。
-- 每个 bug 修复先添加可以复现问题的测试。
+- 行为缺陷优先用现有或新增回归测试复现；已有覆盖不重复添加。纯文字、样式等低风险修改采用适当静态或视觉检查，关键领域与安全不变量仍须回归覆盖。
 
 ### 3.2 Application 集成测试
 
@@ -305,12 +305,14 @@ Alpha 性能预算：
 
 ## 10. 测试命令
 
-工程建立后的基线命令：
+在仓库根目录先完成一次依赖安装，再执行相关基线命令：
 
 ```powershell
 pnpm lint
 pnpm typecheck
 pnpm test --run
+pnpm test:contracts
+pnpm db:check
 pnpm test:e2e
 pnpm build
 ```
@@ -318,6 +320,7 @@ pnpm build
 只有任务明确修改暂停维护的 Flutter 代码时：
 
 ```powershell
+cd apps/mobile
 flutter analyze
 flutter test
 ```
@@ -357,3 +360,32 @@ flutter test
 - 内容工作流是否能解释候选来源、处理成本、审核和发布/撤下结果。
 
 每周将人工发现转化为可复现样本；能自动化的回归必须加入测试集。
+
+
+## 13. 本地运行与结果解释
+
+配置权威是 [Playwright 配置](../playwright.config.ts)、[Vitest 配置](../vitest.config.ts) 与 package.json，以下是 2026-09-16 的静态核对，不是本轮测试结果。
+
+- E2E 默认 `127.0.0.1:3101`、`.next/e2e`，可用 `PLAYWRIGHT_PORT` 覆盖；不能复用普通预览服务。此前 README 的 3100 已修正。
+- 当前项目名为 `desktop-chromium`、`mobile-chromium`，均使用本机 Chrome；mobile 使用 Pixel 7 视口，不是 iPhone Safari。只执行一个现有文件的示例：
+
+```powershell
+pnpm test:e2e tests/e2e/video-learning.spec.ts --project=desktop-chromium
+pnpm test --run tests/unit/media-routes.test.ts
+```
+
+- Windows 新 worktree 先单独完成 `pnpm install`，再启动检查，避免多个命令同时触发安装。若出现 EEXIST/EBUSY，先检查是否有占用/并发安装，不删除用户 worktree 或依赖锁文件。这里是防冲突操作建议，不宣称本次复现了该错误。
+- PowerShell 下不要假设测试 runner 会展开带引号的通配符。出现 “No test files found” 先用 `rg --files tests` 定位并传入明确文件名；不能把零测试当作通过。
+- CLI 参数是否支持 pnpm 传入的字面量 `--` 要检查解析器并测试文档中的完整命令；当前 [采集 CLI](../scripts/acquire-content.ts) 显式跳过它，不代表其他 CLI 都支持相同参数。
+- 真实播放诊断与 Windows ffmpeg/cookies 限制统一见 [媒体运行手册](operations/media-content-workflow.md)，不重复维护错误解释。
+
+### 验证等级不得混用
+
+- Schema/check、文档链接或 fixture 断言通过，只证明对应输入/结构，不证明迁移已在目标库运行。
+- 默认 E2E 使用 fake player/媒体 fixture；iframe load、HTTP 成功或 SDK ready 不等于真实播放。真实浏览器必须观察画面/声音及播放时间增长。
+- workflow 文本存在或静态断言通过，不证明远端定时任务已启用、Secrets 可用或生产权限隔离通过。
+- 人工填写的发布报告/布尔值即使通过检查器，也不替代原始命令、环境、结果与用户验收证据；本次未审计其他分支的 release checker。
+- 聚焦测试通过不等于全量 lint/typecheck/Vitest/E2E/build 通过。“既有失败”需对照基线或明确引用当时记录，不能未经复现就排除责任。
+- 文档-only 修改只需低风险静态检查；未运行的业务、真实 Provider、生产和真机检查应明确列出，不为文档验证调用收费服务。
+
+发现可复用问题时更新本节或相应运行手册的原条目，记录适用条件、证据与预防步骤；一次性执行日志放任务记录。

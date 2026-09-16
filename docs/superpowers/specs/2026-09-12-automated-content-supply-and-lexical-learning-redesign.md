@@ -2,10 +2,10 @@
 
 - 日期：2026-09-12
 - 状态：产品本人已完成逐项确认和书面规格复核
-- 当前任务：`IA-001`
+- 制定任务：`IA-001`；当前执行/合并/验收状态见 [PROJECT_STATUS](../../../PROJECT_STATUS.md)
 - 适用范围：个人 Alpha、响应式 Web/PWA；当前以电脑端 Web 为主要验收环境
 - 关联决策：[ADR-0008：内容驱动学习入口与自动采集审核链路](../../adr/0008-content-led-learning-and-automated-ingestion.md)
-- 调研依据：`2026-09-12-language-reactor-technical-ux-research.md`（当前位于原工作区且尚未纳入本分支；本任务只读使用，不复制或覆盖该文件）
+- 调研依据：本机未提交调研 `2026-09-12-language-reactor-technical-ux-research.md`（提交后再建立链接）；2026-09-16 本工作树可读但尚未跟踪，跨分支交接须核对是否包含，不覆盖现有文件。
 
 ## 1. 背景与结论
 
@@ -510,7 +510,7 @@ type SourcePosition =
 11. `PROFILE-001`：四板块能力投影、历史八维映射和“我的”页面替换。
 12. `OPS-001`：每日生产调度、来源/成本/失败观测、清理任务、全链路门禁和运行手册。
 
-该顺序已经同步到 `PROJECT_STATUS.md`：`ACQ-001` 是唯一 `ready` 项，`UI-014` 至 `UI-017` 和 `ALPHA-033` 已阻塞。现有 `codex/ui-014-reading-density` 未提交改动必须完整保留，再判断归入 `ARTICLE-001`、`LEX-001` 或独立 UI 修正。
+这是规格制定时的依赖顺序，不是当前 ready 列表。当前任务、已实现分支与合并情况统一见 [PROJECT_STATUS](../../../PROJECT_STATUS.md)；所有既有未提交改动继续保留。
 
 ## 20. 已知影响与迁移原则
 
@@ -522,7 +522,9 @@ type SourcePosition =
 - `UI-017` 必须按新壳层补充“手机顶部无常驻头像”和五项职责验收。
 - `ALPHA-033` 的发布候选门禁必须等待本规格纳入的新核心范围完成，不能按旧页面结构直接结束。
 
-## 21. 文档复核后的下一步
+## 21. 历史起点：文档复核后的首次实施
+
+以下记录 2026-09-12 的启动顺序，供追溯；后续接手不能重新从 ACQ-001 开始，先查状态页。
 
 1. 合并 `IA-001` 的规格、ADR、[详细实施计划](../../plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)和权威文档同步。
 2. 只领取 `ACQ-001`，一次只实施一个任务 ID。
