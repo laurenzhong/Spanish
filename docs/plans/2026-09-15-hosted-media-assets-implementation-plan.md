@@ -30,16 +30,32 @@
 
 ## HOSTED-MEDIA-002：授权视频托管
 
+### 2026-09-16 已批准的方案二与当前子切片
+
+19:15 接续：官方下载路线已恢复，所有者指定今后视频下载统一使用 yt-dlp。新增 `content:recover-youtube-to-bunny`，按最高原生分辨率与西语音轨恢复剩余来源，完整 source/output 解码、CDN 哈希与实播之后条件切换；不再把浏览器接管作为下载前提。首条恢复已完成，其余 9 条批处理正在执行；最终验收必须核对全部 20 条视频、2 条播客的当前资产、完整性证据、网站实播与 Supabase 精确清理，不能只验收先前的 10 条视频。阶段性计数统一见任务交接及实时数据库。
+
+视频目标调整为 Bunny Storage + Pull Zone，使用服务端预转码 MP4，不等待 Bunny Stream 编码；播客另行核对，不计为本轮视频迁移完成量。下述原 Supabase 范围作为历史实现保留。
+
+1. 补齐 Bunny 视频无租约的数据库支持与迁移回归；复用已验证的首条哈希对象，条件切换原资产。
+2. 补齐批量脚本的完整下载、严格解码、长度/哈希、CDN 播放校验与可恢复清单，再迁移其余现有托管视频；禁止只凭上传 HTTP 成功批量改库。
+3. 检查网站真实播放和所有历史引用后，精确清理可删除的 Supabase 原对象；来源恢复或重新采集不得自动发布新候选。
+
+2026-09-16 当前结果：原 Supabase 的 10 条视频均完成迁移、10/10 网站实播与 seek、两个历史引用迁移以及旧对象删除；独立查询确认 media-video bucket 为空。另 10 条 YouTube 视频尚未迁移，至少一条已在 Chrome 实播，下载器错误不能证明源站下架。播客两条均已迁移并完成页面复测，整体方案仍缺剩余视频。详见 [任务交接](../tasks/HOSTED-MEDIA-002.md)。既有低分辨率文件迁移不等于画质升级；高画质仍需要合格的授权原文件或重新采集来源。
+
+批量迁移现使用 `pnpm content:migrate-hosted-videos-to-bunny`：授权确认、单进程锁、来源主机/大小/ETag/精确 Range、完整解码、H.264/AAC 转码、时长一致、哈希路径、CDN 全文件哈希及 Chrome 实播/seek 后才条件切换；失败保留原资产，局部文件和清单在 `.tmp-runtime/bunny-hosted-migration` 供核查恢复。清理入口 `node --import tsx/esm scripts/cleanup-migrated-supabase-videos.ts` 默认 dry-run；需网站证明与 CDN 再校验，并显式设置 `MEDIA_VIDEO_CLEANUP_CONFIRM=DELETE_VERIFIED_SUPABASE_VIDEO_OBJECTS` 才执行精确清理。网站隔离验收使用真实数据库/媒体、测试登录身份并拦截浏览器写请求，不代表真实用户身份或进度写入已验收。
+
+2026-09-16 17:03 更新：同一方案的播客子切片已完成。两条已授权播客均已复制到 Bunny、校验原字节哈希与真实音频播放并条件切换；两条网站页面最终复测通过。Supabase 音频历史引用已迁移，音频/视频桶均无剩余对象。保留首次页面复测的一次加载超时记录。该切片不处理字幕、词句或学习评分；余下 10 条 YouTube 视频仍需恢复完整授权源并迁移，不计为方案二整体完成。
+
 ### 目标
 
-将已确认下载/再分发授权、已发布且版权状态为 `cleared` 的 YouTube 视频复制到 `media-video`，让详情页使用原生 MP4 播放器，不再依赖用户网络访问 YouTube。
+将已确认下载/再分发授权、已发布且版权状态为 `cleared` 的 YouTube 视频复制到 `media-video`，让详情页使用 Plyr 包装的 MP4 播放器，不再依赖用户网络访问 YouTube。
 
 ### 范围
 
 - 扩展 Supabase Storage provider，支持视频对象和 MIME/大小上限。
 - 新增 `pnpm content:host-authorized-youtube-video` 一次性回填脚本；运行必须显式设置 `MEDIA_VIDEO_HOSTING_CONFIRM=I_HAVE_AUTHORIZATION`，并依赖调用环境提供 `yt-dlp` 与 ffmpeg。
 - 上传成功后原子切换既有视频资产为 `kind=video`、稳定本站 URL、`playbackExpiresAt=null`；失败清理对象并保留官方嵌入。
-- 详情工作台增加原生视频适配器，保留字幕、逐句控制和进度同步。
+- 详情工作台增加 Plyr 视频适配器，保留字幕、逐句控制和进度同步。
 
 ### 不在范围
 
@@ -49,6 +65,6 @@
 
 ### 验收
 
-- 托管资产通过稳定 `media-video` URL 返回浏览器可播放的 MP4，并在详情页使用 `<video controls>`。
+- 托管资产通过稳定 `media-video` URL 返回浏览器可播放的 MP4，并在详情页使用 Plyr 控制器包装 `<video controls>`。
 - 重复运行只处理仍为 `official_embed` 的行，失败不改变数据库资产。
-- Playwright 验证 hosted video 的原生播放器、字幕交互和进度回调；官方嵌入回归继续通过。
+- Playwright 验证 hosted video 的 Plyr 控制器、字幕交互和进度回调；官方嵌入回归继续通过。
