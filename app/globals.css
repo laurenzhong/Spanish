@@ -10334,19 +10334,48 @@ body {
   overflow: hidden;
 }
 
-.media-detail__player > .plyr {
+.media-detail__player .plyr {
   width: 100%;
-  height: 100%;
   --plyr-color-main: var(--accent);
+  --plyr-audio-controls-background: transparent;
+  --plyr-audio-control-color: #fff;
+  --plyr-audio-control-color-hover: #fff;
+  --plyr-audio-control-background-hover: var(--accent-strong);
+  --plyr-audio-range-track-background: rgb(255 255 255 / 32%);
   --plyr-video-control-color: #fff;
   --plyr-video-control-color-hover: #fff;
   --plyr-video-control-background-hover: var(--accent-strong);
   --plyr-font-family: inherit;
 }
 
-.media-detail__player > .plyr video {
+.media-detail__player--video .plyr {
+  height: 100%;
+}
+
+.media-detail__player--video .plyr video {
   height: 100%;
   object-fit: contain;
+}
+
+.media-plyr-auto-pause-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-plyr-auto-pause-control svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.media-plyr-auto-pause-control[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.media-plyr-auto-pause-control:disabled {
+  opacity: .45;
+  cursor: not-allowed;
 }
 
 .video-player-adapter > iframe,
@@ -10463,7 +10492,8 @@ body {
   stroke-width: 1.6;
 }
 
-.audio-player-adapter audio {
+.audio-player-adapter audio,
+.audio-player-adapter > .plyr {
   width: 100%;
 }
 

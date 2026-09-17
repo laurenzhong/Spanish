@@ -9,6 +9,40 @@ import {
   type AudioPlayerPort,
 } from "@/src/modules/media";
 
+const plyrMock = vi.hoisted(() => ({ instances: [] as Array<{
+  options: Readonly<Record<string, unknown>>;
+  callbacks: Map<string, Set<() => void>>;
+}> }));
+
+vi.mock("plyr", () => ({
+  default: class MockPlyr {
+    currentTime = 0;
+    callbacks = new Map<string, Set<() => void>>();
+    elements = { controls: document.createElement("div") };
+    media: HTMLElement & { error?: { code?: number } };
+    options: Readonly<Record<string, unknown>>;
+
+    constructor(target: HTMLElement, options: Readonly<Record<string, unknown>>) {
+      this.media = target;
+      this.options = options;
+      target.parentElement?.appendChild(this.elements.controls);
+      plyrMock.instances.push(this);
+      queueMicrotask(() => this.emit("ready"));
+    }
+
+    emit(event: string) { this.callbacks.get(event)?.forEach((callback) => callback()); }
+    on(event: string, callback: () => void) {
+      const callbacks = this.callbacks.get(event) ?? new Set();
+      callbacks.add(callback);
+      this.callbacks.set(event, callbacks);
+    }
+    off(event: string, callback: () => void) { this.callbacks.get(event)?.delete(callback); }
+    play() { this.emit("play"); return Promise.resolve(); }
+    pause() { this.emit("pause"); }
+    destroy() { this.callbacks.clear(); this.elements.controls.remove(); }
+  },
+}));
+
 function playback(withTranscript = true) {
   return {
     media: {
@@ -46,11 +80,26 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  plyrMock.instances.length = 0;
   vi.unstubAllGlobals();
 });
 
 describe("podcast audio player", () => {
-  it("uses the shared sentence controls, transcript drawer, and revisioned progress", async () => {
+  it("uses the shared Plyr surface and icon-only auto-pause control", async () => {
+    const view = render(<MediaLearningWorkbench playback={playback()} />);
+
+    await waitFor(() => expect(plyrMock.instances).toHaveLength(1));
+    expect(plyrMock.instances[0]?.options).toMatchObject({ settings: ["speed"] });
+    const autoPause = view.container.querySelector<HTMLButtonElement>("[data-media-auto-pause-control]")!;
+    expect(autoPause).toHaveAccessibleName("开启自动暂停");
+    expect(autoPause).toHaveTextContent("");
+    expect(autoPause.querySelector("svg")).toBeInTheDocument();
+    fireEvent.click(autoPause);
+    expect(autoPause).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("group", { name: "逐句播放控制" })).not.toBeInTheDocument();
+  });
+
+  it("uses keyboard sentence navigation, transcript drawer, and revisioned progress", async () => {
     const player = fakePlayer();
     const user = userEvent.setup();
     render(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={playback()} />);
@@ -58,7 +107,7 @@ describe("podcast audio player", () => {
     expect(screen.getByLabelText("Una mañana en el mercado 播放器")).toBeInTheDocument();
     expect(screen.getByAltText("Café de cada día")).toHaveAttribute("src", "https://images.example.test/podcast.jpg");
 
-    await user.click(screen.getByRole("button", { name: "下一句" }));
+    fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(player.port.seek).toHaveBeenLastCalledWith(2_200);
     expect(player.port.play).toHaveBeenCalled();
 
@@ -103,8 +152,9 @@ describe("podcast audio player", () => {
     expect(screen.getByText("这期播客可以播放，但目前没有已审核的逐句文本。")).toBeVisible();
     expect(screen.getByText("暂无已审核字幕")).toBeVisible();
     expect(screen.queryByRole("group", { name: "字幕模式" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "上一句" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "下一句" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "上一句" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下一句" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "自动暂停" })).toBeDisabled();
   });
 
   it("shows a recoverable error when the current enclosure cannot play", () => {

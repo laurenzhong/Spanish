@@ -8,6 +8,7 @@ import {
   type VideoPlayerLifecycle,
   type VideoPlayerPort,
 } from "@/src/modules/media";
+import { mountPlyrAutoPauseControl } from "@/src/modules/media/ui/video-player-adapter";
 
 function playback() {
   return {
@@ -75,19 +76,54 @@ describe("video learning workbench", () => {
     expect(screen.getByText("播放器已就绪")).toBeVisible();
   });
 
+  it("mounts only auto-pause inside a Plyr control bar", () => {
+    const controls = document.createElement("div");
+    const player = { elements: { controls } };
+    const onToggleAutoPause = vi.fn();
+    const mounted = mountPlyrAutoPauseControl(player, { autoPause: false, disabled: false, onToggleAutoPause });
+    document.body.appendChild(controls);
+
+    expect(controls.querySelectorAll("[data-media-auto-pause-control]")).toHaveLength(1);
+    expect(controls).not.toHaveTextContent("上一句");
+    expect(controls).not.toHaveTextContent("重播当前句");
+    expect(controls).not.toHaveTextContent("下一句");
+    expect(controls).not.toHaveTextContent("自动暂停");
+    expect(controls.querySelector("svg")).toBeInTheDocument();
+    fireEvent.click(controls.querySelector("[data-media-auto-pause-control]")!);
+    expect(onToggleAutoPause).toHaveBeenCalledOnce();
+
+    mounted?.setAutoPause(true);
+    expect(controls.querySelector("[data-media-auto-pause-control]")).toHaveAttribute("aria-pressed", "true");
+    mounted?.destroy();
+    expect(controls.querySelectorAll("[data-media-auto-pause-control]")).toHaveLength(0);
+
+    const disabled = mountPlyrAutoPauseControl(player, { autoPause: false, disabled: true, onToggleAutoPause });
+    expect(controls.querySelector("[data-media-auto-pause-control]")).toBeDisabled();
+    expect(controls.querySelector("[data-media-auto-pause-control]")).toHaveAccessibleName("暂无已审核分句，无法自动暂停");
+    disabled?.destroy();
+  });
+
   it("supports transcript seeking, A/S/D/Q controls, caption modes and focus-restoring lexical drawer", async () => {
     const player = fakePlayer();
     const user = userEvent.setup();
     render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
     act(() => player.lifecycle().onReady());
 
-    await user.click(screen.getByRole("button", { name: "下一句" }));
+    fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
     expect(player.port.play).toHaveBeenCalled();
     fireEvent.keyDown(window, { key: "a" });
     expect(player.port.seek).toHaveBeenLastCalledWith(0);
     fireEvent.keyDown(window, { key: "s" });
     expect(player.port.seek).toHaveBeenLastCalledWith(0);
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(0);
+
+    const playerSurface = screen.getByRole("region", { name: "视频学习器" }).querySelector(".media-detail__player");
+    fireEvent.keyDown(playerSurface!, { key: "ArrowRight" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
 
     const autoPause = screen.getByRole("checkbox", { name: "自动暂停" });
     expect(autoPause).not.toBeChecked();

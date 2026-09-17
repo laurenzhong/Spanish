@@ -30,6 +30,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
   const [activeIndex, setActiveIndex] = useState<number | null>(initialActiveIndex);
   const [captionMode, setCaptionMode] = useState<CaptionMode>("es");
   const [autoPause, setAutoPause] = useState(false);
+  const [embeddedAutoPauseControl, setEmbeddedAutoPauseControl] = useState(false);
   const [playerState, setPlayerState] = useState<VideoPlayerState | "loading">("loading");
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [playerAttempt, setPlayerAttempt] = useState(0);
@@ -141,13 +142,18 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     function keydown(event: KeyboardEvent) {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target;
-      if (target instanceof Element && target.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable='true'], [role='dialog']")) return;
       const key = event.key.toLowerCase();
-      if (key === "a") previous(); else if (key === "s") replay(); else if (key === "d") next(); else if (key === "q") setAutoPause((value) => !value); else return;
+      if (event.key === "ArrowLeft" || key === "a") previous();
+      else if (event.key === "ArrowRight" || key === "d") next();
+      else if (key === "s") replay();
+      else if (key === "q") setAutoPause((value) => !value);
+      else return;
       event.preventDefault();
+      event.stopPropagation();
     }
-    window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
+    window.addEventListener("keydown", keydown, true);
+    return () => window.removeEventListener("keydown", keydown, true);
   }, [next, previous, replay]);
 
   useEffect(() => {
@@ -194,19 +200,22 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
       <div className={`media-detail__player media-detail__player--${playback.media.kind}`}>
         {playback.media.kind === "podcast" && playback.asset.kind === "audio"
           ? <AudioPlayerAdapter key={`audio-${playerAttempt}`} artwork={playback.media.artwork} audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
-              onPortChange={handlePortChange} onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate} title={`${playback.media.title} 播放器`} />
+              autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
+              onPortChange={handlePortChange} onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate}
+              onToggleAutoPause={() => setAutoPause((value) => !value)} title={`${playback.media.title} 播放器`} />
           : playback.asset.kind === "video"
             ? <HostedVideoPlayerAdapter key={`hosted-video-${playerAttempt}`} onError={handlePlayerError} onPortChange={handlePortChange}
-                onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
+                autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
+                onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate}
+                onToggleAutoPause={() => setAutoPause((value) => !value)} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
           : <VideoPlayerAdapter key={`video-${playerAttempt}`} embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
-              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
+              autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
+              onPortChange={handlePortChange} onStateChange={handleStateChange}
+              onToggleAutoPause={() => setAutoPause((value) => !value)} title={`${playback.media.title} 播放器`} />}
       </div>
-      <div aria-label="逐句播放控制" className="media-sentence-controls" role="group">
-        <button aria-label="上一句" disabled={playback.segments.length === 0} onClick={previous} type="button"><kbd>A</kbd><span>上一句</span></button>
-        <button aria-label="重播当前句" disabled={playback.segments.length === 0} onClick={replay} type="button"><kbd>S</kbd><span>重播当前句</span></button>
-        <button aria-label="下一句" disabled={playback.segments.length === 0} onClick={next} type="button"><kbd>D</kbd><span>下一句</span></button>
-        <label><input aria-label="自动暂停" checked={autoPause} onChange={(event) => setAutoPause(event.target.checked)} type="checkbox" /><span>自动暂停</span><kbd>Q</kbd></label>
-      </div>
+      {!embeddedAutoPauseControl ? <div aria-label="逐句播放控制" className="media-sentence-controls" role="group">
+        <label><input aria-label="自动暂停" checked={autoPause} disabled={playback.segments.length === 0} onChange={(event) => setAutoPause(event.target.checked)} type="checkbox" /><span>自动暂停</span><kbd>Q</kbd></label>
+      </div> : null}
       <div aria-label="当前片段" className="media-current-segment" role="group">
         <span className="media-current-segment__label">当前片段</span>
         {captionMode === "hidden" ? <p>字幕已隐藏</p> : currentSegment ? <p lang="es">{currentSegment.sourceText}</p> : <p>暂无当前片段</p>}

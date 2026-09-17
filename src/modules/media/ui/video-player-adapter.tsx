@@ -1,22 +1,21 @@
 "use client";
 
-import Script from "next/script";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+
+import {
+  mountPlyrAutoPauseControl,
+  videoPlyrOptions,
+  type MountedAutoPauseControl,
+  type PlyrConstructor,
+  type PlyrInstance,
+} from "./media-plyr";
+
+export { mountPlyrAutoPauseControl } from "./media-plyr";
 
 export type VideoPlayerState = "ready" | "playing" | "paused" | "ended";
 export type VideoPlayerLifecycle = Readonly<{ onReady: () => void; onStateChange: (state: VideoPlayerState) => void; onError: (message: string) => void }>;
 export interface VideoPlayerPort { play(): void; pause(): void; seek(positionMs: number): void; currentTime(): number; destroy(): void }
 export type VideoPlayerFactory = (target: HTMLElement, input: Readonly<{ videoId: string; lifecycle: VideoPlayerLifecycle }>) => VideoPlayerPort;
-type PlyrInstance = {
-  currentTime: number;
-  play(): Promise<void> | void;
-  pause(): void;
-  on(event: string, callback: () => void): void;
-  off(event: string, callback: () => void): void;
-  destroy(): void;
-};
-type PlyrConstructor = new (target: HTMLVideoElement, options: Readonly<Record<string, unknown>>) => PlyrInstance;
-
 type YouTubePlayer = Readonly<{ playVideo(): void; pauseVideo(): void; seekTo(seconds: number, allowSeekAhead: boolean): void; getCurrentTime(): number; destroy(): void }>;
 type YouTubeWindow = Window & typeof globalThis & { YT?: Readonly<{ Player: new (target: HTMLElement, options: Readonly<Record<string, unknown>>) => YouTubePlayer }> };
 
@@ -70,104 +69,184 @@ export const youtubeIframePlayerFactory: VideoPlayerFactory = (target, input) =>
   };
 };
 
-export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onStateChange, onError }: Readonly<{
-  embedUrl: string; title: string; factory?: VideoPlayerFactory;
+export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSegments, onToggleAutoPause, onAutoPauseControlReady, onPortChange, onStateChange, onError }: Readonly<{
+  embedUrl: string;
+  title: string;
+  factory?: VideoPlayerFactory;
+  autoPause: boolean;
+  hasSegments: boolean;
+  onToggleAutoPause: () => void;
+  onAutoPauseControlReady: (ready: boolean) => void;
   onPortChange: (port: VideoPlayerPort | null) => void;
   onStateChange: (state: VideoPlayerState) => void;
   onError: (message: string | null) => void;
 }>) {
-  const rawId = useId();
-  const targetId = `youtube-player-${rawId.replace(/[^A-Za-z0-9_-]/gu, "")}`;
   const targetRef = useRef<HTMLDivElement>(null);
   const generationRef = useRef(0);
-  const [sdkReady, setSdkReady] = useState(false);
-  const [scriptFailed, setScriptFailed] = useState(false);
-  const [fallbackHost, setFallbackHost] = useState<"www.youtube-nocookie.com" | "www.youtube.com">("www.youtube-nocookie.com");
+  const autoPauseControlRef = useRef<MountedAutoPauseControl | null>(null);
+  const toggleAutoPauseRef = useRef(onToggleAutoPause);
+  const autoPauseRef = useRef(autoPause);
   const videoId = videoIdFromEmbed(embedUrl);
-  const runtimeOrigin = typeof window === "undefined" ? null : window.location.origin;
-  const runtimeReferrer = typeof window === "undefined" ? null : window.location.href;
 
   useEffect(() => {
-    if (factory || sdkReady) return;
-    const ready = () => Boolean((window as YouTubeWindow).YT?.Player);
-    const timer = window.setInterval(() => {
-      if (!ready()) return;
-      window.clearInterval(timer);
-      window.clearTimeout(timeout);
-      setSdkReady(true);
-    }, 50);
-    const timeout = window.setTimeout(() => {
-      setScriptFailed(true);
-    }, 5_000);
-    return () => {
-      window.clearInterval(timer);
-      window.clearTimeout(timeout);
-    };
-  }, [factory, sdkReady]);
+    toggleAutoPauseRef.current = onToggleAutoPause;
+    autoPauseRef.current = autoPause;
+  }, [autoPause, onToggleAutoPause]);
 
   useEffect(() => {
-    if (!targetRef.current || !videoId || (!factory && !sdkReady)) return;
+    const target = targetRef.current;
+    if (!target || !videoId) return;
     const generation = generationRef.current + 1;
     generationRef.current = generation;
     const current = () => generationRef.current === generation;
-    let port: VideoPlayerPort;
+    let cancelled = false;
+    let player: PlyrInstance | null = null;
+    let port: VideoPlayerPort | null = null;
+    let autoPauseControl: MountedAutoPauseControl | null = null;
+    let autoPauseMountTimer: number | null = null;
+    let autoPauseMountAttempts = 0;
+    let ready = false;
+    let failed = false;
+    const mountAutoPauseControl = () => {
+      if (cancelled || !player || autoPauseControl) return;
+      autoPauseControl = mountPlyrAutoPauseControl(player, {
+        autoPause: autoPauseRef.current,
+        disabled: !hasSegments,
+        onToggleAutoPause: () => toggleAutoPauseRef.current(),
+      });
+      if (autoPauseControl) {
+        autoPauseControlRef.current = autoPauseControl;
+        onAutoPauseControlReady(true);
+      } else if (autoPauseMountAttempts < 20) {
+        autoPauseMountAttempts += 1;
+        autoPauseMountTimer = window.setTimeout(mountAutoPauseControl, 25);
+      }
+    };
+    const readyTimeout = window.setTimeout(() => {
+      if (current() && !ready && !factory) onError("YouTube 播放器连接超时，请重试或在 YouTube 打开。");
+    }, 8_000);
+    const handleReady = () => {
+      if (!current()) return;
+      ready = true;
+      window.clearTimeout(readyTimeout);
+      mountAutoPauseControl();
+      if (failed) return;
+      onError(null);
+      onStateChange("ready");
+    };
+    const handlePlaying = () => {
+      if (!current()) return;
+      failed = false;
+      onError(null);
+      onStateChange("playing");
+    };
+    const handlePaused = () => { if (current()) onStateChange("paused"); };
+    const handleEnded = () => { if (current()) onStateChange("ended"); };
+    const handleError = () => {
+      if (!current()) return;
+      failed = true;
+      const code = player?.media?.error?.code ?? 0;
+      onError(youtubeErrorMessage(code));
+    };
     onError(null);
-    try {
-      port = (factory ?? youtubeIframePlayerFactory)(targetRef.current, { videoId, lifecycle: {
-        onReady: () => { if (current()) onStateChange("ready"); },
-        onStateChange: (state) => { if (current()) { if (state === "playing") onError(null); onStateChange(state); } },
-        onError: (message) => {
-          if (current()) {
-            onError(message);
-          }
-        },
-      } });
-      onPortChange(port);
-    } catch (error) {
-      if (current()) onError(error instanceof Error ? error.message : "播放器初始化失败。");
-      return;
+    onAutoPauseControlReady(false);
+    if (factory) {
+      try {
+        port = factory(target, { videoId, lifecycle: {
+          onReady: handleReady,
+          onStateChange: (state) => {
+            if (state === "playing") handlePlaying();
+            else if (state === "paused") handlePaused();
+            else if (state === "ended") handleEnded();
+            else handleReady();
+          },
+          onError: (message) => { if (current()) onError(message); },
+        } });
+        onPortChange(port);
+      } catch (error) {
+        if (current()) onError(error instanceof Error ? error.message : "播放器初始化失败。");
+      }
+    } else {
+      void import("plyr").then((module) => {
+        if (cancelled) return;
+        const Plyr = (module as unknown as { default: PlyrConstructor }).default;
+        player = new Plyr(target, {
+          ...videoPlyrOptions,
+          youtube: { noCookie: true, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 },
+        });
+        mountAutoPauseControl();
+        player.on("ready", handleReady);
+        player.on("playing", handlePlaying);
+        player.on("play", handlePlaying);
+        player.on("pause", handlePaused);
+        player.on("ended", handleEnded);
+        player.on("error", handleError);
+        port = {
+          play: () => { if (player) void player.play(); },
+          pause: () => player?.pause(),
+          seek: (positionMs) => { if (player) player.currentTime = Math.max(0, positionMs) / 1_000; },
+          currentTime: () => player ? Math.max(0, Math.round(player.currentTime * 1_000)) : 0,
+          destroy: () => player?.destroy(),
+        };
+        onPortChange(port);
+      }).catch(() => {
+        if (current()) onError("YouTube 播放器加载失败，请重试或在 YouTube 打开。");
+      });
     }
     return () => {
+      cancelled = true;
+      window.clearTimeout(readyTimeout);
+      if (autoPauseMountTimer !== null) window.clearTimeout(autoPauseMountTimer);
       if (generationRef.current === generation) generationRef.current += 1;
+      onAutoPauseControlReady(false);
+      autoPauseControl?.destroy();
+      if (autoPauseControlRef.current === autoPauseControl) autoPauseControlRef.current = null;
+      if (player) {
+        player.off("ready", handleReady);
+        player.off("playing", handlePlaying);
+        player.off("play", handlePlaying);
+        player.off("pause", handlePaused);
+        player.off("ended", handleEnded);
+        player.off("error", handleError);
+      }
       onPortChange(null);
-      port.destroy();
+      port?.destroy();
     };
-  }, [embedUrl, factory, onError, onPortChange, onStateChange, sdkReady, videoId]);
+  }, [embedUrl, factory, hasSegments, onAutoPauseControlReady, onError, onPortChange, onStateChange, videoId]);
 
-  const fallbackUrl = videoId ? (() => {
-    const url = new URL(`https://${fallbackHost}/embed/${videoId}`);
-    url.searchParams.set("enablejsapi", "1");
-    url.searchParams.set("playsinline", "1");
-    if (runtimeOrigin) url.searchParams.set("origin", runtimeOrigin);
-    if (runtimeReferrer) url.searchParams.set("widget_referrer", runtimeReferrer);
-    return url.toString();
-  })() : embedUrl;
+  useEffect(() => {
+    autoPauseControlRef.current?.setAutoPause(autoPause);
+  }, [autoPause]);
+
   const watchUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
-  const fallback = scriptFailed && !sdkReady && !factory;
   return <div className="video-player-adapter">
-    {fallback ? <iframe allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen aria-label={title} referrerPolicy="strict-origin-when-cross-origin" src={fallbackUrl} title={title} />
-      : <div aria-label={title} id={targetId} ref={targetRef} />}
-    {!factory ? <Script id="youtube-iframe-api" onError={() => { setScriptFailed(true); }}
-      onReady={() => {
-        if ((window as YouTubeWindow).YT?.Player) setSdkReady(true);
-      }} src="https://www.youtube.com/iframe_api" strategy="afterInteractive" /> : null}
+    <div aria-label={title} data-plyr-embed-id={videoId ?? undefined} data-plyr-provider={factory ? undefined : "youtube"} ref={targetRef} />
     {!videoId ? <p role="alert">播放地址无效。</p> : null}
     <div className="video-player-adapter__help">
-      {fallback ? <><span role="status">逐句控制暂未连接，可尝试使用视频内的播放按钮；本站尚不能确认播放状态。</span><button onClick={() => setFallbackHost((host) => host === "www.youtube-nocookie.com" ? "www.youtube.com" : "www.youtube-nocookie.com")} type="button">重试播放器</button></> : null}
       {watchUrl ? <a href={watchUrl} rel="noopener noreferrer" target="_blank">在 YouTube 打开</a> : null}
     </div>
   </div>;
 }
 
-export function HostedVideoPlayerAdapter({ videoUrl, title, onPortChange, onStateChange, onTimeUpdate, onError }: Readonly<{
+export function HostedVideoPlayerAdapter({ videoUrl, title, autoPause, hasSegments, onToggleAutoPause, onAutoPauseControlReady, onPortChange, onStateChange, onTimeUpdate, onError }: Readonly<{
   videoUrl: string;
   title: string;
+  autoPause: boolean;
+  hasSegments: boolean;
+  onToggleAutoPause: () => void;
+  onAutoPauseControlReady: (ready: boolean) => void;
   onPortChange: (port: VideoPlayerPort | null) => void;
   onStateChange: (state: VideoPlayerState) => void;
   onTimeUpdate: (positionMs: number) => void;
   onError: (message: string | null) => void;
 }>) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const toggleAutoPauseRef = useRef(onToggleAutoPause);
+  const autoPauseRef = useRef(autoPause);
+  useEffect(() => {
+    toggleAutoPauseRef.current = onToggleAutoPause;
+    autoPauseRef.current = autoPause;
+  }, [autoPause, onToggleAutoPause]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -175,6 +254,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, onPortChange, onStat
     let cancelled = false;
     let player: PlyrInstance | null = null;
     let port: VideoPlayerPort | null = null;
+    let autoPauseControl: MountedAutoPauseControl | null = null;
     const loaded = () => { onError(null); onStateChange("ready"); };
     const playing = () => onStateChange("playing");
     const paused = () => onStateChange("paused");
@@ -185,13 +265,13 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, onPortChange, onStat
     void import("plyr").then((module) => {
       if (cancelled) return;
       const Plyr = (module as unknown as { default: PlyrConstructor }).default;
-      player = new Plyr(video, {
-        controls: ["play-large", "play", "progress", "current-time", "mute", "volume", "settings", "pip", "fullscreen"],
-        keyboard: { focused: true, global: false },
-        tooltips: { controls: true, seek: true },
-        ratio: "16:9",
-        settings: ["speed"],
+      player = new Plyr(video, videoPlyrOptions);
+      autoPauseControl = mountPlyrAutoPauseControl(player, {
+        autoPause: autoPauseRef.current,
+        disabled: !hasSegments,
+        onToggleAutoPause: () => toggleAutoPauseRef.current(),
       });
+      onAutoPauseControlReady(autoPauseControl !== null);
       player.on("ready", loaded);
       player.on("playing", playing);
       player.on("play", playing);
@@ -202,8 +282,12 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, onPortChange, onStat
       port = {
         play: () => { if (player) void player.play(); },
         pause: () => player?.pause(),
-        seek: (positionMs) => { if (player) player.currentTime = Math.max(0, positionMs) / 1_000; },
-        currentTime: () => player ? Math.max(0, Math.round(player.currentTime * 1_000)) : 0,
+        seek: (positionMs) => {
+          const seconds = Math.max(0, positionMs) / 1_000;
+          video.currentTime = seconds;
+          if (player) player.currentTime = seconds;
+        },
+        currentTime: () => player ? Math.max(0, Math.round(player.currentTime * 1_000)) : Math.max(0, Math.round(video.currentTime * 1_000)),
         destroy: () => player?.destroy(),
       };
       onPortChange(port);
@@ -211,6 +295,8 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, onPortChange, onStat
     }).catch(() => { if (!cancelled) onError("本站视频播放器加载失败，请重试或检查媒体资源。"); });
     return () => {
       cancelled = true;
+      onAutoPauseControlReady(false);
+      autoPauseControl?.destroy();
       if (player) {
         player.off("ready", loaded);
         player.off("playing", playing);
@@ -224,7 +310,17 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, onPortChange, onStat
       onPortChange(null);
       port?.destroy();
     };
-  }, [onError, onPortChange, onStateChange, onTimeUpdate]);
+  }, [hasSegments, onAutoPauseControlReady, onError, onPortChange, onStateChange, onTimeUpdate, videoUrl]);
+
+  useEffect(() => {
+    const controls = videoRef.current?.closest(".plyr")?.querySelector<HTMLButtonElement>("[data-media-auto-pause-control]");
+    if (controls) {
+      controls.setAttribute("aria-pressed", String(autoPause));
+      const label = !hasSegments ? "暂无已审核分句，无法自动暂停" : autoPause ? "关闭自动暂停" : "开启自动暂停";
+      controls.title = label;
+      controls.setAttribute("aria-label", label);
+    }
+  }, [autoPause, hasSegments]);
 
   return <video aria-label={title} controls playsInline preload="metadata" ref={videoRef} src={videoUrl} />;
 }

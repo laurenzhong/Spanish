@@ -59,9 +59,15 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
   await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`);
 
   await expect(page.getByRole("heading", { name: "Una mañana en el mercado" })).toBeVisible();
-  const audio = page.getByLabel("Una mañana en el mercado 播放器");
+  const audio = page.getByLabel("Una mañana en el mercado 播放器", { exact: true });
   await expect(audio).toBeVisible();
   await expect(page.getByText("播放器已就绪")).toBeVisible();
+  const autoPause = page.locator("[data-media-auto-pause-control]");
+  await expect(autoPause).toBeVisible();
+  await expect(autoPause).toHaveText("");
+  await expect(autoPause.locator("svg")).toBeVisible();
+  await expect(page.getByRole("button", { name: /上一句|重播当前句|下一句/ })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "逐句播放控制" })).toHaveCount(0);
 
   await page.evaluate(() => {
     const element = document.querySelector("audio")!;
@@ -76,13 +82,13 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
   });
   await expect(page.getByRole("listitem").nth(0)).toHaveClass(/is-active/);
 
-  await page.getByRole("button", { name: "下一句" }).click();
+  await page.keyboard.press("ArrowRight");
   await expect(audio).toHaveAttribute("data-current-time", "2.2");
   await page.keyboard.press("a");
   await expect(audio).toHaveAttribute("data-current-time", "0");
 
   await page.keyboard.press("q");
-  await expect(page.getByRole("checkbox", { name: "自动暂停" })).toBeChecked();
+  await expect(autoPause).toHaveAttribute("aria-pressed", "true");
   await page.evaluate(() => {
     const element = document.querySelector("audio")!;
     element.currentTime = 2.2;
