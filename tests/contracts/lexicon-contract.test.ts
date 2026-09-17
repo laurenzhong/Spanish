@@ -41,7 +41,9 @@ describe("lexicon v1 contracts", () => {
 
     const openapi = JSON.parse(readFileSync(path.join(process.cwd(), "contracts", "openapi", "v1", "openapi.json"), "utf8"));
     expect(openapi.paths["/lexicon/vocabulary"].get.responses["200"].content["application/json"].schema.$ref).toContain("lexicon-list-response");
+    expect(openapi.paths["/lexicon/vocabulary"].get.parameters.map((parameter: { name: string }) => parameter.name)).toContain("lemmaStatus");
     expect(openapi.paths["/lexicon/phrases"]).toBeDefined();
+    expect(openapi.paths["/lexicon/phrases"].get.parameters.map((parameter: { name: string }) => parameter.name)).toEqual(expect.arrayContaining(["pragmaticPurpose", "register", "region", "cefr"]));
     expect(openapi.paths["/lexicon/intents/{entryId}"].put.requestBody.content["application/json"].schema.$ref).toContain("lexical-intent-request");
   });
 
@@ -55,6 +57,7 @@ describe("lexicon v1 contracts", () => {
     expect(attempt({ apiVersion: "v1", data: { attemptId: vocabulary.id, assessmentKey: "lexical.core", version: 1, answer: "comer", passed: true, score: 1, normalizedAnswer: "comer", duplicate: false, evidence: "recorded" } })).toBe(true);
     const openapi = JSON.parse(readFileSync(path.join(process.cwd(), "contracts", "openapi", "v1", "openapi.json"), "utf8"));
     expect(openapi.paths["/corpus/search"].get.responses["200"].content["application/json"].schema.$ref).toContain("corpus-search-response");
+    expect(openapi.paths["/corpus/search"].get.parameters.map((parameter: { name: string }) => parameter.name)).toEqual(expect.arrayContaining(["entryKind", "entryId"]));
     expect(openapi.paths["/lexicon/assessments/{assessmentId}/attempts"].post.parameters.some((parameter: { name: string }) => parameter.name === "Idempotency-Key")).toBe(true);
   });
 });

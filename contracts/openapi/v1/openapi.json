@@ -483,7 +483,8 @@
         "summary": "List vocabulary indexed from published article and media versions",
         "parameters": [
           { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
-          { "name": "intent", "in": "query", "schema": { "enum": ["familiar", "revisit", "ignore"] } },
+          { "name": "intent", "in": "query", "schema": { "enum": ["familiar", "revisit", "ignore", "unmarked"] } },
+          { "name": "lemmaStatus", "in": "query", "schema": { "enum": ["verified", "pending"] } },
           { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
           { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 } }
         ],
@@ -499,7 +500,11 @@
         "summary": "List approved public and owned phrase entries",
         "parameters": [
           { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 120 } },
-          { "name": "intent", "in": "query", "schema": { "enum": ["familiar", "revisit", "ignore"] } },
+          { "name": "intent", "in": "query", "schema": { "enum": ["familiar", "revisit", "ignore", "unmarked"] } },
+          { "name": "pragmaticPurpose", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
+          { "name": "register", "in": "query", "schema": { "type": "string", "maxLength": 40 } },
+          { "name": "region", "in": "query", "schema": { "type": "string", "maxLength": 40 } },
+          { "name": "cefr", "in": "query", "schema": { "type": "string", "maxLength": 16 } },
           { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
           { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 } }
         ],
@@ -514,7 +519,9 @@
       "get": {
         "summary": "Search published article and media occurrences with KWIC context",
         "parameters": [
-          { "name": "query", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 120 } },
+          { "name": "query", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 120 } },
+          { "name": "entryKind", "in": "query", "schema": { "enum": ["lexeme", "phrase"] } },
+          { "name": "entryId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
           { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },
           { "name": "sourceKind", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
           { "name": "stableKey", "in": "query", "schema": { "type": "string", "maxLength": 240 } },

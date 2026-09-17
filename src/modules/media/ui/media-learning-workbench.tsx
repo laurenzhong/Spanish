@@ -11,21 +11,28 @@ import { VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type
 type ProgressSnapshot = Readonly<{ lastPositionMs: number; lastSegmentIndex: number | null; status: "in_progress" | "completed" }>;
 type ProgressSyncState = "idle" | "saving" | "saved" | "conflict" | "error";
 
-export function MediaLearningWorkbench({ playback, playerFactory, audioPlayerFactory }: Readonly<{
+export function MediaLearningWorkbench({ playback, playerFactory, audioPlayerFactory, initialPositionMs, initialSegmentIndex }: Readonly<{
   playback: MediaPlayback;
   playerFactory?: VideoPlayerFactory;
   audioPlayerFactory?: AudioPlayerFactory;
+  initialPositionMs?: number;
+  initialSegmentIndex?: number;
 }>) {
-  return <MediaLearningWorkbenchSession audioPlayerFactory={audioPlayerFactory} key={playback.media.id} playback={playback} playerFactory={playerFactory} />;
+  return <MediaLearningWorkbenchSession audioPlayerFactory={audioPlayerFactory} initialPositionMs={initialPositionMs} initialSegmentIndex={initialSegmentIndex} key={`${playback.media.id}:${initialPositionMs ?? "progress"}:${initialSegmentIndex ?? "auto"}`} playback={playback} playerFactory={playerFactory} />;
 }
 
-function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFactory }: Readonly<{
+function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFactory, initialPositionMs: requestedPositionMs, initialSegmentIndex: requestedSegmentIndex }: Readonly<{
   playback: MediaPlayback;
   playerFactory?: VideoPlayerFactory;
   audioPlayerFactory?: AudioPlayerFactory;
+  initialPositionMs?: number;
+  initialSegmentIndex?: number;
 }>) {
-  const initialActiveIndex = playback.media.progress?.lastSegmentIndex ?? (playback.segments.length > 0 ? 0 : null);
-  const initialPositionMs = playback.media.progress?.lastPositionMs ?? 0;
+  const deepLinkedSegment = requestedSegmentIndex !== undefined && playback.segments[requestedSegmentIndex] ? requestedSegmentIndex : null;
+  const initialPositionMs = requestedPositionMs !== undefined
+    ? Math.min(requestedPositionMs, playback.media.durationMs)
+    : deepLinkedSegment !== null ? playback.segments[deepLinkedSegment]!.startMs : playback.media.progress?.lastPositionMs ?? 0;
+  const initialActiveIndex = deepLinkedSegment ?? findSegmentIndexAt(playback.segments, initialPositionMs) ?? playback.media.progress?.lastSegmentIndex ?? (playback.segments.length > 0 ? 0 : null);
   const initialRevision = playback.media.progress?.revision ?? 0;
   const [activeIndex, setActiveIndex] = useState<number | null>(initialActiveIndex);
   const [captionMode, setCaptionMode] = useState<CaptionMode>("es");

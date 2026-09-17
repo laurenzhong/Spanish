@@ -1,18 +1,25 @@
 import { z } from "zod";
 
 export const lexicalIntentSchema = z.enum(["familiar", "revisit", "ignore"]);
+export const lexicalIntentFilterSchema = z.enum(["familiar", "revisit", "ignore", "unmarked"]);
 export const lexiconEntryKindSchema = z.enum(["lexeme", "phrase"]);
+const optionalFilter = <T extends z.ZodType>(schema: T) => z.preprocess((value) => typeof value === "string" && value.trim() === "" ? undefined : value, schema.optional());
 
 export const vocabularyQuerySchema = z.object({
-  search: z.string().trim().max(80).optional(),
-  intent: lexicalIntentSchema.optional(),
+  search: optionalFilter(z.string().trim().max(80)),
+  intent: optionalFilter(lexicalIntentFilterSchema),
+  lemmaStatus: optionalFilter(z.enum(["verified", "pending"])),
   page: z.coerce.number().int().min(1).max(1000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(24),
 });
 
 export const phraseQuerySchema = z.object({
-  search: z.string().trim().max(120).optional(),
-  intent: lexicalIntentSchema.optional(),
+  search: optionalFilter(z.string().trim().max(120)),
+  intent: optionalFilter(lexicalIntentFilterSchema),
+  pragmaticPurpose: optionalFilter(z.string().trim().max(80)),
+  register: optionalFilter(z.string().trim().max(40)),
+  region: optionalFilter(z.string().trim().max(40)),
+  cefr: optionalFilter(z.string().trim().max(16)),
   page: z.coerce.number().int().min(1).max(1000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(24),
 });
@@ -24,12 +31,21 @@ export const setLexicalIntentSchema = z.object({
 });
 
 export const corpusQuerySchema = z.object({
-  query: z.string().trim().min(1).max(120),
+  query: z.string().trim().min(1).max(120).optional(),
+  entryKind: lexiconEntryKindSchema.optional(),
+  entryId: z.string().uuid().optional(),
   documentKind: z.enum(["article", "media"]).optional(),
   sourceKind: z.string().trim().max(80).optional(),
   stableKey: z.string().trim().max(240).optional(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
+}).superRefine((value, context) => {
+  if ((value.entryKind && !value.entryId) || (!value.entryKind && value.entryId)) {
+    context.addIssue({ code: "custom", message: "entryKind and entryId must be provided together." });
+  }
+  if (!value.query && !(value.entryKind && value.entryId)) {
+    context.addIssue({ code: "custom", message: "A query or exact entry is required." });
+  }
 });
 
 export const lexicalAssessmentAnswerSchema = z.object({
@@ -42,6 +58,7 @@ export const idempotencyKeySchema = z.string().trim().min(8).max(128);
 export type VocabularyQuery = z.infer<typeof vocabularyQuerySchema>;
 export type PhraseQuery = z.infer<typeof phraseQuerySchema>;
 export type LexicalIntent = z.infer<typeof lexicalIntentSchema>;
+export type LexicalIntentFilter = z.infer<typeof lexicalIntentFilterSchema>;
 export type LexiconEntryKind = z.infer<typeof lexiconEntryKindSchema>;
 export type CorpusQueryInput = z.infer<typeof corpusQuerySchema>;
 export type LexicalAssessmentAnswer = z.infer<typeof lexicalAssessmentAnswerSchema>;

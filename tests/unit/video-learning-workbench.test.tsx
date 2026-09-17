@@ -54,6 +54,14 @@ afterEach(() => {
 });
 
 describe("video learning workbench", () => {
+  it("honors a source deep link before saved progress", () => {
+    const player = fakePlayer();
+    const view = render(<MediaLearningWorkbench initialPositionMs={4_250} initialSegmentIndex={2} playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    expect(player.port.seek).toHaveBeenCalledWith(4_250);
+    expect(view.container.querySelector("#segment-2")).toBeInTheDocument();
+  });
+
   it("supports transcript seeking, A/S/D/Q controls, caption modes and focus-restoring lexical drawer", async () => {
     const player = fakePlayer();
     const user = userEvent.setup();

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -39,7 +39,7 @@ const phrase = {
 };
 
 describe("lexicon pages and controls", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
   it("renders vocabulary metadata and updates a personal intent", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: { revision: 2 } }), { status: 200 }));
@@ -58,6 +58,19 @@ describe("lexicon pages and controls", () => {
     expect(screen.getByText("轻松问候")).toBeInTheDocument();
     render(<VocabularyLibrary items={[]} />);
     expect(screen.getByRole("heading", { name: "还没有词汇" })).toBeInTheDocument();
+  });
+
+  it("loads exact occurrence context and links back to the recorded position", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: { items: [{
+      leftContext: "Quiero", keyword: "comer", rightContext: "contigo.", sourceTitle: "Una historia", sourceKind: "article-rss",
+      document: { kind: "article", stableKey: "article.one", version: 2 }, location: { kind: "text", paragraphId: "p2", segmentIndex: 1 },
+      entryKind: "lexeme", entryId: vocabulary.id, surfaceText: "comer",
+    }], page: 1, pageSize: 6, total: 1 } }), { status: 200 }));
+    render(<VocabularyLibrary items={[vocabulary]} total={1} />);
+    await user.click(screen.getByRole("button", { name: "查看 comer 的上下文" }));
+    expect(await screen.findByText("Una historia")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "回到原文" })).toHaveAttribute("href", "/read/article/article.one#segment-1");
   });
 
   it("keeps the four reading destinations visible", () => {

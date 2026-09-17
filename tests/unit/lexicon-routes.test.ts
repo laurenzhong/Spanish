@@ -55,10 +55,15 @@ describe("lexicon API routes", () => {
   });
 
   it("validates list filters and forwards bounded queries", async () => {
-    const vocabulary = await getVocabulary(request("http://localhost/api/v1/lexicon/vocabulary?search=café&intent=revisit&page=2&pageSize=12"));
+    const vocabulary = await getVocabulary(request("http://localhost/api/v1/lexicon/vocabulary?search=café&intent=revisit&lemmaStatus=pending&page=2&pageSize=12"));
     expect(vocabulary.status).toBe(200);
-    expect(mocks.repository.listVocabulary).toHaveBeenCalledWith(user.id, { search: "café", intent: "revisit", page: 2, pageSize: 12 });
+    expect(mocks.repository.listVocabulary).toHaveBeenCalledWith(user.id, { search: "café", intent: "revisit", lemmaStatus: "pending", page: 2, pageSize: 12 });
 
+    const phraseFilters = await getPhrases(request("http://localhost/api/v1/lexicon/phrases?pragmaticPurpose=saludo&register=neutral&region=es-ES&cefr=A2"));
+    expect(phraseFilters.status).toBe(200);
+    expect(mocks.repository.listPhrases).toHaveBeenCalledWith(user.id, { pragmaticPurpose: "saludo", register: "neutral", region: "es-ES", cefr: "A2", page: 1, pageSize: 24 });
+
+    mocks.repository.listPhrases.mockClear();
     const phrases = await getPhrases(request("http://localhost/api/v1/lexicon/phrases?search=qué&pageSize=99"));
     expect(phrases.status).toBe(400);
     expect(mocks.repository.listPhrases).not.toHaveBeenCalled();
@@ -70,6 +75,12 @@ describe("lexicon API routes", () => {
     expect(response.status).toBe(200);
     expect(mocks.repository.listPhrases).toHaveBeenCalledWith(undefined, { page: 1, pageSize: 24 });
     expect(response.headers.get("cache-control")).toContain("public");
+  });
+
+  it("treats empty native form filters as omitted", async () => {
+    const response = await getVocabulary(request("http://localhost/api/v1/lexicon/vocabulary?search=&intent=&lemmaStatus="));
+    expect(response.status).toBe(200);
+    expect(mocks.repository.listVocabulary).toHaveBeenCalledWith(user.id, { page: 1, pageSize: 24 });
   });
 
   it("requires authentication and validates intent payload before writing", async () => {
