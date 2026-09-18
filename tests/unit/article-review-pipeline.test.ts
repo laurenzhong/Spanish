@@ -109,12 +109,14 @@ describe("runArticleReview", () => {
     expect(saved).toHaveLength(0);
   });
 
-  it("does not write approvals when a provider requests changes", async () => {
+  it("persists non-approval decisions without turning them into approvals", async () => {
     const content = provider("content-es-ES", { decision: "changes_requested", notes: "Needs a better source." });
     const teaching = provider("teaching-zh-CN");
     const { repo, saved } = repository();
 
-    await expect(runArticleReview(repo, { candidateId: candidate.id, contentProvider: content, teachingProvider: teaching })).resolves.toMatchObject({ status: "changes_requested", reviewsWritten: 0 });
-    expect(saved).toHaveLength(0);
+    await expect(runArticleReview(repo, { candidateId: candidate.id, contentProvider: content, teachingProvider: teaching })).resolves.toMatchObject({ status: "changes_requested", reviewsWritten: 3 });
+    expect(saved).toHaveLength(3);
+    expect(saved.find((review) => review.dimension === "content-es-ES")?.status).toBe("changes_requested");
+    expect(saved.filter((review) => review.status === "approved")).toHaveLength(2);
   });
 });

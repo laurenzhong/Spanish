@@ -2,7 +2,7 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-18
+- 最后更新：2026-09-19
 - 当前里程碑：内容驱动学习与自动内容供应重构
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
@@ -16,6 +16,8 @@
 - 已知基线问题：全量 `typecheck` 仍被 `src/modules/profile/ui/profile-sections.tsx:87` 的既有 `onError` props 类型错误阻断；全量 `lint` 仍被 6 条既有 Hook dependency warning 阻断。本轮未修改这些基线文件。
 - 工具候选与功能差距见 `docs/references/feature-tool-priority-review-2026-09.md`。Readability、FSRS 和 Promptfoo 仍待产品本人审查后再决定是否引入；P-Queue 只在有容量证据时评估。
 - Readlang runtime：通过 `readlang-links` 专用适配器接入 2026-09-18 Playwright 快照中的 57 个 URL、55 个主机；页面链接先升级到 HTTPS，再执行精确 URL 快照、重定向、MIME、大小和正文校验。新增数据库迁移 `0029_safe_switch`，自动发布仍因策略 `enabled=false` 保持关闭。
+- 本轮修复：文章审核现在会为三个维度持久化真实 `approved`/`changes_requested`/`rejected` 决策，并继续绑定冻结 candidate revision/hash；`review-only` 与 `auto-publish` 会恢复处理此前 `discover-only` 留下的 `discovered`/`review_ready` article candidates，且优先处理已待审核候选。新增跨两次运行的回归测试；focused Vitest `8 files / 26 tests`、受影响 ESLint 与 `git diff --check` 通过。
+- 当前验证边界：全局 typecheck 仍只被未修改的 `src/modules/profile/ui/profile-sections.tsx:87` 非法 `onError` props 阻断；Chrome 接管因本机 Codex auth method `apikey` 不受支持未完成。此前项目 Playwright fallback 桌面/移动各 `27/27` 通过；未执行真实来源采集、真实 MiniMax 调用、生产数据库写入或发布，今天没有证据证明已获取或发布 50 篇文章。
 
 ### 2026-09-18：CHAT-CHARACTER-INTEGRITY-001 角色一致性与介绍门禁
 

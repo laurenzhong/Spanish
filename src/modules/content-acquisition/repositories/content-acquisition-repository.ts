@@ -197,7 +197,7 @@ export interface ContentWorkflowRepository {
   findSourceById?(sourceId: string): Promise<ContentSourceRecord | null>;
   listRuns(input?: Readonly<{ sourceId?: string; limit?: number }>): Promise<readonly AcquisitionRunRecord[]>;
   findRunById(runId: string): Promise<AcquisitionRunRecord | null>;
-  listCandidates(input?: Readonly<{ status?: CandidateStatus; contentType?: ContentCandidateType; limit?: number }>): Promise<readonly ContentCandidateRecord[]>;
+  listCandidates(input?: Readonly<{ sourceId?: string; status?: CandidateStatus; contentType?: ContentCandidateType; limit?: number }>): Promise<readonly ContentCandidateRecord[]>;
   findCandidateById(candidateId: string): Promise<ContentCandidateRecord | null>;
   getCandidateReview(candidateId: string): Promise<CandidateReviewDetail | null>;
   saveCandidateReview(input: Readonly<{

@@ -162,19 +162,12 @@ export async function runArticleReview(
     providerResults["content-es-ES"] = content;
     providerResults["teaching-zh-CN"] = teaching;
     if (content.inputHash !== expectedInputHash || teaching.inputHash !== expectedInputHash) throw new Error("ARTICLE_REVIEW_INPUT_HASH_MISMATCH");
-    if (content.decision !== "approved" || teaching.decision !== "approved") {
-      return { status: content.decision === "rejected" || teaching.decision === "rejected" ? "rejected" : "changes_requested", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten: 0, reason: "PROVIDER_REVIEW_NOT_APPROVED", providerResults };
-    }
   } catch (error) {
     return { status: "failed", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten: 0, reason: error instanceof Error ? error.message : "ARTICLE_REVIEW_FAILED", providerResults };
   }
 
   const structure = { ...structureReview({ candidate, draft: parsedDraft }), inputHash: expectedInputHash };
   providerResults.structure = structure;
-  if (structure.decision !== "approved") {
-    return { status: "changes_requested", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten: 0, reason: "STRUCTURE_REVIEW_NOT_APPROVED", providerResults };
-  }
-
   const latest = await repository.getCandidateReview(candidate.id);
   if (!latest || latest.candidate.revision !== candidate.revision || latest.candidate.contentHash !== candidate.contentHash) {
     return { status: "failed", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten: 0, reason: "CANDIDATE_CHANGED_DURING_REVIEW", providerResults };
@@ -189,12 +182,18 @@ export async function runArticleReview(
       candidateId: candidate.id,
       expectedRevision: candidate.revision,
       dimension,
-      status: "approved",
+      status: result.decision,
       reviewerReference: REVIEWER_REFERENCE,
       notes: result.notes,
       updatedAt: reviewedAt,
     });
     reviewsWritten += 1;
   }
-  return { status: "approved", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten, reason: null, providerResults };
+  const decisions = [providerResults["content-es-ES"]?.decision, providerResults["teaching-zh-CN"]?.decision, structure.decision];
+  const status = decisions.includes("rejected")
+    ? "rejected"
+    : decisions.every((decision) => decision === "approved")
+      ? "approved"
+      : "changes_requested";
+  return { status, candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten, reason: status === "approved" ? null : "ARTICLE_REVIEW_NOT_APPROVED", providerResults };
 }

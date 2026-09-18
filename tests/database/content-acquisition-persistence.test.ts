@@ -70,7 +70,7 @@ describe("content acquisition persistence", () => {
     const repeated = await registerSource();
     expect(repeated).toEqual(first);
     expect(await acquisition.listSources()).toEqual([
-      expect.not.objectContaining({ rightsPolicy: expect.anything() }),
+      expect.objectContaining({ rightsPolicy: { acquisition: "fixture-only" } }),
     ]);
 
     const updated = await acquisition.registerSource({

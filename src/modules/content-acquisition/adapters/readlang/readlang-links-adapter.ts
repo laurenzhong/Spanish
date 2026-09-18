@@ -101,7 +101,7 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 50) {
       throw new ContentSourceAdapterError("Readlang discovery limit is outside the supported range.", false);
     }
-    if (input.externalSourceId !== this.options.policy.sourceUrl || !isReadlangAllowlistedUrl(input.externalSourceId, { ...this.options.policy, allowlist: { hosts: ["readlang.com"], urlPrefixes: ["https://readlang.com/es/links"] } })) {
+    if (input.externalSourceId !== this.options.policy.sourceUrl || !isReadlangAllowlistedUrl(input.externalSourceId, { ...this.options.policy, allowlist: { hosts: ["readlang.com"], urls: [this.options.policy.sourceUrl], urlPrefixes: ["https://readlang.com/es/links"] } })) {
       throw new ContentSourceAdapterError("Readlang source URL does not match the authorized policy.", false);
     }
     const cursor = cursorPage(input.cursor);

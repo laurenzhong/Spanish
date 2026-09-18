@@ -137,14 +137,42 @@ export async function runDailyArticlePipeline(
     }
 
     if (plan.mode === "discover-only") continue;
-    for (const candidateId of acquisition.insertedCandidateIds) {
+    const [discoveredCandidates, reviewReadyCandidates] = await Promise.all([
+      dependencies.repository.listCandidates({
+        sourceId: source.id,
+        status: "discovered",
+        contentType: "article",
+        limit: sourcePlan.sourceLimit,
+      }),
+      dependencies.repository.listCandidates({
+        sourceId: source.id,
+        status: "review_ready",
+        contentType: "article",
+        limit: sourcePlan.sourceLimit,
+      }),
+    ]);
+    const pendingCandidates = [...reviewReadyCandidates, ...discoveredCandidates];
+    const pendingById = new Map(pendingCandidates.map((candidate) => [candidate.id, candidate]));
+    const candidateIds = [...new Set([
+      ...reviewReadyCandidates.map((candidate) => candidate.id),
+      ...discoveredCandidates.map((candidate) => candidate.id),
+      ...acquisition.insertedCandidateIds,
+    ])].slice(0, sourcePlan.sourceLimit);
+    const candidateIdsToPrepare = candidateIds.filter((candidateId) => {
+      const candidate = pendingById.get(candidateId);
+      return acquisition.insertedCandidateIds.includes(candidateId) || candidate?.status === "discovered";
+    });
+    const readyCandidateIds = new Set(candidateIds.filter((candidateId) => pendingById.get(candidateId)?.status === "review_ready"));
+    for (const candidateId of candidateIdsToPrepare) {
       try {
         await prepareArticleCandidateForReview(dependencies.repository, candidateId);
         prepared += 1;
+        readyCandidateIds.add(candidateId);
       } catch (error) {
         failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: errorCode(error) });
-        continue;
       }
+    }
+    for (const candidateId of readyCandidateIds) {
       if (!dependencies.reviewProviders) {
         failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: "ARTICLE_REVIEW_PROVIDER_UNAVAILABLE" });
         continue;

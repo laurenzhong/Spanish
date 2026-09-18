@@ -172,6 +172,7 @@ export function createDrizzleContentAcquisitionRepository(
     async listCandidates(input = {}) {
       const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
       const conditions = [];
+      if (input.sourceId) conditions.push(eq(schema.contentCandidates.sourceId, input.sourceId));
       if (input.status) conditions.push(eq(schema.contentCandidates.status, input.status));
       if (input.contentType) conditions.push(eq(schema.contentCandidates.contentType, input.contentType));
       const query = database.select().from(schema.contentCandidates);
