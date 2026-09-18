@@ -181,6 +181,21 @@ describe("video learning workbench", () => {
     expect(word).toHaveFocus();
   });
 
+  it("uses Q to enable sentence-end auto-pause for video without restoring the old checkbox", () => {
+    vi.useFakeTimers();
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+
+    fireEvent.keyDown(window, { key: "q" });
+    expect(screen.queryByRole("checkbox", { name: "自动暂停" })).not.toBeInTheDocument();
+    player.setCurrentTime(1_800);
+    act(() => player.lifecycle().onStateChange("playing"));
+    act(() => vi.advanceTimersByTime(100));
+
+    expect(player.port.pause).toHaveBeenCalledOnce();
+  });
+
   it("ignores stale player callbacks after replacement", () => {
     vi.useFakeTimers();
     const first = fakePlayer();

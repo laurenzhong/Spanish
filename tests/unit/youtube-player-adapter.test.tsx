@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { VideoPlayerAdapter, youtubeIframePlayerFactory, type VideoPlayerPort } from "@/src/modules/media/ui/video-player-adapter";
@@ -58,13 +58,18 @@ function renderPlayer(overrides: Partial<React.ComponentProps<typeof VideoPlayer
   />);
 }
 
-it("uses the shared Plyr surface without obsolete video controls", async () => {
-  const view = renderPlayer();
+it("uses the shared Plyr surface with only the embedded auto-pause control", async () => {
+  const onToggleAutoPause = vi.fn();
+  const view = renderPlayer({ onToggleAutoPause });
 
   expect(screen.getByLabelText("Video")).toHaveAttribute("data-plyr-provider", "youtube");
   expect(screen.getByLabelText("Video")).toHaveAttribute("data-plyr-embed-id", "yw5EhfOU2iE");
-  await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).not.toBeInTheDocument());
-  expect(view.container.querySelector("[data-media-auto-pause-control]")).not.toBeInTheDocument();
+  await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).toBeInTheDocument());
+  const autoPause = view.container.querySelector("[data-media-auto-pause-control]") as HTMLButtonElement;
+  expect(autoPause).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(autoPause);
+  expect(onToggleAutoPause).toHaveBeenCalledOnce();
+  expect(autoPause).toHaveAttribute("aria-pressed", "false");
   expect(view.container).not.toHaveTextContent("在 YouTube 打开");
 });
 
@@ -84,7 +89,7 @@ it("drives the shared player port through Plyr", async () => {
 
 it("does not render a YouTube handoff link", async () => {
   const view = renderPlayer();
-  await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).not.toBeInTheDocument());
+  await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).toBeInTheDocument());
   expect(view.container.querySelector("a[href*='youtube.com/watch']")).not.toBeInTheDocument();
 });
 

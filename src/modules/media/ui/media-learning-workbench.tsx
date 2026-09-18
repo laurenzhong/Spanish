@@ -159,7 +159,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
       if (event.key === "ArrowLeft" || key === "a") previous();
       else if (event.key === "ArrowRight" || key === "d") next();
       else if (key === "s") replay();
-      else if (key === "q" && playback.media.kind === "podcast") setAutoPause((value) => !value);
+      else if (key === "q") setAutoPause((value) => !value);
       else return;
       event.preventDefault();
       event.stopPropagation();
@@ -176,7 +176,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
       const found = findSegmentIndexAt(playback.segments, current);
       if (found !== null) updateActiveIndex(found);
       const currentSegment = playback.segments[activeIndex ?? found ?? -1];
-      if (playback.media.kind === "podcast" && autoPause && currentSegment && current >= currentSegment.endMs) {
+      if (autoPause && currentSegment && current >= currentSegment.endMs) {
         sendProgress(progressSnapshot("paused-by-segment"));
         playerRef.current?.pause();
         setPlayerState("paused");
@@ -219,9 +219,13 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
               onToggleAutoPause={() => setAutoPause((value) => !value)} title={`${playback.media.title} 播放器`} />
           : playback.asset.kind === "video"
             ? <HostedVideoPlayerAdapter key={`hosted-video-${playerAttempt}`} onError={handlePlayerError} onPortChange={handlePortChange}
-                onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
+                autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
+                onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url}
+                onToggleAutoPause={() => setAutoPause((value) => !value)} />
           : <VideoPlayerAdapter key={`video-${playerAttempt}`} embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
-              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
+              autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
+              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`}
+              onToggleAutoPause={() => setAutoPause((value) => !value)} />}
       </div>
       {playback.media.kind === "podcast" && !embeddedAutoPauseControl ? <div aria-label="逐句播放控制" className="media-sentence-controls" role="group">
         <label><input aria-label="自动暂停" checked={autoPause} disabled={playback.segments.length === 0} onChange={(event) => setAutoPause(event.target.checked)} type="checkbox" /><span>自动暂停</span><kbd>Q</kbd></label>

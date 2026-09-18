@@ -81,10 +81,19 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
   await expect(page.locator("[data-video-id='e2eCafe1234']")).toBeVisible();
   await expect(page.getByRole("group", { name: "当前片段" })).toContainText("Buenos días.");
   const autoPause = page.locator("[data-media-auto-pause-control]");
-  await expect(autoPause).toHaveCount(0);
+  await expect(autoPause).toBeVisible();
+  await expect(autoPause).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("checkbox", { name: "自动暂停" })).toHaveCount(0);
   await expect(page.getByText("在 YouTube 打开")).toHaveCount(0);
   await expect(page.getByRole("group", { name: "逐句播放控制" })).toHaveCount(0);
   await expect(page.getByText("播放器已就绪")).toBeVisible();
+
+  await autoPause.click();
+  await expect(autoPause).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("q");
+  await expect(autoPause).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("q");
+  await expect(autoPause).toHaveAttribute("aria-pressed", "true");
 
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => page.evaluate(() => (window as unknown as Window & { __videoE2E: { currentTime: number } }).__videoE2E.currentTime)).toBe(1.8);
@@ -96,7 +105,7 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
     runtime.__videoE2E.currentTime = 1.8;
     runtime.__videoE2E.emit(1);
   });
-  await expect.poll(() => page.evaluate(() => (window as unknown as Window & { __videoE2E: { pauseCalls: number } }).__videoE2E.pauseCalls)).toBe(0);
+  await expect.poll(() => page.evaluate(() => (window as unknown as Window & { __videoE2E: { pauseCalls: number } }).__videoE2E.pauseCalls)).toBeGreaterThan(0);
 
   await page.getByRole("button", { name: "双语" }).click();
   await expect(page.getByText("早上好。")).toBeVisible();
@@ -172,7 +181,7 @@ test("recovers controls when the YouTube SDK arrives after five seconds", async 
   });
   await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`, { waitUntil: "commit" });
   await expect(page.getByText("播放器已就绪")).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator("[data-media-auto-pause-control]")).toHaveCount(0);
+  await expect(page.locator("[data-media-auto-pause-control]")).toBeVisible();
 });
 
 test("keeps hosted video controls usable and uses arrow keys for sentences", async ({ page }, testInfo) => {
@@ -181,7 +190,8 @@ test("keeps hosted video controls usable and uses arrow keys for sentences", asy
   const video = page.getByLabel("Cómo pedir un café 播放器");
   await expect(video).toHaveAttribute("src", "https://media.example.test/media/video.e2e-hosted/1/video.mp4");
   const autoPause = page.locator("[data-media-auto-pause-control]");
-  await expect(autoPause).toHaveCount(0);
+  await expect(autoPause).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "自动暂停" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /上一句|重播当前句|下一句/ })).toHaveCount(0);
   await expect(page.getByRole("group", { name: "逐句播放控制" })).toHaveCount(0);
   await expect(page.getByRole("group", { name: "当前片段" })).toContainText("Buenos días.");
@@ -260,7 +270,7 @@ test("keeps the media detail workbench usable across planned viewports", async (
 
     await expect(page.getByRole("heading", { name: "Cómo pedir un café" })).toBeVisible();
     await expect(page.getByLabel("Cómo pedir un café 播放器")).toBeVisible();
-    await expect(page.locator("[data-media-auto-pause-control]")).toHaveCount(0);
+    await expect(page.locator("[data-media-auto-pause-control]")).toBeVisible();
     await expect(page.getByRole("group", { name: "逐句播放控制" })).toHaveCount(0);
     await expect(page.getByRole("group", { name: "当前片段" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
