@@ -15,6 +15,7 @@
 - 浏览器验证：学习、探索、阅读核心路径桌面/移动 Playwright `22/22`；对话桌面 Playwright `15/15`；聚焦 Vitest `13 files / 52 tests`。
 - 已知基线问题：全量 `typecheck` 仍被 `src/modules/profile/ui/profile-sections.tsx:87` 的既有 `onError` props 类型错误阻断；全量 `lint` 仍被 6 条既有 Hook dependency warning 阻断。本轮未修改这些基线文件。
 - 工具候选与功能差距见 `docs/references/feature-tool-priority-review-2026-09.md`。Readability、FSRS 和 Promptfoo 仍待产品本人审查后再决定是否引入；P-Queue 只在有容量证据时评估。
+- Readlang runtime：通过 `readlang-links` 专用适配器接入 2026-09-18 Playwright 快照中的 57 个 URL、55 个主机；页面链接先升级到 HTTPS，再执行快照主机、重定向、MIME、大小和正文校验。新增数据库迁移 `0029_safe_switch`，自动发布仍因策略 `enabled=false` 保持关闭。
 
 ### 2026-09-18：CHAT-CHARACTER-INTEGRITY-001 角色一致性与介绍门禁
 

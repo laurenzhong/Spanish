@@ -23,8 +23,8 @@ function policyEnabled(source: Readonly<{ enabled: boolean; adapterType: string;
   if (!policy || typeof policy !== "object") return false;
   const value = policy as Readonly<Record<string, unknown>>;
   return source.enabled
-    && source.adapterType === "article-rss"
-    && source.sourceKind === "article-feed"
+    && ((source.adapterType === "article-rss" && source.sourceKind === "article-feed")
+      || (source.adapterType === "readlang-links" && source.sourceKind === "article-site"))
     && source.rightsStatus === "verified"
     && value.enabled === true
     && value.policyVersion === policyVersion

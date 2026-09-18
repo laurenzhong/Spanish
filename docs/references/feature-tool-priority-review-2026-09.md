@@ -11,7 +11,7 @@
 | P0 | 探索三视图 | 已有场景、表达、内容包视图和收藏/生成入口，待集成验证 | 推荐理由、无结果 fallback、显式生成确认、来源隐私、320–1440px 无溢出 |
 | P0 | 角色完整性 | 角色目录与记忆已有；需要把人物圣经注入每个 provider，并验证关系门禁 | Lucía/Mateo/Inés 的稳定语气、事实边界、AI 身份诚实、关系与共享记忆隔离 |
 | P0 | 每日文章供应 | 已实现 `disabled → discover-only → review-only → auto-publish`、每日最多 50 篇、MiniMax 双审核 | 先 discover-only，再 review-only 观察 7 天，人工抽查后才允许 protected Environment 开启发布 |
-| P0 | Readlang 授权来源 | 已登记 `readlang.com/library/` 前缀；不得扩展为任意公网抓取 | 运行时继续执行 HTTPS、重定向、主机、MIME、大小和权利校验 |
+| P0 | Readlang 授权来源 | 已登记 2026-09-18 页面快照中的 57 个 URL、55 个主机；不得扩展为任意公网抓取 | 运行时继续执行快照主机、HTTPS、重定向、MIME、大小、正文和权利校验 |
 
 ## GitHub 工具候选
 
@@ -54,7 +54,7 @@
 | `review-only` | 执行独立 `content-es-ES` 与 `teaching-zh-CN` MiniMax 审核，不发布 | 至少一轮 discover-only 成功 | 观察 7 天并完成人工抽查 |
 | `auto-publish` | 仅发布双审通过且结构校验、CAS、权利复核通过的候选 | 产品本人确认、protected Environment、kill switch | 任一门禁失败立即回到 `review-only` 或 `disabled` |
 
-任何阶段都必须记录 `codex-ai-owner-authorized-review`，审核 provider 只审核冻结输入，不能直接写库或发布。Readlang 页面未来出现的其他外部主机不会自动获得授权，必须单独登记。
+任何阶段都必须记录 `codex-ai-owner-authorized-review`，审核 provider 只审核冻结输入，不能直接写库或发布。Readlang 页面未来出现的其他 URL 或外部主机不会自动获得授权，必须刷新快照并登记新的策略版本。
 
 ## 待产品本人审查
 

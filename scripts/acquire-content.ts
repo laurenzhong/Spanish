@@ -10,6 +10,7 @@ import {
   ContentSourceNotFoundError,
   FakeContentSourceAdapter,
   createArticleRssAdapterFromSource,
+  createReadlangLinksAdapterFromSource,
   createPodcastRssAdapterFromSource,
   createYouTubeChannelAdapterFromSource,
   contentSourcePageSchema,
@@ -232,7 +233,9 @@ async function main(): Promise<void> {
         : undefined;
       const result = await runDailyArticlePipeline({
         repository: repository as never,
-        resolveAdapter: (source) => createArticleRssAdapterFromSource(source),
+        resolveAdapter: (source) => source.adapterType === "readlang-links"
+          ? createReadlangLinksAdapterFromSource(source)
+          : createArticleRssAdapterFromSource(source),
         reviewProviders,
         publishers,
       }, {
@@ -294,6 +297,8 @@ async function main(): Promise<void> {
         ? await loadConfiguredFakeAdapter()
         : source.adapterType === "article-rss"
           ? createArticleRssAdapterFromSource(source)
+          : source.adapterType === "readlang-links"
+            ? createReadlangLinksAdapterFromSource(source)
           : source.adapterType === "podcast-rss"
             ? createPodcastRssAdapterFromSource(source)
             : source.adapterType === "youtube"

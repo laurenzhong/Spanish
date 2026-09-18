@@ -41,6 +41,22 @@ function isUsablePolicy(source: ContentSourceRecord, expectedVersion: string): b
     && !Number.isNaN(Date.parse(policy.approvedAt));
 }
 
+function sourceEligibleForMode(source: ContentSourceRecord, mode: ArticlePublicationMode, expectedVersion: string): boolean {
+  const baseEligible = source.enabled
+    && source.rightsStatus === "verified"
+    && ((source.adapterType === "article-rss" && source.sourceKind === "article-feed")
+      || (source.adapterType === "readlang-links" && source.sourceKind === "article-site"));
+  if (!baseEligible) return false;
+  if (mode === "discover-only") return true;
+  if (source.adapterType === "readlang-links") {
+    const configuredVersion = source.rightsPolicy?.policyVersion;
+    return mode === "review-only"
+      ? configuredVersion === expectedVersion
+      : isUsablePolicy(source, expectedVersion);
+  }
+  return isUsablePolicy(source, expectedVersion);
+}
+
 export function planDailyArticleRun(input: Readonly<{
   date: string;
   mode: ArticlePublicationMode;
@@ -57,12 +73,15 @@ export function planDailyArticleRun(input: Readonly<{
 
   const eligible = [...input.sources]
     .sort((left, right) => left.stableKey.localeCompare(right.stableKey))
-    .filter((source) => source.enabled && source.adapterType === "article-rss" && source.sourceKind === "article-feed" && source.rightsStatus === "verified");
+    .filter((source) => source.enabled && source.rightsStatus === "verified"
+      && ((source.adapterType === "article-rss" && source.sourceKind === "article-feed")
+        || (source.adapterType === "readlang-links" && source.sourceKind === "article-site")));
   const skippedSources = input.sources
     .filter((source) => !eligible.includes(source))
     .map((source) => ({
       sourceStableKey: source.stableKey,
-      reason: !source.enabled ? "source-disabled" : source.adapterType !== "article-rss" || source.sourceKind !== "article-feed" ? "not-article-rss" : source.rightsStatus !== "verified" ? "rights-not-verified" : "source-ineligible",
+      reason: !source.enabled ? "source-disabled" : ((source.adapterType !== "article-rss" || source.sourceKind !== "article-feed")
+        && (source.adapterType !== "readlang-links" || source.sourceKind !== "article-site")) ? "not-article-source" : source.rightsStatus !== "verified" ? "rights-not-verified" : "source-ineligible",
     }));
   const sourcePlans: ArticleDailySourcePlan[] = [];
   if (input.mode === "disabled") {
@@ -77,7 +96,7 @@ export function planDailyArticleRun(input: Readonly<{
   }
   let remaining = input.dailyLimit;
   for (const source of eligible) {
-    if (!isUsablePolicy(source, input.policyVersion)) {
+    if (!sourceEligibleForMode(source, input.mode, input.policyVersion)) {
       skippedSources.push({ sourceStableKey: source.stableKey, reason: "automated-publication-policy-not-approved" });
       continue;
     }
