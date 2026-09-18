@@ -14,7 +14,7 @@ test("opens directly on video and podcast content discovery", async ({ page }) =
   await page.goto("/learn");
 
   await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "全部" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "全部", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("link", { name: "视频" })).toBeVisible();
   await expect(page.getByRole("link", { name: "播客" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "学习主题" })).toBeVisible();
