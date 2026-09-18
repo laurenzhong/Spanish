@@ -55,7 +55,14 @@ function clientPlayback(stableKey: string, playback: MediaPlayback): MediaPlayba
   if (playback.media.kind !== "podcast" || playback.asset.kind !== "audio") return playback;
   try {
     const host = new URL(playback.asset.url).hostname.toLowerCase();
-    if (host !== "ztnr.rtve.es" && host !== "rtve-mediavod-lote3.rtve.es") return playback;
+    if (!new Set([
+      "content.libsyn.com",
+      "traffic.libsyn.com",
+      "traffic.megaphone.fm",
+      "dcs-spotify.megaphone.fm",
+      "ztnr.rtve.es",
+      "rtve-mediavod-lote3.rtve.es",
+    ]).has(host)) return playback;
   } catch {
     return playback;
   }
@@ -88,16 +95,15 @@ export default async function MediaDetailPage({ params }: Context) {
   const browserPlayback = clientPlayback(stableKey, playback);
   return (
     <article className="media-detail">
-      <Link className="media-detail__back" href="/learn">← 返回学习资料库</Link>
+      <div className="media-detail__topbar"><Link className="media-detail__back" href="/learn">← 返回学习资料库</Link><span>{playback.media.kind === "video" ? "视频" : "播客"} · {playback.media.cefr ?? "未分级"}</span></div>
       <header className="media-detail__header">
-        <p className="eyebrow eyebrow--accent">{playback.media.kind === "video" ? "视频" : "播客"} · {playback.media.cefr ?? "未分级"}</p>
         <h1>{playback.media.title}</h1>
-        <p>{playback.media.summary}</p>
         <div aria-label="媒体信息" className="media-detail__meta">
           <span>{playback.media.sourceName}</span>
           <span>{playback.media.region ?? "地区未知"}</span>
           <span>{formatDuration(playback.media.durationMs)}</span>
           <span>{playback.segments.length > 0 ? "有逐句文本" : "无逐句文本"}</span>
+          <details className="media-detail__summary"><summary>内容简介</summary><p>{playback.media.summary}</p></details>
         </div>
       </header>
       {(playback.media.kind === "video" && (playback.asset.kind === "official_embed" || playback.asset.kind === "video"))

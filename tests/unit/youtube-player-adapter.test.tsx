@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { VideoPlayerAdapter, youtubeIframePlayerFactory, type VideoPlayerPort } from "@/src/modules/media/ui/video-player-adapter";
@@ -58,20 +58,14 @@ function renderPlayer(overrides: Partial<React.ComponentProps<typeof VideoPlayer
   />);
 }
 
-it("uses the shared Plyr surface and icon-only auto-pause control for YouTube", async () => {
-  const onAutoPauseControlReady = vi.fn();
-  const onToggleAutoPause = vi.fn();
-  const view = renderPlayer({ onAutoPauseControlReady, onToggleAutoPause });
+it("uses the shared Plyr surface without obsolete video controls", async () => {
+  const view = renderPlayer();
 
   expect(screen.getByLabelText("Video")).toHaveAttribute("data-plyr-provider", "youtube");
   expect(screen.getByLabelText("Video")).toHaveAttribute("data-plyr-embed-id", "yw5EhfOU2iE");
-  await waitFor(() => expect(onAutoPauseControlReady).toHaveBeenCalledWith(true));
-  const control = view.container.querySelector<HTMLButtonElement>("[data-media-auto-pause-control]")!;
-  expect(control).toBeVisible();
-  expect(control).toHaveTextContent("");
-  expect(control.querySelector("svg")).toBeInTheDocument();
-  fireEvent.click(control);
-  expect(onToggleAutoPause).toHaveBeenCalledOnce();
+  await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).not.toBeInTheDocument());
+  expect(view.container.querySelector("[data-media-auto-pause-control]")).not.toBeInTheDocument();
+  expect(view.container).not.toHaveTextContent("在 YouTube 打开");
 });
 
 it("drives the shared player port through Plyr", async () => {
@@ -88,11 +82,10 @@ it("drives the shared player port through Plyr", async () => {
   expect(onStateChange).toHaveBeenCalledWith("paused");
 });
 
-it("disables auto-pause when the YouTube video has no reviewed segments", async () => {
-  const view = renderPlayer({ hasSegments: false });
-  await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).toBeInTheDocument());
-  expect(view.container.querySelector("[data-media-auto-pause-control]")).toBeDisabled();
-  expect(view.container.querySelector("[data-media-auto-pause-control]")).toHaveAccessibleName("暂无已审核分句，无法自动暂停");
+it("does not render a YouTube handoff link", async () => {
+  const view = renderPlayer();
+  await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).not.toBeInTheDocument());
+  expect(view.container.querySelector("a[href*='youtube.com/watch']")).not.toBeInTheDocument();
 });
 
 it("classifies 153 as missing embed identity and sets referrer policy in the direct SDK fallback", () => {

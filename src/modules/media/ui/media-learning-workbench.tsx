@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { findSegmentIndexAt, type MediaPlayback } from "../domain";
 import { AudioPlayerAdapter, type AudioPlayerFactory, type AudioPlayerPort, type AudioPlayerState } from "./audio-player-adapter";
@@ -24,10 +24,21 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
   playerFactory?: VideoPlayerFactory;
   audioPlayerFactory?: AudioPlayerFactory;
 }>) {
-  const initialActiveIndex = playback.media.progress?.lastSegmentIndex ?? (playback.segments.length > 0 ? 0 : null);
   const initialPositionMs = playback.media.progress?.lastPositionMs ?? 0;
+  const initialActiveIndex = findSegmentIndexAt(playback.segments, initialPositionMs);
   const initialRevision = playback.media.progress?.revision ?? 0;
   const [activeIndex, setActiveIndex] = useState<number | null>(initialActiveIndex);
+  const [positionMs, setPositionMs] = useState(initialPositionMs);
+  const spokenIndex = findSegmentIndexAt(playback.segments, positionMs);
+  const workbenchRef = useRef<HTMLDivElement>(null);
+  const [playerHeight, setPlayerHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const player = workbenchRef.current?.querySelector(".media-detail__player");
+    if (!player || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setPlayerHeight(player.getBoundingClientRect().height));
+    observer.observe(player);
+    return () => observer.disconnect();
+  }, []);
   const [captionMode, setCaptionMode] = useState<CaptionMode>("es");
   const [autoPause, setAutoPause] = useState(false);
   const [embeddedAutoPauseControl, setEmbeddedAutoPauseControl] = useState(false);
@@ -131,6 +142,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     const segment = playback.segments[index];
     if (!segment || !playerRef.current) return;
     updateActiveIndex(index);
+    setPositionMs(segment.startMs);
     playerRef.current.seek(segment.startMs);
     playerRef.current.play();
   }, [playback.segments, updateActiveIndex]);
@@ -147,32 +159,33 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
       if (event.key === "ArrowLeft" || key === "a") previous();
       else if (event.key === "ArrowRight" || key === "d") next();
       else if (key === "s") replay();
-      else if (key === "q") setAutoPause((value) => !value);
+      else if (key === "q" && playback.media.kind === "podcast") setAutoPause((value) => !value);
       else return;
       event.preventDefault();
       event.stopPropagation();
     }
     window.addEventListener("keydown", keydown, true);
     return () => window.removeEventListener("keydown", keydown, true);
-  }, [next, previous, replay]);
+  }, [next, playback.media.kind, previous, replay]);
 
   useEffect(() => {
     if (!playerRef.current || playerState !== "playing") return;
     const timer = window.setInterval(() => {
       const current = playerRef.current?.currentTime() ?? 0;
+      setPositionMs(current);
       const found = findSegmentIndexAt(playback.segments, current);
       if (found !== null) updateActiveIndex(found);
       const currentSegment = playback.segments[activeIndex ?? found ?? -1];
-      if (autoPause && currentSegment && current >= currentSegment.endMs) {
+      if (playback.media.kind === "podcast" && autoPause && currentSegment && current >= currentSegment.endMs) {
         sendProgress(progressSnapshot("paused-by-segment"));
         playerRef.current?.pause();
         setPlayerState("paused");
       } else if (Math.abs(current - lastRequestedPositionRef.current) >= 10_000) {
         sendProgress(progressSnapshot("playing"));
       }
-    }, 250);
+    }, 80);
     return () => window.clearInterval(timer);
-  }, [activeIndex, autoPause, playback.segments, playerState, progressSnapshot, sendProgress, updateActiveIndex]);
+  }, [activeIndex, autoPause, playback.media.kind, playback.segments, playerState, progressSnapshot, sendProgress, updateActiveIndex]);
 
   const handlePortChange = useCallback((port: VideoPlayerPort | AudioPlayerPort | null) => {
     playerRef.current = port;
@@ -183,6 +196,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     if (state === "paused" || state === "ended") sendProgress(progressSnapshot(state));
   }, [initialPositionMs, progressSnapshot, sendProgress]);
   const handleTimeUpdate = useCallback((positionMs: number) => {
+    setPositionMs(positionMs);
     const found = findSegmentIndexAt(playback.segments, positionMs);
     if (found !== null) updateActiveIndex(found);
   }, [playback.segments, updateActiveIndex]);
@@ -195,7 +209,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
   const openWord = useCallback((word: string, sentence: string, trigger: HTMLButtonElement) => { lexicalTriggerRef.current = trigger; setLexicalSelection({ word, sentence }); }, []);
   const closeWord = useCallback(() => { setLexicalSelection(null); window.setTimeout(() => lexicalTriggerRef.current?.focus(), 0); }, []);
 
-  return <div className="media-learning-workbench">
+  return <div ref={workbenchRef} style={playerHeight ? { "--media-player-height": `${playerHeight}px` } as CSSProperties : undefined} className={`media-learning-workbench media-learning-workbench--${playback.media.kind}`}>
     <section aria-label={playback.media.kind === "podcast" ? "播客学习器" : "视频学习器"} className="media-learning-workbench__main">
       <div className={`media-detail__player media-detail__player--${playback.media.kind}`}>
         {playback.media.kind === "podcast" && playback.asset.kind === "audio"
@@ -205,15 +219,11 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
               onToggleAutoPause={() => setAutoPause((value) => !value)} title={`${playback.media.title} 播放器`} />
           : playback.asset.kind === "video"
             ? <HostedVideoPlayerAdapter key={`hosted-video-${playerAttempt}`} onError={handlePlayerError} onPortChange={handlePortChange}
-                autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
-                onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate}
-                onToggleAutoPause={() => setAutoPause((value) => !value)} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
+                onStateChange={handleStateChange} onTimeUpdate={handleTimeUpdate} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
           : <VideoPlayerAdapter key={`video-${playerAttempt}`} embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
-              autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
-              onPortChange={handlePortChange} onStateChange={handleStateChange}
-              onToggleAutoPause={() => setAutoPause((value) => !value)} title={`${playback.media.title} 播放器`} />}
+              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
       </div>
-      {!embeddedAutoPauseControl ? <div aria-label="逐句播放控制" className="media-sentence-controls" role="group">
+      {playback.media.kind === "podcast" && !embeddedAutoPauseControl ? <div aria-label="逐句播放控制" className="media-sentence-controls" role="group">
         <label><input aria-label="自动暂停" checked={autoPause} disabled={playback.segments.length === 0} onChange={(event) => setAutoPause(event.target.checked)} type="checkbox" /><span>自动暂停</span><kbd>Q</kbd></label>
       </div> : null}
       <div aria-label="当前片段" className="media-current-segment" role="group">
@@ -231,7 +241,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
       <header><div><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
         {playback.segments.length > 0 ? <div aria-label="字幕模式" className="caption-mode" role="group">{(["es", "bilingual", "hidden"] as const).map((mode) => <button aria-pressed={captionMode === mode} key={mode} onClick={() => setCaptionMode(mode)} type="button">{mode === "es" ? "西语" : mode === "bilingual" ? "双语" : "隐藏"}</button>)}</div>
           : <span className="caption-mode__unavailable">暂无已审核字幕</span>}</header>
-      <SegmentTranscript activeIndex={activeIndex} captionMode={captionMode} mediaKind={playback.media.kind} onSeek={selectSegment} onWord={openWord} segments={playback.segments} />
+      <SegmentTranscript positionMs={positionMs} activeIndex={spokenIndex} captionMode={captionMode} mediaKind={playback.media.kind} onSeek={selectSegment} onWord={openWord} segments={playback.segments} />
     </section>
     {lexicalSelection ? <LexicalDrawer onClose={closeWord} sentence={lexicalSelection.sentence} word={lexicalSelection.word} /> : null}
   </div>;

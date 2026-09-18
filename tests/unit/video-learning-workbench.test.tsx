@@ -20,9 +20,20 @@ function playback() {
     },
     asset: { kind: "official_embed" as const, url: "https://www.youtube-nocookie.com/embed/publicVideo1?enablejsapi=1", expiresAt: null },
     segments: [
-      { id: "s0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null },
-      { id: "s1", index: 1, startMs: 1_800, endMs: 4_250, sourceText: "Quería un café con leche.", translation: "我想要一杯拿铁。", speaker: null },
-      { id: "s2", index: 2, startMs: 4_250, endMs: 6_000, sourceText: "Claro.", translation: "当然。", speaker: null },
+      { id: "s0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, words: [
+        { startMs: 100, endMs: 600, startOffset: 0, endOffset: 6 },
+        { startMs: 700, endMs: 1_200, startOffset: 7, endOffset: 11 },
+      ] },
+      { id: "s1", index: 1, startMs: 1_800, endMs: 4_250, sourceText: "Quería un café con leche.", translation: "我想要一杯拿铁。", speaker: null, words: [
+        { startMs: 1_900, endMs: 2_350, startOffset: 0, endOffset: 6 },
+        { startMs: 2_400, endMs: 2_650, startOffset: 7, endOffset: 9 },
+        { startMs: 2_700, endMs: 3_100, startOffset: 10, endOffset: 14 },
+        { startMs: 3_150, endMs: 3_450, startOffset: 15, endOffset: 18 },
+        { startMs: 3_500, endMs: 4_050, startOffset: 19, endOffset: 24 },
+      ] },
+      { id: "s2", index: 2, startMs: 4_250, endMs: 6_000, sourceText: "Claro.", translation: "当然。", speaker: null, words: [
+        { startMs: 4_350, endMs: 4_900, startOffset: 0, endOffset: 5 },
+      ] },
     ],
   };
 }
@@ -55,6 +66,39 @@ afterEach(() => {
 });
 
 describe("video learning workbench", () => {
+  it("restores the sentence from media time, not a stale saved segment index", () => {
+    const data = playback();
+    data.media.progress.lastPositionMs = 2000;
+    data.media.progress.lastSegmentIndex = 0;
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={data} playerFactory={player.factory} />);
+    expect(screen.getByRole("listitem", { current: true })).toHaveTextContent("Quería un café");
+  });
+
+  it("follows real playback across words and restores the previous sentence when the voice advances", () => {
+    vi.useFakeTimers();
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onStateChange("playing"));
+
+    player.setCurrentTime(250);
+    act(() => vi.advanceTimersByTime(100));
+    expect(screen.getByRole("button", { name: "查看词语 Buenos" })).toHaveClass("is-speaking");
+    expect(screen.getAllByRole("listitem")[0]).toHaveAttribute("aria-current", "true");
+
+    player.setCurrentTime(850);
+    act(() => vi.advanceTimersByTime(100));
+    expect(screen.getByRole("button", { name: "查看词语 Buenos" })).not.toHaveClass("is-speaking");
+    expect(screen.getByRole("button", { name: "查看词语 días" })).toHaveClass("is-speaking");
+
+    player.setCurrentTime(2_000);
+    act(() => vi.advanceTimersByTime(100));
+    expect(screen.getAllByRole("listitem")[0]).not.toHaveClass("is-active");
+    expect(screen.getAllByRole("listitem")[1]).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "查看词语 días" })).not.toHaveClass("is-speaking");
+    expect(screen.getByRole("button", { name: "查看词语 Quería" })).toHaveClass("is-speaking");
+  });
   it("exposes a structured current-segment context for the responsive detail layout", () => {
     const player = fakePlayer();
     render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
@@ -125,10 +169,8 @@ describe("video learning workbench", () => {
     fireEvent.keyDown(playerSurface!, { key: "ArrowRight" });
     expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
 
-    const autoPause = screen.getByRole("checkbox", { name: "自动暂停" });
-    expect(autoPause).not.toBeChecked();
     fireEvent.keyDown(window, { key: "q" });
-    expect(autoPause).toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: "自动暂停" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "双语" }));
     expect(screen.getByText("早上好。")).toBeVisible();
@@ -139,16 +181,15 @@ describe("video learning workbench", () => {
     expect(word).toHaveFocus();
   });
 
-  it("auto-pauses at the reviewed segment boundary and ignores stale player callbacks after replacement", () => {
+  it("ignores stale player callbacks after replacement", () => {
     vi.useFakeTimers();
     const first = fakePlayer();
     const { rerender } = render(<MediaLearningWorkbench playback={playback()} playerFactory={first.factory} />);
     act(() => first.lifecycle().onReady());
-    fireEvent.click(screen.getByRole("checkbox", { name: "自动暂停" }));
     first.setCurrentTime(1_800);
     act(() => first.lifecycle().onStateChange("playing"));
     act(() => vi.advanceTimersByTime(300));
-    expect(first.port.pause).toHaveBeenCalled();
+    expect(first.port.pause).not.toHaveBeenCalled();
 
     const second = fakePlayer();
     const nextPlayback = { ...playback(), media: { ...playback().media, id: "youtube.nextvideo2@1", stableKey: "youtube.nextvideo2", title: "Otro vídeo" }, asset: { ...playback().asset, url: "https://www.youtube-nocookie.com/embed/nextVideo2?enablejsapi=1" } };

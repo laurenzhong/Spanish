@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 
 import { and, desc, eq, gt, inArray, isNull, max, or } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -9,6 +10,7 @@ import {
   MediaProgressConflictError,
   validateSegmentTimeline,
   MediaUnavailableError,
+  maxMediaSegments,
   nextMediaProgress,
   projectMediaCard,
   projectMediaPlayback,
@@ -19,6 +21,34 @@ import type { ParsedMediaListQuery } from "../schemas";
 import type { MediaLookupResult, MediaRepository } from "./media-repository";
 import type { AcquiredPodcastRepository } from "./acquired-podcast-repository";
 import type { AcquiredVideoRepository } from "./acquired-video-repository";
+import type { MediaTranscriptBackfillRepository, MediaTranscriptBackfillRecord, MediaTranscriptBackfillReviewDimension } from "./media-transcript-backfill-repository";
+
+const backfillDimensions: readonly MediaTranscriptBackfillReviewDimension[] = ["content-es-ES", "teaching-zh-CN", "structure"];
+
+function backfillRecord(
+  row: typeof schema.mediaTranscriptBackfills.$inferSelect,
+  stableKey: string,
+  reviews: readonly (typeof schema.mediaTranscriptBackfillReviews.$inferSelect)[],
+): MediaTranscriptBackfillRecord {
+  const reviewMap = Object.fromEntries(backfillDimensions.map((dimension) => [dimension, "pending"])) as Record<MediaTranscriptBackfillReviewDimension, "pending" | "approved" | "changes_requested" | "rejected">;
+  for (const review of reviews) reviewMap[review.dimension as MediaTranscriptBackfillReviewDimension] = review.status as typeof reviewMap[MediaTranscriptBackfillReviewDimension];
+  return {
+    id: row.id,
+    mediaStableKey: stableKey,
+    mediaVersionId: row.mediaVersionId,
+    mediaItemId: row.mediaItemId,
+    sourceVersion: row.sourceVersion,
+    audioHash: row.audioHash,
+    segments: row.segments as MediaTranscriptBackfillRecord["segments"],
+    provider: row.provider,
+    modelVersion: row.modelVersion,
+    lowConfidence: row.lowConfidence,
+    translationFailedCount: row.translationFailedCount,
+    status: row.status,
+    publishedVersion: row.publishedVersion,
+    reviews: reviewMap,
+  };
+}
 
 export class AcquiredVideoPersistenceConflictError extends Error {
   readonly code = "CONTENT_PUBLICATION_CONFLICT" as const;
@@ -38,7 +68,7 @@ export class AcquiredPodcastPersistenceConflictError extends Error {
   }
 }
 
-export type DrizzleMediaRepository = MediaRepository & AcquiredVideoRepository & AcquiredPodcastRepository;
+export type DrizzleMediaRepository = MediaRepository & AcquiredVideoRepository & AcquiredPodcastRepository & MediaTranscriptBackfillRepository;
 
 type JoinedRow = Readonly<{
   item: typeof schema.mediaItems.$inferSelect;
@@ -61,7 +91,11 @@ function progressRecord(row: typeof schema.userMediaProgress.$inferSelect): Medi
 }
 
 function isPlayable(row: JoinedRow, now: Date): boolean {
+  if (row.asset.kind === "official_embed") return false;
+  let url: URL;
+  try { url = new URL(row.asset.playbackUrl); } catch { return false; }
   return row.asset.availability === "available"
+    && url.protocol === "https:"
     && (!row.asset.playbackExpiresAt || row.asset.playbackExpiresAt.getTime() > now.getTime());
 }
 
@@ -189,6 +223,16 @@ export function createDrizzleMediaRepository(
     return media ? { reason: "found", media } : { reason: "unavailable", media: null };
   }
 
+  async function loadBackfill(id: string, executor: Pick<Database, "select"> = database): Promise<MediaTranscriptBackfillRecord | null> {
+    const [row] = await executor.select({ backfill: schema.mediaTranscriptBackfills, item: schema.mediaItems })
+      .from(schema.mediaTranscriptBackfills)
+      .innerJoin(schema.mediaItems, eq(schema.mediaItems.id, schema.mediaTranscriptBackfills.mediaItemId))
+      .where(eq(schema.mediaTranscriptBackfills.id, id)).limit(1);
+    if (!row) return null;
+    const reviews = await executor.select().from(schema.mediaTranscriptBackfillReviews).where(eq(schema.mediaTranscriptBackfillReviews.backfillId, id));
+    return backfillRecord(row.backfill, row.item.stableKey, reviews);
+  }
+
   return {
     async publishAcquiredPodcast(input) {
       if (input.contentHash !== input.draft.contentHash) {
@@ -314,6 +358,7 @@ export function createDrizzleMediaRepository(
             endMs: segment.endMs,
             speaker: segment.speaker,
             sourceText: segment.sourceText,
+            words: segment.words ?? null,
             translation: segment.translation,
             confidence: segment.confidence,
             sourceKind: segment.sourceKind,
@@ -482,6 +527,7 @@ export function createDrizzleMediaRepository(
             endMs: segment.endMs,
             speaker: segment.speaker,
             sourceText: segment.sourceText,
+            words: segment.words ?? null,
             translation: segment.translation,
             confidence: segment.confidence,
             sourceKind: segment.sourceKind,
@@ -588,7 +634,7 @@ export function createDrizzleMediaRepository(
         .from(schema.mediaSegments)
         .where(eq(schema.mediaSegments.mediaVersionId, selected.version.id))
         .orderBy(schema.mediaSegments.segmentIndex)
-        .limit(500);
+        .limit(maxMediaSegments);
       return projectMediaPlayback({
         card: media,
         asset: {
@@ -602,11 +648,136 @@ export function createDrizzleMediaRepository(
           startMs: segment.startMs,
           endMs: segment.endMs,
           sourceText: segment.sourceText,
+          words: segment.words ?? undefined,
           translation: segment.translation,
           speaker: segment.speaker,
           reviewStatus: segment.reviewStatus,
         })),
       }, requestedAt);
+    },
+
+    async createTranscriptBackfill(input) {
+      const source = await database.select({ item: schema.mediaItems, version: schema.mediaVersions })
+        .from(schema.mediaVersions).innerJoin(schema.mediaItems, eq(schema.mediaItems.id, schema.mediaVersions.mediaItemId))
+        .where(and(eq(schema.mediaVersions.id, input.mediaVersionId), eq(schema.mediaItems.stableKey, input.mediaStableKey), eq(schema.mediaVersions.status, "published"))).limit(1);
+      if (!source[0] || source[0].item.id !== input.mediaItemId || source[0].version.version !== input.sourceVersion) throw new Error("MEDIA_TRANSCRIPT_SOURCE_VERSION_INVALID");
+      validateSegmentTimeline(input.segments, source[0].version.durationMs);
+      const inserted = await database.insert(schema.mediaTranscriptBackfills).values({
+        id: input.id, mediaVersionId: input.mediaVersionId, mediaItemId: input.mediaItemId, sourceVersion: input.sourceVersion,
+        audioHash: input.audioHash, segments: input.segments, provider: input.provider, modelVersion: input.modelVersion,
+        lowConfidence: input.lowConfidence, translationFailedCount: input.translationFailedCount, createdAt: input.createdAt, updatedAt: input.createdAt,
+      }).onConflictDoNothing().returning();
+      if (inserted.length === 0) {
+        const [sameHash] = await database.select({ id: schema.mediaTranscriptBackfills.id }).from(schema.mediaTranscriptBackfills)
+          .where(and(eq(schema.mediaTranscriptBackfills.mediaVersionId, input.mediaVersionId), eq(schema.mediaTranscriptBackfills.audioHash, input.audioHash))).limit(1);
+        if (sameHash) return (await loadBackfill(sameHash.id))!;
+        throw new Error("MEDIA_TRANSCRIPT_BACKFILL_CONFLICT");
+      }
+      return (await loadBackfill(inserted[0].id))!;
+    },
+
+    async replaceTranscriptBackfillDraft(input) {
+      return database.transaction(async (transaction) => {
+        const [source] = await transaction.select({ item: schema.mediaItems, version: schema.mediaVersions })
+          .from(schema.mediaVersions).innerJoin(schema.mediaItems, eq(schema.mediaItems.id, schema.mediaVersions.mediaItemId))
+          .where(and(eq(schema.mediaVersions.id, input.mediaVersionId), eq(schema.mediaItems.stableKey, input.mediaStableKey), eq(schema.mediaVersions.status, "published"))).limit(1);
+        if (!source || source.item.id !== input.mediaItemId || source.version.version !== input.sourceVersion) throw new Error("MEDIA_TRANSCRIPT_SOURCE_VERSION_INVALID");
+        validateSegmentTimeline(input.segments, source.version.durationMs);
+        if (!Number.isInteger(input.translationFailedCount) || input.translationFailedCount < 0) throw new Error("MEDIA_TRANSCRIPT_TRANSLATION_COUNT_INVALID");
+        const existingDrafts = await transaction.select().from(schema.mediaTranscriptBackfills)
+          .where(and(eq(schema.mediaTranscriptBackfills.mediaVersionId, input.mediaVersionId), eq(schema.mediaTranscriptBackfills.status, "draft")))
+          .limit(2).for("update");
+        if (existingDrafts.length !== 1) throw new Error("MEDIA_TRANSCRIPT_BACKFILL_NOT_REPLACEABLE");
+        const existing = existingDrafts[0];
+        await transaction.delete(schema.mediaTranscriptBackfillReviews).where(eq(schema.mediaTranscriptBackfillReviews.backfillId, existing.id));
+        const updated = await transaction.update(schema.mediaTranscriptBackfills).set({
+          segments: input.segments,
+          audioHash: input.audioHash,
+          provider: input.provider,
+          modelVersion: input.modelVersion,
+          lowConfidence: input.lowConfidence,
+          translationFailedCount: input.translationFailedCount,
+          updatedAt: input.updatedAt,
+        }).where(and(eq(schema.mediaTranscriptBackfills.id, existing.id), eq(schema.mediaTranscriptBackfills.status, "draft"))).returning({ id: schema.mediaTranscriptBackfills.id });
+        if (updated.length !== 1) throw new Error("MEDIA_TRANSCRIPT_BACKFILL_NOT_REPLACEABLE");
+        return (await loadBackfill(existing.id, transaction))!;
+      });
+    },
+
+    async reviewTranscriptBackfill(input) {
+      const backfill = await loadBackfill(input.backfillId);
+      if (!backfill || backfill.status !== "draft") throw new Error("MEDIA_TRANSCRIPT_BACKFILL_NOT_REVIEWABLE");
+      if (backfill.lowConfidence && input.status === "approved") throw new Error("MEDIA_TRANSCRIPT_LOW_CONFIDENCE");
+      await database.insert(schema.mediaTranscriptBackfillReviews).values({
+        id: randomUUID(), backfillId: input.backfillId, dimension: input.dimension, status: input.status,
+        reviewerReference: input.reviewerReference, notes: input.notes, createdAt: input.reviewedAt, updatedAt: input.reviewedAt,
+      }).onConflictDoUpdate({ target: [schema.mediaTranscriptBackfillReviews.backfillId, schema.mediaTranscriptBackfillReviews.dimension], set: {
+        status: input.status, reviewerReference: input.reviewerReference, notes: input.notes, updatedAt: input.reviewedAt,
+      }});
+      const refreshed = (await loadBackfill(input.backfillId))!;
+      if (backfillDimensions.every((dimension) => refreshed.reviews[dimension] === "approved")) {
+        await database.update(schema.mediaTranscriptBackfills).set({ status: "approved", updatedAt: input.reviewedAt }).where(and(eq(schema.mediaTranscriptBackfills.id, input.backfillId), eq(schema.mediaTranscriptBackfills.status, "draft")));
+      }
+      return (await loadBackfill(input.backfillId))!;
+    },
+
+    async updateTranscriptBackfillTranslations(input) {
+      const backfill = await loadBackfill(input.backfillId);
+      if (!backfill || backfill.status !== "draft") throw new Error("MEDIA_TRANSCRIPT_BACKFILL_NOT_TRANSLATABLE");
+      validateSegmentTimeline(input.segments, (await database.select({ durationMs: schema.mediaVersions.durationMs }).from(schema.mediaVersions).where(eq(schema.mediaVersions.id, backfill.mediaVersionId)).limit(1))[0]?.durationMs ?? 0);
+      if (!Number.isInteger(input.translationFailedCount) || input.translationFailedCount < 0) throw new Error("MEDIA_TRANSCRIPT_TRANSLATION_COUNT_INVALID");
+      const updated = await database.update(schema.mediaTranscriptBackfills).set({
+        segments: input.segments,
+        translationFailedCount: input.translationFailedCount,
+        updatedAt: input.updatedAt,
+      }).where(and(eq(schema.mediaTranscriptBackfills.id, input.backfillId), eq(schema.mediaTranscriptBackfills.status, "draft"))).returning({ id: schema.mediaTranscriptBackfills.id });
+      if (updated.length !== 1) throw new Error("MEDIA_TRANSCRIPT_BACKFILL_NOT_TRANSLATABLE");
+      return (await loadBackfill(input.backfillId))!;
+    },
+
+    async publishTranscriptBackfill(input) {
+      return database.transaction(async (transaction) => {
+        const [row] = await transaction.select({ backfill: schema.mediaTranscriptBackfills, item: schema.mediaItems, source: schema.mediaVersions })
+          .from(schema.mediaTranscriptBackfills)
+          .innerJoin(schema.mediaItems, eq(schema.mediaItems.id, schema.mediaTranscriptBackfills.mediaItemId))
+          .innerJoin(schema.mediaVersions, eq(schema.mediaVersions.id, schema.mediaTranscriptBackfills.mediaVersionId))
+          .where(eq(schema.mediaTranscriptBackfills.id, input.backfillId)).limit(1).for("update");
+        if (!row || row.backfill.status !== "approved") throw new Error("MEDIA_TRANSCRIPT_BACKFILL_NOT_APPROVED");
+        const reviews = await transaction.select().from(schema.mediaTranscriptBackfillReviews).where(eq(schema.mediaTranscriptBackfillReviews.backfillId, input.backfillId));
+        if (!input.expectedReviews.every((dimension) => reviews.some((review) => review.dimension === dimension && review.status === "approved"))) throw new Error("MEDIA_TRANSCRIPT_BACKFILL_REVIEWS_INCOMPLETE");
+        validateSegmentTimeline(row.backfill.segments as MediaTranscriptBackfillRecord["segments"], row.source.durationMs);
+        const [latest] = await transaction.select({ value: max(schema.mediaVersions.version) }).from(schema.mediaVersions).where(eq(schema.mediaVersions.mediaItemId, row.item.id));
+        const versionNumber = Number(latest?.value ?? 0) + 1;
+        const contentHash = createHash("sha256").update(JSON.stringify({ source: row.source.contentHash, audioHash: row.backfill.audioHash, segments: row.backfill.segments })).digest("hex");
+        const [versionRow] = await transaction.insert(schema.mediaVersions).values({
+          mediaItemId: row.item.id, version: versionNumber, locale: row.source.locale, title: row.source.title, summary: row.source.summary,
+          sourceName: row.source.sourceName, sourceUrl: row.source.sourceUrl, platformSourceId: row.source.platformSourceId, sourceChannelId: row.source.sourceChannelId,
+          sourceFeedUrl: row.source.sourceFeedUrl, enclosureUrlHash: row.source.enclosureUrlHash, artworkUrl: row.source.artworkUrl, artworkAlt: row.source.artworkAlt,
+          artworkSource: row.source.artworkSource, artworkWidth: row.source.artworkWidth, artworkHeight: row.source.artworkHeight, artworkExpiresAt: row.source.artworkExpiresAt,
+          language: row.source.language, region: row.source.region, cefr: row.source.cefr, topics: row.source.topics, durationMs: row.source.durationMs,
+          publicationDate: row.source.publicationDate, curatedAt: input.publishedAt, publishedAt: input.publishedAt, contentHash, status: "published",
+          license: row.source.license, attribution: row.source.attribution, licenseEvidence: row.source.licenseEvidence, copyrightStatus: row.source.copyrightStatus,
+          acquisitionCandidateId: row.source.acquisitionCandidateId, acquisitionCandidateRevision: row.source.acquisitionCandidateRevision, fetchedAt: row.source.fetchedAt,
+          changeReason: "Reviewed ASR subtitle backfill", reviewNotes: "Immutable subtitle revision created from an owner-approved ASR backfill.",
+        }).returning({ id: schema.mediaVersions.id });
+        if (!versionRow) throw new Error("MEDIA_TRANSCRIPT_VERSION_WRITE_FAILED");
+        const assets = await transaction.select().from(schema.mediaAssets).where(eq(schema.mediaAssets.mediaVersionId, row.source.id));
+        if (assets.length === 0) throw new Error("MEDIA_TRANSCRIPT_SOURCE_ASSET_MISSING");
+        await transaction.insert(schema.mediaAssets).values(assets.map((asset) => ({ mediaVersionId: versionRow.id, kind: asset.kind, providerKey: asset.providerKey, playbackUrl: asset.playbackUrl, playbackExpiresAt: asset.playbackExpiresAt, mimeType: asset.mimeType, availability: asset.availability })));
+        await transaction.insert(schema.mediaSegments).values((row.backfill.segments as Array<Record<string, unknown>>).map((segment, index) => ({
+          mediaVersionId: versionRow.id, segmentIndex: index, startMs: Number(segment.startMs), endMs: Number(segment.endMs), speaker: typeof segment.speaker === "string" ? segment.speaker : null,
+          sourceText: String(segment.sourceText), translation: typeof segment.translation === "string" ? segment.translation : null, confidence: typeof segment.confidence === "number" ? segment.confidence : null,
+          words: Array.isArray(segment.words) ? segment.words as NonNullable<typeof schema.mediaSegments.$inferInsert.words> : null,
+          sourceKind: "asr", reviewStatus: "approved" as const,
+        })));
+        await transaction.insert(schema.contentReviews).values([
+          { entityType: "media", entityId: versionRow.id, locale: "es-ES", status: "approved", reviewerReference: "codex-ai-owner-authorized-review", notes: "ASR subtitle text reviewed for Spanish content.", reviewedAt: input.publishedAt },
+          { entityType: "media", entityId: versionRow.id, locale: "zh-CN", status: "approved", reviewerReference: "codex-ai-owner-authorized-review", notes: "Subtitle translation reviewed for Chinese teaching use.", reviewedAt: input.publishedAt },
+        ]);
+        await transaction.update(schema.mediaItems).set({ currentVersion: versionNumber, updatedAt: input.publishedAt }).where(eq(schema.mediaItems.id, row.item.id));
+        await transaction.update(schema.mediaTranscriptBackfills).set({ status: "published", publishedVersion: versionNumber, updatedAt: input.publishedAt }).where(eq(schema.mediaTranscriptBackfills.id, input.backfillId));
+        return { stableKey: row.item.stableKey, version: versionNumber };
+      });
     },
 
     async saveProgress(userId, stableKey, version, input, updatedAt) {

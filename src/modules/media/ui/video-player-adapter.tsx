@@ -2,14 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import {
-  mountPlyrAutoPauseControl,
-  videoPlyrOptions,
-  type MountedAutoPauseControl,
-  type PlyrConstructor,
-  type PlyrInstance,
-} from "./media-plyr";
-
+import { videoPlyrOptions, type PlyrConstructor, type PlyrInstance } from "./media-plyr";
 export { mountPlyrAutoPauseControl } from "./media-plyr";
 
 export type VideoPlayerState = "ready" | "playing" | "paused" | "ended";
@@ -20,8 +13,8 @@ type YouTubePlayer = Readonly<{ playVideo(): void; pauseVideo(): void; seekTo(se
 type YouTubeWindow = Window & typeof globalThis & { YT?: Readonly<{ Player: new (target: HTMLElement, options: Readonly<Record<string, unknown>>) => YouTubePlayer }> };
 
 function youtubeErrorMessage(code: number): string {
-  if (code === 153) return "YouTube 无法识别嵌入播放器的来源身份（错误 153）。请重试或在 YouTube 打开。";
-  if (code === 101 || code === 150) return "该 YouTube 视频不允许嵌入本站播放，请在 YouTube 打开。";
+  if (code === 153) return "YouTube 无法识别嵌入播放器的来源身份（错误 153）。请重试。";
+  if (code === 101 || code === 150) return "该 YouTube 视频不允许嵌入本站播放，请重试。";
   if (code === 100) return "该 YouTube 视频不可用或已被移除。";
   return "YouTube 播放器暂时无法使用，请稍后重试。";
 }
@@ -69,29 +62,21 @@ export const youtubeIframePlayerFactory: VideoPlayerFactory = (target, input) =>
   };
 };
 
-export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSegments, onToggleAutoPause, onAutoPauseControlReady, onPortChange, onStateChange, onError }: Readonly<{
+export function VideoPlayerAdapter({ embedUrl, title, factory, onPortChange, onStateChange, onError }: Readonly<{
   embedUrl: string;
   title: string;
   factory?: VideoPlayerFactory;
-  autoPause: boolean;
-  hasSegments: boolean;
-  onToggleAutoPause: () => void;
-  onAutoPauseControlReady: (ready: boolean) => void;
   onPortChange: (port: VideoPlayerPort | null) => void;
   onStateChange: (state: VideoPlayerState) => void;
   onError: (message: string | null) => void;
+  autoPause?: boolean;
+  hasSegments?: boolean;
+  onToggleAutoPause?: () => void;
+  onAutoPauseControlReady?: (ready: boolean) => void;
 }>) {
   const targetRef = useRef<HTMLDivElement>(null);
   const generationRef = useRef(0);
-  const autoPauseControlRef = useRef<MountedAutoPauseControl | null>(null);
-  const toggleAutoPauseRef = useRef(onToggleAutoPause);
-  const autoPauseRef = useRef(autoPause);
   const videoId = videoIdFromEmbed(embedUrl);
-
-  useEffect(() => {
-    toggleAutoPauseRef.current = onToggleAutoPause;
-    autoPauseRef.current = autoPause;
-  }, [autoPause, onToggleAutoPause]);
 
   useEffect(() => {
     const target = targetRef.current;
@@ -102,34 +87,15 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
     let cancelled = false;
     let player: PlyrInstance | null = null;
     let port: VideoPlayerPort | null = null;
-    let autoPauseControl: MountedAutoPauseControl | null = null;
-    let autoPauseMountTimer: number | null = null;
-    let autoPauseMountAttempts = 0;
     let ready = false;
     let failed = false;
-    const mountAutoPauseControl = () => {
-      if (cancelled || !player || autoPauseControl) return;
-      autoPauseControl = mountPlyrAutoPauseControl(player, {
-        autoPause: autoPauseRef.current,
-        disabled: !hasSegments,
-        onToggleAutoPause: () => toggleAutoPauseRef.current(),
-      });
-      if (autoPauseControl) {
-        autoPauseControlRef.current = autoPauseControl;
-        onAutoPauseControlReady(true);
-      } else if (autoPauseMountAttempts < 20) {
-        autoPauseMountAttempts += 1;
-        autoPauseMountTimer = window.setTimeout(mountAutoPauseControl, 25);
-      }
-    };
     const readyTimeout = window.setTimeout(() => {
-      if (current() && !ready && !factory) onError("YouTube 播放器连接超时，请重试或在 YouTube 打开。");
+      if (current() && !ready && !factory) onError("YouTube 播放器连接超时，请重试。");
     }, 8_000);
     const handleReady = () => {
       if (!current()) return;
       ready = true;
       window.clearTimeout(readyTimeout);
-      mountAutoPauseControl();
       if (failed) return;
       onError(null);
       onStateChange("ready");
@@ -149,7 +115,6 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
       onError(youtubeErrorMessage(code));
     };
     onError(null);
-    onAutoPauseControlReady(false);
     if (factory) {
       try {
         port = factory(target, { videoId, lifecycle: {
@@ -174,7 +139,6 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
           ...videoPlyrOptions,
           youtube: { noCookie: true, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 },
         });
-        mountAutoPauseControl();
         player.on("ready", handleReady);
         player.on("playing", handlePlaying);
         player.on("play", handlePlaying);
@@ -190,17 +154,13 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
         };
         onPortChange(port);
       }).catch(() => {
-        if (current()) onError("YouTube 播放器加载失败，请重试或在 YouTube 打开。");
+        if (current()) onError("YouTube 播放器加载失败，请重试。");
       });
     }
     return () => {
       cancelled = true;
       window.clearTimeout(readyTimeout);
-      if (autoPauseMountTimer !== null) window.clearTimeout(autoPauseMountTimer);
       if (generationRef.current === generation) generationRef.current += 1;
-      onAutoPauseControlReady(false);
-      autoPauseControl?.destroy();
-      if (autoPauseControlRef.current === autoPauseControl) autoPauseControlRef.current = null;
       if (player) {
         player.off("ready", handleReady);
         player.off("playing", handlePlaying);
@@ -212,49 +172,33 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
       onPortChange(null);
       port?.destroy();
     };
-  }, [embedUrl, factory, hasSegments, onAutoPauseControlReady, onError, onPortChange, onStateChange, videoId]);
+  }, [embedUrl, factory, onError, onPortChange, onStateChange, videoId]);
 
-  useEffect(() => {
-    autoPauseControlRef.current?.setAutoPause(autoPause);
-  }, [autoPause]);
-
-  const watchUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
   return <div className="video-player-adapter">
     <div aria-label={title} data-plyr-embed-id={videoId ?? undefined} data-plyr-provider={factory ? undefined : "youtube"} ref={targetRef} />
     {!videoId ? <p role="alert">播放地址无效。</p> : null}
-    <div className="video-player-adapter__help">
-      {watchUrl ? <a href={watchUrl} rel="noopener noreferrer" target="_blank">在 YouTube 打开</a> : null}
-    </div>
   </div>;
 }
 
-export function HostedVideoPlayerAdapter({ videoUrl, title, autoPause, hasSegments, onToggleAutoPause, onAutoPauseControlReady, onPortChange, onStateChange, onTimeUpdate, onError }: Readonly<{
+export function HostedVideoPlayerAdapter({ videoUrl, title, onPortChange, onStateChange, onTimeUpdate, onError }: Readonly<{
   videoUrl: string;
   title: string;
-  autoPause: boolean;
-  hasSegments: boolean;
-  onToggleAutoPause: () => void;
-  onAutoPauseControlReady: (ready: boolean) => void;
   onPortChange: (port: VideoPlayerPort | null) => void;
   onStateChange: (state: VideoPlayerState) => void;
   onTimeUpdate: (positionMs: number) => void;
   onError: (message: string | null) => void;
+  autoPause?: boolean;
+  hasSegments?: boolean;
+  onToggleAutoPause?: () => void;
+  onAutoPauseControlReady?: (ready: boolean) => void;
 }>) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const toggleAutoPauseRef = useRef(onToggleAutoPause);
-  const autoPauseRef = useRef(autoPause);
-  useEffect(() => {
-    toggleAutoPauseRef.current = onToggleAutoPause;
-    autoPauseRef.current = autoPause;
-  }, [autoPause, onToggleAutoPause]);
-
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     let cancelled = false;
     let player: PlyrInstance | null = null;
     let port: VideoPlayerPort | null = null;
-    let autoPauseControl: MountedAutoPauseControl | null = null;
     const loaded = () => { onError(null); onStateChange("ready"); };
     const playing = () => onStateChange("playing");
     const paused = () => onStateChange("paused");
@@ -266,12 +210,6 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, autoPause, hasSegmen
       if (cancelled) return;
       const Plyr = (module as unknown as { default: PlyrConstructor }).default;
       player = new Plyr(video, videoPlyrOptions);
-      autoPauseControl = mountPlyrAutoPauseControl(player, {
-        autoPause: autoPauseRef.current,
-        disabled: !hasSegments,
-        onToggleAutoPause: () => toggleAutoPauseRef.current(),
-      });
-      onAutoPauseControlReady(autoPauseControl !== null);
       player.on("ready", loaded);
       player.on("playing", playing);
       player.on("play", playing);
@@ -295,8 +233,6 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, autoPause, hasSegmen
     }).catch(() => { if (!cancelled) onError("本站视频播放器加载失败，请重试或检查媒体资源。"); });
     return () => {
       cancelled = true;
-      onAutoPauseControlReady(false);
-      autoPauseControl?.destroy();
       if (player) {
         player.off("ready", loaded);
         player.off("playing", playing);
@@ -310,17 +246,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, autoPause, hasSegmen
       onPortChange(null);
       port?.destroy();
     };
-  }, [hasSegments, onAutoPauseControlReady, onError, onPortChange, onStateChange, onTimeUpdate, videoUrl]);
-
-  useEffect(() => {
-    const controls = videoRef.current?.closest(".plyr")?.querySelector<HTMLButtonElement>("[data-media-auto-pause-control]");
-    if (controls) {
-      controls.setAttribute("aria-pressed", String(autoPause));
-      const label = !hasSegments ? "暂无已审核分句，无法自动暂停" : autoPause ? "关闭自动暂停" : "开启自动暂停";
-      controls.title = label;
-      controls.setAttribute("aria-label", label);
-    }
-  }, [autoPause, hasSegments]);
+  }, [onError, onPortChange, onStateChange, onTimeUpdate, videoUrl]);
 
   return <video aria-label={title} controls playsInline preload="metadata" ref={videoRef} src={videoUrl} />;
 }

@@ -49,6 +49,14 @@ function hasExpiredProviderToken(value: string): boolean {
   }
 }
 
+function isAllowedAudioHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  const configuredHosts = [process.env.BUNNY_STORAGE_PULL_ZONE_HOSTNAME, process.env.BUNNY_STREAM_PULL_ZONE_HOSTNAME]
+    .map((value) => value?.trim().toLowerCase())
+    .filter((value): value is string => Boolean(value));
+  return AUDIO_STREAM_HOSTS.has(host) || host.endsWith(".supabase.co") || configuredHosts.includes(host);
+}
+
 async function refreshLanguageReactorAudio(stableKey: string): Promise<string | null> {
   const prefix = "podcast.language-reactor.";
   if (!stableKey.startsWith(prefix)) return null;
@@ -88,6 +96,24 @@ async function refreshLanguageReactorAudio(stableKey: string): Promise<string | 
   }
 }
 
+function fallbackRtveAudioUrl(staleUrl: URL, stableKey: string): URL | null {
+  if (!stableKey.startsWith("podcast.language-reactor.") || staleUrl.hostname.toLowerCase() !== "rtve-mediavod-lote3.rtve.es") return null;
+  const assetId = staleUrl.searchParams.get("idasset");
+  if (!assetId || !/^\d{1,20}$/u.test(assetId)) return null;
+  return new URL(`https://ztnr.rtve.es/ztnr/${assetId}.mp3?cachebust=${Date.now()}`);
+}
+
+function refreshRtveCache(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase() !== "ztnr.rtve.es") return url;
+    parsed.searchParams.set("cachebust", String(Date.now()));
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 export async function GET(request: NextRequest, { params }: Context) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
   const user = await requestUser(request);
@@ -104,15 +130,16 @@ export async function GET(request: NextRequest, { params }: Context) {
       return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 404, "这个媒体不支持音频流播放。");
     }
     const upstreamUrl = new URL(playback.asset.url);
-    if (upstreamUrl.protocol !== "https:" || !AUDIO_STREAM_HOSTS.has(upstreamUrl.hostname.toLowerCase())) {
+    if (upstreamUrl.protocol !== "https:" || !isAllowedAudioHost(upstreamUrl.hostname)) {
       return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 404, "这个媒体不支持音频流播放。");
     }
     const range = validRange(request.headers.get("range"));
     const isLanguageReactor = playback.media.stableKey?.startsWith("podcast.language-reactor.") ?? false;
     let requestUrl = upstreamUrl;
     if (isLanguageReactor && hasExpiredProviderToken(upstreamUrl.toString())) {
-      const refreshedUrl = await refreshLanguageReactorAudio(playback.media.stableKey);
-      if (refreshedUrl) requestUrl = new URL(refreshedUrl);
+      const refreshedUrl = await refreshLanguageReactorAudio(playback.media.stableKey)
+        ?? fallbackRtveAudioUrl(upstreamUrl, playback.media.stableKey);
+      if (refreshedUrl) requestUrl = new URL(refreshRtveCache(String(refreshedUrl)));
     }
     let upstream = await fetch(requestUrl, {
       headers: { range },
@@ -120,9 +147,10 @@ export async function GET(request: NextRequest, { params }: Context) {
       signal: AbortSignal.timeout(20_000),
     });
     if (!upstream.ok && isLanguageReactor) {
-      const refreshedUrl = await refreshLanguageReactorAudio(playback.media.stableKey);
+      const refreshedUrl = await refreshLanguageReactorAudio(playback.media.stableKey)
+        ?? fallbackRtveAudioUrl(upstreamUrl, playback.media.stableKey);
       if (refreshedUrl && refreshedUrl !== requestUrl.toString()) {
-        upstream = await fetch(new URL(refreshedUrl), {
+        upstream = await fetch(new URL(refreshRtveCache(String(refreshedUrl))), {
           headers: { range },
           redirect: "follow",
           signal: AbortSignal.timeout(20_000),
@@ -135,7 +163,7 @@ export async function GET(request: NextRequest, { params }: Context) {
     } catch {
       return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "播客音频暂时无法播放，请稍后重试。");
     }
-    if (finalUrl.protocol !== "https:" || !AUDIO_STREAM_HOSTS.has(finalUrl.hostname.toLowerCase())) {
+    if (finalUrl.protocol !== "https:" || !isAllowedAudioHost(finalUrl.hostname)) {
       return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "播客音频跳转到了不受支持的来源。");
     }
     if (!upstream.ok || !upstream.body) {
