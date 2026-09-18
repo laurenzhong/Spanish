@@ -2,11 +2,19 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-14
+- 最后更新：2026-09-18
 - 当前里程碑：内容驱动学习与自动内容供应重构
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。每日自动化只进入候选审核库，不能直接发布。ALPHA-033 最终门禁要求 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 全部通过，且 P0/P1 清零并有产品本人确认。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter、远端迁移、真实来源抓取和真实收费 Provider 继续如实记录
+
+### 2026-09-18：RELEASE-REVIEW-001 P0 功能与工具优先级整合
+
+- 集成分支：`codex/release-review`。已保留每日文章流水线的 `disabled → discover-only → review-only → auto-publish` 分阶段门禁、每日最多 50 篇候选、Readlang allowlist 和 MiniMax 默认审核 provider。
+- 已整合：学习页七类主题筛选、阅读词汇/短语书架增强、探索场景/表达/内容包三视图、角色关系门禁与 provider 人物圣经注入。
+- 浏览器验证：学习、探索、阅读核心路径桌面/移动 Playwright `22/22`；对话桌面 Playwright `15/15`；聚焦 Vitest `13 files / 52 tests`。
+- 已知基线问题：全量 `typecheck` 仍被 `src/modules/profile/ui/profile-sections.tsx:87` 的既有 `onError` props 类型错误阻断；全量 `lint` 仍被 6 条既有 Hook dependency warning 阻断。本轮未修改这些基线文件。
+- 工具候选与功能差距见 `docs/references/feature-tool-priority-review-2026-09.md`。Readability、FSRS 和 Promptfoo 仍待产品本人审查后再决定是否引入；P-Queue 只在有容量证据时评估。
 
 ### 2026-09-18：CHAT-CHARACTER-INTEGRITY-001 角色一致性与介绍门禁
 
