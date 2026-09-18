@@ -324,6 +324,7 @@ describe("database schema", () => {
           "0026_brief_toro.sql",
           "0027_wide_puff_adder.sql",
           "0028_neat_gargoyle.sql",
+          "0029_safe_switch.sql",
         ]) {
         const migrationPath = path.join(
           process.cwd(),
