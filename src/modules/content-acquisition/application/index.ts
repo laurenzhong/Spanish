@@ -6,6 +6,8 @@ export * from "./process-candidate";
 export * from "./process-media-candidate";
 export * from "./cleanup-candidate-artifacts";
 export * from "./prepare-article-candidate-for-review";
+export * from "./run-article-review";
+export * from "./auto-publish-article";
 export * from "./prepare-podcast-candidate-for-review";
 export * from "./prepare-video-candidate-for-review";
 export * from "./publish-candidate";

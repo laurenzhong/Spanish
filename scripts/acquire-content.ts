@@ -16,6 +16,8 @@ import {
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
   runContentCleanup,
+  planDailyArticleRun,
+  articlePublicationModes,
   planContentPipelineSources,
   prepareArticleCandidateForReview,
   preparePodcastCandidateForReview,
@@ -41,11 +43,15 @@ export type AcquireContentCliOptions = Readonly<{
   limit: number;
 }>;
 
-export type ContentPipelineCommand = "discover" | "process" | "cleanup" | "report";
+export type ContentPipelineCommand = "discover" | "process" | "cleanup" | "report" | "article-daily";
 
 export type ContentPipelineCliOptions = AcquireContentCliOptions & Readonly<{
   command: ContentPipelineCommand;
   allEnabled: boolean;
+  articleMode?: typeof articlePublicationModes[number];
+  dailyLimit?: number;
+  sourceLimit?: number;
+  policyVersion?: string;
 }>;
 
 export type AcquireContentCliDependencies = Readonly<{
@@ -96,7 +102,22 @@ export function parseAcquireContentArguments(args: readonly string[]): AcquireCo
 }
 
 export function parseContentPipelineArguments(args: readonly string[]): ContentPipelineCliOptions {
-  const command = args.find((argument) => ["discover", "process", "cleanup", "report"].includes(argument)) as ContentPipelineCommand | undefined;
+  const command = args.find((argument) => ["discover", "process", "cleanup", "report", "article-daily"].includes(argument)) as ContentPipelineCommand | undefined;
+  if (command === "article-daily") {
+    const modeIndex = args.indexOf("--mode");
+    const mode = modeIndex >= 0 ? args[modeIndex + 1] : process.env.CONTENT_ARTICLE_DAILY_MODE ?? "disabled";
+    const dailyIndex = args.indexOf("--daily-limit");
+    const sourceIndex = args.indexOf("--source-limit");
+    const policyIndex = args.indexOf("--policy-version");
+    const dailyLimit = Number(dailyIndex >= 0 ? args[dailyIndex + 1] : process.env.CONTENT_ARTICLE_DAILY_LIMIT ?? 50);
+    const sourceLimit = Number(sourceIndex >= 0 ? args[sourceIndex + 1] : process.env.CONTENT_ARTICLE_SOURCE_LIMIT ?? 10);
+    const policyVersion = policyIndex >= 0 ? args[policyIndex + 1] : process.env.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION ?? "";
+    if (!mode || !articlePublicationModes.includes(mode as typeof articlePublicationModes[number])) throw new AcquireContentCliInputError("--mode must be a valid article publication mode.");
+    if (!Number.isInteger(dailyLimit) || dailyLimit < 0 || dailyLimit > 50) throw new AcquireContentCliInputError("--daily-limit must be between 0 and 50.");
+    if (!Number.isInteger(sourceLimit) || sourceLimit < 1 || sourceLimit > 50) throw new AcquireContentCliInputError("--source-limit must be between 1 and 50.");
+    if (mode !== "disabled" && !policyVersion) throw new AcquireContentCliInputError("policy version is required unless article mode is disabled.");
+    return { sourceStableKey: "article-daily", dryRun: false, limit: dailyLimit || 1, command, allEnabled: false, articleMode: mode as typeof articlePublicationModes[number], dailyLimit, sourceLimit, policyVersion };
+  }
   const allEnabled = args.includes("--all-enabled");
   const flags = args.filter((argument) => argument !== command && argument !== "--all-enabled");
   if (allEnabled) {
@@ -182,6 +203,13 @@ async function main(): Promise<void> {
         repository.listCandidates({ limit: options.limit }),
       ]);
       process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { report: "completed" }, counts: { sources: sources.length, runs: runs.length, candidates: candidates.length } })}\n`);
+      return;
+    }
+    if (options.command === "article-daily") {
+      const today = new Date().toISOString().slice(0, 10);
+      const sources = await repository.listSources();
+      const plan = planDailyArticleRun({ date: today, mode: options.articleMode ?? "disabled", policyVersion: options.policyVersion ?? "", dailyLimit: options.dailyLimit ?? 50, defaultSourceLimit: options.sourceLimit ?? 10, sources });
+      process.stdout.write(`${JSON.stringify({ runKey: plan.runKey, status: "succeeded", mode: plan.mode, dailyLimit: plan.dailyLimit, sourcePlans: plan.sourcePlans, skippedSources: plan.skippedSources.map((item) => ({ sourceStableKey: item.sourceStableKey, reason: item.reason })) })}\n`);
       return;
     }
     if (options.command === "cleanup") {

@@ -44,6 +44,25 @@ function textContent(node: HtmlNode): string {
   return (node.childNodes ?? []).map(textContent).join(" ");
 }
 
+const noiseTerms = ["nav", "menu", "footer", "header", "sidebar", "advert", "cookie", "social", "comment"] as const;
+
+function isNoiseNode(node: HtmlNode): boolean {
+  if (["nav", "footer", "aside", "header", "form", "script", "style", "template"].includes(node.tagName ?? "")) return true;
+  const marker = `${attribute(node, "class") ?? ""} ${attribute(node, "id") ?? ""}`.toLowerCase();
+  return noiseTerms.some((term) => marker.includes(term));
+}
+
+function collectParagraphs(node: HtmlNode): HtmlNode[] {
+  if (isNoiseNode(node)) return [];
+  const result: HtmlNode[] = [];
+  for (const child of node.childNodes ?? []) {
+    if (isNoiseNode(child)) continue;
+    if (child.tagName === "p") result.push(child);
+    else result.push(...collectParagraphs(child));
+  }
+  return result;
+}
+
 export function extractPlainTextFragment(html: string): string {
   const fragment = parse(html) as unknown as HtmlNode;
   return cleanText(textContent(fragment));
@@ -62,7 +81,7 @@ export function extractArticlePage(html: string, canonicalUrl: string, fetchedAt
   const article = descendants(document, (node) => node.tagName === "article")[0];
   const main = descendants(document, (node) => node.tagName === "main")[0];
   const paragraphRoot = article ?? main ?? document;
-  const paragraphs = descendants(paragraphRoot, (node) => node.tagName === "p")
+  const paragraphs = collectParagraphs(paragraphRoot)
     .map((node) => cleanText(textContent(node)))
     .filter((text) => text.length > 0)
     .slice(0, 500);
