@@ -74,12 +74,16 @@ export async function fetchBoundedText(input: Readonly<{
   headers?: HeadersInit;
   signal?: AbortSignal;
   maxRedirects?: number;
+  isAllowedUrl?: (url: URL) => boolean;
 }>): Promise<BoundedTextResponse> {
   const allowedHosts = new Set(input.allowedHosts.map((host) => host.trim().toLowerCase()).filter(Boolean));
   if (allowedHosts.size === 0) {
     throw new ContentSourceAdapterError("At least one source host must be allowlisted.", false);
   }
   let current = safeUrl(input.url, allowedHosts);
+  if (input.isAllowedUrl && !input.isAllowedUrl(current)) {
+    throw new ContentSourceAdapterError("Source URL is outside the authorized URL boundary.", false);
+  }
   const maxRedirects = input.maxRedirects ?? 3;
   for (let redirects = 0; redirects <= maxRedirects; redirects += 1) {
     if (input.signal?.aborted) {
@@ -106,6 +110,9 @@ export async function fetchBoundedText(input: Readonly<{
       if (!location) throw new ContentSourceAdapterError("Source redirect omitted its destination.", false);
       if (redirects === maxRedirects) throw new ContentSourceAdapterError("Source redirect limit was exceeded.", false);
       current = safeUrl(new URL(location, current).toString(), allowedHosts);
+      if (input.isAllowedUrl && !input.isAllowedUrl(current)) {
+        throw new ContentSourceAdapterError("Source redirect left the authorized URL boundary.", false);
+      }
       continue;
     }
     if (!response.ok) {

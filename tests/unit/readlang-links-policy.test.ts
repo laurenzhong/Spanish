@@ -48,6 +48,12 @@ describe("Readlang source publication stages", () => {
     expect(isReadlangAllowlistedUrl("https://readlang.com/library-elsewhere", policy)).toBe(false);
   });
 
+  it("limits external hosts to the exact authorized snapshot URLs", () => {
+    const policy = readlangPolicy();
+    expect(isReadlangAllowlistedUrl("https://elpais.com/", policy)).toBe(true);
+    expect(isReadlangAllowlistedUrl("https://elpais.com/not-in-the-snapshot", policy)).toBe(false);
+  });
+
   it("allows discover-only and review-only while keeping auto-publish fail closed", () => {
     const readlang = source();
     expect(planDailyArticleRun({ date: "2026-09-18", mode: "discover-only", policyVersion: "readlang-links-v1", dailyLimit: 50, defaultSourceLimit: 10, sources: [readlang] }).sourcePlans).toEqual([{ sourceStableKey: "readlang.links", sourceLimit: 10 }]);

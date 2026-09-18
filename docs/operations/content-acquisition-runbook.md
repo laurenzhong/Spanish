@@ -17,7 +17,7 @@ pnpm content:pipeline -- report --limit 100
 
 `discover` 兼容 `pnpm content:acquire` 的显式 `--source` 用法。生产运行应使用受保护的 `DATABASE_URL`、供应商密钥和 GitHub Environment；本地与 CI 测试只使用 fake source/provider。
 
-Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v1.json` 的 `policyVersion`、allowlist 快照和授权证据。该适配器只读取快照主机；页面新增主机前不得自动采集。`automatedPublication.enabled` 仍为 `false`，所以该来源最多进入 `review-only`，不能绕过分阶段门禁直接发布。
+Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v1.json` 的 `policyVersion`、精确 URL 快照和授权证据。该适配器只读取快照 URL；页面新增 URL 或主机前不得自动采集。`automatedPublication.enabled` 仍为 `false`，所以该来源最多进入 `review-only`，不能绕过分阶段门禁直接发布。
 
 ## 首次受控运行
 

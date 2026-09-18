@@ -112,6 +112,7 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
       allowedContentTypes: ["text/html", "application/xhtml+xml"],
       maxBytes: this.options.maxPageBytes ?? 1_500_000,
       signal: requestOptions?.signal,
+      isAllowedUrl: (url) => url.toString() === this.options.policy.sourceUrl,
     });
     const links = collectLinks(page.text, page.url, this.options.policy);
     const selected = links.slice(cursor.offset, cursor.offset + input.limit);
@@ -126,6 +127,7 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
           allowedContentTypes: ["text/html", "application/xhtml+xml"],
           maxBytes: this.options.maxArticleBytes ?? 1_500_000,
           signal: requestOptions?.signal,
+          isAllowedUrl: (candidate) => isReadlangAllowlistedUrl(candidate.toString(), this.options.policy),
         });
         article = articleParagraphs(response.text);
       } catch (error) {

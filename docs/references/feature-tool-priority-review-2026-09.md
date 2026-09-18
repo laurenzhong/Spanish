@@ -11,7 +11,7 @@
 | P0 | 探索三视图 | 已有场景、表达、内容包视图和收藏/生成入口，待集成验证 | 推荐理由、无结果 fallback、显式生成确认、来源隐私、320–1440px 无溢出 |
 | P0 | 角色完整性 | 角色目录与记忆已有；需要把人物圣经注入每个 provider，并验证关系门禁 | Lucía/Mateo/Inés 的稳定语气、事实边界、AI 身份诚实、关系与共享记忆隔离 |
 | P0 | 每日文章供应 | 已实现 `disabled → discover-only → review-only → auto-publish`、每日最多 50 篇、MiniMax 双审核 | 先 discover-only，再 review-only 观察 7 天，人工抽查后才允许 protected Environment 开启发布 |
-| P0 | Readlang 授权来源 | 已登记 2026-09-18 页面快照中的 57 个 URL、55 个主机；不得扩展为任意公网抓取 | 运行时继续执行快照主机、HTTPS、重定向、MIME、大小、正文和权利校验 |
+| P0 | Readlang 授权来源 | 已登记 2026-09-18 页面快照中的 57 个 URL、55 个主机；不得扩展为任意公网抓取 | 运行时继续执行精确 URL 快照、HTTPS、重定向、MIME、大小、正文和权利校验 |
 
 ## GitHub 工具候选
 

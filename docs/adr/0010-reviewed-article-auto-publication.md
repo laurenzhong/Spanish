@@ -163,5 +163,5 @@ Trigger.dev、Inngest 或 Temporal 能提供持久工作流，但当前 GitHub A
 - 产品本人批准按 `disabled → discover-only → review-only → auto-publish` 分阶段实施。
 - 首阶段固定进行 7 天 `review-only`；每日 50 是全局合规新候选上限，不是必须成功发布 50 篇；单来源默认上限为 10。
 - 生产模式只能通过受保护的 GitHub Environment 开启；默认只写脱敏运行报告，不发送外部通知。
-- 产品本人已指定 `https://readlang.com/es/links` 为第一批授权入口。2026-09-18 的 Playwright 页面快照登记了该页显示的 57 个 URL、55 个外部主机；版本化策略见 `content/source-policies/readlang-links-v1.json`。Readlang 页面未来新增的 URL/主机不自动继承授权，必须刷新快照并提交新的策略版本。运行时只允许快照中的主机，逐跳校验 HTTPS、重定向、Content-Type、响应大小和正文可提取性。
+- 产品本人已指定 `https://readlang.com/es/links` 为第一批授权入口。2026-09-18 的 Playwright 页面快照登记了该页显示的 57 个 URL、55 个外部主机；版本化策略见 `content/source-policies/readlang-links-v1.json`。Readlang 页面未来新增的 URL/主机不自动继承授权，必须刷新快照并提交新的策略版本。运行时只允许精确快照 URL（Readlang 自身使用已授权路径前缀），逐跳校验 HTTPS、重定向、Content-Type、响应大小和正文可提取性。
 - 审核 provider 默认是已配置的 MiniMax M3（`CONTENT_ARTICLE_REVIEW_PROVIDER=minimax`）；fake provider 仅可在非生产环境并显式设置 `CONTENT_ARTICLE_ALLOW_FAKE_REVIEW=1` 时使用。

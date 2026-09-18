@@ -9,6 +9,7 @@ export const readlangLinksPolicySchema = z.object({
   }).passthrough(),
   allowlist: z.object({
     hosts: z.array(z.string().trim().min(1).max(255)).min(1).max(200),
+    urls: z.array(z.url().startsWith("https://")).min(1).max(500),
     urlPrefixes: z.array(z.url().startsWith("https://")).min(1).max(500),
   }).passthrough(),
   contentMode: z.literal("full_text"),
@@ -39,7 +40,12 @@ export function isReadlangAllowlistedUrl(value: string, policy: ReadlangLinksPol
       return value === prefix || value.startsWith(normalizedPrefix);
     });
   }
-  return true;
+  return policy.allowlist.urls.some((allowed) => {
+    const allowedUrl = new URL(allowed);
+    return allowedUrl.origin === url.origin
+      && allowedUrl.pathname === url.pathname
+      && allowedUrl.search === url.search;
+  });
 }
 
 export function normalizeReadlangLink(value: string, policy: ReadlangLinksPolicy): string | null {

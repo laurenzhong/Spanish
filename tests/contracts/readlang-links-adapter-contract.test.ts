@@ -21,6 +21,7 @@ const policy: ReadlangLinksPolicy = readlangLinksPolicySchema.parse({
   authorization: { status: "owner-authorized", evidenceUrl: "https://readlang.com/es/links" },
   allowlist: {
     hosts: ["readlang.com", "news.example.test"],
+    urls: ["https://news.example.test/one"],
     urlPrefixes: ["https://readlang.com/es/links"],
   },
   contentMode: "full_text",
@@ -64,5 +65,17 @@ describe("Readlang links adapter contract", () => {
     const result = await new ReadlangLinksAdapter({ fetch: offPolicy, policy }).discover({ sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, cursor: null, limit: 1 });
     expect(result.items).toEqual([]);
     expect(offPolicy).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a same-host redirect to an URL outside the snapshot", async () => {
+    const redirecting = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === policy.sourceUrl) {
+        return response('<html><body><a href="https://news.example.test/one">Uno</a></body></html>', { headers: { "content-type": "text/html" } });
+      }
+      return response(null, { status: 302, headers: { location: "https://news.example.test/not-authorized" }, url });
+    });
+    const result = await new ReadlangLinksAdapter({ fetch: redirecting, policy }).discover({ sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, cursor: null, limit: 1 });
+    expect(result.items).toEqual([]);
   });
 });

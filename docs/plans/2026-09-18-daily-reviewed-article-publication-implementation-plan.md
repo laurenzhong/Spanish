@@ -189,4 +189,4 @@ git diff --check
 
 ## 6. 批准后的执行边界
 
-ADR-0010 的分阶段决定已由产品本人确认。`https://readlang.com/es/links` 在 2026-09-18 的页面快照中显示的 57 个 URL、55 个外部主机已登记为个人 Alpha 的授权 allowlist，策略快照见 `content/source-policies/readlang-links-v1.json`。运行时适配器只读取该快照主机并逐跳校验 HTTPS、重定向、Content-Type、响应大小和正文结构；页面未来新增链接必须创建新的策略版本。审核 provider 默认使用已配置的 MiniMax M3；fake 只允许在显式开发开关下使用。生产仍从 `disabled` 开始，完成 7 天 `review-only` 观察和人工抽查后，才可在受保护 Environment 中逐级开启发布。
+ADR-0010 的分阶段决定已由产品本人确认。`https://readlang.com/es/links` 在 2026-09-18 的页面快照中显示的 57 个 URL、55 个外部主机已登记为个人 Alpha 的授权 allowlist，策略快照见 `content/source-policies/readlang-links-v1.json`。运行时适配器只读取精确快照 URL（Readlang 自身使用授权路径前缀）并逐跳校验 HTTPS、重定向、Content-Type、响应大小和正文结构；页面未来新增链接必须创建新的策略版本。审核 provider 默认使用已配置的 MiniMax M3；fake 只允许在显式开发开关下使用。生产仍从 `disabled` 开始，完成 7 天 `review-only` 观察和人工抽查后，才可在受保护 Environment 中逐级开启发布。
