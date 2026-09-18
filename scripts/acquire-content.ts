@@ -22,7 +22,7 @@ import {
   preparePodcastCandidateForReview,
   prepareVideoCandidateForReview,
   runDailyArticlePipeline,
-  createDefaultArticleReviewProviders,
+  createConfiguredArticleReviewProviders,
   CandidatePublisherRegistry,
   AcquiredArticlePublisher,
   type ContentAcquisitionRepository,
@@ -212,15 +212,21 @@ async function main(): Promise<void> {
     if (options.command === "article-daily") {
       const today = new Date().toISOString().slice(0, 10);
       const mode = options.articleMode ?? "disabled";
-      const fakeReviewEnabled = process.env.CONTENT_ARTICLE_REVIEW_PROVIDER === "fake"
-        && process.env.CONTENT_ARTICLE_ALLOW_FAKE_REVIEW === "1"
-        && process.env.NODE_ENV !== "production";
-      if ((mode === "review-only" || mode === "auto-publish") && !fakeReviewEnabled) {
-        throw new AcquireContentCliInputError("An approved article review provider is required; fake review requires CONTENT_ARTICLE_ALLOW_FAKE_REVIEW=1 outside production.");
+      const reviewRequired = mode === "review-only" || mode === "auto-publish";
+      let reviewProviders: ReturnType<typeof createConfiguredArticleReviewProviders> | undefined;
+      if (reviewRequired) {
+        try {
+          reviewProviders = createConfiguredArticleReviewProviders({
+            provider: (process.env.CONTENT_ARTICLE_REVIEW_PROVIDER as "minimax" | "fake" | undefined) ?? "minimax",
+          });
+        } catch (error) {
+          throw new AcquireContentCliInputError(
+            error instanceof Error
+              ? error.message
+              : "ARTICLE_REVIEW_PROVIDER_UNAVAILABLE",
+          );
+        }
       }
-      const reviewProviders = fakeReviewEnabled
-        ? createDefaultArticleReviewProviders()
-        : undefined;
       const publishers = mode === "auto-publish"
         ? new CandidatePublisherRegistry([new AcquiredArticlePublisher(createDrizzleArticleRepository(connection.db))])
         : undefined;

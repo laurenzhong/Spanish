@@ -1,0 +1,24 @@
+{
+  "policyVersion": "readlang-links-v1",
+  "sourceUrl": "https://readlang.com/es/links",
+  "scope": "All Readlang library article URLs displayed by the owner-authorized links page snapshot.",
+  "authorization": {
+    "status": "owner-authorized",
+    "authorizedAt": "2026-09-18T00:00:00.000Z",
+    "evidenceUrl": "https://readlang.com/es/links",
+    "note": "This authorization applies to the project owner's personal Alpha only. It does not grant permission to discover unrelated external hosts or bypass access controls."
+  },
+  "allowlist": {
+    "hosts": ["readlang.com"],
+    "urlPrefixes": ["https://readlang.com/library/"]
+  },
+  "contentMode": "full_text",
+  "license": "owner-authorized",
+  "attribution": "Readlang public library; original source URL retained per article.",
+  "automatedPublication": {
+    "enabled": false,
+    "policyVersion": "readlang-links-v1",
+    "dailyLimit": 10,
+    "approvedAt": "2026-09-18T00:00:00.000Z"
+  }
+}
