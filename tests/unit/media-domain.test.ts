@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { MediaUnavailableError, parseMediaDocumentId, projectMediaCard, projectMediaPlayback } from "@/src/modules/media";
+import { matchesMediaTopic, MediaUnavailableError, parseMediaDocumentId, projectMediaCard, projectMediaPlayback } from "@/src/modules/media";
 
 const raw = {
   stableKey: "media.fixture.cafe", version: 2, kind: "video" as const,
@@ -14,6 +14,13 @@ const raw = {
 };
 
 describe("media domain", () => {
+  it("maps source topic aliases into stable learning categories", () => {
+    expect(matchesMediaTopic(["topic.daily-life"], "daily-life")).toBe(true);
+    expect(matchesMediaTopic([" topic.NEWS "], "current-events")).toBe(true);
+    expect(matchesMediaTopic(["topic.city"], "travel-city")).toBe(true);
+    expect(matchesMediaTopic(["topic.news"], "relationships")).toBe(false);
+  });
+
   it("projects only playable, rights-cleared published versions", () => {
     expect(projectMediaCard(raw)).toMatchObject({ id: "media.fixture.cafe@2", kind: "video", durationMs: 185_000 });
     expect(projectMediaCard({ ...raw, playable: false })).toBeNull();

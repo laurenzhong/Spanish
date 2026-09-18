@@ -9,6 +9,7 @@ import {
   MediaProgressConflictError,
   validateSegmentTimeline,
   MediaUnavailableError,
+  matchesMediaTopic,
   nextMediaProgress,
   projectMediaCard,
   projectMediaPlayback,
@@ -105,6 +106,7 @@ function decodeCursor(value: string | undefined): string | null {
 
 function matches(item: MediaCard, query: ParsedMediaListQuery): boolean {
   if (query.kind && item.kind !== query.kind) return false;
+  if (query.topic && !matchesMediaTopic(item.topics, query.topic)) return false;
   if (query.cefr && item.cefr !== query.cefr) return false;
   if (query.region === "unknown" && item.region !== null) return false;
   if (query.region && query.region !== "unknown") {

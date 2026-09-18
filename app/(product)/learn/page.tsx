@@ -21,6 +21,7 @@ export default async function LearnPage({ searchParams }: Readonly<{ searchParam
   const parsed = mediaListQuerySchema.safeParse({
     search: first(raw.search),
     kind: first(raw.kind),
+    topic: first(raw.topic),
     region: first(raw.region),
     cefr: first(raw.cefr),
     duration: first(raw.duration),

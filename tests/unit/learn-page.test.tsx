@@ -36,11 +36,13 @@ describe("LearnPage", () => {
   });
 
   it("exposes direct type navigation, search, and practical filters", () => {
-    render(<LearnPageContent query={{ kind: "podcast", cefr: "B1" }} result={{ items: [], nextCursor: null, hasMore: false }} />);
+    render(<LearnPageContent query={{ kind: "podcast", topic: "current-events", cefr: "B1" }} result={{ items: [], nextCursor: null, hasMore: false }} />);
 
     expect(screen.getByRole("link", { name: "全部" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "视频" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "播客" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("navigation", { name: "学习主题" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "时事新闻" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "难度" })).toHaveValue("B1");

@@ -1,10 +1,16 @@
 import { z } from "zod";
 
+import { mediaTopicFilters } from "../domain/media-topic";
+
 const stableKeySchema = z.string().trim().regex(/^[a-z0-9][a-z0-9._-]{2,199}$/u);
 
 export const mediaListQuerySchema = z.strictObject({
   search: z.string().trim().max(120).optional(),
   kind: z.enum(["video", "podcast"]).optional(),
+  topic: z.enum(mediaTopicFilters.map((item) => item.value) as [
+    (typeof mediaTopicFilters)[number]["value"],
+    ...(typeof mediaTopicFilters)[number]["value"][],
+  ]).optional(),
   region: z.string().trim().max(40).optional(),
   cefr: z.enum(["A2", "B1"]).optional(),
   duration: z.enum(["short", "medium", "long"]).optional(),

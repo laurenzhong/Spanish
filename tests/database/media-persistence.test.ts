@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -89,6 +90,18 @@ describe("media persistence", () => {
     await expect(repository.getPlayback("media.fixture.cafe", userA, new Date("2026-09-13T10:00:00.000Z"))).resolves.toMatchObject({
       asset: { url: "https://player.example.test/embed/1" },
       segments: [{ id: segmentId }],
+    });
+  });
+
+  it("filters canonical learning topics and keeps legacy topic aliases discoverable", async () => {
+    await expect(repository.list(mediaListQuerySchema.parse({ topic: "daily-life" }))).resolves.toMatchObject({
+      items: [{ stableKey: "media.fixture.cafe" }],
+    });
+    await expect(repository.list(mediaListQuerySchema.parse({ topic: "current-events" }))).resolves.toMatchObject({ items: [] });
+
+    await database.update(schema.mediaVersions).set({ topics: ["topic.news"] }).where(eq(schema.mediaVersions.id, versionId));
+    await expect(repository.list(mediaListQuerySchema.parse({ topic: "current-events" }))).resolves.toMatchObject({
+      items: [{ stableKey: "media.fixture.cafe" }],
     });
   });
 
