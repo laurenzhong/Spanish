@@ -196,6 +196,31 @@ describe("video learning workbench", () => {
     expect(player.port.pause).toHaveBeenCalledOnce();
   });
 
+  it("resumes after sentence-end auto-pause and pauses the next sentence", () => {
+    vi.useFakeTimers();
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    fireEvent.keyDown(window, { key: "q" });
+
+    player.setCurrentTime(1_800);
+    act(() => player.lifecycle().onStateChange("playing"));
+    act(() => vi.advanceTimersByTime(100));
+    expect(player.port.pause).toHaveBeenCalledOnce();
+
+    act(() => player.lifecycle().onStateChange("playing"));
+    act(() => vi.advanceTimersByTime(100));
+    expect(player.port.pause).toHaveBeenCalledOnce();
+
+    player.setCurrentTime(2_000);
+    act(() => vi.advanceTimersByTime(100));
+    expect(player.port.pause).toHaveBeenCalledOnce();
+
+    player.setCurrentTime(4_250);
+    act(() => vi.advanceTimersByTime(100));
+    expect(player.port.pause).toHaveBeenCalledTimes(2);
+  });
+
   it("ignores stale player callbacks after replacement", () => {
     vi.useFakeTimers();
     const first = fakePlayer();

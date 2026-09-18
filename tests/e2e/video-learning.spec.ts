@@ -107,6 +107,13 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
   });
   await expect.poll(() => page.evaluate(() => (window as unknown as Window & { __videoE2E: { pauseCalls: number } }).__videoE2E.pauseCalls)).toBeGreaterThan(0);
 
+  await page.evaluate(() => {
+    (window as unknown as Window & { __videoE2E: { currentTime: number } }).__videoE2E.currentTime = 2;
+  });
+  await page.locator(".plyr__controls__item[data-plyr='play']").click();
+  await page.waitForTimeout(120);
+  await expect.poll(() => page.evaluate(() => (window as unknown as Window & { __videoE2E: { pauseCalls: number } }).__videoE2E.pauseCalls)).toBe(1);
+
   await page.getByRole("button", { name: "双语" }).click();
   await expect(page.getByText("早上好。")).toBeVisible();
   const word = page.getByRole("button", { name: "查看词语 Buenos" });

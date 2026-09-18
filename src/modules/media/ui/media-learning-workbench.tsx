@@ -57,6 +57,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
   const progressAbortRef = useRef<AbortController | null>(null);
   const queuedProgressRef = useRef<ProgressSnapshot | null>(null);
   const lastRequestedPositionRef = useRef(initialPositionMs);
+  const autoPauseResumeRef = useRef<{ segmentIndex: number; endMs: number } | null>(null);
   const sendProgressRef = useRef<(snapshot: ProgressSnapshot) => void>(() => undefined);
 
   const updateActiveIndex = useCallback((index: number | null) => {
@@ -173,10 +174,21 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     const timer = window.setInterval(() => {
       const current = playerRef.current?.currentTime() ?? 0;
       setPositionMs(current);
+      const previousActiveIndex = activeIndexRef.current;
       const found = findSegmentIndexAt(playback.segments, current);
       if (found !== null) updateActiveIndex(found);
-      const currentSegment = playback.segments[activeIndex ?? found ?? -1];
-      if (autoPause && currentSegment && current >= currentSegment.endMs) {
+      const previousSegment = playback.segments[previousActiveIndex ?? -1];
+      const foundSegment = playback.segments[found ?? -1];
+      const currentSegment = previousSegment && current === previousSegment.endMs
+        ? previousSegment
+        : foundSegment ?? previousSegment;
+      const resumeBoundary = autoPauseResumeRef.current;
+      if (resumeBoundary && current > resumeBoundary.endMs && found !== null) {
+        autoPauseResumeRef.current = null;
+      }
+      const resumingAcrossBoundary = resumeBoundary !== null && (current <= resumeBoundary.endMs || found === null);
+      if (autoPause && currentSegment && current >= currentSegment.endMs && !resumingAcrossBoundary) {
+        autoPauseResumeRef.current = { segmentIndex: currentSegment.index, endMs: currentSegment.endMs };
         sendProgress(progressSnapshot("paused-by-segment"));
         playerRef.current?.pause();
         setPlayerState("paused");
@@ -186,6 +198,10 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
     }, 80);
     return () => window.clearInterval(timer);
   }, [activeIndex, autoPause, playback.media.kind, playback.segments, playerState, progressSnapshot, sendProgress, updateActiveIndex]);
+
+  useEffect(() => {
+    if (!autoPause) autoPauseResumeRef.current = null;
+  }, [autoPause]);
 
   const handlePortChange = useCallback((port: VideoPlayerPort | AudioPlayerPort | null) => {
     playerRef.current = port;
