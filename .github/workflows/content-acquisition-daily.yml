@@ -16,9 +16,9 @@ on:
         default: "50"
         type: string
       article_mode:
-        description: "Article publication stage; defaults to disabled"
+        description: "Article publication stage; defaults to discover-only"
         required: false
-        default: "disabled"
+        default: "discover-only"
         type: choice
         options:
           - disabled
@@ -54,11 +54,14 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           CONTENT_ARTICLE_SOURCE_LIMIT: ${{ vars.CONTENT_ARTICLE_SOURCE_LIMIT || '10' }}
           CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || '' }}
-          CONTENT_ACQUISITION_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || '' }}
+          ARTICLE_DAILY_LIMIT: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}
         run: >-
+          test -n "$ARTICLE_MODE"
+          &&
           pnpm content:pipeline -- article-daily
-          --mode "${{ inputs.article_mode || 'disabled' }}"
-          --daily-limit "${{ inputs.limit || '50' }}"
+          --mode "$ARTICLE_MODE"
+          --daily-limit "$ARTICLE_DAILY_LIMIT"
           --source-limit "${CONTENT_ARTICLE_SOURCE_LIMIT:-10}"
           --policy-version "${CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION:-}"
       - name: Write redacted summary
@@ -67,6 +70,6 @@ jobs:
           {
             echo '## Article daily run'
             echo '- Secrets, article bodies, provider responses, and query credentials are intentionally omitted.'
-            echo "- Requested mode: ${{ inputs.article_mode || 'disabled' }}"
-            echo "- Requested global limit: ${{ inputs.limit || '50' }}"
+            echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
+            echo "- Requested global limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
           } >> "$GITHUB_STEP_SUMMARY"

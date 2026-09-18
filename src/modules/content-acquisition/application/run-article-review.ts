@@ -73,6 +73,8 @@ export async function runArticleReview(
     teachingProvider: ArticleReviewProvider;
     timeoutMs?: number;
     makeId?: () => string;
+    makeAttemptId?: () => string;
+    makeGenerationId?: () => string;
     now?: () => Date;
   }>,
 ): Promise<ArticleReviewRunResult> {
@@ -105,13 +107,55 @@ export async function runArticleReview(
   const expectedInputHash = articleReviewInputHash(reviewInput);
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const providerResults: Record<string, ArticleReviewResult | null> = {};
+  const now = input.now ?? (() => new Date());
+  const makeAttemptId = input.makeAttemptId ?? randomUUID;
+  const makeGenerationId = input.makeGenerationId ?? randomUUID;
+  const runProvider = async (dimension: "content-es-ES" | "teaching-zh-CN", provider: ArticleReviewProvider) => {
+    const startedAt = now();
+    const attemptId = makeAttemptId();
+    const generationId = makeGenerationId();
+    const jobType = `article-review-${dimension}`;
+    const jobId = `article-review:${candidate.id}:${candidate.revision}:${dimension}`;
+    try {
+      const result = articleReviewResultSchema.parse(await timeout(provider.review(reviewInput), timeoutMs));
+      await repository.recordProcessingAttempt?.({
+        id: attemptId,
+        candidateId: candidate.id,
+        jobType,
+        jobId,
+        generationId,
+        expectedRevision: candidate.revision,
+        status: "succeeded",
+        estimatedCostMicros: 0,
+        startedAt,
+        completedAt: now(),
+        errorCode: null,
+      });
+      return result;
+    } catch (error) {
+      await repository.recordProcessingAttempt?.({
+        id: attemptId,
+        candidateId: candidate.id,
+        jobType,
+        jobId,
+        generationId,
+        expectedRevision: candidate.revision,
+        status: "failed",
+        estimatedCostMicros: 0,
+        startedAt,
+        completedAt: now(),
+        errorCode: error instanceof Error ? error.message : "ARTICLE_REVIEW_FAILED",
+      });
+      throw error;
+    }
+  };
   try {
     const [contentRaw, teachingRaw] = await Promise.all([
-      timeout(input.contentProvider.review(reviewInput), timeoutMs),
-      timeout(input.teachingProvider.review(reviewInput), timeoutMs),
+      runProvider("content-es-ES", input.contentProvider),
+      runProvider("teaching-zh-CN", input.teachingProvider),
     ]);
-    const content = articleReviewResultSchema.parse(contentRaw);
-    const teaching = articleReviewResultSchema.parse(teachingRaw);
+    const content = contentRaw;
+    const teaching = teachingRaw;
     if (input.contentProvider.dimension !== "content-es-ES" || input.teachingProvider.dimension !== "teaching-zh-CN") {
       throw new Error("ARTICLE_REVIEW_PROVIDER_DIMENSION_MISMATCH");
     }
@@ -135,8 +179,8 @@ export async function runArticleReview(
   if (!latest || latest.candidate.revision !== candidate.revision || latest.candidate.contentHash !== candidate.contentHash) {
     return { status: "failed", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten: 0, reason: "CANDIDATE_CHANGED_DURING_REVIEW", providerResults };
   }
-  const now = (input.now ?? (() => new Date()))();
   const makeId = input.makeId ?? randomUUID;
+  const reviewedAt = now();
   let reviewsWritten = 0;
   for (const [dimension, result] of [["content-es-ES", providerResults["content-es-ES"]], ["teaching-zh-CN", providerResults["teaching-zh-CN"]], ["structure", structure]] as const) {
     if (!result) continue;
@@ -148,7 +192,7 @@ export async function runArticleReview(
       status: "approved",
       reviewerReference: REVIEWER_REFERENCE,
       notes: result.notes,
-      updatedAt: now,
+      updatedAt: reviewedAt,
     });
     reviewsWritten += 1;
   }

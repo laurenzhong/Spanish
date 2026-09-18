@@ -39,6 +39,7 @@ export async function autoPublishArticleCandidate(
     mode: ArticlePublicationMode;
     policyVersion: string;
     actor: string;
+    runId?: string;
     makeReviewId?: () => string;
     now?: () => Date;
   }>,
@@ -50,6 +51,23 @@ export async function autoPublishArticleCandidate(
   if (!detail) return skip("CANDIDATE_NOT_FOUND");
   const { candidate } = detail;
   if (candidate.contentType !== "article" || !candidate.contentHash) return skip("CANDIDATE_NOT_ARTICLE");
+  if (
+    candidate.publicationStatus === "published"
+    && candidate.publishedCandidateRevision === candidate.revision
+    && candidate.publishedContentHash === candidate.contentHash
+    && candidate.publicationRef?.kind === "article"
+  ) {
+    return {
+      status: "published",
+      candidateId: candidate.id,
+      publicationRef: {
+        kind: "article",
+        stableKey: candidate.publicationRef.stableKey,
+        version: candidate.publicationRef.version,
+      },
+      reason: null,
+    };
+  }
   const source = repository.findSourceById ? await repository.findSourceById(candidate.sourceId) : null;
   if (!source || !policyEnabled(source, input.policyVersion)) return skip("SOURCE_POLICY_NOT_APPROVED");
   try {
@@ -85,7 +103,7 @@ export async function autoPublishArticleCandidate(
       expectedRevision: candidate.revision,
       expectedContentHash: candidate.contentHash,
       publicationRef: articlePublicationRef,
-      reviewerReference: "codex-ai-owner-authorized-review",
+      reviewerReference: `codex-ai-owner-authorized-review:${input.actor}${input.runId ? `:${input.runId}` : ""}`,
       publishedAt: (input.now ?? (() => new Date()))(),
     });
   } catch (error) {

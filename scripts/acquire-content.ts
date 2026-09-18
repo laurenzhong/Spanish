@@ -16,17 +16,21 @@ import {
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
   runContentCleanup,
-  planDailyArticleRun,
   articlePublicationModes,
   planContentPipelineSources,
   prepareArticleCandidateForReview,
   preparePodcastCandidateForReview,
   prepareVideoCandidateForReview,
+  runDailyArticlePipeline,
+  createDefaultArticleReviewProviders,
+  CandidatePublisherRegistry,
+  AcquiredArticlePublisher,
   type ContentAcquisitionRepository,
   type ContentSourceRecord,
   type ContentSourceAdapter,
 } from "../src/modules/content-acquisition/index";
 import { createDatabaseConnection } from "../src/shared/db/client";
+import { createDrizzleArticleRepository } from "../src/modules/content/repositories";
 
 export class AcquireContentCliInputError extends Error {
   readonly code = "VALIDATION_FAILED" as const;
@@ -207,9 +211,32 @@ async function main(): Promise<void> {
     }
     if (options.command === "article-daily") {
       const today = new Date().toISOString().slice(0, 10);
-      const sources = await repository.listSources();
-      const plan = planDailyArticleRun({ date: today, mode: options.articleMode ?? "disabled", policyVersion: options.policyVersion ?? "", dailyLimit: options.dailyLimit ?? 50, defaultSourceLimit: options.sourceLimit ?? 10, sources });
-      process.stdout.write(`${JSON.stringify({ runKey: plan.runKey, status: "succeeded", mode: plan.mode, dailyLimit: plan.dailyLimit, sourcePlans: plan.sourcePlans, skippedSources: plan.skippedSources.map((item) => ({ sourceStableKey: item.sourceStableKey, reason: item.reason })) })}\n`);
+      const mode = options.articleMode ?? "disabled";
+      const fakeReviewEnabled = process.env.CONTENT_ARTICLE_REVIEW_PROVIDER === "fake"
+        && process.env.CONTENT_ARTICLE_ALLOW_FAKE_REVIEW === "1"
+        && process.env.NODE_ENV !== "production";
+      if ((mode === "review-only" || mode === "auto-publish") && !fakeReviewEnabled) {
+        throw new AcquireContentCliInputError("An approved article review provider is required; fake review requires CONTENT_ARTICLE_ALLOW_FAKE_REVIEW=1 outside production.");
+      }
+      const reviewProviders = fakeReviewEnabled
+        ? createDefaultArticleReviewProviders()
+        : undefined;
+      const publishers = mode === "auto-publish"
+        ? new CandidatePublisherRegistry([new AcquiredArticlePublisher(createDrizzleArticleRepository(connection.db))])
+        : undefined;
+      const result = await runDailyArticlePipeline({
+        repository: repository as never,
+        resolveAdapter: (source) => createArticleRssAdapterFromSource(source),
+        reviewProviders,
+        publishers,
+      }, {
+        date: today,
+        mode,
+        policyVersion: options.policyVersion ?? "",
+        dailyLimit: options.dailyLimit ?? 50,
+        defaultSourceLimit: options.sourceLimit ?? 10,
+      });
+      process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: result.failures.length > 0 ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
       return;
     }
     if (options.command === "cleanup") {

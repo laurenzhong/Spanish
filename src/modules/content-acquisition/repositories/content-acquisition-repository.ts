@@ -231,4 +231,5 @@ export interface ContentWorkflowRepository {
     publicationRef: CandidatePublicationRef;
     archivedAt: Date;
   }>): Promise<ContentCandidateRecord>;
+  recordProcessingAttempt?(input: ProcessingAttemptInput): Promise<void>;
 }
