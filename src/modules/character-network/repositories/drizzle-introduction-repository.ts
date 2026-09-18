@@ -95,6 +95,23 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
       return rows.map(toOffer);
     },
 
+    async getRelationshipStatus(userId, characterKey, characterVersion) {
+      const [character] = await database.select({ id: schema.characters.id, status: schema.characters.status })
+        .from(schema.characters)
+        .where(and(
+          eq(schema.characters.stableKey, characterKey),
+          eq(schema.characters.characterVersion, characterVersion),
+        )).limit(1);
+      if (!character || character.status !== "published") return null;
+      const [row] = await database.select({ status: schema.characterRelationships.status })
+        .from(schema.characterRelationships)
+        .where(and(
+          eq(schema.characterRelationships.userId, userId),
+          eq(schema.characterRelationships.characterId, character.id),
+        )).limit(1);
+      return (row?.status as "active" | "declined" | "pending" | undefined) ?? null;
+    },
+
     async resolve(userId, offerKey, status, acceptedMemoryIds = []) {
       const [row] = await database.update(schema.characterIntroductionOffers).set({
         status,

@@ -91,14 +91,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   const database = process.env.DATABASE_URL ? getDatabase() : null;
   let luciaContact: LuciaContactRecord | null = null;
+  let relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend" | undefined;
   if (database && characterId === "lucia") {
     try {
       luciaContact = await createDrizzleLuciaContactRepository(database).get(user.id);
       if (luciaContact.status !== "active") {
         return jsonError("CONTACT_REQUIRED", "Accept Lucia's friend request before starting this conversation.", 403);
       }
+      relationshipStage = luciaContact.relationshipStage;
     } catch {
       return jsonError("CONTACT_UNAVAILABLE", "Lucia's contact status is temporarily unavailable.", 503);
+    }
+  }
+  if (database && characterId !== "lucia") {
+    try {
+      const status = await createDrizzleIntroductionRepository(database).getRelationshipStatus?.(user.id, characterId, 1);
+      if (status !== "active") {
+        return jsonError("CONTACT_REQUIRED", "Accept this character's introduction before starting the conversation.", 403);
+      }
+    } catch {
+      return jsonError("CONTACT_UNAVAILABLE", "This character's contact status is temporarily unavailable.", 503);
     }
   }
   const repository = database ? createDrizzleConversationRepository(database) : null;
@@ -130,7 +142,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       userMessage: text.trim(),
       character: getConversationCharacter(characterId).snapshot,
       recentMessages,
-      relationshipStage: luciaContact?.relationshipStage,
+      relationshipStage,
       relationshipSummary: luciaContact?.relationshipSummary,
       now: new Date(),
       memoryRepository: readableMemoryRepository,
@@ -143,7 +155,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       userMessage: text.trim(),
       character: getConversationCharacter(characterId).snapshot,
       recentMessages,
-      relationshipStage: luciaContact?.relationshipStage,
+      relationshipStage,
       relationshipSummary: luciaContact?.relationshipSummary,
       now: new Date(),
     });

@@ -8,6 +8,54 @@
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。每日自动化只进入候选审核库，不能直接发布。ALPHA-033 最终门禁要求 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 全部通过，且 P0/P1 清零并有产品本人确认。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter、远端迁移、真实来源抓取和真实收费 Provider 继续如实记录
 
+### 2026-09-18：CHAT-CHARACTER-INTEGRITY-001 角色一致性与介绍门禁
+
+- 状态：`done`（实现分支已提交，待安全进入本地 `main`）
+- 负责人：Codex
+- 分支：`codex/character-integrity`
+- 范围：Provider 系统提示词现在从所选角色上下文构建身份、版本、地点、语气、兴趣和可释放 canon，不再把 Mateo/Inés 的请求写成 Lucía；确定性 fake 的模型观测名也按角色区分。生产数据库中 Mateo/Inés 只有在角色版本已发布且用户已接受对应介绍并形成 active relationship 后才能开始聊天；未接受或仍为草稿时服务端 fail-closed 返回 `CONTACT_REQUIRED`。
+- 记忆与关系：角色关系门禁只读取当前用户、当前角色和当前版本；不会把 Lucía 的接受状态或记忆许可冒充给其他角色。现有显式分享记忆流程保持不变。
+- 验证：受影响文件 ESLint 与 `git diff --check` 通过；Provider、路由和角色回归已补齐实现路径，但本机随后出现持续 V8/Next/PostCSS 内存耗尽，未能取得完整 Vitest、typecheck 或 Playwright 结果。既有未修改的 Profile `onError` 类型错误仍是全量 typecheck 阻断项。
+- 限制：三个 JSON 人物圣经仍为 `draft`，需先通过既有版本化导入和双维度审核/发布流程，生产才会显示 Mateo/Inés；本任务没有擅自发布角色，也未把 AI 审核描述成真人审核。
+- 下一步：进入 OPS-003，先接受已批准的 ADR 并实施 `disabled → discover-only → review-only → auto-publish` 的 fake/review-only 阶段；真实来源全文许可未逐项登记前继续 fail-closed。
+
+### 2026-09-18：LEARN-TOPICS-001 学习页主题分类
+
+- 状态：`done`（实现分支已提交，待安全进入本地 `main`）
+- 负责人：Codex
+- 分支：`codex/learn-topic-categories`
+- 实现 Commit：`d40be06`
+- 范围：保留“全部 / 视频 / 播客”内容类型入口，新增“日常生活、时事新闻、文化社会、旅行城市、工作学习、人际关系、兴趣娱乐”七个学习主题；主题与现有搜索、类型、地区、难度、时长、排序、游标共同保存在 URL 中，移动端主题条可横向滚动且触控目标不小于 44px。
+- 兼容与服务端校验：新增稳定主题查询 Schema，仓库在分页前按主题过滤；`topic.news`、`topic.city`、`topic.conversation` 等旧来源标签映射到新主题，避免历史媒体失联。页面无数据库或无匹配内容时继续诚实显示不可用/空状态，不生成示例内容。
+- 验证：聚焦领域与 UI Vitest `3 files / 11 tests`、受影响文件 ESLint、`git diff --check` 通过。全量 typecheck 仍只被未修改的 `src/modules/profile/ui/profile-sections.tsx:87` 非法 `onError` prop 阻断。
+- 环境限制：新增 PGlite 数据库回归已写入，但本机 Vitest worker 启动连续因 V8 `Zone` 内存错误退出；Playwright 的 Next/PostCSS 子进程也因同一系统内存压力退出，未取得浏览器断言。失败发生在测试进程启动/样式编译阶段，不是产品断言失败；未冒充通过，需在资源恢复后重跑 `tests/database/media-persistence.test.ts` 与桌面/移动 `tests/e2e/learn-page.spec.ts`。
+- 下一步：进入长期角色真实性与权限修复，统一角色目录、介绍接受门禁和角色感知 Provider 提示词；完成后再实施 OPS-003 分阶段文章流水线。
+
+### 2026-09-18：EXPLORE-THREE-VIEWS-001 探索页三视图收敛
+
+- 状态：`done`（实现分支已提交，待安全进入本地 `main`）
+- 负责人：Codex
+- 分支：`codex/explore-three-views`
+- 实现 Commit：`7b46e84`
+- 范围：Explore 资料库明确拆分为“场景 / 表达 / 内容包”三视图，场景保持默认；表达支持正式表达、收藏、阅读来源与近期难点筛选并分批展示，收藏动作继续调用现有所有者范围 API；内容包支持搜索、状态筛选、选中态与深链恢复。URL 统一使用 `view`、`filter`、`pack` 并兼容旧参数。
+- 可用性：匹配数量改为非交互状态胶囊；筛选浮层支持点击外部或 Escape 关闭并把焦点还给触发按钮；搜索的隐藏标签会随当前视图变化；桌面和移动布局均补齐。
+- 验证：Explore/建议聚焦 Vitest `9 files / 37 tests`、受影响文件 ESLint、`git diff --check` 通过；提交前已在独立 Next dev 上完成桌面/移动 Playwright `12/12` 和桌面场景、桌面表达、390px 内容包目视检查。全量 typecheck 仍被未修改的 `src/modules/profile/ui/profile-sections.tsx:87` 非法 `onError` prop 阻断，本任务没有新增 Explore 类型错误。
+- 限制：未访问真实生产数据库、未执行远端部署或 iPhone Safari 真机验证；私人数据不可用时只显示公共内容并明确退化。
+- 下一步：按产品批准的顺序实现 Learn 主题分类，再修复长期角色目录、介绍许可和 Provider 提示词的角色一致性，最后实施 OPS-003 分阶段文章流水线。
+
+### 2026-09-18：READ-LEXICON-SHELF-001 阅读词汇/短语书架增强
+
+- 状态：`done`（已安全移植并准备以 fast-forward 进入本地 `main`）
+- 负责人：Codex
+- 原实现分支：`codex/read-lexicon-shelf`；集成分支：`codex/integrate-read-lexicon-shelf`
+- 原实现 Commit：`c13b94b`；集成 Commit：`8458b06`（功能）、`5f3389a`（原交接）
+- 范围：词汇书架新增搜索、学习意图、未分类与 verified/pending 词元筛选；短语书架新增表达/变体搜索、学习意图、语用目的、语域、地区与 CEFR 筛选。筛选在分页前执行并返回正确总数，增加分页、真实无结果、服务错误、保存 revision 与成功/失败反馈；软导航使用筛选键重建客户端列表，避免保留旧页状态。所有新增交互控件满足至少 44px 触控目标。
+- 上下文与安全：词汇/短语卡可按词条 ID 展开当前可见的精确 KWIC 上下文；`/api/v1/corpus/search` 增加配对的 `entryKind + entryId` 查询并继续执行已发布/本人私有可见性校验。列表条目和出现次数也统一使用相同可见性，撤下或孤立来源不会继续暴露数量。文章链接定位到稳定段落锚点，媒体链接携带毫秒与片段并优先于旧播放进度；语料搜索页同步使用精确位置链接。OpenAPI 已更新；浏览、筛选和意图仍不写能力证据。
+- 验证：集成分支重新执行聚焦 Vitest `7 files / 30 tests`、受影响文件 ESLint 和 `git diff --check` 均通过；`8458b06` 与原实现 `c13b94b` 的 Git tree 完全一致。独立 Playwright webServer 在增量编译中退出，因此改对仍在 3102 运行的同一 tree 执行等价桌面/Pixel 7 浏览器断言，两个 profile 均通过，覆盖词汇/短语入口、空态、筛选控件和 320/375/414px 无横向溢出。原实现分支此前的全量 Vitest `224 files / 886 tests`、正式 Playwright `4/4`、`pnpm db:check` 和生产 build 编译阶段结果保留为来源分支证据，本次未冒充重新执行。
+- 基线阻塞：全量 `pnpm typecheck` 与 build 的 TypeScript 阶段仍被未改动的 `src/modules/profile/ui/profile-sections.tsx:87` 非法 props 阻断；全量 `pnpm lint` 无错误，但因 6 条既有 Hook dependency warning 且配置 `--max-warnings=0` 返回失败。本任务未修改这些文件或放宽门禁。
+- 限制：未执行真实远端数据库、真实登录内容数据、真实设备、部署或生产数据验证；书架在无保存记录时仍会诚实显示 0 条。集成尚未推送或部署。
+- 后续顺序：阅读增强进入本地 `main` 后，优先完成 Explore，再完善长期角色模型与其他角色，随后补 Learn 专题分类。产品本人另提出“每日自动抓取 50 篇文章并自动审批/发布”的目标；在新 ADR 明确取代当前门禁前，只能把每日 50 篇作为白名单候选供应上限，仍须版权/来源校验、独立语言与教学审核、结构校验和显式发布。
+
 ### 2026-09-14：PROFILE-001、OPS-001、ALPHA-033 合并到 main
 
 - `PROFILE-001`：实现四板块能力投影（词汇与短语、交流运用、语音表达、跟读表现），保留旧八维字段与历史证据，兼容 `/api/v1/profile` 新旧结构并切换“我的”页面展示。实现 Commit：`db68587`、`0d0f149`；Merge Commit：`c95fca4`。专项验证：四板块/画像相关测试通过，受影响 lint、typecheck、db:check 与 diff check 已通过。
