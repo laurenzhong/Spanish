@@ -59,6 +59,25 @@ export type ContentPipelineCliOptions = AcquireContentCliOptions & Readonly<{
   policyVersion?: string;
 }>;
 
+/** Returns the calendar date used by the article policy, independent of the runner's UTC clock. */
+export function formatArticleNaturalDate(
+  value: Date = new Date(),
+  timeZone = "Asia/Shanghai",
+): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value;
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  if (!year || !month || !day) throw new AcquireContentCliInputError("Unable to determine the article natural date.");
+  return `${year}-${month}-${day}`;
+}
+
 export type AcquireContentCliDependencies = Readonly<{
   repository: ContentAcquisitionRepository;
   adapter: ContentSourceAdapter;
@@ -211,7 +230,7 @@ async function main(): Promise<void> {
       return;
     }
     if (options.command === "article-daily") {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = formatArticleNaturalDate();
       const mode = options.articleMode ?? "disabled";
       const reviewRequired = mode === "review-only" || mode === "auto-publish";
       let reviewProviders: ReturnType<typeof createConfiguredArticleReviewProviders> | undefined;

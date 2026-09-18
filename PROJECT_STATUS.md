@@ -19,6 +19,14 @@
 - 本轮修复：文章审核现在会为三个维度持久化真实 `approved`/`changes_requested`/`rejected` 决策，并继续绑定冻结 candidate revision/hash；`review-only` 与 `auto-publish` 会恢复处理此前 `discover-only` 留下的 `discovered`/`review_ready` article candidates，且优先处理已待审核候选。新增跨两次运行的回归测试；focused Vitest `8 files / 26 tests`、受影响 ESLint 与 `git diff --check` 通过。
 - 当前验证边界：全局 typecheck 仍只被未修改的 `src/modules/profile/ui/profile-sections.tsx:87` 非法 `onError` props 阻断；Chrome 接管因本机 Codex auth method `apikey` 不受支持未完成。此前项目 Playwright fallback 桌面/移动各 `27/27` 通过；未执行真实来源采集、真实 MiniMax 调用、生产数据库写入或发布，今天没有证据证明已获取或发布 50 篇文章。
 
+### 2026-09-19：RELEASE-REVIEW-001 运行收尾
+
+- 每日文章 CLI 现在按 `Asia/Shanghai` 自然日生成 run date，避免 GitHub Actions UTC 日期在北京时间跨日时写入错误的日配额键；新增跨日边界回归测试。
+- GitHub Actions 文章任务已在主阶段后独立执行 `cleanup` 与 `report`，并通过 `if: always()` 保证主任务失败时仍保留可重试清理和脱敏报告步骤；自动发布模式、受保护 Environment 和 kill switch 约束未改变。
+- 本轮验证：`db:check` 通过；内容采集/审核聚焦测试 `11 files / 43 tests` 通过；workflow smoke 桌面/移动 `2/2` 通过；受影响 ESLint 与 `git diff --check` 通过。
+- 全局 `typecheck`、`build` 的 TypeScript 阶段仍被未修改的 `src/modules/profile/ui/profile-sections.tsx:87` 非法 `onError` props 阻断；全量 `lint` 仍被 6 条既有 Hook dependency warning 阻断。本轮不扩大范围修复这些基线问题。
+- Chrome 接管仍因本机 Codex `apikey` 认证不受支持而不可用；已按用户授权使用项目 Playwright fallback。未执行真实来源抓取、真实 MiniMax、生产数据库写入、发布或撤下。
+
 ### 2026-09-18：CHAT-CHARACTER-INTEGRITY-001 角色一致性与介绍门禁
 
 - 状态：`done`（实现分支已提交，待安全进入本地 `main`）

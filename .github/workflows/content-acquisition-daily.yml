@@ -59,6 +59,16 @@ jobs:
           --daily-limit "$ARTICLE_DAILY_LIMIT"
           --source-limit "${CONTENT_ARTICLE_SOURCE_LIMIT:-10}"
           --policy-version "${CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION:-}"
+      - name: Cleanup expired candidates and artifacts
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:pipeline -- cleanup --limit 100
+      - name: Write acquisition report
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:pipeline -- report --limit 100
       - name: Write redacted summary
         if: always()
         run: |

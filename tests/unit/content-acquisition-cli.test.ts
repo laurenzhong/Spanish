@@ -10,6 +10,7 @@ import {
 } from "@/src/modules/content-acquisition";
 import {
   AcquireContentCliInputError,
+  formatArticleNaturalDate,
   parseAcquireContentArguments,
   parseContentPipelineArguments,
   runAcquireContentCli,
@@ -44,6 +45,11 @@ function dryRunRepository(): ContentAcquisitionRepository {
 }
 
 describe("content acquisition CLI", () => {
+  it("uses the Asia/Shanghai natural date for scheduled article runs", () => {
+    expect(formatArticleNaturalDate(new Date("2026-09-18T15:59:59.000Z"))).toBe("2026-09-18");
+    expect(formatArticleNaturalDate(new Date("2026-09-18T16:00:00.000Z"))).toBe("2026-09-19");
+  });
+
   it("fails closed when no source is explicit or an argument is unsupported", () => {
     expect(() => parseAcquireContentArguments(["--", "--dry-run"])).toThrow(AcquireContentCliInputError);
     expect(() => parseAcquireContentArguments(["--source", "fixture", "--all"])).toThrow(
