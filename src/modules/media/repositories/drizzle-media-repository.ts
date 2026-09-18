@@ -91,7 +91,6 @@ function progressRecord(row: typeof schema.userMediaProgress.$inferSelect): Medi
 }
 
 function isPlayable(row: JoinedRow, now: Date): boolean {
-  if (row.asset.kind === "official_embed") return false;
   let url: URL;
   try { url = new URL(row.asset.playbackUrl); } catch { return false; }
   return row.asset.availability === "available"
