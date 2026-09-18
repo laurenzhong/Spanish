@@ -153,16 +153,26 @@ describe("ExplorePageContent", () => {
     expect(screen.getByRole("heading", { name: "保留的场景" })).toBeInTheDocument();
   });
 
-  it("keeps Explore focused on scenarios without expression or content-pack views", () => {
+  it("keeps scenarios as the default and exposes expressions and content packs as separate views", () => {
     render(<ExplorePageContent dashboard={dashboard} library={library} />);
 
-    expect(screen.queryByRole("tablist", { name: "探索内容" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "探索内容" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "场景" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("校园办事：注册与材料")).toBeInTheDocument();
     expect(screen.queryByText("¿Cómo va todo?")).not.toBeInTheDocument();
     expect(screen.queryByText("咖啡馆里的新朋友")).not.toBeInTheDocument();
     expect(screen.queryByText("询问近况")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /收藏表达/u })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /筛选内容包/u })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "表达" }));
+    expect(screen.getByRole("tab", { name: "表达" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("¿Cómo va todo?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "收藏表达：¿Cómo va todo?" })).toBeInTheDocument();
+    expect(screen.queryByText("校园办事：注册与材料")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "内容包" }));
+    expect(screen.getByRole("tab", { name: "内容包" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("咖啡馆里的新朋友")).toBeInTheDocument();
+    expect(screen.queryByText("¿Cómo va todo?")).not.toBeInTheDocument();
   });
 
   it("uses expressions as scenario search metadata without listing them separately", () => {
@@ -181,6 +191,35 @@ describe("ExplorePageContent", () => {
     expect(new URL(window.location.href).searchParams.get("filter")).toBe("available");
   });
 
+  it("filters expression sources, restores focus, and grows the list in batches of twelve", () => {
+    const expressions = Array.from({ length: 13 }, (_, index) => ({
+      ...library.expressions[0]!,
+      id: `formal-${index}`,
+      text: `Expresión ${index + 1}`,
+      saveSource: { sourceType: "formal-expression" as const, expressionKey: `expression.${index}`, version: 1 },
+    }));
+    render(<ExplorePageContent dashboard={dashboard} library={{ ...library, expressions }} initialView="expressions" />);
+
+    expect(screen.getAllByRole("button", { name: /收藏表达：Expresión/u })).toHaveLength(12);
+    fireEvent.click(screen.getByRole("button", { name: "显示更多" }));
+    expect(screen.getAllByRole("button", { name: /收藏表达：Expresión/u })).toHaveLength(13);
+
+    const filterButton = screen.getByRole("button", { name: "筛选表达" });
+    fireEvent.click(filterButton);
+    fireEvent.click(screen.getByRole("button", { name: "正式表达" }));
+    expect(screen.getByRole("button", { name: /正式表达.*移除筛选/u })).toBeInTheDocument();
+    expect(filterButton).toHaveFocus();
+  });
+
+  it("saves a listed expression through the existing owner-scoped endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ apiVersion: "v1", data: { id: "saved-new" } }), { status: 201, headers: { "content-type": "application/json" } }));
+    render(<ExplorePageContent dashboard={dashboard} library={library} initialView="expressions" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "收藏表达：¿Cómo va todo?" }));
+    expect(await screen.findByRole("button", { name: "已收藏：¿Cómo va todo?" })).toHaveAttribute("aria-pressed", "true");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/expressions/saved", expect.objectContaining({ method: "POST", credentials: "same-origin" }));
+  });
+
   it("offers one clear recovery action when the library has no matches", () => {
     render(<ExplorePageContent dashboard={dashboard} library={library} initialQuery="不存在" />);
     expect(screen.getByText("没有匹配的场景")).toBeInTheDocument();
@@ -189,15 +228,17 @@ describe("ExplorePageContent", () => {
     expect(screen.getByText("校园办事：注册与材料")).toBeInTheDocument();
   });
 
-  it("cleans legacy expression and content-pack query state", () => {
+  it("restores a legacy content-pack deep link and removes conflicting saved-expression state", () => {
     window.history.replaceState(null, "", "/explore?q=A2&pack=published-pack&saved=1&filter=reading");
     render(<ExplorePageContent dashboard={dashboard} library={library} initialQuery="A2" initialPack="published-pack" initialSaved initialFilter="reading" />);
 
     const params = new URL(window.location.href).searchParams;
     expect(params.get("q")).toBe("A2");
-    expect(params.has("pack")).toBe(false);
+    expect(params.get("view")).toBe("packs");
+    expect(params.get("pack")).toBe("published-pack");
     expect(params.has("saved")).toBe(false);
     expect(params.has("filter")).toBe(false);
-    expect(screen.getByText("校园办事：注册与材料")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "内容包" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("咖啡馆里的新朋友")).toBeInTheDocument();
   });
 });

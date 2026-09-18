@@ -8,24 +8,32 @@ async function authenticate(page: Page) {
   await page.context().addCookies([{ name: "spanish-e2e-user", value: e2eUserId, url: e2eBaseUrl }]);
 }
 
-test("keeps the desktop discovery workspace focused on scenarios", async ({ page }) => {
+test("keeps the desktop discovery workspace focused while exposing three content views", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/explore");
 
   await expect(page.getByRole("heading", { name: "探索场景" })).toHaveClass(/sr-only/u);
   await expect(page.getByRole("link", { name: "练习历史" })).toHaveCount(0);
-  await expect(page.getByRole("tablist", { name: "探索内容" })).toHaveCount(0);
+  await expect(page.getByRole("tablist", { name: "探索内容" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "场景" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("searchbox", { name: "搜索场景" })).toHaveAttribute("placeholder", "搜索场景");
   await expect(page.getByRole("link", { name: /校园办事/u })).toBeVisible();
-  await expect(page.getByRole("button", { name: /收藏表达|用此表达生成场景|筛选内容包/u })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /收藏表达/u })).toHaveCount(0);
+  await page.getByRole("tab", { name: "表达" }).click();
+  await expect(page.getByRole("button", { name: "筛选表达" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /收藏表达|已收藏/u }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /校园办事/u })).toHaveCount(0);
+  await page.getByRole("tab", { name: "内容包" }).click();
+  await expect(page.getByRole("button", { name: "筛选内容包" })).toBeVisible();
+  await expect(page.locator(".explore-pack-card").first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
 });
 
 test("finds scenarios through their expressions and cleans legacy URL state", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/explore?q=que%20documentos&pack=immersive.first-cafe-conversation&saved=1&filter=reading");
+  await page.goto("/explore?view=scenarios&q=que%20documentos&pack=immersive.first-cafe-conversation&saved=1&filter=reading");
 
   await expect(page.getByRole("searchbox", { name: "搜索场景" })).toHaveValue("que documentos");
   await expect(page.getByRole("link", { name: /校园办事：注册与材料/u })).toBeVisible();

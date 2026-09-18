@@ -1,4 +1,4 @@
-export const exploreLibraryFilters = ["all", "saved", "recent-error", "reading", "available"] as const;
+export const exploreLibraryFilters = ["all", "formal", "saved", "recent-error", "reading", "available"] as const;
 export type ExploreLibraryFilter = (typeof exploreLibraryFilters)[number];
 
 export type ExploreScenarioLibraryCard = Readonly<{
@@ -84,6 +84,7 @@ export function filterExploreLibrary(
     ? []
     : library.expressions.filter((expression) => {
       const sourceMatches = input.filter === "all"
+        || (input.filter === "formal" && expression.sourceKind === "formal")
         || (input.filter === "saved" && expression.saved)
         || (input.filter === "recent-error" && expression.sourceKind === "recent-error")
         || (input.filter === "reading" && expression.sourceKind === "reading");
