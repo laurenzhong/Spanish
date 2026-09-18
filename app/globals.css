@@ -9292,6 +9292,8 @@ body {
   .capability-summary, .capability-detail { padding: 18px; }
   .capability-groups, .capability-detail__metrics { grid-template-columns: minmax(0, 1fr); }
   .capability-detail__heading { display: grid; }
+}
+
 /* UI-015: focused, high-craft conversation workspace. */
 .conversation-page {
   --conversation-ink: #23251f;
