@@ -10,6 +10,7 @@
 | AI 执行任务 | [AGENTS](../AGENTS.md)、[执行约束](agent-rules.md)受影响章节 | 领取/交接时查状态页；按需查对应计划与模块 |
 | 内容驱动学习/词句/画像改造 | [当前规格](superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md)、[ADR-0008](adr/0008-content-led-learning-and-automated-ingestion.md) | [实施计划](plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)当前任务；规格不是完成清单 |
 | 媒体首页/详情 UI | 上述当前规格 | 本机未提交首页设计 `docs/superpowers/specs/2026-09-14-learn-home-001-design.md`（提交后再建立链接）、[详情设计](superpowers/specs/2026-09-15-media-detail-learning-workbench-design.md)、[详情计划](plans/2026-09-15-media-detail-learning-workbench-implementation-plan.md) |
+| 公开产品页视觉重设计 | [公开产品页视觉规格](superpowers/specs/2026-09-20-public-home-visual-redesign-design.md) | [公开产品页实施计划](plans/2026-09-20-public-home-visual-redesign-implementation-plan.md)；只影响匿名 `/`，不改登录后学习页不变量 |
 | 来源、审核、字幕、托管 | [内容制作规范](content-authoring.md) | [媒体运行手册](operations/media-content-workflow.md)、[ADR-0007](adr/0007-owner-authorized-ai-content-review.md)、[ADR-0009](adr/0009-hosted-media-assets.md) |
 | 模块/API/数据库修改 | [架构](architecture.md)、[API 契约](../contracts/README.md) | [数据库](database.md)、相关 Schema/迁移；实际运行配置不承担文档导航 |
 | 验证、故障回归、交接 | [测试策略](testing-strategy.md) | [真实 iPhone 清单](testing/scenario-practice-iphone-safari-checklist.md)、[备份恢复演练](operations/backup-restore-drill.md) |
@@ -38,6 +39,8 @@
 - [电脑端 Web 界面密度与操作层级收敛实施计划](plans/2026-09-12-desktop-web-interface-density-and-action-hierarchy-implementation-plan.md)
 - [媒体详情与视频学习器视觉设计](superpowers/specs/2026-09-15-media-detail-learning-workbench-design.md)
 - [媒体详情与视频学习器实施计划](plans/2026-09-15-media-detail-learning-workbench-implementation-plan.md)
+- [公开产品页视觉重设计规格](superpowers/specs/2026-09-20-public-home-visual-redesign-design.md)
+- [公开产品页视觉重设计实施计划](plans/2026-09-20-public-home-visual-redesign-implementation-plan.md)
 - [历史：Web 与 Flutter 多平台架构设计](superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
 - [个人 Alpha 实施计划](plans/2026-08-20-personal-alpha-implementation-plan.md)
 - [架构边界](architecture.md)
