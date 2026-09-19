@@ -64,7 +64,33 @@ describe("Readlang links adapter contract", () => {
     const offPolicy = vi.fn<typeof fetch>(async () => response("<html><body><a href=\"https://attacker.example/one\">No</a></body></html>", { headers: { "content-type": "text/html" } }));
     const result = await new ReadlangLinksAdapter({ fetch: offPolicy, policy }).discover({ sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, cursor: null, limit: 1 });
     expect(result.items).toEqual([]);
-    expect(offPolicy).toHaveBeenCalledOnce();
+    expect(result.nextCursor).toContain('"offset":0');
+    expect(offPolicy).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the fixed Readlang popular-domains API when the page is client-rendered", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === policy.sourceUrl) {
+        return response("<html><body><div id=\"app\"></div></body></html>", { headers: { "content-type": "text/html" } });
+      }
+      if (url === "https://readlang.com/api/popularDomains?language=es&limit=50") {
+        return response(JSON.stringify([{ domainName: "news.example.test", path: "/one" }, { domainName: "attacker.example", path: "/two" }]), {
+          headers: { "content-type": "application/json; charset=utf-8" },
+          url,
+        });
+      }
+      expect(url).toBe("https://news.example.test/one");
+      return response("<html><head><title>Una noticia</title></head><body><article><p>La biblioteca abre una sala nueva.</p></article></body></html>", {
+        headers: { "content-type": "text/html; charset=utf-8" },
+        url,
+      });
+    });
+    const adapter = new ReadlangLinksAdapter({ fetch: fetchMock, policy, now: () => new Date("2026-09-18T00:00:00.000Z") });
+    const result = await adapter.discover({ sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, cursor: null, limit: 10 });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.canonicalUrl).toBe("https://news.example.test/one");
+    expect(result.nextCursor).toContain('"offset":1');
   });
 
   it("rejects a same-host redirect to an URL outside the snapshot", async () => {

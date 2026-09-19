@@ -21,6 +21,14 @@ type HtmlNode = Readonly<{
   childNodes?: readonly HtmlNode[];
 }>;
 
+const POPULAR_DOMAINS_API = "https://readlang.com/api/popularDomains?language=es&limit=50";
+const REQUEST_TIMEOUT_MS = 15_000;
+
+type PopularDomain = Readonly<{
+  domainName?: unknown;
+  path?: unknown;
+}>;
+
 function attribute(node: HtmlNode, name: string): string | null {
   return node.attrs?.find((item) => item.name.toLowerCase() === name)?.value ?? null;
 }
@@ -59,6 +67,34 @@ function collectLinks(html: string, sourceUrl: string, policy: ReadlangLinksPoli
       }
     })
     .filter((href): href is string => Boolean(href)))];
+}
+
+function collectPopularDomainLinks(json: string, policy: ReadlangLinksPolicy): readonly string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return [...new Set(parsed
+    .map((value): string | null => {
+      if (!value || typeof value !== "object") return null;
+      const item = value as PopularDomain;
+      if (typeof item.domainName !== "string" || typeof item.path !== "string") return null;
+      try {
+        const url = new URL(`https://${item.domainName}${item.path.startsWith("/") ? item.path : `/${item.path}`}`);
+        return normalizeReadlangLink(url.toString(), policy);
+      } catch {
+        return null;
+      }
+    })
+    .filter((value): value is string => Boolean(value)))];
+}
+
+function boundedSignal(signal: AbortSignal | undefined): AbortSignal {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
 function articleParagraphs(html: string): Readonly<{ title: string; summary: string; paragraphs: readonly string[] }> {
@@ -111,10 +147,26 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
       allowedHosts: ["readlang.com"],
       allowedContentTypes: ["text/html", "application/xhtml+xml"],
       maxBytes: this.options.maxPageBytes ?? 1_500_000,
-      signal: requestOptions?.signal,
+      signal: boundedSignal(requestOptions?.signal),
       isAllowedUrl: (url) => url.toString() === this.options.policy.sourceUrl,
     });
-    const links = collectLinks(page.text, page.url, this.options.policy);
+    let links = collectLinks(page.text, page.url, this.options.policy);
+    if (links.length === 0) {
+      try {
+        const apiPage = await fetchBoundedText({
+          url: POPULAR_DOMAINS_API,
+          fetch: this.options.fetch,
+          allowedHosts: ["readlang.com"],
+          allowedContentTypes: ["application/json"],
+          maxBytes: 500_000,
+          signal: boundedSignal(requestOptions?.signal),
+          isAllowedUrl: (url) => url.toString() === POPULAR_DOMAINS_API,
+        });
+        links = collectPopularDomainLinks(apiPage.text, this.options.policy);
+      } catch (error) {
+        if (requestOptions?.signal?.aborted) throw error;
+      }
+    }
     const selected = links.slice(cursor.offset, cursor.offset + input.limit);
     const items: ContentSourcePage["items"][number][] = [];
     for (const url of selected) {
@@ -126,7 +178,7 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
           allowedHosts: this.options.policy.allowlist.hosts,
           allowedContentTypes: ["text/html", "application/xhtml+xml"],
           maxBytes: this.options.maxArticleBytes ?? 1_500_000,
-          signal: requestOptions?.signal,
+          signal: boundedSignal(requestOptions?.signal),
           isAllowedUrl: (candidate) => isReadlangAllowlistedUrl(candidate.toString(), this.options.policy),
         });
         article = articleParagraphs(response.text);
@@ -168,7 +220,8 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
         // A malformed page remains outside the candidate pool; the cursor still advances.
       }
     }
-    const nextOffset = cursor.offset + selected.length;
+    // Keep failed pages retryable; advancing an empty batch would silently lose an allowlisted source.
+    const nextOffset = items.length === 0 ? cursor.offset : cursor.offset + selected.length;
     return {
       sourceStableKey: input.sourceStableKey,
       cursor: input.cursor,
