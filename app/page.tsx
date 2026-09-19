@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import { ThemeToggle } from "@/src/shared/ui/theme-toggle";
-
 const loopSteps = [
   ["01", "先理解情境", "听见对方为什么这样说，再决定自己的回应。"],
   ["02", "用自己的话回应", "完整表达比背出唯一答案更接近真实交流。"],
@@ -11,6 +9,11 @@ const loopSteps = [
 const conversation = [
   ["Lucía", "¿Te apetece seguir hablando después?", "18:42"],
   ["你", "Sí, me gustaría. Tengo un poco de tiempo.", "18:43"],
+] as const;
+
+const privacyNotes = [
+  ["记忆隔离", "Lucía 只记住你明确允许留在关系里的内容。"],
+  ["mastery / confidence", "掌握度和证据可信度分开记录，技术失败不会伪装成退步。"],
 ] as const;
 
 export default function HomePage() {
@@ -23,7 +26,6 @@ export default function HomePage() {
         <nav aria-label="公开页面导航">
           <a className="public-home__text-link" href="#how-it-works">产品方式</a>
           <a className="public-home__text-link" href="#product-proof">阅读</a>
-          <ThemeToggle compact />
           <Link className="public-home__login" href="/login">登录</Link>
           <Link className="primary-link public-home__nav-cta" href="/login">进入学习</Link>
         </nav>
@@ -39,28 +41,32 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="public-home__hero-product" aria-label="Sueño 学习工作台预览">
-          <div className="product-preview__chrome">
-            <span className="product-preview__brand">Sueño</span>
-            <span className="product-preview__context">学习 · 今天</span>
-            <span className="product-preview__window-dots" aria-hidden="true"><i /><i /><i /></span>
+        <div className="public-home__hero-product" aria-label="Sueño 学习资料库界面预览">
+          <div className="product-ui__bar">
+            <span className="product-ui__brand">Sueño</span>
+            <span className="product-ui__route">学习 / 资料库</span>
+            <span className="product-ui__status"><i /> 本地演示</span>
           </div>
-          <div className="product-preview__body">
-            <div className="product-preview__rail" aria-hidden="true">
-              <span className="is-active" />
-              <span />
-              <span />
-              <span />
-            </div>
-            <div className="product-preview__content">
-              <div className="product-preview__eyeline"><span>今天继续</span><span>语境 · A2</span></div>
-              <strong>问候后自然继续交流</strong>
-              <p>听见一个真实的下一步，再用自己的话回应。</p>
-              <div className="product-preview__media">
-                <div className="product-preview__media-art"><span>habla</span><span>escucha</span><span>conecta</span></div>
-                <div className="product-preview__media-copy"><span>街角的下午</span><small>视频 · 06:24</small></div>
+          <div className="product-ui__workspace">
+            <aside className="product-ui__sidebar" aria-label="产品区域">
+              <span className="is-active">学</span><span>读</span><span>探</span><span>聊</span>
+            </aside>
+            <div className="product-ui__main">
+              <div className="product-ui__eyeline"><span>今天继续</span><span>A2 · 语境练习</span></div>
+              <h2>问候后，自然地继续交流</h2>
+              <p className="product-ui__summary">一段真实对话，先听懂，再说出自己的下一句。</p>
+              <div className="product-ui__content-row">
+                <div className="product-ui__poster" role="img" aria-label="街角下午的西语视频静态封面">
+                  <span>街角的下午</span><small>VIDEO · 06:24</small><b aria-hidden="true">▶</b>
+                </div>
+                <div className="product-ui__lesson-meta">
+                  <span className="product-ui__meta-label">正在学习</span>
+                  <strong>问候后自然继续</strong>
+                  <span>视频 · 字幕 · 词语</span>
+                  <div className="product-ui__progress" aria-label="学习进度 42%"><i /></div>
+                  <small>已完成 02:18</small>
+                </div>
               </div>
-              <div className="product-preview__progress"><span /></div>
             </div>
           </div>
         </div>
@@ -94,18 +100,22 @@ export default function HomePage() {
           <p>从一段视频、一句问候或一个新的沟通目标开始。每个入口都会把你带回真实可完成的下一步。</p>
           <Link className="public-home__quiet-link public-home__proof-link" href="/login?next=%2Fexplore">看看沟通目标 <span aria-hidden="true">→</span></Link>
         </div>
-        <div className="public-home__workbench" aria-label="字幕与语境学习器预览">
-          <div className="workbench__topline"><span>视频学习器</span><span>正在播放 · 02:18</span></div>
-          <div className="workbench__screen">
-            <div className="workbench__video"><span>una conversación</span><i aria-hidden="true" /></div>
-            <div className="workbench__transcript">
-              <small>当前句</small>
-              <p lang="es">¿Te apetece seguir hablando después?</p>
-              <p lang="zh-CN">你愿意之后继续聊聊吗？</p>
-              <div className="workbench__word-line"><span>seguir</span><span>hablando</span><span>después</span></div>
+        <div className="public-home__workbench" aria-label="媒体、字幕和词语学习器预览">
+          <div className="proof-console__header"><span>学习工作台</span><span>媒体 · 字幕 · 词语学习器</span></div>
+          <div className="proof-console__grid">
+            <div className="proof-console__media">
+              <div className="proof-console__frame" role="img" aria-label="西语对话视频静态画面"><span>una conversación</span><i aria-hidden="true">▶</i></div>
+              <div className="proof-console__caption"><span>当前句</span><p lang="es">¿Te apetece seguir hablando después?</p><p lang="zh-CN">你愿意之后继续聊聊吗？</p></div>
+            </div>
+            <div className="proof-console__lexicon">
+              <span className="proof-console__label">词语学习器</span>
+              <strong>seguir</strong>
+              <p lang="zh-CN">继续；接着</p>
+              <div className="proof-console__word-list"><span>seguir</span><span>hablando</span><span>después</span></div>
+              <small>点击词语，回到它出现的语境。</small>
             </div>
           </div>
-          <div className="workbench__footer"><span>点击词语查看语境</span><span>字幕 · 双语</span></div>
+          <div className="proof-console__footer"><span>字幕自动跟随当前句</span><span>双语 · 可回看</span></div>
         </div>
       </section>
 
@@ -121,6 +131,11 @@ export default function HomePage() {
             </div>
           ))}
           <div className="conversation-preview__privacy"><span aria-hidden="true">✓</span><p>能力掌握度与可信度分开记录。技术失败不会伪装成退步。</p></div>
+          <ul className="conversation-preview__notes">
+            {privacyNotes.map(([title, description]) => (
+              <li key={title}><strong>{title}</strong><span>{description}</span></li>
+            ))}
+          </ul>
         </div>
       </section>
 

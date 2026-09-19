@@ -12,6 +12,6 @@ describe("public home", () => {
     expect(screen.getByRole("link", { name: "产品方式" })).toHaveAttribute("href", "#how-it-works");
     expect(screen.getByRole("heading", { name: "每一次练习，都在为下一次真实交流做准备。" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "你的进步属于你，关系记忆也只在你允许时共享。" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "开始之前，先把边界说清楚。" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "下一句话，从你自己的声音开始。" })).toBeInTheDocument();
   });
 });
