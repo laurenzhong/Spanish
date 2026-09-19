@@ -64,4 +64,18 @@ describe("runDailyMediaPipeline", () => {
     expect(repo.createRun).toHaveBeenCalledOnce();
     expect(repo.completeRun).toHaveBeenCalledOnce();
   });
+
+  it("includes verified Language Reactor video and podcast sources without granting publication", async () => {
+    const languageReactor = source({ adapterType: "language-reactor", sourceKind: "podcast-feed", stableKey: "language-reactor.podcast-mix-es" });
+    const repo = repository([languageReactor]);
+    const resolveAdapter = vi.fn(async () => ({
+      key: "language-reactor" as const,
+      discover: async () => ({ sourceStableKey: languageReactor.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }),
+    }));
+
+    const result = await runDailyMediaPipeline({ repository: repo as never, resolveAdapter }, { mode: "discover-only", dailyLimit: 1, defaultSourceLimit: 1, date: "2026-09-19" });
+
+    expect(resolveAdapter).toHaveBeenCalledWith(languageReactor);
+    expect(result).toMatchObject({ mode: "discover-only", reviewReady: 0, prepared: 0 });
+  });
 });

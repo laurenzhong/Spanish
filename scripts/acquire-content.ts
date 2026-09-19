@@ -11,6 +11,7 @@ import {
   FakeContentSourceAdapter,
   createArticleRssAdapterFromSource,
   createReadlangLinksAdapterFromSource,
+  createLanguageReactorAdapterFromSource,
   createPodcastRssAdapterFromSource,
   createYouTubeChannelAdapterFromSource,
   contentSourcePageSchema,
@@ -299,9 +300,11 @@ async function main(): Promise<void> {
     if (options.command === "media-daily") {
       const result = await runDailyMediaPipeline({
         repository: repository as never,
-        resolveAdapter: (source) => source.adapterType === "podcast-rss"
-          ? createPodcastRssAdapterFromSource(source)
-          : createYouTubeChannelAdapterFromSource(source),
+        resolveAdapter: (source) => source.adapterType === "language-reactor"
+          ? createLanguageReactorAdapterFromSource(source)
+          : source.adapterType === "podcast-rss"
+            ? createPodcastRssAdapterFromSource(source)
+            : createYouTubeChannelAdapterFromSource(source),
       }, {
         mode: options.mediaMode ?? "disabled",
         dailyLimit: options.mediaDailyLimit ?? 50,

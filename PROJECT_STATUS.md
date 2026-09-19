@@ -31,6 +31,13 @@
 - 自动发布入口新增 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` fail-closed 校验，workflow 从 protected Environment 变量传入；缺失/非 true 不允许 `auto-publish`，并新增 CLI 回归测试。仍未执行真实采集、真实 MiniMax 或生产发布。
 - 工具审查表已同步当前状态：学习主题、阅读词汇/短语书架、探索三视图和三角色聊天不再标记为“待集成”，而是标记为已集成并通过桌面/移动 Playwright；真实 provider、生产关系数据和真实来源授权仍列为独立验收项。
 
+### 2026-09-19：MIG-RECONCILE-001 内容流水线迁移分叉
+
+- 状态：`blocked`（等待选择并审核正式的 forward-only 迁移整合方案）；任务记录：[MIG-RECONCILE-001](docs/tasks/MIG-RECONCILE-001.md)。
+- 只读核验显示配置内容数据库使用 OPS-002 的 37 条迁移记录：其 `acquisition_sources_adapter_check` 允许 `language-reactor`，但不允许 `readlang-links`，且没有 release 分支词汇/短语表。当前 release journal 的 `0027` 至 `0029` 属于另一条历史，不能直接执行，也不能手工修改数据库或 migration table 绕过。
+- 本轮兼容修复：`media-daily` 识别已登记、已验证的 `language-reactor` 视频/播客来源；来源适配器继续限制官方 API、策略中的音频 host、HTTPS、重定向、MIME 与大小。流程仍最多到 `review_ready`，媒体未获得自动发布权限。聚焦 Vitest `12/12`、typecheck、受影响 ESLint、`db:check` 和 diff check 通过；Chrome-channel Playwright 桌面 `4/4`、移动 `4/4` 验证资料库空态不伪造内容，视频与播客同走现有统一学习工作台。
+- 未执行真实 Readlang 抓取、MiniMax 审核、媒体下载、数据库写入或发布。Readlang 注册持续等待迁移整合；GitHub `content-production` 环境变量/密钥缺失仍会阻止 Actions 运行。
+
 ### 2026-09-18：CHAT-CHARACTER-INTEGRITY-001 角色一致性与介绍门禁
 
 - 状态：`done`（实现分支已提交，待安全进入本地 `main`）

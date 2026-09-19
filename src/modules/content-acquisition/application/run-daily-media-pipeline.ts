@@ -53,7 +53,8 @@ function naturalDate(value: Date, timeZone = "Asia/Shanghai"): string {
 
 function isMediaSource(source: ContentSourceRecord): boolean {
   return (source.adapterType === "youtube" && source.sourceKind === "video-channel")
-    || (source.adapterType === "podcast-rss" && source.sourceKind === "podcast-feed");
+    || (source.adapterType === "podcast-rss" && source.sourceKind === "podcast-feed")
+    || (source.adapterType === "language-reactor" && ["video-channel", "podcast-feed"].includes(source.sourceKind));
 }
 
 export async function runDailyMediaPipeline(
@@ -109,7 +110,8 @@ export async function runDailyMediaPipeline(
       remaining -= acquisition.inserted;
       if (input.mode === "discover-only") continue;
 
-      const pending = await dependencies.repository.listCandidates({ sourceId: source.id, limit, contentType: source.adapterType === "youtube" ? "video" : "podcast" });
+      const contentType = source.sourceKind === "video-channel" ? "video" : "podcast";
+      const pending = await dependencies.repository.listCandidates({ sourceId: source.id, limit, contentType });
       const candidates = pending.filter((candidate) => candidate.status === "discovered").slice(0, limit);
       for (const candidate of candidates) {
         try {

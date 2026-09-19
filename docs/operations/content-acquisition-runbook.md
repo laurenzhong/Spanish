@@ -19,7 +19,7 @@ pnpm content:pipeline -- report --limit 100
 
 文章日流水线使用 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` 作为受保护 Environment 的显式发布门闩。缺失或非 `true` 时，`auto-publish` 在 CLI 入口直接 fail closed；`disabled`、`discover-only` 和 `review-only` 不受此门闩影响。该变量表示发布开关已由维护者明确置于可运行状态，不代表绕过来源权利、双审核、结构校验或 CAS 门禁。
 
-媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only>`，受 `CONTENT_MEDIA_DAILY_LIMIT`（全局，最大 50）和 `CONTENT_MEDIA_SOURCE_LIMIT`（单来源，最大 50）约束。该命令只选择 `youtube` / `podcast-rss` 的 `enabled=true`、`rights_status=verified` 来源，并在报告中显式列出因权利未验证而跳过的媒体来源。它不接受 `auto-publish`，没有媒体自动发布 kill switch，也不能替代所有者发布操作。
+媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only>`，受 `CONTENT_MEDIA_DAILY_LIMIT`（全局，最大 50）和 `CONTENT_MEDIA_SOURCE_LIMIT`（单来源，最大 50）约束。该命令只选择 `youtube`、`podcast-rss` 或已登记的 `language-reactor` 的 `enabled=true`、`rights_status=verified` 来源，并在报告中显式列出因权利未验证而跳过的媒体来源。`language-reactor` 只允许已验证的西语视频/播客目录和其来源策略中指定的 API、媒体主机；适配器不会从页面或 API 响应扩大 allowlist。它不接受 `auto-publish`，没有媒体自动发布 kill switch，也不能替代所有者发布操作。
 
 Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v1.json` 的 `policyVersion`、精确 URL 快照和授权证据。该适配器只读取快照 URL；页面新增 URL 或主机前不得自动采集。`automatedPublication.enabled` 仍为 `false`，所以该来源最多进入 `review-only`，不能绕过分阶段门禁直接发布。
 
