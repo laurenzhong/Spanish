@@ -111,8 +111,11 @@ export async function runDailyMediaPipeline(
       if (input.mode === "discover-only") continue;
 
       const contentType = source.sourceKind === "video-channel" ? "video" : "podcast";
-      const pending = await dependencies.repository.listCandidates({ sourceId: source.id, limit, contentType });
-      const candidates = pending.filter((candidate) => candidate.status === "discovered").slice(0, limit);
+      const resumableStatuses = ["discovered", "screened", "acquiring", "processing"] as const;
+      const pending = await Promise.all(resumableStatuses.map((status) =>
+        dependencies.repository.listCandidates({ sourceId: source.id, status, limit, contentType })));
+      const candidates = pending.flat().sort((left, right) =>
+        left.lastActivityAt.getTime() - right.lastActivityAt.getTime()).slice(0, limit);
       for (const candidate of candidates) {
         try {
           const prepared = candidate.contentType === "video"

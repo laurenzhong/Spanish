@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { runDailyMediaPipeline } from "@/src/modules/content-acquisition/application/run-daily-media-pipeline";
+import { createVideoCandidateDraft } from "@/src/modules/content-acquisition/normalizers";
 import type { ContentCandidateRecord, ContentSourceRecord } from "@/src/modules/content-acquisition/repositories";
 
 function source(overrides: Partial<ContentSourceRecord> = {}): ContentSourceRecord {
@@ -28,9 +29,9 @@ function repository(sources: readonly ContentSourceRecord[]) {
     createRun: vi.fn(async () => undefined),
     commitDiscoveryPage: vi.fn(async () => ({ inserted: 0, duplicates: 0, conflicts: 0, insertedCandidateIds: [] as string[] })),
     completeRun: vi.fn(async () => undefined),
-    listCandidates: vi.fn(async () => [] as ContentCandidateRecord[]),
-    findCandidateById: vi.fn(async () => null),
-    compareAndSwapCandidate: vi.fn(async () => null),
+    listCandidates: vi.fn(async (input?: unknown): Promise<ContentCandidateRecord[]> => { void input; return []; }),
+    findCandidateById: vi.fn(async (candidateId: string): Promise<ContentCandidateRecord | null> => { void candidateId; return null; }),
+    compareAndSwapCandidate: vi.fn(async (input: unknown): Promise<ContentCandidateRecord | null> => { void input; return null; }),
     recordProcessingAttempt: vi.fn(async () => undefined),
     getCandidateReview: vi.fn(async () => null),
     saveCandidateReview: vi.fn(async (input: unknown) => input),
@@ -77,5 +78,81 @@ describe("runDailyMediaPipeline", () => {
 
     expect(resolveAdapter).toHaveBeenCalledWith(languageReactor);
     expect(result).toMatchObject({ mode: "discover-only", reviewReady: 0, prepared: 0 });
+  });
+
+  it("resumes partially processed candidates in review-only mode", async () => {
+    const mediaSource = source();
+    const repo = repository([mediaSource]);
+    const draft = createVideoCandidateDraft({
+      stableKey: "youtube.demo.video-1",
+      platform: "youtube",
+      platformVideoId: "video-1",
+      sourceChannelId: "UC1234567890123456789012",
+      canonicalUrl: "https://www.youtube.com/watch?v=video-1",
+      embedUrl: "https://www.youtube-nocookie.com/embed/video-1?enablejsapi=1",
+      title: "Una noticia breve",
+      summary: "Resumen",
+      sourceName: "Demo",
+      language: "es",
+      region: "ES",
+      cefr: "A2",
+      topics: ["topic.media"],
+      durationMs: 60_000,
+      publicationDate: "2026-09-18T00:00:00.000Z",
+      fetchedAt: "2026-09-19T00:00:00.000Z",
+      license: "licensed",
+      attribution: "Demo",
+      licenseEvidence: "https://example.test/license",
+      copyrightStatus: "cleared",
+      captionStatus: "unavailable",
+      segments: [],
+      changeReason: "Daily discovery",
+    });
+    const candidate = {
+      id: "candidate-processing",
+      sourceId: mediaSource.id,
+      externalItemId: draft.platformVideoId,
+      normalizedUrl: draft.canonicalUrl,
+      title: draft.title,
+      contentType: "video",
+      language: "es",
+      metadata: { videoDraft: draft },
+      publishedAt: null,
+      contentHash: draft.contentHash,
+      rightsStatus: "verified",
+      status: "processing",
+      revision: 4,
+      generationId: "generation-1",
+      lastActivityAt: new Date("2026-09-18T00:00:00.000Z"),
+      rejectedAt: null,
+      publicationStatus: "draft",
+      publicationRef: null,
+      publishedCandidateRevision: null,
+      publishedContentHash: null,
+      publishedAtInternal: null,
+      archivedAt: null,
+    } satisfies ContentCandidateRecord;
+    repo.listCandidates.mockImplementation(async (input: unknown) => {
+      const query = input as { status?: string };
+      return query.status === "processing" ? [candidate] : [];
+    });
+    repo.findCandidateById.mockResolvedValue(candidate);
+    repo.compareAndSwapCandidate.mockImplementation(async (input: unknown) => ({
+      ...candidate,
+      status: (input as { status: ContentCandidateRecord["status"] }).status,
+      revision: candidate.revision + 1,
+    }));
+
+    const result = await runDailyMediaPipeline({
+      repository: repo as never,
+      resolveAdapter: async () => ({
+        key: "youtube",
+        discover: async () => ({ sourceStableKey: mediaSource.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }),
+      }),
+    }, { mode: "review-only", dailyLimit: 10, defaultSourceLimit: 10, date: "2026-09-19" });
+
+    expect(repo.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ status: "processing", contentType: "video" }));
+    expect(result).toMatchObject({ prepared: 1, reviewReady: 1, failures: [] });
+    expect(repo.compareAndSwapCandidate).toHaveBeenCalledWith(expect.objectContaining({ candidateId: candidate.id, status: "review_ready" }));
   });
 });
