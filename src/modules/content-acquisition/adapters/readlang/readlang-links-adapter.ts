@@ -52,6 +52,21 @@ function cleanText(value: string): string {
   return value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").replace(/\s+/gu, " ").trim();
 }
 
+function splitLongParagraph(value: string): readonly string[] {
+  const maxLength = 7_500;
+  if (value.length <= maxLength) return [value];
+  const chunks: string[] = [];
+  let remaining = value;
+  while (remaining.length > maxLength) {
+    const splitAt = remaining.lastIndexOf(" ", maxLength);
+    const boundary = splitAt > 1_000 ? splitAt : maxLength;
+    chunks.push(remaining.slice(0, boundary).trim());
+    remaining = remaining.slice(boundary).trim();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
 function collectLinks(html: string, sourceUrl: string, policy: ReadlangLinksPolicy): readonly string[] {
   const document = parse(html) as unknown as HtmlNode;
   return [...new Set(descendants(document, (node) => node.tagName === "a")
@@ -105,6 +120,7 @@ function articleParagraphs(html: string): Readonly<{ title: string; summary: str
   const paragraphs = descendants(article, (node) => node.tagName === "p")
     .map((node) => cleanText(textContent(node)))
     .filter((value) => value.length > 0)
+    .flatMap(splitLongParagraph)
     .slice(0, 500);
   const titleNode = descendants(document, (node) => node.tagName === "title")[0];
   const title = cleanText(titleNode ? textContent(titleNode) : "");

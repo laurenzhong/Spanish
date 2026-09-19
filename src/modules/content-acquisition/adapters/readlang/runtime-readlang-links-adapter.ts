@@ -1,4 +1,4 @@
-import policyJson from "@/content/source-policies/readlang-links-v1.json";
+import policyJson from "@/content/source-policies/readlang-links-v2.json";
 
 import type { ContentSourceRecord } from "../../repositories";
 import { ContentSourceAdapterError } from "../content-source-adapter";
@@ -13,5 +13,5 @@ export function createReadlangLinksAdapterFromSource(source: ContentSourceRecord
   if (source.externalSourceId !== policy.sourceUrl || source.rightsPolicy?.policyVersion !== policy.policyVersion) {
     throw new ContentSourceAdapterError("Readlang links source policy does not match the registered policy.", false);
   }
-  return new ReadlangLinksAdapter({ fetch: fetchImpl, policy });
+  return new ReadlangLinksAdapter({ fetch: fetchImpl, policy, maxArticleBytes: policy.maxArticleBytes });
 }

@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { pathToFileURL } from "node:url";
 
-import policyJson from "@/content/source-policies/readlang-links-v1.json";
+import policyJson from "@/content/source-policies/readlang-links-v2.json";
 import {
   createDrizzleContentAcquisitionRepository,
   registerContentSource,

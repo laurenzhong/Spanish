@@ -15,8 +15,9 @@ describe("Readlang links source registration", () => {
     });
     expect(source.rightsPolicy.automatedPublication).toMatchObject({
       enabled: false,
-      policyVersion: "readlang-links-v1",
+      policyVersion: "readlang-links-v2",
       dailyLimit: 10,
     });
+    expect(source.rightsPolicy.maxArticleBytes).toBe(5_000_000);
   });
 });

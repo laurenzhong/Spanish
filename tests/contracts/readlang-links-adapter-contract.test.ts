@@ -128,4 +128,27 @@ describe("Readlang links adapter contract", () => {
     const result = await new ReadlangLinksAdapter({ fetch: redirecting, policy }).discover({ sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, cursor: null, limit: 1 });
     expect(result.items).toEqual([]);
   });
+
+  it("splits a long literary paragraph at a bounded word boundary", async () => {
+    const longParagraph = `${"La literatura conserva la memoria de una ciudad. ".repeat(240)}`;
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === policy.sourceUrl) {
+        return response(`<html><body><a href="https://news.example.test/one">Obra</a></body></html>`, { headers: { "content-type": "text/html" } });
+      }
+      return response(`<html><head><title>Una obra larga</title></head><body><article><p>${longParagraph}</p></article></body></html>`, {
+        headers: { "content-type": "text/html" },
+        url,
+      });
+    });
+    const result = await new ReadlangLinksAdapter({ fetch: fetchMock, policy, now: () => new Date("2026-09-19T00:00:00.000Z") }).discover({
+      sourceStableKey: "readlang.links",
+      externalSourceId: policy.sourceUrl,
+      cursor: null,
+      limit: 1,
+    });
+    expect(result.items).toHaveLength(1);
+    const draft = result.items[0]?.metadata.articleDraft as { paragraphs?: readonly string[] } | undefined;
+    expect(draft?.paragraphs?.every((paragraph) => paragraph.length <= 8_000)).toBe(true);
+  });
 });
