@@ -78,6 +78,17 @@ export function formatArticleNaturalDate(
   return `${year}-${month}-${day}`;
 }
 
+export function assertAutoPublishKillSwitch(
+  mode: typeof articlePublicationModes[number],
+  value = process.env.CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH,
+): void {
+  if (mode === "auto-publish" && value !== "true") {
+    throw new AcquireContentCliInputError(
+      "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true for auto-publish.",
+    );
+  }
+}
+
 export type AcquireContentCliDependencies = Readonly<{
   repository: ContentAcquisitionRepository;
   adapter: ContentSourceAdapter;
@@ -232,6 +243,7 @@ async function main(): Promise<void> {
     if (options.command === "article-daily") {
       const today = formatArticleNaturalDate();
       const mode = options.articleMode ?? "disabled";
+      assertAutoPublishKillSwitch(mode);
       const reviewRequired = mode === "review-only" || mode === "auto-publish";
       let reviewProviders: ReturnType<typeof createConfiguredArticleReviewProviders> | undefined;
       if (reviewRequired) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { SharedMemoryPermissions } from "@/src/modules/character-network/ui/shared-memory-permissions";
 import { ProviderSettingsPanel } from "@/src/modules/providers/ui/provider-settings-panel";
@@ -29,6 +29,7 @@ export function ProfileSections() {
   const [activeSection, setActiveSection] = useState<ProfileSectionKey>("progress");
   const [sectionError, setSectionError] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
+  const handleSectionError = useCallback(() => setSectionError(true), []);
 
   useEffect(() => {
     const syncFromLocation = () => setActiveSection(sectionFromHash(window.location.hash));
@@ -84,8 +85,8 @@ export function ProfileSections() {
         <h2 id="profile-progress-title" className="sr-only">能力与活动</h2>
         {activeSection === "progress" ? <>
           {errorNotice}
-          <ProfileOverviewPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
-          <LearningHeatmap onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <ProfileOverviewPanel onError={handleSectionError} retryToken={retryToken} showError={false} />
+          <LearningHeatmap onError={handleSectionError} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
 
@@ -93,8 +94,8 @@ export function ProfileSections() {
         <h2 id="profile-relationships-title" className="sr-only">关系隐私</h2>
         {activeSection === "relationships" ? <>
           {errorNotice}
-          <SharedMemoryPermissions onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
-          <MemoryDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <SharedMemoryPermissions onError={handleSectionError} retryToken={retryToken} showError={false} />
+          <MemoryDataControls onError={handleSectionError} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
 
@@ -102,8 +103,8 @@ export function ProfileSections() {
         <h2 id="profile-data-title" className="sr-only">数据与隐私</h2>
         {activeSection === "data" ? <>
           {errorNotice}
-          <VoiceDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
-          <AccountDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <VoiceDataControls onError={handleSectionError} retryToken={retryToken} showError={false} />
+          <AccountDataControls onError={handleSectionError} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
 
@@ -112,7 +113,7 @@ export function ProfileSections() {
         {activeSection === "preferences" ? <>
           {errorNotice}
           <PreferencesPanel />
-          <ProviderSettingsPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <ProviderSettingsPanel onError={handleSectionError} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
     </>

@@ -56,7 +56,7 @@ export function MemoryDataControls({ onError, retryToken = 0, showError = true }
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [reloadToken, retryToken]);
+  }, [onError, reloadToken, retryToken, showError]);
 
   async function remove(memory: MemoryRecord) {
     if (!window.confirm("删除后这条关系记忆和相关共享授权都无法恢复，确定删除吗？")) return;

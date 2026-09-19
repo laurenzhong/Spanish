@@ -49,7 +49,7 @@ export function AccountDataControls({ onError, retryToken = 0, showError = true 
     return () => {
       active = false;
     };
-  }, [reloadToken, retryToken]);
+  }, [onError, reloadToken, retryToken]);
 
   async function deleteData() {
     if (!window.confirm("这会删除你的训练、画像、对话、关系记忆和保存的语音资料，且无法恢复。确定继续吗？")) return;

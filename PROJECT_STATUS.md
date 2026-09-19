@@ -26,6 +26,8 @@
 - 本轮验证：`db:check` 通过；内容采集/审核聚焦测试 `11 files / 43 tests` 通过；workflow smoke 桌面/移动 `2/2` 通过；受影响 ESLint 与 `git diff --check` 通过。
 - 全局 `typecheck`、`build` 的 TypeScript 阶段仍被未修改的 `src/modules/profile/ui/profile-sections.tsx:87` 非法 `onError` props 阻断；全量 `lint` 仍被 6 条既有 Hook dependency warning 阻断。本轮不扩大范围修复这些基线问题。
 - Chrome 接管仍因本机 Codex `apikey` 认证不受支持而不可用；已按用户授权使用项目 Playwright fallback。未执行真实来源抓取、真实 MiniMax、生产数据库写入、发布或撤下。
+- 本轮随后修复 Profile 分区 props 契约与 Hook 依赖：全局 `typecheck`、全量 `lint`、production build（`CIRCLE_NODE_TOTAL=2` 限制 Next worker）均通过；相关 Profile 单测 `13/13` 通过。桌面核心页面 Playwright `26/26`、移动核心页面 Playwright `26/26` 通过，覆盖学习主题、阅读词汇/短语、探索三视图、Lucía/Mateo/Inés 聊天和响应式溢出。
+- 自动发布入口新增 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` fail-closed 校验，workflow 从 protected Environment 变量传入；缺失/非 true 不允许 `auto-publish`，并新增 CLI 回归测试。仍未执行真实采集、真实 MiniMax 或生产发布。
 
 ### 2026-09-18：CHAT-CHARACTER-INTEGRITY-001 角色一致性与介绍门禁
 

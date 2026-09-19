@@ -75,7 +75,7 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [reloadToken, retryToken]);
+  }, [onError, reloadToken, retryToken, showError]);
 
   async function remove(kind: "audio" | "transcript", id: string) {
     const label = kind === "audio" ? "这段录音" : "这条转写";

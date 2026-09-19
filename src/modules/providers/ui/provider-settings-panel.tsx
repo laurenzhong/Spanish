@@ -47,7 +47,7 @@ export function ProviderSettingsPanel({ onError, retryToken = 0, showError = tru
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [retryToken]);
+  }, [onError, retryToken]);
 
   async function retry() {
     setLoading(true);

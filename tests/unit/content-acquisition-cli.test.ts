@@ -10,6 +10,7 @@ import {
 } from "@/src/modules/content-acquisition";
 import {
   AcquireContentCliInputError,
+  assertAutoPublishKillSwitch,
   formatArticleNaturalDate,
   parseAcquireContentArguments,
   parseContentPipelineArguments,
@@ -71,6 +72,17 @@ describe("content acquisition CLI", () => {
   it("parses the scheduled all-enabled discovery command", () => {
     expect(parseContentPipelineArguments(["discover", "--all-enabled", "--dry-run", "--limit", "2"]))
       .toMatchObject({ command: "discover", allEnabled: true, dryRun: true, limit: 2 });
+  });
+
+  it("keeps auto-publish fail closed unless the protected kill-switch gate is armed", () => {
+    expect(() => assertAutoPublishKillSwitch("auto-publish", undefined)).toThrow(
+      "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true",
+    );
+    expect(() => assertAutoPublishKillSwitch("auto-publish", "false")).toThrow(
+      "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true",
+    );
+    expect(() => assertAutoPublishKillSwitch("auto-publish", "true")).not.toThrow();
+    expect(() => assertAutoPublishKillSwitch("review-only", undefined)).not.toThrow();
   });
 
   it("prints only the internal run summary, step states, counts and estimated cost", async () => {

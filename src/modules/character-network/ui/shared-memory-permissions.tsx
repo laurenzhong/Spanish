@@ -56,7 +56,7 @@ export function SharedMemoryPermissions({ onError, retryToken = 0, showError = t
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [reloadToken, retryToken]);
+  }, [onError, reloadToken, retryToken]);
 
   function retry() {
     setLoading(true);
