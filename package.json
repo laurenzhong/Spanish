@@ -27,6 +27,7 @@
     "content:acquire": "tsx scripts/acquire-content.ts",
     "content:pipeline": "tsx scripts/acquire-content.ts",
     "content:daily": "tsx scripts/acquire-content.ts article-daily",
+    "content:media-daily": "tsx scripts/acquire-content.ts media-daily",
     "release:check": "tsx scripts/check-release-candidate.ts",
     "character:import": "tsx scripts/import-character.ts",
     "character:publish": "tsx scripts/publish-character.ts",

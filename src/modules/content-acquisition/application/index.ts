@@ -20,3 +20,4 @@ export * from "./content-pipeline-observability";
 export * from "./content-cleanup-runner";
 export * from "./submit-candidate-review";
 export * from "./run-daily-article-pipeline";
+export * from "./run-daily-media-pipeline";

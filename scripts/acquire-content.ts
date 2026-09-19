@@ -23,6 +23,8 @@ import {
   preparePodcastCandidateForReview,
   prepareVideoCandidateForReview,
   runDailyArticlePipeline,
+  runDailyMediaPipeline,
+  mediaPublicationModes,
   createConfiguredArticleReviewProviders,
   CandidatePublisherRegistry,
   AcquiredArticlePublisher,
@@ -48,7 +50,7 @@ export type AcquireContentCliOptions = Readonly<{
   limit: number;
 }>;
 
-export type ContentPipelineCommand = "discover" | "process" | "cleanup" | "report" | "article-daily";
+export type ContentPipelineCommand = "discover" | "process" | "cleanup" | "report" | "article-daily" | "media-daily";
 
 export type ContentPipelineCliOptions = AcquireContentCliOptions & Readonly<{
   command: ContentPipelineCommand;
@@ -57,6 +59,9 @@ export type ContentPipelineCliOptions = AcquireContentCliOptions & Readonly<{
   dailyLimit?: number;
   sourceLimit?: number;
   policyVersion?: string;
+  mediaMode?: typeof mediaPublicationModes[number];
+  mediaDailyLimit?: number;
+  mediaSourceLimit?: number;
 }>;
 
 /** Returns the calendar date used by the article policy, independent of the runner's UTC clock. */
@@ -137,7 +142,7 @@ export function parseAcquireContentArguments(args: readonly string[]): AcquireCo
 }
 
 export function parseContentPipelineArguments(args: readonly string[]): ContentPipelineCliOptions {
-  const command = args.find((argument) => ["discover", "process", "cleanup", "report", "article-daily"].includes(argument)) as ContentPipelineCommand | undefined;
+  const command = args.find((argument) => ["discover", "process", "cleanup", "report", "article-daily", "media-daily"].includes(argument)) as ContentPipelineCommand | undefined;
   if (command === "article-daily") {
     const modeIndex = args.indexOf("--mode");
     const mode = modeIndex >= 0 ? args[modeIndex + 1] : process.env.CONTENT_ARTICLE_DAILY_MODE ?? "disabled";
@@ -152,6 +157,18 @@ export function parseContentPipelineArguments(args: readonly string[]): ContentP
     if (!Number.isInteger(sourceLimit) || sourceLimit < 1 || sourceLimit > 50) throw new AcquireContentCliInputError("--source-limit must be between 1 and 50.");
     if (mode !== "disabled" && !policyVersion) throw new AcquireContentCliInputError("policy version is required unless article mode is disabled.");
     return { sourceStableKey: "article-daily", dryRun: false, limit: dailyLimit || 1, command, allEnabled: false, articleMode: mode as typeof articlePublicationModes[number], dailyLimit, sourceLimit, policyVersion };
+  }
+  if (command === "media-daily") {
+    const modeIndex = args.indexOf("--mode");
+    const mode = modeIndex >= 0 ? args[modeIndex + 1] : process.env.CONTENT_MEDIA_DAILY_MODE ?? "disabled";
+    const dailyIndex = args.indexOf("--daily-limit");
+    const sourceIndex = args.indexOf("--source-limit");
+    const dailyLimit = Number(dailyIndex >= 0 ? args[dailyIndex + 1] : process.env.CONTENT_MEDIA_DAILY_LIMIT ?? 50);
+    const sourceLimit = Number(sourceIndex >= 0 ? args[sourceIndex + 1] : process.env.CONTENT_MEDIA_SOURCE_LIMIT ?? 10);
+    if (!mode || !mediaPublicationModes.includes(mode as typeof mediaPublicationModes[number])) throw new AcquireContentCliInputError("--mode must be a valid media publication mode.");
+    if (!Number.isInteger(dailyLimit) || dailyLimit < 0 || dailyLimit > 50) throw new AcquireContentCliInputError("--daily-limit must be between 0 and 50.");
+    if (!Number.isInteger(sourceLimit) || sourceLimit < 1 || sourceLimit > 50) throw new AcquireContentCliInputError("--source-limit must be between 1 and 50.");
+    return { sourceStableKey: "media-daily", dryRun: false, limit: dailyLimit || 1, command, allEnabled: false, mediaMode: mode as typeof mediaPublicationModes[number], mediaDailyLimit: dailyLimit, mediaSourceLimit: sourceLimit };
   }
   const allEnabled = args.includes("--all-enabled");
   const flags = args.filter((argument) => argument !== command && argument !== "--all-enabled");
@@ -277,6 +294,20 @@ async function main(): Promise<void> {
         defaultSourceLimit: options.sourceLimit ?? 10,
       });
       process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: result.failures.length > 0 ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
+      return;
+    }
+    if (options.command === "media-daily") {
+      const result = await runDailyMediaPipeline({
+        repository: repository as never,
+        resolveAdapter: (source) => source.adapterType === "podcast-rss"
+          ? createPodcastRssAdapterFromSource(source)
+          : createYouTubeChannelAdapterFromSource(source),
+      }, {
+        mode: options.mediaMode ?? "disabled",
+        dailyLimit: options.mediaDailyLimit ?? 50,
+        defaultSourceLimit: options.mediaSourceLimit ?? 10,
+      });
+      process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: result.failures.length > 0 ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewReady: result.reviewReady, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
       return;
     }
     if (options.command === "cleanup") {

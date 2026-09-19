@@ -11,6 +11,7 @@
 ### 2026-09-18：RELEASE-REVIEW-001 P0 功能与工具优先级整合
 
 - 集成分支：`codex/release-review`。已保留每日文章流水线的 `disabled → discover-only → review-only → auto-publish` 分阶段门禁、每日最多 50 篇候选、Readlang allowlist 和 MiniMax 默认审核 provider。
+- 每日 workflow 现同时运行文章与媒体分支：文章继续使用 ADR-0010 的阶段化审核/发布；视频和播客只允许 `disabled → discover-only → review-only` 并进入 `review_ready`，不继承文章自动发布授权。媒体受全局/单来源上限约束，未验证权利来源会被显式跳过。
 - 已整合：学习页七类主题筛选、阅读词汇/短语书架增强、探索场景/表达/内容包三视图、角色关系门禁与 provider 人物圣经注入。
 - 浏览器验证：学习、探索、阅读核心路径桌面/移动 Playwright `22/22`；对话桌面 Playwright `15/15`；聚焦 Vitest `13 files / 52 tests`。
 - 已知基线问题：全量 `typecheck` 仍被 `src/modules/profile/ui/profile-sections.tsx:87` 的既有 `onError` props 类型错误阻断；全量 `lint` 仍被 6 条既有 Hook dependency warning 阻断。本轮未修改这些基线文件。

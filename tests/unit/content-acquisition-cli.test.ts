@@ -74,6 +74,12 @@ describe("content acquisition CLI", () => {
       .toMatchObject({ command: "discover", allEnabled: true, dryRun: true, limit: 2 });
   });
 
+  it("parses the media daily stages without exposing an auto-publish mode", () => {
+    expect(parseContentPipelineArguments(["media-daily", "--mode", "review-only", "--daily-limit", "50", "--source-limit", "10"]))
+      .toMatchObject({ command: "media-daily", mediaMode: "review-only", mediaDailyLimit: 50, mediaSourceLimit: 10 });
+    expect(() => parseContentPipelineArguments(["media-daily", "--mode", "auto-publish"])).toThrow(AcquireContentCliInputError);
+  });
+
   it("keeps auto-publish fail closed unless the protected kill-switch gate is armed", () => {
     expect(() => assertAutoPublishKillSwitch("auto-publish", undefined)).toThrow(
       "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true",

@@ -6,9 +6,11 @@ test("daily content workflow is protected and non-publishing", async () => {
   expect(workflow).toContain("concurrency:");
   expect(workflow).toContain("workflow_dispatch:");
   expect(workflow).toContain("article_mode:");
+  expect(workflow).toContain("media_mode:");
   expect(workflow).toContain("discover-only");
   expect(workflow).toContain("review-only");
   expect(workflow).toContain("auto-publish");
   expect(workflow).toContain("content:pipeline");
+  expect(workflow).toContain("media-daily");
   expect(workflow).not.toContain("content:publish");
 });
