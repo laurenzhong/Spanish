@@ -8,11 +8,14 @@ const policy = languageReactorRightsPolicySchema.parse({
   license: "licensed",
   attribution: "Owner-authorized source.",
   licenseEvidence: "https://www.languagereactor.com/c/es/yt/t_yt_mix_es",
+  authorization: "Owner authorization record.",
   cefr: "A2",
   topics: ["topic.media"],
   allowedAudioHosts: ["audio.example.test"],
   allowedAudioMimeTypes: ["audio/mpeg"],
   maxEnclosureBytes: 10_000_000,
+  temporaryMediaProcessing: "yt-dlp",
+  maxTemporaryMediaBytes: 25_000_000,
 });
 
 describe("Language Reactor adapter", () => {
@@ -46,5 +49,11 @@ describe("Language Reactor adapter", () => {
     });
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe("https://api-cdn.dioco.io/base_media_getMediaDocs_5");
     expect(fetchImpl.mock.calls[0]?.[1]).toMatchObject({ method: "POST" });
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      filters: { mediaTab: "TAB_YOUTUBE" },
+      freq95: { min: 0, max: 100_000 },
+      pinnedDiocoPlaylistIds: [],
+      forceIncludeDiocoDocId: null,
+    });
   });
 });
