@@ -50,7 +50,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Discover configured source
+      - name: Run staged article pipeline
+        id: article_daily
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
@@ -69,7 +71,9 @@ jobs:
           --daily-limit "$ARTICLE_DAILY_LIMIT"
           --source-limit "${CONTENT_ARTICLE_SOURCE_LIMIT:-10}"
           --policy-version "${CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION:-}"
-      - name: Discover and prepare media candidates
+      - name: Run staged media pipeline
+        id: media_daily
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
@@ -101,3 +105,6 @@ jobs:
             echo "- Requested global limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
             echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'discover-only' }}"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail after independent stage attempts
+        if: always() && (steps.article_daily.outcome == 'failure' || steps.media_daily.outcome == 'failure')
+        run: exit 1
