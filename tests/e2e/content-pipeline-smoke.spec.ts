@@ -12,6 +12,8 @@ test("daily content workflow is protected and non-publishing", async () => {
   expect(workflow).toContain("auto-publish");
   expect(workflow).toContain("content:pipeline");
   expect(workflow).toContain("media-daily");
+  expect(workflow).toContain("continue-on-error: true");
+  expect(workflow).toContain("Fail after independent stage attempts");
   expect(workflow).toContain("MINIMAX_API_KEY");
   expect(workflow).toContain("YOUTUBE_DATA_API_KEY");
   expect(workflow).not.toContain("version: 11");
