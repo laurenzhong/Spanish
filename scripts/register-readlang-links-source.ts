@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { pathToFileURL } from "node:url";
 
-import policyJson from "@/content/source-policies/readlang-links-v2.json";
+import policyJson from "@/content/source-policies/readlang-links-v5.json";
 import {
   createDrizzleContentAcquisitionRepository,
   registerContentSource,
@@ -10,7 +10,9 @@ import {
 import { readlangLinksPolicySchema } from "@/src/modules/content-acquisition/adapters/readlang/readlang-links-policy";
 import { createDatabaseConnection } from "@/src/shared/db/client";
 
-const SOURCE_ID = "5e246020-3905-4f6c-9106-22a2b0aa2b0b";
+const SOURCE_ID = "8df4da5f-1a83-489d-8d82-7f3d6a2e2d4e";
+// Reuse the original exact Readlang source identity so existing candidates remain
+// attached while the rights policy advances to the complete owner snapshot.
 const STABLE_KEY = "readlang.links.es";
 
 export function createReadlangLinksSourceInput() {
