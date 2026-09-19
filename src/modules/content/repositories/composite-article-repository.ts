@@ -5,7 +5,10 @@ export class CompositeArticleRepository implements ArticleRepository {
   constructor(private readonly repositories: readonly ArticleRepository[]) {}
 
   async list(query: ArticleListQuery = {}) {
-    const results = await Promise.all(this.repositories.map(async (repository) => {
+    // The bundled catalog is intentionally usable while an optional persistence
+    // repository is unavailable (for example during a database restart or
+    // migration). One failed source must not take the whole reading shelf down.
+    const results = await Promise.allSettled(this.repositories.map(async (repository) => {
       const articles: ArticleCardProjection[] = [];
       let cursor: string | undefined = "0";
       for (let page = 0; page < 100; page += 1) {
@@ -17,8 +20,9 @@ export class CompositeArticleRepository implements ArticleRepository {
       return articles;
     }));
     const unique = new Map<string, ArticleCardProjection>();
-    for (const articles of results) {
-      for (const article of articles) unique.set(article.id, article);
+    for (const result of results) {
+      if (result.status !== "fulfilled") continue;
+      for (const article of result.value) unique.set(article.id, article);
     }
     return filterArticles([...unique.values()], query);
   }
@@ -27,7 +31,12 @@ export class CompositeArticleRepository implements ArticleRepository {
     let sawUnpublished = false;
     for (const repository of this.repositories) {
       if (!repository.findById) continue;
-      const result = await repository.findById(id);
+      let result;
+      try {
+        result = await repository.findById(id);
+      } catch {
+        continue;
+      }
       if (result.reason === "found") return result;
       if (result.reason === "unpublished") sawUnpublished = true;
     }
