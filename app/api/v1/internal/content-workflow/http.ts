@@ -11,6 +11,7 @@ import {
   ContentReviewIncompleteError,
   createDrizzleContentAcquisitionRepository,
 } from "@/src/modules/content-acquisition";
+import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
 import { contentWorkflowPublishers } from "@/src/modules/content-acquisition/publishers/runtime-registry";
 import { ContentWorkflowForbiddenError, isContentWorkflowOwner } from "@/src/shared/auth/content-workflow-owner";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
@@ -21,6 +22,7 @@ export type ContentWorkflowRequestContext = Readonly<{
   ownerUserId: string;
   repository: ReturnType<typeof createDrizzleContentAcquisitionRepository>;
   publishers: typeof contentWorkflowPublishers;
+  mediaRepository: ReturnType<typeof createDrizzleMediaRepository>;
   requestId: string;
 }>;
 
@@ -49,6 +51,7 @@ export async function withContentWorkflowOwner(
       ownerUserId: user.id,
       repository: createDrizzleContentAcquisitionRepository(getDatabase()),
       publishers: contentWorkflowPublishers,
+      mediaRepository: createDrizzleMediaRepository(getDatabase()),
       requestId,
     });
   } catch (error) {

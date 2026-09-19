@@ -85,7 +85,7 @@ const completedSampleSchema = z
     attemptId: z.string().regex(/^calibration\.audio\.[a-f0-9]{16}$/),
     status: z.literal("completed"),
     transcript: z.string().trim().min(1),
-    transcriptionProvider: z.enum(["openai", "local-whisper", "fake"]),
+    transcriptionProvider: z.enum(["openai", "minimax", "local-whisper", "fake"]),
     transcriptionModelVersion: z.string().trim().min(1),
     transcriptionLatencyMs: z.number().int().nonnegative(),
     transcriptionRequestId: z.string().trim().min(1).nullable(),

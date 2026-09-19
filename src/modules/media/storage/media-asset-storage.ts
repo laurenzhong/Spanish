@@ -3,11 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 export const MEDIA_AUDIO_BUCKET = process.env.MEDIA_AUDIO_STORAGE_BUCKET?.trim() || "media-audio";
 export const MEDIA_VIDEO_BUCKET = process.env.MEDIA_VIDEO_STORAGE_BUCKET?.trim() || "media-video";
 const MAX_AUDIO_BYTES = 512 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 512 * 1024 * 1024;
+const MAX_VIDEO_BYTES = Number(process.env.MEDIA_VIDEO_MAX_BYTES ?? 50 * 1024 * 1024);
 
 export type MediaAssetStorage = Readonly<{
   putAudio(path: string, body: Uint8Array, contentType: string): Promise<{ url: string }>;
   putVideo(path: string, body: Uint8Array, contentType: string): Promise<{ url: string }>;
+  putVideoFromFile?(path: string, filePath: string): Promise<{ url: string }>;
+  putVideoFromUrl?(path: string, sourceUrl: string): Promise<{ url: string }>;
   remove(path: string, kind?: "audio" | "video"): Promise<void>;
 }>;
 
@@ -30,11 +32,12 @@ export function createSupabaseMediaAssetStorage(): MediaAssetStorage | null {
       return { url: data.publicUrl };
     },
     async putVideo(path, body, contentType) {
+      if (!Number.isSafeInteger(MAX_VIDEO_BYTES) || MAX_VIDEO_BYTES <= 0) throw new Error("media-video-limit-invalid");
       if (body.byteLength <= 0 || body.byteLength > MAX_VIDEO_BYTES) throw new Error("media-video-too-large");
       await client.storage.createBucket(MEDIA_VIDEO_BUCKET, {
         public: true,
         allowedMimeTypes: ["video/mp4", "video/webm", "video/quicktime"],
-        fileSizeLimit: MAX_VIDEO_BYTES,
+        fileSizeLimit: String(MAX_VIDEO_BYTES),
       }).catch(() => undefined);
       const { error } = await client.storage.from(MEDIA_VIDEO_BUCKET).upload(path, body, { contentType, upsert: true });
       if (error) throw new Error("media-video-storage-failed");

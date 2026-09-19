@@ -4,7 +4,7 @@ import { evaluateMediaAsrEligibility, type ProcessingBudgetPolicy, type Processi
 import type { DraftMediaSegment } from "@/src/modules/media/domain";
 import type { SpeechToTextProvider } from "@/src/modules/providers/stt/transcription";
 import type { TranslationProvider } from "@/src/modules/providers/translation/translation";
-import { transcribeMediaAudio, type MediaTranscriptionResult } from "../processors/media-transcription-processor";
+import { transcribeMediaAudio, type MediaTranscriptionResult, type MediaAudioChunk } from "../processors/media-transcription-processor";
 import { translateMediaSegments } from "../processors/media-translation-processor";
 
 export type MediaProcessingCandidate = Readonly<{
@@ -21,7 +21,7 @@ export type MediaProcessingCandidate = Readonly<{
   automaticSegments?: readonly DraftMediaSegment[];
 }>;
 
-export type TemporaryMediaAudio = Readonly<{ bytes: Uint8Array; mimeType: string; fileName: string; contentHash: string; storageKey?: string | null }>;
+export type TemporaryMediaAudio = Readonly<{ bytes: Uint8Array; mimeType: string; fileName: string; contentHash: string; storageKey?: string | null; preparedChunks?: readonly MediaAudioChunk[] }>;
 
 export type MediaAudioAssetProvider = Readonly<{
   acquire: (candidate: MediaProcessingCandidate, options?: Readonly<{ signal?: AbortSignal }>) => Promise<TemporaryMediaAudio>;
@@ -51,6 +51,8 @@ export type MediaProcessingResult = Readonly<{
   estimatedCostMicros: number;
   cleanupStatus: "not-required" | "deleted" | "delete-pending" | "failed";
   attempt: MediaProcessingAttempt | null;
+  provider?: string;
+  modelVersion?: string;
 }>;
 
 export class MediaProcessingError extends Error {
@@ -131,9 +133,9 @@ export async function processMediaCandidate(input: Readonly<{
     asset = await input.audio.acquire(input.candidate, { signal: input.signal });
     const cached = input.repository?.findTranscriptByAudioHash ? await input.repository.findTranscriptByAudioHash(asset.contentHash) : null;
     if (cached) {
-      result = { status: "succeeded", transcriptSource: "asr", segments: cached, lowConfidence: lowConfidence(cached), translationFailedCount: 0, estimatedCostMicros: 0, cleanupStatus: "not-required", attempt: null };
+      result = { status: "succeeded", transcriptSource: "asr", segments: cached, lowConfidence: lowConfidence(cached), translationFailedCount: 0, estimatedCostMicros: 0, cleanupStatus: "not-required", attempt: null, provider: "cached", modelVersion: "cached" };
     } else {
-      const transcription: MediaTranscriptionResult = await transcribeMediaAudio({ audioBytes: asset.bytes, durationMs: input.candidate.durationMs, mimeType: asset.mimeType, fileName: asset.fileName, languageTag: input.candidate.language, provider: input.transcriptionProvider, signal: input.signal });
+      const transcription: MediaTranscriptionResult = await transcribeMediaAudio({ audioBytes: asset.bytes, preparedChunks: asset.preparedChunks, durationMs: input.candidate.durationMs, mimeType: asset.mimeType, fileName: asset.fileName, languageTag: input.candidate.language, provider: input.transcriptionProvider, signal: input.signal });
       totalCost += transcription.estimatedCostMicros;
       let segments = transcription.segments;
       let translationFailedCount = 0;
@@ -163,11 +165,13 @@ export async function processMediaCandidate(input: Readonly<{
       } else {
         await input.repository?.saveTranscriptDraft?.({ candidateId: input.candidate.id, audioHash: asset.contentHash, segments, provider: transcription.provider, modelVersion: transcription.modelVersion, lowConfidence: isLowConfidence });
       }
-      result = { status: "succeeded", transcriptSource: "asr", segments, lowConfidence: isLowConfidence, translationFailedCount, estimatedCostMicros: totalCost, cleanupStatus: "not-required", attempt: null };
+      result = { status: "succeeded", transcriptSource: "asr", segments, lowConfidence: isLowConfidence, translationFailedCount, estimatedCostMicros: totalCost, cleanupStatus: "not-required", attempt: null, provider: transcription.provider, modelVersion: transcription.modelVersion };
     }
   } catch (error) {
     processingError = error;
-    throw error instanceof MediaProcessingError ? error : new MediaProcessingError("MEDIA_PROCESSING_FAILED", "Media processing failed.", { cause: error });
+    if (error instanceof MediaProcessingError) throw error;
+    const providerCode = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : null;
+    throw new MediaProcessingError(providerCode ? `MEDIA_PROCESSING_${providerCode.toUpperCase().replace(/[^A-Z0-9]+/gu, "_")}` : "MEDIA_PROCESSING_FAILED", "Media processing failed.", { cause: error });
   } finally {
     if (asset) {
       let cleanupStatus: "deleted" | "delete-pending" | "failed" = "failed";

@@ -1,4 +1,4 @@
-import { validateSegmentTimeline, type DraftMediaSegment } from "@/src/modules/media/domain";
+import { maxMediaSegments, validateSegmentTimeline, type DraftMediaSegment } from "@/src/modules/media/domain";
 
 export type MediaSegmentationInput = Readonly<{
   text: string;
@@ -30,8 +30,8 @@ function sentenceParts(text: string): string[] {
 export function segmentMediaTranscript(input: MediaSegmentationInput): DraftMediaSegment[] {
   if (!Number.isInteger(input.durationMs) || input.durationMs <= 0) throw new MediaSegmentationError("Media duration must be a positive integer.");
   const parts = sentenceParts(input.text);
-  const maxSegments = input.maxSegments ?? 500;
-  if (!Number.isInteger(maxSegments) || maxSegments < 1 || maxSegments > 500) throw new MediaSegmentationError("The segment limit is invalid.");
+  const maxSegments = input.maxSegments ?? maxMediaSegments;
+  if (!Number.isInteger(maxSegments) || maxSegments < 1 || maxSegments > maxMediaSegments) throw new MediaSegmentationError("The segment limit is invalid.");
   if (parts.length === 0) throw new MediaSegmentationError("The transcript is empty.");
   if (parts.length > maxSegments) throw new MediaSegmentationError("The transcript contains too many sentences.");
   if (parts.length > input.durationMs) throw new MediaSegmentationError("The media duration is too short for the generated cue count.");

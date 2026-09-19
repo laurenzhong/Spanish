@@ -1,4 +1,5 @@
 import type { MediaProgress } from "./media-progress";
+import { validWordTimings, type MediaWordTiming } from "./word-timeline";
 
 export type MediaKind = "video" | "podcast";
 export type MediaCefr = "A2" | "B1" | null;
@@ -66,6 +67,7 @@ export type MediaCard = Readonly<{
 }>;
 
 export type MediaSegment = Readonly<{
+  words?: readonly MediaWordTiming[];
   id: string;
   index: number;
   startMs: number;
@@ -187,7 +189,6 @@ export function projectMediaPlayback(
     },
     segments: raw.segments
       .filter((segment) => segment.reviewStatus === "approved")
-      .slice(0, 500)
       .map((segment) => ({
         id: segment.id,
         index: segment.index,
@@ -196,6 +197,7 @@ export function projectMediaPlayback(
         sourceText: segment.sourceText,
         translation: segment.translation,
         speaker: segment.speaker,
+        words: validWordTimings(segment),
       })),
   };
 }

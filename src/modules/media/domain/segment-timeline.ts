@@ -1,8 +1,14 @@
+import { validWordTimings, type MediaWordTiming } from "./word-timeline";
+
 export const mediaSegmentSourceKinds = ["platform_manual", "platform_auto", "asr"] as const;
+
+/** Maximum number of reviewable cues in one published media version. */
+export const maxMediaSegments = 2_000;
 
 export type MediaSegmentSourceKind = (typeof mediaSegmentSourceKinds)[number];
 
 export type DraftMediaSegment = Readonly<{
+  words?: readonly MediaWordTiming[];
   index: number;
   startMs: number;
   endMs: number;
@@ -57,7 +63,7 @@ export function validateSegmentTimeline(
   }>[],
   durationMs: number,
 ): void {
-  if (!Number.isInteger(durationMs) || durationMs <= 0 || segments.length === 0 || segments.length > 500) {
+  if (!Number.isInteger(durationMs) || durationMs <= 0 || segments.length === 0 || segments.length > maxMediaSegments) {
     throw new MediaSegmentTimelineError("The timeline duration or segment count is invalid.");
   }
   let previousEnd = 0;
@@ -76,6 +82,12 @@ export function validateSegmentTimeline(
       throw new MediaSegmentTimelineError(`Segment ${index} is invalid or overlaps another cue.`);
     }
     previousEnd = segment.endMs;
+    if (segment.words !== undefined) {
+      const words = segment.words as readonly MediaWordTiming[];
+      if (!Array.isArray(words) || validWordTimings({ ...segment, sourceText: segment.sourceText ?? "", words }).length !== words.length) {
+        throw new MediaSegmentTimelineError(`Segment ${index} has invalid word timing.`);
+      }
+    }
   }
 }
 

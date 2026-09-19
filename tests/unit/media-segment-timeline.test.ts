@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { findSegmentIndexAt, parseWebVttSegments, validateSegmentTimeline } from "@/src/modules/media";
+import { findSegmentIndexAt, maxMediaSegments, parseWebVttSegments, validateSegmentTimeline } from "@/src/modules/media";
 
 describe("media segment timeline", () => {
   it("parses bounded VTT cues into deterministic millisecond segments", async () => {
@@ -34,5 +34,16 @@ describe("media segment timeline", () => {
     expect(findSegmentIndexAt(timeline, 999)).toBe(0);
     expect(findSegmentIndexAt(timeline, 1_000)).toBe(1);
     expect(findSegmentIndexAt(timeline, 2_000)).toBeNull();
+  });
+
+  it("accepts the long-media limit and rejects one cue beyond it", () => {
+    const segments = Array.from({ length: maxMediaSegments }, (_, index) => ({
+      index,
+      startMs: index,
+      endMs: index + 1,
+      sourceText: "x",
+    }));
+    expect(() => validateSegmentTimeline(segments, maxMediaSegments)).not.toThrow();
+    expect(() => validateSegmentTimeline([...segments, { index: maxMediaSegments, startMs: maxMediaSegments, endMs: maxMediaSegments + 1, sourceText: "x" }], maxMediaSegments + 1)).toThrow("MEDIA_SEGMENT_TIMELINE_INVALID");
   });
 });

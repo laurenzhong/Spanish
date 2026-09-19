@@ -170,6 +170,29 @@ describe("media API routes", () => {
     expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({ body: expect.stringContaining('"limit":100') }));
   });
 
+  it("falls back to the stable RTVE asset URL when metadata refresh is unavailable", async () => {
+    mocks.repository.getPlayback.mockResolvedValue({
+      media: { kind: "podcast", stableKey: "podcast.language-reactor.it_episode_2" },
+      asset: { kind: "audio", url: "https://rtve-mediavod-lote3.rtve.es/audio.mp3?idasset=17223219&download-token=1_old" },
+      segments: [],
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response("audio", {
+        status: 206,
+        headers: { "content-type": "audio/mpeg", "content-range": "bytes 0-4/5", "content-length": "5" },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await getStream(request("http://localhost/api/v1/media/podcast.language-reactor.it_episode_2/stream", {
+      headers: { range: "bytes=0-4" },
+    }), { params: Promise.resolve({ stableKey: "podcast.language-reactor.it_episode_2" }) });
+
+    expect(response.status).toBe(206);
+    await expect(response.text()).resolves.toBe("audio");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toMatch(/^https:\/\/ztnr\.rtve\.es\/ztnr\/17223219\.mp3\?cachebust=\d+$/u);
+  });
+
   it("proxies only the published YouTube artwork for the requested media", async () => {
     mocks.repository.findByStableKey.mockResolvedValue({
       reason: "found",

@@ -2,14 +2,16 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
-import { mediaSegmentSourceKinds } from "@/src/modules/media/domain";
+import { maxMediaSegments, mediaSegmentSourceKinds } from "@/src/modules/media/domain";
 import { mediaArtworkSchema } from "@/src/modules/media/schemas";
+import { mediaWordTimingsSchema } from "@/src/modules/media/schemas/media";
 
 const stableKeySchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const httpsUrlSchema = z.url().startsWith("https://");
 
 export const podcastCandidateSegmentSchema = z.strictObject({
+  words: mediaWordTimingsSchema.optional(),
   index: z.number().int().nonnegative(),
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),
@@ -48,7 +50,7 @@ export const podcastCandidateDraftSchema = z.strictObject({
   artwork: mediaArtworkSchema.nullable().default(null),
   transcriptStatus: z.enum(["unavailable", "platform_manual", "platform_auto", "asr"]),
   transcriptUrl: httpsUrlSchema.nullable(),
-  segments: z.array(podcastCandidateSegmentSchema).max(500),
+  segments: z.array(podcastCandidateSegmentSchema).max(maxMediaSegments),
   contentHash: hashSchema,
   changeReason: z.string().trim().min(1).max(1_000),
 });

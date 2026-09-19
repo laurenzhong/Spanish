@@ -32,8 +32,18 @@ export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | n
       expiresAt: null,
     },
     segments: [
-      { id: "e2e-segment-0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null },
-      { id: "e2e-segment-1", index: 1, startMs: 1_800, endMs: 4_250, sourceText: "Quería un café con leche.", translation: "我想要一杯拿铁。", speaker: null },
+      // Explicit synthetic timestamps are test data only, never a production fallback.
+      { id: "e2e-segment-0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, words: [
+        { startMs: 100, endMs: 600, startOffset: 0, endOffset: 6 },
+        { startMs: 700, endMs: 1500, startOffset: 7, endOffset: 11 },
+      ] },
+      { id: "e2e-segment-1", index: 1, startMs: 1_800, endMs: 4_250, sourceText: "Quería un café con leche.", translation: "我想要一杯拿铁。", speaker: null, words: [
+        { startMs: 1_900, endMs: 2_350, startOffset: 0, endOffset: 6 },
+        { startMs: 2_400, endMs: 2_650, startOffset: 7, endOffset: 9 },
+        { startMs: 2_700, endMs: 3_100, startOffset: 10, endOffset: 14 },
+        { startMs: 3_150, endMs: 3_450, startOffset: 15, endOffset: 18 },
+        { startMs: 3_500, endMs: 4_050, startOffset: 19, endOffset: 24 },
+      ] },
       { id: "e2e-segment-2", index: 2, startMs: 4_250, endMs: 6_000, sourceText: "Claro.", translation: "当然。", speaker: null },
     ],
   };

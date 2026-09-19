@@ -15,7 +15,7 @@ export type TranslationInput = Readonly<{
 
 export type TranslationResult = Readonly<{
   text: string;
-  provider: "minimax" | "fake";
+  provider: "minimax" | "openai" | "fake";
   modelVersion: string;
   providerRequestId: string | null;
   latencyMs: number;

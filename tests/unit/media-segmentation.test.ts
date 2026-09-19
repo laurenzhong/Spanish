@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { segmentMediaTranscript } from "@/src/modules/content-acquisition";
+import { maxMediaSegments } from "@/src/modules/media/domain";
 
 describe("media transcript segmentation", () => {
   it("creates ordered, non-overlapping sentence cues", () => {
@@ -14,5 +15,9 @@ describe("media transcript segmentation", () => {
   it("rejects empty transcripts", () => {
     expect(() => segmentMediaTranscript({ text: " ", durationMs: 1_000, confidence: null })).toThrow("empty");
   });
-});
 
+  it("allows the shared long-media cue limit", () => {
+    const text = Array.from({ length: maxMediaSegments }, (_, index) => `S${index}.`).join(" ");
+    expect(segmentMediaTranscript({ text, durationMs: maxMediaSegments, confidence: null })).toHaveLength(maxMediaSegments);
+  });
+});

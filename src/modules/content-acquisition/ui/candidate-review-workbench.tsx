@@ -121,7 +121,7 @@ export function CandidateReviewWorkbench({ initialData }: Readonly<{ initialData
               </div>
               {lowConfidence ? <p className="candidate-review__warning" role="alert">至少有一段转写置信度低于审核阈值。当前版本不能发布，请使用“按备注重新处理”生成新版本。</p> : null}
               <ol className="candidate-review__transcript-list">
-                {transcriptSegments.slice(0, 500).map((segment) => <li key={`${segment.index}-${segment.startMs}`}><span>{timeLabel(segment.startMs)}</span><div><strong>{segment.sourceText}</strong>{segment.translation ? <small>{segment.translation}</small> : <small className="is-missing">暂无中文翻译</small>}</div>{typeof segment.confidence === "number" ? <em>{Math.round(segment.confidence * 100)}%</em> : <em>置信度不可用</em>}</li>)}
+                {transcriptSegments.map((segment) => <li key={`${segment.index}-${segment.startMs}`}><span>{timeLabel(segment.startMs)}</span><div><strong>{segment.sourceText}</strong>{segment.translation ? <small>{segment.translation}</small> : <small className="is-missing">暂无中文翻译</small>}</div>{typeof segment.confidence === "number" ? <em>{Math.round(segment.confidence * 100)}%</em> : <em>置信度不可用</em>}</li>)}
               </ol>
             </section>
           ) : null}

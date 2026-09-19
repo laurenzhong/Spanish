@@ -4,3 +4,5 @@ export * from "./list-media";
 export * from "./save-media-progress";
 export * from "./publish-acquired-podcast";
 export * from "./publish-acquired-video";
+export * from "./backfill-published-media-transcript";
+export * from "./review-published-media-transcript";

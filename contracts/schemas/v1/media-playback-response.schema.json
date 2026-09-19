@@ -24,7 +24,7 @@
         },
         "segments": {
           "type": "array",
-          "maxItems": 500,
+          "maxItems": 2000,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -36,7 +36,22 @@
               "endMs": { "type": "integer", "minimum": 1 },
               "sourceText": { "type": "string", "minLength": 1, "maxLength": 8000 },
               "translation": { "type": ["string", "null"], "maxLength": 8000 },
-              "speaker": { "type": ["string", "null"], "maxLength": 200 }
+              "speaker": { "type": ["string", "null"], "maxLength": 200 },
+              "words": {
+                "type": ["array", "null"],
+                "maxItems": 2000,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["startMs", "endMs", "startOffset", "endOffset"],
+                  "properties": {
+                    "startMs": { "type": "integer", "minimum": 0 },
+                    "endMs": { "type": "integer", "minimum": 1 },
+                    "startOffset": { "type": "integer", "minimum": 0 },
+                    "endOffset": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              }
             }
           }
         }

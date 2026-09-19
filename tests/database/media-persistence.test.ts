@@ -40,6 +40,7 @@ describe("media persistence", () => {
     await client.exec(await migration("0025_youtube_video_publication.sql"));
     await client.exec(await migration("0026_brief_toro.sql"));
     await client.exec(await migration("0027_pale_colossus.sql"));
+    await client.exec(await migration("0034_media_word_timings.sql"));
     database = drizzle(client, { schema });
     await client.exec("insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000e1', 'a@example.test'), ('00000000-0000-4000-8000-0000000000e2', 'b@example.test'); insert into profiles (id) values ('00000000-0000-4000-8000-0000000000e1'), ('00000000-0000-4000-8000-0000000000e2')");
     await database.insert(schema.mediaItems).values({ id: itemId, stableKey: "media.fixture.cafe", kind: "podcast", currentVersion: 1 });
@@ -93,6 +94,21 @@ describe("media persistence", () => {
     });
   });
 
+  it("allows permanent Bunny hosted video without exempting ordinary RSS audio", async () => {
+    await client.exec(await migration("0030_glossy_norrin_radd.sql"));
+    await client.exec(await migration("0031_media_transcript_backfills.sql"));
+    await client.exec(await migration("0032_bunny_storage_video_expiry.sql"));
+    await database.update(schema.mediaAssets).set({
+      kind: "video", providerKey: "bunny-storage",
+      playbackUrl: "https://media.example.test/video.mp4", playbackExpiresAt: null,
+    });
+    await expect(repository.getPlayback("media.fixture.cafe", userA, new Date("2036-09-13T10:00:00.000Z"))).resolves.toMatchObject({
+      asset: { url: "https://media.example.test/video.mp4", expiresAt: null },
+    });
+    await expect(client.exec("update media_assets set kind = 'audio', provider_key = 'podcast-rss', playback_expires_at = null")).rejects.toThrow(/media_assets_expiry_policy_check/);
+    await expect(client.exec("update media_assets set kind = 'audio', provider_key = 'bunny-storage', playback_expires_at = null")).rejects.toThrow(/media_assets_expiry_policy_check/);
+  });
+
   it("saves isolated progress with idempotent replay and revision conflicts", async () => {
     const first = await repository.saveProgress(userA, "media.fixture.cafe", 1, {
       expectedRevision: 0, lastPositionMs: 2_000, lastSegmentIndex: 0, status: "in_progress",
@@ -105,6 +121,16 @@ describe("media persistence", () => {
       expectedRevision: 0, lastPositionMs: 3_000, lastSegmentIndex: 0, status: "in_progress",
     }, new Date("2026-09-13T10:02:00.000Z"))).rejects.toBeInstanceOf(MediaProgressConflictError);
     await expect(repository.findByStableKey("media.fixture.cafe", userB)).resolves.toMatchObject({ media: { progress: null } });
+  });
+
+  it("extends the lease exemption to hosted Bunny audio without changing RSS policy", async () => {
+    await client.exec(await migration("0030_glossy_norrin_radd.sql"));
+    await client.exec(await migration("0032_bunny_storage_video_expiry.sql"));
+    await expect(client.exec("update media_assets set kind='audio', provider_key='bunny-storage', playback_expires_at=null")).rejects.toThrow(/media_assets_expiry_policy_check/);
+    await client.exec(await migration("0033_bunny_storage_audio_expiry.sql"));
+    await client.exec("update media_assets set kind='audio', provider_key='bunny-storage', playback_expires_at=null");
+    await expect(repository.getPlayback("media.fixture.cafe", userA, new Date("2036-09-13T10:00:00.000Z"))).resolves.toMatchObject({ asset: { kind: "audio", expiresAt: null } });
+    await expect(client.exec("update media_assets set provider_key='podcast-rss'")).rejects.toThrow(/media_assets_expiry_policy_check/);
   });
 
   it("sorts recently continued content by the persisted last-opened time", async () => {

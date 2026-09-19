@@ -19,14 +19,24 @@ export type SpeechToTextInput = Readonly<{
   languageTag?: string;
 }>;
 
+export type TranscriptSegment = Readonly<{
+  words?: readonly Readonly<{ startMs: number; endMs: number; startOffset: number; endOffset: number }>[];
+  startMs: number;
+  endMs: number;
+  text: string;
+  speaker: string | null;
+  confidence: number | null;
+}>;
+
 export type TranscriptResult = Readonly<{
   text: string;
   detectedLanguages: readonly string[];
   confidence: number | null;
   confidenceAvailability: "unavailable" | "provider";
-  provider: "openai" | "local-whisper" | "fake";
+  provider: "openai" | "minimax" | "local-whisper" | "fake";
   modelVersion: string;
   providerRequestId: string | null;
+  segments?: readonly TranscriptSegment[];
   latencyMs: number;
   estimatedCostMicros: number | null;
   retentionPolicy: "ephemeral";

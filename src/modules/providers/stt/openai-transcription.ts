@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { groupWordSegments } from "./word-segments";
 
 import {
   SpeechToTextError,
@@ -26,6 +27,7 @@ export type OpenAITranscriptionProviderOptions = Readonly<{
   endpoint?: string;
   model?: string;
   timeoutMs?: number;
+  wordTimestamps?: boolean;
   fetchImplementation?: FetchImplementation;
   clock?: Clock;
 }>;
@@ -39,6 +41,7 @@ type RequestSignal = Readonly<{
 const transcriptionResponseSchema = z
   .object({
     text: z.string(),
+    words: z.array(z.object({ word: z.string(), start: z.number().finite().nonnegative(), end: z.number().finite().nonnegative() })).optional(),
     languages: z
       .array(z.object({ code: z.string().optional() }).passthrough())
       .optional(),
@@ -87,8 +90,13 @@ export class OpenAITranscriptionProvider implements SpeechToTextProvider {
         input.fileName,
       );
       form.append("model", this.model);
+      if (this.options.wordTimestamps) {
+        form.append("response_format", "verbose_json");
+        form.append("timestamp_granularities[]", "word");
+        form.append("timestamp_granularities[]", "segment");
+      }
       if (input.languageTag) {
-        form.append("languages[]", input.languageTag.split("-", 1)[0] ?? input.languageTag);
+        form.append(this.options.wordTimestamps ? "language" : "languages[]", input.languageTag.split("-", 1)[0] ?? input.languageTag);
       }
 
       const response = await this.fetchImplementation(this.endpoint, {
@@ -115,6 +123,7 @@ export class OpenAITranscriptionProvider implements SpeechToTextProvider {
       }
 
       const parsed = parseTranscriptionResponse(payload);
+      if (this.options.wordTimestamps && !parsed.words?.length) throw new SpeechToTextError("provider-response-invalid", "Word timestamps were requested but not returned.", false);
       return {
         text: parsed.text,
         detectedLanguages: parsed.languages
@@ -127,6 +136,7 @@ export class OpenAITranscriptionProvider implements SpeechToTextProvider {
         provider: "openai",
         modelVersion: this.model,
         providerRequestId,
+        segments: this.options.wordTimestamps ? groupWordSegments((parsed.words ?? []).map((word) => ({ text: word.word, startMs: Math.round(word.start * 1000), endMs: Math.round(word.end * 1000), speaker: null, confidence: null }))) : undefined,
         latencyMs: Math.max(0, this.clock() - startedAt),
         estimatedCostMicros: null,
         retentionPolicy: "ephemeral",
