@@ -14,9 +14,12 @@ test("opens directly on video and podcast content discovery", async ({ page }) =
   await page.goto("/learn");
 
   await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "全部" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "全部", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("link", { name: "视频" })).toBeVisible();
   await expect(page.getByRole("link", { name: "播客" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "学习主题" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "全部主题" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "日常生活" })).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "搜索视频和播客" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "地区" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "难度" })).toBeVisible();
@@ -25,11 +28,12 @@ test("opens directly on video and podcast content discovery", async ({ page }) =
   await expect(page.getByTestId("learn-timeline")).toHaveCount(0);
 });
 
-test("keeps filters in the URL and offers a clear empty-result recovery", async ({ page }) => {
+test("keeps topics and filters in the URL and offers a clear empty-result recovery", async ({ page }) => {
   await authenticate(page);
-  await page.goto("/learn?kind=podcast&cefr=B1&duration=short&region=es-ES");
+  await page.goto("/learn?kind=podcast&topic=current-events&cefr=B1&duration=short&region=es-ES");
 
   await expect(page.getByRole("link", { name: "播客" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "时事新闻" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("combobox", { name: "难度" })).toHaveValue("B1");
   await expect(page.getByRole("combobox", { name: "时长" })).toHaveValue("short");
   await expect(page.getByRole("combobox", { name: "地区" })).toHaveValue("es-ES");

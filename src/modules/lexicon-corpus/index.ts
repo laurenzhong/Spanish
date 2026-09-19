@@ -6,4 +6,6 @@ export * from "./ui/phrase-library";
 export * from "./ui/read-section-navigation";
 export * from "./ui/corpus-search";
 export * from "./ui/lexical-assessment";
+export * from "./ui/lexicon-occurrences";
+export * from "./ui/lexicon-shelf-controls";
 export * from "./ui/vocabulary-library";

@@ -131,7 +131,7 @@ export function createDrizzleContentAcquisitionRepository(
   return {
     async listSources() {
       const rows = await database.select().from(schema.acquisitionSources).orderBy(schema.acquisitionSources.displayName);
-      return rows.map((row) => sourceRecord(row));
+      return rows.map((row) => sourceRecord(row, true));
     },
 
     async listRuns(input = {}) {
@@ -172,6 +172,7 @@ export function createDrizzleContentAcquisitionRepository(
     async listCandidates(input = {}) {
       const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
       const conditions = [];
+      if (input.sourceId) conditions.push(eq(schema.contentCandidates.sourceId, input.sourceId));
       if (input.status) conditions.push(eq(schema.contentCandidates.status, input.status));
       if (input.contentType) conditions.push(eq(schema.contentCandidates.contentType, input.contentType));
       const query = database.select().from(schema.contentCandidates);
@@ -193,7 +194,7 @@ export function createDrizzleContentAcquisitionRepository(
       if (!source[0]) throw new Error("CONTENT_SOURCE_NOT_FOUND");
       return {
         candidate: candidateRecord(candidate),
-        source: sourceRecord(source[0]),
+        source: sourceRecord(source[0], true),
         artifacts: artifacts.map((row) => ({ id: row.id, artifactType: row.artifactType, contentHash: row.contentHash, byteSize: row.byteSize, status: row.status, ephemeral: row.ephemeral })),
         attempts: attempts.map((row) => ({ id: row.id, jobType: row.jobType, generationId: row.generationId, status: row.status, estimatedCostMicros: row.estimatedCostMicros, errorCode: row.errorCode, startedAt: row.startedAt, completedAt: row.completedAt })),
         reviews: reviews.map(reviewRecord),

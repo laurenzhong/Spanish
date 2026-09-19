@@ -146,7 +146,13 @@ function RadarGraphic({ axes }: Readonly<{ axes: readonly ProfileAxis[] }>) {
   );
 }
 
-export function ProfileOverviewPanel() {
+type ProfileOverviewPanelProps = Readonly<{
+  onError?: () => void;
+  retryToken?: number;
+  showError?: boolean;
+}>;
+
+export function ProfileOverviewPanel({ onError, retryToken = 0, showError = true }: ProfileOverviewPanelProps = {}) {
   const [overview, setOverview] = useState<ProfileApiOverview>(emptyOverview);
   const [selectedKey, setSelectedKey] = useState(PROFILE_AXIS_DEFINITIONS[0].key);
   const [loading, setLoading] = useState(true);
@@ -162,6 +168,7 @@ export function ProfileOverviewPanel() {
       setOverview(next);
     } catch {
       setError(true);
+      onError?.();
     } finally {
       setLoading(false);
     }
@@ -184,7 +191,7 @@ export function ProfileOverviewPanel() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [onError, retryToken]);
 
   const selectedAxis = useMemo(
     () => overview.axes.find((axis) => axis.key === selectedKey) ?? overview.axes[0],
@@ -222,7 +229,7 @@ export function ProfileOverviewPanel() {
 
   return (
     <div className="profile-dashboard" data-testid="profile-overview">
-      {error ? (
+      {error && showError ? (
         <div className="profile-data-warning" role="alert">
           <span>暂时无法读取最新能力证据，当前只显示空状态。</span>
           <button onClick={() => void loadOverview()} type="button">重试</button>

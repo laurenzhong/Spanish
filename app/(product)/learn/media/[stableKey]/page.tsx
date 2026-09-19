@@ -15,7 +15,10 @@ import { getDatabase } from "@/src/shared/db/client";
 
 export const metadata: Metadata = { title: "媒体学习" };
 
-type Context = Readonly<{ params: Promise<{ stableKey: string }> }>;
+type Context = Readonly<{
+  params: Promise<{ stableKey: string }>;
+  searchParams: Promise<{ t?: string | string[]; segment?: string | string[] }>;
+}>;
 
 function formatTime(milliseconds: number): string {
   const total = Math.floor(milliseconds / 1_000);
@@ -45,13 +48,23 @@ function UnavailableDetail() {
   );
 }
 
-export default async function MediaDetailPage({ params }: Context) {
+function boundedInteger(value: string | string[] | undefined): number | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+export default async function MediaDetailPage({ params, searchParams }: Context) {
   let stableKey: string;
   try {
     stableKey = mediaStableKeySchema.parse(decodeURIComponent((await params).stableKey));
   } catch {
     return <UnavailableDetail />;
   }
+  const location = await searchParams;
+  const requestedPositionMs = boundedInteger(location.t);
+  const requestedSegmentIndex = boundedInteger(location.segment);
   const user = await getCurrentUser();
   if (!user) return <UnavailableDetail />;
 
@@ -78,7 +91,7 @@ export default async function MediaDetailPage({ params }: Context) {
         <span>{playback.media.sourceName} · {playback.media.region ?? "地区未知"}</span>
       </header>
       {(playback.media.kind === "video" && playback.asset.kind === "official_embed")
-        || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench playback={playback} /> : <>
+        || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench initialPositionMs={requestedPositionMs ?? undefined} initialSegmentIndex={requestedSegmentIndex ?? undefined} playback={playback} /> : <>
         <div className="media-detail__player"><PlaybackSurface playback={playback} /></div>
         <section className="media-transcript" aria-labelledby="media-transcript-title">
         <div className="media-transcript__heading"><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>

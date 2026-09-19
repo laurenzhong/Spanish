@@ -270,7 +270,7 @@ function deterministicResult(context: ReplyContext, signal?: AbortSignal): Conve
   return {
     ...generateCharacterReply({ context, signal }),
     provider: "deterministic-fake",
-    modelVersion: "lucia-reply-v1",
+    modelVersion: `${context.character.characterKey}-reply-v1`,
     providerRequestId: null,
     latencyMs: 0,
     estimatedCostMicros: 0,

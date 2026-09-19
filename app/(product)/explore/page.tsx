@@ -7,7 +7,7 @@ import { getDatabase } from "@/src/shared/db/client";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { createDrizzleScenarioLibraryRepository } from "@/src/modules/scenario-practice";
 
-import { ExplorePageContent } from "./explore-page-content";
+import { ExplorePageContent, type ExploreView } from "./explore-page-content";
 
 export const metadata: Metadata = { title: "探索" };
 
@@ -55,5 +55,7 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
     dashboardOptions,
   );
   const filter = first(params.filter);
-  return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} library={library} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} initialFilter={filter === "saved" || filter === "recent-error" || filter === "reading" || filter === "available" ? filter : "all"} />;
+  const view = first(params.view);
+  const initialView: ExploreView | undefined = view === "scenarios" || view === "expressions" || view === "packs" ? view : undefined;
+  return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} library={library} initialView={initialView} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} initialFilter={filter === "formal" || filter === "saved" || filter === "recent-error" || filter === "reading" || filter === "available" ? filter : "all"} />;
 }

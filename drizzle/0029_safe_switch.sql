@@ -1,0 +1,2 @@
+ALTER TABLE "acquisition_sources" DROP CONSTRAINT "acquisition_sources_adapter_check";--> statement-breakpoint
+ALTER TABLE "acquisition_sources" ADD CONSTRAINT "acquisition_sources_adapter_check" CHECK ("acquisition_sources"."adapter_type" in ('fake', 'youtube', 'podcast-rss', 'article-rss', 'readlang-links', 'custom'));

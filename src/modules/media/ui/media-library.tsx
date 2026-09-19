@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { MediaCard } from "../domain";
+import { mediaTopicFilters, type MediaCard } from "../domain";
 import type { MediaListQuery } from "../schemas";
 import { MediaCardView } from "./media-card";
 
@@ -26,7 +26,7 @@ export function MediaLibrary({ result, query, unavailable = false }: Readonly<{
   query: MediaListQuery;
   unavailable?: boolean;
 }>) {
-  const hasFilters = Boolean(query.search || query.kind || query.region || query.cefr || query.duration);
+  const hasFilters = Boolean(query.search || query.kind || query.topic || query.region || query.cefr || query.duration);
   const tabs = [[undefined, "全部"], ["video", "视频"], ["podcast", "播客"]] as const;
   return (
     <div className="page-stack media-library">
@@ -34,6 +34,7 @@ export function MediaLibrary({ result, query, unavailable = false }: Readonly<{
         <div><p className="eyebrow eyebrow--accent">学习</p><h1>看点、听点真实西语</h1></div>
         <form action="/learn" className="media-library__search" role="search">
           {query.kind ? <input name="kind" type="hidden" value={query.kind} /> : null}
+          {query.topic ? <input name="topic" type="hidden" value={query.topic} /> : null}
           <label htmlFor="media-search">搜索视频和播客</label>
           <div><input defaultValue={query.search ?? ""} id="media-search" maxLength={120} name="search" placeholder="标题、节目、主题…" type="search" /><button type="submit">搜索</button></div>
         </form>
@@ -41,9 +42,14 @@ export function MediaLibrary({ result, query, unavailable = false }: Readonly<{
       <nav className="media-kind-tabs" aria-label="媒体类型">
         {tabs.map(([kind, label]) => <Link aria-current={query.kind === kind || (!query.kind && !kind) ? "page" : undefined} href={queryHref(query, { cursor: undefined, kind })} key={label}>{label}</Link>)}
       </nav>
+      <nav className="media-topic-tabs" aria-label="学习主题">
+        <Link aria-current={!query.topic ? "page" : undefined} href={queryHref(query, { cursor: undefined, topic: undefined })}>全部主题</Link>
+        {mediaTopicFilters.map((topic) => <Link aria-current={query.topic === topic.value ? "page" : undefined} href={queryHref(query, { cursor: undefined, topic: topic.value })} key={topic.value}>{topic.label}</Link>)}
+      </nav>
       <form action="/learn" className="media-library__filters" aria-label="筛选媒体内容">
         {query.search ? <input name="search" type="hidden" value={query.search} /> : null}
         {query.kind ? <input name="kind" type="hidden" value={query.kind} /> : null}
+        {query.topic ? <input name="topic" type="hidden" value={query.topic} /> : null}
         <label>
           <span>地区</span>
           <select defaultValue={query.region ?? ""} name="region">

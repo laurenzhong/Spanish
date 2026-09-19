@@ -51,6 +51,16 @@ describe("corpus and lexical assessment routes", () => {
     expect(mocks.repository.searchCorpus).toHaveBeenCalledWith(user.id, { query: "café con leche", documentKind: "media", page: 1, pageSize: 10 });
   });
 
+  it("loads context for one exact lexicon entry without requiring free-text search", async () => {
+    const entryId = "10000000-0000-4000-8000-000000000001";
+    const response = await search(request(`http://localhost/api/v1/corpus/search?entryKind=lexeme&entryId=${entryId}&pageSize=6`));
+    expect(response.status).toBe(200);
+    expect(mocks.repository.searchCorpus).toHaveBeenCalledWith(user.id, { entryKind: "lexeme", entryId, page: 1, pageSize: 6 });
+
+    const incomplete = await search(request("http://localhost/api/v1/corpus/search?entryKind=lexeme"));
+    expect(incomplete.status).toBe(400);
+  });
+
   it("does not expose accepted answers or skill keys", async () => {
     const response = await getAssessment(request("http://localhost/api/v1/lexicon/assessments/lexical.core"), { params: Promise.resolve({ assessmentId: "lexical.core" }) });
     expect(response.status).toBe(200);

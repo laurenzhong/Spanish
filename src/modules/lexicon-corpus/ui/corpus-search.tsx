@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import { contentSourceHref, type SourcePosition } from "../domain";
+
 type CorpusItem = Readonly<{
   leftContext: string;
   keyword: string;
@@ -9,6 +11,7 @@ type CorpusItem = Readonly<{
   sourceTitle: string;
   sourceKind: string;
   document: Readonly<{ kind: "article" | "media"; stableKey: string; version: number }>;
+  location: SourcePosition;
 }>;
 
 type CorpusResponse = Readonly<{ items: readonly CorpusItem[]; page: number; pageSize: number; total: number }>;
@@ -56,7 +59,7 @@ export function CorpusSearch() {
     </div>
     {result && result.items.length > 0 ? <div className="corpus-results">{result.items.map((item, index) => <article className="corpus-result" key={`${item.document.kind}:${item.document.stableKey}:${item.document.version}:${index}`}>
       <p className="corpus-result__context"><span>{item.leftContext} </span><mark>{item.keyword}</mark><span> {item.rightContext}</span></p>
-      <div className="corpus-result__meta"><span>{item.sourceTitle}</span><span>{item.document.kind === "article" ? "文章" : "媒体"}</span><a href={item.document.kind === "article" ? `/read/article/${encodeURIComponent(item.document.stableKey)}` : `/learn/media/${encodeURIComponent(item.document.stableKey)}`}>打开来源</a></div>
+      <div className="corpus-result__meta"><span>{item.sourceTitle}</span><span>{item.document.kind === "article" ? "文章" : "媒体"}</span><a href={contentSourceHref(item.document, item.location)}>打开来源</a></div>
     </article>)}</div> : null}
   </section>;
 }

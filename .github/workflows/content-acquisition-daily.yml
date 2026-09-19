@@ -5,16 +5,30 @@ on:
     - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "Discover metadata without writing candidates"
-        required: false
-        default: false
-        type: boolean
       limit:
         description: "Maximum items per source"
         required: false
         default: "50"
         type: string
+      article_mode:
+        description: "Article publication stage; defaults to discover-only"
+        required: false
+        default: "discover-only"
+        type: choice
+        options:
+          - disabled
+          - discover-only
+          - review-only
+          - auto-publish
+      media_mode:
+        description: "Video/podcast publication stage; media never auto-publishes"
+        required: false
+        default: "discover-only"
+        type: choice
+        options:
+          - disabled
+          - discover-only
+          - review-only
 
 concurrency:
   group: content-acquisition-${{ github.ref }}
@@ -31,8 +45,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -41,9 +53,51 @@ jobs:
       - name: Discover configured source
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          CONTENT_ACQUISITION_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          CONTENT_ARTICLE_REVIEW_PROVIDER: ${{ vars.CONTENT_ARTICLE_REVIEW_PROVIDER || 'minimax' }}
+          CONTENT_ARTICLE_SOURCE_LIMIT: ${{ vars.CONTENT_ARTICLE_SOURCE_LIMIT || '10' }}
+          CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || '' }}
+          CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
+          ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || '' }}
+          ARTICLE_DAILY_LIMIT: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}
         run: >-
-          pnpm content:pipeline -- discover --all-enabled
-          --limit "${{ inputs.limit || '50' }}"
-          $([ "$CONTENT_ACQUISITION_DRY_RUN" = "true" ] && printf '%s' '--dry-run' || true)
+          test -n "$ARTICLE_MODE"
+          &&
+          pnpm content:pipeline -- article-daily
+          --mode "$ARTICLE_MODE"
+          --daily-limit "$ARTICLE_DAILY_LIMIT"
+          --source-limit "${CONTENT_ARTICLE_SOURCE_LIMIT:-10}"
+          --policy-version "${CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION:-}"
+      - name: Discover and prepare media candidates
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
+          MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'discover-only' }}
+          MEDIA_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_DAILY_LIMIT || '50' }}
+          MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
+        run: >-
+          pnpm content:pipeline -- media-daily
+          --mode "$MEDIA_MODE"
+          --daily-limit "$MEDIA_DAILY_LIMIT"
+          --source-limit "$MEDIA_SOURCE_LIMIT"
+      - name: Cleanup expired candidates and artifacts
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:pipeline -- cleanup --limit 100
+      - name: Write acquisition report
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:pipeline -- report --limit 100
+      - name: Write redacted summary
+        if: always()
+        run: |
+          {
+            echo '## Daily content run'
+            echo '- Secrets, article bodies, provider responses, and query credentials are intentionally omitted.'
+            echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
+            echo "- Requested global limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
+            echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'discover-only' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

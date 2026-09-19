@@ -10,6 +10,8 @@ import {
 } from "@/src/modules/content-acquisition";
 import {
   AcquireContentCliInputError,
+  assertAutoPublishKillSwitch,
+  formatArticleNaturalDate,
   parseAcquireContentArguments,
   parseContentPipelineArguments,
   runAcquireContentCli,
@@ -44,6 +46,11 @@ function dryRunRepository(): ContentAcquisitionRepository {
 }
 
 describe("content acquisition CLI", () => {
+  it("uses the Asia/Shanghai natural date for scheduled article runs", () => {
+    expect(formatArticleNaturalDate(new Date("2026-09-18T15:59:59.000Z"))).toBe("2026-09-18");
+    expect(formatArticleNaturalDate(new Date("2026-09-18T16:00:00.000Z"))).toBe("2026-09-19");
+  });
+
   it("fails closed when no source is explicit or an argument is unsupported", () => {
     expect(() => parseAcquireContentArguments(["--", "--dry-run"])).toThrow(AcquireContentCliInputError);
     expect(() => parseAcquireContentArguments(["--source", "fixture", "--all"])).toThrow(
@@ -65,6 +72,23 @@ describe("content acquisition CLI", () => {
   it("parses the scheduled all-enabled discovery command", () => {
     expect(parseContentPipelineArguments(["discover", "--all-enabled", "--dry-run", "--limit", "2"]))
       .toMatchObject({ command: "discover", allEnabled: true, dryRun: true, limit: 2 });
+  });
+
+  it("parses the media daily stages without exposing an auto-publish mode", () => {
+    expect(parseContentPipelineArguments(["media-daily", "--mode", "review-only", "--daily-limit", "50", "--source-limit", "10"]))
+      .toMatchObject({ command: "media-daily", mediaMode: "review-only", mediaDailyLimit: 50, mediaSourceLimit: 10 });
+    expect(() => parseContentPipelineArguments(["media-daily", "--mode", "auto-publish"])).toThrow(AcquireContentCliInputError);
+  });
+
+  it("keeps auto-publish fail closed unless the protected kill-switch gate is armed", () => {
+    expect(() => assertAutoPublishKillSwitch("auto-publish", undefined)).toThrow(
+      "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true",
+    );
+    expect(() => assertAutoPublishKillSwitch("auto-publish", "false")).toThrow(
+      "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true",
+    );
+    expect(() => assertAutoPublishKillSwitch("auto-publish", "true")).not.toThrow();
+    expect(() => assertAutoPublishKillSwitch("review-only", undefined)).not.toThrow();
   });
 
   it("prints only the internal run summary, step states, counts and estimated cost", async () => {

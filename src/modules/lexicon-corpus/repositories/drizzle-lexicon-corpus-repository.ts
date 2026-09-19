@@ -6,7 +6,7 @@ import { createDrizzleEvidenceRepository } from "@/src/modules/evidence/reposito
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
 import { normalizeLexeme } from "../domain";
-import type { LexicalIntent } from "../schemas/lexicon";
+import type { LexicalIntent, LexicalIntentFilter } from "../schemas/lexicon";
 import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusItem, CorpusQuery, LexiconCorpusRepository, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
 
 export class LexicalIntentConflictError extends Error {
@@ -57,13 +57,34 @@ function intentMap(rows: readonly typeof schema.userLexicalIntents.$inferSelect[
   return new Map(rows.map((row) => [`${row.entryKind}:${row.entryId}`, { intent: row.intent as LexicalIntent, revision: row.revision }]));
 }
 
+function intentFilter(userId: string | undefined, entryKind: "lexeme" | "phrase", entryId: typeof schema.lexemes.id | typeof schema.phraseEntries.id, intent: LexicalIntentFilter | undefined) {
+  if (!intent) return undefined;
+  if (!userId) return sql`false`;
+  if (intent === "unmarked") {
+    return sql`not exists (select 1 from ${schema.userLexicalIntents} uli where uli.user_id = ${userId} and uli.entry_kind = ${entryKind} and uli.entry_id = ${entryId})`;
+  }
+  return sql`exists (select 1 from ${schema.userLexicalIntents} uli where uli.user_id = ${userId} and uli.entry_kind = ${entryKind} and uli.entry_id = ${entryId} and uli.intent = ${intent})`;
+}
+
+function corpusVisibility(userId: string | undefined) {
+  const publicArticle = sql`exists (select 1 from ${schema.articles} a inner join ${schema.articleVersions} av on av.article_id = a.id where a.stable_key = ${schema.corpusOccurrences.documentStableKey} and av.version = ${schema.corpusOccurrences.documentVersion} and av.status = 'published')`;
+  const publicMedia = sql`exists (select 1 from ${schema.mediaItems} mi inner join ${schema.mediaVersions} mv on mv.media_item_id = mi.id where mi.stable_key = ${schema.corpusOccurrences.documentStableKey} and mv.version = ${schema.corpusOccurrences.documentVersion} and mv.status = 'published' and mv.copyright_status = 'cleared')`;
+  return userId
+    ? or(eq(schema.corpusOccurrences.ownerUserId, userId), and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia))))
+    : and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia)));
+}
+
 export function createDrizzleLexiconCorpusRepository(database: Database): LexiconCorpusRepository {
   return {
     async listVocabulary(userId, query) {
       const search = query.search ? `%${query.search}%` : undefined;
-      const where = search
-        ? or(ilike(schema.lexemes.lemma, search), ilike(schema.lexemeForms.surface, search), ilike(schema.lexemeForms.normalizedSurface, search))
-        : undefined;
+      const visibleOccurrence = corpusVisibility(userId);
+      const where = and(
+        sql`exists (select 1 from ${schema.corpusOccurrences} where ${schema.corpusOccurrences.lexemeId} = ${schema.lexemes.id} and ${visibleOccurrence})`,
+        search ? or(ilike(schema.lexemes.lemma, search), ilike(schema.lexemeForms.surface, search), ilike(schema.lexemeForms.normalizedSurface, search)) : undefined,
+        query.lemmaStatus ? eq(schema.lexemes.lemmaStatus, query.lemmaStatus) : undefined,
+        intentFilter(userId, "lexeme", schema.lexemes.id, query.intent),
+      );
       const [idRows, countRows, intents] = await Promise.all([
         database.select({ id: schema.lexemes.id })
           .from(schema.lexemes)
@@ -85,7 +106,7 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         : await Promise.all([
           database.select().from(schema.lexemes).where(inArray(schema.lexemes.id, ids)),
           database.select({ lexemeId: schema.lexemeForms.lexemeId, surface: schema.lexemeForms.surface }).from(schema.lexemeForms).where(inArray(schema.lexemeForms.lexemeId, ids)),
-          database.select({ lexemeId: schema.corpusOccurrences.lexemeId, count: sql<number>`count(*)` }).from(schema.corpusOccurrences).where(inArray(schema.corpusOccurrences.lexemeId, ids)).groupBy(schema.corpusOccurrences.lexemeId),
+          database.select({ lexemeId: schema.corpusOccurrences.lexemeId, count: sql<number>`count(*)` }).from(schema.corpusOccurrences).where(and(inArray(schema.corpusOccurrences.lexemeId, ids), visibleOccurrence)).groupBy(schema.corpusOccurrences.lexemeId),
         ]);
       const intentByKey = intentMap(intents);
       const byId = new Map<string, VocabularyItem>(lexemeRows.map((lexeme) => [lexeme.id, {
@@ -108,7 +129,7 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         const intent = intentByKey.get(`lexeme:${item.id}`);
         byId.set(item.id, { ...item, intent: intent?.intent ?? null, revision: intent?.revision ?? 1 });
       }
-      const items = [...byId.values()].filter((item) => !query.intent || item.intent === query.intent);
+      const items = [...byId.values()];
       return { items, page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
     },
 
@@ -116,7 +137,22 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
       const visible = userId
         ? or(and(isNull(schema.phraseEntries.ownerUserId), eq(schema.phraseEntries.reviewStatus, "approved")), eq(schema.phraseEntries.ownerUserId, userId))
         : and(isNull(schema.phraseEntries.ownerUserId), eq(schema.phraseEntries.reviewStatus, "approved"));
-      const where = query.search ? and(visible, ilike(schema.phraseEntries.expression, `%${query.search}%`)) : visible;
+      const phraseSearch = query.search ? `%${query.search}%` : undefined;
+      const visibleOccurrence = corpusVisibility(userId);
+      const where = and(
+        visible,
+        sql`exists (select 1 from ${schema.corpusOccurrences} where ${schema.corpusOccurrences.phraseEntryId} = ${schema.phraseEntries.id} and ${visibleOccurrence})`,
+        phraseSearch ? or(
+          ilike(schema.phraseEntries.expression, phraseSearch),
+          ilike(schema.phraseEntries.normalizedExpression, phraseSearch),
+          sql`exists (select 1 from ${schema.phraseVariants} pv where pv.phrase_entry_id = ${schema.phraseEntries.id} and (pv.expression ilike ${phraseSearch} or pv.normalized_expression ilike ${phraseSearch}))`,
+        ) : undefined,
+        query.pragmaticPurpose ? ilike(schema.phraseEntries.pragmaticPurpose, query.pragmaticPurpose) : undefined,
+        query.register ? ilike(schema.phraseEntries.register, query.register) : undefined,
+        query.region ? ilike(schema.phraseEntries.region, query.region) : undefined,
+        query.cefr ? ilike(schema.phraseEntries.cefr, query.cefr) : undefined,
+        intentFilter(userId, "phrase", schema.phraseEntries.id, query.intent),
+      );
       const [idRows, countRows, intents] = await Promise.all([
         database.select({ id: schema.phraseEntries.id })
           .from(schema.phraseEntries)
@@ -133,7 +169,7 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         : await Promise.all([
           database.select().from(schema.phraseEntries).where(inArray(schema.phraseEntries.id, ids)),
           database.select({ phraseEntryId: schema.phraseVariants.phraseEntryId, expression: schema.phraseVariants.expression }).from(schema.phraseVariants).where(inArray(schema.phraseVariants.phraseEntryId, ids)),
-          database.select({ phraseEntryId: schema.corpusOccurrences.phraseEntryId, count: sql<number>`count(*)` }).from(schema.corpusOccurrences).where(inArray(schema.corpusOccurrences.phraseEntryId, ids)).groupBy(schema.corpusOccurrences.phraseEntryId),
+          database.select({ phraseEntryId: schema.corpusOccurrences.phraseEntryId, count: sql<number>`count(*)` }).from(schema.corpusOccurrences).where(and(inArray(schema.corpusOccurrences.phraseEntryId, ids), visibleOccurrence)).groupBy(schema.corpusOccurrences.phraseEntryId),
         ]);
       const intentByKey = intentMap(intents);
       const byId = new Map<string, PhraseItem>(phraseRows.map((phrase) => [phrase.id, {
@@ -156,7 +192,7 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         const intent = intentByKey.get(`phrase:${item.id}`);
         byId.set(item.id, { ...item, intent: intent?.intent ?? null, revision: intent?.revision ?? 1 });
       }
-      const items = [...byId.values()].filter((item) => !query.intent || item.intent === query.intent);
+      const items = [...byId.values()];
       return { items, page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
     },
 
@@ -201,16 +237,13 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
     },
 
     async searchCorpus(userId, query: CorpusQuery) {
-      const tokens = normalizeCorpusQuery(query.query);
-      if (tokens.length === 0) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
-      const publicArticle = sql`exists (select 1 from ${schema.articles} a inner join ${schema.articleVersions} av on av.article_id = a.id where a.stable_key = ${schema.corpusOccurrences.documentStableKey} and av.version = ${schema.corpusOccurrences.documentVersion} and av.status = 'published')`;
-      const publicMedia = sql`exists (select 1 from ${schema.mediaItems} mi inner join ${schema.mediaVersions} mv on mv.media_item_id = mi.id where mi.stable_key = ${schema.corpusOccurrences.documentStableKey} and mv.version = ${schema.corpusOccurrences.documentVersion} and mv.status = 'published' and mv.copyright_status = 'cleared')`;
-      const visible = userId
-        ? or(eq(schema.corpusOccurrences.ownerUserId, userId), and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia))))
-        : and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia)));
+      const tokens = query.query ? normalizeCorpusQuery(query.query) : [];
+      if (tokens.length === 0 && !(query.entryKind && query.entryId)) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
       const where = and(
-        visible,
+        corpusVisibility(userId),
         ...tokens.map((token) => ilike(schema.corpusOccurrences.normalizedText, `%${token}%`)),
+        query.entryKind === "lexeme" && query.entryId ? eq(schema.corpusOccurrences.lexemeId, query.entryId) : undefined,
+        query.entryKind === "phrase" && query.entryId ? eq(schema.corpusOccurrences.phraseEntryId, query.entryId) : undefined,
         query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,
         query.sourceKind ? eq(schema.corpusOccurrences.sourceKind, query.sourceKind) : undefined,
         query.stableKey ? eq(schema.corpusOccurrences.documentStableKey, query.stableKey) : undefined,

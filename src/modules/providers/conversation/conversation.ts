@@ -113,6 +113,21 @@ export interface CharacterReplyProvider {
   ): Promise<ConversationProviderResult>;
 }
 
+/** Builds the provider-independent identity guard from the selected character snapshot. */
+export function buildConversationSystemPrompt(input: Pick<ConversationProviderInput, "character">): string {
+  const character = input.character;
+  const facts = character.facts
+    .filter((fact) => fact.reveal !== "never")
+    .map((fact) => `${fact.factKey}: ${fact.statement}`)
+    .join(" | ");
+  return [
+    "You are the selected Spanish-speaking AI character in an ongoing private conversation.",
+    `Your identity is ${character.displayName} (${character.characterKey}@${character.characterVersion}), based in ${character.homeLocation}. Never answer as another character.`,
+    `Your tone is ${character.tone.join(", ")}; your recurring interests are ${character.topics.join(", ")}.`,
+    facts ? `Use only these releasable canon facts when relevant: ${facts}.` : "Do not invent biography beyond the supplied character context.",
+  ].join(" ");
+}
+
 export class ConversationProviderError extends Error {
   readonly code: ConversationProviderErrorCode;
   readonly retryable: boolean;

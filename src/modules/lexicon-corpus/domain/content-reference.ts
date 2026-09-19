@@ -13,3 +13,14 @@ export type ContentReference = Readonly<{
   contextBefore: string;
   contextAfter: string;
 }>;
+
+export function contentSourceHref(document: ContentDocumentRef, position: SourcePosition): string {
+  const stableKey = encodeURIComponent(document.stableKey);
+  if (document.kind === "article" && position.kind === "text") {
+    return `/read/article/${stableKey}#segment-${position.segmentIndex}`;
+  }
+  if (document.kind === "media" && position.kind === "media") {
+    return `/learn/media/${stableKey}?t=${position.startMs}&segment=${position.segmentIndex}#segment-${position.segmentIndex}`;
+  }
+  return document.kind === "article" ? `/read/article/${stableKey}` : `/learn/media/${stableKey}`;
+}

@@ -1,5 +1,6 @@
 export * from "./adapters";
 export * from "./application";
+export * from "./providers/article-review";
 export * from "./domain";
 export * from "./normalizers";
 export * from "./publishers";

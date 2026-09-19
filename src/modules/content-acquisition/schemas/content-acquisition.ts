@@ -12,6 +12,7 @@ export const sourceAdapterTypes = [
   "youtube",
   "podcast-rss",
   "article-rss",
+  "readlang-links",
   "custom",
 ] as const;
 

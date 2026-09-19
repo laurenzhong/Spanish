@@ -12,12 +12,22 @@ describe("media library", () => {
     expect(screen.getByRole("link", { name: "全部" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "视频" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "播客" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "全部主题" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "日常生活" })).toHaveAttribute("href", "/learn?topic=daily-life");
+    expect(screen.getByRole("link", { name: "兴趣娱乐" })).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "难度" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "时长" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "媒体资料库正在准备中" })).toBeInTheDocument();
     expect(screen.queryByText(/开始第一次练习|继续学习|学习任务时间线/)).not.toBeInTheDocument();
+  });
+
+  it("preserves media type and search while switching topics", () => {
+    render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{ kind: "video", search: "Madrid", topic: "travel-city" }} />);
+    expect(screen.getByRole("link", { name: "旅行城市" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "时事新闻" })).toHaveAttribute("href", "/learn?kind=video&search=Madrid&topic=current-events");
+    expect(screen.getByRole("link", { name: "全部主题" })).toHaveAttribute("href", "/learn?kind=video&search=Madrid");
   });
 
   it("renders equal-weight direct content links and real resume state", () => {

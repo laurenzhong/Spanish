@@ -31,6 +31,8 @@ function renderReply(context: ReplyContext, plan: ReplyPlan): string {
     context.openCommitments.some((commitment) => commitment.owner === "user" && (commitment.status === "returned" || commitment.status === "completed"))
     && /\b(?:ya\s+(?:he\s+)?vuelto|ya\s+volvi|he\s+vuelto|estoy\s+de\s+vuelta|ya\s+termine|he\s+terminado)\b/iu.test(normalized)
   ) {
+    if (context.character.characterKey === "mateo") return "Qué bien verte de vuelta 😊 ¿Qué tal ha ido la tarde con tus planes?";
+    if (context.character.characterKey === "ines") return "Qué bien verte de vuelta 😊 ¿Qué tal ha ido la tarde?";
     return "Qué bien verte de vuelta 😊 ¿Qué tal ha ido la tarde haciendo fotos por el puerto?";
   }
   if (/\b(?:como estas|cómo estás|que tal estas|qué tal estás|como te va|cómo te va)\b/iu.test(normalized)) {
@@ -62,6 +64,8 @@ function renderReply(context: ReplyContext, plan: ReplyPlan): string {
     if (context.character.characterKey === "ines") return "Te escucho. En los proyectos del barrio casi siempre ayuda empezar por lo cotidiano; ¿qué parte de tu día pesa más?";
     return "Te entiendo. A mí me gusta fijarme en las pequeñas historias del día; ¿qué parte de lo que cuentas te importa más?";
   }
+  if (context.character.characterKey === "mateo") return "Te leo. Cuéntame un poco más; me interesa saber qué tienes en mente desde Valencia.";
+  if (context.character.characterKey === "ines") return "Te leo. Cuéntame un poco más; me interesa saber qué tienes en mente.";
   return "Te leo. Cuéntame un poco más; me interesa saber qué tienes en mente.";
 }
 

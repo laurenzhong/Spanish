@@ -33,7 +33,9 @@ export type PhraseItem = Readonly<{
 export type PagedResult<T> = Readonly<{ items: readonly T[]; page: number; pageSize: number; total: number }>;
 
 export type CorpusQuery = Readonly<{
-  query: string;
+  query?: string;
+  entryKind?: "lexeme" | "phrase";
+  entryId?: string;
   documentKind?: "article" | "media";
   sourceKind?: string;
   stableKey?: string;

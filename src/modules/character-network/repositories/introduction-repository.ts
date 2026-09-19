@@ -30,6 +30,7 @@ export type IntroductionRepository = Readonly<{
   createOrGetPending(offer: IntroductionOffer): Promise<IntroductionRecord>;
   findByKey(userId: string, offerKey: string): Promise<IntroductionRecord | null>;
   listPending(userId: string): Promise<readonly IntroductionRecord[]>;
+  getRelationshipStatus?: (userId: string, characterKey: string, characterVersion: number) => Promise<"active" | "declined" | "pending" | null>;
   resolve(userId: string, offerKey: string, status: "accepted" | "declined" | "expired", acceptedMemoryIds?: readonly string[]): Promise<IntroductionRecord>;
   ensureRelationship(userId: string, characterKey: string, characterVersion: number): Promise<CharacterRelationshipRecord>;
   ensureConversation(userId: string, characterKey: string, characterVersion: number): Promise<string>;

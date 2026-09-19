@@ -120,7 +120,7 @@ export function LearningHeatmap({ onError, retryToken = 0, showError = true }: L
     return () => {
       active = false;
     };
-  }, [retryToken]);
+  }, [onError, retryToken]);
 
   const selectedDay = useMemo(() => {
     const date = selectedDate ?? heatmap.range.to;
