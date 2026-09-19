@@ -44,8 +44,14 @@ describe("CompositeArticleRepository", () => {
   });
 
   it("continues article lookup when an earlier source is unavailable", async () => {
-    const failingRepository = { findById: vi.fn().mockRejectedValue(new Error("database unavailable")) };
-    const workingRepository = { findById: vi.fn().mockResolvedValue({ article, reason: "found" as const }) };
+    const failingRepository = {
+      list: vi.fn(),
+      findById: vi.fn().mockRejectedValue(new Error("database unavailable")),
+    };
+    const workingRepository = {
+      list: vi.fn(),
+      findById: vi.fn().mockResolvedValue({ article, reason: "found" as const }),
+    };
     const repository = new CompositeArticleRepository([failingRepository, workingRepository]);
 
     await expect(repository.findById(article.id)).resolves.toEqual({ article, reason: "found" });
