@@ -23,9 +23,6 @@ function formatTime(milliseconds: number): string {
 }
 
 function PlaybackSurface({ playback }: Readonly<{ playback: MediaPlayback }>) {
-  if (playback.asset.kind === "official_embed") {
-    return <iframe allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen src={playback.asset.url} title={`${playback.media.title} 播放器`} />;
-  }
   if (playback.asset.kind === "audio") {
     return <audio controls preload="metadata" src={playback.asset.url}>当前浏览器无法播放音频。</audio>;
   }
@@ -93,6 +90,7 @@ export default async function MediaDetailPage({ params }: Context) {
   }
 
   const browserPlayback = clientPlayback(stableKey, playback);
+  if (browserPlayback.media.kind === "video" && browserPlayback.asset.kind !== "video") return <UnavailableDetail />;
   return (
     <article className="media-detail">
       <div className="media-detail__topbar"><Link className="media-detail__back" href="/learn">← 返回学习资料库</Link><span>{playback.media.kind === "video" ? "视频" : "播客"} · {playback.media.cefr ?? "未分级"}</span></div>
@@ -106,7 +104,7 @@ export default async function MediaDetailPage({ params }: Context) {
           <details className="media-detail__summary"><summary>内容简介</summary><p>{playback.media.summary}</p></details>
         </div>
       </header>
-      {(playback.media.kind === "video" && (playback.asset.kind === "official_embed" || playback.asset.kind === "video"))
+      {(playback.media.kind === "video" && playback.asset.kind === "video")
         || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench playback={browserPlayback} /> : <>
         <div className="media-detail__player"><PlaybackSurface playback={browserPlayback} /></div>
         <section className="media-transcript" aria-labelledby="media-transcript-title">

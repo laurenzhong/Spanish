@@ -27,8 +27,8 @@ export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | n
       progress: { lastPositionMs: 0, lastSegmentIndex: 0, status: "in_progress", revision: 0 },
     },
     asset: {
-      kind: stableKey === hostedVideoLearningE2eStableKey ? "video" : "official_embed",
-      url: stableKey === hostedVideoLearningE2eStableKey ? "https://media.example.test/media/video.e2e-hosted/1/video.mp4" : "https://www.youtube-nocookie.com/embed/e2eCafe1234?enablejsapi=1",
+      kind: "video",
+      url: `https://media.example.b-cdn.net/media/${stableKey}/1/video.mp4`,
       expiresAt: null,
     },
     segments: [

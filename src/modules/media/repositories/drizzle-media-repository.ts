@@ -20,7 +20,7 @@ import {
 import type { ParsedMediaListQuery } from "../schemas";
 import type { MediaLookupResult, MediaRepository } from "./media-repository";
 import type { AcquiredPodcastRepository } from "./acquired-podcast-repository";
-import type { AcquiredVideoRepository } from "./acquired-video-repository";
+import type { AcquiredVideoRepository, HostedVideoAsset } from "./acquired-video-repository";
 import type { MediaTranscriptBackfillRepository, MediaTranscriptBackfillRecord, MediaTranscriptBackfillReviewDimension } from "./media-transcript-backfill-repository";
 
 const backfillDimensions: readonly MediaTranscriptBackfillReviewDimension[] = ["content-es-ES", "teaching-zh-CN", "structure"];
@@ -96,6 +96,19 @@ function isPlayable(row: JoinedRow, now: Date): boolean {
   return row.asset.availability === "available"
     && url.protocol === "https:"
     && (!row.asset.playbackExpiresAt || row.asset.playbackExpiresAt.getTime() > now.getTime());
+}
+
+function assertHostedVideoAsset(asset: HostedVideoAsset): void {
+  if (asset.providerKey !== "bunny-storage" || asset.mimeType !== "video/mp4" || !/^[a-f0-9]{64}$/u.test(asset.sha256) || !Number.isSafeInteger(asset.byteSize) || asset.byteSize <= 0) {
+    throw new AcquiredVideoPersistenceConflictError("The video must be a validated Bunny MP4 asset.");
+  }
+  let url: URL;
+  try { url = new URL(asset.playbackUrl); } catch { throw new AcquiredVideoPersistenceConflictError("The Bunny video URL is invalid."); }
+  const configuredHost = process.env.BUNNY_STORAGE_PULL_ZONE_HOSTNAME?.trim().toLowerCase();
+  const allowedHost = configuredHost ? url.hostname.toLowerCase() === configuredHost : url.hostname.toLowerCase().endsWith(".b-cdn.net");
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !url.pathname.startsWith("/media/") || !allowedHost) {
+    throw new AcquiredVideoPersistenceConflictError("The video must use a stable Bunny Storage Pull Zone MP4 URL.");
+  }
 }
 
 function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date): MediaCard | null {
@@ -179,6 +192,18 @@ export function createDrizzleMediaRepository(
       eq(schema.mediaVersions.status, "published"),
       eq(schema.mediaVersions.copyrightStatus, "cleared"),
       eq(schema.mediaAssets.availability, "available"),
+      // A published video is playable only from Bunny's immutable MP4 asset.
+      // Keep podcast providers independent because their audio contract is
+      // intentionally broader.
+      or(
+        eq(schema.mediaItems.kind, "podcast"),
+        and(
+          eq(schema.mediaItems.kind, "video"),
+          eq(schema.mediaAssets.kind, "video"),
+          eq(schema.mediaAssets.providerKey, "bunny-storage"),
+          eq(schema.mediaAssets.mimeType, "video/mp4"),
+        ),
+      ),
     );
     return database
       .select({ item: schema.mediaItems, version: schema.mediaVersions, asset: schema.mediaAssets })
@@ -421,6 +446,7 @@ export function createDrizzleMediaRepository(
       if (input.contentHash !== input.draft.contentHash) {
         throw new AcquiredVideoPersistenceConflictError("The candidate hash does not match the immutable video draft.");
       }
+      assertHostedVideoAsset(input.hostedAsset);
       let embedUrl: URL;
       try {
         embedUrl = new URL(input.draft.embedUrl);
@@ -513,9 +539,11 @@ export function createDrizzleMediaRepository(
         if (!version) throw new Error("MEDIA_VERSION_WRITE_FAILED");
         await transaction.insert(schema.mediaAssets).values({
           mediaVersionId: version.id,
-          kind: "official_embed",
-          providerKey: "youtube",
-          playbackUrl: input.draft.embedUrl,
+          kind: "video",
+          providerKey: input.hostedAsset.providerKey,
+          playbackUrl: input.hostedAsset.playbackUrl,
+          playbackExpiresAt: null,
+          mimeType: input.hostedAsset.mimeType,
           availability: "available",
         });
         if (input.draft.segments.length > 0) {
@@ -634,10 +662,12 @@ export function createDrizzleMediaRepository(
         .where(eq(schema.mediaSegments.mediaVersionId, selected.version.id))
         .orderBy(schema.mediaSegments.segmentIndex)
         .limit(maxMediaSegments);
+      const assetKind = selected.asset.kind === "audio" || selected.asset.kind === "video" ? selected.asset.kind : null;
+      if (!assetKind) throw new MediaUnavailableError();
       return projectMediaPlayback({
         card: media,
         asset: {
-          kind: selected.asset.kind,
+          kind: assetKind,
           url: selected.asset.playbackUrl,
           expiresAt: selected.asset.playbackExpiresAt,
         },

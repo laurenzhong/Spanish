@@ -158,6 +158,43 @@ describe("Language Reactor adapter", () => {
     });
   });
 
+  it("does not persist Language Reactor documents marked age restricted", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(response({
+      status: "success",
+      data: {
+        docs_metadata: [
+          {
+            mediaClass: "YOUTUBE",
+            source: "YOUTUBE",
+            ageRestricted: true,
+            info: { videoId: "ageVideo1", channelId: "UCabcdefghijklmnopqrstuv" },
+            duration_ms: 120_000,
+            diocoDocId: "yt_ageVideo1",
+            diocoDocName: "No disponible",
+            description: "",
+            lang_G: "es",
+          },
+          {
+            mediaClass: "YOUTUBE",
+            source: "YOUTUBE",
+            info: { videoId: "publicVideo2", channelId: "UCabcdefghijklmnopqrstuv" },
+            duration_ms: 120_000,
+            diocoDocId: "yt_publicVideo2",
+            diocoDocName: "Disponible",
+            description: "",
+            lang_G: "es",
+          },
+        ],
+      },
+    }));
+    const adapter = new LanguageReactorAdapter({ fetch: fetchImpl, source: source("video-channel") });
+
+    const page = await adapter.discover({ sourceStableKey: "lr-video", externalSourceId: "t_yt_mix_es", cursor: null, limit: 10 });
+
+    expect(page.items.map((item) => item.externalItemId)).toEqual(["publicVideo2"]);
+    expect(JSON.stringify(page.items)).not.toContain("ageVideo1");
+  });
+
   it("probes podcast enclosures with HEAD and preserves cursor pagination", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response({
@@ -189,7 +226,7 @@ describe("Language Reactor adapter", () => {
       enclosureByteSize: 240_000,
       transcriptStatus: "unavailable",
     });
-    expect(page.nextCursor).toBe(JSON.stringify({ offset: 1 }));
+    expect(page.nextCursor).toBeNull();
     expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({ method: "HEAD" });
   });
 

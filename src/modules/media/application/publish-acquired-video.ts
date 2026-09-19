@@ -2,6 +2,7 @@ import type {
   AcquiredMediaPublication,
   AcquiredMediaReview,
   AcquiredVideoDraft,
+  HostedVideoAsset,
   AcquiredVideoRepository,
 } from "../repositories";
 
@@ -10,6 +11,7 @@ export function publishAcquiredVideo(repository: AcquiredVideoRepository, input:
   candidateRevision: number;
   contentHash: string;
   draft: AcquiredVideoDraft;
+  hostedAsset: HostedVideoAsset;
   reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
   publishedAt: Date;
 }>): Promise<AcquiredMediaPublication> {

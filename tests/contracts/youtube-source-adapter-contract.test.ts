@@ -143,4 +143,40 @@ describe("YouTube source adapter contract", () => {
       expect(page.items).toEqual([]);
     }
   });
+
+  it("excludes provider age-gated videos and fills the page with the next eligible video", async () => {
+    const feed = `<?xml version="1.0"?><feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"><entry><yt:videoId>ageVideo1</yt:videoId><title>Age gated</title><published>2026-09-14T09:00:00Z</published></entry><entry><yt:videoId>publicVideo2</yt:videoId><title>Disponible</title><published>2026-09-14T08:00:00Z</published></entry></feed>`;
+    const details = {
+      items: [
+        {
+          id: "ageVideo1",
+          snippet: { channelId: "UCabcdefghijklmnopqrstuv", channelTitle: "Canal", title: "Age gated", description: "", publishedAt: "2026-09-14T09:00:00Z", defaultAudioLanguage: "es" },
+          contentDetails: { duration: "PT2M", contentRating: { ytRating: "ytAgeRestricted" } },
+          status: { privacyStatus: "public", embeddable: true, license: "youtube" },
+        },
+        {
+          id: "publicVideo2",
+          snippet: { channelId: "UCabcdefghijklmnopqrstuv", channelTitle: "Canal", title: "Disponible", description: "", publishedAt: "2026-09-14T08:00:00Z", defaultAudioLanguage: "es" },
+          contentDetails: { duration: "PT2M" },
+          status: { privacyStatus: "public", embeddable: true, license: "youtube" },
+        },
+      ],
+    };
+    const fetchMock = vi.fn<typeof fetch>(async (input) => new Response(
+      String(input).includes("feeds/videos.xml") ? feed : JSON.stringify(details),
+      { headers: { "content-type": String(input).includes("feeds/videos.xml") ? "application/atom+xml" : "application/json" } },
+    ));
+    const adapter = new YouTubeChannelAdapter({
+      fetch: fetchMock,
+      apiKey: "fixture-key",
+      source: {
+        channelId: "UCabcdefghijklmnopqrstuv", channelName: "Canal", region: "ES", cefr: "A2",
+        topics: ["topic.daily-life"], license: "licensed", attribution: "Canal", licenseEvidence: "https://example.com/license",
+      },
+    });
+
+    const page = await adapter.discover({ sourceStableKey: "youtube.test", externalSourceId: "UCabcdefghijklmnopqrstuv", cursor: null, limit: 1 });
+    expect(page.items.map((item) => item.externalItemId)).toEqual(["publicVideo2"]);
+    expect(JSON.stringify(page.items)).not.toContain("ageVideo1");
+  });
 });

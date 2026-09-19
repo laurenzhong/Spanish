@@ -246,6 +246,20 @@
       "when": 1789548775316,
       "tag": "0034_media_word_timings",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789794000000,
+      "tag": "0035_bunny_video_asset_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1789825216015,
+      "tag": "0036_reassert_bunny_video_asset_guard",
+      "breakpoints": true
     }
   ]
 }

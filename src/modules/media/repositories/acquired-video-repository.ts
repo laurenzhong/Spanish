@@ -36,6 +36,14 @@ export type AcquiredVideoDraft = Readonly<{
   changeReason: string;
 }>;
 
+export type HostedVideoAsset = Readonly<{
+  providerKey: "bunny-storage";
+  playbackUrl: string;
+  mimeType: "video/mp4";
+  sha256: string;
+  byteSize: number;
+}>;
+
 export type AcquiredMediaPublication = Readonly<{
   kind: "media";
   stableKey: string;
@@ -48,6 +56,7 @@ export interface AcquiredVideoRepository {
     candidateRevision: number;
     contentHash: string;
     draft: AcquiredVideoDraft;
+    hostedAsset: HostedVideoAsset;
     reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
     publishedAt: Date;
   }>): Promise<AcquiredMediaPublication>;

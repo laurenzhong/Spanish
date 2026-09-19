@@ -52,7 +52,9 @@ pnpm content:host-language-reactor-audio
 2026-09-16 所有者明确要求：之后所有视频下载统一使用开源 **yt-dlp**。不再以浏览器 SourceBuffer 抓取、录屏或其他下载器替代；Playwright + Chrome 仅用于真实播放验收。授权方已有的本地原文件可以作为导入输入；Bunny/Supabase 自有对象的完整性读取不属于第三方视频重新下载。yt-dlp 不支持或来源要求人工登录/验证时如实报告，不绕过访问控制。
 
 - 官方安装说明：[Installation](https://github.com/yt-dlp/yt-dlp#installation)、[EJS](https://github.com/yt-dlp/yt-dlp/wiki/EJS)。pip 安装应使用 `python -m pip install -U "yt-dlp[default]"`，保证匹配的官方 `yt-dlp-ejs` 依赖；只安装裸 `yt-dlp` 可能缺失该组件。Node 至少 22，调用明确加 `--js-runtimes node`，并配置原生 ffmpeg。
-- 当前已授权的 Bunny Storage + Pull Zone 来源恢复入口为 `pnpm content:recover-youtube-to-bunny`；要求 `MEDIA_VIDEO_HOSTING_CONFIRM=I_HAVE_AUTHORIZATION`、`YTDLP_BIN`、`FFMPEG_BIN` 及 Bunny Storage 配置。可用 `MEDIA_VIDEO_STABLE_KEY` 限定单条；不设置时处理当前 published/cleared、可用且仍为 YouTube 官方嵌入的资产。
+- 当前已授权的 Bunny Storage + Pull Zone 来源恢复入口为 `pnpm content:recover-youtube-to-bunny`；要求 `MEDIA_VIDEO_HOSTING_CONFIRM=I_HAVE_AUTHORIZATION`、`YTDLP_BIN`、`FFMPEG_BIN` 及 Bunny Storage 配置。可用 `MEDIA_VIDEO_STABLE_KEY` 限定单条；不设置时处理当前 published/cleared、可用且仍为 YouTube 官方嵌入的资产。`MEDIA_VIDEO_RECOVERY_MAX_BYTES` 只提高明确单次恢复的大小上限；`MEDIA_VIDEO_MAX_OUTPUT_HEIGHT` 可在资源受限时显式生成兼容高度，默认不缩放。年龄或登录限制只能通过所有者明确提供的本地 `MEDIA_VIDEO_COOKIES_FILE`（Netscape cookies 文件）或授权方原始 MP4 处理；脚本不会自动读取 Chrome，也不绕过访问控制。
+- 恢复时若 yt-dlp 明确报告年龄限制（例如 `Sign in to confirm your age`），脚本会将该当前媒体版本归档、撤回 YouTube 播放资产，并将对应候选归档，然后继续处理其他视频；这不是下载成功，也不会删除审计元数据。普通登录、网络、格式和 JS 挑战错误仍保留为失败，避免把可恢复问题永久排除。
+- 发现阶段也会先排除来源已声明年龄门禁的 YouTube/LR 视频，不把该视频的标题、元数据或 YouTube 来源链接写入可见候选页；同一批次会从后续可用条目补足请求数量。若来源未声明门禁但 yt-dlp 后续确认年龄限制，候选会标记为受限/拒绝并从工作台隐藏，保留审计记录，不删除原始来源证据。
 - 新入口按最高**原生**分辨率选择格式，排除源站标识的 AI-upscaled，保留西语音轨；同分辨率优先 H.264/AAC，必要时转成兼容编码但不降低源尺寸。当前单文件保护上限 1 GiB，超限需另行核对预算/存储，不静默降画质。
 - 批次采用独立进程串行处理，每条结束释放上传缓冲、解码器与浏览器内存；协调器和 worker 各有独占锁。上次进程异常退出时，必须先检查 PID 再处理遗留锁，不能仅凭锁文件重启；单 worker 日志只记录脱敏错误类别。
 - 完整下载、source/output 全片解码及时长、CDN 全文件长度/SHA-256、Chrome 实播/中段/尾段通过后才锁定条件切换同一当前资产。网站页面验收仍需另跑。没有采集新候选、自动发布、修改字幕或删除第三方来源。运行清单/恢复文件在 `.tmp-runtime/youtube-recovered`，不得提交原始 extractor JSON 或签名 URL。
@@ -96,13 +98,15 @@ pnpm content:host-authorized-youtube-video
 2. 回填：核对 provider/model、时间轴、低置信度、预算与临时资产清理结果；两个内容审核维度加结构审核都绑定当前修订。生成草稿成功不等于发布成功。
 3. 发布：显式发布新媒体版本后，检查公开目录、字幕数量、旧版本/进度保留及撤下路径。不要用直接修改数据库绕过门禁。
 4. 播放：在真实目标学习页检查请求、MIME/Range、播放器 readyState、实际画面/声音及 currentTime 增长；HTTP 200/206、iframe load、编码状态完成、fake E2E 都不能单独证明播放成功。
-5. 失败：保留可恢复状态和脱敏错误。清理请求已登记不等于对象已删除；必须确认删除结果，失败保留重试依据。未经确认不扩大到批量。
-6. 回填结束清除本轮临时确认开关；只清理已核对的本轮临时文件，不删除授权方原件或历史媒体对象。
+5. 视频发布：先把候选视频下载/转码并上传到 Bunny，记录 `bunnyVideoAsset`（Pull Zone MP4、SHA-256、字节数）后再显式发布；没有该资产的候选会被发布仓储拒绝，不能退回 YouTube embed。候选处于 `review_ready` 后，可在服务端运行 `pnpm content:host-video-candidate-to-bunny -- <candidate-id>` 完成托管和真实播放验收。
+6. 数据库也会拒绝新视频资产的非 Bunny MP4 写入；这不会替代当前遗留 YouTube 资产迁移，也不会自动改变历史数据。
+7. 失败：保留可恢复状态和脱敏错误。清理请求已登记不等于对象已删除；必须确认删除结果，失败保留重试依据。未经确认不扩大到批量。
+8. 回填结束清除本轮临时确认开关；只清理已核对的本轮临时文件，不删除授权方原件或历史媒体对象。
 
 ### 已有证据与适用边界
 
 - **历史实测：Chrome cookies**：关闭浏览器后仍失败，见 [状态历史](../tasks/PROJECT-STATUS-HISTORY.md) 的 2026-09-16 MEDIA-002 记录；是否可读取取决于本机加密环境，不能保证导出方案有效。
 - **当前代码与历史实测：Windows ffmpeg**：字幕脚本在 Windows 默认使用 PATH 原生 ffmpeg，避免非本机 `ffmpeg-static` 二进制的 EFTYPE；先用 `Get-Command ffmpeg` 和 `ffmpeg -version` 确认。证据：本机未提交脚本 `scripts/backfill-media-transcript.ts`（提交后再建立链接）；这不代表所有 Windows 安装都有该故障。
-- **历史诊断更正：YouTube 153**：按来源身份/Referer 缺失排查，不能仅凭直接导航 embed 就断言反机器人验证或源视频失效；必须检查目标页面的真实嵌入请求。证据：[播放器](../../src/modules/media/ui/video-player-adapter.tsx)、状态历史的播放器重开记录。
-- **已验收：Bunny Storage + Pull Zone**：2026-09-17 的 HOSTED-MEDIA-002 已完成当前 20 条视频和 2 条播客迁移、全文件完整性、Chrome 页面播放/seek 与 Supabase 清理审计；证据和适用边界见 [任务交接](../tasks/HOSTED-MEDIA-002.md)。这只证明当前本地工作树与当时真实数据，不代表代码已提交、Vercel 已部署或未来新增资产可跳过逐条门禁。`bunny-stream` 仍只是可选实现，不是当前已迁移资产的 provider。
+- **历史诊断更正：YouTube 153**：按来源身份/Referer 缺失排查，不能仅凭直接导航 embed 就断言反机器人验证或源视频失效；必须检查目标页面的真实嵌入请求。当前学习播放器已移除 YouTube embed 路径，旧诊断仅作历史记录。
+- **历史实测（非当前状态）**：2026-09-17 的 HOSTED-MEDIA-002 曾记录当前 20 条视频和 2 条播客迁移、全文件完整性、Chrome 页面播放/seek 与 Supabase 清理审计；证据和适用边界见 [任务交接](../tasks/HOSTED-MEDIA-002.md)。2026-09-19 当前分支复核已更新为当前视频 41/41 Bunny MP4、0 条可用 YouTube embed，另有 3 条视频条目已归档；该历史记录不能代表当前数据库、当前代码已部署或未来新增资产可跳过逐条门禁。`bunny-stream` 仍不是当前视频发布路径。
 - **当前分支限制：每日调度**：这里仅支持 `content:acquire -- --source ... [--dry-run] [--limit 1..500]`；不支持把计划中的 discover/process/cleanup/report 当作该 CLI 子命令。本地 main/OPS 分支另有 `content:pipeline` 与运行手册，当前分支未包含。其 workflow 只调用 discover；配置文件存在不证明生产 schedule 已启用，也不证明全链路每日执行。集成前按状态页对账。

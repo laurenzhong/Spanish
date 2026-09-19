@@ -1,15 +1,15 @@
 import "dotenv/config";
 
 import { spawn } from "node:child_process";
-import { appendFile, copyFile, mkdtemp, readFile, rename, rm, stat } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { and, eq, like, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import * as schema from "../src/shared/db/schema";
 import { createDatabaseConnection } from "../src/shared/db/client";
-import { createBunnyStorageMediaAssetStorage, createBunnyStreamMediaAssetStorage, createSupabaseMediaAssetStorage, MEDIA_VIDEO_BUCKET } from "../src/modules/media/storage";
+import { createBunnyStorageMediaAssetStorage } from "../src/modules/media/storage";
 
 const MAX_VIDEO_BYTES = Number(process.env.MEDIA_VIDEO_MAX_BYTES ?? 50 * 1024 * 1024);
 const YTDLP_BIN = process.env.YTDLP_BIN?.trim() || "yt-dlp";
@@ -18,15 +18,18 @@ const TRANSCODE_VIDEO = process.env.MEDIA_VIDEO_TRANSCODE !== "0";
 const HOSTING_LIMIT = Number(process.env.MEDIA_VIDEO_HOSTING_LIMIT ?? 20);
 const VIDEO_MAX_HEIGHT = Number(process.env.MEDIA_VIDEO_MAX_HEIGHT ?? 360);
 const DOWNLOAD_TIMEOUT_MS = Number(process.env.MEDIA_VIDEO_DOWNLOAD_TIMEOUT_MS ?? 10 * 60 * 1_000);
-const REHOST_HOSTED = process.env.MEDIA_VIDEO_REHOST_HOSTED === "1";
-const HOSTED_ONLY = process.env.MEDIA_VIDEO_HOSTED_ONLY === "1";
-const STORAGE_PROVIDER = process.env.MEDIA_VIDEO_STORAGE_PROVIDER?.trim() || "supabase";
+const STORAGE_PROVIDER = process.env.MEDIA_VIDEO_STORAGE_PROVIDER?.trim() || "bunny-storage";
 const TARGET_STABLE_KEY = process.env.MEDIA_VIDEO_STABLE_KEY?.trim() || null;
 const COOKIES_FROM_BROWSER = process.env.MEDIA_VIDEO_COOKIES_FROM_BROWSER?.trim() || null;
 const COOKIES_FILE = process.env.MEDIA_VIDEO_COOKIES_FILE?.trim() || null;
 const LOCAL_VIDEO_FILE = process.env.MEDIA_VIDEO_LOCAL_FILE?.trim() || null;
 if (COOKIES_FROM_BROWSER && COOKIES_FILE) throw new Error("MEDIA_VIDEO_COOKIES_FROM_BROWSER and MEDIA_VIDEO_COOKIES_FILE are mutually exclusive.");
 const CONFIRMATION = "I_HAVE_AUTHORIZATION";
+
+// This legacy CLI remains available for authorized recovery, but the product
+// no longer permits Supabase/Bunny Stream video assets. All new video writes
+// must land in Bunny Storage as immutable MP4 objects.
+if (STORAGE_PROVIDER !== "bunny-storage") throw new Error("MEDIA_VIDEO_STORAGE_PROVIDER_MUST_BE_BUNNY_STORAGE");
 
 function safePath(stableKey: string, version: number) {
   if (!/^youtube\.[a-z0-9._-]{1,200}$/u.test(stableKey)) throw new Error("MEDIA_STABLE_KEY_INVALID");
@@ -96,40 +99,6 @@ function transcodeVideo(inputPath: string, outputPath: string) {
   });
 }
 
-async function downloadHostedVideo(url: string, outputPath: string) {
-  const headerPath = `${outputPath}.headers`;
-  await runCommand("curl.exe", ["-4", "--fail", "--location", "--silent", "--show-error", "--retry", "3", "--max-time", String(Math.ceil(DOWNLOAD_TIMEOUT_MS / 1_000)), "--head", "--output", headerPath, url]);
-  const headers = await readFile(headerPath, "utf8");
-  await rm(headerPath, { force: true });
-  const contentLength = Number((headers.match(/content-length:\s*(\d+)/iu) ?? [])[1]);
-  if (!Number.isSafeInteger(contentLength) || contentLength <= 0) throw new Error("MEDIA_VIDEO_SOURCE_LENGTH_UNKNOWN");
-  await rm(outputPath, { force: true });
-  const chunkSize = 4 * 1024 * 1024;
-  for (let start = 0; start < contentLength; start += chunkSize) {
-    const end = Math.min(contentLength - 1, start + chunkSize - 1);
-    const chunkPath = `${outputPath}.${start}.part`;
-    await runCommand("curl.exe", ["-4", "--fail", "--location", "--silent", "--show-error", "--retry", "3", "--max-time", String(Math.ceil(DOWNLOAD_TIMEOUT_MS / 1_000)), "--range", `${start}-${end}`, "--output", chunkPath, url]);
-    const chunkBytes = await stat(chunkPath);
-    if (chunkBytes.size !== end - start + 1) throw new Error("MEDIA_VIDEO_DOWNLOAD_CHUNK_INVALID");
-    await appendFile(outputPath, await readFile(chunkPath));
-    await rm(chunkPath, { force: true });
-  }
-  const outputBytes = await stat(outputPath);
-  if (outputBytes.size !== contentLength) throw new Error("MEDIA_VIDEO_DOWNLOAD_INCOMPLETE");
-}
-
-function runCommand(command: string, args: string[]) {
-  return new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "ignore", "pipe"] });
-    let stderr = "";
-    child.stderr.on("data", (chunk: Buffer) => { stderr = `${stderr}${chunk.toString("utf8")}`.slice(-2_000); });
-    child.once("error", (error) => reject(new Error(`MEDIA_VIDEO_COMMAND_UNAVAILABLE: ${error.message}`)));
-    child.once("close", (code) => code === 0
-      ? resolve()
-      : reject(new Error(`MEDIA_VIDEO_COMMAND_FAILED: ${stderr.trim() || `exit ${code ?? "unknown"}`}`)));
-  });
-}
-
 if (process.env.MEDIA_VIDEO_HOSTING_CONFIRM !== CONFIRMATION) {
   throw new Error(`Set MEDIA_VIDEO_HOSTING_CONFIRM=${CONFIRMATION} only after confirming download and redistribution rights.`);
 }
@@ -140,15 +109,9 @@ if (!Number.isSafeInteger(DOWNLOAD_TIMEOUT_MS) || DOWNLOAD_TIMEOUT_MS < 30_000) 
 if (TARGET_STABLE_KEY && !/^youtube\.[a-z0-9._-]{1,200}$/u.test(TARGET_STABLE_KEY)) throw new Error("MEDIA_VIDEO_STABLE_KEY_INVALID");
 
 const databaseUrl = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL;
-const storage = STORAGE_PROVIDER === "bunny-stream"
-  ? createBunnyStreamMediaAssetStorage()
-  : STORAGE_PROVIDER === "bunny-storage"
-    ? createBunnyStorageMediaAssetStorage()
-  : STORAGE_PROVIDER === "supabase"
-    ? createSupabaseMediaAssetStorage()
-    : null;
+const storage = createBunnyStorageMediaAssetStorage();
 if (!databaseUrl || !storage) throw new Error("DIRECT_DATABASE_URL/DATABASE_URL and the selected media storage provider credentials are required.");
-const storageProviderKey = STORAGE_PROVIDER === "bunny-stream" ? "bunny-stream" : STORAGE_PROVIDER === "bunny-storage" ? "bunny-storage" : `supabase-storage:${MEDIA_VIDEO_BUCKET}`;
+const storageProviderKey = "bunny-storage";
 const connection = createDatabaseConnection(databaseUrl);
 let hosted = 0;
 let skipped = 0;
@@ -162,14 +125,7 @@ try {
       ...(TARGET_STABLE_KEY ? [eq(schema.mediaItems.stableKey, TARGET_STABLE_KEY)] : []),
       eq(schema.mediaVersions.status, "published"),
       eq(schema.mediaVersions.copyrightStatus, "cleared"),
-      HOSTED_ONLY
-        ? and(eq(schema.mediaAssets.kind, "video"), like(schema.mediaAssets.providerKey, "supabase-storage:%"))
-        : REHOST_HOSTED
-        ? or(
-          and(eq(schema.mediaAssets.kind, "official_embed"), eq(schema.mediaAssets.providerKey, "youtube")),
-          and(eq(schema.mediaAssets.kind, "video"), like(schema.mediaAssets.providerKey, "supabase-storage:%")),
-        )
-        : and(eq(schema.mediaAssets.kind, "official_embed"), eq(schema.mediaAssets.providerKey, "youtube")),
+      and(eq(schema.mediaAssets.kind, "official_embed"), eq(schema.mediaAssets.providerKey, "youtube")),
       eq(schema.mediaAssets.availability, "available"),
     ));
 
@@ -185,20 +141,7 @@ try {
     const path = safePath(row.item.stableKey, row.version.version);
     let uploaded = false;
     try {
-      const canFetchOrigin = STORAGE_PROVIDER === "bunny-stream" && REHOST_HOSTED && row.asset.kind === "video" && storage.putVideoFromUrl;
-      if (canFetchOrigin) {
-        const result = await storage.putVideoFromUrl(path, row.asset.playbackUrl);
-        uploaded = true;
-        await connection.db.update(schema.mediaAssets).set({
-          kind: "video", providerKey: storageProviderKey, playbackUrl: result.url,
-          playbackExpiresAt: null, mimeType: "video/mp4", updatedAt: new Date(),
-        }).where(eq(schema.mediaAssets.id, row.asset.id));
-        hosted += 1;
-        continue;
-      }
-      if (REHOST_HOSTED && row.asset.kind === "video" && row.asset.providerKey.startsWith("supabase-storage:")) {
-        await downloadHostedVideo(row.asset.playbackUrl, outputPath);
-      } else if (LOCAL_VIDEO_FILE) {
+      if (LOCAL_VIDEO_FILE) {
         await copyFile(LOCAL_VIDEO_FILE, outputPath);
       } else {
         await downloadVideo(videoId, outputPath);
@@ -211,9 +154,7 @@ try {
       }
       const bytes = new Uint8Array(await readFile(outputPath));
       if (bytes.byteLength <= 0 || bytes.byteLength > MAX_VIDEO_BYTES) throw new Error("MEDIA_VIDEO_TOO_LARGE");
-      const result = STORAGE_PROVIDER === "bunny-stream" && REHOST_HOSTED && row.asset.kind === "video" && storage.putVideoFromUrl
-        ? await storage.putVideoFromUrl(path, row.asset.playbackUrl)
-        : await storage.putVideo(path, bytes, "video/mp4");
+      const result = await storage.putVideo(path, bytes, "video/mp4");
       uploaded = true;
       await connection.db.update(schema.mediaAssets).set({
         kind: "video",

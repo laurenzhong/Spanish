@@ -21,6 +21,10 @@ describe("authorized YouTube source selection",()=>{
     expect(()=>selectYoutubeRecoveryFormats({id:"source",duration:120,formats:formats.map(f=>({...f,has_drm:true}))},"source",120)).toThrow("MEDIA_NATIVE_SPANISH_FORMAT_REQUIRED");
     expect(()=>selectYoutubeRecoveryFormats({id:"source",duration:120,formats:formats.filter(f=>f.language!=="es")},"source",120)).toThrow("MEDIA_NATIVE_SPANISH_FORMAT_REQUIRED");
   });
+  it("can explicitly accept an unlabeled audio stream for a database-declared Spanish source",()=>{
+    const unlabeled = formats.map((format) => ({ ...format, language: undefined }));
+    expect(selectYoutubeRecoveryFormats({id:"source",duration:120,formats:unlabeled},"source",120,true).audioLanguage).toBe("unlabeled-source-es");
+  });
   it("requires completed, full-length decode",()=>{
     expect(verifiedVideoDecode("out_time_us=120000000\nprogress=end\n",120)).toBe(120);
     expect(()=>verifiedVideoDecode("out_time_us=50000000\nprogress=end\n",120)).toThrow("MEDIA_DECODE_DURATION_MISMATCH");

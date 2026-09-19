@@ -9,16 +9,20 @@ const formatSchema = z.object({
 });
 
 /** Prefer source resolution, not AI-upscaled formats; preserve Spanish audio. */
-export function selectYoutubeRecoveryFormats(input: unknown, expectedId: string, expectedSeconds: number) {
+export function selectYoutubeRecoveryFormats(input: unknown, expectedId: string, expectedSeconds: number, allowUnlabeledAudio = false) {
   const metadata = z.object({ id: z.string(), duration: z.number().positive(), formats: z.array(formatSchema) }).parse(input);
   if (metadata.id !== expectedId || Math.abs(metadata.duration - expectedSeconds) > 2) throw new Error("MEDIA_SOURCE_IDENTITY_MISMATCH");
   const candidates = metadata.formats.filter(f => !f.has_drm && !/AI.upscaled/iu.test(f.format_note ?? "") && !/-sr(?:$|-)/u.test(f.format_id));
   const video = candidates.filter(f => f.vcodec !== "none" && f.acodec === "none" && f.width && f.height)
     .sort((a,b) => b.height! - a.height! || b.width! - a.width! || Number(b.vcodec.startsWith("avc1")) - Number(a.vcodec.startsWith("avc1")))[0];
-  const audio = candidates.filter(f => f.vcodec === "none" && f.acodec !== "none" && /^es(?:-|$)/u.test(f.language ?? ""))
+  const spanishAudio = candidates.filter(f => f.vcodec === "none" && f.acodec !== "none" && /^es(?:-|$)/u.test(f.language ?? ""))
     .sort((a,b) => Number(b.acodec.startsWith("mp4a")) - Number(a.acodec.startsWith("mp4a")) || Number(/drc/iu.test(a.format_id)) - Number(/drc/iu.test(b.format_id)) || (b.abr ?? 0) - (a.abr ?? 0))[0];
+  const audio = spanishAudio ?? (allowUnlabeledAudio
+    ? candidates.filter(f => f.vcodec === "none" && f.acodec !== "none" && !f.language)
+      .sort((a,b) => Number(b.acodec.startsWith("mp4a")) - Number(a.acodec.startsWith("mp4a")) || Number(/drc/iu.test(a.format_id)) - Number(/drc/iu.test(b.format_id)) || (b.abr ?? 0) - (a.abr ?? 0))[0]
+    : undefined);
   if (!video || !audio) throw new Error("MEDIA_NATIVE_SPANISH_FORMAT_REQUIRED");
-  return { selection: `${video.format_id}+${audio.format_id}`, width: video.width!, height: video.height!, videoCodec: video.vcodec, audioCodec: audio.acodec, duration: metadata.duration };
+  return { selection: `${video.format_id}+${audio.format_id}`, width: video.width!, height: video.height!, videoCodec: video.vcodec, audioCodec: audio.acodec, audioLanguage: spanishAudio ? "es" : "unlabeled-source-es", duration: metadata.duration };
 }
 
 export function verifiedVideoDecode(progress: string, expectedSeconds: number) {

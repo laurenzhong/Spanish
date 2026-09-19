@@ -26,6 +26,12 @@ const languageReactorDocSchema = z.object({
   }).passthrough().optional(),
   audioFileURL: z.string().optional(),
   duration_ms: z.number().positive(),
+  // The directory occasionally forwards the platform's age gate in one of
+  // these fields. Keep the check tolerant because this is provider metadata,
+  // not a stable public contract.
+  ageRestricted: z.boolean().optional(),
+  isAgeRestricted: z.boolean().optional(),
+  age_restricted: z.boolean().optional(),
   diocoDocId: z.string().min(1).max(200),
   diocoDocName: z.string().min(1).max(500),
   description: z.string().optional().default(""),
@@ -124,6 +130,10 @@ function httpsArtworkUrl(value: string | undefined): string | null {
   }
 }
 
+function isAgeRestricted(doc: z.infer<typeof languageReactorDocSchema>): boolean {
+  return doc.ageRestricted === true || doc.isAgeRestricted === true || doc.age_restricted === true;
+}
+
 export class LanguageReactorAdapter implements ContentSourceAdapter {
   readonly key = "language-reactor" as const;
   private readonly podcastArtworkCache = new Map<string, MediaArtwork | null>();
@@ -177,6 +187,10 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
     }
     const offset = parseCursor(input.cursor);
     const policy = this.options.source.policy;
+    // Fetch a bounded surplus so provider-filtered entries (including age
+    // restricted videos) are replaced by later eligible documents in the same
+    // acquisition page.
+    const fetchLimit = Math.min(100, Math.max(input.limit, input.limit * 2));
     const body = JSON.stringify({
       userEmail: null,
       diocoToken: null,
@@ -189,7 +203,7 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
       diocoPlaylistId: this.options.source.playlistId,
       forceIncludeDiocoDocId: null,
       offset,
-      limit: input.limit,
+      limit: fetchLimit,
     });
     const response = await fetchBoundedText({
       url: "https://api-cdn.dioco.io/base_media_getMediaDocs_5",
@@ -210,7 +224,10 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
     }
     const fetchedAt = (this.options.now ?? (() => new Date()))();
     const items: ContentSourcePage["items"][number][] = [];
+    let examinedDocuments = 0;
     for (const doc of parsed.data.docs_metadata) {
+      examinedDocuments += 1;
+      if (isAgeRestricted(doc)) continue;
       if (doc.lang_G && !/^es(?:-|$)/iu.test(doc.lang_G)) continue;
       if (doc.duration_ms < policy.minDurationMs || doc.duration_ms > policy.maxDurationMs) continue;
       const publishedAt = publicationDate(doc);
@@ -253,6 +270,7 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           changeReason: "Discovered from the owner-authorized Language Reactor YouTube directory.",
         });
         items.push({ externalItemId: videoId, canonicalUrl: draft.canonicalUrl, title, contentType: "video", language: "es", publishedAt, contentHash: draft.contentHash, metadata: { videoDraft: draft } });
+        if (items.length >= input.limit) break;
         continue;
       }
 
@@ -302,13 +320,15 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           changeReason: "Discovered from the owner-authorized Language Reactor podcast directory.",
         });
         items.push({ externalItemId: doc.diocoDocId, canonicalUrl: draft.canonicalUrl, title, contentType: "podcast", language: "es", publishedAt, contentHash: draft.contentHash, metadata: { podcastDraft: draft } });
+        if (items.length >= input.limit) break;
       } catch (error) {
         if (requestOptions?.signal?.aborted) throw error;
         if (error instanceof ContentSourceAdapterError && error.retryable) throw error;
       }
     }
-    const nextOffset = offset + input.limit;
-    const nextCursor = parsed.data.docs_metadata.length >= input.limit ? JSON.stringify({ offset: nextOffset }) : null;
+    const nextOffset = offset + examinedDocuments;
+    const hasMore = examinedDocuments < parsed.data.docs_metadata.length || parsed.data.docs_metadata.length >= fetchLimit;
+    const nextCursor = hasMore ? JSON.stringify({ offset: nextOffset }) : null;
     return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor, estimatedCostMicros: 0, items };
   }
 }

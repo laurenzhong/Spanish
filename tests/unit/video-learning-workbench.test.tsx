@@ -18,7 +18,7 @@ function playback() {
       topics: ["topic.daily-life"], durationMs: 6_000, publishedAt: "2026-09-13T08:00:00.000Z", curatedAt: "2026-09-13T12:00:00.000Z", contentHash: "a".repeat(64),
       progress: { lastPositionMs: 0, lastSegmentIndex: 0, status: "in_progress" as const, revision: 2 },
     },
-    asset: { kind: "official_embed" as const, url: "https://www.youtube-nocookie.com/embed/publicVideo1?enablejsapi=1", expiresAt: null },
+    asset: { kind: "video" as const, url: "https://media.example.b-cdn.net/media/youtube.publicvideo1/1/video.mp4", expiresAt: null },
     segments: [
       { id: "s0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, words: [
         { startMs: 100, endMs: 600, startOffset: 0, endOffset: 6 },
@@ -232,7 +232,7 @@ describe("video learning workbench", () => {
     expect(first.port.pause).not.toHaveBeenCalled();
 
     const second = fakePlayer();
-    const nextPlayback = { ...playback(), media: { ...playback().media, id: "youtube.nextvideo2@1", stableKey: "youtube.nextvideo2", title: "Otro vídeo" }, asset: { ...playback().asset, url: "https://www.youtube-nocookie.com/embed/nextVideo2?enablejsapi=1" } };
+    const nextPlayback = { ...playback(), media: { ...playback().media, id: "youtube.nextvideo2@1", stableKey: "youtube.nextvideo2", title: "Otro vídeo" }, asset: { ...playback().asset, url: "https://media.example.b-cdn.net/media/youtube.nextvideo2/1/video.mp4" } };
     const stale = first.lifecycle();
     rerender(<MediaLearningWorkbench playback={nextPlayback} playerFactory={second.factory} />);
     act(() => stale.onError("old generation failed"));
@@ -256,7 +256,7 @@ describe("video learning workbench", () => {
     });
 
     const second = fakePlayer();
-    const nextPlayback = { ...playback(), media: { ...playback().media, id: "youtube.nextvideo2@1", stableKey: "youtube.nextvideo2", title: "Otro vídeo" }, asset: { ...playback().asset, url: "https://www.youtube-nocookie.com/embed/nextVideo2?enablejsapi=1" } };
+    const nextPlayback = { ...playback(), media: { ...playback().media, id: "youtube.nextvideo2@1", stableKey: "youtube.nextvideo2", title: "Otro vídeo" }, asset: { ...playback().asset, url: "https://media.example.b-cdn.net/media/youtube.nextvideo2/1/video.mp4" } };
     view.rerender(<MediaLearningWorkbench playback={nextPlayback} playerFactory={second.factory} />);
     resolveFirst?.(new Response(JSON.stringify({ data: { progress: { revision: 3 } } }), { status: 200 }));
     await act(async () => Promise.resolve());

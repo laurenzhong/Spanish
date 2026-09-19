@@ -88,6 +88,11 @@ function jsonEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function isHostingExcludedCandidate(row: typeof schema.contentCandidates.$inferSelect): boolean {
+  const metadata = row.metadata as { hostingExclusion?: { reason?: unknown } } | null;
+  return metadata?.hostingExclusion?.reason === "youtube-age-restricted";
+}
+
 function parseMediaTranscriptDraft(value: unknown): MediaTranscriptDraftRecord | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
@@ -232,7 +237,11 @@ export function createDrizzleContentAcquisitionRepository(
 
     async listCandidates(input = {}) {
       const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
-      const conditions = [];
+      const conditions = [
+        // Keep age-gated rows for audit, but do not offer their metadata or
+        // source links as active workflow candidates.
+        sql`coalesce(${schema.contentCandidates.metadata}->'hostingExclusion'->>'reason', '') <> 'youtube-age-restricted'`,
+      ];
       if (input.status) conditions.push(eq(schema.contentCandidates.status, input.status));
       if (input.contentType) conditions.push(eq(schema.contentCandidates.contentType, input.contentType));
       const query = database.select().from(schema.contentCandidates);
@@ -244,7 +253,9 @@ export function createDrizzleContentAcquisitionRepository(
 
     async getCandidateReview(candidateId) {
       const [candidate] = await database.select().from(schema.contentCandidates).where(eq(schema.contentCandidates.id, candidateId)).limit(1);
-      if (!candidate) return null;
+      // Age-gated YouTube rows remain in the database for audit, but their
+      // metadata and source URL must not be exposed through the workflow.
+      if (!candidate || isHostingExcludedCandidate(candidate)) return null;
       const [source, artifacts, attempts, reviews] = await Promise.all([
         database.select().from(schema.acquisitionSources).where(eq(schema.acquisitionSources.id, candidate.sourceId)).limit(1),
         database.select().from(schema.candidateArtifacts).where(eq(schema.candidateArtifacts.candidateId, candidateId)).orderBy(schema.candidateArtifacts.createdAt),

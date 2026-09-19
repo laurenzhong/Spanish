@@ -79,7 +79,7 @@ export type MediaSegment = Readonly<{
 }>;
 
 export type MediaPlaybackAsset = Readonly<{
-  kind: "official_embed" | "audio" | "video";
+  kind: "audio" | "video";
   url: string;
   expiresAt: Date | null;
 }>;
@@ -179,6 +179,13 @@ export function projectMediaPlayback(
   if (url.protocol !== "https:") throw new MediaUnavailableError();
   if (raw.asset.expiresAt && raw.asset.expiresAt.getTime() <= now.getTime()) {
     throw new MediaUnavailableError();
+  }
+  if (raw.card.kind === "video") {
+    const isBunnyMp4 = raw.asset.kind === "video"
+      && url.hostname.toLowerCase().endsWith(".b-cdn.net")
+      && url.pathname.startsWith("/media/")
+      && url.pathname.toLowerCase().endsWith(".mp4");
+    if (!isBunnyMp4) throw new MediaUnavailableError();
   }
   return {
     media: raw.card,

@@ -108,7 +108,7 @@ pnpm db:migrate
 - `0012` 新增四张阅读私有表：`user_reading_progress`、`user_article_saves`、`user_article_highlights`、`user_saved_article_sources`。前三张通过 `article_version_id` 关联已发布内容版本，来源表只保存用户提交的外部 URL 元数据，不保存正文。
 - `0014` 新增 `user_generated_articles`。每行绑定一个内部文章版本和一个用户，保存生成参数、MiniMax provider/model/request 元数据、内容哈希、幂等键和 `ready` 状态；用户只能读取、插入和删除自己的行。关联的文章载体使用级联删除，账号删除会先由 profile 外键清理生成记录及其内部版本，公共文章不受影响。重复的 `(user_id, idempotency_key)` 且参数一致时返回原文章，参数不一致返回 `409 CONFLICT`。
 - `0024` 的媒体版本、资产和片段只通过服务端 repository 访问；资产 URL 必须为 HTTPS，非官方嵌入必须有过期时间。进度保存重新验证当前版本、发布/版权状态、资产可用性、地址有效期、内容总时长和已审核片段，撤下后不能继续写入。
-- `0025` 的 YouTube 正式发布只接受精确的 `youtube-nocookie.com/embed/{videoId}` 官方嵌入。publisher 在同一事务内保存候选 provenance、资产、最多 500 个已审核片段和两份授权 Codex AI 审核记录；同 candidate revision/hash 重试幂等，不同哈希冲突，撤下不会删除审计历史。
+- `0025` 保存 YouTube 来源 provenance；视频正式发布必须同时通过 Bunny MP4 资产校验。publisher 在同一事务内保存候选 provenance、Bunny 资产、最多 500 个已审核片段和两份授权 Codex AI 审核记录；同 candidate revision/hash 重试幂等，不同哈希冲突，撤下不会删除审计历史。
 - `0026` 的播客正式发布要求 feed/enclosure 为无凭据 HTTPS、候选哈希与审核 revision 一致、播放校验未过期，且 transcript 状态与时间轴严格匹配。publisher 在同一事务内保存 RSS provenance、音频资产、可选已审核片段和两份授权 Codex AI 审核记录；无 transcript 可以播放但不会生成片段或能力证据，撤下保留审计历史。
 - `evidence_events` 只追加。首版迁移在 Supabase 角色存在时撤销 `anon` 和 `authenticated` 的 `UPDATE` / `DELETE` 权限。
 - `user_skill_states` 与 `user_scene_states` 是可重算快照，不能替代原始证据。

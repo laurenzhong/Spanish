@@ -37,10 +37,10 @@ describe("media domain", () => {
   it("rejects expired playback and returns only approved bounded segments", () => {
     const now = new Date("2026-09-13T10:00:00.000Z");
     expect(() => projectMediaPlayback({ card: projectMediaCard(raw)!, asset: {
-      kind: "official_embed", url: "https://player.example.test/embed/1", expiresAt: new Date("2026-09-13T09:00:00.000Z"),
+      kind: "video", url: "https://media.example.b-cdn.net/media/fixture/1/video.mp4", expiresAt: new Date("2026-09-13T09:00:00.000Z"),
     }, segments: [] }, now)).toThrow(MediaUnavailableError);
     expect(projectMediaPlayback({ card: projectMediaCard(raw)!, asset: {
-      kind: "official_embed", url: "https://player.example.test/embed/1", expiresAt: null,
+      kind: "video", url: "https://media.example.b-cdn.net/media/fixture/1/video.mp4", expiresAt: null,
     }, segments: [
       { id: "segment-1", index: 0, startMs: 0, endMs: 1_500, sourceText: "Buenos días.", translation: "早上好。", speaker: null, reviewStatus: "approved" },
       { id: "segment-2", index: 1, startMs: 1_500, endMs: 3_000, sourceText: "Borrador", translation: null, speaker: null, reviewStatus: "pending" },

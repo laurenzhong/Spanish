@@ -1,11 +1,26 @@
 # HOSTED-MEDIA-002：Bunny Storage 媒体迁移交接
 
-- 核验日期：2026-09-17。
-- 状态：`done`；“方案二”已完成，20 条视频与 2 条播客均迁移到 Bunny Storage + Pull Zone，并完成完整性、网站播放及 Supabase 清理审计。
+- 核验日期：2026-09-19。
+- 状态：`review`；当前数据库审计已确认所有当前视频使用 Bunny MP4，历史 YouTube 资产全部撤回，未来发布由 Bunny 资产校验和数据库 trigger 双重门禁保护。
+- 当前复核：当前视频 41 条，41/41 为 `bunny-storage`、`video/mp4`、`available` 的 Bunny MP4；0 条可用 YouTube embed。另有 3 条视频条目已归档（含 1 条年龄限制来源，以及 2 条此前只有已撤回 YouTube 资产且无法取得 Bunny 文件的条目）。代码与数据库已核对，部署状态仍需单独确认。
 - 分支：`codex/ui-017-collapsible-shell`；媒体基础设施与迁移脚本提交为 `6e791cb`，本交接随文档提交记录；尚未部署。
 - 决策：[ADR-0009](../adr/0009-hosted-media-assets.md)；[实施计划](../plans/2026-09-15-hosted-media-assets-implementation-plan.md)。
 
 ## 本次真实结果
+
+### 2026-09-19：当前分支真实迁移复核
+
+- 追加数据清理：`youtube.language-reactor.caaa167f75b71cbde3afa057`（`5KMZI_4t6Uw`，ROMANTICISMO）和 `youtube.language-reactor.3531b7ee272335e38ccf29b9`（`pCJqZLaiySU`，Nada Es Como Antes）原本仍指向已撤回的 YouTube 资产，且当前环境 `yt-dlp` 复核均被 YouTube TLS EOF 阻断；通过现有发布归档流程撤下并保留审计记录。远端只读复核随后为当前视频 41 条、Bunny MP4 41/41、非 Bunny/不可用 0 条；历史 `official_embed/youtube` 资产 43 条均为 `withdrawn`。
+
+- 最终当前状态：两条此前只有 YouTube embed 的视频 `eY8gZe7VZhU`、`uUPENpBbE5s` 已完成源文件解码、Bunny 上传、CDN 完整长度/SHA-256 校验、Chrome 播放/seek 验收并切换。当前发布投影为 **41** 条 Bunny 视频、**0** 条可用 YouTube embed；42 条历史 YouTube 资产均为 `withdrawn`，年龄限制条目另为 `archived`。
+- 远端数据库已应用 `0035_bunny_video_asset_guard` 和幂等重申迁移 `0036_reassert_bunny_video_asset_guard`；触发器 `media_assets_bunny_video_guard` 实测拒绝把视频资产改回 `official_embed/youtube`。公开 repository、领域投影、详情页和媒体工作台均只接受/渲染 Bunny MP4。
+
+- 修复恢复脚本：从数据库已有的 `youtube-nocookie.com/embed/<videoId>` 地址提取元数据和下载，不再强制改走不可达的 `youtube.com/watch?v=`；并将 Bunny CDN 分段完整性校验改为最多 4 段并发、按文件顺序合并 SHA-256。
+- 目标视频 `youtube.language-reactor.bf2b3a27b939ede0875ef1db` 已切换为 Bunny MP4。源/目标为 1920×1080 H.264/AAC、2888 秒；Bunny HEAD、全文件 SHA-256、Chrome 原生首播/中段/尾段 seek 均通过。
+- 对当前数据库剩余 YouTube 视频串行恢复：本轮新增 18 条成功，均通过完整解码、Bunny CDN MIME/长度/哈希和 Chrome 播放/seek 后才条件切换。第一条使用数据库已声明的 `es-ES` 作为音频语言上下文，记录了 YouTube 音轨未标注语言的回退；第二条保留 4K 源文件完整性证据，生成 1920×1080 H.264/AAC 兼容 MP4 以完成浏览器验收。当前视频计数为 Bunny **39**、YouTube **1**；播客 Bunny 资产未变。
+- 仍为 YouTube 的唯一条目是 `youtube.language-reactor.f93f144e59cf21afe5c8f728`（`YWM3y1vs38Q`）：yt-dlp 的默认、`web_embedded`、`android`、`ios` 和 `web` 客户端均返回“Sign in to confirm your age”。没有授权登录会话或原始 MP4 时不能安全下载；未读取 Chrome cookies、未绕过年龄/访问控制，也未切换数据库。
+- Playwright + 本机 Chrome（隔离 `AUTH_E2E_ENABLED=1` 服务、测试 cookie、真实数据库）验证目标页：页面 200，`iframe` 数量 0，原生 `<video>` 数量 1，Bunny MP4 `readyState=4`、1920×1080、时长 2888.35 秒；点击播放后 currentTime 增长并成功 seek 到 120 秒。Browser 插件不可用（`unsupported Codex auth method: apikey`），因此按技能要求记录为 Playwright fallback。
+- 当前仍未完成全量迁移，也未部署；不要引用下面历史段落中的 20/20 完成宣称作为本次状态。
 
 ### 2026-09-17：方案二完成
 

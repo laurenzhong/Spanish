@@ -30,6 +30,7 @@
     "content:host-authorized-youtube-video": "tsx scripts/host-authorized-youtube-video.ts",
     "content:migrate-hosted-videos-to-bunny": "node --import tsx/esm scripts/migrate-hosted-videos-to-bunny.ts",
     "content:recover-youtube-to-bunny": "node --import tsx/esm scripts/recover-youtube-videos-batch.ts",
+    "content:host-video-candidate-to-bunny": "node --import tsx/esm scripts/host-video-candidate-to-bunny.ts",
     "content:backfill-media-transcript": "node --conditions=react-server --import tsx/esm scripts/backfill-media-transcript.ts",
     "content:register-language-reactor": "tsx scripts/register-language-reactor-sources.ts",
     "character:import": "tsx scripts/import-character.ts",

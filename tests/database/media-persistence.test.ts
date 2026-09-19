@@ -68,9 +68,10 @@ describe("media persistence", () => {
     });
     await database.insert(schema.mediaAssets).values({
       mediaVersionId: versionId,
-      kind: "official_embed",
-      providerKey: "fixture",
-      playbackUrl: "https://player.example.test/embed/1",
+      kind: "audio",
+      providerKey: "podcast-rss",
+      playbackUrl: "https://radio.example.test/episodes/1.mp3",
+      playbackExpiresAt: new Date("2036-09-13T10:00:00.000Z"),
     });
     await database.insert(schema.mediaSegments).values([
       { id: segmentId, mediaVersionId: versionId, segmentIndex: 0, startMs: 0, endMs: 2_000, sourceText: "Buenos días.", translation: "早上好。", reviewStatus: "approved" },
@@ -89,7 +90,7 @@ describe("media persistence", () => {
     const page = await repository.list(mediaListQuerySchema.parse({}), userA);
     expect(page).toMatchObject({ items: [{ stableKey: "media.fixture.cafe", kind: "podcast", progress: null }], hasMore: false });
     await expect(repository.getPlayback("media.fixture.cafe", userA, new Date("2026-09-13T10:00:00.000Z"))).resolves.toMatchObject({
-      asset: { url: "https://player.example.test/embed/1" },
+      asset: { kind: "audio", url: "https://radio.example.test/episodes/1.mp3" },
       segments: [{ id: segmentId }],
     });
   });
@@ -134,6 +135,9 @@ describe("media persistence", () => {
   });
 
   it("sorts recently continued content by the persisted last-opened time", async () => {
+    await client.exec(await migration("0030_glossy_norrin_radd.sql"));
+    await client.exec(await migration("0032_bunny_storage_video_expiry.sql"));
+    await client.exec(await migration("0035_bunny_video_asset_guard.sql"));
     const secondItemId = "10000000-0000-4000-8000-0000000000e2";
     const secondVersionId = "20000000-0000-4000-8000-0000000000e2";
     await database.insert(schema.mediaItems).values({ id: secondItemId, stableKey: "media.fixture.news", kind: "video", currentVersion: 1 });
@@ -144,7 +148,7 @@ describe("media persistence", () => {
       contentHash: "b".repeat(64), status: "published", license: "licensed", attribution: "Canal ejemplo",
       licenseEvidence: "https://video.example.test/license", copyrightStatus: "cleared",
     });
-    await database.insert(schema.mediaAssets).values({ mediaVersionId: secondVersionId, kind: "official_embed", providerKey: "fixture", playbackUrl: "https://player.example.test/embed/2" });
+    await database.insert(schema.mediaAssets).values({ mediaVersionId: secondVersionId, kind: "video", providerKey: "bunny-storage", playbackUrl: "https://media.example.test/video-2.mp4", mimeType: "video/mp4" });
     await repository.saveProgress(userA, "media.fixture.cafe", 1, { expectedRevision: 0, lastPositionMs: 2_000, lastSegmentIndex: 0, status: "in_progress" }, new Date("2026-09-13T10:00:00.000Z"));
     await repository.saveProgress(userA, "media.fixture.news", 1, { expectedRevision: 0, lastPositionMs: 1_000, lastSegmentIndex: null, status: "in_progress" }, new Date("2026-09-13T11:00:00.000Z"));
 

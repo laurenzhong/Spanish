@@ -61,4 +61,27 @@ describe("content review and publication transactions", () => {
     await expect(repository().markCandidatePublished({ reviewId: duplicateReviewId, candidateId, expectedRevision: 5, expectedContentHash: "a".repeat(64), publicationRef: { kind: "article", stableKey: "article.fixture", version: 1 }, reviewerReference: "codex-ai-owner-authorized-review", publishedAt: new Date("2026-09-13T02:00:00.000Z") })).rejects.toThrow();
     await expect(repository().findCandidateById(candidateId)).resolves.toMatchObject({ publicationStatus: "draft", publicationRef: null });
   });
+
+  it("hides age-restricted YouTube candidates from lists and review details", async () => {
+    const restrictedId = "00000000-0000-4000-8000-000000000749";
+    await database.insert(schema.contentCandidates).values({
+      id: restrictedId,
+      sourceId,
+      externalItemId: "age-gated-video",
+      normalizedUrl: "https://www.youtube.com/watch?v=age-gated-video",
+      title: "Age gated video",
+      contentType: "video",
+      language: "es",
+      contentHash: "b".repeat(64),
+      metadata: { videoDraft: { sourceUrl: "https://www.youtube.com/watch?v=age-gated-video" }, hostingExclusion: { reason: "youtube-age-restricted" } },
+      status: "rejected",
+      rightsStatus: "restricted",
+      generationId: "generation-age-gated",
+      revision: 1,
+      lastActivityAt: new Date("2026-09-13T00:00:00.000Z"),
+      rejectedAt: new Date("2026-09-13T00:01:00.000Z"),
+    });
+    await expect(repository().listCandidates({ limit: 20 })).resolves.not.toContainEqual(expect.objectContaining({ id: restrictedId }));
+    await expect(repository().getCandidateReview(restrictedId)).resolves.toBeNull();
+  });
 });

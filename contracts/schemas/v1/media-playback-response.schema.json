@@ -17,7 +17,7 @@
           "additionalProperties": false,
           "required": ["kind", "url", "expiresAt"],
           "properties": {
-            "kind": { "enum": ["official_embed", "audio", "video"] },
+            "kind": { "enum": ["audio", "video"] },
             "url": { "type": "string", "format": "uri", "pattern": "^https://" },
             "expiresAt": { "type": ["string", "null"], "format": "date-time" }
           }

@@ -30,7 +30,8 @@ describe("media v1 contracts", () => {
     expect(list({ apiVersion: "v1", data: { items: [item] }, page: { nextCursor: null, hasMore: false } }), JSON.stringify(list.errors)).toBe(true);
     expect(list({ apiVersion: "v1", data: { items: [{ ...item, internalLocator: "private/path" }] }, page: { nextCursor: null, hasMore: false } })).toBe(false);
     const playback = validator("media-playback-response.schema.json");
-    expect(playback({ apiVersion: "v1", data: { media: item, asset: { kind: "official_embed", url: "https://player.example.test/embed/1", expiresAt: null }, segments: [] } }), JSON.stringify(playback.errors)).toBe(true);
+    expect(playback({ apiVersion: "v1", data: { media: item, asset: { kind: "video", url: "https://sueno-media.b-cdn.net/media/fixture/1/video.mp4", expiresAt: null }, segments: [] } }), JSON.stringify(playback.errors)).toBe(true);
+    expect(playback({ apiVersion: "v1", data: { media: item, asset: { kind: "official_embed", url: "https://player.example.test/embed/1", expiresAt: null }, segments: [] } })).toBe(false);
   });
 
   it("validates revisioned progress writes", () => {

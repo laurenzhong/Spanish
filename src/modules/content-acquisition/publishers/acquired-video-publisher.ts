@@ -1,5 +1,6 @@
 import { archiveAcquiredVideo, publishAcquiredVideo, validateSegmentTimeline } from "@/src/modules/media";
-import type { AcquiredMediaReview, AcquiredVideoRepository } from "@/src/modules/media/repositories";
+import type { AcquiredMediaReview, AcquiredVideoRepository, HostedVideoAsset } from "@/src/modules/media/repositories";
+import { z } from "zod";
 
 import { calculateVideoCandidateContentHash, videoCandidateDraftSchema } from "../normalizers";
 import type { CandidatePublisher, CandidatePublisherInput } from "./candidate-publisher";
@@ -29,6 +30,27 @@ function requiredReview(
   return { locale, reviewerReference: "codex-ai-owner-authorized-review", notes: review.notes, reviewedAt };
 }
 
+const hostedVideoAssetSchema = z.strictObject({
+  providerKey: z.literal("bunny-storage"),
+  playbackUrl: z.url(),
+  mimeType: z.literal("video/mp4"),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  byteSize: z.number().int().positive(),
+});
+
+function parseHostedVideoAsset(value: unknown): HostedVideoAsset {
+  const asset = hostedVideoAssetSchema.safeParse(value);
+  if (!asset.success) throw new VideoPublicationConflictError("The video must be hosted as a validated Bunny MP4 before publication.");
+  let url: URL;
+  try { url = new URL(asset.data.playbackUrl); } catch { throw new VideoPublicationConflictError("The Bunny video URL is invalid."); }
+  const configuredHost = process.env.BUNNY_STORAGE_PULL_ZONE_HOSTNAME?.trim().toLowerCase();
+  const allowedHost = configuredHost ? url.hostname.toLowerCase() === configuredHost : url.hostname.toLowerCase().endsWith(".b-cdn.net");
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !url.pathname.startsWith("/media/") || !allowedHost) {
+    throw new VideoPublicationConflictError("The video must use a stable Bunny Storage Pull Zone MP4 URL.");
+  }
+  return asset.data;
+}
+
 export class AcquiredVideoPublisher implements CandidatePublisher {
   readonly contentType = "video" as const;
 
@@ -48,6 +70,9 @@ export class AcquiredVideoPublisher implements CandidatePublisher {
     const captionMatches = draft.captionStatus === "unavailable"
       ? draft.segments.length === 0
       : draft.segments.length > 0 && draft.segments.every((segment) => segment.sourceKind === draft.captionStatus);
+    let hostedAsset: HostedVideoAsset;
+    try { hostedAsset = parseHostedVideoAsset(input.metadata.bunnyVideoAsset); }
+    catch (error) { if (error instanceof VideoPublicationConflictError) throw error; throw new VideoPublicationConflictError("The Bunny video asset is invalid."); }
     if (
       input.contentType !== "video"
       || input.contentHash !== draft.contentHash
@@ -71,6 +96,7 @@ export class AcquiredVideoPublisher implements CandidatePublisher {
       candidateRevision: input.candidateRevision,
       contentHash: input.contentHash,
       draft,
+      hostedAsset,
       reviews,
       publishedAt: reviewedAt,
     });

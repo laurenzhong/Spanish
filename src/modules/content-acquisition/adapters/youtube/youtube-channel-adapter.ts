@@ -32,6 +32,12 @@ const videoDetailsSchema = z.strictObject({
         allowed: z.array(z.string()).optional(),
         blocked: z.array(z.string()).optional(),
       }).optional(),
+      // YouTube exposes age gates through contentRating even when the video
+      // remains public and embeddable. Treat that provider declaration as a
+      // hard exclusion before we persist a candidate or its source URL.
+      contentRating: z.strictObject({
+        ytRating: z.string().optional(),
+      }).passthrough().optional(),
     }).passthrough(),
     status: z.strictObject({
       privacyStatus: z.string(),
@@ -185,18 +191,14 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
     if (feed.status === 304) {
       return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor: input.cursor, estimatedCostMicros: 0, items: [] };
     }
+    // Do not slice before provider filtering. If the newest entries include
+    // age-gated or otherwise unusable videos, later eligible entries should
+    // fill the requested page where the feed provides them.
     const feedVideos = parseFeed(feed.text)
       .filter((video) => !cursor || video.publishedAt > cursor.latestPublishedAt || (video.publishedAt === cursor.latestPublishedAt && video.videoId !== cursor.latestVideoId))
-      .slice(0, input.limit);
-    const newest = parseFeed(feed.text)[0];
-    const nextCursor = newest ? JSON.stringify({
-      latestPublishedAt: newest.publishedAt,
-      latestVideoId: newest.videoId,
-      ...(feed.headers.get("etag") ? { etag: feed.headers.get("etag")! } : {}),
-      ...(feed.headers.get("last-modified") ? { lastModified: feed.headers.get("last-modified")! } : {}),
-    }) : input.cursor;
+      .slice(0, Math.min(50, input.limit * 2));
     if (feedVideos.length === 0) {
-      return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor, estimatedCostMicros: 0, items: [] };
+      return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor: input.cursor, estimatedCostMicros: 0, items: [] };
     }
     const detailsUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
     detailsUrl.searchParams.set("part", "snippet,contentDetails,status");
@@ -229,6 +231,7 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
         || (declaredLanguage !== undefined && !/^es(?:-|$)/iu.test(declaredLanguage))
         || detail.status.privacyStatus !== "public"
         || !detail.status.embeddable
+        || detail.contentDetails.contentRating?.ytRating?.toLowerCase() === "ytagerestricted"
         || (this.options.source.license === "creative_commons" && detail.status.license !== "creativeCommon")
         || !duration
         || duration < (this.options.source.minDurationMs ?? 1_000)
@@ -280,6 +283,16 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
         metadata: { videoDraft: draft },
       });
     }
-    return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor, estimatedCostMicros: 0, items };
+    const returnedItems = items.slice(0, input.limit);
+    const cursorVideo = returnedItems.length > 0
+      ? feedVideos.find((video) => video.videoId === returnedItems.at(-1)?.externalItemId)
+      : feedVideos.at(-1);
+    const nextCursor = cursorVideo ? JSON.stringify({
+      latestPublishedAt: cursorVideo.publishedAt,
+      latestVideoId: cursorVideo.videoId,
+      ...(feed.headers.get("etag") ? { etag: feed.headers.get("etag")! } : {}),
+      ...(feed.headers.get("last-modified") ? { lastModified: feed.headers.get("last-modified")! } : {}),
+    }) : input.cursor;
+    return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor, estimatedCostMicros: 0, items: returnedItems };
   }
 }

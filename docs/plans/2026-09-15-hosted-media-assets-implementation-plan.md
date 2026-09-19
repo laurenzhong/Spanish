@@ -54,7 +54,7 @@
 
 - 扩展 Supabase Storage provider，支持视频对象和 MIME/大小上限。
 - 新增 `pnpm content:host-authorized-youtube-video` 一次性回填脚本；运行必须显式设置 `MEDIA_VIDEO_HOSTING_CONFIRM=I_HAVE_AUTHORIZATION`，并依赖调用环境提供 `yt-dlp` 与 ffmpeg。
-- 上传成功后原子切换既有视频资产为 `kind=video`、稳定本站 URL、`playbackExpiresAt=null`；失败清理对象并保留官方嵌入。
+- 上传成功后原子切换既有视频资产为 `kind=video`、稳定 Bunny MP4 URL、`playbackExpiresAt=null`；失败不进入公开投影，保留来源审计记录但不保留可播放的 YouTube fallback。
 - 详情工作台增加 Plyr 视频适配器，保留字幕、逐句控制和进度同步。
 
 ### 不在范围
@@ -66,5 +66,5 @@
 ### 验收
 
 - 托管资产通过稳定 `media-video` URL 返回浏览器可播放的 MP4，并在详情页使用 Plyr 控制器包装 `<video controls>`。
-- 重复运行只处理仍为 `official_embed` 的行，失败不改变数据库资产。
-- Playwright 验证 hosted video 的 Plyr 控制器、字幕交互和进度回调；官方嵌入回归继续通过。
+- 重复运行只处理仍为可迁移来源资产的行；成功后只返回 Bunny MP4，年龄/访问限制归档并撤回来源资产，其他失败不改变公开投影。
+- Playwright 验证 hosted video 的 Plyr 控制器、字幕交互和进度回调；视频不再回归到 YouTube 嵌入路径。

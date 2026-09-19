@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -24,6 +24,9 @@ async function setupDatabase() {
     "0025_youtube_video_publication.sql",
     "0026_brief_toro.sql",
     "0027_pale_colossus.sql",
+    "0032_bunny_storage_video_expiry.sql",
+    "0034_media_word_timings.sql",
+    "0035_bunny_video_asset_guard.sql",
   ]) {
     const sql = (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
     await client.exec(sql);
@@ -47,6 +50,14 @@ const reviews = [
   { locale: "zh-CN" as const, reviewerReference: "codex-ai-owner-authorized-review" as const, notes: "教学说明已复核。", reviewedAt: new Date("2026-09-13T11:00:00.000Z") },
 ] as const;
 
+const bunnyVideoAsset = {
+  providerKey: "bunny-storage" as const,
+  playbackUrl: "https://sueno-media.b-cdn.net/media/youtube.publicvideo1/1/video-test.mp4",
+  mimeType: "video/mp4" as const,
+  sha256: "a".repeat(64),
+  byteSize: 1234,
+};
+
 describe("reviewed YouTube video publication persistence", () => {
   let client: PGlite;
   let database: ReturnType<typeof drizzle<typeof schema>>;
@@ -54,18 +65,19 @@ describe("reviewed YouTube video publication persistence", () => {
   afterEach(async () => client?.close());
   const repository = () => createDrizzleMediaRepository(database as unknown as Database);
 
-  it("publishes idempotently with candidate provenance, official embed, segments, and reviews", async () => {
+  it("publishes idempotently with candidate provenance, Bunny MP4, segments, and reviews", async () => {
     const video = draft();
-    const input = { candidateId, candidateRevision: 5, contentHash: video.contentHash, draft: video, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z") };
+    const input = { candidateId, candidateRevision: 5, contentHash: video.contentHash, draft: video, hostedAsset: bunnyVideoAsset, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z") };
     const first = await repository().publishAcquiredVideo(input);
     await expect(repository().publishAcquiredVideo(input)).resolves.toEqual(first);
     expect(first).toEqual({ kind: "media", stableKey: video.stableKey, version: 1 });
     await expect(repository().getPlayback(video.stableKey, "00000000-0000-4000-8000-000000000001", new Date("2026-09-13T13:00:00.000Z"))).resolves.toMatchObject({
-      asset: { kind: "official_embed", url: video.embedUrl },
+      asset: { kind: "video", url: bunnyVideoAsset.playbackUrl },
       segments: [{ sourceText: "Buenos días." }],
     });
     const [version] = await database.select().from(schema.mediaVersions).where(eq(schema.mediaVersions.acquisitionCandidateId, candidateId));
     expect(version).toMatchObject({ acquisitionCandidateRevision: 5, fetchedAt: new Date(video.fetchedAt), changeReason: video.changeReason, artworkUrl: video.artwork?.url, artworkSource: "youtube" });
+    await expect(database.execute(sql`update media_assets set kind='official_embed', provider_key='youtube', playback_url=${video.embedUrl}, mime_type=null where media_version_id=${version.id}`)).rejects.toThrow();
     await expect(repository().list({ pageSize: 24, sort: "recently_added" })).resolves.toMatchObject({ items: [{ artwork: { url: video.artwork?.url, source: "youtube" } }] });
     const [reviewCount] = await database.select({ value: count() }).from(schema.contentReviews).where(eq(schema.contentReviews.entityType, "media"));
     expect(reviewCount?.value).toBe(2);
@@ -74,7 +86,7 @@ describe("reviewed YouTube video publication persistence", () => {
 
   it("archives only the publication owned by the candidate and removes it from public playback", async () => {
     const video = draft();
-    const publication = await repository().publishAcquiredVideo({ candidateId, candidateRevision: 5, contentHash: video.contentHash, draft: video, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z") });
+    const publication = await repository().publishAcquiredVideo({ candidateId, candidateRevision: 5, contentHash: video.contentHash, draft: video, hostedAsset: bunnyVideoAsset, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z") });
     await repository().archiveAcquiredVideo({ candidateId, publication, archivedAt: new Date("2026-09-13T14:00:00.000Z") });
     await expect(repository().list({ pageSize: 24, sort: "recently_added" })).resolves.toMatchObject({ items: [] });
     await expect(repository().archiveAcquiredVideo({ candidateId: "00000000-0000-4000-8000-000000000899", publication, archivedAt: new Date("2026-09-13T15:00:00.000Z") })).rejects.toBeInstanceOf(AcquiredVideoPersistenceConflictError);

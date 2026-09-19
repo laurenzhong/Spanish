@@ -1,7 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { VideoPlayerAdapter, youtubeIframePlayerFactory, type VideoPlayerPort } from "@/src/modules/media/ui/video-player-adapter";
+import { HostedVideoPlayerAdapter, type VideoPlayerPort } from "@/src/modules/media/ui/video-player-adapter";
 
 const plyrMock = vi.hoisted(() => ({ instances: [] as Array<{
   currentTime: number;
@@ -14,9 +14,9 @@ vi.mock("plyr", () => ({
     currentTime = 0;
     callbacks = new Map<string, Set<() => void>>();
     elements = { controls: document.createElement("div") };
-    media: HTMLElement & { error?: { code?: number } };
+    media: HTMLVideoElement;
 
-    constructor(target: HTMLElement) {
+    constructor(target: HTMLVideoElement) {
       this.media = target;
       target.parentElement?.appendChild(this.elements.controls);
       plyrMock.instances.push(this);
@@ -43,37 +43,37 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderPlayer(overrides: Partial<React.ComponentProps<typeof VideoPlayerAdapter>> = {}) {
-  return render(<VideoPlayerAdapter
+function renderPlayer(overrides: Partial<React.ComponentProps<typeof HostedVideoPlayerAdapter>> = {}) {
+  return render(<HostedVideoPlayerAdapter
     autoPause={false}
-    embedUrl="https://www.youtube-nocookie.com/embed/yw5EhfOU2iE"
     hasSegments
     onAutoPauseControlReady={vi.fn()}
     onError={vi.fn()}
     onPortChange={vi.fn()}
     onStateChange={vi.fn()}
+    onTimeUpdate={vi.fn()}
     onToggleAutoPause={vi.fn()}
     title="Video"
+    videoUrl="https://media.example.b-cdn.net/media/video/1/video.mp4"
     {...overrides}
   />);
 }
 
-it("uses the shared Plyr surface with only the embedded auto-pause control", async () => {
+it("uses a native Bunny MP4 surface with the shared Plyr auto-pause control", async () => {
   const onToggleAutoPause = vi.fn();
   const view = renderPlayer({ onToggleAutoPause });
 
-  expect(screen.getByLabelText("Video")).toHaveAttribute("data-plyr-provider", "youtube");
-  expect(screen.getByLabelText("Video")).toHaveAttribute("data-plyr-embed-id", "yw5EhfOU2iE");
+  const video = view.container.querySelector("video");
+  expect(video).toHaveAttribute("src", "https://media.example.b-cdn.net/media/video/1/video.mp4");
+  expect(view.container.querySelector("iframe")).not.toBeInTheDocument();
   await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).toBeInTheDocument());
   const autoPause = view.container.querySelector("[data-media-auto-pause-control]") as HTMLButtonElement;
   expect(autoPause).toHaveAttribute("aria-pressed", "false");
   fireEvent.click(autoPause);
   expect(onToggleAutoPause).toHaveBeenCalledOnce();
-  expect(autoPause).toHaveAttribute("aria-pressed", "false");
-  expect(view.container).not.toHaveTextContent("在 YouTube 打开");
 });
 
-it("drives the shared player port through Plyr", async () => {
+it("drives the shared player port through native video Plyr", async () => {
   let port: VideoPlayerPort | null = null;
   const onStateChange = vi.fn();
   renderPlayer({ onPortChange: (value) => { port = value; }, onStateChange });
@@ -87,24 +87,12 @@ it("drives the shared player port through Plyr", async () => {
   expect(onStateChange).toHaveBeenCalledWith("paused");
 });
 
-it("does not render a YouTube handoff link", async () => {
-  const view = renderPlayer();
-  await waitFor(() => expect(view.container.querySelector("[data-media-auto-pause-control]")).toBeInTheDocument());
-  expect(view.container.querySelector("a[href*='youtube.com/watch']")).not.toBeInTheDocument();
-});
-
-it("classifies 153 as missing embed identity and sets referrer policy in the direct SDK fallback", () => {
-  let events: { onError(event: { data: number }): void };
-  const Player = vi.fn(function (target: HTMLElement, options: { events: typeof events }) {
-    expect(target).toHaveAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-    expect(target).toHaveAttribute("src", expect.stringContaining("origin="));
-    events = options.events;
-    return { destroy: vi.fn() };
-  });
-  vi.stubGlobal("YT", { Player });
+it("reports a hosted playback error without mentioning YouTube", async () => {
   const onError = vi.fn();
-  youtubeIframePlayerFactory(document.createElement("div"), { videoId: "yw5EhfOU2iE", lifecycle: { onReady: vi.fn(), onStateChange: vi.fn(), onError } });
-  events!.onError({ data: 153 });
-  expect(onError).toHaveBeenCalledWith(expect.stringContaining("来源身份"));
-  expect(onError).not.toHaveBeenCalledWith(expect.stringMatching(/登录|验证/));
+  renderPlayer({ onError });
+  await waitFor(() => expect(plyrMock.instances[0]).toBeDefined());
+  const player = plyrMock.instances[0]!;
+  act(() => player?.emit("error"));
+  await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringContaining("本站视频资源")));
+  expect(onError.mock.calls.flat().join(" ")).not.toMatch(/YouTube|iframe/iu);
 });
