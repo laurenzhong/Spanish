@@ -9,40 +9,6 @@ import {
   type AudioPlayerPort,
 } from "@/src/modules/media";
 
-const plyrMock = vi.hoisted(() => ({ instances: [] as Array<{
-  options: Readonly<Record<string, unknown>>;
-  callbacks: Map<string, Set<() => void>>;
-}> }));
-
-vi.mock("plyr", () => ({
-  default: class MockPlyr {
-    currentTime = 0;
-    callbacks = new Map<string, Set<() => void>>();
-    elements = { controls: document.createElement("div") };
-    media: HTMLElement & { error?: { code?: number } };
-    options: Readonly<Record<string, unknown>>;
-
-    constructor(target: HTMLElement, options: Readonly<Record<string, unknown>>) {
-      this.media = target;
-      this.options = options;
-      target.parentElement?.appendChild(this.elements.controls);
-      plyrMock.instances.push(this);
-      queueMicrotask(() => this.emit("ready"));
-    }
-
-    emit(event: string) { this.callbacks.get(event)?.forEach((callback) => callback()); }
-    on(event: string, callback: () => void) {
-      const callbacks = this.callbacks.get(event) ?? new Set();
-      callbacks.add(callback);
-      this.callbacks.set(event, callbacks);
-    }
-    off(event: string, callback: () => void) { this.callbacks.get(event)?.delete(callback); }
-    play() { this.emit("play"); return Promise.resolve(); }
-    pause() { this.emit("pause"); }
-    destroy() { this.callbacks.clear(); this.elements.controls.remove(); }
-  },
-}));
-
 function playback(withTranscript = true) {
   return {
     media: {
@@ -80,22 +46,28 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-  plyrMock.instances.length = 0;
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("podcast audio player", () => {
-  it("uses the shared Plyr surface and icon-only auto-pause control", async () => {
+  it("uses react-h5-audio-player with a full-width progress bar and custom controls", async () => {
     const view = render(<MediaLearningWorkbench playback={playback()} />);
 
-    await waitFor(() => expect(plyrMock.instances).toHaveLength(1));
-    expect(plyrMock.instances[0]?.options).toMatchObject({ settings: ["speed"] });
+    const player = view.container.querySelector<HTMLElement>(".podcast-audio-player");
+    expect(player).toBeInTheDocument();
+    expect(player?.querySelector(".rhap_progress-section")).toBeInTheDocument();
+    expect(player?.querySelector(".rhap_controls-section")).toBeInTheDocument();
+    expect(view.container.querySelector(".media-detail__player--podcast .plyr")).not.toBeInTheDocument();
+
     const autoPause = view.container.querySelector<HTMLButtonElement>("[data-media-auto-pause-control]")!;
     expect(autoPause).toHaveAccessibleName("开启自动暂停");
     expect(autoPause).toHaveTextContent("");
     expect(autoPause.querySelector("svg")).toBeInTheDocument();
     fireEvent.click(autoPause);
     expect(autoPause).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(screen.getByLabelText("播放速度"), { target: { value: "1.5" } });
+    expect(view.container.querySelector("audio")).toHaveProperty("playbackRate", 1.5);
     expect(screen.queryByRole("group", { name: "逐句播放控制" })).not.toBeInTheDocument();
   });
 

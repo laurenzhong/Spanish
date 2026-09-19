@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 import { AccountMenu } from "./account-menu";
 import { NavigationIcon, navigationGroups } from "./bottom-navigation";
 
 export function DesktopNavigation() {
   const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   return (
     <nav
@@ -30,6 +32,9 @@ export function DesktopNavigation() {
                     href={item.href}
                     key={item.href}
                     title={item.label}
+                    onClick={() => setPendingHref(item.href)}
+                    data-pending={pendingHref === item.href && pathname !== item.href ? "true" : undefined}
+                    prefetch
                   >
                     <span className="desktop-navigation__icon"><NavigationIcon name={item.icon} /></span>
                     <span className="desktop-navigation__label">{item.label}</span>

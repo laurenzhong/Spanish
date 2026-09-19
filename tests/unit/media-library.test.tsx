@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MediaLibrary } from "@/src/modules/media";
 
@@ -55,5 +55,74 @@ describe("media library", () => {
     expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "取消" }));
     expect(trigger).toHaveFocus();
+  });
+
+  it("appends the next cursor page when the feed sentinel enters the viewport", async () => {
+    let observerCallback: IntersectionObserverCallback | undefined;
+    const originalIntersectionObserver = window.IntersectionObserver;
+    const originalFetch = globalThis.fetch;
+    class TestIntersectionObserver {
+      readonly root = null;
+      readonly rootMargin = "";
+      readonly thresholds: readonly number[] = [];
+
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      disconnect() {}
+      observe() {}
+      takeRecords(): IntersectionObserverEntry[] { return []; }
+      unobserve() {}
+    }
+    Object.defineProperty(window, "IntersectionObserver", { configurable: true, value: TestIntersectionObserver });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: { items: [{
+        id: "media.fixture.next@1", stableKey: "media.fixture.next", version: 1, kind: "video",
+        title: "Siguiente conversación", summary: "Más contenido.", sourceName: "Canal", language: "es", region: "es-ES", cefr: "A2", topics: [], durationMs: 60_000,
+        publishedAt: null, curatedAt: "2026-09-13T08:00:00.000Z", contentHash: "c".repeat(64), progress: null,
+      }] },
+      page: { nextCursor: null, hasMore: false },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+
+    try {
+      render(<MediaLibrary result={{ items: [{
+        id: "media.fixture.initial@1", stableKey: "media.fixture.initial", version: 1, kind: "video",
+        title: "Conversación inicial", summary: "Contenido inicial.", sourceName: "Canal", language: "es", region: "es-ES", cefr: "A2", topics: [], durationMs: 60_000,
+        publishedAt: null, curatedAt: "2026-09-13T08:00:00.000Z", contentHash: "d".repeat(64), progress: null,
+      }], nextCursor: "cursor-2", hasMore: true }} query={{}} />);
+      observerCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+
+      await waitFor(() => expect(screen.getByRole("link", { name: /Siguiente conversación/ })).toBeInTheDocument());
+      expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining("cursor=cursor-2"), expect.objectContaining({ headers: { accept: "application/json" } }));
+      expect(screen.queryByRole("link", { name: "加载更多" })).not.toBeInTheDocument();
+    } finally {
+      globalThis.fetch = originalFetch;
+      Object.defineProperty(window, "IntersectionObserver", { configurable: true, value: originalIntersectionObserver });
+    }
+  });
+
+  it("enables the return-to-top action after scrolling and uses smooth scrolling", async () => {
+    const originalScrollY = window.scrollY;
+    const originalScrollTo = window.scrollTo;
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+    window.scrollTo = vi.fn();
+    const { userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+
+    try {
+      render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{}} />);
+      expect(screen.queryByRole("button", { name: "回到顶部" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "刷新页面" })).toBeInTheDocument();
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 360 });
+      window.dispatchEvent(new Event("scroll"));
+      const backToTop = await screen.findByRole("button", { name: "回到顶部" });
+      await waitFor(() => expect(backToTop).toBeEnabled());
+      await user.click(backToTop);
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+    } finally {
+      Object.defineProperty(window, "scrollY", { configurable: true, value: originalScrollY });
+      window.scrollTo = originalScrollTo;
+    }
   });
 });

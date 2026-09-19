@@ -39,6 +39,9 @@ export default async function LearnPage({ searchParams }: Readonly<{ searchParam
   let result;
   let unavailable = false;
   try {
+    // Let the database query finish. A cold serverless connection can take
+    // longer than two seconds; treating that as an empty library hides real
+    // published media and makes the page disagree with the media API.
     result = await listMedia(createDrizzleMediaRepository(getDatabase()), query, user?.id);
   } catch {
     result = { items: [], nextCursor: null, hasMore: false };

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 export const navigationGroups = [
   {
@@ -74,6 +75,7 @@ export function NavigationIcon({ name }: Readonly<{ name: NavigationIconName }>)
 
 export function BottomNavigation() {
   const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   return (
     <nav className="primary-navigation" aria-label="主要导航">
@@ -95,6 +97,9 @@ export function BottomNavigation() {
                     className="navigation-link"
                     href={item.href}
                     key={item.href}
+                    onClick={() => setPendingHref(item.href)}
+                    data-pending={pendingHref === item.href && pathname !== item.href ? "true" : undefined}
+                    prefetch
                   >
                     <span className="navigation-icon">
                       <NavigationIcon name={item.icon} />

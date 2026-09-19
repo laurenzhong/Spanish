@@ -2,6 +2,67 @@ import { expect, test } from "@playwright/test";
 
 const fixtureStableKey = "podcast.e2e-cafe";
 
+test("prioritizes the podcast transcript and shows contextual explanation", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route("**/api/v1/read/word-explanation", (route) => route.fulfill({
+    contentType: "application/x-ndjson",
+    body: JSON.stringify({ type: "done", explanation: { partOfSpeech: "感叹词", meaning: "早上好", contextualMeaning: "在市场见面时的问候", example: "Buenos días, Ana." } }) + "\n",
+  }));
+  await page.goto(`/learn/media/${fixtureStableKey}`);
+  const playerLocator = page.locator(".media-detail__player");
+  const transcriptLocator = page.locator(".media-learning-workbench__transcript");
+  await expect(playerLocator).toBeVisible();
+  await expect(transcriptLocator).toBeVisible();
+  const player = await playerLocator.boundingBox();
+  const transcript = await transcriptLocator.boundingBox();
+  expect(transcript!.width).toBeGreaterThan(player!.width * 1.8);
+  await page.screenshot({ path: testInfo.outputPath("podcast-desktop.png"), fullPage: true });
+  await page.getByRole("button", { name: "查看词语 Buenos" }).click();
+  await expect(page.getByText("在市场见面时的问候")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("podcast-explanation.png"), fullPage: true });
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await page.screenshot({ path: testInfo.outputPath("podcast-mobile.png"), fullPage: true });
+});
+
+test("keeps the podcast progress bar full width in a dedicated audio layout", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/learn/media/${fixtureStableKey}`);
+  const player = page.locator(".podcast-audio-player");
+  const progress = player.locator(".rhap_progress-section");
+  const controls = player.locator(".rhap_controls-section");
+  await expect(player).toBeVisible();
+  await expect(progress).toBeVisible();
+  await expect(controls).toBeVisible();
+  await expect(page.locator(".media-detail__player--podcast .plyr")).toHaveCount(0);
+
+  const playerBox = await player.boundingBox();
+  const progressBox = await progress.boundingBox();
+  const controlsBox = await controls.boundingBox();
+  expect(playerBox).not.toBeNull();
+  expect(progressBox).not.toBeNull();
+  expect(controlsBox).not.toBeNull();
+  expect(progressBox!.width).toBeGreaterThan(playerBox!.width * 0.9);
+  expect(controlsBox!.y).toBeGreaterThanOrEqual(progressBox!.y + progressBox!.height);
+
+  const speed = page.getByLabel("播放速度");
+  await expect(speed).toBeVisible();
+  await speed.selectOption("1.5");
+  await expect(speed).toHaveValue("1.5");
+  expect(await page.locator("audio").evaluate((element) => (element as HTMLAudioElement).playbackRate)).toBe(1.5);
+  await expect(page.locator("[data-media-auto-pause-control]")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("podcast-audio-layout-desktop.png"), fullPage: true });
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  const mobilePlayerBox = await player.boundingBox();
+  const mobileProgressBox = await progress.boundingBox();
+  expect(mobilePlayerBox).not.toBeNull();
+  expect(mobileProgressBox).not.toBeNull();
+  expect(mobileProgressBox!.width).toBeGreaterThan(mobilePlayerBox!.width * 0.9);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await page.screenshot({ path: testInfo.outputPath("podcast-audio-layout-mobile.png"), fullPage: true });
+});
+
 test.beforeEach(async ({ context, page, baseURL }) => {
   await context.addCookies([{
     name: "spanish-e2e-user",
@@ -28,7 +89,10 @@ test.beforeEach(async ({ context, page, baseURL }) => {
       },
     });
     HTMLMediaElement.prototype.load = function () {
-      setTimeout(() => this.dispatchEvent(new Event("canplay")), 0);
+      setTimeout(() => {
+        this.dispatchEvent(new Event("loadedmetadata"));
+        this.dispatchEvent(new Event("canplay"));
+      }, 0);
     };
     HTMLMediaElement.prototype.play = function () {
       this.dataset.playing = "true";
@@ -59,9 +123,10 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
   await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`);
 
   await expect(page.getByRole("heading", { name: "Una mañana en el mercado" })).toBeVisible();
-  const audio = page.getByLabel("Una mañana en el mercado 播放器", { exact: true });
-  await expect(audio).toBeVisible();
-  await expect(page.getByText("播放器已就绪")).toBeVisible();
+  const audio = page.locator("audio");
+  await expect(page.getByRole("group", { name: "Una mañana en el mercado 播放器 控制", exact: true })).toBeVisible();
+  await expect(audio).toHaveCount(1);
+  await expect(page.locator(".media-player-status")).toBeVisible();
   const autoPause = page.locator("[data-media-auto-pause-control]");
   await expect(autoPause).toBeVisible();
   await expect(autoPause).toHaveText("");
@@ -75,6 +140,7 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
     element.dispatchEvent(new Event("timeupdate"));
   });
   await expect(page.getByRole("listitem").nth(1)).toHaveClass(/is-active/);
+  await page.waitForTimeout(100);
   await page.evaluate(() => {
     const element = document.querySelector("audio")!;
     element.currentTime = 0;
