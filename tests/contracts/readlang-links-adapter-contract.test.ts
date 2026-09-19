@@ -65,7 +65,31 @@ describe("Readlang links adapter contract", () => {
     const result = await new ReadlangLinksAdapter({ fetch: offPolicy, policy }).discover({ sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, cursor: null, limit: 1 });
     expect(result.items).toEqual([]);
     expect(result.nextCursor).toContain('"offset":0');
-    expect(offPolicy).toHaveBeenCalledTimes(2);
+    expect(offPolicy).toHaveBeenCalledTimes(3);
+  });
+
+  it("tries exact non-home URLs from the authorized snapshot even when the directory only lists homepages", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === policy.sourceUrl) {
+        return response("<html><body><div id=\"app\"></div></body></html>", { headers: { "content-type": "text/html" } });
+      }
+      if (url === "https://readlang.com/api/popularDomains?language=es&limit=50") {
+        return response(JSON.stringify([{ domainName: "news.example.test", path: "/" }]), {
+          headers: { "content-type": "application/json" },
+          url,
+        });
+      }
+      expect(url).toBe("https://news.example.test/one");
+      return response("<html><head><title>Una noticia autorizada</title></head><body><p>La biblioteca abre una sala nueva.</p></body></html>", {
+        headers: { "content-type": "text/html" },
+        url,
+      });
+    });
+    const adapter = new ReadlangLinksAdapter({ fetch: fetchMock, policy, now: () => new Date("2026-09-18T00:00:00.000Z") });
+    const result = await adapter.discover({ sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, cursor: null, limit: 1 });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.canonicalUrl).toBe("https://news.example.test/one");
   });
 
   it("uses the fixed Readlang popular-domains API when the page is client-rendered", async () => {

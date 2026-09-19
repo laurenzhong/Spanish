@@ -31,6 +31,13 @@
 - 自动发布入口新增 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` fail-closed 校验，workflow 从 protected Environment 变量传入；缺失/非 true 不允许 `auto-publish`，并新增 CLI 回归测试。仍未执行真实采集、真实 MiniMax 或生产发布。
 - 工具审查表已同步当前状态：学习主题、阅读词汇/短语书架、探索三视图和三角色聊天不再标记为“待集成”，而是标记为已集成并通过桌面/移动 Playwright；真实 provider、生产关系数据和真实来源授权仍列为独立验收项。
 
+### 2026-09-19：RELEASE-REVIEW-001 真实媒体发布复核
+
+- Readlang 适配器现在会优先尝试策略快照中已明确列出的非首页 URL；仍逐条执行 HTTPS、host、响应大小、正文结构、语言、哈希和审核校验，不扩大授权范围。新增契约测试与运行手册说明。
+- 目标数据库真实运行 `media-daily --mode review-only --daily-limit 50 --source-limit 10` 后，今天新增的 10 条视频全部通过 owner workflow 的 `content-es-ES`、`teaching-zh-CN`、`structure` 审核并公开生成 `media` 版本；1 条播客 canary 同样通过音频 enclosure/hash/播放有效期门禁并公开生成 `media` 版本。视频与播客均由现有 `MediaLearningWorkbench` 页面消费。
+- 文章真实运行 `article-daily --mode review-only --daily-limit 50 --source-limit 10 --policy-version readlang-links-v1` 发现 3 条、准备 3 条；MiniMax 审核全部拒绝（英文博客、英文论坛线程、Albalearning 首页/法律宣传内容），公开文章仍为 0。不能把这些内容伪装成西语学习文章；需要新的具体西语文章 URL 或 RSS policy revision。
+- 本机未跟踪 `.env` 已配置已核实活跃所有者 UUID 的 `CONTENT_WORKFLOW_OWNER_USER_IDS`，未提交任何密钥。Playwright fallback 验证 owner 工作流页面 200、学习资料库列出公开媒体、播客/视频详情均进入统一媒体工作台；Chrome/CUA 接管仍受本机 `apikey` 认证限制。
+
 ### 2026-09-19：MIG-RECONCILE-001 内容流水线迁移分叉
 
 - 状态：`blocked`（等待选择并审核正式的 forward-only 迁移整合方案）；任务记录：[MIG-RECONCILE-001](docs/tasks/MIG-RECONCILE-001.md)。

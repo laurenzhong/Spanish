@@ -167,6 +167,18 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
         if (requestOptions?.signal?.aborted) throw error;
       }
     }
+    // The client-rendered directory mostly returns domain homepages. Keep the
+    // exact non-home URLs already present in the policy snapshot at the front
+    // of the page so an authorized article is not starved by those homepages.
+    const snapshotArticleLinks = this.options.policy.allowlist.urls.filter((value) => {
+      try {
+        const url = new URL(value);
+        return url.pathname !== "/" || url.search.length > 0;
+      } catch {
+        return false;
+      }
+    });
+    links = [...new Set([...snapshotArticleLinks, ...links])];
     const selected = links.slice(cursor.offset, cursor.offset + input.limit);
     const items: ContentSourcePage["items"][number][] = [];
     for (const url of selected) {

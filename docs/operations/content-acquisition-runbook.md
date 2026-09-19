@@ -25,6 +25,8 @@ Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article
 
 Readlang 入口目前由客户端渲染，适配器在先读取入口 HTML 后，只允许请求同站固定的 `https://readlang.com/api/popularDomains?language=es&limit=50`，再把返回的域名/路径逐条套用既有快照 allowlist；不会把 API 返回内容当作新的授权来源。每个外部页面有 15 秒超时和正文大小限制，未抽取出合规文章时保留当前游标以便重试，不把网站首页简介伪装成文章候选。
 
+策略快照中已经明确列出的非首页 URL 会优先于 API 返回的域名首页尝试；这只改变已授权 URL 的处理顺序，不增加 host、路径或自动发现范围。仍需通过正文结构、语言、哈希和审核门禁后才能进入发布流程。
+
 ## 首次受控运行
 
 1. 对一个 YouTube、播客 RSS 和文章 RSS 来源分别执行 `discover --dry-run`，核对数量、重复、权利和估算成本。
