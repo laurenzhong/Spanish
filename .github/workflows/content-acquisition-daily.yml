@@ -50,6 +50,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Register owner-authorized Readlang policy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:register-readlang-links
       - name: Run staged article pipeline
         id: article_daily
         continue-on-error: true
