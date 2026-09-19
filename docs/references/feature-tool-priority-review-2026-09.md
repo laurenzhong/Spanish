@@ -6,12 +6,12 @@
 
 | 优先级 | 功能 | 当前状态 | 下一步验收 |
 | --- | --- | --- | --- |
-| P0 | 学习页主题分类 | 已有独立实现，待集成验证 | `/learn` 主题导航、URL 保持筛选、空结果恢复、移动横向滚动 |
-| P0 | 阅读词汇/短语书架 | 主线已有 domain/application/repository/UI，待集成验证 | `/read/vocabulary`、`/read/phrases`、出现索引、familiar/revisit/ignore CAS |
-| P0 | 探索三视图 | 已有场景、表达、内容包视图和收藏/生成入口，待集成验证 | 推荐理由、无结果 fallback、显式生成确认、来源隐私、320–1440px 无溢出 |
-| P0 | 角色完整性 | 角色目录与记忆已有；需要把人物圣经注入每个 provider，并验证关系门禁 | Lucía/Mateo/Inés 的稳定语气、事实边界、AI 身份诚实、关系与共享记忆隔离 |
-| P0 | 每日文章供应 | 已实现 `disabled → discover-only → review-only → auto-publish`、每日最多 50 篇、MiniMax 双审核 | 先 discover-only，再 review-only 观察 7 天，人工抽查后才允许 protected Environment 开启发布 |
-| P0 | Readlang 授权来源 | 已登记 2026-09-18 页面快照中的 57 个 URL、55 个主机；不得扩展为任意公网抓取 | 运行时继续执行精确 URL 快照、HTTPS、重定向、MIME、大小、正文和权利校验 |
+| P0 | 学习页主题分类 | 已集成并通过桌面/移动 Playwright | `/learn` 主题导航、URL 保持筛选、空结果恢复、移动横向滚动已验证 |
+| P0 | 阅读词汇/短语书架 | 已集成并通过桌面/移动 Playwright 与 lexicon 回归 | `/read/vocabulary`、`/read/phrases`、出现索引、familiar/revisit/ignore CAS 已验证 |
+| P0 | 探索三视图 | 已集成并通过桌面/移动 Playwright | 推荐理由、无结果 fallback、显式生成确认、来源隐私、320–1440px 无溢出已验证 |
+| P0 | 角色完整性 | 角色目录、人物上下文、关系门禁和三角色聊天已集成并通过桌面/移动 Playwright | 真实 provider、已发布人物圣经和生产关系数据仍需单独验收 |
+| P0 | 每日文章供应 | 已实现 `disabled → discover-only → review-only → auto-publish`、每日最多 50 篇、MiniMax 双审核、自然日、cleanup/report 与 kill switch | 先 discover-only，再 review-only 观察 7 天，人工抽查后才允许 protected Environment 开启发布 |
+| P0 | Readlang 授权来源 | 已登记 2026-09-18 页面快照中的 57 个 URL、55 个主机；不得扩展为任意公网抓取 | 真实来源逐项许可核对、受控采集与生产审计仍未执行 |
 
 ## GitHub 工具候选
 

@@ -28,6 +28,7 @@
 - Chrome 接管仍因本机 Codex `apikey` 认证不受支持而不可用；已按用户授权使用项目 Playwright fallback。未执行真实来源抓取、真实 MiniMax、生产数据库写入、发布或撤下。
 - 本轮随后修复 Profile 分区 props 契约与 Hook 依赖：全局 `typecheck`、全量 `lint`、production build（`CIRCLE_NODE_TOTAL=2` 限制 Next worker）均通过；相关 Profile 单测 `13/13` 通过。桌面核心页面 Playwright `26/26`、移动核心页面 Playwright `26/26` 通过，覆盖学习主题、阅读词汇/短语、探索三视图、Lucía/Mateo/Inés 聊天和响应式溢出。
 - 自动发布入口新增 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` fail-closed 校验，workflow 从 protected Environment 变量传入；缺失/非 true 不允许 `auto-publish`，并新增 CLI 回归测试。仍未执行真实采集、真实 MiniMax 或生产发布。
+- 工具审查表已同步当前状态：学习主题、阅读词汇/短语书架、探索三视图和三角色聊天不再标记为“待集成”，而是标记为已集成并通过桌面/移动 Playwright；真实 provider、生产关系数据和真实来源授权仍列为独立验收项。
 
 ### 2026-09-18：CHAT-CHARACTER-INTEGRITY-001 角色一致性与介绍门禁
 
