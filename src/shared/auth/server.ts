@@ -10,6 +10,8 @@ import {
   type AuthUserLookupError,
 } from "./errors";
 
+const AUTH_LOOKUP_TIMEOUT_MS = 3_000;
+
 export { isRetryableAuthError } from "./errors";
 
 export type AuthenticatedUser = Readonly<{
@@ -111,7 +113,13 @@ async function readCurrentUser(): Promise<AuthenticatedUser | null> {
       },
     },
   });
-  const { data, error } = await getUserWithRetry(() => client.auth.getUser());
+  const { data, error } = await Promise.race([
+    getUserWithRetry(() => client.auth.getUser()),
+    new Promise<AuthUserLookupResult>((resolve) => setTimeout(() => resolve({
+      data: { user: null },
+      error: { name: "AuthRetryableFetchError", message: "Authentication lookup timed out." },
+    }), AUTH_LOOKUP_TIMEOUT_MS)),
+  ]);
 
   if (error || !data.user) {
     return null;

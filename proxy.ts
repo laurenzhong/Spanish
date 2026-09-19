@@ -8,6 +8,11 @@ import {
 } from "@/src/shared/auth/route-access";
 import { isRetryableAuthError } from "@/src/shared/auth/errors";
 
+// Auth can be slower on the first request after a browser navigation. Keep
+// the optimistic route gate bounded, but do not turn normal network jitter
+// into a false logged-out state.
+const AUTH_LOOKUP_TIMEOUT_MS = 3_000;
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const e2eUser =
@@ -33,7 +38,13 @@ export async function proxy(request: NextRequest) {
         },
       },
     });
-    const { data, error } = await client.auth.getUser();
+    const { data, error } = await Promise.race([
+      client.auth.getUser(),
+      new Promise<{ data: { user: null }; error: { name: string; message: string } }>((resolve) => setTimeout(() => resolve({
+        data: { user: null },
+        error: { name: "AuthRetryableFetchError", message: "Authentication lookup timed out." },
+      }), AUTH_LOOKUP_TIMEOUT_MS)),
+    ]);
     if (error) {
       // Do not turn a transient Auth outage into a login redirect loop. The
       // protected product layout still performs the authoritative check.

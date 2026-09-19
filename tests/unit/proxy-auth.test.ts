@@ -53,5 +53,20 @@ describe("proxy authentication failure classification", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-request-x-auth-next-path")).toBe("/learn");
+  });
+
+  it("does not classify a slow but successful auth lookup as an outage", async () => {
+    getUser.mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(() => resolve({
+        data: { user: { id: "user-1" } },
+        error: null,
+      }), 800)),
+    );
+
+    const response = await proxy(request());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-request-x-auth-next-path")).toBeNull();
   });
 });
