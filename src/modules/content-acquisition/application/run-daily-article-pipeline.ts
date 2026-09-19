@@ -137,7 +137,7 @@ export async function runDailyArticlePipeline(
     }
 
     if (plan.mode === "discover-only") continue;
-    const [discoveredCandidates, reviewReadyCandidates] = await Promise.all([
+    const [discoveredCandidatesRaw, reviewReadyCandidatesRaw] = await Promise.all([
       dependencies.repository.listCandidates({
         sourceId: source.id,
         status: "discovered",
@@ -151,6 +151,8 @@ export async function runDailyArticlePipeline(
         limit: sourcePlan.sourceLimit,
       }),
     ]);
+    const discoveredCandidates = discoveredCandidatesRaw.filter((candidate) => candidate.publicationStatus === "draft");
+    const reviewReadyCandidates = reviewReadyCandidatesRaw.filter((candidate) => candidate.publicationStatus === "draft");
     const pendingCandidates = [...reviewReadyCandidates, ...discoveredCandidates];
     const pendingById = new Map(pendingCandidates.map((candidate) => [candidate.id, candidate]));
     const candidateIds = [...new Set([
