@@ -37,9 +37,30 @@ pnpm content:host-language-reactor-audio
 
 没有字幕的已发布媒体不会自动生成字幕。对已确认拥有音频处理授权的单条播客或已托管视频，可先在服务端设置 `MEDIA_TRANSCRIPT_BACKFILL_CONFIRM=I_HAVE_AUTHORIZATION`，再运行 `pnpm content:backfill-media-transcript -- --stable-key <stableKey>`。该命令有日/月预算门禁，只生成 owner-only 审核草稿；完成 `content-es-ES`、`teaching-zh-CN`、`structure` 三项审核后，才通过内容工作流发布不可变的新媒体版本。官方 YouTube embed 不会被下载或处理。
 
-字幕回填默认使用 OpenAI；需要使用 MiniMax 官方语音识别时，设置 `MEDIA_TRANSCRIPT_PROVIDER=minimax` 和 `MINIMAX_TRANSCRIPTION_API_ENDPOINT=https://api.minimaxi.com/v1/speech_to_text`。MiniMax ASR 使用 `asr-1.0` 的 `verbose_json` 句段时间戳，结果仍必须经过三维审核后才公开。
+字幕回填默认使用 OpenAI `whisper-1`，请求 `verbose_json` 与真实 word/segment 时间戳；音频先经 ffmpeg 解码为单声道 PCM，再按样本边界封装独立 WAV 块，不均分句子时间制造词时间。当前所有者要求字幕转写暂用 MiniMax：设置 `MEDIA_TRANSCRIPT_PROVIDER=minimax` 和 `MINIMAX_TRANSCRIPTION_API_ENDPOINT=https://api.minimaxi.com/v1/speech_to_text`，回填请求 word 模式。正式媒体版本最多保留 2,000 个字幕段；超过该限制必须拒绝并人工拆分或修订，不得静默截断。
+
+2026-09-17 所有者授权全部视频和播客的转写、翻译收费处理，无费用上限，并指定当前字幕转写使用 MiniMax；本轮中文翻译同样使用 MiniMax。后续单条操作只有在当次明确需要翻译时才设置 `MEDIA_TRANSCRIPT_TRANSLATE=1`，并按配置选择 translation provider；不改变 MiniMax 点词解析。CLI 仍保留预算保护参数与单条入口；授权不取消来源门禁、独立语言/教学审核或显式发布。翻译拒绝截断、拒绝回答及非正常完成响应。
+
+若同一媒体版本已有历史残缺草稿，只有在确认其仍为唯一 `draft` 后才可为该次单条重跑设置 `MEDIA_TRANSCRIPT_REFRESH_DRAFT=1`。此路径会以新转写替换草稿内容、更新音频哈希并清除旧审核记录；`approved`、`published` 或同版本存在多个草稿时必须拒绝，不能用它改写已发布历史。
+
+真实运行需可用于官方接口的服务端 `OPENAI_API_KEY`；不要把密钥放进聊天或日志。仅当环境需要代理时，在本地进程配置 `HTTPS_PROXY` / `HTTP_PROXY` 并用 Node `--use-env-proxy` 启动；不修改系统代理。当前官方接口实测返回 `401 invalid_api_key`，不是已完成转写或翻译。
 
 ## 5. 授权视频托管
+
+### 当前约定：视频下载统一使用 yt-dlp
+
+2026-09-16 所有者明确要求：之后所有视频下载统一使用开源 **yt-dlp**。不再以浏览器 SourceBuffer 抓取、录屏或其他下载器替代；Playwright + Chrome 仅用于真实播放验收。授权方已有的本地原文件可以作为导入输入；Bunny/Supabase 自有对象的完整性读取不属于第三方视频重新下载。yt-dlp 不支持或来源要求人工登录/验证时如实报告，不绕过访问控制。
+
+- 官方安装说明：[Installation](https://github.com/yt-dlp/yt-dlp#installation)、[EJS](https://github.com/yt-dlp/yt-dlp/wiki/EJS)。pip 安装应使用 `python -m pip install -U "yt-dlp[default]"`，保证匹配的官方 `yt-dlp-ejs` 依赖；只安装裸 `yt-dlp` 可能缺失该组件。Node 至少 22，调用明确加 `--js-runtimes node`，并配置原生 ffmpeg。
+- 当前已授权的 Bunny Storage + Pull Zone 来源恢复入口为 `pnpm content:recover-youtube-to-bunny`；要求 `MEDIA_VIDEO_HOSTING_CONFIRM=I_HAVE_AUTHORIZATION`、`YTDLP_BIN`、`FFMPEG_BIN` 及 Bunny Storage 配置。可用 `MEDIA_VIDEO_STABLE_KEY` 限定单条；不设置时处理当前 published/cleared、可用且仍为 YouTube 官方嵌入的资产。
+- 新入口按最高**原生**分辨率选择格式，排除源站标识的 AI-upscaled，保留西语音轨；同分辨率优先 H.264/AAC，必要时转成兼容编码但不降低源尺寸。当前单文件保护上限 1 GiB，超限需另行核对预算/存储，不静默降画质。
+- 批次采用独立进程串行处理，每条结束释放上传缓冲、解码器与浏览器内存；协调器和 worker 各有独占锁。上次进程异常退出时，必须先检查 PID 再处理遗留锁，不能仅凭锁文件重启；单 worker 日志只记录脱敏错误类别。
+- 完整下载、source/output 全片解码及时长、CDN 全文件长度/SHA-256、Chrome 实播/中段/尾段通过后才锁定条件切换同一当前资产。网站页面验收仍需另跑。没有采集新候选、自动发布、修改字幕或删除第三方来源。运行清单/恢复文件在 `.tmp-runtime/youtube-recovered`，不得提交原始 extractor JSON 或签名 URL。
+- 已验证案例 `v3qW03aZOT0`：补齐 EJS 后完整恢复原生 720p、39:35 全片并迁到 Bunny。此前浏览器接管失败不再是这条下载路线的前置阻塞。
+
+### 旧回填入口参考
+
+以下是早期 Supabase/Stream 回填命令和限制，不能作为当前 Bunny 来源恢复的默认画质或套餐要求：
 
 如果已单独确认某个 YouTube 来源的下载与再分发授权，并希望让视频脱离 YouTube 网络播放，可在提供 `yt-dlp` 与 ffmpeg 的服务端环境运行。以下路径只是占位示例，先替换为本机可执行文件；字幕回填直接 spawn ffmpeg，因此 `FFMPEG_BIN` 用可执行文件路径，不用目录：
 
@@ -83,5 +104,5 @@ pnpm content:host-authorized-youtube-video
 - **历史实测：Chrome cookies**：关闭浏览器后仍失败，见 [状态历史](../tasks/PROJECT-STATUS-HISTORY.md) 的 2026-09-16 MEDIA-002 记录；是否可读取取决于本机加密环境，不能保证导出方案有效。
 - **当前代码与历史实测：Windows ffmpeg**：字幕脚本在 Windows 默认使用 PATH 原生 ffmpeg，避免非本机 `ffmpeg-static` 二进制的 EFTYPE；先用 `Get-Command ffmpeg` 和 `ffmpeg -version` 确认。证据：本机未提交脚本 `scripts/backfill-media-transcript.ts`（提交后再建立链接）；这不代表所有 Windows 安装都有该故障。
 - **历史诊断更正：YouTube 153**：按来源身份/Referer 缺失排查，不能仅凭直接导航 embed 就断言反机器人验证或源视频失效；必须检查目标页面的真实嵌入请求。证据：[播放器](../../src/modules/media/ui/video-player-adapter.tsx)、状态历史的播放器重开记录。
-- **待验收：Bunny**：当前代码可选 `bunny-stream` / `bunny-storage`，供应商决定以 ADR-0009 对应提交为准。命令存在不代表正式供应商决策或迁移验收已完成；新增供应商的预算、数据保留和撤下影响须有 ADR，不在本次文档任务中代为批准。
+- **已验收：Bunny Storage + Pull Zone**：2026-09-17 的 HOSTED-MEDIA-002 已完成当前 20 条视频和 2 条播客迁移、全文件完整性、Chrome 页面播放/seek 与 Supabase 清理审计；证据和适用边界见 [任务交接](../tasks/HOSTED-MEDIA-002.md)。这只证明当前本地工作树与当时真实数据，不代表代码已提交、Vercel 已部署或未来新增资产可跳过逐条门禁。`bunny-stream` 仍只是可选实现，不是当前已迁移资产的 provider。
 - **当前分支限制：每日调度**：这里仅支持 `content:acquire -- --source ... [--dry-run] [--limit 1..500]`；不支持把计划中的 discover/process/cleanup/report 当作该 CLI 子命令。本地 main/OPS 分支另有 `content:pipeline` 与运行手册，当前分支未包含。其 workflow 只调用 discover；配置文件存在不证明生产 schedule 已启用，也不证明全链路每日执行。集成前按状态页对账。

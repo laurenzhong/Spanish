@@ -101,6 +101,9 @@ pnpm db:migrate
 
 ## 5. 数据不变量
 
+- `0032_bunny_storage_video_expiry` 在保留原有例外的基础上，仅允许 `kind=video AND provider_key=bunny-storage` 的托管视频不设置播放租约；普通 RSS 音频仍要求有效期。沿用既有 RLS，不新增客户端写权限。`0032` 生成快照包含已由手写 `0031` 创建的字幕回填表，因此 SQL 已移除重复建表语句；再次生成应无 Schema 变化。
+- `0033_bunny_storage_audio_expiry` 将 Bunny Storage 的无租约范围扩展为 `audio` 和 `video`，支持已授权播客稳定托管。普通 RSS 音频的有效期规则和既有 RLS 不变；迁移已在本次授权目标应用。
+
 - 用户私有表包含 `user_id`、`created_at` 和 `updated_at`；`profiles.id` 本身就是用户 ID。
 - `0012` 新增四张阅读私有表：`user_reading_progress`、`user_article_saves`、`user_article_highlights`、`user_saved_article_sources`。前三张通过 `article_version_id` 关联已发布内容版本，来源表只保存用户提交的外部 URL 元数据，不保存正文。
 - `0014` 新增 `user_generated_articles`。每行绑定一个内部文章版本和一个用户，保存生成参数、MiniMax provider/model/request 元数据、内容哈希、幂等键和 `ready` 状态；用户只能读取、插入和删除自己的行。关联的文章载体使用级联删除，账号删除会先由 profile 外键清理生成记录及其内部版本，公共文章不受影响。重复的 `(user_id, idempotency_key)` 且参数一致时返回原文章，参数不一致返回 `409 CONFLICT`。
