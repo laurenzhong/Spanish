@@ -91,6 +91,10 @@ function isMediaSource(source: ContentSourceRecord): boolean {
     || (source.adapterType === "language-reactor" && ["video-channel", "podcast-feed"].includes(source.sourceKind));
 }
 
+function mediaSourcePriority(source: ContentSourceRecord): number {
+  return source.sourceKind === "video-channel" ? 0 : 1;
+}
+
 function hasHostedVideoAsset(candidate: Readonly<Pick<ContentCandidateRecord, "contentType" | "metadata">>): boolean {
   return candidate.contentType === "video"
     && Boolean(candidate.metadata.bunnyVideoAsset)
@@ -115,7 +119,8 @@ export async function runDailyMediaPipeline(
     .map((source) => ({ sourceStableKey: source.stableKey, reason: "RIGHTS_NOT_VERIFIED" }));
   const eligible = sources
     .filter((source) => isMediaSource(source) && source.enabled && source.rightsStatus === "verified")
-    .sort((left, right) => left.stableKey.localeCompare(right.stableKey));
+    .sort((left, right) => mediaSourcePriority(left) - mediaSourcePriority(right)
+      || left.stableKey.localeCompare(right.stableKey));
   const runKey = `media-daily:${date}`;
   const empty = (failures: readonly DailyMediaPipelineFailure[] = []): DailyMediaPipelineResult => ({
     runKey,

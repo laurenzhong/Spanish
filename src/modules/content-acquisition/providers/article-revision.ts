@@ -159,9 +159,15 @@ export class FakeArticleRevisionProvider implements ArticleRevisionProvider {
 }
 
 export function mergeArticleRevision(draft: ArticleCandidateDraft, payload: ArticleRevisionPayload): ArticleCandidateDraft {
+  // Optional provider fields may be normalized to `undefined` when a model
+  // returns an unsupported hint. Do not let those placeholders erase required
+  // values from the frozen draft during the revision merge.
+  const definedPayload = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined),
+  );
   const next = articleCandidateDraftSchema.parse({
     ...draft,
-    ...payload,
+    ...definedPayload,
     changeReason: payload.changeReason ?? draft.changeReason,
     contentHash: articleCandidateContentHash({
       canonicalUrl: draft.canonicalUrl,

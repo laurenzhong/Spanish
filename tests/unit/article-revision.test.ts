@@ -64,6 +64,16 @@ describe("article revision", () => {
     expect(result.changeReason).toContain("1 review finding");
   });
 
+  it("does not erase draft metadata when an optional provider hint is normalized away", () => {
+    const revised = mergeArticleRevision(draft, {
+      oralTransferType: undefined,
+      changeReason: "Se corrigió una errata.",
+    });
+    expect(revised.oralTransferType).toBe(draft.oralTransferType);
+    expect(revised.cefr).toBe(draft.cefr);
+    expect(revised.format).toBe(draft.format);
+  });
+
   it("retries a malformed provider response once", async () => {
     let calls = 0;
     const provider = new MiniMaxArticleRevisionProvider({
