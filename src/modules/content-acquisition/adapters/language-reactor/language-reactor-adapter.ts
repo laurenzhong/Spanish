@@ -246,6 +246,9 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           allowedHosts: policy.allowedAudioHosts,
           allowedContentTypes: policy.allowedAudioMimeTypes,
           maxBytes: policy.maxEnclosureBytes,
+          // Podcast directory enclosures commonly pass through several
+          // authorized CDN redirectors before reaching the audio asset.
+          maxRedirects: 6,
           signal: requestOptions?.signal,
         });
         const artwork = await this.podcastArtwork(document.info.itunesId, document.info.feedTitle?.trim() || title, requestOptions?.signal);
