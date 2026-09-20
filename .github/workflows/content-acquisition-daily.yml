@@ -3,6 +3,9 @@ name: Daily content acquisition
 on:
   schedule:
     - cron: "17 3 * * *"
+  push:
+    branches:
+      - codex/release-review
   workflow_dispatch:
     inputs:
       limit:
