@@ -74,6 +74,25 @@ describe("article revision", () => {
     expect(revised.format).toBe(draft.format);
   });
 
+  it("accepts invalid optional CEFR and format hints without replacing the frozen draft", async () => {
+    const provider = new MiniMaxArticleRevisionProvider({
+      apiKey: "test-key",
+      fetchImplementation: async () => new Response(JSON.stringify({
+        content: [{ type: "text", text: JSON.stringify({ summary: "Un resumen corregido.", cefr: "C3", format: "unknown", changeReason: "repair" }) }],
+      }), { status: 200, headers: { "content-type": "application/json" } }),
+    });
+    const result = await provider.revise({
+      candidateId: "candidate-1",
+      candidateRevision: 2,
+      draft,
+      feedback: [{ dimension: "content-es-ES", status: "changes_requested", notes: "Corrige una errata." }],
+    });
+    expect(result).toMatchObject({ summary: "Un resumen corregido.", cefr: undefined, format: undefined });
+    const merged = mergeArticleRevision(draft, result);
+    expect(merged.cefr).toBe("B1");
+    expect(merged.format).toBe("news");
+  });
+
   it("retries a malformed provider response once", async () => {
     let calls = 0;
     const provider = new MiniMaxArticleRevisionProvider({
