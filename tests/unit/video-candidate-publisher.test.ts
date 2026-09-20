@@ -43,7 +43,33 @@ const reviews = [
   { id: "r-structure", candidateId: "candidate-1", dimension: "structure" as const, status: "approved" as const, reviewerReference: "codex-ai-owner-authorized-review", candidateRevision: 5, notes: null },
 ];
 
+const hostedVideoAsset = {
+  providerKey: "bunny-storage" as const,
+  playbackUrl: "https://video.example.b-cdn.net/media/youtube.publicvideo1/video.mp4",
+  mimeType: "video/mp4" as const,
+  sha256: "a".repeat(64),
+  byteSize: 1024,
+};
+
 describe("acquired YouTube video publisher", () => {
+  it("keeps an unhosted video out of publication", async () => {
+    const video = draft();
+    const publishAcquiredVideo = vi.fn();
+    const publisher = new AcquiredVideoPublisher({ publishAcquiredVideo, archiveAcquiredVideo: vi.fn() } as unknown as AcquiredVideoRepository);
+    await expect(publisher.publish({
+      candidateId: "candidate-1",
+      candidateRevision: 5,
+      contentHash: video.contentHash,
+      contentType: "video",
+      title: video.title,
+      language: video.language,
+      normalizedUrl: video.canonicalUrl,
+      metadata: { videoDraft: video },
+      reviews,
+    })).rejects.toBeInstanceOf(VideoPublicationConflictError);
+    expect(publishAcquiredVideo).not.toHaveBeenCalled();
+  });
+
   it("passes the immutable reviewed video and two review records to media", async () => {
     const video = draft();
     const publishAcquiredVideo = vi.fn(async () => ({ kind: "media" as const, stableKey: video.stableKey, version: 1 }));
@@ -58,7 +84,7 @@ describe("acquired YouTube video publisher", () => {
       title: video.title,
       language: video.language,
       normalizedUrl: video.canonicalUrl,
-      metadata: { videoDraft: video },
+      metadata: { videoDraft: video, bunnyVideoAsset: hostedVideoAsset },
       reviews,
     })).resolves.toEqual({ kind: "media", stableKey: video.stableKey, version: 1 });
     expect(publishAcquiredVideo).toHaveBeenCalledWith(expect.objectContaining({
@@ -73,7 +99,7 @@ describe("acquired YouTube video publisher", () => {
     const video = draft();
     const publishAcquiredVideo = vi.fn();
     const publisher = new AcquiredVideoPublisher({ publishAcquiredVideo, archiveAcquiredVideo: vi.fn() } as unknown as AcquiredVideoRepository);
-    const input = { candidateId: "candidate-1", candidateRevision: 5, contentHash: video.contentHash, contentType: "video" as const, title: video.title, language: video.language, normalizedUrl: video.canonicalUrl, metadata: { videoDraft: video }, reviews };
+    const input = { candidateId: "candidate-1", candidateRevision: 5, contentHash: video.contentHash, contentType: "video" as const, title: video.title, language: video.language, normalizedUrl: video.canonicalUrl, metadata: { videoDraft: video, bunnyVideoAsset: hostedVideoAsset }, reviews };
 
     await expect(publisher.publish({ ...input, title: "Changed" })).rejects.toBeInstanceOf(VideoPublicationConflictError);
     await expect(publisher.publish({ ...input, reviews: reviews.map((review) => ({ ...review, candidateRevision: 4 })) })).rejects.toBeInstanceOf(VideoPublicationConflictError);

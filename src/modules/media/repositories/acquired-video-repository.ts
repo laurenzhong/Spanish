@@ -1,4 +1,4 @@
-import type { DraftMediaSegment } from "../domain";
+import type { DraftMediaSegment, MediaArtwork } from "../domain";
 
 export type AcquiredMediaReview = Readonly<{
   locale: "es-ES" | "zh-CN";
@@ -28,6 +28,7 @@ export type AcquiredVideoDraft = Readonly<{
   attribution: string;
   licenseEvidence: string;
   copyrightStatus: "cleared";
+  artwork: MediaArtwork | null;
   captionStatus: "unavailable" | "platform_manual" | "platform_auto" | "asr";
   segments: readonly DraftMediaSegment[];
   contentHash: string;
@@ -40,12 +41,21 @@ export type AcquiredMediaPublication = Readonly<{
   version: number;
 }>;
 
+export type HostedVideoAsset = Readonly<{
+  providerKey: "bunny-storage";
+  playbackUrl: string;
+  mimeType: "video/mp4";
+  sha256: string;
+  byteSize: number;
+}>;
+
 export interface AcquiredVideoRepository {
   publishAcquiredVideo(input: Readonly<{
     candidateId: string;
     candidateRevision: number;
     contentHash: string;
     draft: AcquiredVideoDraft;
+    hostedAsset: HostedVideoAsset;
     reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
     publishedAt: Date;
   }>): Promise<AcquiredMediaPublication>;

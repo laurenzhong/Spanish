@@ -33,7 +33,8 @@ describe("lexicon persistence", () => {
     client = new PGlite();
     await client.exec("create role anon nologin; create role authenticated nologin; create schema auth; create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}'::jsonb); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth, public to anon, authenticated; grant execute on function auth.uid() to anon, authenticated;");
     await client.exec(await migration("0000_big_phalanx.sql"));
-    await client.exec(await migration("0027_wide_puff_adder.sql"));
+    await client.exec(await migration("0021_shallow_killmonger.sql"));
+    await client.exec(await migration("0037_migration_reconcile.sql"));
     await client.exec(`
       create table articles (id uuid primary key, stable_key text not null unique);
       create table article_versions (article_id uuid not null, version integer not null, status text not null);

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { mediaSegmentSourceKinds } from "@/src/modules/media/domain";
+import { mediaArtworkSchema } from "@/src/modules/media/schemas";
 
 const stableKeySchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -39,6 +40,7 @@ export const videoCandidateDraftSchema = z.strictObject({
   attribution: z.string().trim().min(1).max(1_000),
   licenseEvidence: z.url().startsWith("https://"),
   copyrightStatus: z.literal("cleared"),
+  artwork: mediaArtworkSchema.nullable().default(null),
   captionStatus: z.enum(["unavailable", "platform_manual", "platform_auto", "asr"]),
   segments: z.array(videoCandidateSegmentSchema).max(500),
   contentHash: hashSchema,
@@ -47,11 +49,16 @@ export const videoCandidateDraftSchema = z.strictObject({
 
 export type VideoCandidateDraft = z.infer<typeof videoCandidateDraftSchema>;
 
-type DraftWithoutHash = Omit<VideoCandidateDraft, "contentHash">;
+type DraftWithoutHash = Omit<VideoCandidateDraft, "contentHash" | "artwork"> & { artwork?: VideoCandidateDraft["artwork"] };
 
 export function calculateVideoCandidateContentHash(input: DraftWithoutHash | VideoCandidateDraft): string {
   return createHash("sha256").update(JSON.stringify(input, (key, value) =>
     key === "contentHash" || key === "fetchedAt" || key === "changeReason" ? undefined : value)).digest("hex");
+}
+
+export function calculateLegacyVideoCandidateContentHash(input: VideoCandidateDraft): string {
+  const legacy = { ...input, artwork: undefined } as DraftWithoutHash;
+  return calculateVideoCandidateContentHash(legacy);
 }
 
 export function createVideoCandidateDraft(input: DraftWithoutHash): VideoCandidateDraft {

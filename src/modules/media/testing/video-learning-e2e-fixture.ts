@@ -1,20 +1,23 @@
 import type { MediaPlayback } from "../domain";
 
 export const videoLearningE2eStableKey = "youtube.e2e-cafe";
+export const nativeVideoLearningE2eStableKey = "video.e2e-native";
 
 export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | null {
-  if (process.env.NODE_ENV === "production" || process.env.AUTH_E2E_ENABLED !== "1" || stableKey !== videoLearningE2eStableKey) {
+  const isYoutubeFixture = stableKey === videoLearningE2eStableKey;
+  const isNativeFixture = stableKey === nativeVideoLearningE2eStableKey;
+  if (process.env.NODE_ENV === "production" || process.env.AUTH_E2E_ENABLED !== "1" || (!isYoutubeFixture && !isNativeFixture)) {
     return null;
   }
   return {
     media: {
-      id: `${videoLearningE2eStableKey}@1`,
-      stableKey: videoLearningE2eStableKey,
+      id: `${stableKey}@1`,
+      stableKey,
       version: 1,
       kind: "video",
-      title: "Cómo pedir un café",
+      title: isNativeFixture ? "Una historia breve" : "Cómo pedir un café",
       summary: "Una conversación breve para practicar una petición cotidiana.",
-      sourceName: "Canal autorizado de prueba",
+      sourceName: isNativeFixture ? "Fuente licenciada de prueba" : "Canal autorizado de prueba",
       language: "es",
       region: "es-ES",
       cefr: "A2",
@@ -26,8 +29,8 @@ export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | n
       progress: { lastPositionMs: 0, lastSegmentIndex: 0, status: "in_progress", revision: 0 },
     },
     asset: {
-      kind: "official_embed",
-      url: "https://www.youtube-nocookie.com/embed/e2eCafe1234?enablejsapi=1",
+      kind: isNativeFixture ? "video" : "official_embed",
+      url: isNativeFixture ? "https://media.example.test/video/sample.mp4" : "https://www.youtube-nocookie.com/embed/e2eCafe1234?enablejsapi=1",
       expiresAt: null,
     },
     segments: [

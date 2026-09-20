@@ -10,7 +10,11 @@ export type ContentSourceDiscoveryInput = Readonly<{
 export class ContentSourceAdapterError extends Error {
   readonly code = "CONTENT_PROCESSING_FAILED" as const;
 
-  constructor(message: string, public readonly retryable: boolean) {
+  constructor(
+    message: string,
+    public readonly retryable: boolean,
+    public readonly reasonCode = "CONTENT_PROCESSING_FAILED",
+  ) {
     super(`CONTENT_PROCESSING_FAILED: ${message}`);
     this.name = "ContentSourceAdapterError";
   }

@@ -65,6 +65,9 @@ const defaultDependencies: RunAcquisitionDependencies = {
 };
 
 function errorCode(error: unknown): string {
+  if (error && typeof error === "object" && "reasonCode" in error && typeof error.reasonCode === "string") {
+    return error.reasonCode;
+  }
   if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
     return error.code;
   }

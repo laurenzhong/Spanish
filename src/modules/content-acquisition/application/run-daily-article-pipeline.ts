@@ -8,7 +8,9 @@ import { autoPublishArticleCandidate } from "./auto-publish-article";
 import { prepareArticleCandidateForReview } from "./prepare-article-candidate-for-review";
 import { runAcquisitionSource } from "./run-acquisition-source";
 import { runArticleReview } from "./run-article-review";
+import { reviseArticleCandidateAfterReview } from "./revise-article-candidate";
 import type { ArticleReviewProvider } from "../providers/article-review";
+import type { ArticleRevisionProvider } from "../providers/article-revision";
 import type { CandidatePublisherRegistry } from "../publishers";
 import type {
   ContentAcquisitionRepository,
@@ -50,10 +52,13 @@ export type RunDailyArticlePipelineDependencies = Readonly<{
   reviewProviders?: Readonly<{
     content: ArticleReviewProvider;
     teaching: ArticleReviewProvider;
+    revision?: ArticleRevisionProvider;
   }>;
   publishers?: CandidatePublisherRegistry;
   now?: () => Date;
 }>;
+
+const DEFAULT_ARTICLE_REVIEW_CONCURRENCY = 2;
 
 function errorCode(error: unknown): string {
   const value = error && typeof error === "object" && "code" in error && typeof error.code === "string"
@@ -93,6 +98,7 @@ export async function runDailyArticlePipeline(
     policyVersion: string;
     dailyLimit: number;
     defaultSourceLimit: number;
+    reviewConcurrency?: number;
   }>,
 ): Promise<DailyArticlePipelineResult> {
   const sources = await dependencies.repository.listSources();
@@ -112,6 +118,10 @@ export async function runDailyArticlePipeline(
   let rejected = 0;
   let published = 0;
   let skipped = 0;
+  const requestedReviewConcurrency = input.reviewConcurrency ?? DEFAULT_ARTICLE_REVIEW_CONCURRENCY;
+  const reviewConcurrency = Number.isFinite(requestedReviewConcurrency)
+    ? Math.max(1, Math.min(10, Math.floor(requestedReviewConcurrency)))
+    : DEFAULT_ARTICLE_REVIEW_CONCURRENCY;
 
   for (const sourcePlan of plan.sourcePlans) {
     const source = sourceByStableKey.get(sourcePlan.sourceStableKey);
@@ -137,7 +147,7 @@ export async function runDailyArticlePipeline(
     }
 
     if (plan.mode === "discover-only") continue;
-    const [discoveredCandidates, reviewReadyCandidates] = await Promise.all([
+    const [discoveredCandidatesRaw, reviewReadyCandidatesRaw] = await Promise.all([
       dependencies.repository.listCandidates({
         sourceId: source.id,
         status: "discovered",
@@ -151,6 +161,10 @@ export async function runDailyArticlePipeline(
         limit: sourcePlan.sourceLimit,
       }),
     ]);
+    // Published candidates keep their terminal workflow status for auditability,
+    // so publication state must be part of the scheduling filter.
+    const discoveredCandidates = discoveredCandidatesRaw.filter((candidate) => candidate.publicationStatus === "draft");
+    const reviewReadyCandidates = reviewReadyCandidatesRaw.filter((candidate) => candidate.publicationStatus === "draft");
     const pendingCandidates = [...reviewReadyCandidates, ...discoveredCandidates];
     const pendingById = new Map(pendingCandidates.map((candidate) => [candidate.id, candidate]));
     const candidateIds = [...new Set([
@@ -163,52 +177,91 @@ export async function runDailyArticlePipeline(
       return acquisition.insertedCandidateIds.includes(candidateId) || candidate?.status === "discovered";
     });
     const readyCandidateIds = new Set(candidateIds.filter((candidateId) => pendingById.get(candidateId)?.status === "review_ready"));
-    for (const candidateId of candidateIdsToPrepare) {
-      try {
-        await prepareArticleCandidateForReview(dependencies.repository, candidateId);
-        prepared += 1;
-        readyCandidateIds.add(candidateId);
-      } catch (error) {
-        failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: errorCode(error) });
-      }
+    for (let offset = 0; offset < candidateIdsToPrepare.length; offset += reviewConcurrency) {
+      const batch = candidateIdsToPrepare.slice(offset, offset + reviewConcurrency);
+      await Promise.all(batch.map(async (candidateId) => {
+        try {
+          await prepareArticleCandidateForReview(dependencies.repository, candidateId);
+          prepared += 1;
+          readyCandidateIds.add(candidateId);
+        } catch (error) {
+          failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: errorCode(error) });
+        }
+      }));
     }
-    for (const candidateId of readyCandidateIds) {
-      if (!dependencies.reviewProviders) {
-        failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: "ARTICLE_REVIEW_PROVIDER_UNAVAILABLE" });
-        continue;
-      }
-      const review = await runArticleReview(dependencies.repository, {
-        candidateId,
-        contentProvider: dependencies.reviewProviders.content,
-        teachingProvider: dependencies.reviewProviders.teaching,
-        now: dependencies.now,
-      });
-      reviewed += 1;
-      if (review.status === "approved") approved += 1;
-      else if (review.status === "changes_requested") changesRequested += 1;
-      else if (review.status === "rejected") rejected += 1;
-      else failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: review.reason ?? "ARTICLE_REVIEW_FAILED" });
-
-      if (plan.mode !== "auto-publish" || review.status !== "approved") continue;
-      if (!dependencies.publishers) {
-        failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: "ARTICLE_PUBLISHER_UNAVAILABLE" });
-        continue;
-      }
-      try {
-        const publication = await autoPublishArticleCandidate(dependencies.repository, dependencies.publishers, {
+    const readyIds = [...readyCandidateIds];
+    for (let offset = 0; offset < readyIds.length; offset += reviewConcurrency) {
+      const batch = readyIds.slice(offset, offset + reviewConcurrency);
+      await Promise.all(batch.map(async (candidateId) => {
+        try {
+          if (!dependencies.reviewProviders) {
+            failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: "ARTICLE_REVIEW_PROVIDER_UNAVAILABLE" });
+            return;
+          }
+          let review = await runArticleReview(dependencies.repository, {
           candidateId,
-          mode: plan.mode,
-          policyVersion: plan.policyVersion,
-          actor: `article-auto-publication:${plan.policyVersion}`,
-          runId: plan.runKey,
+          contentProvider: dependencies.reviewProviders.content,
+          teachingProvider: dependencies.reviewProviders.teaching,
           now: dependencies.now,
-        });
-        if (publication.status === "published") published += 1;
-        else if (publication.status === "skipped") skipped += 1;
-        else failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: publication.reason ?? "ARTICLE_PUBLICATION_FAILED" });
-      } catch (error) {
-        failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: errorCode(error) });
+          });
+          reviewed += 1;
+          if (review.status === "approved") approved += 1;
+          else if (review.status === "changes_requested") changesRequested += 1;
+          else if (review.status === "rejected") rejected += 1;
+          else failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: review.reason ?? "ARTICLE_REVIEW_FAILED" });
+
+      // One bounded revision per run keeps provider cost and mutation scope finite.
+      // Rejected content remains rejected and requires an explicit owner decision.
+      if (review.status === "changes_requested" && dependencies.reviewProviders.revision) {
+        try {
+          await reviseArticleCandidateAfterReview(dependencies.repository, {
+            candidateId,
+            revisionProvider: dependencies.reviewProviders.revision,
+            now: dependencies.now,
+          });
+          const revised = await prepareArticleCandidateForReview(dependencies.repository, candidateId, { now: dependencies.now });
+          prepared += revised.revision > review.candidateRevision ? 1 : 0;
+          review = await runArticleReview(dependencies.repository, {
+            candidateId,
+            contentProvider: dependencies.reviewProviders.content,
+            teachingProvider: dependencies.reviewProviders.teaching,
+            now: dependencies.now,
+          });
+          reviewed += 1;
+          if (review.status === "approved") approved += 1;
+          else if (review.status === "changes_requested") changesRequested += 1;
+          else if (review.status === "rejected") rejected += 1;
+          else failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: review.reason ?? "ARTICLE_REVIEW_FAILED" });
+        } catch (error) {
+          failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: errorCode(error) });
+        }
       }
+
+          if (plan.mode !== "auto-publish" || review.status !== "approved") return;
+          const publishers = dependencies.publishers;
+          if (!publishers) {
+            failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: "ARTICLE_PUBLISHER_UNAVAILABLE" });
+            return;
+          }
+          try {
+            const publication = await autoPublishArticleCandidate(dependencies.repository, publishers, {
+              candidateId,
+              mode: plan.mode,
+              policyVersion: plan.policyVersion,
+              actor: `article-auto-publication:${plan.policyVersion}`,
+              runId: plan.runKey,
+              now: dependencies.now,
+            });
+            if (publication.status === "published") published += 1;
+            else if (publication.status === "skipped") skipped += 1;
+            else failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: publication.reason ?? "ARTICLE_PUBLICATION_FAILED" });
+          } catch (error) {
+            failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: errorCode(error) });
+          }
+        } catch (error) {
+          failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: errorCode(error) });
+        }
+      }));
     }
   }
 

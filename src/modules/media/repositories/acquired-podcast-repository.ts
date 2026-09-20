@@ -1,4 +1,4 @@
-import type { DraftMediaSegment } from "../domain";
+import type { DraftMediaSegment, MediaArtwork } from "../domain";
 import type { AcquiredMediaPublication, AcquiredMediaReview } from "./acquired-video-repository";
 
 export type AcquiredPodcastDraft = Readonly<{
@@ -10,7 +10,8 @@ export type AcquiredPodcastDraft = Readonly<{
   enclosureUrlHash: string;
   enclosureMimeType: "audio/mpeg" | "audio/mp4" | "audio/aac" | "audio/ogg" | "audio/webm" | "application/ogg";
   enclosureByteSize: number;
-  playbackExpiresAt: string;
+  playbackProvider: "podcast-rss" | "language-reactor";
+  playbackExpiresAt: string | null;
   title: string;
   summary: string;
   sourceName: string;
@@ -25,6 +26,7 @@ export type AcquiredPodcastDraft = Readonly<{
   attribution: string;
   licenseEvidence: string;
   copyrightStatus: "cleared";
+  artwork: MediaArtwork | null;
   transcriptStatus: "unavailable" | "platform_manual" | "platform_auto" | "asr";
   transcriptUrl: string | null;
   segments: readonly DraftMediaSegment[];

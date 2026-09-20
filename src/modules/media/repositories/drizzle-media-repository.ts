@@ -19,7 +19,7 @@ import {
 import type { ParsedMediaListQuery } from "../schemas";
 import type { MediaLookupResult, MediaRepository } from "./media-repository";
 import type { AcquiredPodcastRepository } from "./acquired-podcast-repository";
-import type { AcquiredVideoRepository } from "./acquired-video-repository";
+import type { AcquiredVideoRepository, HostedVideoAsset } from "./acquired-video-repository";
 
 export class AcquiredVideoPersistenceConflictError extends Error {
   readonly code = "CONTENT_PUBLICATION_CONFLICT" as const;
@@ -66,6 +66,19 @@ function isPlayable(row: JoinedRow, now: Date): boolean {
     && (!row.asset.playbackExpiresAt || row.asset.playbackExpiresAt.getTime() > now.getTime());
 }
 
+function assertHostedVideoAsset(asset: HostedVideoAsset): void {
+  if (asset.providerKey !== "bunny-storage" || asset.mimeType !== "video/mp4" || !/^[a-f0-9]{64}$/u.test(asset.sha256) || !Number.isSafeInteger(asset.byteSize) || asset.byteSize <= 0) {
+    throw new AcquiredVideoPersistenceConflictError("The video must be a validated Bunny MP4 asset.");
+  }
+  let url: URL;
+  try { url = new URL(asset.playbackUrl); } catch { throw new AcquiredVideoPersistenceConflictError("The Bunny video URL is invalid."); }
+  const configuredHost = process.env.BUNNY_STORAGE_PULL_ZONE_HOSTNAME?.trim().toLowerCase();
+  const allowedHost = configuredHost ? url.hostname.toLowerCase() === configuredHost : url.hostname.toLowerCase().endsWith(".b-cdn.net");
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !url.pathname.startsWith("/media/") || !allowedHost) {
+    throw new AcquiredVideoPersistenceConflictError("The video must use a stable Bunny Storage Pull Zone MP4 URL.");
+  }
+}
+
 function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date): MediaCard | null {
   return projectMediaCard({
     stableKey: row.item.stableKey,
@@ -85,8 +98,18 @@ function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date):
     status: row.version.status,
     copyrightStatus: row.version.copyrightStatus as "unverified" | "cleared" | "restricted",
     playable: isPlayable(row, now),
+    artwork: row.version.artworkUrl && row.version.artworkAlt && row.version.artworkSource
+      ? {
+          url: row.version.artworkUrl,
+          alt: row.version.artworkAlt,
+          source: row.version.artworkSource,
+          width: row.version.artworkWidth,
+          height: row.version.artworkHeight,
+          expiresAt: row.version.artworkExpiresAt,
+        }
+      : null,
     progress,
-  });
+  }, now);
 }
 
 function encodeCursor(item: MediaCard): string {
@@ -138,6 +161,10 @@ export function createDrizzleMediaRepository(
       eq(schema.mediaVersions.status, "published"),
       eq(schema.mediaVersions.copyrightStatus, "cleared"),
       eq(schema.mediaAssets.availability, "available"),
+      or(
+        eq(schema.mediaItems.kind, "podcast"),
+        and(eq(schema.mediaItems.kind, "video"), eq(schema.mediaAssets.kind, "video"), eq(schema.mediaAssets.providerKey, "bunny-storage")),
+      ),
     );
     return database
       .select({ item: schema.mediaItems, version: schema.mediaVersions, asset: schema.mediaAssets })
@@ -194,7 +221,7 @@ export function createDrizzleMediaRepository(
       } catch {
         throw new AcquiredPodcastPersistenceConflictError("The podcast feed or enclosure URL is invalid.");
       }
-      const playbackExpiresAt = new Date(input.draft.playbackExpiresAt);
+      const playbackExpiresAt = input.draft.playbackExpiresAt ? new Date(input.draft.playbackExpiresAt) : null;
       if (
         feedUrl.protocol !== "https:"
         || enclosureUrl.protocol !== "https:"
@@ -202,8 +229,8 @@ export function createDrizzleMediaRepository(
         || feedUrl.password
         || enclosureUrl.username
         || enclosureUrl.password
-        || Number.isNaN(playbackExpiresAt.getTime())
-        || playbackExpiresAt.getTime() <= input.publishedAt.getTime()
+        || (playbackExpiresAt !== null && (Number.isNaN(playbackExpiresAt.getTime())
+          || playbackExpiresAt.getTime() <= input.publishedAt.getTime()))
       ) {
         throw new AcquiredPodcastPersistenceConflictError("The podcast playback asset is not safely usable at publication time.");
       }
@@ -263,6 +290,12 @@ export function createDrizzleMediaRepository(
           platformSourceId: input.draft.episodeGuid,
           sourceFeedUrl: input.draft.feedUrl,
           enclosureUrlHash: input.draft.enclosureUrlHash,
+          artworkUrl: input.draft.artwork?.url ?? null,
+          artworkAlt: input.draft.artwork?.alt ?? null,
+          artworkSource: input.draft.artwork?.source ?? null,
+          artworkWidth: input.draft.artwork?.width ?? null,
+          artworkHeight: input.draft.artwork?.height ?? null,
+          artworkExpiresAt: input.draft.artwork?.expiresAt ? new Date(input.draft.artwork.expiresAt) : null,
           language: input.draft.language,
           region: input.draft.region,
           cefr: input.draft.cefr,
@@ -287,7 +320,7 @@ export function createDrizzleMediaRepository(
         await transaction.insert(schema.mediaAssets).values({
           mediaVersionId: version.id,
           kind: "audio",
-          providerKey: "podcast-rss",
+          providerKey: input.draft.playbackProvider,
           playbackUrl: input.draft.enclosureUrl,
           playbackExpiresAt,
           mimeType: input.draft.enclosureMimeType,
@@ -364,6 +397,7 @@ export function createDrizzleMediaRepository(
       if (input.contentHash !== input.draft.contentHash) {
         throw new AcquiredVideoPersistenceConflictError("The candidate hash does not match the immutable video draft.");
       }
+      assertHostedVideoAsset(input.hostedAsset);
       let embedUrl: URL;
       try {
         embedUrl = new URL(input.draft.embedUrl);
@@ -427,6 +461,12 @@ export function createDrizzleMediaRepository(
           sourceUrl: input.draft.canonicalUrl,
           platformSourceId: input.draft.platformVideoId,
           sourceChannelId: input.draft.sourceChannelId,
+          artworkUrl: input.draft.artwork?.url ?? null,
+          artworkAlt: input.draft.artwork?.alt ?? null,
+          artworkSource: input.draft.artwork?.source ?? null,
+          artworkWidth: input.draft.artwork?.width ?? null,
+          artworkHeight: input.draft.artwork?.height ?? null,
+          artworkExpiresAt: input.draft.artwork?.expiresAt ? new Date(input.draft.artwork.expiresAt) : null,
           language: input.draft.language,
           region: input.draft.region,
           cefr: input.draft.cefr,
@@ -450,9 +490,11 @@ export function createDrizzleMediaRepository(
         if (!version) throw new Error("MEDIA_VERSION_WRITE_FAILED");
         await transaction.insert(schema.mediaAssets).values({
           mediaVersionId: version.id,
-          kind: "official_embed",
-          providerKey: "youtube",
-          playbackUrl: input.draft.embedUrl,
+          kind: "video",
+          providerKey: input.hostedAsset.providerKey,
+          playbackUrl: input.hostedAsset.playbackUrl,
+          playbackExpiresAt: null,
+          mimeType: input.hostedAsset.mimeType,
           availability: "available",
         });
         if (input.draft.segments.length > 0) {

@@ -60,6 +60,21 @@ function contentDigest(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
+/** Hashes only the mutable reading payload; source rights and attribution stay immutable. */
+export function articleCandidateContentHash(input: Readonly<{
+  canonicalUrl: string;
+  title: string;
+  summary: string;
+  paragraphs: readonly string[];
+}>): string {
+  return contentDigest({
+    canonicalUrl: input.canonicalUrl,
+    title: input.title,
+    summary: input.summary,
+    paragraphs: input.paragraphs,
+  });
+}
+
 export function normalizeArticleCandidate(input: Readonly<{
   sourceStableKey: string;
   externalItemId: string;

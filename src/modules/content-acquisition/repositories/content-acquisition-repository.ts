@@ -183,6 +183,7 @@ export interface ContentAcquisitionRepository {
     rejectedAt?: Date | null;
     metadata?: Readonly<Record<string, unknown>>;
     contentHash?: string | null;
+    title?: string;
     updatedAt: Date;
   }>): Promise<ContentCandidateRecord>;
   recordProcessingAttempt(input: ProcessingAttemptInput): Promise<void>;
@@ -214,6 +215,9 @@ export interface ContentWorkflowRepository {
     candidateId: string;
     expectedRevision: number;
     generationId: string;
+    title?: string;
+    metadata?: Readonly<Record<string, unknown>>;
+    contentHash?: string | null;
     updatedAt: Date;
   }>): Promise<ContentCandidateRecord>;
   markCandidatePublished(input: Readonly<{

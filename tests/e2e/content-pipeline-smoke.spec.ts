@@ -1,21 +1,33 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
-test("daily content workflow is protected and non-publishing", async () => {
+test("daily content workflow is protected and stage-gated", async () => {
   const workflow = await readFile(".github/workflows/content-acquisition-daily.yml", "utf8");
   expect(workflow).toContain("concurrency:");
   expect(workflow).toContain("workflow_dispatch:");
   expect(workflow).toContain("article_mode:");
   expect(workflow).toContain("media_mode:");
+  expect(workflow).toContain('default: "auto-publish"');
   expect(workflow).toContain("discover-only");
   expect(workflow).toContain("review-only");
   expect(workflow).toContain("auto-publish");
   expect(workflow).toContain("content:pipeline");
   expect(workflow).toContain("media-daily");
   expect(workflow).toContain("continue-on-error: true");
+  expect(workflow).toContain("timeout-minutes: 60");
+  expect(workflow).toContain('tee "$RUNNER_TEMP/article-daily.log"');
+  expect(workflow).toContain('published=${counts.published ?? 0}');
   expect(workflow).toContain("Fail after independent stage attempts");
   expect(workflow).toContain("MINIMAX_API_KEY");
   expect(workflow).toContain("YOUTUBE_DATA_API_KEY");
+  expect(workflow).toContain("CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || 'readlang-links-v5' }}");
+  expect(workflow).toContain("CONTENT_ARTICLE_REVIEW_CONCURRENCY: ${{ vars.CONTENT_ARTICLE_REVIEW_CONCURRENCY || '2' }}");
+  expect(workflow).toContain("ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'auto-publish' }}");
+  expect(workflow).toContain("MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}");
+  expect(workflow).toContain("CONTENT_MEDIA_REVIEW_CONCURRENCY: ${{ vars.CONTENT_MEDIA_REVIEW_CONCURRENCY || '2' }}");
+  expect(workflow).toContain("pnpm content:pipeline -- media-daily --mode auto-publish");
+  expect(workflow).toContain("pnpm exec tsx scripts/host-video-candidates-to-bunny.ts");
+  expect(workflow).toContain("if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}");
   expect(workflow).not.toContain("version: 11");
   expect(workflow).not.toContain("content:publish");
 });

@@ -68,6 +68,8 @@ async function readBody(response: Response, maxBytes: number): Promise<Uint8Arra
 export async function fetchBoundedText(input: Readonly<{
   url: string;
   fetch: typeof fetch;
+  method?: "GET" | "POST";
+  body?: BodyInit;
   allowedHosts: readonly string[];
   allowedContentTypes: readonly string[];
   maxBytes: number;
@@ -92,7 +94,9 @@ export async function fetchBoundedText(input: Readonly<{
     let response: Response;
     try {
       response = await input.fetch(current, {
+        method: input.method ?? "GET",
         headers: input.headers,
+        body: input.body,
         redirect: "manual",
         signal: input.signal,
       });

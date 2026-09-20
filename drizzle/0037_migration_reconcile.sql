@@ -46,6 +46,51 @@ CREATE TABLE "lexemes" (
 	CONSTRAINT "lexemes_status_check" CHECK ("lexemes"."lemma_status" in ('verified', 'pending'))
 );
 --> statement-breakpoint
+CREATE TABLE "lexical_assessment_attempts" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"assessment_item_id" uuid NOT NULL,
+	"idempotency_key" text NOT NULL,
+	"request_hash" text NOT NULL,
+	"answer" text NOT NULL,
+	"normalized_answer" text NOT NULL,
+	"score" integer NOT NULL,
+	"passed" boolean NOT NULL,
+	"input_mode" text DEFAULT 'typing' NOT NULL,
+	"algorithm_version" text NOT NULL,
+	"content_version" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "lexical_assessment_attempts_score_check" CHECK ("lexical_assessment_attempts"."score" in (0, 1)),
+	CONSTRAINT "lexical_assessment_attempts_input_mode_check" CHECK ("lexical_assessment_attempts"."input_mode" = 'typing'),
+	CONSTRAINT "lexical_assessment_attempts_content_version_check" CHECK ("lexical_assessment_attempts"."content_version" > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "lexical_assessment_items" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"assessment_key" text NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"entry_kind" text NOT NULL,
+	"entry_id" uuid,
+	"prompt_type" text NOT NULL,
+	"prompt" text NOT NULL,
+	"options" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"accepted_answers" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"source_reference" jsonb NOT NULL,
+	"skill_key" text NOT NULL,
+	"content_version" integer NOT NULL,
+	"owner_user_id" uuid,
+	"status" text DEFAULT 'published' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "lexical_assessment_items_version_positive_check" CHECK ("lexical_assessment_items"."version" > 0),
+	CONSTRAINT "lexical_assessment_items_kind_check" CHECK ("lexical_assessment_items"."entry_kind" in ('lexeme', 'phrase')),
+	CONSTRAINT "lexical_assessment_items_prompt_type_check" CHECK ("lexical_assessment_items"."prompt_type" in ('choice', 'judgement', 'cloze', 'recall')),
+	CONSTRAINT "lexical_assessment_items_skill_check" CHECK ("lexical_assessment_items"."skill_key" like 'lexical.%'),
+	CONSTRAINT "lexical_assessment_items_content_version_check" CHECK ("lexical_assessment_items"."content_version" > 0),
+	CONSTRAINT "lexical_assessment_items_status_check" CHECK ("lexical_assessment_items"."status" in ('published', 'archived'))
+);
+--> statement-breakpoint
 CREATE TABLE "phrase_entries" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"expression" text NOT NULL,
@@ -84,10 +129,14 @@ CREATE TABLE "user_lexical_intents" (
 	CONSTRAINT "user_lexical_intents_revision_check" CHECK ("user_lexical_intents"."revision" > 0)
 );
 --> statement-breakpoint
+ALTER TABLE "acquisition_sources" DROP CONSTRAINT "acquisition_sources_adapter_check";--> statement-breakpoint
 ALTER TABLE "corpus_occurrences" ADD CONSTRAINT "corpus_occurrences_lexeme_id_lexemes_id_fk" FOREIGN KEY ("lexeme_id") REFERENCES "public"."lexemes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "corpus_occurrences" ADD CONSTRAINT "corpus_occurrences_phrase_entry_id_phrase_entries_id_fk" FOREIGN KEY ("phrase_entry_id") REFERENCES "public"."phrase_entries"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "corpus_occurrences" ADD CONSTRAINT "corpus_occurrences_owner_user_id_profiles_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."profiles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lexeme_forms" ADD CONSTRAINT "lexeme_forms_lexeme_id_lexemes_id_fk" FOREIGN KEY ("lexeme_id") REFERENCES "public"."lexemes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "lexical_assessment_attempts" ADD CONSTRAINT "lexical_assessment_attempts_user_id_profiles_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "lexical_assessment_attempts" ADD CONSTRAINT "lexical_assessment_attempts_assessment_item_id_lexical_assessment_items_id_fk" FOREIGN KEY ("assessment_item_id") REFERENCES "public"."lexical_assessment_items"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "lexical_assessment_items" ADD CONSTRAINT "lexical_assessment_items_owner_user_id_profiles_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."profiles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "phrase_entries" ADD CONSTRAINT "phrase_entries_owner_user_id_profiles_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."profiles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "phrase_variants" ADD CONSTRAINT "phrase_variants_phrase_entry_id_phrase_entries_id_fk" FOREIGN KEY ("phrase_entry_id") REFERENCES "public"."phrase_entries"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_lexical_intents" ADD CONSTRAINT "user_lexical_intents_user_id_profiles_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -98,21 +147,25 @@ CREATE UNIQUE INDEX "lexeme_forms_lexeme_surface_uidx" ON "lexeme_forms" USING b
 CREATE INDEX "lexeme_forms_normalized_surface_idx" ON "lexeme_forms" USING btree ("normalized_surface");--> statement-breakpoint
 CREATE UNIQUE INDEX "lexemes_language_normalized_pos_uidx" ON "lexemes" USING btree ("language","normalized_lemma","part_of_speech");--> statement-breakpoint
 CREATE INDEX "lexemes_normalized_lemma_idx" ON "lexemes" USING btree ("normalized_lemma");--> statement-breakpoint
+CREATE UNIQUE INDEX "lexical_assessment_attempts_user_idempotency_uidx" ON "lexical_assessment_attempts" USING btree ("user_id","idempotency_key");--> statement-breakpoint
+CREATE INDEX "lexical_assessment_attempts_user_item_idx" ON "lexical_assessment_attempts" USING btree ("user_id","assessment_item_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "lexical_assessment_items_key_version_uidx" ON "lexical_assessment_items" USING btree ("assessment_key","version");--> statement-breakpoint
+CREATE INDEX "lexical_assessment_items_visibility_idx" ON "lexical_assessment_items" USING btree ("owner_user_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "phrase_entries_public_expression_uidx" ON "phrase_entries" USING btree ("normalized_expression") WHERE "phrase_entries"."owner_user_id" is null;--> statement-breakpoint
 CREATE INDEX "phrase_entries_owner_status_idx" ON "phrase_entries" USING btree ("owner_user_id","review_status");--> statement-breakpoint
 CREATE UNIQUE INDEX "phrase_variants_entry_expression_uidx" ON "phrase_variants" USING btree ("phrase_entry_id","normalized_expression");--> statement-breakpoint
 CREATE UNIQUE INDEX "user_lexical_intents_user_entry_uidx" ON "user_lexical_intents" USING btree ("user_id","entry_kind","entry_id");--> statement-breakpoint
-CREATE INDEX "user_lexical_intents_user_intent_idx" ON "user_lexical_intents" USING btree ("user_id","intent");
---> statement-breakpoint
+CREATE INDEX "user_lexical_intents_user_intent_idx" ON "user_lexical_intents" USING btree ("user_id","intent");--> statement-breakpoint
+ALTER TABLE "acquisition_sources" ADD CONSTRAINT "acquisition_sources_adapter_check" CHECK ("acquisition_sources"."adapter_type" in ('fake', 'youtube', 'podcast-rss', 'language-reactor', 'article-rss', 'readlang-links', 'custom'));--> statement-breakpoint
 ALTER TABLE public.lexemes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lexeme_forms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.phrase_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.phrase_variants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.corpus_occurrences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_lexical_intents ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-REVOKE ALL ON TABLE public.lexemes, public.lexeme_forms, public.phrase_entries, public.phrase_variants, public.corpus_occurrences, public.user_lexical_intents FROM anon, authenticated;
---> statement-breakpoint
+ALTER TABLE public.lexical_assessment_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lexical_assessment_attempts ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+REVOKE ALL ON TABLE public.lexemes, public.lexeme_forms, public.phrase_entries, public.phrase_variants, public.corpus_occurrences, public.user_lexical_intents, public.lexical_assessment_items, public.lexical_assessment_attempts FROM anon, authenticated;--> statement-breakpoint
 CREATE POLICY lexemes_public_read ON public.lexemes FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY lexeme_forms_public_read ON public.lexeme_forms FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY phrase_entries_public_or_own_read ON public.phrase_entries FOR SELECT TO anon, authenticated
@@ -123,6 +176,12 @@ CREATE POLICY corpus_occurrences_public_or_own_read ON public.corpus_occurrences
   USING (owner_user_id is null or owner_user_id = (SELECT auth.uid()));
 CREATE POLICY user_lexical_intents_own ON public.user_lexical_intents FOR ALL TO authenticated
   USING (user_id = (SELECT auth.uid())) WITH CHECK (user_id = (SELECT auth.uid()));
---> statement-breakpoint
-GRANT SELECT ON TABLE public.lexemes, public.lexeme_forms, public.phrase_entries, public.phrase_variants, public.corpus_occurrences TO anon, authenticated;
+CREATE POLICY lexical_assessment_items_public_or_own_read ON public.lexical_assessment_items FOR SELECT TO anon, authenticated
+  USING ((owner_user_id is null and status = 'published') or owner_user_id = (SELECT auth.uid()));
+CREATE POLICY lexical_assessment_attempts_own ON public.lexical_assessment_attempts FOR SELECT TO authenticated
+  USING (user_id = (SELECT auth.uid()));
+CREATE POLICY lexical_assessment_attempts_own_insert ON public.lexical_assessment_attempts FOR INSERT TO authenticated
+  WITH CHECK (user_id = (SELECT auth.uid()));--> statement-breakpoint
+GRANT SELECT ON TABLE public.lexemes, public.lexeme_forms, public.phrase_entries, public.phrase_variants, public.corpus_occurrences, public.lexical_assessment_items TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_lexical_intents TO authenticated;
+GRANT SELECT, INSERT ON TABLE public.lexical_assessment_attempts TO authenticated;

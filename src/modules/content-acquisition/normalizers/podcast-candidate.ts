@@ -3,10 +3,15 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { mediaSegmentSourceKinds } from "@/src/modules/media/domain";
+import { mediaArtworkSchema } from "@/src/modules/media/schemas";
 
 const stableKeySchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const httpsUrlSchema = z.url().startsWith("https://");
+const persistedIsoDateSchema = z.union([
+  z.iso.datetime({ offset: true }),
+  z.strictObject({ $date: z.iso.datetime({ offset: true }) }),
+]).transform((value) => typeof value === "string" ? value : value.$date);
 
 export const podcastCandidateSegmentSchema = z.strictObject({
   index: z.number().int().nonnegative(),
@@ -28,7 +33,8 @@ export const podcastCandidateDraftSchema = z.strictObject({
   enclosureUrlHash: hashSchema,
   enclosureMimeType: z.enum(["audio/mpeg", "audio/mp4", "audio/aac", "audio/ogg", "audio/webm", "application/ogg"]),
   enclosureByteSize: z.number().int().positive(),
-  playbackExpiresAt: z.iso.datetime({ offset: true }),
+  playbackProvider: z.enum(["podcast-rss", "language-reactor"]).default("podcast-rss"),
+  playbackExpiresAt: persistedIsoDateSchema.nullable(),
   title: z.string().trim().min(1).max(500),
   summary: z.string().trim().max(4_000),
   sourceName: z.string().trim().min(1).max(200),
@@ -43,6 +49,7 @@ export const podcastCandidateDraftSchema = z.strictObject({
   attribution: z.string().trim().min(1).max(1_000),
   licenseEvidence: httpsUrlSchema,
   copyrightStatus: z.literal("cleared"),
+  artwork: mediaArtworkSchema.nullable().default(null),
   transcriptStatus: z.enum(["unavailable", "platform_manual", "platform_auto", "asr"]),
   transcriptUrl: httpsUrlSchema.nullable(),
   segments: z.array(podcastCandidateSegmentSchema).max(500),
@@ -51,15 +58,25 @@ export const podcastCandidateDraftSchema = z.strictObject({
 });
 
 export type PodcastCandidateDraft = z.infer<typeof podcastCandidateDraftSchema>;
-type PodcastDraftInput = Omit<PodcastCandidateDraft, "contentHash" | "enclosureUrlHash">;
+type PodcastDraftInput = Omit<PodcastCandidateDraft, "contentHash" | "enclosureUrlHash" | "artwork" | "playbackProvider"> & {
+  artwork?: PodcastCandidateDraft["artwork"];
+  playbackProvider?: PodcastCandidateDraft["playbackProvider"];
+};
 
 export function calculatePodcastEnclosureUrlHash(url: string): string {
   return createHash("sha256").update(url).digest("hex");
 }
 
-export function calculatePodcastCandidateContentHash(input: Omit<PodcastCandidateDraft, "contentHash"> | PodcastCandidateDraft): string {
+type PodcastContentHashInput = Omit<PodcastCandidateDraft, "contentHash" | "artwork"> & { artwork?: PodcastCandidateDraft["artwork"] } | PodcastCandidateDraft;
+
+export function calculatePodcastCandidateContentHash(input: PodcastContentHashInput): string {
   return createHash("sha256").update(JSON.stringify(input, (key, value) =>
     ["contentHash", "fetchedAt", "playbackExpiresAt", "changeReason"].includes(key) ? undefined : value)).digest("hex");
+}
+
+export function calculateLegacyPodcastCandidateContentHash(input: PodcastCandidateDraft): string {
+  const legacy = { ...input, artwork: undefined, playbackProvider: undefined } as unknown as PodcastContentHashInput;
+  return calculatePodcastCandidateContentHash(legacy);
 }
 
 export function createPodcastCandidateDraft(input: PodcastDraftInput): PodcastCandidateDraft {
@@ -68,7 +85,7 @@ export function createPodcastCandidateDraft(input: PodcastDraftInput): PodcastCa
     enclosureUrlHash: calculatePodcastEnclosureUrlHash(input.enclosureUrl),
     contentHash: "0".repeat(64),
   });
-  if (new Date(normalized.playbackExpiresAt).getTime() <= new Date(normalized.fetchedAt).getTime()) {
+  if (normalized.playbackExpiresAt && new Date(normalized.playbackExpiresAt).getTime() <= new Date(normalized.fetchedAt).getTime()) {
     throw new Error("Podcast playback expiry must be later than the enclosure validation time.");
   }
   return { ...normalized, contentHash: calculatePodcastCandidateContentHash(normalized) };

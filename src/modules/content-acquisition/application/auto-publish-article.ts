@@ -6,6 +6,7 @@ import type { CandidatePublisherRegistry } from "../publishers";
 import type { ContentWorkflowRepository } from "../repositories";
 
 export const ARTICLE_AUTO_PUBLICATION_ACTOR_PREFIX = "article-auto-publication:";
+const READLANG_SOURCE_URL = "https://readlang.com/es/links";
 
 export type AutoPublishArticleResult = Readonly<{
   status: "published" | "skipped" | "failed";
@@ -18,13 +19,13 @@ function approvedAt(value: unknown): boolean {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
-function policyEnabled(source: Readonly<{ enabled: boolean; adapterType: string; sourceKind: string; rightsStatus: string; rightsPolicy?: Readonly<Record<string, unknown>> }>, policyVersion: string): boolean {
+function policyEnabled(source: Readonly<{ enabled: boolean; adapterType: string; sourceKind: string; externalSourceId: string; rightsStatus: string; rightsPolicy?: Readonly<Record<string, unknown>> }>, policyVersion: string): boolean {
   const policy = source.rightsPolicy?.automatedPublication;
   if (!policy || typeof policy !== "object") return false;
   const value = policy as Readonly<Record<string, unknown>>;
   return source.enabled
     && ((source.adapterType === "article-rss" && source.sourceKind === "article-feed")
-      || (source.adapterType === "readlang-links" && source.sourceKind === "article-site"))
+      || (source.adapterType === "readlang-links" && source.sourceKind === "article-site" && source.externalSourceId === READLANG_SOURCE_URL))
     && source.rightsStatus === "verified"
     && value.enabled === true
     && value.policyVersion === policyVersion

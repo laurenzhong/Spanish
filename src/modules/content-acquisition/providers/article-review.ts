@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import type { ArticleCandidateDraft } from "../normalizers";
+import { parseProviderJson } from "./parse-provider-json";
 
 export const articleReviewDecisions = ["approved", "changes_requested", "rejected"] as const;
 export type ArticleReviewDecision = (typeof articleReviewDecisions)[number];
@@ -122,7 +123,7 @@ export class MiniMaxArticleReviewProvider implements ArticleReviewProvider {
       const envelope = anthropicResponseSchema.safeParse(await response.json().catch(() => null));
       if (!envelope.success) throw new Error("ARTICLE_REVIEW_PROVIDER_RESPONSE_INVALID");
       const text = envelope.data.content.map((block) => block.text).join("\n").trim();
-      const payload = providerPayloadSchema.safeParse(parseJson(text));
+      const payload = providerPayloadSchema.safeParse(parseProviderJson(text));
       if (!payload.success) throw new Error("ARTICLE_REVIEW_PROVIDER_RESPONSE_INVALID");
       // Keep provider metadata in the immutable result without trusting model-supplied hashes.
       void startedAt;
@@ -159,11 +160,6 @@ function buildSystemPrompt(dimension: "content-es-ES" | "teaching-zh-CN"): strin
     "Do not invent translations, facts, rights, or learner evidence.",
     "Return JSON only: {decision: approved|changes_requested|rejected, notes: string}.",
   ].join(" ");
-}
-
-function parseJson(text: string): unknown {
-  const normalized = text.replace(/^```(?:json)?\s*/iu, "").replace(/\s*```$/u, "").trim();
-  try { return JSON.parse(normalized) as unknown; } catch { return null; }
 }
 
 function providerStatusError(status: number): Error {

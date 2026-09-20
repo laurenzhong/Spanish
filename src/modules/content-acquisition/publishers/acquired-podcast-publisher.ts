@@ -1,7 +1,7 @@
 import { archiveAcquiredPodcast, publishAcquiredPodcast, validateSegmentTimeline } from "@/src/modules/media";
 import type { AcquiredMediaReview, AcquiredPodcastRepository } from "@/src/modules/media/repositories";
 
-import { calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers";
+import { calculateLegacyPodcastCandidateContentHash, calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers";
 import type { CandidatePublisher, CandidatePublisherInput } from "./candidate-publisher";
 
 export class PodcastPublicationConflictError extends Error {
@@ -54,10 +54,14 @@ export class AcquiredPodcastPublisher implements CandidatePublisher {
       : draft.segments.length > 0
         && draft.segments.every((segment) => segment.sourceKind === draft.transcriptStatus)
         && (draft.transcriptStatus === "asr" ? draft.transcriptUrl === null : draft.transcriptUrl !== null);
+    const legacyArtworkOmitted = !Object.prototype.hasOwnProperty.call(input.metadata.podcastDraft, "artwork");
+    const legacyPlaybackProviderOmitted = !Object.prototype.hasOwnProperty.call(input.metadata.podcastDraft, "playbackProvider");
+    const hashMatches = draft.contentHash === calculatePodcastCandidateContentHash(draft)
+      || (legacyArtworkOmitted && legacyPlaybackProviderOmitted && draft.contentHash === calculateLegacyPodcastCandidateContentHash(draft));
     if (
       input.contentType !== "podcast"
       || input.contentHash !== draft.contentHash
-      || draft.contentHash !== calculatePodcastCandidateContentHash(draft)
+      || !hashMatches
       || input.normalizedUrl !== draft.canonicalUrl
       || input.title !== draft.title
       || input.language !== "es"
@@ -66,7 +70,7 @@ export class AcquiredPodcastPublisher implements CandidatePublisher {
       throw new PodcastPublicationConflictError("The podcast candidate no longer matches its reviewed draft.");
     }
     const publishedAt = (this.dependencies.now ?? (() => new Date()))();
-    if (new Date(draft.playbackExpiresAt).getTime() <= publishedAt.getTime()) {
+    if (draft.playbackExpiresAt && new Date(draft.playbackExpiresAt).getTime() <= publishedAt.getTime()) {
       throw new PodcastPublicationConflictError("The reviewed podcast enclosure validation has expired.");
     }
     const reviews = [

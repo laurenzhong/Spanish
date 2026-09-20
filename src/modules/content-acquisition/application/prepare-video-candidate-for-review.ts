@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { validateSegmentTimeline } from "@/src/modules/media/domain";
 
-import { calculateVideoCandidateContentHash, videoCandidateDraftSchema } from "../normalizers";
+import { calculateLegacyVideoCandidateContentHash, calculateVideoCandidateContentHash, videoCandidateDraftSchema } from "../normalizers";
 import type { ContentAcquisitionRepository, ContentCandidateRecord } from "../repositories";
 import { processCandidate } from "./process-candidate";
 
@@ -49,9 +49,12 @@ export async function prepareVideoCandidateForReview(
       throw new VideoCandidateValidationError("caption timeline is invalid.");
     }
   }
+  const legacyArtworkOmitted = !Object.prototype.hasOwnProperty.call(initial.metadata.videoDraft, "artwork");
+  const hashMatches = draft.contentHash === calculateVideoCandidateContentHash(draft)
+    || (legacyArtworkOmitted && draft.contentHash === calculateLegacyVideoCandidateContentHash(draft));
   if (
     initial.contentHash !== draft.contentHash
-    || draft.contentHash !== calculateVideoCandidateContentHash(draft)
+    || !hashMatches
     || initial.normalizedUrl !== draft.canonicalUrl
     || initial.title !== draft.title
     || initial.externalItemId !== draft.platformVideoId

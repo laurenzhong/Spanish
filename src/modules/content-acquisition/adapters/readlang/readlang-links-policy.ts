@@ -13,6 +13,7 @@ export const readlangLinksPolicySchema = z.object({
     urlPrefixes: z.array(z.url().startsWith("https://")).min(1).max(500),
   }).passthrough(),
   contentMode: z.literal("full_text"),
+  maxArticleBytes: z.number().int().positive().max(5_000_000).optional(),
   license: z.enum(["licensed", "original", "public_domain", "creative_commons", "owner-authorized"]),
   attribution: z.string().trim().min(1).max(1_000),
   automatedPublication: z.object({

@@ -6,6 +6,8 @@ export * from "./rss/article-rss-adapter";
 export * from "./readlang/readlang-links-adapter";
 export * from "./readlang/readlang-links-policy";
 export * from "./readlang/runtime-readlang-links-adapter";
+export * from "./language-reactor/language-reactor-adapter";
+export * from "./language-reactor/language-reactor-policy";
 export * from "./rss/podcast-rss-adapter";
 export * from "./podcast/podcast-policy";
 export * from "./youtube/youtube-channel-adapter";

@@ -190,4 +190,28 @@ describe("runDailyArticlePipeline", () => {
     expect(result.approved).toBe(1);
     expect(savedReviews).toHaveLength(3);
   });
+
+  it("does not re-review candidates that already have a publication", async () => {
+    const repo = repository([source("alpha")]);
+    const published = { publicationStatus: "published", status: "review_ready" } as const;
+    repo.listCandidates.mockResolvedValue([published as unknown as ContentCandidateRecord]);
+    const reviewProviders = createDefaultArticleReviewProviders();
+    const result = await runDailyArticlePipeline({
+      repository: repo as never,
+      resolveAdapter: async () => ({
+        key: "article-rss",
+        discover: async (input) => ({ sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor: null, estimatedCostMicros: 0, items: [] }),
+      }),
+      reviewProviders,
+    }, {
+      date: "2026-09-19",
+      mode: "review-only",
+      policyVersion: "p1",
+      dailyLimit: 10,
+      defaultSourceLimit: 10,
+    });
+
+    expect(result.reviewed).toBe(0);
+    expect(result.failures).toEqual([]);
+  });
 });

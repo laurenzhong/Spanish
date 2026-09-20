@@ -194,22 +194,92 @@
     {
       "idx": 27,
       "version": "7",
-      "when": 1789385149674,
-      "tag": "0027_wide_puff_adder",
+      "when": 1789391029579,
+      "tag": "0027_pale_colossus",
       "breakpoints": true
     },
     {
       "idx": 28,
       "version": "7",
-      "when": 1789391341177,
-      "tag": "0028_neat_gargoyle",
+      "when": 1789403029787,
+      "tag": "0028_skinny_wraith",
       "breakpoints": true
     },
     {
       "idx": 29,
       "version": "7",
-      "when": 1789744545678,
-      "tag": "0029_safe_switch",
+      "when": 1789437317344,
+      "tag": "0029_amusing_blue_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789447204659,
+      "tag": "0030_glossy_norrin_radd",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789450000000,
+      "tag": "0031_media_transcript_backfills",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789533563243,
+      "tag": "0032_bunny_storage_video_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789543502625,
+      "tag": "0033_bunny_storage_audio_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789548775316,
+      "tag": "0034_media_word_timings",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789634400000,
+      "tag": "0035_daily_media_pipeline",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1789666561362,
+      "tag": "0036_media_word_timings",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789792979485,
+      "tag": "0037_migration_reconcile",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789800000000,
+      "tag": "0038_reconcile_youtube_embed_asset_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1789803600000,
+      "tag": "0039_drop_stale_youtube_embed_guard",
       "breakpoints": true
     }
   ]
