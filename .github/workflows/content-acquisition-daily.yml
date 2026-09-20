@@ -62,6 +62,14 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm content:register-readlang-links
+      - name: Register explicit Language Reactor audio redirect hosts
+        if: ${{ vars.LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS != '' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
+          LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS: ${{ vars.LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS }}
+          LANGUAGE_REACTOR_PODCAST_RESET_CURSOR: ${{ vars.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR || 'false' }}
+        run: pnpm exec tsx scripts/register-language-reactor-audio-hosts.ts
       - name: Run staged article pipeline
         id: article_daily
         continue-on-error: true
