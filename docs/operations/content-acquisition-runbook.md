@@ -19,7 +19,7 @@ pnpm content:pipeline -- report --limit 100
 
 文章日流水线使用 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` 作为受保护 Environment 的显式发布门闩。缺失或非 `true` 时，`auto-publish` 在 CLI 入口直接 fail closed；`disabled`、`discover-only` 和 `review-only` 不受此门闩影响。该变量表示发布开关已由维护者明确置于可运行状态，不代表绕过来源权利、双审核、结构校验或 CAS 门禁。
 
-媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`，受 `CONTENT_MEDIA_DAILY_LIMIT`（全局，最大 50）和 `CONTENT_MEDIA_SOURCE_LIMIT`（单来源，最大 50）约束。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。该命令只选择 `youtube`、`podcast-rss` 或已登记的 `language-reactor` 的 `enabled=true`、`rights_status=verified` 来源，并在报告中显式列出因权利未验证而跳过的媒体来源。`language-reactor` 只允许已验证的西语视频/播客目录和其来源策略中指定的 API、媒体主机；适配器不会从页面或 API 响应扩大 allowlist。音频资源会逐跳校验 HTTPS、重定向目标 host、MIME 和大小；失败会记录稳定的脱敏原因码（例如 `RESOURCE_HOST_NOT_ALLOWLISTED`、`RESOURCE_CONTENT_TYPE_UNSUPPORTED`、`RESOURCE_REQUEST_FAILED`），不会记录完整媒体 URL。若授权目录使用 CDN/跟踪重定向，必须先在来源策略中明确登记所有预期跳转 host，并重新运行来源策略校验。
+媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`，受 `CONTENT_MEDIA_DAILY_LIMIT`（全局，最大 50）和 `CONTENT_MEDIA_SOURCE_LIMIT`（单来源，最大 50）约束。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。该命令只选择 `youtube`、`podcast-rss` 或已登记的 `language-reactor` 的 `enabled=true`、`rights_status=verified` 来源，并在报告中显式列出因权利未验证而跳过的媒体来源。媒体来源的配额顺序固定为 Language Reactor YouTube mix（`t_yt_mix_es`）→其他视频→Language Reactor podcast mix（`t_pd_mix_es`）→其他播客；`t_pd_mix_es` 的 API 返回类型是 `AUDIO_FILE`，因此只能生成播客候选，不能伪装为视频。`language-reactor` 只允许已验证的西语视频/播客目录和其来源策略中指定的 API、媒体主机；适配器不会从页面或 API 响应扩大 allowlist。音频资源会逐跳校验 HTTPS、重定向目标 host、MIME 和大小；失败会记录稳定的脱敏原因码（例如 `RESOURCE_HOST_NOT_ALLOWLISTED`、`RESOURCE_CONTENT_TYPE_UNSUPPORTED`、`RESOURCE_REQUEST_FAILED`），不会记录完整媒体 URL。若授权目录使用 CDN/跟踪重定向，必须先在来源策略中明确登记所有预期跳转 host，并重新运行来源策略校验。
 
 每个媒体来源的 discovery 请求有 45 秒硬超时；超时会在报告中记录 `MEDIA_SOURCE_TIMEOUT` 并继续后续已授权来源，保留该来源游标，不会把未完成 discovery 当作成功或发布。媒体候选审核默认以 2 个候选并发运行，可由受保护变量 `CONTENT_MEDIA_REVIEW_CONCURRENCY` 调整（限制为 1-10）；每个候选仍独立完成内容、教学、结构审核和 CAS。`daily-limit` 是本次运行的处理上限，不是保证可发现或可发布的数量；视频还必须先完成 Bunny MP4 托管门禁。
 
@@ -27,7 +27,30 @@ pnpm content:pipeline -- report --limit 100
 
 新视频发布时，YouTube URL 仅保存为来源与 provenance；公开播放资产必须先经 yt-dlp/ffmpeg 处理、上传 Bunny Storage + Pull Zone，并通过 MP4、SHA-256、字节数、CDN HEAD 与浏览器播放/seek 校验。没有 `bunnyVideoAsset` 的视频候选只能停留在审核或托管准备阶段，不能通过媒体 publisher；已存在的旧 official embed 不因迁移脚本成功而自动宣称已转为 Bunny。
 
-Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v6.json` 的 `policyVersion`、164 个精确 URL 快照和授权证据。v6 将已授权的 100 个 `https://readlang.com/library/<id>` URL 放在快照队列首位；其余精确 URL 仍完整保留。该适配器只读取快照 URL；页面新增 URL 或主机前不得自动采集。v6 的 `automatedPublication.enabled=true` 只表示这些精确 URL 已获所有者授权进入分阶段自动发布；仍必须通过 MiniMax 内容/教学审核、结构校验、revision/hash CAS 和显式 publisher，不能按 host 扩大抓取范围。
+### YouTube 授权 cookies（仅在来源账户已获授权时）
+
+YouTube 返回 `Sign in to confirm you’re not a bot` 时，托管步骤不会绕过验证，也不会使用 DRM、录屏或网页抓取。若所有者对该视频拥有可下载授权，可从自己的浏览器导出 Netscape cookies 文件，并先在本地验证一次。cookies 只作为临时 yt-dlp 输入，脚本会复制到临时目录、任务结束删除，不写入数据库、候选 metadata、日志或仓库。
+
+本地 Windows 运行：
+
+```powershell
+$env:MEDIA_VIDEO_COOKIES_FILE = 'C:\secure\youtube-cookies.txt'
+$env:MEDIA_VIDEO_HOSTING_CONFIRM = 'I_HAVE_AUTHORIZATION'
+pnpm exec tsx scripts/host-video-candidate-to-bunny.ts <candidate-uuid>
+Remove-Item -LiteralPath $env:MEDIA_VIDEO_COOKIES_FILE
+```
+
+GitHub Actions 使用受保护的 `content-production` Environment secret。不要把 cookies 文件提交到仓库或粘贴到 issue/聊天；先在本地生成一次 base64 文件，再通过标准输入写入 secret：
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\secure\youtube-cookies.txt')) | Set-Content -NoNewline 'C:\secure\youtube-cookies.b64'
+Get-Content -Raw 'C:\secure\youtube-cookies.b64' | gh secret set YOUTUBE_COOKIES_B64 --repo laurenzhong/Spanish --env content-production
+Remove-Item -LiteralPath 'C:\secure\youtube-cookies.b64'
+```
+
+配置后先用 `limit=1` 的 `review-only` 或单候选托管 canary，确认候选带有 `bunnyVideoAsset`、Bunny HEAD 与浏览器播放/seek 校验通过，再开启媒体 `auto-publish`。若 cookies 未配置、过期或格式不正确，流程会稳定失败关闭；不会把审核通过、托管失败或候选数量计为正式发布。
+
+Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v6.json` 的 `policyVersion`、164 个精确 URL 快照和授权证据。v6 将已授权的 100 个 `https://readlang.com/library/<id>` URL 放在快照队列首位；其余精确 URL 仍完整保留。文章全局配额会先分配给该 Readlang 来源，再分配给其他文章 RSS 来源；这不会把 `https://readlang.com/es/library` 页面本身扩展为新的授权范围。该适配器只读取快照 URL；页面新增 URL 或主机前不得自动采集。v6 的 `automatedPublication.enabled=true` 只表示这些精确 URL 已获所有者授权进入分阶段自动发布；仍必须通过 MiniMax 内容/教学审核、结构校验、revision/hash CAS 和显式 publisher，不能按 host 扩大抓取范围。
 
 Readlang 入口目前由客户端渲染，适配器在先读取入口 HTML 后，只允许请求同站固定的 `https://readlang.com/api/popularDomains?language=es&limit=50`，再把返回的域名/路径逐条套用既有快照 allowlist；不会把 API 返回内容当作新的授权来源。每个外部页面有 15 秒超时和正文大小限制，未抽取出合规文章时保留当前游标以便重试，不把网站首页简介伪装成文章候选。
 
