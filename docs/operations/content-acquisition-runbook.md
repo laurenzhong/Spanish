@@ -19,7 +19,7 @@ pnpm content:pipeline -- report --limit 100
 
 文章日流水线使用 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` 作为受保护 Environment 的显式发布门闩。缺失或非 `true` 时，`auto-publish` 在 CLI 入口直接 fail closed；`disabled`、`discover-only` 和 `review-only` 不受此门闩影响。该变量表示发布开关已由维护者明确置于可运行状态，不代表绕过来源权利、双审核、结构校验或 CAS 门禁。
 
-媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`。自动发布目标按类型独立计算：`CONTENT_MEDIA_VIDEO_DAILY_LIMIT=10` 和 `CONTENT_MEDIA_PODCAST_DAILY_LIMIT=10`，合计目标为每天 10 条视频和 10 条播客；`CONTENT_MEDIA_SOURCE_LIMIT` 仍限制单来源，最大 50。旧的 `CONTENT_MEDIA_DAILY_LIMIT` 只作为未设置分类配额时的兼容回退。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。
+媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`。自动发布目标按类型独立计算：`CONTENT_MEDIA_VIDEO_DAILY_LIMIT=10` 和 `CONTENT_MEDIA_PODCAST_DAILY_LIMIT=10`，合计目标为每天 10 条视频和 10 条播客；未显式设置环境变量时 CLI 也默认使用总计 20、视频 10、播客 10。`CONTENT_MEDIA_SOURCE_LIMIT` 仍限制单来源，最大 50。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。
 
 当 `CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES=true`（生产默认值）时，流水线会先为无字幕或单语字幕的授权媒体创建临时音频，使用配置的 ASR 生成时间轴，再用 MiniMax 逐句翻译为简体中文；临时音频在成功、失败、取消和超时后删除。当前 revision 必须存在至少一个合法时间轴、每句同时有西语原文和中文翻译才允许自动发布；缺少字幕、只有单语字幕或翻译不完整的候选会记录 `MEDIA_BILINGUAL_SUBTITLES_REQUIRED`，不计入视频/播客完成数。该门禁不会把无字幕候选伪装成已完成，也不会绕过 ASR、翻译或审核流程。报告返回 `publishedByType` 和 `targetDeficitByType`，用于区分两类缺口。
 
@@ -33,7 +33,7 @@ pnpm content:pipeline -- report --limit 100
 
 新视频发布时，YouTube URL 仅保存为来源与 provenance；公开播放资产必须先经 yt-dlp/ffmpeg 处理、上传 Bunny Storage + Pull Zone，并通过 MP4、SHA-256、字节数、CDN HEAD 与浏览器播放/seek 校验。没有 `bunnyVideoAsset` 的视频候选只能停留在审核或托管准备阶段，不能通过媒体 publisher；已存在的旧 official embed 不因迁移脚本成功而自动宣称已转为 Bunny。
 
-媒体自动发布的托管步骤默认从所有当前 revision 已通过三维审核、仍为 draft 且没有 `bunnyVideoAsset` 的视频候选中按 `last_activity_at` 取最多 50 条。审核前已存在的候选仍可在本次运行中托管；不能用运行开始时间排除它们。仅在人工单次回填需要限制时间窗口时，才显式设置 `MEDIA_VIDEO_HOSTING_SINCE`。
+媒体自动发布的托管步骤会先按 Asia/Shanghai 自然日统计正式 `published` 视频，再从所有当前 revision 已通过三维审核、仍为 draft 且没有 `bunnyVideoAsset` 的视频候选中按 `last_activity_at` 只取当天剩余缺口。审核前已存在的候选仍可在本次运行中托管；不能用运行开始时间排除它们。仅在人工单次回填需要限制时间窗口时，才显式设置 `MEDIA_VIDEO_HOSTING_SINCE`。
 
 ### YouTube 授权 cookies（仅在来源账户已获授权时）
 

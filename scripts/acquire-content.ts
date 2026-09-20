@@ -184,20 +184,20 @@ export function parseContentPipelineArguments(args: readonly string[]): ContentP
     const videoDailyIndex = args.indexOf("--video-daily-limit");
     const podcastDailyIndex = args.indexOf("--podcast-daily-limit");
     const sourceIndex = args.indexOf("--source-limit");
-    const dailyLimit = Number(dailyIndex >= 0 ? args[dailyIndex + 1] : process.env.CONTENT_MEDIA_DAILY_LIMIT ?? 50);
+    const dailyLimit = Number(dailyIndex >= 0 ? args[dailyIndex + 1] : process.env.CONTENT_MEDIA_DAILY_LIMIT ?? 20);
     const videoDailyLimit = videoDailyIndex >= 0
       ? Number(args[videoDailyIndex + 1])
       : process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT === undefined
-        ? undefined
+        ? 10
         : Number(process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT);
     const podcastDailyLimit = podcastDailyIndex >= 0
       ? Number(args[podcastDailyIndex + 1])
       : process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT === undefined
-        ? undefined
+        ? 10
         : Number(process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT);
     const sourceLimit = Number(sourceIndex >= 0 ? args[sourceIndex + 1] : process.env.CONTENT_MEDIA_SOURCE_LIMIT ?? 10);
     const requireBilingualSubtitles = args.includes("--require-bilingual-subtitles")
-      || (process.env.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES ?? "false") === "true";
+      || (process.env.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES ?? "true") === "true";
     if (!mode || !mediaPublicationModes.includes(mode as typeof mediaPublicationModes[number])) throw new AcquireContentCliInputError("--mode must be a valid media publication mode.");
     if (!Number.isInteger(dailyLimit) || dailyLimit < 0 || dailyLimit > 50) throw new AcquireContentCliInputError("--daily-limit must be between 0 and 50.");
     for (const [name, value] of [["--video-daily-limit", videoDailyLimit], ["--podcast-daily-limit", podcastDailyLimit]] as const) {

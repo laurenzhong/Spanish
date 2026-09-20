@@ -27,6 +27,30 @@ async function main() {
   if (!databaseUrl) throw new Error("MEDIA_CONFIG_REQUIRED");
   const db = postgres(databaseUrl, { prepare: false, max: 1, connect_timeout: 15 });
   try {
+    const now = new Date();
+    const dateParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now);
+    const datePart = (type: Intl.DateTimeFormatPartTypes) => dateParts.find((part) => part.type === type)?.value;
+    const naturalDate = `${datePart("year")}-${datePart("month")}-${datePart("day")}`;
+    const dayStart = new Date(`${naturalDate}T00:00:00+08:00`);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1_000);
+    const publishedRows = await db`
+      select count(*)::int as count
+      from content_candidates
+      where content_type='video' and publication_status='published'
+        and published_at_internal >= ${dayStart}
+        and published_at_internal < ${dayEnd}
+    `;
+    const publishedToday = Number((publishedRows as unknown as { count?: number | string }[])[0]?.count ?? 0);
+    const remaining = Math.max(0, limit - publishedToday);
+    if (remaining === 0) {
+      console.log(JSON.stringify({ requested: 0, hosted: 0, failed: 0, publishedToday, remaining }));
+      return;
+    }
     const rows = await db`
       select id
       from content_candidates
@@ -40,7 +64,7 @@ async function main() {
                and r.status='approved'
                and r.dimension in ('content-es-ES','teaching-zh-CN','structure')) = 3
       order by last_activity_at asc
-      limit ${limit}
+      limit ${remaining}
     `;
     let hosted = 0;
     let failed = 0;
@@ -48,7 +72,7 @@ async function main() {
       try { await run(row.id); hosted += 1; }
       catch { failed += 1; }
     }
-    console.log(JSON.stringify({ requested: rows.length, hosted, failed }));
+    console.log(JSON.stringify({ requested: rows.length, hosted, failed, publishedToday, remaining }));
     if (failed > 0) process.exitCode = 2;
   } finally {
     await db.end();

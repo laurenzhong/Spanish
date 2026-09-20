@@ -91,6 +91,37 @@ describe("content acquisition CLI", () => {
     expect(() => assertMediaAutoPublishKillSwitch("auto-publish", "true")).not.toThrow();
   });
 
+  it("defaults the media pipeline to ten bilingual videos and ten bilingual podcasts", () => {
+    const previous = {
+      daily: process.env.CONTENT_MEDIA_DAILY_LIMIT,
+      video: process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT,
+      podcast: process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT,
+      bilingual: process.env.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES,
+    };
+    delete process.env.CONTENT_MEDIA_DAILY_LIMIT;
+    delete process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT;
+    delete process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT;
+    delete process.env.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES;
+    try {
+      expect(parseContentPipelineArguments(["media-daily", "--mode", "review-only"]))
+        .toMatchObject({
+          mediaDailyLimit: 20,
+          mediaVideoDailyLimit: 10,
+          mediaPodcastDailyLimit: 10,
+          mediaRequireBilingualSubtitles: true,
+        });
+    } finally {
+      if (previous.daily === undefined) delete process.env.CONTENT_MEDIA_DAILY_LIMIT;
+      else process.env.CONTENT_MEDIA_DAILY_LIMIT = previous.daily;
+      if (previous.video === undefined) delete process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT;
+      else process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT = previous.video;
+      if (previous.podcast === undefined) delete process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT;
+      else process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT = previous.podcast;
+      if (previous.bilingual === undefined) delete process.env.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES;
+      else process.env.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES = previous.bilingual;
+    }
+  });
+
   it("keeps auto-publish fail closed unless the protected kill-switch gate is armed", () => {
     expect(() => assertAutoPublishKillSwitch("auto-publish", undefined)).toThrow(
       "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true",
