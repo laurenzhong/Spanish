@@ -9,6 +9,16 @@
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。媒体自动发布仅在受保护 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true` 时开启，缺失或非 `true` 仍停在候选审核库。ALPHA-033 最终门禁要求 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 全部通过，且 P0/P1 清零并有产品本人确认。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter、远端迁移、真实来源抓取和真实收费 Provider 继续如实记录
 - 2026-09-20 运行核对：旧默认分支运行 `35479652473` 在 30 分钟硬上限被取消，文章阶段未输出结构化结果，媒体阶段未开始；默认分支运行 `35482150149` 仅为 `discover-only`、limit 1，Readlang 旧适配器返回 `CONTENT_PROCESSING_FAILED`，两次运行均无可计入的发布数。修复已集中在开放 PR `#15`（分支 `codex/release-review`，当前可合并）：Readlang v5 精确 URL、文章审核有界并发、60 分钟总超时、脱敏阶段计数、统一媒体工作台及回归测试。PR 合并前不得把默认分支运行描述为已完成今日发布。
 
+### 2026-09-20：SOURCE-PRIORITY-001 来源优先级与 Readlang v6
+
+- 状态：`done`（待合并）
+- 分支：`codex/source-priority-001`
+- 实现 Commit：`a6129cc`
+- Readlang 策略升级为 `readlang-links-v6`：保留原 164 个精确授权 URL，确保 100 个 `https://readlang.com/library/<id>` URL 位于队列最前；没有扩大 host、路径或动态发现授权。注册脚本、运行时策略选择、workflow 默认策略和运行手册已同步。
+- 媒体每日调度现在在同一全局配额内优先处理已验证的 `video-channel`，再处理 `podcast-feed`；Language Reactor 的视频/播客 API 类型仍严格区分，未把 `t_pd_mix_es` 播客目录伪装成视频来源。
+- 验证：定向 Vitest `3 files / 17 tests`、workflow Playwright `2/2`、`pnpm lint`、`pnpm typecheck` 和 `git diff --check` 通过。全量 Vitest `239 files / 951 tests` 中 942 通过，9 个未修改媒体数据库测试因基线迁移缺失 `media_versions.artwork_*` 列失败；未执行真实生产采集、数据库写入或发布。
+- 下一步：合并后先以 `article_mode=discover-only`、`media_mode=disabled`、小额度受控注册 v6 并核对 cursor/候选 URL，再按既定分阶段流程进入 review-only；不能把发现或审核计数当作已发布 50 篇。
+
 ### 2026-09-20：每日媒体发布阻塞修复与真实运行
 
 - 播客来源 `language-reactor.podcast-mix-es` 的失败原因已收敛：Language Reactor 返回的音频常经过 Podtrac/Simplecast、Megaphone、RTVE 等多级跳转；资源探测现在为无效 URL、未授权 host、跳转缺失/超限、HTTP、MIME、大小和临时网络失败提供稳定脱敏 `reasonCode`，调度报告不再只显示泛化的 `CONTENT_PROCESSING_FAILED`。allowlist 仍 fail-closed，不会根据响应自动扩展。
