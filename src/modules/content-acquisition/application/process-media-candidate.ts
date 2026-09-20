@@ -15,6 +15,7 @@ export type ProcessMediaCandidateDependencies = Readonly<{
   makeAttemptId?: () => string;
   now?: () => Date;
   resolveArtifactStore?: (input: Readonly<{ candidate: ContentCandidateRecord; source: ContentSourceRecord }>) => MediaProcessingArtifactStore;
+  signal?: AbortSignal;
 }>;
 
 export class MediaCandidateProcessingError extends Error {
@@ -65,6 +66,7 @@ export async function processMediaCandidate(
       artifactStore: dependencies.resolveArtifactStore
         ? dependencies.resolveArtifactStore({ candidate, source: source })
         : dependencies.artifactStore,
+      signal: dependencies.signal,
     });
   } catch (error) {
     const completedAt = (dependencies.now ?? (() => new Date()))();

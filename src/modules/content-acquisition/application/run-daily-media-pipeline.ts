@@ -246,7 +246,7 @@ export async function runDailyMediaPipeline(
           const processed = input.requireBilingualSubtitles
             && dependencies.mediaRuntime
             && !hasBilingualSubtitleTimeline(candidate)
-            ? await processDailyMediaCandidate({ repository: dependencies.repository, candidate, runtime: dependencies.mediaRuntime, now: dependencies.now })
+            ? await processDailyMediaCandidate({ repository: dependencies.repository, candidate, runtime: dependencies.mediaRuntime, now: dependencies.now, signal: sourceSignal })
             : candidate;
           const prepared = processed.status === "review_ready"
             ? processed

@@ -9,6 +9,7 @@ export async function processDailyMediaCandidate(input: Readonly<{
   candidate: ContentCandidateRecord;
   runtime: ContentMediaRuntime;
   now?: () => Date;
+  signal?: AbortSignal;
 }>): Promise<ContentCandidateRecord> {
   let current = input.candidate;
   if (current.status === "review_ready" && input.repository.requestCandidateReprocessing) {
@@ -40,5 +41,6 @@ export async function processDailyMediaCandidate(input: Readonly<{
     artifactStore: input.runtime.createArtifactStore(current, source),
     policy: input.runtime.policy,
     now: input.now,
+    signal: input.signal,
   });
 }
