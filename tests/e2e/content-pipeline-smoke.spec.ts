@@ -14,6 +14,7 @@ test("daily content workflow is protected and stage-gated", async () => {
   expect(workflow).toContain("content:pipeline");
   expect(workflow).toContain("media-daily");
   expect(workflow).toContain("continue-on-error: true");
+  expect(workflow).toContain("timeout-minutes: 60");
   expect(workflow).toContain("Fail after independent stage attempts");
   expect(workflow).toContain("MINIMAX_API_KEY");
   expect(workflow).toContain("YOUTUBE_DATA_API_KEY");
