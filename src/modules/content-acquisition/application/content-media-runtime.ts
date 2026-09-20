@@ -3,7 +3,8 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createOpenAITranscriptionProvider } from "@/src/modules/providers/stt/server";
+import { createMiniMaxTranscriptionProvider, createOpenAITranscriptionProvider } from "@/src/modules/providers/stt/server";
+import { maxTranscriptionAudioBytes } from "@/src/modules/providers/stt/transcription";
 import type { SpeechToTextProvider } from "@/src/modules/providers/stt/transcription";
 import { createMiniMaxTranslationProvider } from "@/src/modules/providers/translation/server";
 import type { TranslationProvider } from "@/src/modules/providers/translation/translation";
@@ -52,9 +53,11 @@ class SpeechToMediaTranscriptionProvider implements RuntimeTranscriber {
     try {
       result = await this.provider.transcribe({
         audioBytes: bytes,
+        assetPath: input.assetPath,
         mimeType: mimeTypeForPath(input.assetPath),
         fileName: path.basename(input.assetPath),
         languageTag: input.language,
+        durationMs: input.durationMs,
       }, options);
     } finally {
       bytes.fill(0);
@@ -176,12 +179,15 @@ function mimeTypeForPath(filePath: string): string {
 
 async function normalizeAudioForTranscription(inputPath: string, directory: string, signal: AbortSignal | undefined): Promise<string> {
   const extension = path.extname(inputPath).toLowerCase();
-  if (extension !== ".ogg" && extension !== ".aac") return inputPath;
-  const outputPath = path.join(directory, "normalized.wav");
+  const inputInfo = await stat(inputPath);
+  if (inputInfo.size <= maxTranscriptionAudioBytes && extension !== ".ogg" && extension !== ".aac") return inputPath;
+  const outputPath = path.join(directory, "normalized.mp3");
   await runCommand(process.env.FFMPEG_BIN?.trim() || "ffmpeg", [
     "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", inputPath,
-    "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", outputPath,
+    "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "48k", outputPath,
   ], signal, 10 * 60_000);
+  const outputInfo = await stat(outputPath);
+  if (outputInfo.size <= 0 || outputInfo.size > maxTranscriptionAudioBytes) throw new Error("MEDIA_AUDIO_TRANSCRIPTION_SIZE_INVALID");
   return outputPath;
 }
 
@@ -293,27 +299,31 @@ export function createContentMediaRuntime(environment: NodeJS.ProcessEnv = proce
     return {
       transcriptionProvider: new FakeDurationTranscriber(),
       translationProvider: new TranslationProviderAdapter(new FixedTranslationProvider(), { provider: "fake", modelVersion: "fake-media-v1" }),
-      policy: { maxDurationMs: 30 * 60_000, maxAssetBytes: 25 * 1024 * 1024, maxEstimatedCostMicros: 2_000_000, minimumConfidence: 0.72 },
+      policy: { maxDurationMs: 60 * 60_000, maxAssetBytes: 50 * 1024 * 1024, maxEstimatedCostMicros: 2_000_000, minimumConfidence: 0.72 },
       createArtifactStore: () => new FakeMediaArtifactStore(),
     };
   }
   if (mode !== "live") throw new ContentMediaRuntimeError("CONTENT_MEDIA_PROVIDER_MODE must explicitly be fake or live.");
   const sttProvider = environment.CONTENT_MEDIA_STT_PROVIDER?.trim().toLowerCase() || "openai";
   const translationProvider = environment.CONTENT_MEDIA_TRANSLATION_PROVIDER?.trim().toLowerCase() || "minimax";
-  if (sttProvider !== "openai") throw new ContentMediaRuntimeError("The configured media STT provider is unsupported; use openai.");
+  if (sttProvider !== "openai" && sttProvider !== "minimax") throw new ContentMediaRuntimeError("The configured media STT provider is unsupported; use openai or minimax.");
   if (translationProvider !== "minimax") throw new ContentMediaRuntimeError("The configured media translation provider is unsupported; use minimax.");
   const openAiKey = environment.OPENAI_API_KEY?.trim();
   const miniMaxKey = environment.MINIMAX_API_KEY?.trim();
-  if (!openAiKey) throw new ContentMediaRuntimeError("The configured media STT credential is missing.");
+  if (sttProvider === "openai" && !openAiKey) throw new ContentMediaRuntimeError("The configured media STT credential is missing.");
   if (!miniMaxKey) throw new ContentMediaRuntimeError("The configured media translation credential is missing.");
   const transcriptionModel = environment.OPENAI_TRANSCRIPTION_MODEL?.trim() || "gpt-transcribe";
+  const minimaxTranscriptionModel = environment.MINIMAX_TRANSCRIPTION_MODEL?.trim() || "asr-1.0";
   const translationModel = environment.MINIMAX_TRANSLATION_MODEL?.trim() || "MiniMax-M3";
+  const transcriptionProvider = sttProvider === "minimax"
+    ? new SpeechToMediaTranscriptionProvider(createMiniMaxTranscriptionProvider({ apiKey: miniMaxKey, model: minimaxTranscriptionModel, endpoint: environment.MINIMAX_TRANSCRIPTION_API_ENDPOINT }), { provider: "minimax", modelVersion: minimaxTranscriptionModel })
+    : new SpeechToMediaTranscriptionProvider(createOpenAITranscriptionProvider({ apiKey: openAiKey ?? "", model: transcriptionModel, endpoint: environment.OPENAI_TRANSCRIPTION_ENDPOINT }), { provider: "openai", modelVersion: transcriptionModel });
   return {
-    transcriptionProvider: new SpeechToMediaTranscriptionProvider(createOpenAITranscriptionProvider({ apiKey: openAiKey, model: transcriptionModel }), { provider: "openai", modelVersion: transcriptionModel }),
+    transcriptionProvider,
     translationProvider: new TranslationProviderAdapter(createMiniMaxTranslationProvider({ apiKey: miniMaxKey, modelVersion: translationModel }), { provider: "minimax", modelVersion: translationModel }),
     policy: {
-      maxDurationMs: Number(environment.CONTENT_MEDIA_ASR_MAX_DURATION_MS ?? 30 * 60_000),
-      maxAssetBytes: Number(environment.CONTENT_MEDIA_ASR_MAX_ASSET_BYTES ?? 25 * 1024 * 1024),
+      maxDurationMs: Number(environment.CONTENT_MEDIA_ASR_MAX_DURATION_MS ?? 60 * 60_000),
+      maxAssetBytes: Number(environment.CONTENT_MEDIA_ASR_MAX_ASSET_BYTES ?? 50 * 1024 * 1024),
       maxEstimatedCostMicros: Number(environment.CONTENT_MEDIA_ASR_MAX_COST_MICROS ?? 2_000_000),
       minimumConfidence: Number(environment.CONTENT_MEDIA_ASR_MIN_CONFIDENCE ?? 0.72),
     },

@@ -1,4 +1,5 @@
-import { archiveAcquiredVideo, publishAcquiredVideo, validateSegmentTimeline } from "@/src/modules/media";
+import { publishAcquiredVideo, archiveAcquiredVideo } from "@/src/modules/media/application";
+import { validateSegmentTimeline } from "@/src/modules/media/domain";
 import type { AcquiredMediaReview, AcquiredVideoRepository, HostedVideoAsset } from "@/src/modules/media/repositories";
 import { z } from "zod";
 

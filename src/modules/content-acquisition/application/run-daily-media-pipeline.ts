@@ -71,7 +71,8 @@ export type RunDailyMediaPipelineDependencies = Readonly<{
   now?: () => Date;
 }>;
 
-const DEFAULT_MEDIA_SOURCE_TIMEOUT_MS = 45_000;
+const DEFAULT_MEDIA_SOURCE_TIMEOUT_MS = 180_000;
+const DEFAULT_MEDIA_CANDIDATE_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_MEDIA_REVIEW_CONCURRENCY = 2;
 
 function errorCode(error: unknown): string {
@@ -140,6 +141,7 @@ export async function runDailyMediaPipeline(
     podcastDailyLimit?: number;
     defaultSourceLimit: number;
     sourceTimeoutMs?: number;
+    candidateTimeoutMs?: number;
     reviewConcurrency?: number;
     requireBilingualSubtitles?: boolean;
   }>,
@@ -199,6 +201,7 @@ export async function runDailyMediaPipeline(
     }
   }
   const sourceTimeoutMs = input.sourceTimeoutMs ?? DEFAULT_MEDIA_SOURCE_TIMEOUT_MS;
+  const candidateTimeoutMs = input.candidateTimeoutMs ?? DEFAULT_MEDIA_CANDIDATE_TIMEOUT_MS;
   const requestedReviewConcurrency = input.reviewConcurrency ?? DEFAULT_MEDIA_REVIEW_CONCURRENCY;
   const reviewConcurrency = Number.isFinite(requestedReviewConcurrency)
     ? Math.max(1, Math.min(10, Math.floor(requestedReviewConcurrency)))
@@ -243,10 +246,11 @@ export async function runDailyMediaPipeline(
         const batch = candidates.slice(offset, offset + reviewConcurrency);
         await Promise.all(batch.map(async (candidate) => {
           try {
+          const candidateSignal = AbortSignal.timeout(candidateTimeoutMs);
           const processed = input.requireBilingualSubtitles
             && dependencies.mediaRuntime
             && !hasBilingualSubtitleTimeline(candidate)
-            ? await processDailyMediaCandidate({ repository: dependencies.repository, candidate, runtime: dependencies.mediaRuntime, now: dependencies.now, signal: sourceSignal })
+            ? await processDailyMediaCandidate({ repository: dependencies.repository, candidate, runtime: dependencies.mediaRuntime, now: dependencies.now, signal: candidateSignal })
             : candidate;
           const prepared = processed.status === "review_ready"
             ? processed

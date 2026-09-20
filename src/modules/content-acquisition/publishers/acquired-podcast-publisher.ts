@@ -1,4 +1,5 @@
-import { archiveAcquiredPodcast, publishAcquiredPodcast, validateSegmentTimeline } from "@/src/modules/media";
+import { publishAcquiredPodcast, archiveAcquiredPodcast } from "@/src/modules/media/application";
+import { validateSegmentTimeline } from "@/src/modules/media/domain";
 import type { AcquiredMediaReview, AcquiredPodcastRepository } from "@/src/modules/media/repositories";
 
 import { calculateLegacyPodcastCandidateContentHash, calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers";

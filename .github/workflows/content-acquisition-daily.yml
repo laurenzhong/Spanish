@@ -121,10 +121,15 @@ jobs:
           CONTENT_MEDIA_STT_PROVIDER: ${{ vars.CONTENT_MEDIA_STT_PROVIDER || 'openai' }}
           CONTENT_MEDIA_TRANSLATION_PROVIDER: ${{ vars.CONTENT_MEDIA_TRANSLATION_PROVIDER || 'minimax' }}
           OPENAI_TRANSCRIPTION_MODEL: ${{ vars.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe' }}
+          OPENAI_TRANSCRIPTION_ENDPOINT: ${{ vars.OPENAI_TRANSCRIPTION_ENDPOINT || 'https://api.openai.com/v1/audio/transcriptions' }}
+          MINIMAX_TRANSCRIPTION_MODEL: ${{ vars.MINIMAX_TRANSCRIPTION_MODEL || 'asr-1.0' }}
+          MINIMAX_TRANSCRIPTION_API_ENDPOINT: ${{ vars.MINIMAX_TRANSCRIPTION_API_ENDPOINT || 'https://api.minimax.cn/v1/speech_to_text' }}
           MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}
           MEDIA_VIDEO_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}
           MEDIA_PODCAST_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}
           MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
+          CONTENT_MEDIA_SOURCE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_SOURCE_TIMEOUT_MS || '180000' }}
+          CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS || '900000' }}
         run: >-
           set -o pipefail
           &&
@@ -134,7 +139,7 @@ jobs:
           pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
           pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log";
           else
-          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
+          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           fi
       - name: Cleanup expired candidates and artifacts
         if: always()

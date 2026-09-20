@@ -2,7 +2,7 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-20
+- 最后更新：2026-09-21
 - 当前里程碑：内容驱动学习与自动内容供应重构
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
@@ -18,7 +18,8 @@
 - 配额补强 Commit：`49b465f`。CLI 在缺少环境变量时也默认总计 20、视频 10、播客 10，并默认启用双语字幕门禁；Bunny 批量托管脚本按 Asia/Shanghai 当天已正式发布的视频数只处理剩余缺口，避免目标已满后继续托管候选。同步更新媒体运行手册并增加 CLI 默认值回归测试。
 - 本轮补充验证：聚焦 Vitest `4 files / 28 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check`，以及 Playwright Chrome workflow smoke 桌面/移动 `2/2`；此前视频/播客媒体工作台桌面/移动 `6/6` 回归仍通过。
 - 验证：定向 Vitest `4 files / 27 tests`、STT/字幕聚焦 `3 files / 26 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；项目 Playwright Chrome 桌面媒体回归 `5/5`、移动 `5/5`，workflow smoke `1/1` 通过。全量 Vitest `237 files / 952 passed, 9 failed`；9 个失败均为已知 PGLite 测试基线缺失 `media_versions.artwork_*` 迁移列，与本提交无关。
-- 未执行真实生产媒体采集、ASR/翻译收费调用、Bunny 托管、数据库写入或正式发布；当前不能据此宣称今天已经完成 10/10。下一步是在 `content-production` Environment 配置 `OPENAI_API_KEY`、`MINIMAX_API_KEY`、Bunny 凭据和 kill switch 后，以小额度 `review-only` canary 核对实际字幕与候选，再执行 `auto-publish` 并按 `publishedByType`/`targetDeficitByType` 报告。
+- 媒体 provider 补充：MiniMax ASR 支持超过 500 秒的临时音频按 450 秒分片，使用真实临时资产路径，取消/超时后清理分片目录；定向 STT/媒体测试 `7 files / 45 tests`、`pnpm typecheck`、`pnpm lint` 和 `git diff --check` 通过。
+- 2026-09-21 本地数据库 `review-only` canary（播客目标 1、来源上限 1）结构化结果为 `publishedByType={video:18,podcast:0}`、`targetDeficitByType={video:0,podcast:1}`，候选失败 `provider-cancelled`；未新增正式发布。一次更长 canary 已中止并清理遗留临时媒体目录。当前不能宣称今天完成 10/10；Bunny 凭据未配置，后续需先解决 MiniMax/候选处理超时，再按 `review-only → auto-publish` 分阶段运行。
 
 ### 2026-09-20：SOURCE-PRIORITY-001 来源优先级与 Readlang v6
 

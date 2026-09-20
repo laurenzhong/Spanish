@@ -36,7 +36,7 @@ import {
   type ContentAcquisitionRepository,
   type ContentSourceRecord,
   type ContentSourceAdapter,
-} from "../src/modules/content-acquisition/index";
+} from "../src/modules/content-acquisition/server";
 import { createDatabaseConnection } from "../src/shared/db/client";
 import { createDrizzleArticleRepository } from "../src/modules/content/repositories";
 
@@ -400,6 +400,8 @@ async function main(): Promise<void> {
         podcastDailyLimit: options.mediaPodcastDailyLimit,
         requireBilingualSubtitles: options.mediaRequireBilingualSubtitles,
         defaultSourceLimit: options.mediaSourceLimit ?? 10,
+        sourceTimeoutMs: Number(process.env.CONTENT_MEDIA_SOURCE_TIMEOUT_MS ?? 180_000),
+        candidateTimeoutMs: Number(process.env.CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS ?? 15 * 60_000),
         reviewConcurrency: Number(process.env.CONTENT_MEDIA_REVIEW_CONCURRENCY ?? 2),
       });
        const mediaTargetIncomplete = result.mode === "auto-publish" && (result.targetDeficitByType.video > 0 || result.targetDeficitByType.podcast > 0);

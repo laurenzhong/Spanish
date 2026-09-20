@@ -14,9 +14,12 @@ export type TranscriptionErrorCode = (typeof transcriptionErrorCodes)[number];
 
 export type SpeechToTextInput = Readonly<{
   audioBytes: Uint8Array;
+  /** Absolute path to the temporary asset when a provider needs to re-encode it. */
+  assetPath?: string;
   mimeType: string;
   fileName: string;
   languageTag?: string;
+  durationMs?: number;
 }>;
 
 export type TranscriptResult = Readonly<{
@@ -24,7 +27,7 @@ export type TranscriptResult = Readonly<{
   detectedLanguages: readonly string[];
   confidence: number | null;
   confidenceAvailability: "unavailable" | "provider";
-  provider: "openai" | "local-whisper" | "fake";
+  provider: "openai" | "minimax" | "local-whisper" | "fake";
   modelVersion: string;
   providerRequestId: string | null;
   latencyMs: number;
