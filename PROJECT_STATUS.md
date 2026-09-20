@@ -13,7 +13,8 @@
 - 播客来源 `language-reactor.podcast-mix-es` 的失败原因已收敛：Language Reactor 返回的音频常经过 Podtrac/Simplecast、Megaphone、RTVE 等多级跳转；资源探测现在为无效 URL、未授权 host、跳转缺失/超限、HTTP、MIME、大小和临时网络失败提供稳定脱敏 `reasonCode`，调度报告不再只显示泛化的 `CONTENT_PROCESSING_FAILED`。allowlist 仍 fail-closed，不会根据响应自动扩展。
 - 当前工作区没有 `DATABASE_URL`，因此本轮未重跑生产数据库流水线，也没有新增今日发布计数。已完成的真实外部核验仅覆盖 Language Reactor API 响应及代表性音频跳转链；若要恢复该播客来源，需在已授权来源策略中显式补齐实际使用的跳转 host 后再运行媒体流水线。
 - 媒体详情页已移除旧式播放器 fallback；所有合法视频（YouTube embed/Bunny MP4）和播客音频版本现在统一渲染 `MediaLearningWorkbench`。媒体 Playwright 桌面/移动 `6/6`、媒体聚焦单测 `10/10`、TypeScript 与受影响 ESLint 通过。
-- GitHub `content-production` 当前仍是 `readlang-links-v1`、文章 `review-only`、自动发布开关关闭，且仅配置 `DATABASE_URL`/`MINIMAX_API_KEY`，没有 Bunny Storage 凭据；因此远端旧 workflow 的成功只证明候选审核步骤成功，不能证明今天文章/视频已自动发布。当前不能在不补齐策略、发布开关和视频托管凭据的情况下宣称完成今日发布。
+- GitHub `content-production` 已登记 `readlang-links-v5`；文章自动发布仅在受保护 kill switch 为 `true` 时运行，媒体仍保持 `review-only`。环境仍没有 Bunny Storage 凭据，因此远端媒体运行不能宣称视频/播客已自动发布；文章运行也必须以最终 `published` 计数为准。
+- 当前分支已登记 `readlang-links-v5`：精确 allowlist 为 164 个 URL（56 个主机，含 100 个授权 Readlang `/library/...` URL，以及 CNN Español、literatura.us 精确条目）。GitHub 运行 `35479652473` 已启用文章 `auto-publish`（受保护 kill switch 与 MiniMax 审核），媒体仍为 `review-only`；运行结束前不得把 discovered/inserted/reviewReady 计为 published。
 
 - 修复视频托管脚本在本地没有 Playwright bundled Chromium 时无法完成播放验收的问题：优先使用 CI 固定 Chromium，缺失时回退到本机 Google Chrome。
 - 修复 Bunny 资产回写被 `postgres.js` 绑定为 JSON 字符串的问题；现在 `bunnyVideoAsset` 持久化为 JSON 对象，发布门禁可以正确识别并校验 MP4。
