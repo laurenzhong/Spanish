@@ -23,6 +23,8 @@ pnpm content:pipeline -- report --limit 100
 
 每个媒体来源的 discovery 请求有 45 秒硬超时；超时会在报告中记录 `MEDIA_SOURCE_TIMEOUT` 并继续后续已授权来源，保留该来源游标，不会把未完成 discovery 当作成功或发布。媒体候选审核默认以 2 个候选并发运行，可由受保护变量 `CONTENT_MEDIA_REVIEW_CONCURRENCY` 调整（限制为 1-10）；每个候选仍独立完成内容、教学、结构审核和 CAS。`daily-limit` 是本次运行的处理上限，不是保证可发现或可发布的数量；视频还必须先完成 Bunny MP4 托管门禁。
 
+文章候选审核默认以 2 个候选并发运行，可由受保护变量 `CONTENT_ARTICLE_REVIEW_CONCURRENCY` 调整（限制为 1-10）。发现、准备、双维度 MiniMax 审核、最多一次修订和发布仍按候选保持 revision/hash CAS；单个候选失败会记录脱敏错误并继续同批其他候选。并发只解决吞吐，不减少任一审核维度，也不把 `discovered`、`prepared` 或 `reviewed` 计为 `published`。
+
 新视频发布时，YouTube URL 仅保存为来源与 provenance；公开播放资产必须先经 yt-dlp/ffmpeg 处理、上传 Bunny Storage + Pull Zone，并通过 MP4、SHA-256、字节数、CDN HEAD 与浏览器播放/seek 校验。没有 `bunnyVideoAsset` 的视频候选只能停留在审核或托管准备阶段，不能通过媒体 publisher；已存在的旧 official embed 不因迁移脚本成功而自动宣称已转为 Bunny。
 
 Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v5.json` 的 `policyVersion`、164 个精确 URL 快照和授权证据。该适配器只读取快照 URL；页面新增 URL 或主机前不得自动采集。v5 的 `automatedPublication.enabled=true` 只表示这些精确 URL 已获所有者授权进入分阶段自动发布；仍必须通过 MiniMax 内容/教学审核、结构校验、revision/hash CAS 和显式 publisher，不能按 host 扩大抓取范围。

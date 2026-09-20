@@ -18,6 +18,7 @@ test("daily content workflow is protected and stage-gated", async () => {
   expect(workflow).toContain("MINIMAX_API_KEY");
   expect(workflow).toContain("YOUTUBE_DATA_API_KEY");
   expect(workflow).toContain("CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || 'readlang-links-v5' }}");
+  expect(workflow).toContain("CONTENT_ARTICLE_REVIEW_CONCURRENCY: ${{ vars.CONTENT_ARTICLE_REVIEW_CONCURRENCY || '2' }}");
   expect(workflow).toContain("ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'auto-publish' }}");
   expect(workflow).toContain("MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}");
   expect(workflow).toContain("CONTENT_MEDIA_REVIEW_CONCURRENCY: ${{ vars.CONTENT_MEDIA_REVIEW_CONCURRENCY || '2' }}");

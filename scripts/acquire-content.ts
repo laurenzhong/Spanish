@@ -322,6 +322,7 @@ async function main(): Promise<void> {
         policyVersion: options.policyVersion ?? "",
         dailyLimit: options.dailyLimit ?? 50,
         defaultSourceLimit: options.sourceLimit ?? 10,
+        reviewConcurrency: Number(process.env.CONTENT_ARTICLE_REVIEW_CONCURRENCY ?? 2),
       });
       const articlePartial = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0 || result.skippedSources.length > 0;
       process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: articlePartial ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
