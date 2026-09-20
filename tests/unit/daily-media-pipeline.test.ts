@@ -100,6 +100,41 @@ describe("runDailyMediaPipeline", () => {
     expect(calls).toEqual([video.stableKey, podcast.stableKey]);
   });
 
+  it("prefers the authorized Language Reactor directories within each media type", async () => {
+    const genericVideo = source({ id: "source-generic-video", stableKey: "aaa.video" });
+    const languageReactorVideo = source({
+      id: "source-language-reactor-video",
+      stableKey: "zzz.language-reactor-video",
+      adapterType: "language-reactor",
+      externalSourceId: "t_yt_mix_es",
+    });
+    const genericPodcast = source({ id: "source-generic-podcast", stableKey: "aaa.podcast", adapterType: "podcast-rss", sourceKind: "podcast-feed" });
+    const languageReactorPodcast = source({
+      id: "source-language-reactor-podcast",
+      stableKey: "zzz.language-reactor-podcast",
+      adapterType: "language-reactor",
+      sourceKind: "podcast-feed",
+      externalSourceId: "t_pd_mix_es",
+    });
+    const repo = repository([genericPodcast, genericVideo, languageReactorPodcast, languageReactorVideo]);
+    const calls: string[] = [];
+    const result = await runDailyMediaPipeline({
+      repository: repo as never,
+      resolveAdapter: async (item) => {
+        calls.push(item.stableKey);
+        return { key: item.adapterType === "language-reactor" ? "language-reactor" : item.sourceKind === "video-channel" ? "youtube" : "podcast-rss", discover: async () => ({ sourceStableKey: item.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }) };
+      },
+    }, { mode: "discover-only", dailyLimit: 4, defaultSourceLimit: 1, date: "2026-09-19" });
+
+    expect(result.failures).toEqual([]);
+    expect(calls).toEqual([
+      languageReactorVideo.stableKey,
+      genericVideo.stableKey,
+      languageReactorPodcast.stableKey,
+      genericPodcast.stableKey,
+    ]);
+  });
+
   it("times out a stalled source and continues with the next authorized source", async () => {
     const stalled = source({ id: "source-stalled", stableKey: "aaa.stalled" });
     const healthy = source({ id: "source-healthy", stableKey: "bbb.healthy" });

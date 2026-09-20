@@ -5,6 +5,13 @@ export type ArticlePublicationMode = (typeof articlePublicationModes)[number];
 
 const READLANG_SOURCE_URL = "https://readlang.com/es/links";
 
+function articleSourcePriority(source: ContentSourceRecord): number {
+  // Readlang's adapter queues the 100 exact `/library/<id>` URLs before the
+  // remaining authorized snapshot links. Run that source before RSS sources so
+  // the global daily quota is spent on the requested library set first.
+  return source.adapterType === "readlang-links" && source.externalSourceId === READLANG_SOURCE_URL ? 0 : 10;
+}
+
 export type ArticleDailySourcePlan = Readonly<{
   sourceStableKey: string;
   sourceLimit: number;
@@ -74,7 +81,8 @@ export function planDailyArticleRun(input: Readonly<{
   if (!Number.isInteger(input.defaultSourceLimit) || input.defaultSourceLimit < 1 || input.defaultSourceLimit > 50) throw new ArticlePublicationPolicyError("defaultSourceLimit must be between 1 and 50.");
 
   const eligible = [...input.sources]
-    .sort((left, right) => left.stableKey.localeCompare(right.stableKey))
+    .sort((left, right) => articleSourcePriority(left) - articleSourcePriority(right)
+      || left.stableKey.localeCompare(right.stableKey))
     .filter((source) => source.enabled && source.rightsStatus === "verified"
       && ((source.adapterType === "article-rss" && source.sourceKind === "article-feed")
         || (source.adapterType === "readlang-links" && source.sourceKind === "article-site" && source.externalSourceId === READLANG_SOURCE_URL)));

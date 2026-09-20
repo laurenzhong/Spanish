@@ -92,7 +92,17 @@ function isMediaSource(source: ContentSourceRecord): boolean {
 }
 
 function mediaSourcePriority(source: ContentSourceRecord): number {
-  return source.sourceKind === "video-channel" ? 0 : 1;
+  // Language Reactor's YouTube mix is the preferred video directory. The
+  // user-authorized `t_pd_mix_es` directory is a podcast feed, so it is kept
+  // ahead of other podcasts without being reclassified as video.
+  if (source.adapterType === "language-reactor"
+    && source.sourceKind === "video-channel"
+    && source.externalSourceId === "t_yt_mix_es") return 0;
+  if (source.sourceKind === "video-channel") return 10;
+  if (source.adapterType === "language-reactor"
+    && source.sourceKind === "podcast-feed"
+    && source.externalSourceId === "t_pd_mix_es") return 20;
+  return 30;
 }
 
 function hasHostedVideoAsset(candidate: Readonly<Pick<ContentCandidateRecord, "contentType" | "metadata">>): boolean {
