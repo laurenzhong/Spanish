@@ -20,6 +20,8 @@
 - 验证：定向 Vitest `4 files / 27 tests`、STT/字幕聚焦 `3 files / 26 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；项目 Playwright Chrome 桌面媒体回归 `5/5`、移动 `5/5`，workflow smoke `1/1` 通过。全量 Vitest `237 files / 952 passed, 9 failed`；9 个失败均为已知 PGLite 测试基线缺失 `media_versions.artwork_*` 迁移列，与本提交无关。
 - 媒体 provider 补充：MiniMax ASR 支持超过 500 秒的临时音频按 450 秒分片，使用真实临时资产路径，取消/超时后清理分片目录；定向 STT/媒体测试 `7 files / 45 tests`、`pnpm typecheck`、`pnpm lint` 和 `git diff --check` 通过。
 - 2026-09-21 本地数据库 `review-only` canary（播客目标 1、来源上限 1）结构化结果为 `publishedByType={video:18,podcast:0}`、`targetDeficitByType={video:0,podcast:1}`，候选失败 `provider-cancelled`；未新增正式发布。一次更长 canary 已中止并清理遗留临时媒体目录。当前不能宣称今天完成 10/10；Bunny 凭据未配置，后续需先解决 MiniMax/候选处理超时，再按 `review-only → auto-publish` 分阶段运行。
+- 最终发布门禁 Commit：`5d4d2b4`。`auto-publish-media`、视频 publisher 和播客 publisher 现在都会在发布边界再次检查每个字幕片段同时存在非空西语原文与中文翻译；缺失双语字幕的媒体不会创建正式版本，也不会计入 `publishedByType`。新增视频/播客发布器回归测试，定向媒体单测 `5 files / 21 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 和媒体 Playwright `10/10`（改用 3111 端口）通过。
+- 只读核验本地 `.env` 数据库的北京时间 `2026-09-21` 窗口：正式发布视频 `18`、播客 `0`；视频 `18` 条均无完整双语字幕时间轴。该核验未写入数据库、未调用真实 provider、未修改历史已发布版本，因此当前仍不能宣称达到视频 `10/10` 与播客 `10/10`；需先用 `media_transcript_backfills` 或新媒体版本补齐字幕并完成三维审核，再重新执行 `review-only → auto-publish`。
 
 ### 2026-09-20：SOURCE-PRIORITY-001 来源优先级与 Readlang v6
 
