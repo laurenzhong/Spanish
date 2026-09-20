@@ -5,8 +5,10 @@ import postgres from "postgres";
 
 const confirmation = "I_HAVE_AUTHORIZATION";
 const limit = Number(process.env.MEDIA_VIDEO_HOSTING_LIMIT ?? 50);
+const hostingSince = process.env.MEDIA_VIDEO_HOSTING_SINCE?.trim() || null;
 if (process.env.MEDIA_VIDEO_HOSTING_CONFIRM !== confirmation) throw new Error("MEDIA_AUTHORIZATION_REQUIRED");
 if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("MEDIA_VIDEO_HOSTING_LIMIT_INVALID");
+if (hostingSince && Number.isNaN(Date.parse(hostingSince))) throw new Error("MEDIA_VIDEO_HOSTING_SINCE_INVALID");
 
 function run(candidateId: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -29,6 +31,7 @@ async function main() {
       select id
       from content_candidates
       where content_type='video' and status='review_ready' and publication_status='draft'
+        ${hostingSince ? db`and updated_at >= ${hostingSince}` : db``}
         and not (metadata ? 'bunnyVideoAsset')
         and (select count(distinct r.dimension) from candidate_reviews r
              where r.candidate_id=content_candidates.id

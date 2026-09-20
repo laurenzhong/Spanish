@@ -60,7 +60,10 @@ async function main() {
     const stableKey = typeof draft?.stableKey === "string" ? draft.stableKey : null;
     const durationSeconds = typeof draft?.durationMs === "number" ? draft.durationMs / 1_000 : 0;
     if (!videoId || !stableKey || !Number.isFinite(durationSeconds) || durationSeconds <= 0) throw new Error("CONTENT_VIDEO_DRAFT_INVALID");
-    const base = ["--ignore-config", "--no-playlist", "--js-runtimes", "node", "--force-ipv4", "--socket-timeout", "30", "--retries", "3", "--ffmpeg-location", ffmpeg];
+    // `--ffmpeg-location` accepts a directory, not an executable name. The
+    // runner already exposes ffmpeg on PATH, so omit it for the normal case.
+    const ffmpegDirectory = process.env.FFMPEG_DIRECTORY?.trim();
+    const base = ["--ignore-config", "--no-playlist", "--js-runtimes", "node", "--force-ipv4", "--socket-timeout", "30", "--retries", "3", ...(ffmpegDirectory ? ["--ffmpeg-location", ffmpegDirectory] : [])];
     await run(ytdlp, [...base, "--no-progress", "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "--output", source, `https://www.youtube.com/watch?v=${videoId}`], 20 * 60_000);
     const sourceInfo = await stat(source);
     if (!sourceInfo.size || sourceInfo.size > maxBytes) throw new Error("MEDIA_VIDEO_SIZE_INVALID");
