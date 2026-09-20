@@ -537,6 +537,13 @@ export function createDrizzleContentAcquisitionRepository(
         if (input.status === "rejected") {
           const rejected = await transaction.update(schema.contentCandidates).set({ status: "rejected", rejectedAt: input.updatedAt, lastActivityAt: input.updatedAt, updatedAt: input.updatedAt }).where(and(eq(schema.contentCandidates.id, input.candidateId), eq(schema.contentCandidates.revision, input.expectedRevision), eq(schema.contentCandidates.publicationStatus, "draft"))).returning({ id: schema.contentCandidates.id });
           if (rejected.length !== 1) throw new ContentAcquisitionConflictError("Candidate changed while the rejection was recorded.");
+        } else {
+          const touched = await transaction.update(schema.contentCandidates).set({ lastActivityAt: input.updatedAt, updatedAt: input.updatedAt }).where(and(
+            eq(schema.contentCandidates.id, input.candidateId),
+            eq(schema.contentCandidates.revision, input.expectedRevision),
+            eq(schema.contentCandidates.publicationStatus, "draft"),
+          )).returning({ id: schema.contentCandidates.id });
+          if (touched.length !== 1) throw new ContentAcquisitionConflictError("Candidate changed while the review was recorded.");
         }
         return reviewRecord(review);
       });

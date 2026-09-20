@@ -46,10 +46,12 @@ const defaultMiniMaxModel = "MiniMax-M3";
 const anthropicResponseSchema = z.object({
   content: z.array(z.object({ type: z.literal("text"), text: z.string() }).strict()).min(1),
 }).passthrough();
+// Models sometimes add a bounded rationale field despite the JSON-only prompt.
+// Validate the decision contract while ignoring non-authoritative extras.
 const providerPayloadSchema = z.object({
   decision: z.enum(articleReviewDecisions),
   notes: z.string().trim().max(4_000),
-}).strict();
+});
 
 export function articleReviewInputHash(input: ArticleReviewInput): string {
   return createHash("sha256").update(JSON.stringify({
@@ -82,7 +84,7 @@ export class MiniMaxArticleReviewProvider implements ArticleReviewProvider {
     this.dimension = dimension;
     this.endpoint = options.endpoint ?? defaultMiniMaxEndpoint;
     this.modelVersion = `${options.modelVersion ?? defaultMiniMaxModel}/${dimension}`;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.timeoutMs = options.timeoutMs ?? 60_000;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
     this.clock = options.clock ?? Date.now;
   }

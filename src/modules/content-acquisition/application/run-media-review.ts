@@ -52,7 +52,7 @@ export async function runMediaReview(repository: ContentWorkflowRepository, inpu
   const reviewInput = { candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, contentType: candidate.contentType, title: candidate.title, summary: parsed.data.summary, draft: parsed.data } as const;
   const expectedInputHash = mediaReviewInputHash(reviewInput);
   const providerResults: Record<string, MediaReviewResult | null> = {};
-  const timeoutMs = input.timeoutMs ?? 30_000;
+  const timeoutMs = input.timeoutMs ?? 60_000;
   const run = (provider: MediaReviewProvider) => Promise.race([provider.review(reviewInput), new Promise<MediaReviewResult>((_, reject) => setTimeout(() => reject(new Error("MEDIA_REVIEW_TIMEOUT")), timeoutMs))]);
   try {
     const [content, teaching] = await Promise.all([run(input.contentProvider), run(input.teachingProvider)]);
