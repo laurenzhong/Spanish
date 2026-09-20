@@ -28,6 +28,7 @@ test("daily content workflow is protected and stage-gated", async () => {
   expect(workflow).toContain("CONTENT_MEDIA_REVIEW_CONCURRENCY: ${{ vars.CONTENT_MEDIA_REVIEW_CONCURRENCY || '2' }}");
   expect(workflow).toContain("pnpm content:pipeline -- media-daily --mode auto-publish");
   expect(workflow).toContain("pnpm exec tsx scripts/host-video-candidates-to-bunny.ts");
+  expect(workflow).not.toContain('export MEDIA_VIDEO_HOSTING_SINCE=');
   expect(workflow).toContain("if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}");
   expect(workflow).not.toContain("version: 11");
   expect(workflow).not.toContain("content:publish");

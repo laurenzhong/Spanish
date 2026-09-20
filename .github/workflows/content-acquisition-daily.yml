@@ -123,7 +123,6 @@ jobs:
           &&
           if [ "$MEDIA_MODE" = "auto-publish" ]; then
           export MEDIA_VIDEO_HOSTING_LIMIT="$MEDIA_DAILY_LIMIT";
-          export MEDIA_VIDEO_HOSTING_SINCE="$(date -u +%Y-%m-%dT%H:%M:%SZ)";
           pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
           pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log";
