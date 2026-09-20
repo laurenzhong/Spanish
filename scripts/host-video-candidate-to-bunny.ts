@@ -10,6 +10,7 @@ import postgres from "postgres";
 import { chromium } from "@playwright/test";
 
 import { createBunnyStorageMediaAssetStorage } from "../src/modules/media/storage/bunny-storage";
+import { prepareYoutubeCookiesFile, withYoutubeCookies } from "../src/modules/content-acquisition/media/youtube-cookies";
 
 const confirmation = "I_HAVE_AUTHORIZATION";
 const candidateId = process.argv[2]?.trim();
@@ -23,14 +24,14 @@ if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error("MEDIA_VID
 
 function run(command: string, args: string[], timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
-    let stderr = "";
+    const child = spawn(command, args, { windowsHide: true, stdio: ["ignore", "ignore", "ignore"] });
     const timer = setTimeout(() => { child.kill(); reject(new Error("MEDIA_VIDEO_COMMAND_TIMEOUT")); }, timeoutMs);
-    child.stderr.on("data", (chunk: Buffer) => { stderr = `${stderr}${chunk.toString()}`.slice(-2_000); });
     child.once("error", () => { clearTimeout(timer); reject(new Error("MEDIA_VIDEO_COMMAND_UNAVAILABLE")); });
     child.once("close", (code) => {
       clearTimeout(timer);
-      if (code !== 0) reject(new Error(`MEDIA_VIDEO_COMMAND_FAILED:${stderr}`));
+      // Keep provider output out of logs: yt-dlp may echo source URLs or
+      // authentication details. The workflow only needs a stable failure code.
+      if (code !== 0) reject(new Error("MEDIA_VIDEO_COMMAND_FAILED"));
       else resolve();
     });
   });
@@ -52,6 +53,11 @@ async function main() {
   const target = join(directory, "playback.mp4");
   let uploadedPath: string | null = null;
   try {
+    const cookieFile = await prepareYoutubeCookiesFile({
+      directory,
+      sourceFile: process.env.MEDIA_VIDEO_COOKIES_FILE,
+      base64: process.env.YOUTUBE_COOKIES_B64,
+    });
     const rows = await db`select id, revision, metadata, status, publication_status from content_candidates where id=${candidateId} and content_type='video' limit 1`;
     const row = rows[0] as { id: string; revision: number; metadata: Record<string, unknown>; status: string; publication_status: string } | undefined;
     if (!row || row.status !== "review_ready" || row.publication_status !== "draft") throw new Error("CONTENT_CANDIDATE_NOT_READY_FOR_HOSTING");
@@ -64,7 +70,8 @@ async function main() {
     // runner already exposes ffmpeg on PATH, so omit it for the normal case.
     const ffmpegDirectory = process.env.FFMPEG_DIRECTORY?.trim();
     const base = ["--ignore-config", "--no-playlist", "--js-runtimes", "node", "--force-ipv4", "--socket-timeout", "30", "--retries", "3", ...(ffmpegDirectory ? ["--ffmpeg-location", ffmpegDirectory] : [])];
-    await run(ytdlp, [...base, "--no-progress", "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "--output", source, `https://www.youtube.com/watch?v=${videoId}`], 20 * 60_000);
+    const downloadArgs = [...base, "--no-progress", "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "--output", source];
+    await run(ytdlp, [...withYoutubeCookies(downloadArgs, cookieFile), `https://www.youtube.com/watch?v=${videoId}`], 20 * 60_000);
     const sourceInfo = await stat(source);
     if (!sourceInfo.size || sourceInfo.size > maxBytes) throw new Error("MEDIA_VIDEO_SIZE_INVALID");
     await run(ffmpeg, ["-v", "error", "-xerror", "-y", "-i", source, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", target], 20 * 60_000);

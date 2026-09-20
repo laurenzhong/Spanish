@@ -27,6 +27,29 @@ pnpm content:pipeline -- report --limit 100
 
 新视频发布时，YouTube URL 仅保存为来源与 provenance；公开播放资产必须先经 yt-dlp/ffmpeg 处理、上传 Bunny Storage + Pull Zone，并通过 MP4、SHA-256、字节数、CDN HEAD 与浏览器播放/seek 校验。没有 `bunnyVideoAsset` 的视频候选只能停留在审核或托管准备阶段，不能通过媒体 publisher；已存在的旧 official embed 不因迁移脚本成功而自动宣称已转为 Bunny。
 
+### YouTube 授权 cookies（仅在来源账户已获授权时）
+
+YouTube 返回 `Sign in to confirm you’re not a bot` 时，托管步骤不会绕过验证，也不会使用 DRM、录屏或网页抓取。若所有者对该视频拥有可下载授权，可从自己的浏览器导出 Netscape cookies 文件，并先在本地验证一次。cookies 只作为临时 yt-dlp 输入，脚本会复制到临时目录、任务结束删除，不写入数据库、候选 metadata、日志或仓库。
+
+本地 Windows 运行：
+
+```powershell
+$env:MEDIA_VIDEO_COOKIES_FILE = 'C:\secure\youtube-cookies.txt'
+$env:MEDIA_VIDEO_HOSTING_CONFIRM = 'I_HAVE_AUTHORIZATION'
+pnpm exec tsx scripts/host-video-candidate-to-bunny.ts <candidate-uuid>
+Remove-Item -LiteralPath $env:MEDIA_VIDEO_COOKIES_FILE
+```
+
+GitHub Actions 使用受保护的 `content-production` Environment secret。不要把 cookies 文件提交到仓库或粘贴到 issue/聊天；先在本地生成一次 base64 文件，再通过标准输入写入 secret：
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\secure\youtube-cookies.txt')) | Set-Content -NoNewline 'C:\secure\youtube-cookies.b64'
+Get-Content -Raw 'C:\secure\youtube-cookies.b64' | gh secret set YOUTUBE_COOKIES_B64 --repo laurenzhong/Spanish --env content-production
+Remove-Item -LiteralPath 'C:\secure\youtube-cookies.b64'
+```
+
+配置后先用 `limit=1` 的 `review-only` 或单候选托管 canary，确认候选带有 `bunnyVideoAsset`、Bunny HEAD 与浏览器播放/seek 校验通过，再开启媒体 `auto-publish`。若 cookies 未配置、过期或格式不正确，流程会稳定失败关闭；不会把审核通过、托管失败或候选数量计为正式发布。
+
 Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v6.json` 的 `policyVersion`、164 个精确 URL 快照和授权证据。v6 将已授权的 100 个 `https://readlang.com/library/<id>` URL 放在快照队列首位；其余精确 URL 仍完整保留。文章全局配额会先分配给该 Readlang 来源，再分配给其他文章 RSS 来源；这不会把 `https://readlang.com/es/library` 页面本身扩展为新的授权范围。该适配器只读取快照 URL；页面新增 URL 或主机前不得自动采集。v6 的 `automatedPublication.enabled=true` 只表示这些精确 URL 已获所有者授权进入分阶段自动发布；仍必须通过 MiniMax 内容/教学审核、结构校验、revision/hash CAS 和显式 publisher，不能按 host 扩大抓取范围。
 
 Readlang 入口目前由客户端渲染，适配器在先读取入口 HTML 后，只允许请求同站固定的 `https://readlang.com/api/popularDomains?language=es&limit=50`，再把返回的域名/路径逐条套用既有快照 allowlist；不会把 API 返回内容当作新的授权来源。每个外部页面有 15 秒超时和正文大小限制，未抽取出合规文章时保留当前游标以便重试，不把网站首页简介伪装成文章候选。
