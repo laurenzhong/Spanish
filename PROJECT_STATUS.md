@@ -12,7 +12,7 @@
 ### 2026-09-21：媒体每日 10 视频 + 10 播客与双语字幕处理
 
 - 实现 Commit：`9e155a2`，取消传播修复：`d67b2bd`（当前分支 `codex/youtube-download-resilience`）。每日媒体配额继续按 Asia/Shanghai 自然日独立累计：视频 10 条、播客 10 条；工作流在审核阶段和自动发布阶段都显式要求双语字幕。
-- 自动处理链已接入每日媒体流水线：无字幕授权媒体下载临时音频，使用配置的 OpenAI STT（默认 `gpt-transcribe`）生成西语时间轴，再使用 MiniMax 逐句翻译为简体中文；已有单语字幕只补翻译。临时目录在成功、失败、取消和超时路径清理，发布前仍执行完整西语/中文时间轴门禁。
+- 自动处理链已接入每日媒体流水线：无字幕授权媒体下载临时音频，默认使用 MiniMax ASR（显式设置 `CONTENT_MEDIA_STT_PROVIDER=openai` 才切换到 OpenAI）生成西语时间轴，再使用 MiniMax 逐句翻译为简体中文；已有单语字幕只补翻译。临时目录在成功、失败、取消和超时路径清理，发布前仍执行完整西语/中文时间轴门禁。
 - Language Reactor 播客适配器现在跳过单个暂时不可用的授权音频并继续处理同页后续文档；来源 API、取消、游标和权利策略错误仍会中止来源并保留 fail-closed 行为。
 - 配置同步：`.env.example`、GitHub workflow 和 `docs/operations/content-acquisition-runbook.md` 增加 `CONTENT_MEDIA_PROVIDER_MODE`、STT/翻译 provider、模型、预算和置信度变量；内容 CLI 使用 `react-server` 条件加载 server-only provider。
 - 配额补强 Commit：`49b465f`。CLI 在缺少环境变量时也默认总计 20、视频 10、播客 10，并默认启用双语字幕门禁；Bunny 批量托管脚本按 Asia/Shanghai 当天已正式发布的视频数只处理剩余缺口，避免目标已满后继续托管候选。同步更新媒体运行手册并增加 CLI 默认值回归测试。
@@ -22,6 +22,8 @@
 - 2026-09-21 本地数据库 `review-only` canary（播客目标 1、来源上限 1）结构化结果为 `publishedByType={video:18,podcast:0}`、`targetDeficitByType={video:0,podcast:1}`，候选失败 `provider-cancelled`；未新增正式发布。一次更长 canary 已中止并清理遗留临时媒体目录。当前不能宣称今天完成 10/10；Bunny 凭据未配置，后续需先解决 MiniMax/候选处理超时，再按 `review-only → auto-publish` 分阶段运行。
 - 最终发布门禁 Commit：`5d4d2b4`。`auto-publish-media`、视频 publisher 和播客 publisher 现在都会在发布边界再次检查每个字幕片段同时存在非空西语原文与中文翻译；缺失双语字幕的媒体不会创建正式版本，也不会计入 `publishedByType`。新增视频/播客发布器回归测试，定向媒体单测 `5 files / 21 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 和媒体 Playwright `10/10`（改用 3111 端口）通过。
 - 只读核验本地 `.env` 数据库的北京时间 `2026-09-21` 窗口：正式发布视频 `18`、播客 `0`；视频 `18` 条均无完整双语字幕时间轴。该核验未写入数据库、未调用真实 provider、未修改历史已发布版本，因此当前仍不能宣称达到视频 `10/10` 与播客 `10/10`；需先用 `media_transcript_backfills` 或新媒体版本补齐字幕并完成三维审核，再重新执行 `review-only → auto-publish`。
+- 本轮收口改动（当前分支待提交）：MiniMax 作为 live STT 默认值与示例/workflow/运行手册一致；ASR 与翻译对可重试 provider 错误执行最多 3 次有界退避并保持取消可传播；Language Reactor 临时音频处理策略可显式登记；长媒体字幕时间轴上限提升到 2,000 段；MiniMax 审核说明在存储边界截断而不误判长响应失败。新增默认配置、超长审核说明、长时间轴和 workflow 目标断言回归测试。
+- 本轮验证：定向 Vitest `7 files / 35 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；内容 workflow Playwright 桌面/移动 `2/2`、视频/播客学习页 Playwright 桌面/移动 `6/6` 通过。真实来源抓取、生产数据库写入、Bunny 托管和收费 provider 运行仍以实际环境凭据与当天正式 `publishedByType` 为准。
 
 ### 2026-09-20：SOURCE-PRIORITY-001 来源优先级与 Readlang v6
 

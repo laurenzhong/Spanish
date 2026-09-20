@@ -42,7 +42,8 @@ export const videoCandidateDraftSchema = z.strictObject({
   copyrightStatus: z.literal("cleared"),
   artwork: mediaArtworkSchema.nullable().default(null),
   captionStatus: z.enum(["unavailable", "platform_manual", "platform_auto", "asr"]),
-  segments: z.array(videoCandidateSegmentSchema).max(500),
+  // Keep long videos intact when ASR produces fine-grained sentence timing.
+  segments: z.array(videoCandidateSegmentSchema).max(2_000),
   contentHash: hashSchema,
   changeReason: z.string().trim().min(1).max(1_000),
 });

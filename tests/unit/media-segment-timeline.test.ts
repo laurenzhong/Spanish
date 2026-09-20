@@ -26,6 +26,20 @@ describe("media segment timeline", () => {
     expect(() => validateSegmentTimeline([], 0)).toThrow("MEDIA_SEGMENT_TIMELINE_INVALID");
   });
 
+  it("accepts a long-form timeline with more than 500 sentence cues", () => {
+    const segments = Array.from({ length: 501 }, (_, index) => ({
+      index,
+      startMs: index * 1_000,
+      endMs: (index + 1) * 1_000,
+      sourceText: "Sí.",
+      translation: "是。",
+      speaker: null,
+      confidence: null,
+      sourceKind: "asr" as const,
+    }));
+    expect(() => validateSegmentTimeline(segments, 501_000)).not.toThrow();
+  });
+
   it("finds the active segment at exact boundaries", () => {
     const timeline = [
       { index: 0, startMs: 0, endMs: 1_000 },

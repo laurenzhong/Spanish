@@ -68,6 +68,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
           LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS: ${{ vars.LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS }}
+          LANGUAGE_REACTOR_PODCAST_TEMPORARY_MEDIA_PROCESSING: ${{ vars.LANGUAGE_REACTOR_PODCAST_TEMPORARY_MEDIA_PROCESSING || 'source-audio' }}
           LANGUAGE_REACTOR_PODCAST_RESET_CURSOR: ${{ vars.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR || 'false' }}
         run: pnpm exec tsx scripts/register-language-reactor-audio-hosts.ts
       - name: Run staged article pipeline
@@ -118,7 +119,7 @@ jobs:
           CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
           CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES: ${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}
           CONTENT_MEDIA_PROVIDER_MODE: ${{ vars.CONTENT_MEDIA_PROVIDER_MODE || 'live' }}
-          CONTENT_MEDIA_STT_PROVIDER: ${{ vars.CONTENT_MEDIA_STT_PROVIDER || 'openai' }}
+          CONTENT_MEDIA_STT_PROVIDER: ${{ vars.CONTENT_MEDIA_STT_PROVIDER || 'minimax' }}
           CONTENT_MEDIA_TRANSLATION_PROVIDER: ${{ vars.CONTENT_MEDIA_TRANSLATION_PROVIDER || 'minimax' }}
           OPENAI_TRANSCRIPTION_MODEL: ${{ vars.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe' }}
           OPENAI_TRANSCRIPTION_ENDPOINT: ${{ vars.OPENAI_TRANSCRIPTION_ENDPOINT || 'https://api.openai.com/v1/audio/transcriptions' }}

@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { createMiniMaxTranscriptionProvider, createOpenAITranscriptionProvider } from "@/src/modules/providers/stt/server";
-import { maxTranscriptionAudioBytes } from "@/src/modules/providers/stt/transcription";
+import { isSpeechToTextError, maxTranscriptionAudioBytes, SpeechToTextError } from "@/src/modules/providers/stt/transcription";
 import type { SpeechToTextProvider } from "@/src/modules/providers/stt/transcription";
 import { createMiniMaxTranslationProvider } from "@/src/modules/providers/translation/server";
-import type { TranslationProvider } from "@/src/modules/providers/translation/translation";
+import { TranslationError, type TranslationProvider } from "@/src/modules/providers/translation/translation";
 import {
   type MediaAsrPolicy,
   type MediaProcessingArtifactStore,
@@ -31,6 +31,26 @@ export class ContentMediaRuntimeError extends Error {
 type RuntimeTranscriber = MediaTranscriptionProvider & { readonly providerName: string; readonly modelVersion: string };
 type RuntimeTranslator = MediaTranslationProvider & { readonly providerName: string; readonly modelVersion: string };
 
+const MAX_PROVIDER_ATTEMPTS = 3;
+const RETRY_DELAYS_MS = [1_000, 2_000] as const;
+
+async function waitBeforeRetry(signal: AbortSignal | undefined, delayMs: number): Promise<void> {
+  if (signal?.aborted) throw new SpeechToTextError("provider-cancelled", "Provider operation was cancelled.", false);
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, delayMs);
+    const abort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(new SpeechToTextError("provider-cancelled", "Provider operation was cancelled.", false));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+  if (signal?.aborted) throw new SpeechToTextError("provider-cancelled", "Provider operation was cancelled.", false);
+}
+
 export type ContentMediaRuntime = Readonly<{
   transcriptionProvider: RuntimeTranscriber;
   translationProvider: RuntimeTranslator;
@@ -51,14 +71,25 @@ class SpeechToMediaTranscriptionProvider implements RuntimeTranscriber {
     const bytes = new Uint8Array(await readFile(input.assetPath));
     let result;
     try {
-      result = await this.provider.transcribe({
+      const request = {
         audioBytes: bytes,
         assetPath: input.assetPath,
         mimeType: mimeTypeForPath(input.assetPath),
         fileName: path.basename(input.assetPath),
         languageTag: input.language,
         durationMs: input.durationMs,
-      }, options);
+      };
+      let attempt = 0;
+      while (true) {
+        try {
+          result = await this.provider.transcribe(request, options);
+          break;
+        } catch (error) {
+          if (!isSpeechToTextError(error) || !error.retryable || attempt >= MAX_PROVIDER_ATTEMPTS - 1) throw error;
+          await waitBeforeRetry(options?.signal, RETRY_DELAYS_MS[attempt] ?? RETRY_DELAYS_MS.at(-1)!);
+          attempt += 1;
+        }
+      }
     } finally {
       bytes.fill(0);
     }
@@ -104,7 +135,19 @@ class TranslationProviderAdapter implements RuntimeTranslator {
   }
 
   async translate(input: Parameters<MediaTranslationProvider["translate"]>[0], options?: Readonly<{ signal?: AbortSignal }>) {
-    const result = await this.provider.translate({ text: input.sourceText, sourceLocale: "es-ES", targetLocale: "zh-CN" }, options);
+    const request = { text: input.sourceText, sourceLocale: "es-ES", targetLocale: "zh-CN" };
+    let attempt = 0;
+    let result;
+    while (true) {
+      try {
+        result = await this.provider.translate(request, options);
+        break;
+      } catch (error) {
+        if (!(error instanceof TranslationError) || !error.retryable || attempt >= MAX_PROVIDER_ATTEMPTS - 1) throw error;
+        await waitBeforeRetry(options?.signal, RETRY_DELAYS_MS[attempt] ?? RETRY_DELAYS_MS.at(-1)!);
+        attempt += 1;
+      }
+    }
     return {
       text: result.text,
       providerRequestId: result.providerRequestId,
@@ -304,7 +347,7 @@ export function createContentMediaRuntime(environment: NodeJS.ProcessEnv = proce
     };
   }
   if (mode !== "live") throw new ContentMediaRuntimeError("CONTENT_MEDIA_PROVIDER_MODE must explicitly be fake or live.");
-  const sttProvider = environment.CONTENT_MEDIA_STT_PROVIDER?.trim().toLowerCase() || "openai";
+  const sttProvider = environment.CONTENT_MEDIA_STT_PROVIDER?.trim().toLowerCase() || "minimax";
   const translationProvider = environment.CONTENT_MEDIA_TRANSLATION_PROVIDER?.trim().toLowerCase() || "minimax";
   if (sttProvider !== "openai" && sttProvider !== "minimax") throw new ContentMediaRuntimeError("The configured media STT provider is unsupported; use openai or minimax.");
   if (translationProvider !== "minimax") throw new ContentMediaRuntimeError("The configured media translation provider is unsupported; use minimax.");

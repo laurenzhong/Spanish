@@ -19,10 +19,18 @@ function configuredHosts(): string[] {
     .filter(Boolean))];
 }
 
+function configuredTemporaryMediaProcessing(): "disabled" | "source-audio" {
+  const value = process.env.LANGUAGE_REACTOR_PODCAST_TEMPORARY_MEDIA_PROCESSING?.trim().toLowerCase();
+  if (!value) return "disabled";
+  if (value !== "disabled" && value !== "source-audio") throw new Error("LANGUAGE_REACTOR_TEMPORARY_MEDIA_PROCESSING_INVALID");
+  return value;
+}
+
 export async function updateLanguageReactorPodcastAudioHosts() {
   if (process.env.MEDIA_VIDEO_HOSTING_CONFIRM !== confirmation) throw new Error("MEDIA_AUTHORIZATION_REQUIRED");
   const hosts = configuredHosts();
   if (hosts.length === 0) throw new Error("LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS_REQUIRED");
+  const temporaryMediaProcessing = configuredTemporaryMediaProcessing();
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl || !/^postgres(?:ql)?:\/\//u.test(databaseUrl)) throw new Error("DATABASE_URL_REQUIRED");
   const connection = createDatabaseConnection(databaseUrl);
@@ -31,7 +39,11 @@ export async function updateLanguageReactorPodcastAudioHosts() {
     const source = await repository.findSourceByStableKey(PODCAST_SOURCE);
     if (!source || source.adapterType !== "language-reactor" || source.sourceKind !== "podcast-feed") throw new Error("LANGUAGE_REACTOR_PODCAST_SOURCE_NOT_FOUND");
     const policy = languageReactorRightsPolicySchema.parse(source.rightsPolicy ?? {});
-    const nextPolicy = { ...policy, allowedAudioHosts: [...new Set([...policy.allowedAudioHosts, ...hosts])] };
+    const nextPolicy = {
+      ...policy,
+      allowedAudioHosts: [...new Set([...policy.allowedAudioHosts, ...hosts])],
+      temporaryMediaProcessing,
+    };
     const updated = await registerContentSource(repository, {
       id: source.id,
       stableKey: source.stableKey,
@@ -48,7 +60,7 @@ export async function updateLanguageReactorPodcastAudioHosts() {
       rateLimit: { requestsPerMinute: 10 },
       cursor: process.env.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR === "true" ? null : source.cursor,
     });
-    return { stableKey: updated.stableKey, policyHostsAdded: hosts, cursorReset: process.env.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR === "true" };
+    return { stableKey: updated.stableKey, policyHostsAdded: hosts, temporaryMediaProcessing, cursorReset: process.env.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR === "true" };
   } finally {
     await connection.client.end();
   }

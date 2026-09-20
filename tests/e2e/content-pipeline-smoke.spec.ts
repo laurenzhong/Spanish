@@ -27,6 +27,10 @@ test("daily content workflow is protected and stage-gated", async () => {
   expect(workflow).toContain("MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}");
   expect(workflow).toContain("CONTENT_MEDIA_REVIEW_CONCURRENCY: ${{ vars.CONTENT_MEDIA_REVIEW_CONCURRENCY || '2' }}");
   expect(workflow).toContain("pnpm content:pipeline -- media-daily --mode auto-publish");
+  expect(workflow).toContain('--video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT"');
+  expect(workflow).toContain('--podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT"');
+  expect(workflow).toContain("--require-bilingual-subtitles");
+  expect(workflow).toContain("CONTENT_MEDIA_STT_PROVIDER: ${{ vars.CONTENT_MEDIA_STT_PROVIDER || 'minimax' }}");
   expect(workflow).toContain("pnpm exec tsx scripts/host-video-candidates-to-bunny.ts");
   expect(workflow).not.toContain('export MEDIA_VIDEO_HOSTING_SINCE=');
   expect(workflow).toContain("if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}");
