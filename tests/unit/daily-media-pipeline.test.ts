@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { runDailyMediaPipeline } from "@/src/modules/content-acquisition/application/run-daily-media-pipeline";
+import { hasBilingualSubtitleTimeline, runDailyMediaPipeline } from "@/src/modules/content-acquisition/application/run-daily-media-pipeline";
 import { createVideoCandidateDraft } from "@/src/modules/content-acquisition/normalizers";
 import { mediaReviewInputHash, type MediaReviewInput } from "@/src/modules/content-acquisition/providers/media-review";
 import { CandidatePublisherRegistry } from "@/src/modules/content-acquisition/publishers";
@@ -42,6 +42,13 @@ function repository(sources: readonly ContentSourceRecord[]) {
 }
 
 describe("runDailyMediaPipeline", () => {
+  it("recognizes only complete Spanish-Chinese subtitle timelines", () => {
+    const base = { contentType: "video" as const, metadata: { videoDraft: { segments: [{ sourceText: "Hola", translation: "你好" }] } } };
+    expect(hasBilingualSubtitleTimeline(base)).toBe(true);
+    expect(hasBilingualSubtitleTimeline({ ...base, metadata: { videoDraft: { segments: [{ sourceText: "Hola", translation: null }] } } })).toBe(false);
+    expect(hasBilingualSubtitleTimeline({ ...base, metadata: { videoDraft: { segments: [] } } })).toBe(false);
+  });
+
   it("fails closed for disabled mode and ignores unverified media sources", async () => {
     const repo = repository([
       source(),
@@ -53,6 +60,22 @@ describe("runDailyMediaPipeline", () => {
     expect(result.skippedSources).toEqual([{ sourceStableKey: "podcast.unverified", reason: "RIGHTS_NOT_VERIFIED" }]);
     expect(resolveAdapter).not.toHaveBeenCalled();
     expect(repo.createRun).not.toHaveBeenCalled();
+  });
+
+  it("does not exceed the per-type target when the natural day is already complete", async () => {
+    const repo = repository([source()]) as ReturnType<typeof repository> & { countPublishedMediaByType: ReturnType<typeof vi.fn> };
+    repo.countPublishedMediaByType = vi.fn(async () => ({ video: 10, podcast: 10 }));
+    const resolveAdapter = vi.fn();
+    const result = await runDailyMediaPipeline({ repository: repo as never, resolveAdapter }, {
+      mode: "discover-only",
+      dailyLimit: 20,
+      videoDailyLimit: 10,
+      podcastDailyLimit: 10,
+      defaultSourceLimit: 10,
+      date: "2026-09-19",
+    });
+    expect(resolveAdapter).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ publishedByType: { video: 10, podcast: 10 }, targetDeficitByType: { video: 0, podcast: 0 } });
   });
 
   it("runs discovery in discover-only mode and keeps media unpublished", async () => {

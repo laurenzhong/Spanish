@@ -115,19 +115,21 @@ jobs:
           CONTENT_MEDIA_REVISION_PROVIDER: ${{ vars.CONTENT_MEDIA_REVISION_PROVIDER || 'minimax' }}
           CONTENT_MEDIA_REVIEW_CONCURRENCY: ${{ vars.CONTENT_MEDIA_REVIEW_CONCURRENCY || '2' }}
           CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
+          CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES: ${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}
           MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}
-          MEDIA_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_DAILY_LIMIT || '50' }}
+          MEDIA_VIDEO_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}
+          MEDIA_PODCAST_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}
           MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
         run: >-
           set -o pipefail
           &&
           if [ "$MEDIA_MODE" = "auto-publish" ]; then
-          export MEDIA_VIDEO_HOSTING_LIMIT="$MEDIA_DAILY_LIMIT";
-          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
+          export MEDIA_VIDEO_HOSTING_LIMIT="$MEDIA_VIDEO_DAILY_LIMIT";
+          pnpm content:pipeline -- media-daily --mode review-only --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
-          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log";
+          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log";
           else
-          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
+          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           fi
       - name: Cleanup expired candidates and artifacts
         if: always()
@@ -161,7 +163,9 @@ jobs:
           } else {
             const counts = result.counts ?? {};
             const failures = Array.isArray(result.failures) ? result.failures.length : 0;
-            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, approved=${counts.approved ?? 0}, published=${counts.published ?? 0}, failures=${failures}`);
+            const publishedByType = result.publishedByType ?? {};
+            const targetDeficitByType = result.targetDeficitByType ?? {};
+            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, approved=${counts.approved ?? 0}, published=${counts.published ?? 0}, videoPublished=${publishedByType.video ?? 0}, podcastPublished=${publishedByType.podcast ?? 0}, videoDeficit=${targetDeficitByType.video ?? 0}, podcastDeficit=${targetDeficitByType.podcast ?? 0}, failures=${failures}`);
           }
           NODE
           }
@@ -169,8 +173,9 @@ jobs:
             echo '## Daily content run'
             echo '- Secrets, article bodies, provider responses, and query credentials are intentionally omitted.'
             echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
-            echo "- Requested global limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
+            echo "- Requested article limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
             echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}"
+            echo "- Media targets: video=${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}, podcast=${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}, bilingual subtitles required=${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}"
             summarize_stage "Articles" "$RUNNER_TEMP/article-daily.log"
             summarize_stage "Media" "$RUNNER_TEMP/media-daily.log"
           } >> "$GITHUB_STEP_SUMMARY"

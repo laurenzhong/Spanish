@@ -195,6 +195,7 @@ export interface ContentAcquisitionRepository {
 
 export interface ContentWorkflowRepository {
   listSources(): Promise<readonly ContentSourceRecord[]>;
+  countPublishedMediaByType?(input: Readonly<{ date: string }>): Promise<Readonly<{ video: number; podcast: number }>>;
   findSourceById?(sourceId: string): Promise<ContentSourceRecord | null>;
   listRuns(input?: Readonly<{ sourceId?: string; limit?: number }>): Promise<readonly AcquisitionRunRecord[]>;
   findRunById(runId: string): Promise<AcquisitionRunRecord | null>;

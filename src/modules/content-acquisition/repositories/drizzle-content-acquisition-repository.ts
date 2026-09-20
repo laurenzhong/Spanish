@@ -1,4 +1,4 @@
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt, or } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -129,6 +129,24 @@ export function createDrizzleContentAcquisitionRepository(
   }
 
   return {
+    async countPublishedMediaByType(input) {
+      const start = new Date(`${input.date}T00:00:00+08:00`);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1_000);
+      const rows = await database.select({ contentType: schema.contentCandidates.contentType, count: count() })
+        .from(schema.contentCandidates)
+        .where(and(
+          eq(schema.contentCandidates.publicationStatus, "published"),
+          gte(schema.contentCandidates.publishedAtInternal, start),
+          lt(schema.contentCandidates.publishedAtInternal, end),
+          or(eq(schema.contentCandidates.contentType, "video"), eq(schema.contentCandidates.contentType, "podcast")),
+        ))
+        .groupBy(schema.contentCandidates.contentType);
+      return rows.reduce((result, row) => {
+        if (row.contentType === "video") result.video = Number(row.count);
+        if (row.contentType === "podcast") result.podcast = Number(row.count);
+        return result;
+      }, { video: 0, podcast: 0 });
+    },
     async listSources() {
       const rows = await database.select().from(schema.acquisitionSources).orderBy(schema.acquisitionSources.displayName);
       return rows.map((row) => sourceRecord(row, true));
