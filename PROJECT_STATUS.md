@@ -2,11 +2,26 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-19
+- 最后更新：2026-09-20
 - 当前里程碑：内容驱动学习与自动内容供应重构
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
-- 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。每日自动化只进入候选审核库，不能直接发布。ALPHA-033 最终门禁要求 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 全部通过，且 P0/P1 清零并有产品本人确认。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter、远端迁移、真实来源抓取和真实收费 Provider 继续如实记录
+- 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。媒体自动发布仅在受保护 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true` 时开启，缺失或非 `true` 仍停在候选审核库。ALPHA-033 最终门禁要求 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 全部通过，且 P0/P1 清零并有产品本人确认。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter、远端迁移、真实来源抓取和真实收费 Provider 继续如实记录
+
+### 2026-09-20：每日媒体发布阻塞修复与真实运行
+
+- 播客来源 `language-reactor.podcast-mix-es` 的失败原因已收敛：Language Reactor 返回的音频常经过 Podtrac/Simplecast、Megaphone、RTVE 等多级跳转；资源探测现在为无效 URL、未授权 host、跳转缺失/超限、HTTP、MIME、大小和临时网络失败提供稳定脱敏 `reasonCode`，调度报告不再只显示泛化的 `CONTENT_PROCESSING_FAILED`。allowlist 仍 fail-closed，不会根据响应自动扩展。
+- 当前工作区没有 `DATABASE_URL`，因此本轮未重跑生产数据库流水线，也没有新增今日发布计数。已完成的真实外部核验仅覆盖 Language Reactor API 响应及代表性音频跳转链；若要恢复该播客来源，需在已授权来源策略中显式补齐实际使用的跳转 host 后再运行媒体流水线。
+- 媒体详情页已移除旧式播放器 fallback；所有合法视频（YouTube embed/Bunny MP4）和播客音频版本现在统一渲染 `MediaLearningWorkbench`。媒体 Playwright 桌面/移动 `6/6`、媒体聚焦单测 `10/10`、TypeScript 与受影响 ESLint 通过。
+- GitHub `content-production` 当前仍是 `readlang-links-v1`、文章 `review-only`、自动发布开关关闭，且仅配置 `DATABASE_URL`/`MINIMAX_API_KEY`，没有 Bunny Storage 凭据；因此远端旧 workflow 的成功只证明候选审核步骤成功，不能证明今天文章/视频已自动发布。当前不能在不补齐策略、发布开关和视频托管凭据的情况下宣称完成今日发布。
+
+- 修复视频托管脚本在本地没有 Playwright bundled Chromium 时无法完成播放验收的问题：优先使用 CI 固定 Chromium，缺失时回退到本机 Google Chrome。
+- 修复 Bunny 资产回写被 `postgres.js` 绑定为 JSON 字符串的问题；现在 `bunnyVideoAsset` 持久化为 JSON 对象，发布门禁可以正确识别并校验 MP4。
+- 修复媒体日调度优先处理已托管且三维审核通过的视频，避免配额先被未托管候选消耗；新增回归测试覆盖已托管候选优先发布。
+- 使用授权来源和真实 `yt-dlp` + FFmpeg + Bunny Storage 流程完成 2 个 YouTube 视频发布；两个视频均进入统一 `MediaLearningWorkbench`，桌面/移动媒体 Playwright：视频 `4/4`、播客 `2/2`。
+- 北京时间当天数据库窗口统计：文章 7、视频 13、播客 10；本轮新增视频 2、文章 0、播客 0。唯一 v5 文章草稿当前 revision 29 仍有 MiniMax 内容/教学 `changes_requested`，未绕过审核发布。
+- 本轮验证：Provider/媒体聚焦测试 `16/16`、媒体流水线单测 `6/6`、`pnpm lint`、`pnpm typecheck`、`pnpm db:check`、`git diff --check` 通过。真实机器 CUA/Chrome 接管仍受 Codex `apikey` 限制，仓库 Playwright fallback 已通过。
+- 继续运行：文章 v5 候选按 MiniMax 教学反馈执行有界修订后在 revision 31 进入 `rejected` 终态，未绕过审核；新增修订提示要求逐条落实正文反馈并校验 `changeReason` 与正文一致。媒体流水线又完成 2 个已审核短视频的 yt-dlp/FFmpeg/Bunny 托管与正式发布，当天窗口更新为文章 7、视频 15、播客 10；播客发现仍有一个来源处理失败，唯一 draft 播客候选保持 rejected。聚焦测试 `16/16`、lint、typecheck、db:check 继续通过。
 
 ### 2026-09-18：RELEASE-REVIEW-001 P0 功能与工具优先级整合
 
@@ -21,6 +36,20 @@
 - 当前验证边界：全局 typecheck 仍只被未修改的 `src/modules/profile/ui/profile-sections.tsx:87` 非法 `onError` props 阻断；Chrome 接管因本机 Codex auth method `apikey` 不受支持未完成。此前项目 Playwright fallback 桌面/移动各 `27/27` 通过；未执行真实来源采集、真实 MiniMax 调用、生产数据库写入或发布，今天没有证据证明已获取或发布 50 篇文章。
 
 ### 2026-09-19：RELEASE-REVIEW-001 运行收尾
+
+- 继续收尾：发现部分已发布的许可 MP4 视频资产走旧的裸播放器分支，未复用统一 `MediaLearningWorkbench`。新增受控原生视频播放器端口，视频 `official_embed`、许可 `video` 资产和播客 `audio` 现在都进入同一逐句控制、字幕、词句抽屉和进度同步工作台；桌面/移动媒体 E2E `6/6`、媒体聚焦单测 `25/25`、TypeScript 通过。
+- 每日媒体 workflow 现在支持 `auto-publish`，但仅在受保护 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true` 且 MiniMax 内容/教学审核通过时运行；默认仍为 `discover-only`。CLI 与 smoke 回归覆盖 fail-closed 行为。媒体运行手册已同步该门禁。
+
+### 2026-09-19：CNN / literatura.us 文章修订重审与当日发布复核
+
+- Readlang v4 精确 allowlist 当前只包含 7 个 CNN Español / literatura.us URL；真实 `article-daily --mode review-only` 发现并处理 6 条文章候选。
+- 新增 `changes_requested → MiniMax 修订 → 新 revision → 三维重审` 的有界阶段；原 revision 审核记录保留，`rejected` 不自动重开，来源、权利、canonical URL 和 stable key 不可由修订 provider 改写。MiniMax 返回仅变更字段、code fence 和附加元数据时会被兼容解析。
+- 真实 `auto-publish` 运行最终发布 2 篇文章；3 篇仍需内容/教学修改，1 篇 provider 返回无效，文学候选因不适合 A2-B1 保持 rejected。未伪造审批或发布。
+- 当日数据库核验：正式发布文章 2、视频 10、播客 3；统一媒体工作台桌面/移动 Playwright `4/4` 通过。由于当前 allowlist 只有 7 个精确 URL，不能在不新增授权来源的情况下声称达到每日 50 篇文章。
+- 后续真实 `auto-publish` 运行又发布 1 篇 CNN 文章，当日正式发布文章增至 3；调度层新增 `publicationStatus=draft` 过滤，已发布候选不会重复送审或产生 `CANDIDATE_NOT_REVIEWABLE`。媒体公开计数仍为视频 10、播客 3，统一工作台回归 Playwright `4/4` 通过。
+- 媒体复核发现配置数据库存在未由仓库迁移记录管理的 `media_assets_bunny_video_guard` 触发器，错误地要求 YouTube official embed 同时具备 Bunny MP4，阻断统一视频 publisher。新增 forward-only `0038_reconcile_youtube_embed_asset_guard` 并在目标数据库成功应用，保留 HTTPS/过期约束；媒体 auto-publish 重试成功 `published=2, failures=[]`。当日正式发布计数更新为文章 3、视频 11、播客 6；统一媒体工作台桌面/移动 Playwright `4/4` 通过。
+- 文章 auto-publish 再次只处理 `readlang-links-v4` 的精确授权 URL：CNN 候选完成一次有界修订至 revision 23，但 MiniMax 三维复审仍为内容/结构通过、教学 `changes_requested`，因此没有新增发布；当前正式文章仍为 3 篇。该候选不再继续自动重开，需所有者审阅教学反馈后决定是否手工修订或补充授权来源。其余拒绝候选保持终态，未伪造审批。
+- 继续按产品要求仅使用 CNN Español / literatura.us 的精确 allowlist 运行 `article-daily --mode auto-publish --daily-limit 50 --source-limit 10 --policy-version readlang-links-v4`：`readlang.links.es.v4` 通过 MiniMax 三维审核并新增发布 1 篇 CNN；旧 Readlang 策略和媒体来源被调度层显式跳过。北京时间 2026-09-19 数据库核验为正式文章 4、视频 13、播客 10；本次运行无失败，但精确 allowlist 仍只有 7 个 URL，不能宣称已获取或发布 50 篇文章。
 
 - 每日文章 CLI 现在按 `Asia/Shanghai` 自然日生成 run date，避免 GitHub Actions UTC 日期在北京时间跨日时写入错误的日配额键；新增跨日边界回归测试。
 - GitHub Actions 文章任务已在主阶段后独立执行 `cleanup` 与 `report`，并通过 `if: always()` 保证主任务失败时仍保留可重试清理和脱敏报告步骤；自动发布模式、受保护 Environment 和 kill switch 约束未改变。

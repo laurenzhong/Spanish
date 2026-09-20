@@ -119,4 +119,20 @@ describe("runArticleReview", () => {
     expect(saved.find((review) => review.dimension === "content-es-ES")?.status).toBe("changes_requested");
     expect(saved.filter((review) => review.status === "approved")).toHaveLength(2);
   });
+
+  it("retries one transient provider response failure without retrying a decision", async () => {
+    let attempts = 0;
+    const content: ArticleReviewProvider = {
+      dimension: "content-es-ES",
+      review: vi.fn(async (input) => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("ARTICLE_REVIEW_PROVIDER_RESPONSE_INVALID");
+        return { decision: "approved" as const, notes: "Recovered.", modelVersion: "fixture", inputHash: articleReviewInputHash(input) };
+      }),
+    };
+    const teaching = provider("teaching-zh-CN");
+    const { repo } = repository();
+    await expect(runArticleReview(repo, { candidateId: candidate.id, contentProvider: content, teachingProvider: teaching })).resolves.toMatchObject({ status: "approved" });
+    expect(content.review).toHaveBeenCalledTimes(2);
+  });
 });

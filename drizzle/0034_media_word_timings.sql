@@ -1,0 +1,1 @@
+ALTER TABLE "media_segments" ADD COLUMN "words" jsonb;

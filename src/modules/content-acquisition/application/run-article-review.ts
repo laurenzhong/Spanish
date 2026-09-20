@@ -149,10 +149,23 @@ export async function runArticleReview(
       throw error;
     }
   };
+  const runProviderWithRetry = async (dimension: "content-es-ES" | "teaching-zh-CN", provider: ArticleReviewProvider) => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await runProvider(dimension, provider);
+      } catch (error) {
+        lastError = error;
+        const code = error instanceof Error ? error.message : "";
+        if (!code.includes("PROVIDER_RESPONSE_INVALID") && !code.includes("PROVIDER_UNAVAILABLE") && !code.includes("PROVIDER_RATE_LIMITED")) throw error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("ARTICLE_REVIEW_PROVIDER_FAILED");
+  };
   try {
     const [contentRaw, teachingRaw] = await Promise.all([
-      runProvider("content-es-ES", input.contentProvider),
-      runProvider("teaching-zh-CN", input.teachingProvider),
+      runProviderWithRetry("content-es-ES", input.contentProvider),
+      runProviderWithRetry("teaching-zh-CN", input.teachingProvider),
     ]);
     const content = contentRaw;
     const teaching = teachingRaw;

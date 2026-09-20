@@ -1,0 +1,4 @@
+-- Transcript tables in the generated snapshot were already introduced by 0031.
+-- Only extend the stable hosted-video expiry policy; keep existing RLS unchanged.
+ALTER TABLE "media_assets" DROP CONSTRAINT "media_assets_expiry_policy_check";--> statement-breakpoint
+ALTER TABLE "media_assets" ADD CONSTRAINT "media_assets_expiry_policy_check" CHECK ("media_assets"."kind" = 'official_embed' or "media_assets"."provider_key" = 'language-reactor' or "media_assets"."provider_key" like 'supabase-storage:%' or ("media_assets"."kind" = 'video' and "media_assets"."provider_key" = 'bunny-storage') or "media_assets"."playback_expires_at" is not null);

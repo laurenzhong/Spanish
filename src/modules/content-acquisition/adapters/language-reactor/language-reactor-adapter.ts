@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { createPodcastCandidateDraft } from "../../normalizers/podcast-candidate";
 import { createVideoCandidateDraft } from "../../normalizers/youtube-candidate";
+import type { MediaArtwork } from "@/src/modules/media/domain";
 import type { ContentSourceRecord } from "../../repositories";
 import type { ContentSourcePage } from "../../schemas";
 import { fetchBoundedResourceMetadata } from "../http/bounded-resource-fetch";
@@ -17,7 +18,9 @@ const documentSchema = z.object({
     channelId: z.string().optional(),
     channelName: z.string().optional(),
     feedTitle: z.string().optional(),
+    itunesId: z.string().optional(),
   }).passthrough().default({}),
+  image: z.object({ src: z.string().optional() }).passthrough().optional(),
   audioFileURL: z.string().optional(),
   duration_ms: z.number().positive(),
   diocoDocId: z.string().min(1).max(200),
@@ -30,6 +33,13 @@ const documentSchema = z.object({
 const responseSchema = z.object({
   status: z.literal("success"),
   data: z.object({ docs_metadata: z.array(documentSchema).max(100) }).passthrough(),
+}).passthrough();
+
+const itunesLookupResponseSchema = z.object({
+  results: z.array(z.object({
+    artworkUrl600: z.string().optional(),
+    artworkUrl100: z.string().optional(),
+  }).passthrough()).max(20),
 }).passthrough();
 
 const cursorSchema = z.object({ offset: z.number().int().nonnegative() });
@@ -89,8 +99,20 @@ function videoStableKey(videoId: string): string {
   return `youtube.language-reactor.${createHash("sha256").update(videoId).digest("hex").slice(0, 24)}`;
 }
 
+function httpsArtworkUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export class LanguageReactorAdapter implements ContentSourceAdapter {
   readonly key = "language-reactor" as const;
+  private readonly podcastArtworkCache = new Map<string, MediaArtwork | null>();
 
   constructor(private readonly options: Readonly<{
     fetch: typeof fetch;
@@ -103,6 +125,35 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
     }>;
     now?: () => Date;
   }>) {}
+
+  private async podcastArtwork(itunesId: string | undefined, alt: string, signal?: AbortSignal): Promise<MediaArtwork | null> {
+    if (!itunesId) return null;
+    const cached = this.podcastArtworkCache.get(itunesId);
+    if (cached !== undefined) return cached;
+    try {
+      const artworkSignal = signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(8_000)])
+        : AbortSignal.timeout(8_000);
+      const response = await fetchBoundedText({
+        url: `https://itunes.apple.com/lookup?entity=podcast&id=${encodeURIComponent(itunesId)}`,
+        fetch: this.options.fetch,
+        allowedHosts: ["itunes.apple.com"],
+        allowedContentTypes: ["application/json", "text/javascript"],
+        maxBytes: 100_000,
+        signal: artworkSignal,
+      });
+      const parsed = itunesLookupResponseSchema.parse(JSON.parse(response.text));
+      const url = httpsArtworkUrl(parsed.results[0]?.artworkUrl600 ?? parsed.results[0]?.artworkUrl100);
+      const artwork = url ? { url, alt: alt.slice(0, 300), source: "podcast-feed" as const, width: 600, height: 600, expiresAt: null } : null;
+      this.podcastArtworkCache.set(itunesId, artwork);
+      return artwork;
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      if (error instanceof ContentSourceAdapterError && error.retryable) throw error;
+      this.podcastArtworkCache.set(itunesId, null);
+      return null;
+    }
+  }
 
   async discover(input: ContentSourceDiscoveryInput, requestOptions?: Readonly<{ signal?: AbortSignal }>): Promise<ContentSourcePage> {
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 50) {
@@ -172,6 +223,14 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           attribution: policy.attribution,
           licenseEvidence: policy.licenseEvidence,
           copyrightStatus: "cleared",
+          artwork: {
+            url: httpsArtworkUrl(document.image?.src) ?? `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/maxresdefault.jpg`,
+            alt: title.slice(0, 300),
+            source: "youtube",
+            width: 1280,
+            height: 720,
+            expiresAt: null,
+          },
           captionStatus: "unavailable",
           segments: [],
           changeReason: "Discovered from the owner-authorized Language Reactor YouTube directory.",
@@ -189,6 +248,7 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           maxBytes: policy.maxEnclosureBytes,
           signal: requestOptions?.signal,
         });
+        const artwork = await this.podcastArtwork(document.info.itunesId, document.info.feedTitle?.trim() || title, requestOptions?.signal);
         const draft = createPodcastCandidateDraft({
           stableKey: `podcast.language-reactor.${document.diocoDocId.toLowerCase()}`,
           feedUrl: policy.directoryUrl,
@@ -197,7 +257,10 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           enclosureUrl: audio.url,
           enclosureMimeType: audio.contentType as "audio/mpeg" | "audio/mp4" | "audio/aac" | "audio/ogg" | "audio/webm" | "application/ogg",
           enclosureByteSize: audio.contentLength,
-          playbackExpiresAt: new Date(fetchedAt.getTime() + (policy.playbackValidityHours ?? 168) * 3_600_000).toISOString(),
+          playbackProvider: "language-reactor",
+          playbackExpiresAt: policy.playbackValidityHours === null
+            ? null
+            : new Date(fetchedAt.getTime() + policy.playbackValidityHours * 3_600_000).toISOString(),
           title,
           summary: document.description.trim().slice(0, 4_000),
           sourceName: document.info.feedTitle?.trim() || this.options.source.displayName,
@@ -212,6 +275,7 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           attribution: policy.attribution,
           licenseEvidence: policy.licenseEvidence,
           copyrightStatus: "cleared",
+          artwork,
           transcriptStatus: "unavailable",
           transcriptUrl: null,
           segments: [],

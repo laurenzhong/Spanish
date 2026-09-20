@@ -21,6 +21,19 @@ export const mediaListQuerySchema = z.strictObject({
 
 export const mediaStableKeySchema = stableKeySchema;
 
+export const mediaArtworkSchema = z.strictObject({
+  url: z.url().startsWith("https://"),
+  alt: z.string().trim().min(1).max(300),
+  source: z.enum(["youtube", "podcast-feed", "fallback"]),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+  expiresAt: z.iso.datetime({ offset: true }).nullable(),
+}).superRefine((value, context) => {
+  if ((value.width === null) !== (value.height === null)) {
+    context.addIssue({ code: "custom", message: "Artwork dimensions must be both null or both positive." });
+  }
+});
+
 export const saveMediaProgressSchema = z.strictObject({
   version: z.number().int().positive(),
   expectedRevision: z.number().int().nonnegative(),

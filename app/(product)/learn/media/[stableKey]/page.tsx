@@ -20,23 +20,6 @@ type Context = Readonly<{
   searchParams: Promise<{ t?: string | string[]; segment?: string | string[] }>;
 }>;
 
-function formatTime(milliseconds: number): string {
-  const total = Math.floor(milliseconds / 1_000);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function PlaybackSurface({ playback }: Readonly<{ playback: MediaPlayback }>) {
-  if (playback.asset.kind === "official_embed") {
-    return <iframe allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen src={playback.asset.url} title={`${playback.media.title} 播放器`} />;
-  }
-  if (playback.asset.kind === "audio") {
-    return <audio controls preload="metadata" src={playback.asset.url}>当前浏览器无法播放音频。</audio>;
-  }
-  return <video controls playsInline preload="metadata" src={playback.asset.url}>当前浏览器无法播放视频。</video>;
-}
-
 function UnavailableDetail() {
   return (
     <section className="media-detail media-detail--empty" role="status">
@@ -90,21 +73,7 @@ export default async function MediaDetailPage({ params, searchParams }: Context)
         <p>{playback.media.summary}</p>
         <span>{playback.media.sourceName} · {playback.media.region ?? "地区未知"}</span>
       </header>
-      {(playback.media.kind === "video" && playback.asset.kind === "official_embed")
-        || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench initialPositionMs={requestedPositionMs ?? undefined} initialSegmentIndex={requestedSegmentIndex ?? undefined} playback={playback} /> : <>
-        <div className="media-detail__player"><PlaybackSurface playback={playback} /></div>
-        <section className="media-transcript" aria-labelledby="media-transcript-title">
-        <div className="media-transcript__heading"><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
-        {playback.segments.length > 0 ? (
-          <ol>{playback.segments.map((segment) => (
-            <li key={segment.id}>
-              <time>{formatTime(segment.startMs)}</time>
-              <div>{segment.speaker ? <strong>{segment.speaker}</strong> : null}<p lang="es">{segment.sourceText}</p>{segment.translation ? <p>{segment.translation}</p> : null}</div>
-            </li>
-          ))}</ol>
-        ) : <p className="media-transcript__empty">这项内容暂时没有已审核的字幕。</p>}
-        </section>
-      </>}
+      <MediaLearningWorkbench initialPositionMs={requestedPositionMs ?? undefined} initialSegmentIndex={requestedSegmentIndex ?? undefined} playback={playback} />
     </article>
   );
 }

@@ -11,6 +11,7 @@ import {
 import {
   AcquireContentCliInputError,
   assertAutoPublishKillSwitch,
+  assertMediaAutoPublishKillSwitch,
   formatArticleNaturalDate,
   parseAcquireContentArguments,
   parseContentPipelineArguments,
@@ -74,10 +75,18 @@ describe("content acquisition CLI", () => {
       .toMatchObject({ command: "discover", allEnabled: true, dryRun: true, limit: 2 });
   });
 
-  it("parses the media daily stages without exposing an auto-publish mode", () => {
+  it("parses the media daily stages and keeps auto-publish fail closed", () => {
     expect(parseContentPipelineArguments(["media-daily", "--mode", "review-only", "--daily-limit", "50", "--source-limit", "10"]))
       .toMatchObject({ command: "media-daily", mediaMode: "review-only", mediaDailyLimit: 50, mediaSourceLimit: 10 });
-    expect(() => parseContentPipelineArguments(["media-daily", "--mode", "auto-publish"])).toThrow(AcquireContentCliInputError);
+    expect(parseContentPipelineArguments(["media-daily", "--mode", "auto-publish", "--daily-limit", "50", "--source-limit", "10"]))
+      .toMatchObject({ command: "media-daily", mediaMode: "auto-publish", mediaDailyLimit: 50, mediaSourceLimit: 10 });
+    expect(() => assertMediaAutoPublishKillSwitch("auto-publish", undefined)).toThrow(
+      "CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH must be true",
+    );
+    expect(() => assertMediaAutoPublishKillSwitch("auto-publish", "false")).toThrow(
+      "CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH must be true",
+    );
+    expect(() => assertMediaAutoPublishKillSwitch("auto-publish", "true")).not.toThrow();
   });
 
   it("keeps auto-publish fail closed unless the protected kill-switch gate is armed", () => {

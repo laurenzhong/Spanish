@@ -6,6 +6,7 @@ import {
   ContentSourceAdapterError,
   createPodcastCandidateDraft,
   createPodcastRssAdapterFromSource,
+  podcastCandidateDraftSchema,
   podcastEpisodeStableKey,
   podcastRightsPolicySchema,
 } from "@/src/modules/content-acquisition";
@@ -82,5 +83,20 @@ describe("podcast candidate policy", () => {
     expect(podcastEpisodeStableKey(source.stableKey, first.episodeGuid)).toBe(
       podcastEpisodeStableKey(source.stableKey, changed.episodeGuid),
     );
+  });
+
+  it("normalizes the legacy JSON date shape and supports permanent authorized playback", () => {
+    const parsed = podcastCandidateDraftSchema.parse({
+      stableKey: "podcast.language-reactor.legacy", feedUrl: "https://podcast.example.test/feed.xml", episodeGuid: "legacy-episode",
+      canonicalUrl: "https://podcast.example.test/episodes/legacy", enclosureUrl: "https://media.example.test/audio/legacy.mp3",
+      enclosureUrlHash: "0".repeat(64), enclosureMimeType: "audio/mpeg", enclosureByteSize: 128,
+      playbackExpiresAt: { $date: "2026-09-21T10:00:00.000Z" },
+      title: "Un episodio antiguo", summary: "Resumen.", sourceName: source.displayName, language: "es", region: "es-ES", cefr: "A2",
+      topics: ["topic.daily-life"], durationMs: 60_000, publicationDate: "2026-09-13T08:00:00.000Z", fetchedAt: "2026-09-13T10:00:00.000Z",
+      license: "licensed", attribution: "Café de cada día", licenseEvidence: "https://podcast.example.test/license", copyrightStatus: "cleared",
+      artwork: null, transcriptStatus: "unavailable", transcriptUrl: null, segments: [], contentHash: "0".repeat(64), changeReason: "Legacy fixture.",
+    });
+    expect(parsed.playbackExpiresAt).toBe("2026-09-21T10:00:00.000Z");
+    expect(podcastCandidateDraftSchema.parse({ ...parsed, playbackExpiresAt: null }).playbackExpiresAt).toBeNull();
   });
 });

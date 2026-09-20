@@ -8,7 +8,9 @@ import { autoPublishArticleCandidate } from "./auto-publish-article";
 import { prepareArticleCandidateForReview } from "./prepare-article-candidate-for-review";
 import { runAcquisitionSource } from "./run-acquisition-source";
 import { runArticleReview } from "./run-article-review";
+import { reviseArticleCandidateAfterReview } from "./revise-article-candidate";
 import type { ArticleReviewProvider } from "../providers/article-review";
+import type { ArticleRevisionProvider } from "../providers/article-revision";
 import type { CandidatePublisherRegistry } from "../publishers";
 import type {
   ContentAcquisitionRepository,
@@ -50,6 +52,7 @@ export type RunDailyArticlePipelineDependencies = Readonly<{
   reviewProviders?: Readonly<{
     content: ArticleReviewProvider;
     teaching: ArticleReviewProvider;
+    revision?: ArticleRevisionProvider;
   }>;
   publishers?: CandidatePublisherRegistry;
   now?: () => Date;
@@ -137,7 +140,7 @@ export async function runDailyArticlePipeline(
     }
 
     if (plan.mode === "discover-only") continue;
-    const [discoveredCandidates, reviewReadyCandidates] = await Promise.all([
+    const [discoveredCandidatesRaw, reviewReadyCandidatesRaw] = await Promise.all([
       dependencies.repository.listCandidates({
         sourceId: source.id,
         status: "discovered",
@@ -151,6 +154,10 @@ export async function runDailyArticlePipeline(
         limit: sourcePlan.sourceLimit,
       }),
     ]);
+    // Published candidates keep their terminal workflow status for auditability,
+    // so publication state must be part of the scheduling filter.
+    const discoveredCandidates = discoveredCandidatesRaw.filter((candidate) => candidate.publicationStatus === "draft");
+    const reviewReadyCandidates = reviewReadyCandidatesRaw.filter((candidate) => candidate.publicationStatus === "draft");
     const pendingCandidates = [...reviewReadyCandidates, ...discoveredCandidates];
     const pendingById = new Map(pendingCandidates.map((candidate) => [candidate.id, candidate]));
     const candidateIds = [...new Set([
@@ -177,17 +184,44 @@ export async function runDailyArticlePipeline(
         failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: "ARTICLE_REVIEW_PROVIDER_UNAVAILABLE" });
         continue;
       }
-      const review = await runArticleReview(dependencies.repository, {
-        candidateId,
-        contentProvider: dependencies.reviewProviders.content,
-        teachingProvider: dependencies.reviewProviders.teaching,
-        now: dependencies.now,
-      });
+      let review = await runArticleReview(dependencies.repository, {
+          candidateId,
+          contentProvider: dependencies.reviewProviders.content,
+          teachingProvider: dependencies.reviewProviders.teaching,
+          now: dependencies.now,
+        });
       reviewed += 1;
       if (review.status === "approved") approved += 1;
       else if (review.status === "changes_requested") changesRequested += 1;
       else if (review.status === "rejected") rejected += 1;
       else failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: review.reason ?? "ARTICLE_REVIEW_FAILED" });
+
+      // One bounded revision per run keeps provider cost and mutation scope finite.
+      // Rejected content remains rejected and requires an explicit owner decision.
+      if (review.status === "changes_requested" && dependencies.reviewProviders.revision) {
+        try {
+          await reviseArticleCandidateAfterReview(dependencies.repository, {
+            candidateId,
+            revisionProvider: dependencies.reviewProviders.revision,
+            now: dependencies.now,
+          });
+          const revised = await prepareArticleCandidateForReview(dependencies.repository, candidateId, { now: dependencies.now });
+          prepared += revised.revision > review.candidateRevision ? 1 : 0;
+          review = await runArticleReview(dependencies.repository, {
+            candidateId,
+            contentProvider: dependencies.reviewProviders.content,
+            teachingProvider: dependencies.reviewProviders.teaching,
+            now: dependencies.now,
+          });
+          reviewed += 1;
+          if (review.status === "approved") approved += 1;
+          else if (review.status === "changes_requested") changesRequested += 1;
+          else if (review.status === "rejected") rejected += 1;
+          else failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: review.reason ?? "ARTICLE_REVIEW_FAILED" });
+        } catch (error) {
+          failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId, code: errorCode(error) });
+        }
+      }
 
       if (plan.mode !== "auto-publish" || review.status !== "approved") continue;
       if (!dependencies.publishers) {

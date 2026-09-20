@@ -1,0 +1,37 @@
+{
+  "policyVersion": "readlang-links-v4",
+  "sourceUrl": "https://readlang.com/es/links?policy=readlang-links-v4",
+  "scope": "Seven owner-authorized Spanish article paths from Readlang, reprocessed with source-aware extraction and B1 CNN learning metadata; dynamic additions require a new policy revision.",
+  "observedAt": "2026-09-19T00:00:00.000Z",
+  "observedLinkCount": 7,
+  "observedHostCount": 2,
+  "authorization": {
+    "status": "owner-authorized",
+    "authorizedAt": "2026-09-18T00:00:00.000Z",
+    "evidenceUrl": "https://readlang.com/es/links",
+    "note": "This authorization applies to the project owner's personal Alpha only. It does not grant permission to discover unrelated external hosts or bypass access controls."
+  },
+  "allowlist": {
+    "urls": [
+      "https://cnnespanol.cnn.com/2026/09/19/mundo/frustracion-ee-uu-huties-medio-oriente-trax?readlang_revision=v4",
+      "https://cnnespanol.cnn.com/2026/09/19/eeuu/trump-hijo-dinero-multimillonario-ruso-trax?readlang_revision=v4",
+      "https://cnnespanol.cnn.com/2026/09/18/ciencia/salvar-lobo-mexicano-extincion-conservacion-decreto-trump-orix?readlang_revision=v4",
+      "https://cnnespanol.cnn.com/2026/09/18/latinoamerica/cuba-nuevo-apagon-nacional-octavo-efe?readlang_revision=v4",
+      "https://cnnespanol.cnn.com/2026/09/18/viajes/gen-z-rescates-montanas-trax?readlang_revision=v4",
+      "https://www.literatura.us/acs/payaso.html?readlang_revision=v4",
+      "https://www.literatura.us/garciamarquez/cronica.html?readlang_revision=v4"
+    ],
+    "hosts": ["readlang.com", "cnnespanol.cnn.com", "www.literatura.us"],
+    "urlPrefixes": ["https://readlang.com/library/"]
+  },
+  "contentMode": "full_text",
+  "maxArticleBytes": 5000000,
+  "license": "owner-authorized",
+  "attribution": "Readlang public library; original source URL retained per article.",
+  "automatedPublication": {
+    "enabled": true,
+    "policyVersion": "readlang-links-v4",
+    "dailyLimit": 10,
+    "approvedAt": "2026-09-19T00:00:00.000Z"
+  }
+}

@@ -6,24 +6,26 @@ import { findSegmentIndexAt, type MediaPlayback } from "../domain";
 import { AudioPlayerAdapter, type AudioPlayerFactory, type AudioPlayerPort, type AudioPlayerState } from "./audio-player-adapter";
 import { LexicalDrawer } from "./lexical-drawer";
 import { SegmentTranscript, type CaptionMode } from "./segment-transcript";
-import { VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type VideoPlayerState } from "./video-player-adapter";
+import { NativeVideoPlayerAdapter, type NativeVideoPlayerFactory, VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type VideoPlayerState } from "./video-player-adapter";
 
 type ProgressSnapshot = Readonly<{ lastPositionMs: number; lastSegmentIndex: number | null; status: "in_progress" | "completed" }>;
 type ProgressSyncState = "idle" | "saving" | "saved" | "conflict" | "error";
 
-export function MediaLearningWorkbench({ playback, playerFactory, audioPlayerFactory, initialPositionMs, initialSegmentIndex }: Readonly<{
+export function MediaLearningWorkbench({ playback, playerFactory, nativeVideoFactory, audioPlayerFactory, initialPositionMs, initialSegmentIndex }: Readonly<{
   playback: MediaPlayback;
   playerFactory?: VideoPlayerFactory;
+  nativeVideoFactory?: NativeVideoPlayerFactory;
   audioPlayerFactory?: AudioPlayerFactory;
   initialPositionMs?: number;
   initialSegmentIndex?: number;
 }>) {
-  return <MediaLearningWorkbenchSession audioPlayerFactory={audioPlayerFactory} initialPositionMs={initialPositionMs} initialSegmentIndex={initialSegmentIndex} key={`${playback.media.id}:${initialPositionMs ?? "progress"}:${initialSegmentIndex ?? "auto"}`} playback={playback} playerFactory={playerFactory} />;
+  return <MediaLearningWorkbenchSession audioPlayerFactory={audioPlayerFactory} initialPositionMs={initialPositionMs} initialSegmentIndex={initialSegmentIndex} key={`${playback.media.id}:${initialPositionMs ?? "progress"}:${initialSegmentIndex ?? "auto"}`} nativeVideoFactory={nativeVideoFactory} playback={playback} playerFactory={playerFactory} />;
 }
 
-function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFactory, initialPositionMs: requestedPositionMs, initialSegmentIndex: requestedSegmentIndex }: Readonly<{
+function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFactory, audioPlayerFactory, initialPositionMs: requestedPositionMs, initialSegmentIndex: requestedSegmentIndex }: Readonly<{
   playback: MediaPlayback;
   playerFactory?: VideoPlayerFactory;
+  nativeVideoFactory?: NativeVideoPlayerFactory;
   audioPlayerFactory?: AudioPlayerFactory;
   initialPositionMs?: number;
   initialSegmentIndex?: number;
@@ -191,6 +193,9 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, audioPlayerFac
         {playback.media.kind === "podcast" && playback.asset.kind === "audio"
           ? <AudioPlayerAdapter audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />
+          : playback.media.kind === "video" && playback.asset.kind === "video"
+            ? <NativeVideoPlayerAdapter factory={nativeVideoFactory} onError={handlePlayerError}
+                onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
           : <VideoPlayerAdapter embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
               onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
       </div>

@@ -45,6 +45,14 @@ const reviews = [
   { locale: "zh-CN" as const, reviewerReference: "codex-ai-owner-authorized-review" as const, notes: "教学说明已复核。", reviewedAt: new Date("2026-09-13T11:00:00.000Z") },
 ] as const;
 
+const hostedVideoAsset = {
+  providerKey: "bunny-storage" as const,
+  playbackUrl: "https://video.example.b-cdn.net/media/youtube.publicvideo1/video.mp4",
+  mimeType: "video/mp4" as const,
+  sha256: "a".repeat(64),
+  byteSize: 1024,
+};
+
 describe("reviewed YouTube video publication persistence", () => {
   let client: PGlite;
   let database: ReturnType<typeof drizzle<typeof schema>>;
@@ -54,12 +62,12 @@ describe("reviewed YouTube video publication persistence", () => {
 
   it("publishes idempotently with candidate provenance, official embed, segments, and reviews", async () => {
     const video = draft();
-    const input = { candidateId, candidateRevision: 5, contentHash: video.contentHash, draft: video, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z") };
+    const input = { candidateId, candidateRevision: 5, contentHash: video.contentHash, draft: video, hostedAsset: hostedVideoAsset, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z") };
     const first = await repository().publishAcquiredVideo(input);
     await expect(repository().publishAcquiredVideo(input)).resolves.toEqual(first);
     expect(first).toEqual({ kind: "media", stableKey: video.stableKey, version: 1 });
     await expect(repository().getPlayback(video.stableKey, "00000000-0000-4000-8000-000000000001", new Date("2026-09-13T13:00:00.000Z"))).resolves.toMatchObject({
-      asset: { kind: "official_embed", url: video.embedUrl },
+      asset: { kind: "video", url: hostedVideoAsset.playbackUrl },
       segments: [{ sourceText: "Buenos días." }],
     });
     const [version] = await database.select().from(schema.mediaVersions).where(eq(schema.mediaVersions.acquisitionCandidateId, candidateId));
@@ -71,7 +79,7 @@ describe("reviewed YouTube video publication persistence", () => {
 
   it("archives only the publication owned by the candidate and removes it from public playback", async () => {
     const video = draft();
-    const publication = await repository().publishAcquiredVideo({ candidateId, candidateRevision: 5, contentHash: video.contentHash, draft: video, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z") });
+    const publication = await repository().publishAcquiredVideo({ candidateId, candidateRevision: 5, contentHash: video.contentHash, draft: video, hostedAsset: hostedVideoAsset, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z") });
     await repository().archiveAcquiredVideo({ candidateId, publication, archivedAt: new Date("2026-09-13T14:00:00.000Z") });
     await expect(repository().list({ pageSize: 24, sort: "recently_added" })).resolves.toMatchObject({ items: [] });
     await expect(repository().archiveAcquiredVideo({ candidateId: "00000000-0000-4000-8000-000000000899", publication, archivedAt: new Date("2026-09-13T15:00:00.000Z") })).rejects.toBeInstanceOf(AcquiredVideoPersistenceConflictError);

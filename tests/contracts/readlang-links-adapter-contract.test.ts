@@ -117,6 +117,49 @@ describe("Readlang links adapter contract", () => {
     expect(result.nextCursor).toContain('"offset":1');
   });
 
+  it("reads exact Readlang library URLs through the public book and chunk APIs", async () => {
+    const libraryUrl = "https://readlang.com/library/abc123";
+    const libraryPolicy = readlangLinksPolicySchema.parse({
+      ...policy,
+      allowlist: {
+        ...policy.allowlist,
+        hosts: ["readlang.com"],
+        urls: [libraryUrl],
+        urlPrefixes: ["https://readlang.com/es/links", "https://readlang.com/library/"],
+      },
+    });
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === libraryPolicy.sourceUrl) {
+        return response("<html><body><div id=\"app\"></div></body></html>", { headers: { "content-type": "text/html" } });
+      }
+      if (url === "https://readlang.com/api/popularDomains?language=es&limit=50") {
+        return response("[]", { headers: { "content-type": "application/json" }, url });
+      }
+      if (url === "https://readlang.com/api/book/abc123") {
+        return response(JSON.stringify({
+          _id: "abc123",
+          title: "Una historia breve",
+          author: "Readlang Story Bot",
+          language: "es",
+          category: "Fiction",
+          firstShareDate: "2026-09-19T00:00:00.000Z",
+          metrics: { CEF: "B1" },
+          htmlChunks: [{ sha1: "0123456789012345678901234567890123456789" }],
+        }), { headers: { "content-type": "application/json" }, url });
+      }
+      expect(url).toBe("https://readlang.com/api/chunk/0123456789012345678901234567890123456789");
+      return response("<p>Una persona camina por la ciudad y descubre una nueva historia.</p>", { headers: { "content-type": "text/plain" }, url });
+    });
+    const adapter = new ReadlangLinksAdapter({ fetch: fetchMock, policy: libraryPolicy, now: () => new Date("2026-09-19T00:00:00.000Z") });
+    const result = await adapter.discover({ sourceStableKey: "readlang.links", externalSourceId: libraryPolicy.sourceUrl, cursor: null, limit: 1 });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      canonicalUrl: libraryUrl,
+      metadata: { articleDraft: { title: "Una historia breve", cefr: "B1", format: "story", paragraphs: ["Una persona camina por la ciudad y descubre una nueva historia."] } },
+    });
+  });
+
   it("rejects a same-host redirect to an URL outside the snapshot", async () => {
     const redirecting = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);
@@ -150,5 +193,39 @@ describe("Readlang links adapter contract", () => {
     expect(result.items).toHaveLength(1);
     const draft = result.items[0]?.metadata.articleDraft as { paragraphs?: readonly string[] } | undefined;
     expect(draft?.paragraphs?.every((paragraph) => paragraph.length <= 8_000)).toBe(true);
+  });
+
+  it("keeps source metadata, removes related-link noise, and preserves complete summaries", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === policy.sourceUrl) {
+        return response('<html><body><a href="https://news.example.test/one">Uno</a></body></html>', { headers: { "content-type": "text/html" } });
+      }
+      return response(`<html><head>
+        <title>Una noticia | Example</title>
+        <meta name="author" content="Ana Pérez">
+        <meta property="article:published_time" content="2026-09-19T05:13:22.506Z">
+        <meta property="og:description" content="La noticia explica el cambio. La segunda frase también queda completa.">
+      </head><body><article>
+        <h1>Una noticia</h1>
+        <p>La noticia explica el cambio. La segunda frase también queda completa.</p>
+        <p>Artículo relacionado Otra noticia que no forma parte del cuerpo.</p>
+        <p>El barrio organiza una conversación.</p>
+      </article></body></html>`, { headers: { "content-type": "text/html" }, url });
+    });
+    const result = await new ReadlangLinksAdapter({ fetch: fetchMock, policy }).discover({
+      sourceStableKey: "readlang.links",
+      externalSourceId: policy.sourceUrl,
+      cursor: null,
+      limit: 1,
+    });
+    const draft = result.items[0]?.metadata.articleDraft as Record<string, unknown>;
+    expect(draft).toMatchObject({
+      title: "Una noticia",
+      author: "Ana Pérez",
+      publicationDate: "2026-09-19",
+      summary: "La noticia explica el cambio. La segunda frase también queda completa.",
+      paragraphs: ["La noticia explica el cambio. La segunda frase también queda completa.", "El barrio organiza una conversación."],
+    });
   });
 });

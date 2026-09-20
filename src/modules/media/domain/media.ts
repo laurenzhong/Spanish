@@ -3,6 +3,25 @@ import type { MediaProgress } from "./media-progress";
 export type MediaKind = "video" | "podcast";
 export type MediaCefr = "A2" | "B1" | null;
 export type MediaContentStatus = "draft" | "review" | "approved" | "published" | "archived";
+export type MediaArtworkSource = "youtube" | "podcast-feed" | "fallback";
+
+export type MediaArtwork = Readonly<{
+  url: string;
+  alt: string;
+  source: MediaArtworkSource;
+  width: number | null;
+  height: number | null;
+  expiresAt: string | null;
+}>;
+
+export type RawMediaArtwork = Readonly<{
+  url: string;
+  alt: string;
+  source: MediaArtworkSource;
+  width: number | null;
+  height: number | null;
+  expiresAt: Date | null;
+}>;
 
 export type RawMediaProjection = Readonly<{
   stableKey: string;
@@ -22,6 +41,7 @@ export type RawMediaProjection = Readonly<{
   status: MediaContentStatus;
   copyrightStatus: "unverified" | "cleared" | "restricted";
   playable: boolean;
+  artwork?: RawMediaArtwork | null;
   progress?: MediaProgress | null;
 }>;
 
@@ -41,6 +61,7 @@ export type MediaCard = Readonly<{
   publishedAt: string | null;
   curatedAt: string;
   contentHash: string;
+  artwork?: MediaArtwork | null;
   progress: MediaProgress | null;
 }>;
 
@@ -90,7 +111,31 @@ export function parseMediaDocumentId(value: string): Readonly<{ stableKey: strin
   return { stableKey: match[1], version: Number(match[2]) };
 }
 
-export function projectMediaCard(raw: RawMediaProjection): MediaCard | null {
+function projectArtwork(raw: RawMediaArtwork | null, now: Date): MediaArtwork | null {
+  if (!raw || !["youtube", "podcast-feed", "fallback"].includes(raw.source)) return null;
+  if (raw.alt.trim().length < 1 || raw.alt.trim().length > 300) return null;
+  let url: URL;
+  try {
+    url = new URL(raw.url);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.username || url.password) return null;
+  const hasWidth = raw.width !== null;
+  const hasHeight = raw.height !== null;
+  if (hasWidth !== hasHeight || (hasWidth && (!Number.isInteger(raw.width) || raw.width! <= 0 || !Number.isInteger(raw.height) || raw.height! <= 0))) return null;
+  if (raw.expiresAt && raw.expiresAt.getTime() <= now.getTime()) return null;
+  return {
+    url: url.toString(),
+    alt: raw.alt.trim(),
+    source: raw.source,
+    width: raw.width,
+    height: raw.height,
+    expiresAt: raw.expiresAt?.toISOString() ?? null,
+  };
+}
+
+export function projectMediaCard(raw: RawMediaProjection, now = new Date()): MediaCard | null {
   if (raw.status !== "published" || raw.copyrightStatus !== "cleared" || !raw.playable) return null;
   if (!Number.isInteger(raw.version) || raw.version < 1) return null;
   if (!Number.isInteger(raw.durationMs) || raw.durationMs <= 0) return null;
@@ -110,6 +155,7 @@ export function projectMediaCard(raw: RawMediaProjection): MediaCard | null {
     publishedAt: raw.publishedAt?.toISOString() ?? null,
     curatedAt: raw.curatedAt.toISOString(),
     contentHash: raw.contentHash,
+    artwork: projectArtwork(raw.artwork ?? null, now),
     progress: raw.progress ?? null,
   };
 }

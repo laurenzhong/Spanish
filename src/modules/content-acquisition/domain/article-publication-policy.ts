@@ -3,6 +3,8 @@ import type { ContentSourceRecord } from "../repositories";
 export const articlePublicationModes = ["disabled", "discover-only", "review-only", "auto-publish"] as const;
 export type ArticlePublicationMode = (typeof articlePublicationModes)[number];
 
+const READLANG_SOURCE_URL = "https://readlang.com/es/links";
+
 export type ArticleDailySourcePlan = Readonly<{
   sourceStableKey: string;
   sourceLimit: number;
@@ -45,7 +47,7 @@ function sourceEligibleForMode(source: ContentSourceRecord, mode: ArticlePublica
   const baseEligible = source.enabled
     && source.rightsStatus === "verified"
     && ((source.adapterType === "article-rss" && source.sourceKind === "article-feed")
-      || (source.adapterType === "readlang-links" && source.sourceKind === "article-site"));
+      || (source.adapterType === "readlang-links" && source.sourceKind === "article-site" && source.externalSourceId === READLANG_SOURCE_URL));
   if (!baseEligible) return false;
   if (mode === "discover-only") return true;
   if (source.adapterType === "readlang-links") {
@@ -75,13 +77,14 @@ export function planDailyArticleRun(input: Readonly<{
     .sort((left, right) => left.stableKey.localeCompare(right.stableKey))
     .filter((source) => source.enabled && source.rightsStatus === "verified"
       && ((source.adapterType === "article-rss" && source.sourceKind === "article-feed")
-        || (source.adapterType === "readlang-links" && source.sourceKind === "article-site")));
+        || (source.adapterType === "readlang-links" && source.sourceKind === "article-site" && source.externalSourceId === READLANG_SOURCE_URL)));
   const skippedSources = input.sources
     .filter((source) => !eligible.includes(source))
     .map((source) => ({
       sourceStableKey: source.stableKey,
-      reason: !source.enabled ? "source-disabled" : ((source.adapterType !== "article-rss" || source.sourceKind !== "article-feed")
-        && (source.adapterType !== "readlang-links" || source.sourceKind !== "article-site")) ? "not-article-source" : source.rightsStatus !== "verified" ? "rights-not-verified" : "source-ineligible",
+      reason: !source.enabled ? "source-disabled" : source.adapterType === "readlang-links" && source.sourceKind === "article-site" && source.externalSourceId !== READLANG_SOURCE_URL
+        ? "readlang-source-url-not-exact" : ((source.adapterType !== "article-rss" || source.sourceKind !== "article-feed")
+          && (source.adapterType !== "readlang-links" || source.sourceKind !== "article-site")) ? "not-article-source" : source.rightsStatus !== "verified" ? "rights-not-verified" : "source-ineligible",
     }));
   const sourcePlans: ArticleDailySourcePlan[] = [];
   if (input.mode === "disabled") {

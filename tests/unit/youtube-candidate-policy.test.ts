@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   ContentSourceAdapterError,
+  calculateLegacyVideoCandidateContentHash,
   createVideoCandidateDraft,
   createYouTubeChannelAdapterFromSource,
+  videoCandidateDraftSchema,
   youtubeRightsPolicySchema,
 } from "@/src/modules/content-acquisition";
 import type { ContentSourceRecord } from "@/src/modules/content-acquisition/repositories";
@@ -76,5 +78,20 @@ describe("YouTube candidate policy", () => {
     const changed = createVideoCandidateDraft({ ...input, title: "Cómo pedir dos cafés" });
     expect(repeated.contentHash).toBe(first.contentHash);
     expect(changed.contentHash).not.toBe(first.contentHash);
+  });
+
+  it("accepts a legacy draft that predates the optional artwork field without weakening validation", () => {
+    const draft = createVideoCandidateDraft({
+      stableKey: "youtube.legacy-video", platform: "youtube", platformVideoId: "legacy1", sourceChannelId: source.externalSourceId,
+      canonicalUrl: "https://www.youtube.com/watch?v=legacy1", embedUrl: "https://www.youtube-nocookie.com/embed/legacy1?enablejsapi=1",
+      title: "Un vídeo antiguo", summary: "Un resumen.", sourceName: source.displayName, language: "es", region: "es-ES", cefr: "A2",
+      topics: ["topic.daily-life"], durationMs: 60_000, publicationDate: "2026-09-13T08:00:00.000Z", fetchedAt: "2026-09-13T10:00:00.000Z",
+      license: "licensed", attribution: "Owner", licenseEvidence: "https://www.youtube.com/t/terms", copyrightStatus: "cleared",
+      captionStatus: "unavailable", segments: [], changeReason: "Legacy fixture.",
+    });
+    const legacy = JSON.parse(JSON.stringify({ ...draft, artwork: undefined })) as Omit<typeof draft, "artwork">;
+    const legacyDraft = { ...legacy, contentHash: calculateLegacyVideoCandidateContentHash(draft) };
+    expect(videoCandidateDraftSchema.parse(legacyDraft).artwork).toBeNull();
+    expect(calculateLegacyVideoCandidateContentHash(videoCandidateDraftSchema.parse(legacyDraft))).toBe(legacyDraft.contentHash);
   });
 });

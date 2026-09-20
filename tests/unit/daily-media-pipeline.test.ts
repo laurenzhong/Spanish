@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { runDailyMediaPipeline } from "@/src/modules/content-acquisition/application/run-daily-media-pipeline";
 import { createVideoCandidateDraft } from "@/src/modules/content-acquisition/normalizers";
+import { mediaReviewInputHash, type MediaReviewInput } from "@/src/modules/content-acquisition/providers/media-review";
+import { CandidatePublisherRegistry } from "@/src/modules/content-acquisition/publishers";
 import type { ContentCandidateRecord, ContentSourceRecord } from "@/src/modules/content-acquisition/repositories";
 
 function source(overrides: Partial<ContentSourceRecord> = {}): ContentSourceRecord {
@@ -33,8 +35,9 @@ function repository(sources: readonly ContentSourceRecord[]) {
     findCandidateById: vi.fn(async (candidateId: string): Promise<ContentCandidateRecord | null> => { void candidateId; return null; }),
     compareAndSwapCandidate: vi.fn(async (input: unknown): Promise<ContentCandidateRecord | null> => { void input; return null; }),
     recordProcessingAttempt: vi.fn(async () => undefined),
-    getCandidateReview: vi.fn(async () => null),
+    getCandidateReview: vi.fn(async (candidateId: string): Promise<unknown> => { void candidateId; return null; }),
     saveCandidateReview: vi.fn(async (input: unknown) => input),
+    markCandidatePublished: vi.fn(async () => undefined),
   };
 }
 
@@ -78,6 +81,141 @@ describe("runDailyMediaPipeline", () => {
 
     expect(resolveAdapter).toHaveBeenCalledWith(languageReactor);
     expect(result).toMatchObject({ mode: "discover-only", reviewReady: 0, prepared: 0 });
+  });
+
+  it("times out a stalled source and continues with the next authorized source", async () => {
+    const stalled = source({ id: "source-stalled", stableKey: "aaa.stalled" });
+    const healthy = source({ id: "source-healthy", stableKey: "bbb.healthy" });
+    const repo = repository([stalled, healthy]);
+    const calls: string[] = [];
+    const result = await runDailyMediaPipeline({
+      repository: repo as never,
+      resolveAdapter: async (item) => {
+        calls.push(item.stableKey);
+        if (item.id === stalled.id) {
+          return {
+            key: "youtube" as const,
+            discover: async (_input: unknown, options?: Readonly<{ signal?: AbortSignal }>) => new Promise<never>((_resolve, reject) => {
+              options?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+            }),
+          };
+        }
+        return {
+          key: "youtube" as const,
+          discover: async () => ({ sourceStableKey: healthy.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }),
+        };
+      },
+    }, { mode: "discover-only", dailyLimit: 2, defaultSourceLimit: 1, sourceTimeoutMs: 5, date: "2026-09-19" });
+
+    expect(calls).toEqual([stalled.stableKey, healthy.stableKey]);
+    expect(result.failures).toEqual([{ scope: "source", sourceStableKey: stalled.stableKey, code: "MEDIA_SOURCE_TIMEOUT" }]);
+    expect(repo.createRun).toHaveBeenCalledTimes(2);
+  });
+
+  it("reviews candidates in bounded parallel batches", async () => {
+    const mediaSource = source();
+    const repo = repository([mediaSource]);
+    const drafts = ["one", "two"].map((title) => createVideoCandidateDraft({
+      stableKey: `youtube.demo.${title}`,
+      platform: "youtube",
+      platformVideoId: `${title}-id`,
+      sourceChannelId: "UC1234567890123456789012",
+      canonicalUrl: `https://www.youtube.com/watch?v=${title}-id`,
+      embedUrl: `https://www.youtube-nocookie.com/embed/${title}-id?enablejsapi=1`,
+      title,
+      summary: "Resumen",
+      sourceName: "Demo",
+      language: "es",
+      region: "ES",
+      cefr: "A2",
+      topics: ["topic.media"],
+      durationMs: 60_000,
+      publicationDate: "2026-09-18T00:00:00.000Z",
+      fetchedAt: "2026-09-19T00:00:00.000Z",
+      license: "licensed",
+      attribution: "Demo",
+      licenseEvidence: "https://example.test/license",
+      copyrightStatus: "cleared",
+      captionStatus: "unavailable",
+      segments: [],
+      changeReason: "Daily discovery",
+    }));
+    const candidates: ContentCandidateRecord[] = drafts.map((draft, index) => ({
+      id: `candidate-${index}`,
+      sourceId: mediaSource.id,
+      externalItemId: draft.platformVideoId,
+      normalizedUrl: draft.canonicalUrl,
+      title: draft.title,
+      contentType: "video" as const,
+      language: "es",
+      metadata: { videoDraft: draft },
+      publishedAt: null,
+      contentHash: draft.contentHash,
+      rightsStatus: "verified" as const,
+      status: "review_ready" as const,
+      revision: 1,
+      generationId: "generation-1",
+      lastActivityAt: new Date("2026-09-18T00:00:00.000Z"),
+      rejectedAt: null,
+      publicationStatus: "draft" as const,
+      publicationRef: null,
+      publishedCandidateRevision: null,
+      publishedContentHash: null,
+      publishedAtInternal: null,
+      archivedAt: null,
+    }));
+    repo.listCandidates.mockImplementation(async (input: unknown) => {
+      const query = input as { status?: string };
+      return query.status === "review_ready" ? candidates : [];
+    });
+    repo.findCandidateById.mockImplementation(async (candidateId: string) => candidates.find((candidate) => candidate.id === candidateId) ?? null);
+    repo.getCandidateReview.mockImplementation(async (candidateId: string) => {
+      const candidate = candidates.find((item) => item.id === candidateId);
+      return candidate ? { candidate, reviews: [] } : null;
+    });
+    const active = { count: 0, max: 0 };
+    const providerReview = vi.fn(async (input: MediaReviewInput) => {
+      active.count += 1;
+      active.max = Math.max(active.max, active.count);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active.count -= 1;
+      return { decision: "approved" as const, notes: "ok", modelVersion: "test", inputHash: mediaReviewInputHash(input) };
+    });
+    const provider = {
+      dimension: "content-es-ES" as const,
+      review: providerReview,
+    };
+    const teaching = { ...provider, dimension: "teaching-zh-CN" as const };
+    const result = await runDailyMediaPipeline({ repository: repo as never, resolveAdapter: async () => ({ key: "youtube", discover: async () => ({ sourceStableKey: mediaSource.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }) }), reviewProviders: { content: provider, teaching } }, { mode: "review-only", dailyLimit: 2, defaultSourceLimit: 2, reviewConcurrency: 2, date: "2026-09-19" });
+
+    expect(result.reviewed).toBe(2);
+    expect(active.max).toBeGreaterThan(1);
+
+    const approvals = ["content-es-ES", "teaching-zh-CN", "structure"].map((dimension, index) => ({
+      id: `review-${index}`,
+      candidateId: candidates[0]!.id,
+      dimension: dimension as "content-es-ES" | "teaching-zh-CN" | "structure",
+      status: "approved" as const,
+      reviewerReference: "codex-ai-owner-authorized-review",
+      candidateRevision: 1,
+      notes: null,
+    }));
+    repo.getCandidateReview.mockImplementation(async (candidateId: string) => {
+      const candidate = candidates.find((item) => item.id === candidateId);
+      return candidate ? { candidate, reviews: approvals.map((review) => ({ ...review, candidateId })) } : null;
+    });
+    providerReview.mockClear();
+    const hostedMetadata: Readonly<Record<string, unknown>> = { ...(candidates[0]!.metadata as Record<string, unknown>), bunnyVideoAsset: { providerKey: "bunny-storage", playbackUrl: "https://cdn.example/video.mp4", mimeType: "video/mp4", sha256: "a".repeat(64), byteSize: 123 } };
+    candidates[0] = { ...candidates[0]!, metadata: hostedMetadata };
+    const publisher = {
+      contentType: "video" as const,
+      publish: vi.fn(async () => ({ kind: "media" as const, stableKey: "youtube.demo.one", version: 1 })),
+      archive: vi.fn(async () => undefined),
+    };
+    const resumed = await runDailyMediaPipeline({ repository: repo as never, resolveAdapter: async () => ({ key: "youtube", discover: async () => ({ sourceStableKey: mediaSource.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }) }), reviewProviders: { content: provider, teaching }, publishers: new CandidatePublisherRegistry([publisher]) }, { mode: "auto-publish", dailyLimit: 2, defaultSourceLimit: 2, reviewConcurrency: 2, date: "2026-09-19" });
+    expect(providerReview).not.toHaveBeenCalled();
+    expect(resumed).toMatchObject({ published: 1, skipped: 1, failures: [] });
+    expect(publisher.publish).toHaveBeenCalledOnce();
   });
 
   it("resumes partially processed candidates in review-only mode", async () => {

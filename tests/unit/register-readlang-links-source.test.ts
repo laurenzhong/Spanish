@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createReadlangLinksSourceInput } from "@/scripts/register-readlang-links-source";
 
 describe("Readlang links source registration", () => {
-  it("registers the committed exact allowlist policy without enabling auto-publication", () => {
+  it("registers the owner-authorized exact URL policy with staged auto-publication enabled", () => {
     const source = createReadlangLinksSourceInput();
     expect(source).toMatchObject({
       stableKey: "readlang.links.es",
@@ -14,9 +14,9 @@ describe("Readlang links source registration", () => {
       rightsStatus: "verified",
     });
     expect(source.rightsPolicy.automatedPublication).toMatchObject({
-      enabled: false,
-      policyVersion: "readlang-links-v2",
-      dailyLimit: 10,
+      enabled: true,
+      policyVersion: "readlang-links-v5",
+      dailyLimit: 50,
     });
     expect(source.rightsPolicy.maxArticleBytes).toBe(5_000_000);
   });

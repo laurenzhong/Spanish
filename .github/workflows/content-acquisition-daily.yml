@@ -11,9 +11,9 @@ on:
         default: "50"
         type: string
       article_mode:
-        description: "Article publication stage; defaults to discover-only"
+        description: "Article publication stage; protected auto-publish is the daily default"
         required: false
-        default: "discover-only"
+        default: "auto-publish"
         type: choice
         options:
           - disabled
@@ -21,14 +21,15 @@ on:
           - review-only
           - auto-publish
       media_mode:
-        description: "Video/podcast publication stage; media never auto-publishes"
+        description: "Video/podcast publication stage; protected auto-publish is the daily default"
         required: false
-        default: "discover-only"
+        default: "auto-publish"
         type: choice
         options:
           - disabled
           - discover-only
           - review-only
+          - auto-publish
 
 concurrency:
   group: content-acquisition-${{ github.ref }}
@@ -50,6 +51,17 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install media hosting tools
+        if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
+        run: |
+          python -m pip install --disable-pip-version-check --no-warn-script-location yt-dlp
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ffmpeg
+          pnpm exec playwright install --with-deps chromium
+      - name: Register owner-authorized Readlang policy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:register-readlang-links
       - name: Run staged article pipeline
         id: article_daily
         continue-on-error: true
@@ -58,10 +70,11 @@ jobs:
           YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           CONTENT_ARTICLE_REVIEW_PROVIDER: ${{ vars.CONTENT_ARTICLE_REVIEW_PROVIDER || 'minimax' }}
+          CONTENT_ARTICLE_REVISION_PROVIDER: ${{ vars.CONTENT_ARTICLE_REVISION_PROVIDER || 'minimax' }}
           CONTENT_ARTICLE_SOURCE_LIMIT: ${{ vars.CONTENT_ARTICLE_SOURCE_LIMIT || '10' }}
-          CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || '' }}
+          CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || 'readlang-links-v5' }}
           CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
-          ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || '' }}
+          ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'auto-publish' }}
           ARTICLE_DAILY_LIMIT: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}
         run: >-
           test -n "$ARTICLE_MODE"
@@ -77,14 +90,29 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
-          MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'discover-only' }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          BUNNY_STORAGE_ZONE_NAME: ${{ secrets.BUNNY_STORAGE_ZONE_NAME }}
+          BUNNY_STORAGE_PASSWORD: ${{ secrets.BUNNY_STORAGE_PASSWORD }}
+          BUNNY_STORAGE_REGION: ${{ vars.BUNNY_STORAGE_REGION || 'storage' }}
+          BUNNY_STORAGE_PULL_ZONE_HOSTNAME: ${{ vars.BUNNY_STORAGE_PULL_ZONE_HOSTNAME }}
+          MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
+          YTDLP_BIN: yt-dlp
+          FFMPEG_BIN: ffmpeg
+          CONTENT_MEDIA_REVIEW_PROVIDER: ${{ vars.CONTENT_MEDIA_REVIEW_PROVIDER || 'minimax' }}
+          CONTENT_MEDIA_REVISION_PROVIDER: ${{ vars.CONTENT_MEDIA_REVISION_PROVIDER || 'minimax' }}
+          CONTENT_MEDIA_REVIEW_CONCURRENCY: ${{ vars.CONTENT_MEDIA_REVIEW_CONCURRENCY || '2' }}
+          CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
+          MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}
           MEDIA_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_DAILY_LIMIT || '50' }}
           MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
         run: >-
-          pnpm content:pipeline -- media-daily
-          --mode "$MEDIA_MODE"
-          --daily-limit "$MEDIA_DAILY_LIMIT"
-          --source-limit "$MEDIA_SOURCE_LIMIT"
+          if [ "$MEDIA_MODE" = "auto-publish" ]; then
+          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT";
+          pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
+          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT";
+          else
+          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT";
+          fi
       - name: Cleanup expired candidates and artifacts
         if: always()
         env:
@@ -103,7 +131,7 @@ jobs:
             echo '- Secrets, article bodies, provider responses, and query credentials are intentionally omitted.'
             echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
             echo "- Requested global limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
-            echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'discover-only' }}"
+            echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Fail after independent stage attempts
         if: always() && (steps.article_daily.outcome == 'failure' || steps.media_daily.outcome == 'failure')

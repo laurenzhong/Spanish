@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const fixtureStableKey = "youtube.e2e-cafe";
+const nativeFixtureStableKey = "video.e2e-native";
 
 test.beforeEach(async ({ context, page, baseURL }) => {
   await context.addCookies([{
@@ -38,6 +39,54 @@ test.beforeEach(async ({ context, page, baseURL }) => {
     }
     await route.abort("blockedbyclient");
   });
+});
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const positions = new WeakMap<HTMLMediaElement, number>();
+    const sources = new WeakMap<HTMLMediaElement, string>();
+    Object.defineProperty(HTMLMediaElement.prototype, "currentTime", {
+      configurable: true,
+      get() { return positions.get(this) ?? 0; },
+      set(value: number) {
+        positions.set(this, value);
+        (this as HTMLMediaElement).dataset.currentTime = String(value);
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "src", {
+      configurable: true,
+      get() { return sources.get(this) ?? ""; },
+      set(value: string) {
+        sources.set(this, value);
+        (this as HTMLMediaElement).dataset.source = value;
+      },
+    });
+    HTMLMediaElement.prototype.load = function () {
+      setTimeout(() => this.dispatchEvent(new Event("canplay")), 0);
+    };
+    HTMLMediaElement.prototype.play = function () {
+      this.dataset.playing = "true";
+      this.dispatchEvent(new Event("play"));
+      return Promise.resolve();
+    };
+    HTMLMediaElement.prototype.pause = function () {
+      this.dataset.playing = "false";
+      this.dispatchEvent(new Event("pause"));
+    };
+  });
+});
+
+test("keeps a licensed native video in the shared learning workbench", async ({ page }) => {
+  await page.goto(`/learn/media/${encodeURIComponent(nativeFixtureStableKey)}`);
+
+  await expect(page.getByRole("heading", { name: "Una historia breve" })).toBeVisible();
+  const video = page.getByLabel("Una historia breve 播放器");
+  await expect(video).toHaveAttribute("data-source", "https://media.example.test/video/sample.mp4");
+  await expect(page.getByText("播放器已就绪")).toBeVisible();
+  await page.getByRole("button", { name: "下一句" }).click();
+  await expect(video).toHaveAttribute("data-current-time", "1.8");
+  await page.getByRole("button", { name: "双语" }).click();
+  await expect(page.getByText("早上好。")).toBeVisible();
 });
 
 test("learns from a reviewed YouTube video with sentence controls, captions, words and progress", async ({ page }, testInfo) => {

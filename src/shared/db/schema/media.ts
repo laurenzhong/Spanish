@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, pgEnum, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgEnum, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { contentStatusEnum, createdAt, reviewStatusEnum, sourceLicenseEnum, updatedAt } from "./common";
 import { profiles } from "./users";
@@ -8,6 +8,7 @@ export const mediaKindEnum = pgEnum("media_kind", ["video", "podcast"]);
 export const mediaAssetKindEnum = pgEnum("media_asset_kind", ["official_embed", "audio", "video"]);
 export const mediaAssetAvailabilityEnum = pgEnum("media_asset_availability", ["available", "unavailable", "withdrawn"]);
 export const mediaProgressStatusEnum = pgEnum("media_progress_status", ["in_progress", "completed"]);
+export const mediaArtworkSourceEnum = pgEnum("media_artwork_source", ["youtube", "podcast-feed", "fallback"]);
 
 export const mediaItems = pgTable("media_items", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -53,6 +54,12 @@ export const mediaVersions = pgTable("media_versions", {
   fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "date" }),
   changeReason: text("change_reason"),
   reviewNotes: text("review_notes"),
+  artworkUrl: text("artwork_url"),
+  artworkAlt: text("artwork_alt"),
+  artworkSource: mediaArtworkSourceEnum("artwork_source"),
+  artworkWidth: integer("artwork_width"),
+  artworkHeight: integer("artwork_height"),
+  artworkExpiresAt: timestamp("artwork_expires_at", { withTimezone: true, mode: "date" }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
@@ -69,6 +76,8 @@ export const mediaVersions = pgTable("media_versions", {
   check("media_versions_source_feed_url_check", sql`${table.sourceFeedUrl} is null or ${table.sourceFeedUrl} ~ '^https://'`),
   check("media_versions_enclosure_url_hash_check", sql`${table.enclosureUrlHash} is null or ${table.enclosureUrlHash} ~ '^[a-f0-9]{64}$'`),
   check("media_versions_acquisition_provenance_check", sql`(${table.acquisitionCandidateId} is null and ${table.acquisitionCandidateRevision} is null and ${table.fetchedAt} is null) or (${table.acquisitionCandidateId} is not null and ${table.acquisitionCandidateRevision} > 0 and ${table.fetchedAt} is not null)`),
+  check("media_versions_artwork_url_check", sql`${table.artworkUrl} is null or ${table.artworkUrl} ~ '^https://'`),
+  check("media_versions_artwork_fields_check", sql`(${table.artworkUrl} is null and ${table.artworkAlt} is null and ${table.artworkSource} is null and ${table.artworkWidth} is null and ${table.artworkHeight} is null and ${table.artworkExpiresAt} is null) or (${table.artworkUrl} is not null and ${table.artworkAlt} is not null and ${table.artworkSource} is not null and ((${table.artworkWidth} is null and ${table.artworkHeight} is null) or (${table.artworkWidth} > 0 and ${table.artworkHeight} > 0)))`),
 ]);
 
 export const mediaAssets = pgTable("media_assets", {
@@ -86,7 +95,7 @@ export const mediaAssets = pgTable("media_assets", {
   uniqueIndex("media_assets_version_kind_uidx").on(table.mediaVersionId, table.kind),
   index("media_assets_availability_idx").on(table.availability),
   check("media_assets_https_check", sql`${table.playbackUrl} ~ '^https://'`),
-  check("media_assets_expiry_policy_check", sql`${table.kind} = 'official_embed' or ${table.playbackExpiresAt} is not null`),
+  check("media_assets_expiry_policy_check", sql`${table.kind} = 'official_embed' or ${table.providerKey} = 'language-reactor' or ${table.providerKey} like 'supabase-storage:%' or (${table.kind} in ('audio', 'video') and ${table.providerKey} = 'bunny-storage') or ${table.playbackExpiresAt} is not null`),
 ]);
 
 export const mediaSegments = pgTable("media_segments", {
@@ -97,6 +106,7 @@ export const mediaSegments = pgTable("media_segments", {
   endMs: integer("end_ms").notNull(),
   speaker: text("speaker"),
   sourceText: text("source_text").notNull(),
+  words: jsonb("words").$type<readonly { startMs: number; endMs: number; startOffset: number; endOffset: number }[]>(),
   translation: text("translation"),
   confidence: real("confidence"),
   sourceKind: text("source_kind"),
@@ -109,6 +119,45 @@ export const mediaSegments = pgTable("media_segments", {
   check("media_segments_time_check", sql`${table.segmentIndex} >= 0 and ${table.startMs} >= 0 and ${table.endMs} > ${table.startMs}`),
   check("media_segments_confidence_check", sql`${table.confidence} is null or (${table.confidence} >= 0 and ${table.confidence} <= 1)`),
   check("media_segments_source_kind_check", sql`${table.sourceKind} is null or ${table.sourceKind} in ('platform_manual', 'platform_auto', 'asr')`),
+]);
+
+export const mediaTranscriptBackfillStatusEnum = pgEnum("media_transcript_backfill_status", ["draft", "approved", "published", "rejected"]);
+export const mediaTranscriptReviewDimensionEnum = pgEnum("media_transcript_review_dimension", ["content-es-ES", "teaching-zh-CN", "structure"]);
+export const mediaTranscriptReviewStatusEnum = pgEnum("media_transcript_backfill_review_status", ["pending", "approved", "changes_requested", "rejected"]);
+
+export const mediaTranscriptBackfills = pgTable("media_transcript_backfills", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  mediaVersionId: uuid("media_version_id").notNull().references(() => mediaVersions.id, { onDelete: "restrict" }),
+  mediaItemId: uuid("media_item_id").notNull().references(() => mediaItems.id, { onDelete: "restrict" }),
+  sourceVersion: integer("source_version").notNull(),
+  audioHash: text("audio_hash").notNull(),
+  segments: jsonb("segments").notNull(),
+  provider: text("provider").notNull(),
+  modelVersion: text("model_version").notNull(),
+  lowConfidence: boolean("low_confidence").default(false).notNull(),
+  translationFailedCount: integer("translation_failed_count").default(0).notNull(),
+  status: mediaTranscriptBackfillStatusEnum("status").default("draft").notNull(),
+  publishedVersion: integer("published_version"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("media_transcript_backfills_version_hash_uidx").on(table.mediaVersionId, table.audioHash),
+  index("media_transcript_backfills_status_idx").on(table.status, table.createdAt),
+  check("media_transcript_backfills_hash_check", sql`${table.audioHash} ~ '^[a-f0-9]{64}$'`),
+  check("media_transcript_backfills_translation_count_check", sql`${table.translationFailedCount} >= 0`),
+]);
+
+export const mediaTranscriptBackfillReviews = pgTable("media_transcript_backfill_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  backfillId: uuid("backfill_id").notNull().references(() => mediaTranscriptBackfills.id, { onDelete: "cascade" }),
+  dimension: mediaTranscriptReviewDimensionEnum("dimension").notNull(),
+  status: mediaTranscriptReviewStatusEnum("status").default("pending").notNull(),
+  reviewerReference: text("reviewer_reference"),
+  notes: text("notes"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("media_transcript_backfill_reviews_dimension_uidx").on(table.backfillId, table.dimension),
 ]);
 
 export const userMediaProgress = pgTable("user_media_progress", {

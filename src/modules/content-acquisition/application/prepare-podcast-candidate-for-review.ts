@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { validateSegmentTimeline } from "@/src/modules/media/domain";
 
-import { calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers";
+import { calculateLegacyPodcastCandidateContentHash, calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers";
 import type { ContentAcquisitionRepository, ContentCandidateRecord } from "../repositories";
 import { processCandidate } from "./process-candidate";
 
@@ -51,9 +51,13 @@ export async function preparePodcastCandidateForReview(
       throw new PodcastCandidateValidationError("transcript timeline is invalid.");
     }
   }
+  const legacyArtworkOmitted = !Object.prototype.hasOwnProperty.call(initial.metadata.podcastDraft, "artwork");
+  const legacyPlaybackProviderOmitted = !Object.prototype.hasOwnProperty.call(initial.metadata.podcastDraft, "playbackProvider");
+  const hashMatches = draft.contentHash === calculatePodcastCandidateContentHash(draft)
+    || (legacyArtworkOmitted && legacyPlaybackProviderOmitted && draft.contentHash === calculateLegacyPodcastCandidateContentHash(draft));
   if (
     initial.contentHash !== draft.contentHash
-    || draft.contentHash !== calculatePodcastCandidateContentHash(draft)
+    || !hashMatches
     || initial.normalizedUrl !== draft.canonicalUrl
     || initial.title !== draft.title
     || initial.externalItemId !== draft.episodeGuid

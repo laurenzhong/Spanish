@@ -69,6 +69,14 @@ describe("Readlang source publication stages", () => {
     expect(planDailyArticleRun({ date: "2026-09-18", mode: "review-only", policyVersion: "readlang-links-v2", dailyLimit: 50, defaultSourceLimit: 10, sources: [readlang] }).sourcePlans).toEqual([{ sourceStableKey: "readlang.links", sourceLimit: 10 }]);
     expect(planDailyArticleRun({ date: "2026-09-18", mode: "auto-publish", policyVersion: "readlang-links-v2", dailyLimit: 50, defaultSourceLimit: 10, sources: [readlang] }).sourcePlans).toEqual([]);
   });
+
+  it("does not run a superseded Readlang source with a policy query in its source URL", () => {
+    const readlang = source();
+    const superseded = { ...readlang, stableKey: "readlang.links.es.v4", externalSourceId: "https://readlang.com/es/links?policy=readlang-links-v4" };
+    const plan = planDailyArticleRun({ date: "2026-09-18", mode: "discover-only", policyVersion: "readlang-links-v5", dailyLimit: 50, defaultSourceLimit: 10, sources: [superseded] });
+    expect(plan.sourcePlans).toEqual([]);
+    expect(plan.skippedSources).toEqual([{ sourceStableKey: "readlang.links.es.v4", reason: "readlang-source-url-not-exact" }]);
+  });
 });
 
 const viFetch: typeof fetch = async () => new Response(null, { status: 500 });

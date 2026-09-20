@@ -27,6 +27,10 @@ import {
   runDailyMediaPipeline,
   mediaPublicationModes,
   createConfiguredArticleReviewProviders,
+  createConfiguredArticleRevisionProvider,
+  createConfiguredMediaReviewProviders,
+  createConfiguredMediaRevisionProvider,
+  contentWorkflowPublishers,
   CandidatePublisherRegistry,
   AcquiredArticlePublisher,
   type ContentAcquisitionRepository,
@@ -91,6 +95,17 @@ export function assertAutoPublishKillSwitch(
   if (mode === "auto-publish" && value !== "true") {
     throw new AcquireContentCliInputError(
       "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true for auto-publish.",
+    );
+  }
+}
+
+export function assertMediaAutoPublishKillSwitch(
+  mode: typeof mediaPublicationModes[number],
+  value = process.env.CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH,
+): void {
+  if (mode === "auto-publish" && value !== "true") {
+    throw new AcquireContentCliInputError(
+      "CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH must be true for media auto-publish.",
     );
   }
 }
@@ -263,7 +278,7 @@ async function main(): Promise<void> {
       const mode = options.articleMode ?? "disabled";
       assertAutoPublishKillSwitch(mode);
       const reviewRequired = mode === "review-only" || mode === "auto-publish";
-      let reviewProviders: ReturnType<typeof createConfiguredArticleReviewProviders> | undefined;
+      let reviewProviders: (ReturnType<typeof createConfiguredArticleReviewProviders> & { revision?: ReturnType<typeof createConfiguredArticleRevisionProvider> }) | undefined;
       if (reviewRequired) {
         try {
           reviewProviders = createConfiguredArticleReviewProviders({
@@ -274,6 +289,20 @@ async function main(): Promise<void> {
             error instanceof Error
               ? error.message
               : "ARTICLE_REVIEW_PROVIDER_UNAVAILABLE",
+          );
+        }
+        try {
+          reviewProviders = {
+            ...reviewProviders,
+            revision: createConfiguredArticleRevisionProvider({
+              provider: (process.env.CONTENT_ARTICLE_REVISION_PROVIDER as "minimax" | "fake" | undefined) ?? "minimax",
+            }),
+          };
+        } catch (error) {
+          throw new AcquireContentCliInputError(
+            error instanceof Error
+              ? error.message
+              : "ARTICLE_REVISION_PROVIDER_UNAVAILABLE",
           );
         }
       }
@@ -294,10 +323,34 @@ async function main(): Promise<void> {
         dailyLimit: options.dailyLimit ?? 50,
         defaultSourceLimit: options.sourceLimit ?? 10,
       });
-      process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: result.failures.length > 0 ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
+      const articlePartial = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0 || result.skippedSources.length > 0;
+      process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: articlePartial ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
       return;
     }
     if (options.command === "media-daily") {
+      const mediaMode = options.mediaMode ?? "disabled";
+      assertMediaAutoPublishKillSwitch(mediaMode);
+      const mediaReviewRequired = mediaMode === "review-only" || mediaMode === "auto-publish";
+      let mediaReviewProviders: (ReturnType<typeof createConfiguredMediaReviewProviders> & { revision?: ReturnType<typeof createConfiguredMediaRevisionProvider> }) | undefined;
+      if (mediaReviewRequired) {
+        try {
+          mediaReviewProviders = createConfiguredMediaReviewProviders({
+            provider: (process.env.CONTENT_MEDIA_REVIEW_PROVIDER as "minimax" | "fake" | undefined) ?? "minimax",
+          });
+        } catch (error) {
+            throw new AcquireContentCliInputError(error instanceof Error ? error.message : "MEDIA_REVIEW_PROVIDER_UNAVAILABLE");
+        }
+        try {
+          mediaReviewProviders = {
+            ...mediaReviewProviders,
+            revision: createConfiguredMediaRevisionProvider({
+              provider: (process.env.CONTENT_MEDIA_REVISION_PROVIDER as "minimax" | "fake" | undefined) ?? "minimax",
+            }),
+          };
+        } catch (error) {
+          throw new AcquireContentCliInputError(error instanceof Error ? error.message : "MEDIA_REVISION_PROVIDER_UNAVAILABLE");
+        }
+      }
       const result = await runDailyMediaPipeline({
         repository: repository as never,
         resolveAdapter: (source) => source.adapterType === "language-reactor"
@@ -305,12 +358,16 @@ async function main(): Promise<void> {
           : source.adapterType === "podcast-rss"
             ? createPodcastRssAdapterFromSource(source)
             : createYouTubeChannelAdapterFromSource(source),
+        reviewProviders: mediaReviewProviders,
+        publishers: mediaMode === "auto-publish" ? contentWorkflowPublishers : undefined,
       }, {
-        mode: options.mediaMode ?? "disabled",
+        mode: mediaMode,
         dailyLimit: options.mediaDailyLimit ?? 50,
         defaultSourceLimit: options.mediaSourceLimit ?? 10,
+        reviewConcurrency: Number(process.env.CONTENT_MEDIA_REVIEW_CONCURRENCY ?? 2),
       });
-      process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: result.failures.length > 0 ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewReady: result.reviewReady, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
+       const mediaPartial = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0 || result.skipped > 0 || result.skippedSources.length > 0;
+       process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: mediaPartial ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewReady: result.reviewReady, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
       return;
     }
     if (options.command === "cleanup") {

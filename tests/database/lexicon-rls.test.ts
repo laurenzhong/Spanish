@@ -19,7 +19,8 @@ describe("lexicon RLS", () => {
     database = new PGlite();
     await database.exec("create role anon nologin; create role authenticated nologin; create schema auth; create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}'::jsonb); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth, public to anon, authenticated; grant execute on function auth.uid() to anon, authenticated;");
     await database.exec(await migration("0000_big_phalanx.sql"));
-    await database.exec(await migration("0027_wide_puff_adder.sql"));
+    await database.exec(await migration("0021_shallow_killmonger.sql"));
+    await database.exec(await migration("0037_migration_reconcile.sql"));
     await database.exec(`insert into auth.users (id, email) values ('${userA}', 'a@example.test'), ('${userB}', 'b@example.test'); insert into profiles (id) values ('${userA}'), ('${userB}'); insert into phrase_entries (id, expression, normalized_expression, owner_user_id, review_status) values ('10000000-0000-0000-0000-000000000001', 'privada', 'privada', '${userA}', 'pending'), ('20000000-0000-0000-0000-000000000002', 'pública', 'publica', null, 'approved'); set role authenticated; select set_config('request.jwt.claim.sub', '${userA}', false);`);
   });
 

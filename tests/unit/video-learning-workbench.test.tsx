@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   MediaLearningWorkbench,
+  type NativeVideoPlayerFactory,
   type VideoPlayerFactory,
   type VideoPlayerLifecycle,
   type VideoPlayerPort,
@@ -43,6 +44,23 @@ function fakePlayer() {
   return { factory, port, lifecycle: () => lifecycle!, setCurrentTime: (value: number) => { currentTimeMs = value; } };
 }
 
+function fakeNativePlayer() {
+  let lifecycle: VideoPlayerLifecycle | null = null;
+  let currentTimeMs = 0;
+  const port: VideoPlayerPort = {
+    play: vi.fn(),
+    pause: vi.fn(),
+    seek: vi.fn((value) => { currentTimeMs = value; }),
+    currentTime: vi.fn(() => currentTimeMs),
+    destroy: vi.fn(),
+  };
+  const factory: NativeVideoPlayerFactory = vi.fn((_element, input) => {
+    lifecycle = input.lifecycle;
+    return port;
+  });
+  return { factory, port, lifecycle: () => lifecycle!, setCurrentTime: (value: number) => { currentTimeMs = value; } };
+}
+
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { progress: { revision: 3 } } }), { status: 200 })));
 });
@@ -54,6 +72,20 @@ afterEach(() => {
 });
 
 describe("video learning workbench", () => {
+  it("uses the same workbench for licensed native video assets", async () => {
+    const player = fakeNativePlayer();
+    const nativePlayback = {
+      ...playback(),
+      media: { ...playback().media, id: "video.native@1", stableKey: "video.native" },
+      asset: { kind: "video" as const, url: "https://media.example.test/video/sample.mp4", expiresAt: null },
+    };
+    render(<MediaLearningWorkbench nativeVideoFactory={player.factory} playback={nativePlayback} />);
+    expect(player.factory).toHaveBeenCalledWith(expect.any(HTMLVideoElement), expect.objectContaining({ url: nativePlayback.asset.url }));
+    act(() => player.lifecycle().onReady());
+    await userEvent.setup().click(screen.getByRole("button", { name: "下一句" }));
+    expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
+  });
+
   it("honors a source deep link before saved progress", () => {
     const player = fakePlayer();
     const view = render(<MediaLearningWorkbench initialPositionMs={4_250} initialSegmentIndex={2} playback={playback()} playerFactory={player.factory} />);
