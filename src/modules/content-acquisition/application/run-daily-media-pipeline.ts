@@ -232,7 +232,7 @@ export async function runDailyMediaPipeline(
 
       const resumableStatuses = ["discovered", "screened", "acquiring", "processing", "review_ready"] as const;
       const pending = await Promise.all(resumableStatuses.map((status) =>
-        dependencies.repository.listCandidates({ sourceId: source.id, status, limit, contentType })));
+        dependencies.repository.listCandidates({ sourceId: source.id, status, contentType, publicationStatus: "draft", limit })));
       const candidates = pending.flat().sort((left, right) => {
         // A hosted, fully reviewed video can publish immediately. Prioritize it
         // over older unhosted drafts so the daily run makes forward progress

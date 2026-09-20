@@ -34,6 +34,35 @@ const revisionPayloadSchema = z.object({
   changeReason: z.string().trim().min(1).max(2_000).optional(),
 }).refine((value) => Object.keys(value).length > 0, "Revision response must change at least one field.");
 
+const revisionFieldSchemas = {
+  stableKey: z.string().trim().min(1).max(200),
+  title: z.string().trim().min(1).max(500),
+  summary: z.string().trim().min(1).max(4_000),
+  author: z.string().trim().min(1).max(300).nullable(),
+  publicationDate: z.iso.date().nullable(),
+  cefr: z.preprocess((value) => ["A1", "A2", "B1", "B2", "C1", "C2"].includes(value as string) ? value : undefined, z.enum(["A1", "A2", "B1", "B2", "C1", "C2"]).optional()),
+  topics: z.array(z.string().trim().min(1).max(160)).min(1).max(30),
+  region: z.string().trim().min(2).max(40),
+  register: z.string().trim().min(2).max(80),
+  format: z.preprocess((value) => ["news", "essay", "dialogue", "guide", "story"].includes(value as string) ? value : undefined, z.enum(["news", "essay", "dialogue", "guide", "story"]).optional()),
+  estimatedReadingMinutes: z.number().int().positive().max(240),
+  oralTransferType: z.preprocess((value) => ["none", "summary", "opinion", "personal_transfer"].includes(value as string) ? value : undefined, z.enum(["none", "summary", "opinion", "personal_transfer"]).optional()),
+  paragraphs: z.array(z.string().trim().min(1).max(8_000)).min(1).max(500),
+  changeReason: z.string().trim().min(1).max(2_000),
+} as const;
+
+function parseRevisionPayloadCandidate(candidate: unknown): ArticleRevisionPayload | null {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return null;
+  const record = candidate as Record<string, unknown>;
+  const validFields: Record<string, unknown> = {};
+  for (const [field, schema] of Object.entries(revisionFieldSchemas)) {
+    const value = schema.safeParse(record[field]);
+    if (value.success) validFields[field] = value.data;
+  }
+  const parsed = revisionPayloadSchema.safeParse(validFields);
+  return parsed.success ? parsed.data : null;
+}
+
 export type ArticleRevisionPayload = z.infer<typeof revisionPayloadSchema>;
 
 export type ArticleRevisionProvider = Readonly<{
@@ -115,9 +144,13 @@ export class MiniMaxArticleRevisionProvider implements ArticleRevisionProvider {
         const payload = envelope.data.content.map((block) => block.text).join("\n");
         const invalidPaths = new Set<string>();
         for (const candidate of parseProviderJsonCandidates(payload)) {
-          const parsed = revisionPayloadSchema.safeParse(candidate);
-          if (parsed.success) return parsed.data;
-          for (const issue of parsed.error.issues) invalidPaths.add(issue.path.join(".") || "root");
+          const parsed = parseRevisionPayloadCandidate(candidate);
+          if (parsed) return parsed;
+          if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+            for (const field of Object.keys(revisionFieldSchemas)) {
+              if (field in (candidate as Record<string, unknown>)) invalidPaths.add(field);
+            }
+          }
         }
         throw new Error(`ARTICLE_REVISION_PROVIDER_RESPONSE_INVALID:${[...invalidPaths].slice(0, 8).join(",") || "no-json-object"}`);
       } catch (error) {

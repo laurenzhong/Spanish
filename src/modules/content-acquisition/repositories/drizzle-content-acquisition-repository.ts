@@ -193,6 +193,7 @@ export function createDrizzleContentAcquisitionRepository(
       if (input.sourceId) conditions.push(eq(schema.contentCandidates.sourceId, input.sourceId));
       if (input.status) conditions.push(eq(schema.contentCandidates.status, input.status));
       if (input.contentType) conditions.push(eq(schema.contentCandidates.contentType, input.contentType));
+      if (input.publicationStatus) conditions.push(eq(schema.contentCandidates.publicationStatus, input.publicationStatus));
       const query = database.select().from(schema.contentCandidates);
       const rows = conditions.length
         ? await query.where(and(...conditions)).orderBy(desc(schema.contentCandidates.lastActivityAt)).limit(limit)

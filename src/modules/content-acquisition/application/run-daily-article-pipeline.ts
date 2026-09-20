@@ -152,12 +152,14 @@ export async function runDailyArticlePipeline(
         sourceId: source.id,
         status: "discovered",
         contentType: "article",
+        publicationStatus: "draft",
         limit: sourcePlan.sourceLimit,
       }),
       dependencies.repository.listCandidates({
         sourceId: source.id,
         status: "review_ready",
         contentType: "article",
+        publicationStatus: "draft",
         limit: sourcePlan.sourceLimit,
       }),
     ]);

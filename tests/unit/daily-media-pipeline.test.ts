@@ -364,7 +364,7 @@ describe("runDailyMediaPipeline", () => {
       }),
     }, { mode: "review-only", dailyLimit: 10, defaultSourceLimit: 10, date: "2026-09-19" });
 
-    expect(repo.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ status: "processing", contentType: "video" }));
+    expect(repo.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ status: "processing", contentType: "video", publicationStatus: "draft" }));
     expect(result).toMatchObject({ prepared: 1, reviewReady: 1, failures: [] });
     expect(repo.compareAndSwapCandidate).toHaveBeenCalledWith(expect.objectContaining({ candidateId: candidate.id, status: "review_ready" }));
   });
