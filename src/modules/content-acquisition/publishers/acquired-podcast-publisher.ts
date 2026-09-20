@@ -55,6 +55,9 @@ export class AcquiredPodcastPublisher implements CandidatePublisher {
       : draft.segments.length > 0
         && draft.segments.every((segment) => segment.sourceKind === draft.transcriptStatus)
         && (draft.transcriptStatus === "asr" ? draft.transcriptUrl === null : draft.transcriptUrl !== null);
+    if (input.requireBilingualSubtitles && !hasBilingualSegments(draft.segments)) {
+      throw new PodcastPublicationConflictError("Bilingual subtitles are required before daily podcast publication.");
+    }
     const legacyArtworkOmitted = !Object.prototype.hasOwnProperty.call(input.metadata.podcastDraft, "artwork");
     const legacyPlaybackProviderOmitted = !Object.prototype.hasOwnProperty.call(input.metadata.podcastDraft, "playbackProvider");
     const hashMatches = draft.contentHash === calculatePodcastCandidateContentHash(draft)
@@ -101,4 +104,8 @@ export class AcquiredPodcastPublisher implements CandidatePublisher {
       archivedAt: (this.dependencies.now ?? (() => new Date()))(),
     });
   }
+}
+
+function hasBilingualSegments(segments: readonly Readonly<{ sourceText: string; translation: string | null }>[]): boolean {
+  return segments.length > 0 && segments.every((segment) => segment.sourceText.trim().length > 0 && Boolean(segment.translation?.trim()));
 }

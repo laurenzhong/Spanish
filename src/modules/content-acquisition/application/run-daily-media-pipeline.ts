@@ -315,7 +315,7 @@ export async function runDailyMediaPipeline(
               failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId: candidate.id, code: "MEDIA_PUBLISHER_UNAVAILABLE" });
                return;
             }
-            const publication = await autoPublishMediaCandidate(dependencies.repository, dependencies.publishers, { candidateId: prepared.id, actor: "media-auto-publication", runId: runKey, now: dependencies.now });
+            const publication = await autoPublishMediaCandidate(dependencies.repository, dependencies.publishers, { candidateId: prepared.id, actor: "media-auto-publication", runId: runKey, now: dependencies.now, requireBilingualSubtitles: input.requireBilingualSubtitles });
             if (publication.status === "published") {
               result.published += 1;
               result.publishedByType[contentType] += 1;

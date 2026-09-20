@@ -14,7 +14,7 @@ export type AutoPublishMediaResult = Readonly<{
 export async function autoPublishMediaCandidate(
   repository: ContentWorkflowRepository,
   publishers: CandidatePublisherRegistry,
-  input: Readonly<{ candidateId: string; actor: string; runId?: string; makeReviewId?: () => string; now?: () => Date }>,
+  input: Readonly<{ candidateId: string; actor: string; runId?: string; makeReviewId?: () => string; now?: () => Date; requireBilingualSubtitles?: boolean }>,
 ): Promise<AutoPublishMediaResult> {
   const skip = (reason: string): AutoPublishMediaResult => ({ status: "skipped", candidateId: input.candidateId, publicationRef: null, reason });
   const detail = await repository.getCandidateReview(input.candidateId);
@@ -45,6 +45,7 @@ export async function autoPublishMediaCandidate(
     normalizedUrl: candidate.normalizedUrl,
     metadata: candidate.metadata,
     reviews: detail.reviews,
+    requireBilingualSubtitles: input.requireBilingualSubtitles,
   });
   if (publicationRef.kind !== "media") {
     await publisher.archive({ publication: publicationRef, candidateId: candidate.id }).catch(() => undefined);

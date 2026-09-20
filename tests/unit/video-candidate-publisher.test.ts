@@ -108,4 +108,14 @@ describe("acquired YouTube video publisher", () => {
     await expect(publisher.publish({ ...input, metadata: { videoDraft: { ...video, embedUrl: `${video.embedUrl}-other` } } })).rejects.toBeInstanceOf(VideoPublicationConflictError);
     expect(publishAcquiredVideo).not.toHaveBeenCalled();
   });
+
+  it("rejects an otherwise approved video when the daily bilingual gate is enabled", async () => {
+    const video = createVideoCandidateDraft({ ...draft(), captionStatus: "unavailable", segments: [] });
+    const publisher = new AcquiredVideoPublisher({ publishAcquiredVideo: vi.fn(), archiveAcquiredVideo: vi.fn() } as unknown as AcquiredVideoRepository);
+    await expect(publisher.publish({
+      candidateId: "candidate-1", candidateRevision: 5, contentHash: video.contentHash, contentType: "video",
+      title: video.title, language: video.language, normalizedUrl: video.canonicalUrl,
+      metadata: { videoDraft: video, bunnyVideoAsset: hostedVideoAsset }, reviews, requireBilingualSubtitles: true,
+    })).rejects.toBeInstanceOf(VideoPublicationConflictError);
+  });
 });

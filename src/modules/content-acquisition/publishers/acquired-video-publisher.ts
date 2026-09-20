@@ -74,6 +74,9 @@ export class AcquiredVideoPublisher implements CandidatePublisher {
     const captionMatches = draft.captionStatus === "unavailable"
       ? draft.segments.length === 0
       : draft.segments.length > 0 && draft.segments.every((segment) => segment.sourceKind === draft.captionStatus);
+    if (input.requireBilingualSubtitles && !hasBilingualSegments(draft.segments)) {
+      throw new VideoPublicationConflictError("Bilingual subtitles are required before daily video publication.");
+    }
     const hostedAsset = parseHostedVideoAsset(input.metadata.bunnyVideoAsset);
     const legacyArtworkOmitted = !Object.prototype.hasOwnProperty.call(input.metadata.videoDraft, "artwork");
     const hashMatches = draft.contentHash === calculateVideoCandidateContentHash(draft)
@@ -117,4 +120,8 @@ export class AcquiredVideoPublisher implements CandidatePublisher {
       archivedAt: (this.dependencies.now ?? (() => new Date()))(),
     });
   }
+}
+
+function hasBilingualSegments(segments: readonly Readonly<{ sourceText: string; translation: string | null }>[]): boolean {
+  return segments.length > 0 && segments.every((segment) => segment.sourceText.trim().length > 0 && Boolean(segment.translation?.trim()));
 }
