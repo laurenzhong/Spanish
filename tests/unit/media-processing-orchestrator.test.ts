@@ -41,6 +41,21 @@ describe("media processing orchestrator", () => {
     expect(result.segments).toEqual(existing);
   });
 
+  it("fills missing translations on reviewed captions without rerunning ASR", async () => {
+    const provider = { transcribe: vi.fn() };
+    const existing = [{ index: 0, startMs: 0, endMs: 900, sourceText: "Buenos días.", translation: null, speaker: null, confidence: null, sourceKind: "platform_manual" as const }];
+    const result = await processMediaTranscript({
+      input: { ...input, captionStatus: "platform_manual", existingSegments: existing },
+      policy,
+      artifactStore: store(),
+      transcriptionProvider: provider,
+      translationProvider: new FakeMediaTranslationProvider(() => "早上好。"),
+    });
+    expect(provider.transcribe).not.toHaveBeenCalled();
+    expect(result.segments[0]).toMatchObject({ sourceText: "Buenos días.", translation: "早上好。" });
+    expect(result.review).toEqual({ status: "review_ready", reason: "captions-present" });
+  });
+
   it("cleans up after cancellation and surfaces cleanup failure", async () => {
     const controller = new AbortController();
     controller.abort();

@@ -351,6 +351,17 @@ async function main(): Promise<void> {
     if (options.command === "media-daily") {
       const mediaMode = options.mediaMode ?? "disabled";
       assertMediaAutoPublishKillSwitch(mediaMode);
+      let mediaRuntime: import("../src/modules/content-acquisition/application/content-media-runtime").ContentMediaRuntime | undefined;
+      if (options.mediaRequireBilingualSubtitles && (mediaMode === "review-only" || mediaMode === "auto-publish")) {
+        try {
+          const { createContentMediaRuntime } = await import("../src/modules/content-acquisition/application/content-media-runtime");
+          mediaRuntime = createContentMediaRuntime();
+        } catch (error) {
+          if (mediaMode === "auto-publish") {
+            throw new AcquireContentCliInputError(error instanceof Error ? error.message : "CONTENT_MEDIA_PROVIDER_NOT_CONFIGURED");
+          }
+        }
+      }
       const mediaReviewRequired = mediaMode === "review-only" || mediaMode === "auto-publish";
       let mediaReviewProviders: (ReturnType<typeof createConfiguredMediaReviewProviders> & { revision?: ReturnType<typeof createConfiguredMediaRevisionProvider> }) | undefined;
       if (mediaReviewRequired) {
@@ -380,6 +391,7 @@ async function main(): Promise<void> {
             ? createPodcastRssAdapterFromSource(source)
             : createYouTubeChannelAdapterFromSource(source),
         reviewProviders: mediaReviewProviders,
+        mediaRuntime,
         publishers: mediaMode === "auto-publish" ? contentWorkflowPublishers : undefined,
       }, {
         mode: mediaMode,

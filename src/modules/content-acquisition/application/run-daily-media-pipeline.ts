@@ -6,6 +6,8 @@ import { runAcquisitionSource } from "./run-acquisition-source";
 import { runMediaReview } from "./run-media-review";
 import { reviseMediaCandidateAfterReview } from "./revise-media-candidate";
 import { autoPublishMediaCandidate } from "./auto-publish-media";
+import { processDailyMediaCandidate } from "./process-daily-media-candidate";
+import type { ContentMediaRuntime } from "./content-media-runtime";
 import type { MediaReviewProvider } from "../providers/media-review";
 import type { MediaRevisionProvider } from "../providers/media-revision";
 import type { CandidatePublisherRegistry } from "../publishers";
@@ -65,6 +67,7 @@ export type RunDailyMediaPipelineDependencies = Readonly<{
   resolveAdapter: (source: ContentSourceRecord) => ContentSourceAdapter | Promise<ContentSourceAdapter>;
   reviewProviders?: Readonly<{ content: MediaReviewProvider; teaching: MediaReviewProvider; revision?: MediaRevisionProvider }>;
   publishers?: CandidatePublisherRegistry;
+  mediaRuntime?: ContentMediaRuntime;
   now?: () => Date;
 }>;
 
@@ -240,11 +243,16 @@ export async function runDailyMediaPipeline(
         const batch = candidates.slice(offset, offset + reviewConcurrency);
         await Promise.all(batch.map(async (candidate) => {
           try {
-          const prepared = candidate.status === "review_ready"
-            ? candidate
-            : candidate.contentType === "video"
-              ? await prepareVideoCandidateForReview(dependencies.repository, candidate.id)
-              : await preparePodcastCandidateForReview(dependencies.repository, candidate.id);
+          const processed = input.requireBilingualSubtitles
+            && dependencies.mediaRuntime
+            && !hasBilingualSubtitleTimeline(candidate)
+            ? await processDailyMediaCandidate({ repository: dependencies.repository, candidate, runtime: dependencies.mediaRuntime, now: dependencies.now })
+            : candidate;
+          const prepared = processed.status === "review_ready"
+            ? processed
+            : processed.contentType === "video"
+              ? await prepareVideoCandidateForReview(dependencies.repository, processed.id, { now: dependencies.now })
+              : await preparePodcastCandidateForReview(dependencies.repository, processed.id, { now: dependencies.now });
           if (candidate.status !== "review_ready") result.prepared += 1;
            if (prepared.status !== "review_ready") return;
           result.reviewReady += 1;
@@ -256,11 +264,11 @@ export async function runDailyMediaPipeline(
                return;
             }
             const existingReview = input.mode === "auto-publish"
-              ? await dependencies.repository.getCandidateReview(candidate.id)
+              ? await dependencies.repository.getCandidateReview(prepared.id)
               : null;
-            let review = existingReview && hasCurrentMediaApprovals(candidate, existingReview.reviews)
+            let review = existingReview && hasCurrentMediaApprovals(prepared, existingReview.reviews)
               ? { status: "approved" as const, reason: null }
-              : await runMediaReview(dependencies.repository, { candidateId: candidate.id, contentProvider: dependencies.reviewProviders.content, teachingProvider: dependencies.reviewProviders.teaching });
+              : await runMediaReview(dependencies.repository, { candidateId: prepared.id, contentProvider: dependencies.reviewProviders.content, teachingProvider: dependencies.reviewProviders.teaching });
             result.reviewed += 1;
             if (review.status === "approved") result.approved += 1;
             else if (review.status === "changes_requested") result.changesRequested += 1;
@@ -272,17 +280,17 @@ export async function runDailyMediaPipeline(
             if (review.status === "changes_requested" && dependencies.reviewProviders.revision) {
               try {
                 await reviseMediaCandidateAfterReview(dependencies.repository, {
-                  candidateId: candidate.id,
+                  candidateId: prepared.id,
                   revisionProvider: dependencies.reviewProviders.revision,
                   now: dependencies.now,
                 });
-                const revised = candidate.contentType === "video"
-                  ? await prepareVideoCandidateForReview(dependencies.repository, candidate.id, { now: dependencies.now })
-                  : await preparePodcastCandidateForReview(dependencies.repository, candidate.id, { now: dependencies.now });
+                const revised = prepared.contentType === "video"
+                  ? await prepareVideoCandidateForReview(dependencies.repository, prepared.id, { now: dependencies.now })
+                  : await preparePodcastCandidateForReview(dependencies.repository, prepared.id, { now: dependencies.now });
                 if (revised.status === "review_ready") {
                   result.prepared += 1;
                   result.reviewReady += 1;
-                  review = await runMediaReview(dependencies.repository, { candidateId: candidate.id, contentProvider: dependencies.reviewProviders.content, teachingProvider: dependencies.reviewProviders.teaching });
+                  review = await runMediaReview(dependencies.repository, { candidateId: revised.id, contentProvider: dependencies.reviewProviders.content, teachingProvider: dependencies.reviewProviders.teaching });
                   result.reviewed += 1;
                   if (review.status === "approved") result.approved += 1;
                   else if (review.status === "changes_requested") result.changesRequested += 1;
@@ -303,7 +311,7 @@ export async function runDailyMediaPipeline(
               failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId: candidate.id, code: "MEDIA_PUBLISHER_UNAVAILABLE" });
                return;
             }
-            const publication = await autoPublishMediaCandidate(dependencies.repository, dependencies.publishers, { candidateId: candidate.id, actor: "media-auto-publication", runId: runKey, now: dependencies.now });
+            const publication = await autoPublishMediaCandidate(dependencies.repository, dependencies.publishers, { candidateId: prepared.id, actor: "media-auto-publication", runId: runKey, now: dependencies.now });
             if (publication.status === "published") {
               result.published += 1;
               result.publishedByType[contentType] += 1;
