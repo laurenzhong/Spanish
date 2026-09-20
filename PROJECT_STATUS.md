@@ -11,7 +11,7 @@
 
 ### 2026-09-21：媒体每日 10 视频 + 10 播客与双语字幕处理
 
-- 实现 Commit：`9e155a2`（当前分支 `codex/youtube-download-resilience`）。每日媒体配额继续按 Asia/Shanghai 自然日独立累计：视频 10 条、播客 10 条；工作流在审核阶段和自动发布阶段都显式要求双语字幕。
+- 实现 Commit：`9e155a2`，取消传播修复：`d67b2bd`（当前分支 `codex/youtube-download-resilience`）。每日媒体配额继续按 Asia/Shanghai 自然日独立累计：视频 10 条、播客 10 条；工作流在审核阶段和自动发布阶段都显式要求双语字幕。
 - 自动处理链已接入每日媒体流水线：无字幕授权媒体下载临时音频，使用配置的 OpenAI STT（默认 `gpt-transcribe`）生成西语时间轴，再使用 MiniMax 逐句翻译为简体中文；已有单语字幕只补翻译。临时目录在成功、失败、取消和超时路径清理，发布前仍执行完整西语/中文时间轴门禁。
 - Language Reactor 播客适配器现在跳过单个暂时不可用的授权音频并继续处理同页后续文档；来源 API、取消、游标和权利策略错误仍会中止来源并保留 fail-closed 行为。
 - 配置同步：`.env.example`、GitHub workflow 和 `docs/operations/content-acquisition-runbook.md` 增加 `CONTENT_MEDIA_PROVIDER_MODE`、STT/翻译 provider、模型、预算和置信度变量；内容 CLI 使用 `react-server` 条件加载 server-only provider。
