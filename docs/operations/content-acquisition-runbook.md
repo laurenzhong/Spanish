@@ -42,6 +42,15 @@ pnpm exec tsx scripts/host-video-candidate-to-bunny.ts <candidate-uuid>
 Remove-Item -LiteralPath $env:MEDIA_VIDEO_COOKIES_FILE
 ```
 
+若授权方直接提供原始 MP4，可在本机对单条已审核候选使用 `MEDIA_VIDEO_LOCAL_FILE`；脚本只复制该文件到临时目录进行 ffmpeg、哈希、Bunny HEAD 和 Chrome 播放/seek 校验，绝不删除原始文件。该变量不写入 GitHub Environment，也不会被 workflow 传入：
+
+```powershell
+$env:MEDIA_VIDEO_LOCAL_FILE = 'C:\secure\authorized-video.mp4'
+$env:MEDIA_VIDEO_HOSTING_CONFIRM = 'I_HAVE_AUTHORIZATION'
+pnpm exec tsx scripts/host-video-candidate-to-bunny.ts <candidate-uuid>
+Remove-Item Env:MEDIA_VIDEO_LOCAL_FILE
+```
+
 GitHub Actions 使用受保护的 `content-production` Environment secret。不要把 cookies 文件提交到仓库或粘贴到 issue/聊天；先在本地生成一次 base64 文件，再通过标准输入写入 secret：
 
 ```powershell
