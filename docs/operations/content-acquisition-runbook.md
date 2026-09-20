@@ -27,6 +27,8 @@ pnpm content:pipeline -- report --limit 100
 
 新视频发布时，YouTube URL 仅保存为来源与 provenance；公开播放资产必须先经 yt-dlp/ffmpeg 处理、上传 Bunny Storage + Pull Zone，并通过 MP4、SHA-256、字节数、CDN HEAD 与浏览器播放/seek 校验。没有 `bunnyVideoAsset` 的视频候选只能停留在审核或托管准备阶段，不能通过媒体 publisher；已存在的旧 official embed 不因迁移脚本成功而自动宣称已转为 Bunny。
 
+媒体自动发布的托管步骤默认从所有当前 revision 已通过三维审核、仍为 draft 且没有 `bunnyVideoAsset` 的视频候选中按 `last_activity_at` 取最多 50 条。审核前已存在的候选仍可在本次运行中托管；不能用运行开始时间排除它们。仅在人工单次回填需要限制时间窗口时，才显式设置 `MEDIA_VIDEO_HOSTING_SINCE`。
+
 ### YouTube 授权 cookies（仅在来源账户已获授权时）
 
 YouTube 返回 `Sign in to confirm you’re not a bot` 时，托管步骤不会绕过验证，也不会使用 DRM、录屏或网页抓取。若所有者对该视频拥有可下载授权，可从自己的浏览器导出 Netscape cookies 文件，并先在本地验证一次。cookies 只作为临时 yt-dlp 输入，脚本会复制到临时目录、任务结束删除，不写入数据库、候选 metadata、日志或仓库。
