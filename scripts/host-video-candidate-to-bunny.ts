@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +16,7 @@ const confirmation = "I_HAVE_AUTHORIZATION";
 const candidateId = process.argv[2]?.trim();
 const ffmpeg = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
 const ytdlp = process.env.YTDLP_BIN?.trim() || "yt-dlp";
+const localMediaFile = process.env.MEDIA_VIDEO_LOCAL_FILE?.trim() || null;
 const maxBytes = Number(process.env.MEDIA_VIDEO_MAX_BYTES ?? 1024 * 1024 * 1024);
 
 if (process.env.MEDIA_VIDEO_HOSTING_CONFIRM !== confirmation) throw new Error("MEDIA_AUTHORIZATION_REQUIRED");
@@ -53,11 +54,6 @@ async function main() {
   const target = join(directory, "playback.mp4");
   let uploadedPath: string | null = null;
   try {
-    const cookieFile = await prepareYoutubeCookiesFile({
-      directory,
-      sourceFile: process.env.MEDIA_VIDEO_COOKIES_FILE,
-      base64: process.env.YOUTUBE_COOKIES_B64,
-    });
     const rows = await db`select id, revision, metadata, status, publication_status from content_candidates where id=${candidateId} and content_type='video' limit 1`;
     const row = rows[0] as { id: string; revision: number; metadata: Record<string, unknown>; status: string; publication_status: string } | undefined;
     if (!row || row.status !== "review_ready" || row.publication_status !== "draft") throw new Error("CONTENT_CANDIDATE_NOT_READY_FOR_HOSTING");
@@ -66,15 +62,26 @@ async function main() {
     const stableKey = typeof draft?.stableKey === "string" ? draft.stableKey : null;
     const durationSeconds = typeof draft?.durationMs === "number" ? draft.durationMs / 1_000 : 0;
     if (!videoId || !stableKey || !Number.isFinite(durationSeconds) || durationSeconds <= 0) throw new Error("CONTENT_VIDEO_DRAFT_INVALID");
-    // `--ffmpeg-location` accepts a directory, not an executable name. The
-    // runner already exposes ffmpeg on PATH, so omit it for the normal case.
-    const ffmpegDirectory = process.env.FFMPEG_DIRECTORY?.trim();
-    // The visionOS client returns stable MP4/M4A URLs without requiring a
-    // browser session or an extractor-side PO token. It is still a normal
-    // yt-dlp client and does not bypass DRM or access controls.
-    const base = ["--ignore-config", "--no-playlist", "--extractor-args", "youtube:player_client=visionos", "--js-runtimes", "node", "--force-ipv4", "--socket-timeout", "30", "--retries", "3", ...(ffmpegDirectory ? ["--ffmpeg-location", ffmpegDirectory] : [])];
-    const downloadArgs = [...base, "--no-progress", "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "--output", source];
-    await run(ytdlp, [...withYoutubeCookies(downloadArgs, cookieFile), `https://www.youtube.com/watch?v=${videoId}`], 20 * 60_000);
+    if (localMediaFile) {
+      const localInfo = await stat(localMediaFile);
+      if (!localInfo.isFile() || !localInfo.size) throw new Error("MEDIA_VIDEO_LOCAL_FILE_INVALID");
+      await copyFile(localMediaFile, source);
+    } else {
+      const cookieFile = await prepareYoutubeCookiesFile({
+        directory,
+        sourceFile: process.env.MEDIA_VIDEO_COOKIES_FILE,
+        base64: process.env.YOUTUBE_COOKIES_B64,
+      });
+      // `--ffmpeg-location` accepts a directory, not an executable name. The
+      // runner already exposes ffmpeg on PATH, so omit it for the normal case.
+      const ffmpegDirectory = process.env.FFMPEG_DIRECTORY?.trim();
+      // The visionOS client returns stable MP4/M4A URLs without requiring a
+      // browser session or an extractor-side PO token. It is still a normal
+      // yt-dlp client and does not bypass DRM or access controls.
+      const base = ["--ignore-config", "--no-playlist", "--extractor-args", "youtube:player_client=visionos", "--js-runtimes", "node", "--force-ipv4", "--socket-timeout", "30", "--retries", "3", ...(ffmpegDirectory ? ["--ffmpeg-location", ffmpegDirectory] : [])];
+      const downloadArgs = [...base, "--no-progress", "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "--output", source];
+      await run(ytdlp, [...withYoutubeCookies(downloadArgs, cookieFile), `https://www.youtube.com/watch?v=${videoId}`], 20 * 60_000);
+    }
     const sourceInfo = await stat(source);
     if (!sourceInfo.size || sourceInfo.size > maxBytes) throw new Error("MEDIA_VIDEO_SIZE_INVALID");
     await run(ffmpeg, ["-v", "error", "-xerror", "-y", "-i", source, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", target], 20 * 60_000);
