@@ -29,7 +29,7 @@ const revisionPayloadSchema = z.object({
   register: z.string().trim().min(2).max(80).optional(),
   format: z.enum(["news", "essay", "dialogue", "guide", "story"]).optional(),
   estimatedReadingMinutes: z.number().int().positive().max(240).optional(),
-  oralTransferType: z.enum(["none", "summary", "opinion", "personal_transfer"]).optional(),
+  oralTransferType: z.preprocess((value) => ["none", "summary", "opinion", "personal_transfer"].includes(value as string) ? value : undefined, z.enum(["none", "summary", "opinion", "personal_transfer"]).optional()),
   paragraphs: z.array(z.string().trim().min(1).max(8_000)).min(1).max(500).optional(),
   changeReason: z.string().trim().min(1).max(2_000).optional(),
 }).refine((value) => Object.keys(value).length > 0, "Revision response must change at least one field.");

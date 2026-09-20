@@ -21,7 +21,7 @@ export type MediaRevisionInput = Readonly<{
 const revisionPayloadSchema = z.object({
   title: z.string().trim().min(1).max(500).optional(),
   summary: z.string().trim().max(4_000).optional(),
-  cefr: z.enum(["A2", "B1"]).optional(),
+  cefr: z.preprocess((value) => value === "A2" || value === "B1" ? value : undefined, z.enum(["A2", "B1"]).optional()),
   topics: z.array(z.string().trim().min(1).max(160)).min(1).max(20).optional(),
   region: z.string().trim().min(2).max(35).nullable().optional(),
   changeReason: z.string().trim().min(1).max(1_000).optional(),

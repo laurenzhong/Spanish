@@ -51,6 +51,7 @@ export type DailyMediaPipelineResult = Readonly<{
   rejected: number;
   published: number;
   skipped: number;
+  skippedReasons: Readonly<Record<string, number>>;
   skippedSources: readonly Readonly<{ sourceStableKey: string; reason: string }>[];
   failures: readonly DailyMediaPipelineFailure[];
 }>;
@@ -132,11 +133,13 @@ export async function runDailyMediaPipeline(
     rejected: 0,
     published: 0,
     skipped: 0,
+    skippedReasons: {},
     skippedSources,
     failures,
   });
   if (input.mode === "disabled" || input.dailyLimit === 0) return empty();
 
+  const skippedReasons: Record<string, number> = {};
   const result = { discovered: 0, inserted: 0, duplicates: 0, conflicts: 0, prepared: 0, reviewReady: 0, reviewed: 0, approved: 0, changesRequested: 0, rejected: 0, published: 0, skipped: 0 };
   const failures: DailyMediaPipelineFailure[] = [];
   const sourceTimeoutMs = input.sourceTimeoutMs ?? DEFAULT_MEDIA_SOURCE_TIMEOUT_MS;
@@ -241,7 +244,11 @@ export async function runDailyMediaPipeline(
             }
             const publication = await autoPublishMediaCandidate(dependencies.repository, dependencies.publishers, { candidateId: candidate.id, actor: "media-auto-publication", runId: runKey, now: dependencies.now });
             if (publication.status === "published") result.published += 1;
-            else if (publication.status === "skipped") result.skipped += 1;
+            else if (publication.status === "skipped") {
+              result.skipped += 1;
+              const reason = publication.reason ?? "MEDIA_PUBLICATION_SKIPPED";
+              skippedReasons[reason] = (skippedReasons[reason] ?? 0) + 1;
+            }
             else failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId: candidate.id, code: publication.reason ?? "MEDIA_PUBLICATION_FAILED" });
           }
           } catch (error) {
@@ -257,5 +264,5 @@ export async function runDailyMediaPipeline(
       });
     }
   }
-  return { ...empty(failures), ...result };
+  return { ...empty(failures), ...result, skippedReasons };
 }
