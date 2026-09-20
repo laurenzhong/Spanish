@@ -15,6 +15,8 @@
 - 自动处理链已接入每日媒体流水线：无字幕授权媒体下载临时音频，使用配置的 OpenAI STT（默认 `gpt-transcribe`）生成西语时间轴，再使用 MiniMax 逐句翻译为简体中文；已有单语字幕只补翻译。临时目录在成功、失败、取消和超时路径清理，发布前仍执行完整西语/中文时间轴门禁。
 - Language Reactor 播客适配器现在跳过单个暂时不可用的授权音频并继续处理同页后续文档；来源 API、取消、游标和权利策略错误仍会中止来源并保留 fail-closed 行为。
 - 配置同步：`.env.example`、GitHub workflow 和 `docs/operations/content-acquisition-runbook.md` 增加 `CONTENT_MEDIA_PROVIDER_MODE`、STT/翻译 provider、模型、预算和置信度变量；内容 CLI 使用 `react-server` 条件加载 server-only provider。
+- 配额补强 Commit：`49b465f`。CLI 在缺少环境变量时也默认总计 20、视频 10、播客 10，并默认启用双语字幕门禁；Bunny 批量托管脚本按 Asia/Shanghai 当天已正式发布的视频数只处理剩余缺口，避免目标已满后继续托管候选。同步更新媒体运行手册并增加 CLI 默认值回归测试。
+- 本轮补充验证：聚焦 Vitest `4 files / 28 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check`，以及 Playwright Chrome workflow smoke 桌面/移动 `2/2`；此前视频/播客媒体工作台桌面/移动 `6/6` 回归仍通过。
 - 验证：定向 Vitest `4 files / 27 tests`、STT/字幕聚焦 `3 files / 26 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；项目 Playwright Chrome 桌面媒体回归 `5/5`、移动 `5/5`，workflow smoke `1/1` 通过。全量 Vitest `237 files / 952 passed, 9 failed`；9 个失败均为已知 PGLite 测试基线缺失 `media_versions.artwork_*` 迁移列，与本提交无关。
 - 未执行真实生产媒体采集、ASR/翻译收费调用、Bunny 托管、数据库写入或正式发布；当前不能据此宣称今天已经完成 10/10。下一步是在 `content-production` Environment 配置 `OPENAI_API_KEY`、`MINIMAX_API_KEY`、Bunny 凭据和 kill switch 后，以小额度 `review-only` canary 核对实际字幕与候选，再执行 `auto-publish` 并按 `publishedByType`/`targetDeficitByType` 报告。
 
