@@ -62,7 +62,7 @@ const anthropicResponseSchema = z.object({
 const providerPayloadSchema = z.object({
   decision: z.enum(mediaReviewDecisions),
   notes: z.string().trim().max(4_000),
-}).strict();
+});
 
 function providerStatusError(status: number): Error {
   if (status === 401 || status === 403) return new Error("MEDIA_REVIEW_PROVIDER_AUTH_FAILED");
@@ -102,7 +102,7 @@ export class MiniMaxMediaReviewProvider implements MediaReviewProvider {
     this.dimension = dimension;
     this.endpoint = options.endpoint ?? defaultMiniMaxEndpoint;
     this.modelVersion = `${options.modelVersion ?? defaultMiniMaxModel}/${dimension}`;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.timeoutMs = options.timeoutMs ?? 60_000;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
   }
 
