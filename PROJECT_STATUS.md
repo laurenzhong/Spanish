@@ -21,7 +21,7 @@
 - 媒体 provider 补充：MiniMax ASR 支持超过 500 秒的临时音频按 450 秒分片，使用真实临时资产路径，取消/超时后清理分片目录；定向 STT/媒体测试 `7 files / 45 tests`、`pnpm typecheck`、`pnpm lint` 和 `git diff --check` 通过。
 - 2026-09-21 本地数据库 `review-only` canary（播客目标 1、来源上限 1）结构化结果为 `publishedByType={video:18,podcast:0}`、`targetDeficitByType={video:0,podcast:1}`，候选失败 `provider-cancelled`；未新增正式发布。一次更长 canary 已中止并清理遗留临时媒体目录。当前不能宣称今天完成 10/10；Bunny 凭据未配置，后续需先解决 MiniMax/候选处理超时，再按 `review-only → auto-publish` 分阶段运行。
 - 最终发布门禁 Commit：`5d4d2b4`。`auto-publish-media`、视频 publisher 和播客 publisher 现在都会在发布边界再次检查每个字幕片段同时存在非空西语原文与中文翻译；缺失双语字幕的媒体不会创建正式版本，也不会计入 `publishedByType`。新增视频/播客发布器回归测试，定向媒体单测 `5 files / 21 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 和媒体 Playwright `10/10`（改用 3111 端口）通过。
-- 只读核验本地 `.env` 数据库的北京时间 `2026-09-21` 窗口：正式发布视频 `18`、播客 `0`；视频 `18` 条均无完整双语字幕时间轴。该核验未写入数据库、未调用真实 provider、未修改历史已发布版本，因此当前仍不能宣称达到视频 `10/10` 与播客 `10/10`；需先用 `media_transcript_backfills` 或新媒体版本补齐字幕并完成三维审核，再重新执行 `review-only → auto-publish`。
+- 只读核验本地 `.env` 数据库的北京时间 `2026-09-21` 窗口：正式发布视频 `18`、播客 `1`；视频 `18` 条均无完整双语字幕时间轴，播客 `1` 条有完整双语字幕时间轴。该核验未写入数据库、未调用真实 provider、未修改历史已发布版本，因此当前仍不能宣称达到双语门禁下的 `10/10`；需先用 `media_transcript_backfills` 或新媒体版本补齐视频字幕，并继续获取 9 条新的播客候选，完成三维审核后再执行 `review-only → auto-publish`。
 - 本轮收口实现 Commit：`cbd786e`。MiniMax 作为 live STT 默认值与示例/workflow/运行手册一致；ASR 与翻译对可重试 provider 错误执行最多 3 次有界退避并保持取消可传播；Language Reactor 临时音频处理策略可显式登记；长媒体字幕时间轴上限提升到 2,000 段；MiniMax 审核说明在存储边界截断而不误判长响应失败。新增默认配置、超长审核说明、长时间轴和 workflow 目标断言回归测试。
 - 本轮验证：定向 Vitest `7 files / 35 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；内容 workflow Playwright 桌面/移动 `2/2`、视频/播客学习页 Playwright 桌面/移动 `6/6` 通过。真实来源抓取、生产数据库写入、Bunny 托管和收费 provider 运行仍以实际环境凭据与当天正式 `publishedByType` 为准。
 
