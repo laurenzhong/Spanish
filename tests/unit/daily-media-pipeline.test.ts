@@ -83,6 +83,23 @@ describe("runDailyMediaPipeline", () => {
     expect(result).toMatchObject({ mode: "discover-only", reviewReady: 0, prepared: 0 });
   });
 
+  it("processes verified video sources before podcasts", async () => {
+    const podcast = source({ id: "source-podcast", stableKey: "aaa.podcast", adapterType: "podcast-rss", sourceKind: "podcast-feed" });
+    const video = source({ id: "source-video-priority", stableKey: "zzz.video" });
+    const repo = repository([podcast, video]);
+    const calls: string[] = [];
+    const result = await runDailyMediaPipeline({
+      repository: repo as never,
+      resolveAdapter: async (item) => {
+        calls.push(item.stableKey);
+        return { key: item.sourceKind === "video-channel" ? "youtube" : "podcast-rss", discover: async () => ({ sourceStableKey: item.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }) };
+      },
+    }, { mode: "discover-only", dailyLimit: 2, defaultSourceLimit: 1, date: "2026-09-19" });
+
+    expect(result.failures).toEqual([]);
+    expect(calls).toEqual([video.stableKey, podcast.stableKey]);
+  });
+
   it("times out a stalled source and continues with the next authorized source", async () => {
     const stalled = source({ id: "source-stalled", stableKey: "aaa.stalled" });
     const healthy = source({ id: "source-healthy", stableKey: "bbb.healthy" });

@@ -359,6 +359,10 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
       } catch {
         return false;
       }
+    }).sort((left, right) => {
+      const leftIsLibrary = new URL(left).pathname.startsWith("/library/");
+      const rightIsLibrary = new URL(right).pathname.startsWith("/library/");
+      return Number(rightIsLibrary) - Number(leftIsLibrary);
     });
     links = [...new Set([...snapshotArticleLinks, ...links])];
     const items: ContentSourcePage["items"][number][] = [];
