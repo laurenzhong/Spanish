@@ -78,13 +78,16 @@ jobs:
           ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'auto-publish' }}
           ARTICLE_DAILY_LIMIT: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}
         run: >-
+          set -o pipefail
+          &&
           test -n "$ARTICLE_MODE"
           &&
           pnpm content:pipeline -- article-daily
           --mode "$ARTICLE_MODE"
           --daily-limit "$ARTICLE_DAILY_LIMIT"
           --source-limit "${CONTENT_ARTICLE_SOURCE_LIMIT:-10}"
-          --policy-version "${CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION:-}"
+          --policy-version "${CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION:-}" 2>&1
+          | tee "$RUNNER_TEMP/article-daily.log"
       - name: Run staged media pipeline
         id: media_daily
         continue-on-error: true
@@ -107,12 +110,14 @@ jobs:
           MEDIA_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_DAILY_LIMIT || '50' }}
           MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
         run: >-
+          set -o pipefail
+          &&
           if [ "$MEDIA_MODE" = "auto-publish" ]; then
-          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT";
+          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
-          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT";
+          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log";
           else
-          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT";
+          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           fi
       - name: Cleanup expired candidates and artifacts
         if: always()
@@ -127,12 +132,37 @@ jobs:
       - name: Write redacted summary
         if: always()
         run: |
+          summarize_stage() {
+            local label="$1"
+            local path="$2"
+            node - "$label" "$path" <<'NODE'
+          const fs = require("node:fs");
+          const [label, path] = process.argv.slice(2);
+          let result = null;
+          if (fs.existsSync(path)) {
+            const lines = fs.readFileSync(path, "utf8").split(/\r?\n/u).reverse();
+            for (const line of lines) {
+              if (!line.trim().startsWith("{")) continue;
+              try { result = JSON.parse(line); break; } catch {}
+            }
+          }
+          if (!result) {
+            console.log(`- ${label}: no structured stage result (check the workflow step outcome)`);
+          } else {
+            const counts = result.counts ?? {};
+            const failures = Array.isArray(result.failures) ? result.failures.length : 0;
+            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, approved=${counts.approved ?? 0}, published=${counts.published ?? 0}, failures=${failures}`);
+          }
+NODE
+          }
           {
             echo '## Daily content run'
             echo '- Secrets, article bodies, provider responses, and query credentials are intentionally omitted.'
             echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
             echo "- Requested global limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
             echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}"
+            summarize_stage "Articles" "$RUNNER_TEMP/article-daily.log"
+            summarize_stage "Media" "$RUNNER_TEMP/media-daily.log"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Fail after independent stage attempts
         if: always() && (steps.article_daily.outcome == 'failure' || steps.media_daily.outcome == 'failure')
