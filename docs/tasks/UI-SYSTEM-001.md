@@ -1,6 +1,6 @@
 # UI-SYSTEM-001：Sueño UI 组合层与动效规范
 
-- 状态：`review`（P0 + D–F 页面切片已在当前工作树实现；G 全量门禁与仓库外 artifacts 已完成；H 本地生产预览性能门禁通过；I 可信 light/dark axe 扫描通过；J-final provenance 完整但本地 fixture 仍为 `partial`，待用户/合并者复核）
+- 状态：`review`（P0 + D–F 页面切片已实现；G 全量门禁与仓库外 artifacts 已完成；H 本地生产预览性能门禁通过；I 可信 light/dark axe 扫描通过；J-final provenance 完整但本地 fixture 仍为 `partial`。实现已提交并推送为 `e15c844`，待合并、部署和真实环境复核）
 - 负责人：Codex
 - 研究日期：2026-09-21
 - 研究规格：[UI 组合层与动效规范技术调研](../superpowers/specs/2026-09-21-sueño-ui-composition-and-motion-technical-research.md)
@@ -26,7 +26,7 @@
 
 ## 当前实施批次
 
-- `UI-SYSTEM-001A–F` 已在 `codex/public-home-001` 当前工作树实现，尚未形成该任务的独立 commit、合并或部署结论：本地 source-distribution primitives（Popover、Select、Tabs、Sheet、AlertDialog、Tooltip、Skeleton、ScrollArea）、motion/focus/reduced-motion token、媒体 toolbar 接入、MediaLibrary observer/scroll 生命周期修复、公开首页 server shell + journey/motion client islands、`/chat` 消息流/Prompt/移动联系人 Sheet、`/me` Tabs/隐私确认，以及内容工作流的服务端结果确认。Explore/Read 页面级浮层改造已按用户视觉复核撤回，保留原有原生 `details`/`select` 结构。
+- `UI-SYSTEM-001A–F` 已在 `codex/public-home-001` 实现并提交为 `e15c844`，已推送到 `origin/codex/public-home-001`；尚未合并或部署：本地 source-distribution primitives（Popover、Select、Tabs、Sheet、AlertDialog、Tooltip、Skeleton、ScrollArea）、motion/focus/reduced-motion token、媒体 toolbar 接入、MediaLibrary observer/scroll 生命周期修复、公开首页 server shell + journey/motion client islands、`/chat` 消息流/Prompt/移动联系人 Sheet、`/me` Tabs/隐私确认，以及内容工作流的服务端结果确认。Explore/Read 页面级浮层改造已按用户视觉复核撤回，保留原有原生 `details`/`select` 结构。
 - 未引入 Radix runtime；`package.json`/lockfile 保持单一本地行为层。公共页媒体使用原生 `picture` 响应式源，避免移动端额外请求桌面截图。
 - `001H` 性能证据只在仓库外保存：`pnpm build` + 隔离 `next start` + Chrome 4× CPU/慢 4G 近似，1440×900 和 375×812 各 5 次冷上下文；两视口 HTTP 200、无横向溢出、CLS 0，桌面 LCP/FCP p75 1,724ms、移动 LCP/FCP p75 1,548ms，H 为本地生产预览 `pass`。INP=0 因无实际交互样本，不能算通过；传输大小、长任务、帧率和真实设备未运行。Artifacts：`D:\temp\sueno-ui-system-001\UI-SYSTEM-001H\`。
 - `001J` 保留历史对照：优化前 `UI-SYSTEM-001J-current` 为 `partial`（移动 Explore/Learn 约 244–256ms，另有一次桌面 Learn 约 248ms）；`UI-SYSTEM-001J-after` 为 provenance 不完整的历史 fixture `pass`。最新权威批次为 `UI-SYSTEM-001J-final`：桌面/移动各 9/9，18 个 artifact 中 14 个 `pass`、4 个因 action latency 超过 200ms 为 `partial`，最大 action 262.7ms、Event Timing p75 最大 104ms、最大长任务 100ms、CLS 全为 0。J 总体仍为 `partial`，不能升级为生产或真机通过。结果、命令和限制位于 `D:\temp\sueno-ui-system-001\UI-SYSTEM-001J-final\`；Lighthouse、部署预览、真实 iPhone Safari、CDN/字体、帧率和长运行内存仍未执行。
