@@ -2,7 +2,7 @@
 
 import type { MediaPlayback } from "../domain";
 import { memo, useEffect, useMemo, useRef } from "react";
-import { activeWordAt, validWordTimings } from "../domain/word-timeline";
+import { activeWordAt, wordTimingsForPlayback } from "../domain/word-timeline";
 
 export type CaptionMode = "es" | "bilingual" | "hidden";
 const timeLabel = (milliseconds: number) => { const seconds = Math.floor(milliseconds / 1_000); return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; };
@@ -12,7 +12,7 @@ export const TranscriptWords = memo(function TranscriptWords({ segment, position
   segment: MediaPlayback["segments"][number]; positionMs: number;
   onWord: (word: string, sentence: string, trigger: HTMLButtonElement) => void;
 }>) {
-  const words = useMemo(() => validWordTimings(segment), [segment]);
+  const words = useMemo(() => wordTimingsForPlayback(segment), [segment]);
   const textTokens = useMemo(() => tokens(segment.sourceText), [segment.sourceText]);
   const spoken = activeWordAt(words, positionMs);
   return <>{textTokens.map((match, index) => {
@@ -20,7 +20,7 @@ export const TranscriptWords = memo(function TranscriptWords({ segment, position
     const start = match.index;
     const speaking = spoken && start < spoken.endOffset && start + token.length > spoken.startOffset;
     return /[\p{L}\p{M}]/u.test(token)
-      ? <button aria-label={`查看词语 ${token}`} className={`segment-transcript__word${speaking ? " is-speaking" : ""}`} key={`${segment.id}-${index}`} onClick={(event) => onWord(token, segment.sourceText, event.currentTarget)} type="button">{token}</button>
+      ? <button aria-current={speaking ? "step" : undefined} aria-label={`查看词语 ${token}`} className={`segment-transcript__word${speaking ? " is-speaking" : ""}`} data-active-word={speaking ? "true" : undefined} key={`${segment.id}-${index}`} onClick={(event) => onWord(token, segment.sourceText, event.currentTarget)} type="button">{token}</button>
       : <span key={`${segment.id}-${index}`}>{token}</span>;
   })}</>;
 });

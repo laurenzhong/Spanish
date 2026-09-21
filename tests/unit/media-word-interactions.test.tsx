@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { activeWordAt, validWordTimings } from "@/src/modules/media/domain/word-timeline";
+import { activeWordAt, estimateWordTimings, validWordTimings, wordTimingsForPlayback } from "@/src/modules/media/domain/word-timeline";
 import { SegmentTranscript } from "@/src/modules/media/ui/segment-transcript";
 import { LexicalDrawer } from "@/src/modules/media/ui/lexical-drawer";
 import { requestWordExplanation } from "@/src/modules/media/ui/request-word-explanation";
@@ -90,6 +90,18 @@ describe("real word timing", () => {
     expect(validWordTimings({ ...segment, words: [{ ...words[0], endOffset: 100 }] })).toEqual([]);
   });
 
+  it("uses verified timings first and estimates only when a cue has no timings", () => {
+    expect(wordTimingsForPlayback(segment)).toEqual(words);
+    expect(estimateWordTimings({ sourceText: "Hola, hola.", startMs: 0, endMs: 1000 })).toEqual([
+      { startMs: 0, endMs: 500, startOffset: 0, endOffset: 4 },
+      { startMs: 500, endMs: 1000, startOffset: 6, endOffset: 10 },
+    ]);
+    expect(wordTimingsForPlayback({ ...segment, words: undefined })).toEqual([
+      { startMs: 0, endMs: 500, startOffset: 0, endOffset: 4 },
+      { startMs: 500, endMs: 1000, startOffset: 6, endOffset: 10 },
+    ]);
+  });
+
   it("moves the speaking box by offset while keeping automatic following enabled", () => {
     const props = { segments: [segment], activeIndex: 0, captionMode: "es" as const, mediaKind: "video" as const, onSeek: vi.fn(), onWord: vi.fn() };
     const { rerender } = render(<SegmentTranscript {...props} positionMs={200} />);
@@ -103,6 +115,19 @@ describe("real word timing", () => {
     expect(document.querySelector(".is-speaking")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "查看词语 hola" }));
     expect(props.onWord).toHaveBeenCalledWith("hola", segment.sourceText, expect.any(HTMLButtonElement));
+  });
+
+  it("keeps a moving word box when a cue only has sentence timing", () => {
+    const sentenceOnly = { ...segment, words: undefined };
+    const props = { segments: [sentenceOnly], activeIndex: 0, captionMode: "es" as const, mediaKind: "podcast" as const, onSeek: vi.fn(), onWord: vi.fn() };
+    const { rerender } = render(<SegmentTranscript {...props} positionMs={100} />);
+    const first = screen.getByRole("button", { name: "查看词语 Hola" });
+    expect(first).toHaveClass("is-speaking");
+    expect(first).toHaveAttribute("data-active-word", "true");
+    expect(first).toHaveAttribute("aria-current", "step");
+    rerender(<SegmentTranscript {...props} positionMs={600} />);
+    expect(first).not.toHaveClass("is-speaking");
+    expect(screen.getByRole("button", { name: "查看词语 hola" })).toHaveAttribute("data-active-word", "true");
   });
 });
 

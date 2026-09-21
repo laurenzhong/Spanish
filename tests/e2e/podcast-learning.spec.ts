@@ -140,6 +140,7 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
     element.dispatchEvent(new Event("timeupdate"));
   });
   await expect(page.getByRole("listitem").nth(1)).toHaveClass(/is-active/);
+  await expect(page.locator(".segment-transcript > li").nth(1).locator(".segment-transcript__word.is-speaking")).toHaveCount(1);
   await page.waitForTimeout(100);
   await page.evaluate(() => {
     const element = document.querySelector("audio")!;
