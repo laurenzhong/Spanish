@@ -59,4 +59,14 @@ describe("MiniMax media review provider", () => {
     expect(result).toMatchObject({ decision: "approved", inputHash: mediaReviewInputHash(reviewInput) });
     expect(result.notes).toHaveLength(4_000);
   });
+
+  it("normalizes harmless provider decision formatting without accepting unknown decisions", async () => {
+    const reviewInput = input();
+    const fetchImplementation: typeof fetch = async () => new Response(JSON.stringify({
+      content: [{ type: "text", text: JSON.stringify({ decision: " changes-requested ", notes: "Ajustar el resumen." }) }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+    const provider = new MiniMaxMediaReviewProvider("content-es-ES", { apiKey: "test-key", fetchImplementation });
+
+    await expect(provider.review(reviewInput)).resolves.toMatchObject({ decision: "changes_requested", notes: "Ajustar el resumen." });
+  });
 });

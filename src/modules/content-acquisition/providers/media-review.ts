@@ -60,10 +60,17 @@ const anthropicResponseSchema = z.object({
   content: z.array(z.object({ type: z.literal("text"), text: z.string() }).strict()).min(1),
 }).passthrough();
 const providerPayloadSchema = z.object({
-  decision: z.enum(mediaReviewDecisions),
+  decision: z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    const normalized = value.trim().toLowerCase().replace(/[\s-]+/gu, "_");
+    if (normalized === "approve" || normalized === "approved") return "approved";
+    if (normalized === "changes_requested" || normalized === "request_changes" || normalized === "needs_changes") return "changes_requested";
+    if (normalized === "reject" || normalized === "rejected") return "rejected";
+    return value;
+  }, z.enum(mediaReviewDecisions)),
   // Provider explanations can exceed the persisted review-note limit. Validate
   // the decision and text first, then trim notes at the storage boundary.
-  notes: z.string(),
+  notes: z.string().trim(),
 });
 
 function providerStatusError(status: number): Error {
