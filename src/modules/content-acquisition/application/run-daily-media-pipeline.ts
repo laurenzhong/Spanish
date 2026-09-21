@@ -229,7 +229,18 @@ export async function runDailyMediaPipeline(
       result.conflicts += acquisition.conflicts;
       remainingByType[contentType] -= acquisition.inserted;
       if (input.mode === "discover-only") continue;
+    } catch (error) {
+      failures.push({
+        scope: "source",
+        sourceStableKey: source.stableKey,
+        code: sourceSignal.aborted ? "MEDIA_SOURCE_TIMEOUT" : errorCode(error),
+      });
+      // A transient discovery failure must not strand already discovered,
+      // review-ready, or processing drafts for the same verified source.
+      if (input.mode === "discover-only") continue;
+    }
 
+    try {
       const resumableStatuses = ["discovered", "screened", "acquiring", "processing", "review_ready"] as const;
       const pending = await Promise.all(resumableStatuses.map((status) =>
         dependencies.repository.listCandidates({ sourceId: source.id, status, contentType, publicationStatus: "draft", limit })));
@@ -336,7 +347,7 @@ export async function runDailyMediaPipeline(
       failures.push({
         scope: "source",
         sourceStableKey: source.stableKey,
-        code: sourceSignal.aborted ? "MEDIA_SOURCE_TIMEOUT" : errorCode(error),
+        code: errorCode(error),
       });
     }
   }
