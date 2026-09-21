@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lt, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, or } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -132,18 +132,44 @@ export function createDrizzleContentAcquisitionRepository(
     async countPublishedMediaByType(input) {
       const start = new Date(`${input.date}T00:00:00+08:00`);
       const end = new Date(start.getTime() + 24 * 60 * 60 * 1_000);
-      const rows = await database.select({ contentType: schema.contentCandidates.contentType, count: count() })
+      // A daily media quota is only complete when the published version also
+      // has a fully bilingual timeline. Historical official embeds may be
+      // published without segments and must not satisfy today's target.
+      const publishedVersions = await database.select({
+        contentType: schema.contentCandidates.contentType,
+        mediaVersionId: schema.mediaVersions.id,
+      })
         .from(schema.contentCandidates)
+        .innerJoin(schema.mediaVersions, and(
+          eq(schema.mediaVersions.acquisitionCandidateId, schema.contentCandidates.id),
+          eq(schema.mediaVersions.acquisitionCandidateRevision, schema.contentCandidates.publishedCandidateRevision),
+          eq(schema.mediaVersions.status, "published"),
+        ))
         .where(and(
           eq(schema.contentCandidates.publicationStatus, "published"),
           gte(schema.contentCandidates.publishedAtInternal, start),
           lt(schema.contentCandidates.publishedAtInternal, end),
           or(eq(schema.contentCandidates.contentType, "video"), eq(schema.contentCandidates.contentType, "podcast")),
         ))
-        .groupBy(schema.contentCandidates.contentType);
-      return rows.reduce((result, row) => {
-        if (row.contentType === "video") result.video = Number(row.count);
-        if (row.contentType === "podcast") result.podcast = Number(row.count);
+      if (publishedVersions.length === 0) return { video: 0, podcast: 0 };
+      const segments = await database.select({
+        mediaVersionId: schema.mediaSegments.mediaVersionId,
+        sourceText: schema.mediaSegments.sourceText,
+        translation: schema.mediaSegments.translation,
+      })
+        .from(schema.mediaSegments)
+        .where(inArray(schema.mediaSegments.mediaVersionId, publishedVersions.map((row) => row.mediaVersionId)));
+      const segmentsByVersion = new Map<string, typeof segments>();
+      for (const segment of segments) {
+        const current = segmentsByVersion.get(segment.mediaVersionId) ?? [];
+        current.push(segment);
+        segmentsByVersion.set(segment.mediaVersionId, current);
+      }
+      return publishedVersions.reduce((result, row) => {
+        const timeline = segmentsByVersion.get(row.mediaVersionId) ?? [];
+        const complete = timeline.length > 0 && timeline.every((segment) => Boolean(segment.sourceText?.trim()) && Boolean(segment.translation?.trim()));
+        if (complete && row.contentType === "video") result.video += 1;
+        if (complete && row.contentType === "podcast") result.podcast += 1;
         return result;
       }, { video: 0, podcast: 0 });
     },

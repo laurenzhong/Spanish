@@ -98,6 +98,7 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
 
   await page.getByRole("button", { name: "下一句" }).click();
   await expect(page.getByLabel("Cómo pedir un café 播放器")).toHaveAttribute("data-current-time", "1.8");
+  await expect(page.getByRole("button", { name: "查看词语 Quería" })).toHaveAttribute("data-active-word", "true");
   await page.keyboard.press("a");
   await expect(page.getByLabel("Cómo pedir un café 播放器")).toHaveAttribute("data-current-time", "0");
 
@@ -113,6 +114,12 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
 
   await page.getByRole("button", { name: "双语" }).click();
   await expect(page.getByText("早上好。")).toBeVisible();
+  await page.evaluate(() => {
+    const runtime = window as unknown as Window & { __videoE2E: { currentTime: number; emit: (state: number) => void } };
+    runtime.__videoE2E.currentTime = 900 / 1000;
+    runtime.__videoE2E.emit(1);
+  });
+  await expect(page.getByRole("button", { name: "查看词语 días" })).toHaveAttribute("data-active-word", "true");
   const word = page.getByRole("button", { name: "查看词语 Buenos" });
   await word.click();
   const drawer = page.getByRole("dialog", { name: "词句上下文" });

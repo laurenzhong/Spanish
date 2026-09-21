@@ -31,9 +31,9 @@ export function getPodcastLearningE2eFixture(stableKey: string): MediaPlayback |
       expiresAt: "2026-09-21T10:00:00.000Z",
     },
     segments: [
-      { id: "podcast-e2e-0", index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días, ¿qué te pongo?", translation: null, speaker: null },
-      { id: "podcast-e2e-1", index: 1, startMs: 2_200, endMs: 5_000, sourceText: "Quería medio kilo de naranjas, por favor.", translation: null, speaker: null },
-      { id: "podcast-e2e-2", index: 2, startMs: 5_000, endMs: 7_000, sourceText: "Claro, ahora mismo.", translation: null, speaker: null },
+      { id: "podcast-e2e-0", index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días, ¿qué te pongo?", translation: "早上好，你要买点什么？", speaker: null },
+      { id: "podcast-e2e-1", index: 1, startMs: 2_200, endMs: 5_000, sourceText: "Quería medio kilo de naranjas, por favor.", translation: "我想要半公斤橙子，谢谢。", speaker: null },
+      { id: "podcast-e2e-2", index: 2, startMs: 5_000, endMs: 7_000, sourceText: "Claro, ahora mismo.", translation: "当然，马上来。", speaker: null },
     ],
   };
 }

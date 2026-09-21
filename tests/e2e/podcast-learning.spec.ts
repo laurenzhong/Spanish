@@ -65,6 +65,7 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
 
   await page.getByRole("button", { name: "下一句" }).click();
   await expect(audio).toHaveAttribute("data-current-time", "2.2");
+  await expect(page.getByRole("button", { name: "查看词语 Quería" })).toHaveAttribute("data-active-word", "true");
   await page.keyboard.press("a");
   await expect(audio).toHaveAttribute("data-current-time", "0");
 
@@ -77,6 +78,15 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
   });
   await expect(audio).toHaveAttribute("data-paused-by-app", "true");
   await expect(page.getByText("进度已同步")).toBeVisible();
+
+  await page.getByRole("button", { name: "双语" }).click();
+  await expect(page.getByText("早上好，你要买点什么？")).toBeVisible();
+  await page.evaluate(() => {
+    const audio = document.querySelector("audio")!;
+    audio.currentTime = 0.9;
+    audio.dispatchEvent(new Event("play"));
+  });
+  await expect(page.getByRole("button", { name: "查看词语 qué" })).toHaveAttribute("data-active-word", "true");
 
   const word = page.getByRole("button", { name: "查看词语 Buenos" });
   await word.click();
