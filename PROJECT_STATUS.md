@@ -11,11 +11,13 @@
 
 ### 2026-09-21：媒体每日 10 视频 + 10 播客与双语字幕处理
 
-- 当前真实收口核验（北京时间 `2026-09-21`）：正式发布视频 `18`、播客 `10`。10 条播客均有完整西语原文 + 简体中文翻译时间轴（`1,827` 段）；18 条历史正式视频仍为 `0` 个字幕段，因此“10 视频 + 10 播客且全部双语字幕”尚未完全达成，不能把视频正式数当作视频双语完成数。
+- 当前真实收口核验（北京时间 `2026-09-21`）：正式发布候选视频 `19`、播客 `10`；按“正式媒体版本存在完整西语原文 + 简体中文翻译时间轴”计数，视频双语 `1/10`、播客双语 `10/10`，因此目标尚未完全达成，不能把视频正式数当作视频双语完成数。该计数口径已下沉到 `countPublishedMediaByType`，历史无字幕版本不会再挤占每日目标。
+- 播放验收补强：视频和播客继续统一使用 `MediaLearningWorkbench`；当前句会随播放时间自动高亮字幕中的词，并在句子切换时滚动到当前字幕。桌面/移动 Playwright 媒体回归 `6/6` 通过，覆盖双语切换与自动选词。
+- 本轮实现 Commit：`cf5139b`（双语媒体配额按正式版本字幕完整度计数；统一视频/播客工作台增加播放词语自动跟随与当前句滚动）和 `31cfc26`（来源 discovery 失败时继续处理已有媒体草稿）。
 - 本轮真实自动发布最终结果：播客目标从 `1` 增至 `10`，`targetDeficitByType={video:0,podcast:0}` 仅表示发布数量配额，不表示历史视频字幕已回填。视频双语补齐批次处理 10 个授权 YouTube 草稿，其中 2 个进入 `review_ready` 且已有双语段，但尚未通过 Bunny 托管和三维发布门禁；其余候选因 `MEDIA_AUDIO_COMMAND_FAILED`、`MEDIA_TRANSCRIPTION_FAILED` 或审核 provider 响应格式无效而未发布。
 - 本轮实现 Commit：`f7842ae`（候选 SQL 显式按 `publicationStatus=draft` 过滤，避免已发布候选挤占调度 limit；MiniMax 文章修订逐字段容错）和 `212a5bd`（Language Reactor 授权播客 CDN 多跳重定向上限提升至 6，并增加回归测试）。播客 allowlist 仅显式增加已验证的 `dcs-cached.megaphone.fm`、`content.blubrry.com`；视频源仅登记已有授权策略的 `temporaryMediaProcessing=yt-dlp`，没有扩大来源范围。
 - 验证：相关 Vitest `5 files / 24 tests`、媒体/文章聚焦测试、`pnpm typecheck`、`pnpm lint` 和 `git diff --check` 通过。真实数据库只读核验确认正式媒体资产全部可用（视频 `bunny-storage` 18、播客 `language-reactor` 10）。
-- 下一步：为至少 10 个视频草稿完成授权 `yt-dlp` 下载、双语 ASR/翻译、Bunny MP4 托管、统一 `MediaLearningWorkbench` 播放验收和三维审核后再发布；完成前每日指标应显示为“播客 10/10、视频双语 0/10（视频正式版本 18）”。
+- 下一步：为至少 9 个视频草稿完成授权 `yt-dlp` 下载、双语 ASR/翻译、Bunny MP4 托管、统一 `MediaLearningWorkbench` 播放验收和三维审核后再发布；完成前每日指标应显示为“播客双语 10/10、视频双语 1/10（视频正式版本 19）”。
 
 - 实现 Commit：`9e155a2`，取消传播修复：`d67b2bd`（当前分支 `codex/youtube-download-resilience`）。每日媒体配额继续按 Asia/Shanghai 自然日独立累计：视频 10 条、播客 10 条；工作流在审核阶段和自动发布阶段都显式要求双语字幕。
 - 自动处理链已接入每日媒体流水线：无字幕授权媒体下载临时音频，默认使用 MiniMax ASR（显式设置 `CONTENT_MEDIA_STT_PROVIDER=openai` 才切换到 OpenAI）生成西语时间轴，再使用 MiniMax 逐句翻译为简体中文；已有单语字幕只补翻译。临时目录在成功、失败、取消和超时路径清理，发布前仍执行完整西语/中文时间轴门禁。
