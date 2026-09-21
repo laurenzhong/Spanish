@@ -148,12 +148,19 @@ H 批次总体状态：本地生产预览 `pass`。它证明了固定实验室�
 | 代表性交互 INP | 实际执行筛选、Popover、消息发送/停止；p75 ≤200ms | `partial`（总体 J）：J-final 桌面/移动各 9/9 测试通过，但 4/18 artifact 的完成动作超过 200ms，最大 action latency 262.7ms；Event Timing p75 最大 104ms。不等同真实设备 INP |
 | 长任务/资源成本 | 首屏无 >200ms 长任务；记录 CSS/JS transfer、资源瀑布和 trace | `partial`（总体 J）：J-final 记录长任务、CLS、paint/navigation 和资源字节，18 个 artifact 的 CLS 均为 0、最大长任务 100ms；dev server 仍非生产，Lighthouse waterfall/帧率/长运行内存仍未采集 |
 | Lighthouse/Web Vitals | 生产 build、固定 CPU/网络、冷/暖缓存各 5 次；保存 JSON artifact | `not_run`：001J 使用本地 fake/fixture Event Timing；未运行 Lighthouse，未使用部署/CDN |
-| 部署预览 | 重复 H 的匿名首页采样，区分本地 server、CDN、字体和媒体影响 | `not_run`：需要人工批准的部署预览；本地 `next start` 的受保护 J 路由尝试因生产环境明确拒绝 E2E cookie 而回到登录页，未计入交互通过 |
+| 部署预览 | 重复 H 的匿名首页采样，区分本地 server、CDN、字体和媒体影响 | `partial`：Vercel Preview `dpl_WsbFQsDvp5H8hgufT6eqqusYpRzh`（commit `5a02cca`）API 状态 `READY/STAGED`，构建日志完成；当前环境对受 SSO 保护 Preview 域名的 443 连接超时，未完成页面访问与采样 |
 | 观测隐私 | 仅允许 route/build/metric/value/correlation 等脱敏字段；失败 fail-open，不改变业务事实 | `not_run` |
 
 PWA 后续只允许先做 manifest-only/online-first 文档评估；若未来批准 Serwist/Workbox，必须另立 ADR，限定 app-shell/公开静态缓存，并禁止缓存聊天、证据、画像、记忆、录音、签名 URL 或离线评分写入。
 
 J-current 与 J-after 两代历史证据均保留：`D:\temp\sueno-ui-system-001\UI-SYSTEM-001J-current\` 是优化前 `partial` 基线，`D:\temp\sueno-ui-system-001\UI-SYSTEM-001J-after\` 是优化后的本地 fixture `pass`。J-after 的 provenance 缺口不能被忽略。最新可追溯批次为 `D:\temp\sueno-ui-system-001\UI-SYSTEM-001J-final\`：`acceptance.json`、`manifest.json`、`handoff.md`、`commands.txt`、`before.txt` 和 18 个 `interaction-*.json` 均使用 `UI-SYSTEM-001J-final`，并记录了完整输入快照；14 个 artifact 为 `pass`、4 个为 `partial`。因此总体 J 仍为 `partial`，任何一代结果都不得升级为真实设备或生产性能通过。
+
+### 001K：Vercel Preview 构建复核
+
+- 首次部署 `dpl_zpmVzEgZPHY5aU6pKScod3Mt7pT8`：`ERROR`，构建日志显示 Next TypeScript 编译纳入 `tests/e2e/*`，而生产安装无法解析测试专用 `@axe-core/playwright`。
+- 修复：`next.config.ts` 使用 `tsconfig.next.json` 排除 `tests`、`scripts`、`apps/mobile`；仓库级 `pnpm typecheck` 仍覆盖完整工作区。
+- 修复后部署 `dpl_WsbFQsDvp5H8hgufT6eqqusYpRzh`：Vercel API `READY`、`READY/STAGED`，日志包含 `Compiled successfully`、`Finished TypeScript`、`Build Completed`；commit `5a02cca`。
+- Preview：`https://spanish-24efcurgw-zjk159357s-projects.vercel.app`。当前环境 DNS 可解析但 443 连接超时，且项目启用 Vercel SSO 保护；因此 K 证明远端构建/部署状态，不证明远端页面访问、Lighthouse、真实登录、真机或生产推广。
 
 ### 001J-final：provenance 完整的本地交互复测
 
