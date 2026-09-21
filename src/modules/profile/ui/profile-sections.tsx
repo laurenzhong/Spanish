@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { Tabs, TabsList, TabsTrigger } from "@/src/shared/ui/primitives";
+
 import { SharedMemoryPermissions } from "@/src/modules/character-network/ui/shared-memory-permissions";
 import { ProviderSettingsPanel } from "@/src/modules/providers/ui/provider-settings-panel";
 import { AccountDataControls } from "./account-data-controls";
@@ -60,24 +62,28 @@ export function ProfileSections() {
   ) : null;
 
   return (
-    <>
+    <Tabs
+      className="profile-sections-tabs"
+      defaultValue="progress"
+      value={activeSection}
+      onValueChange={(value) => {
+        const section = sections.find((candidate) => candidate.key === value);
+        if (section) selectSection(section);
+      }}
+    >
       <nav className="profile-page__section-nav" aria-label="我的页面分区">
-        {sections.map((section) => (
-          <a
-            aria-current={activeSection === section.key ? "page" : undefined}
-            aria-controls={section.id}
-            className={activeSection === section.key ? "is-active" : undefined}
-            href={`#${section.id}`}
-            style={{ borderBottomColor: activeSection === section.key ? "var(--profile-terra)" : "transparent", color: activeSection === section.key ? "var(--profile-terra)" : "var(--profile-muted)" }}
-            key={section.key}
-            onClick={(event) => {
-              event.preventDefault();
-              selectSection(section);
-            }}
-          >
-            {section.label}
-          </a>
-        ))}
+        <TabsList>
+          {sections.map((section) => (
+            <TabsTrigger
+              asChild
+              aria-controls={section.id}
+              key={section.key}
+              value={section.key}
+            >
+              <a href={`#${section.id}`}>{section.label}</a>
+            </TabsTrigger>
+          ))}
+        </TabsList>
       </nav>
 
       <section id="profile-progress" className="profile-page__group" aria-labelledby="profile-progress-title" hidden={activeSection !== "progress"}>
@@ -115,6 +121,6 @@ export function ProfileSections() {
           <ProviderSettingsPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
-    </>
+    </Tabs>
   );
 }

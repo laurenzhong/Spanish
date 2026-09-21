@@ -4,6 +4,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/src/shared/ui/primitives";
 
 import {
   ConversationNdjsonParser,
@@ -12,9 +13,10 @@ import {
   transitionConversationState,
   type ConversationState,
 } from "@/src/modules/conversation";
-import { VoiceComposer } from "./voice-composer";
+import { MessageScroller, ConversationToast } from "./chat-surface";
 import { ConversationSearch } from "./conversation-search";
 import { ConversationContactRail } from "./conversation-contact-rail";
+import { PromptBar } from "./prompt-bar";
 import {
   getCachedConversationHistory,
   loadConversationHistory,
@@ -598,7 +600,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   return (
-    <section className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
+    <Sheet open={showMobileConversations} onOpenChange={setShowMobileConversations}>
+      <section className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
       <header className="conversation-thread__header">
         <div className="conversation-thread__identity">
           <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
@@ -610,9 +613,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         </div>
         <div className="conversation-thread__header-actions">
-          <button className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表" onClick={() => setShowMobileConversations(true)}>
+          <SheetTrigger><button className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
-          </button>
+          </button></SheetTrigger>
           <button
             ref={headerMenuTriggerRef}
             aria-expanded={showHeaderMenu}
@@ -635,12 +638,22 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         </div> : null}
       </header>
 
-      {showMobileConversations ? <div className="conversation-mobile-list" role="dialog" aria-modal="true" aria-label="会话列表">
-        <div className="conversation-mobile-list__header"><strong>会话列表</strong><button type="button" aria-label="关闭会话列表" onClick={() => setShowMobileConversations(false)}>×</button></div>
+      <SheetContent side="left" className="conversation-mobile-list__sheet" data-testid="conversation-mobile-drawer">
+        <div className="conversation-mobile-list__header">
+          <SheetTitle>会话列表</SheetTitle>
+          <SheetClose aria-label="关闭会话列表">×</SheetClose>
+        </div>
         <ConversationContactRail activeCharacterKey={characterKey} />
-      </div> : null}
+      </SheetContent>
 
-      <div ref={messagesRef} className="conversation-thread__messages" onScroll={handleMessagesScroll}>
+      <MessageScroller
+        viewportRef={messagesRef}
+        onScroll={handleMessagesScroll}
+        isNearBottom={isNearBottom}
+        hasNewMessage={hasNewProactiveMessage}
+        messageCount={state.messages.length}
+        onJumpToBottom={scrollToBottom}
+      >
         {persistenceStatus === "unavailable" ? (
           <div className="conversation-thread__persistence-notice" role="alert" data-testid="conversation-persistence-status">
             <span>暂时无法打开这段对话，请检查网络后重试。</span>
@@ -648,7 +661,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         ) : null}
         {persistenceStatus === "loading" && state.messages.length === 0 ? (
-          <div className="conversation-thread__loading" role="status" aria-live="polite"><span /><span /><span />正在加载聊天记录……</div>
+          <div className="conversation-thread__loading" role="status" aria-live="polite"><span /><span /><span /><span className="conversation-thread__loading-label">正在加载聊天记录……</span></div>
         ) : null}
         {persistenceStatus === "available" && state.messages.length === 0 ? (
           <div className="conversation-thread__welcome">
@@ -680,7 +693,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             data-highlighted={targetMessageId === message.id ? "true" : undefined}
             data-complete={message.complete}
             data-withdrawn={message.withdrawn ? "true" : undefined}
-            aria-live={message.role === "character" && message.id === state.activeMessageId ? "polite" : undefined}
             onClick={(event) => handleMessageClick(event, message)}
             onContextMenu={(event) => handleMessageContextMenu(event, message)}
             onDoubleClick={(event) => handleMessageDoubleClick(event, message)}
@@ -705,9 +717,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </article>
           </Fragment>;
         })}
-      </div>
-      {!isNearBottom && state.messages.length > 0 ? <button className="conversation-thread__jump-bottom" type="button" onClick={scrollToBottom}>回到底部 ↓</button> : null}
-      {hasNewProactiveMessage && !isNearBottom ? <button className="conversation-thread__new-proactive" type="button" onClick={scrollToBottom}>有一条新消息</button> : null}
+      </MessageScroller>
 
       {contextMenu && selectedMessage() && typeof document !== "undefined" ? createPortal(
         <div ref={messageMenuRef} className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x ?? contextMenu.anchorX, top: contextMenu.y ?? contextMenu.anchorBottom, visibility: contextMenu.x === undefined ? "hidden" : undefined }} onClick={(event) => event.stopPropagation()}>
@@ -726,7 +736,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         document.body,
       ) : null}
 
-      {notice ? <p className="conversation-thread__action-notice" role="status">{notice}</p> : null}
+      <ConversationToast message={notice} />
 
       {state.status === "failed" || state.status === "cancelled" ? (
         <div className="conversation-thread__recovery" role="alert">
@@ -734,8 +744,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {retryMessage ? <button className="secondary-action" onClick={retry} type="button">重新发送</button> : null}
         </div>
       ) : null}
-      <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
-    </section>
+      <PromptBar characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
+      </section>
+    </Sheet>
   );
 }
 

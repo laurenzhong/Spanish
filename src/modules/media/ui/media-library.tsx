@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MediaCard } from "../domain";
 import type { MediaListQuery } from "../schemas";
@@ -38,17 +38,34 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
   const [isScrolled, setIsScrolled] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
+  const scrollFrameRef = useRef<number | null>(null);
   const hasFilters = Boolean(query.search || query.kind || query.region || query.cefr || query.duration);
   const tabs = [[undefined, "全部"], ["video", "视频"], ["podcast", "播客"]] as const;
 
   useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 280);
+    const updateScrollState = () => {
+      scrollFrameRef.current = null;
+      const next = window.scrollY > 280;
+      setIsScrolled((current) => current === next ? current : next);
+    };
+    const onScroll = () => {
+      if (scrollFrameRef.current !== null) return;
+      scrollFrameRef.current = typeof window.requestAnimationFrame === "function"
+        ? window.requestAnimationFrame(updateScrollState)
+        : window.setTimeout(updateScrollState, 0);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        window.clearTimeout(scrollFrameRef.current);
+      }
+    };
   }, []);
 
-  async function loadMore() {
+  const loadMore = useCallback(async () => {
     if (!hasMore || !nextCursor || loadingRef.current) return;
     loadingRef.current = true;
     setIsLoadingMore(true);
@@ -74,7 +91,7 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
       loadingRef.current = false;
       setIsLoadingMore(false);
     }
-  }
+  }, [hasMore, nextCursor, query]);
 
   useEffect(() => {
     const sentinel = loadMoreRef.current;
@@ -84,7 +101,7 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
     }, { rootMargin: "480px 0px" });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  });
+  }, [loadMore, loadMoreError]);
 
   function scrollToTop() {
     window.scrollTo({ top: 0, behavior: "smooth" });

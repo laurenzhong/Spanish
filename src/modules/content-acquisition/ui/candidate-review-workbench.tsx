@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import type { CandidateReviewDimension, CandidateReviewStatus } from "../domain";
+import { ConfirmActionDialog } from "@/src/shared/ui/confirm-action-dialog";
 
 type Review = Readonly<{
   dimension: CandidateReviewDimension;
@@ -48,6 +49,7 @@ export type CandidateReviewWorkbenchData = Readonly<{
 }>;
 
 const dimensions = [
+  ["rights", "权利审核"],
   ["content-es-ES", "西语内容审核"],
   ["teaching-zh-CN", "中文教学审核"],
   ["structure", "结构校验"],
@@ -74,10 +76,10 @@ export function CandidateReviewWorkbench({ initialData }: Readonly<{ initialData
   const transcriptDraft = useMemo(() => readMediaTranscriptDraft(data.candidate.metadata), [data.candidate.metadata]);
   const lowConfidence = transcriptDraft?.lowConfidence === true;
   const transcriptSegments = transcriptDraft?.segments ?? [];
-  const allApproved = dimensions.every(([dimension]) => currentReviews.some((review) => review.dimension === dimension && review.status === "approved"));
+  const allApproved = dimensions.every(([dimension]) => currentReviews.some((review) => review.dimension === dimension && review.status === "approved" && review.reviewerReference === "codex-ai-owner-authorized-review"));
   const publishable = data.candidate.status === "review_ready" && data.candidate.rightsStatus === "verified" && Boolean(data.candidate.contentHash) && allApproved && !lowConfidence && data.candidate.publicationStatus === "draft" && data.publisherAvailable;
 
-  async function mutate(path: string, body: Record<string, unknown>) {
+  async function mutate(path: string, body: Record<string, unknown>): Promise<boolean> {
     setPending(true);
     setMessage(null);
     try {
@@ -92,8 +94,10 @@ export function CandidateReviewWorkbench({ initialData }: Readonly<{ initialData
       const refreshedPayload = await refreshed.json() as { data?: { candidate?: CandidateReviewWorkbenchData } };
       if (refreshedPayload.data?.candidate) setData(refreshedPayload.data.candidate);
       setMessage("已保存。当前版本的审核记录已更新。");
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "操作失败，请重试。");
+      return false;
     } finally {
       setPending(false);
     }
@@ -138,10 +142,52 @@ export function CandidateReviewWorkbench({ initialData }: Readonly<{ initialData
           <textarea id="review-notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={4000} placeholder="记录判断依据或需要修改的内容" />
           {dimensions.map(([dimension, label]) => {
             const review = currentReviews.find((item) => item.dimension === dimension);
-            return <section className="candidate-review__gate" key={dimension}><div><strong>{label}</strong><span>{review?.status ?? "pending"}</span></div>{review?.notes ? <p>{review.notes}</p> : null}<div><button disabled={pending} onClick={() => void mutate("reviews", { expectedRevision: data.candidate.revision, dimension, status: "approved", notes: notes || null })}>批准</button><button disabled={pending || !notes.trim()} onClick={() => void mutate("reviews", { expectedRevision: data.candidate.revision, dimension, status: "changes_requested", notes })}>请求修改</button><button disabled={pending || !notes.trim()} onClick={() => void mutate("reviews", { expectedRevision: data.candidate.revision, dimension, status: "rejected", notes })}>拒绝</button></div></section>;
+            return <section className="candidate-review__gate" key={dimension}>
+              <div><strong>{label}</strong><span>{review?.status ?? "pending"}</span></div>
+              {review?.notes ? <p>{review.notes}</p> : null}
+              <div>
+                <button disabled={pending} onClick={() => void mutate("reviews", { expectedRevision: data.candidate.revision, dimension, status: "approved", notes: notes || null })}>批准</button>
+                <ConfirmActionDialog
+                  confirmLabel="请求修改"
+                  description="这会把当前审核维度标记为需要修改，并保留你的备注。"
+                  onConfirm={() => mutate("reviews", { expectedRevision: data.candidate.revision, dimension, status: "changes_requested", notes })}
+                  title={`确认请求修改：${label}？`}
+                  trigger={<button disabled={pending || !notes.trim()}>请求修改</button>}
+                />
+                <ConfirmActionDialog
+                  confirmLabel="拒绝"
+                  description="拒绝当前版本后，候选不会进入发布流程；请确认备注已经说明原因。"
+                  onConfirm={() => mutate("reviews", { expectedRevision: data.candidate.revision, dimension, status: "rejected", notes })}
+                  title={`确认拒绝：${label}？`}
+                  trigger={<button disabled={pending || !notes.trim()}>拒绝</button>}
+                />
+              </div>
+            </section>;
           })}
-          <button className="secondary-action" disabled={pending || !notes.trim() || data.candidate.publicationStatus !== "draft"} onClick={() => void mutate("reprocess", { expectedRevision: data.candidate.revision, notes })}>按备注重新处理</button>
-          {data.candidate.publicationStatus === "published" ? <button className="danger-action" disabled={pending || !data.publisherAvailable} onClick={() => void mutate("archive", { expectedRevision: data.candidate.revision })}>撤下内容</button> : <button className="primary-action" disabled={pending || !publishable} onClick={() => void mutate("publish", { expectedRevision: data.candidate.revision, expectedContentHash: data.candidate.contentHash })}>显式发布</button>}
+          <ConfirmActionDialog
+            confirmLabel="按备注重新处理"
+            description="这会基于当前备注生成新的候选 revision。旧 revision 的审核记录不会被伪装成新版本结果。"
+            onConfirm={() => mutate("reprocess", { expectedRevision: data.candidate.revision, notes })}
+            title="确认重新处理当前候选？"
+            trigger={<button className="secondary-action" disabled={pending || !notes.trim() || data.candidate.publicationStatus !== "draft"}>按备注重新处理</button>}
+          />
+          {data.candidate.publicationStatus === "published" ? (
+            <ConfirmActionDialog
+              confirmLabel="撤下内容"
+              description="撤下会让当前已发布版本停止对学习者可见。服务端会再次校验 revision 与权限。"
+              onConfirm={() => mutate("archive", { expectedRevision: data.candidate.revision })}
+              title="确认撤下这条内容？"
+              trigger={<button className="danger-action" disabled={pending || !data.publisherAvailable}>撤下内容</button>}
+            />
+          ) : (
+            <ConfirmActionDialog
+              confirmLabel="显式发布"
+              description="发布前请确认权利、结构、西语内容和中文教学审核均已通过。发布只由服务端决定。"
+              onConfirm={() => mutate("publish", { expectedRevision: data.candidate.revision, expectedContentHash: data.candidate.contentHash })}
+              title="确认显式发布当前版本？"
+              trigger={<button className="primary-action" disabled={pending || !publishable}>显式发布</button>}
+            />
+          )}
           {lowConfidence ? <p className="candidate-review__publish-block" role="status">低置信度字幕已阻止发布。审核记录不会绕过这一门禁。</p> : null}
           {!data.publisherAvailable ? <p role="status">当前内容类型尚无正式 publisher；发布与撤下保持禁用。</p> : null}
           {message ? <p role="status">{message}</p> : null}

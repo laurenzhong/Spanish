@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { ConfirmActionDialog } from "@/src/shared/ui/confirm-action-dialog";
 
 type MemoryRecord = Readonly<{
   category: string;
@@ -26,6 +28,14 @@ type MemoryDataControlsProps = Readonly<{
 }>;
 
 export function MemoryDataControls({ onError, retryToken = 0, showError = true }: MemoryDataControlsProps = {}) {
+  const onErrorRef = useRef(onError);
+  const showErrorRef = useRef(showError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+  useEffect(() => {
+    showErrorRef.current = showError;
+  }, [showError]);
   const [memories, setMemories] = useState<readonly MemoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -48,8 +58,8 @@ export function MemoryDataControls({ onError, retryToken = 0, showError = true }
       .catch(() => {
         if (active) {
           setLoadError(true);
-          setMessage(showError ? "暂时无法读取你的关系记忆。" : null);
-          onError?.();
+          setMessage(showErrorRef.current ? "暂时无法读取你的关系记忆。" : null);
+          onErrorRef.current?.();
         }
       })
       .finally(() => {
@@ -58,8 +68,7 @@ export function MemoryDataControls({ onError, retryToken = 0, showError = true }
     return () => { active = false; };
   }, [reloadToken, retryToken]);
 
-  async function remove(memory: MemoryRecord) {
-    if (!window.confirm("删除后这条关系记忆和相关共享授权都无法恢复，确定删除吗？")) return;
+  async function remove(memory: MemoryRecord): Promise<boolean> {
     setBusy(memory.id);
     setMessage(null);
     try {
@@ -69,8 +78,10 @@ export function MemoryDataControls({ onError, retryToken = 0, showError = true }
       if (!payload.data?.deleted) throw new Error("MEMORY_NOT_FOUND");
       setMemories((current) => current.filter((item) => item.id !== memory.id));
       setMessage("已删除这条关系记忆及其共享授权。");
+      return true;
     } catch {
       setMessage("暂时无法删除这条关系记忆，请稍后再试。");
+      return false;
     } finally {
       setBusy(null);
     }
@@ -96,9 +107,14 @@ export function MemoryDataControls({ onError, retryToken = 0, showError = true }
               {memory.sensitivity === "sensitive" ? " · 敏感资料" : ""}
             </p>
           </div>
-          <button type="button" className="button--quiet" onClick={() => void remove(memory)} disabled={busy !== null}>
-            {busy === memory.id ? "删除中…" : "删除记忆"}
-          </button>
+          <ConfirmActionDialog
+            confirmLabel="删除记忆"
+            description="删除后这条关系记忆和相关共享授权都无法恢复。能力证据不会被删除。"
+            onConfirm={() => remove(memory)}
+            pendingLabel="删除中…"
+            title="确认删除这条关系记忆？"
+            trigger={<button type="button" className="button--quiet" disabled={busy !== null}>删除记忆</button>}
+          />
         </article>
       ))}
       {message ? <p className="surface-state__message" role="status">{message}</p> : null}

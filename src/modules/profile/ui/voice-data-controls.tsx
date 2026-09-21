@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { ConfirmActionDialog } from "@/src/shared/ui/confirm-action-dialog";
 
 type SavedAudio = Readonly<{
   createdAt: string;
@@ -42,6 +44,14 @@ type VoiceDataControlsProps = Readonly<{
 }>;
 
 export function VoiceDataControls({ onError, retryToken = 0, showError = true }: VoiceDataControlsProps = {}) {
+  const onErrorRef = useRef(onError);
+  const showErrorRef = useRef(showError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+  useEffect(() => {
+    showErrorRef.current = showError;
+  }, [showError]);
   const [data, setData] = useState<VoiceData>({ audio: [], transcripts: [] });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -67,8 +77,8 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
       .catch(() => {
         if (active) {
           setLoadError(true);
-          setMessage(showError ? "暂时无法读取已保存的语音资料。" : null);
-          onError?.();
+          setMessage(showErrorRef.current ? "暂时无法读取已保存的语音资料。" : null);
+          onErrorRef.current?.();
         }
       })
       .finally(() => {
@@ -77,9 +87,8 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
     return () => { active = false; };
   }, [reloadToken, retryToken]);
 
-  async function remove(kind: "audio" | "transcript", id: string) {
+  async function remove(kind: "audio" | "transcript", id: string): Promise<boolean> {
     const label = kind === "audio" ? "这段录音" : "这条转写";
-    if (!window.confirm(`删除后${label}无法恢复，确定删除吗？`)) return;
     const key = `${kind}:${id}`;
     setBusy(key);
     setMessage(null);
@@ -92,8 +101,10 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
         ? { ...current, audio: current.audio.filter((item) => item.id !== id) }
         : { ...current, transcripts: current.transcripts.filter((item) => item.attemptId !== id) });
       setMessage(`已删除${label}。`);
+      return true;
     } catch {
       setMessage(`暂时无法删除${label}，请稍后再试。`);
+      return false;
     } finally {
       setBusy(null);
     }
@@ -117,9 +128,14 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
             <h3>录音 · {formatDate(audio.createdAt)}</h3>
             <p>{audio.mimeType} · {formatDuration(audio.durationMs)} · {audio.retentionPolicy}</p>
           </div>
-          <button type="button" className="button--quiet" onClick={() => void remove("audio", audio.id)} disabled={busy !== null}>
-            {busy === `audio:${audio.id}` ? "删除中…" : "删除录音"}
-          </button>
+          <ConfirmActionDialog
+            confirmLabel="删除录音"
+            description="删除后这段原始录音无法恢复。能力证据不会被删除。"
+            onConfirm={() => remove("audio", audio.id)}
+            pendingLabel="删除中…"
+            title="确认删除这段录音？"
+            trigger={<button type="button" className="button--quiet" disabled={busy !== null}>删除录音</button>}
+          />
         </article>
       ))}
       {data.transcripts.map((transcript) => (
@@ -128,9 +144,14 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
             <h3>{transcript.text}</h3>
             <p>语音转写 · {formatDate(transcript.createdAt)}</p>
           </div>
-          <button type="button" className="button--quiet" onClick={() => void remove("transcript", transcript.attemptId)} disabled={busy !== null}>
-            {busy === `transcript:${transcript.attemptId}` ? "删除中…" : "删除转写"}
-          </button>
+          <ConfirmActionDialog
+            confirmLabel="删除转写"
+            description="删除后这条语音转写无法恢复。能力证据不会被删除。"
+            onConfirm={() => remove("transcript", transcript.attemptId)}
+            pendingLabel="删除中…"
+            title="确认删除这条转写？"
+            trigger={<button type="button" className="button--quiet" disabled={busy !== null}>删除转写</button>}
+          />
         </article>
       ))}
       {message ? <p className="surface-state__message" role="status">{message}</p> : null}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { ConfirmActionDialog } from "@/src/shared/ui/confirm-action-dialog";
 
 type AccountDataSummary = Readonly<{
   conversations: number;
@@ -19,6 +21,10 @@ type AccountDataControlsProps = Readonly<{
 }>;
 
 export function AccountDataControls({ onError, retryToken = 0, showError = true }: AccountDataControlsProps = {}) {
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<AccountDataSummary | null>(null);
@@ -40,7 +46,7 @@ export function AccountDataControls({ onError, retryToken = 0, showError = true 
       .catch(() => {
         if (active) {
           setSummaryError(true);
-          onError?.();
+          onErrorRef.current?.();
         }
       })
       .finally(() => {
@@ -51,8 +57,7 @@ export function AccountDataControls({ onError, retryToken = 0, showError = true 
     };
   }, [reloadToken, retryToken]);
 
-  async function deleteData() {
-    if (!window.confirm("这会删除你的训练、画像、对话、关系记忆和保存的语音资料，且无法恢复。确定继续吗？")) return;
+  async function deleteData(): Promise<boolean> {
     setBusy(true);
     setMessage(null);
     try {
@@ -72,8 +77,10 @@ export function AccountDataControls({ onError, retryToken = 0, showError = true 
           ? "账号数据已删除，部分语音对象将在清理服务恢复后重试。"
           : "账号数据已删除。",
       );
+      return true;
     } catch {
       setMessage("暂时无法删除账号数据，请稍后再试。没有确认成功前不会删除数据。 ");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -89,9 +96,14 @@ export function AccountDataControls({ onError, retryToken = 0, showError = true 
         {!summaryLoading && summaryError && showError ? <div className="profile-data-warning" role="alert"><span>账号数据概览暂时不可用。</span><button type="button" onClick={() => { setSummaryLoading(true); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
         {summary ? <p>当前包含 {summary.sessions} 次训练、{summary.conversations} 个对话、{summary.relationshipMemories} 条关系记忆和 {summary.savedAudio + summary.savedTranscripts} 条保存的语音资料。</p> : null}
       </header>
-      <button type="button" className="button--quiet" onClick={() => void deleteData()} disabled={busy}>
-        {busy ? "删除中…" : "删除账号数据"}
-      </button>
+      <ConfirmActionDialog
+        confirmLabel="删除账号数据"
+        description="这会删除你的训练、画像、对话、关系记忆和保存的语音资料，且无法恢复。共享内容和人物设定不会被删除。"
+        onConfirm={deleteData}
+        pendingLabel="删除中…"
+        title="确认删除账号数据？"
+        trigger={<button type="button" className="button--quiet" disabled={busy}>删除账号数据</button>}
+      />
       {message ? <p className="surface-state__message" role="status">{message}</p> : null}
     </section>
   );

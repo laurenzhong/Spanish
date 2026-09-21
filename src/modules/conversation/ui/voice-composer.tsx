@@ -8,7 +8,7 @@ import {
   type BrowserAudioRecorder,
 } from "@/src/modules/providers/speech";
 
-type VoiceComposerProps = Readonly<{
+export type VoiceComposerProps = Readonly<{
   disabled?: boolean;
   unavailable?: boolean;
   characterName?: string;
@@ -149,6 +149,7 @@ export function VoiceComposer({
   return (
     <form
       className="conversation-composer"
+      data-testid="conversation-prompt-bar"
       data-state={recording ? "recording" : transcribing ? "transcribing" : disabled ? "streaming" : unavailable ? "unavailable" : "idle"}
       onSubmit={(event) => {
         event.preventDefault();
@@ -178,13 +179,13 @@ export function VoiceComposer({
         </button>
 
         {recording ? (
-          <div className="conversation-composer__recording" role="status" aria-live="polite">
+          <div className="conversation-composer__recording">
             <span className="conversation-composer__recording-time">{String(Math.floor(recordingSeconds / 60)).padStart(2, "0")}:{String(recordingSeconds % 60).padStart(2, "0")}</span>
             <span className="conversation-composer__waveform" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></span>
             <span className="conversation-composer__recording-label">正在录音</span>
           </div>
         ) : transcribing ? (
-          <div className="conversation-composer__recording" role="status" aria-live="polite"><span className="conversation-composer__recording-label">正在整理语音……</span></div>
+          <div className="conversation-composer__recording"><span className="conversation-composer__recording-label">正在整理语音……</span></div>
         ) : (
           <textarea
             aria-label={`写下你想对 ${characterName === "Lucía Martín" ? "Lucía" : characterName} 说的话`}
@@ -222,8 +223,8 @@ export function VoiceComposer({
           </button>
         )}
       </div>
-      {notice || disabled ? <div className="conversation-composer__meta">
-        <span className="conversation-composer__notice" role="status" aria-live="polite">{notice ?? `${characterName} 正在回复`}</span>
+      {notice || disabled ? <div className="conversation-composer__meta" role="status" aria-live="polite" aria-atomic="true">
+        <span className="conversation-composer__notice">{notice ?? `${characterName} 正在回复`}</span>
       </div> : null}
     </form>
   );

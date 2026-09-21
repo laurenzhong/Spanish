@@ -73,9 +73,9 @@ function loadConversationList(force = false): Promise<void> {
   return listRequest;
 }
 
-function loadLuciaContact(): Promise<void> {
+function loadLuciaContact(force = false): Promise<void> {
   if (luciaContactRequest) return luciaContactRequest;
-  if (cachedLuciaContact !== null) return Promise.resolve();
+  if (!force && cachedLuciaContact !== null) return Promise.resolve();
   luciaContactRequest = fetch("/api/v1/character-network/lucia-contact", { cache: "no-store" })
     .then((response) => { if (!response.ok) throw new Error("CONTACT_UNAVAILABLE"); return response.json() as Promise<{ data?: LuciaContactPreview }>; })
     .then((payload) => { cachedLuciaContact = payload.data ?? null; })
@@ -137,7 +137,9 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
       setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }])))
       setStatus(cachedStatus);
     });
-    void Promise.all([loadLuciaContact(), loadIntroductionOfferCount()]).then(() => {
+    // Revalidate relationship requests on each mounted rail. These responses are
+    // user-scoped and must not leak across navigation or test/session boundaries.
+    void Promise.all([loadLuciaContact(true), loadIntroductionOfferCount(true)]).then(() => {
       if (!active) return;
       setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0));
     });
@@ -357,16 +359,17 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
     <aside ref={railRef} className="conversation-contact-rail" aria-label="联系人">
       <div className="conversation-contact-rail__heading">
         <h2>对话</h2>
-        {pendingIntroductionCount > 0 ? <button
+        <button
           ref={introductionsTriggerRef}
           type="button"
           className="conversation-contact-rail__request"
           aria-expanded={showIntroductions}
+          aria-label={pendingIntroductionCount > 0 ? `待处理，${pendingIntroductionCount} 项待处理` : "查看好友申请和介绍"}
           onClick={() => setShowIntroductions(true)}
         >
           <span>待处理</span>
-          <span className="conversation-contact-rail__request-count" aria-label={`${pendingIntroductionCount} 项待处理`}>{pendingIntroductionCount}</span>
-        </button> : null}
+          {pendingIntroductionCount > 0 ? <span className="conversation-contact-rail__request-count" aria-label={`${pendingIntroductionCount} 项待处理`}>{pendingIntroductionCount}</span> : null}
+        </button>
       </div>
 
       {visibleConversations.length >= CONTACT_SEARCH_THRESHOLD ? <ConversationSearch /> : null}
