@@ -2,6 +2,11 @@ import { z } from "zod";
 
 import { mediaTopicFilters } from "../domain/media-topic";
 
+export const mediaWordTimingsSchema = z.array(z.strictObject({
+  startMs: z.number().int().nonnegative(), endMs: z.number().int().positive(),
+  startOffset: z.number().int().nonnegative(), endOffset: z.number().int().positive(),
+})).max(2_000).readonly();
+
 const stableKeySchema = z.string().trim().regex(/^[a-z0-9][a-z0-9._-]{2,199}$/u);
 
 export const mediaListQuerySchema = z.strictObject({

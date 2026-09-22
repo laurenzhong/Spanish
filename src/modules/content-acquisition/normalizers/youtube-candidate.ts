@@ -2,13 +2,15 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
-import { mediaSegmentSourceKinds } from "@/src/modules/media/domain";
+import { maxMediaSegments, mediaSegmentSourceKinds } from "@/src/modules/media/domain";
 import { mediaArtworkSchema } from "@/src/modules/media/schemas";
+import { mediaWordTimingsSchema } from "@/src/modules/media/schemas/media";
 
 const stableKeySchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
 export const videoCandidateSegmentSchema = z.strictObject({
+  words: mediaWordTimingsSchema.optional(),
   index: z.number().int().nonnegative(),
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),
@@ -43,7 +45,7 @@ export const videoCandidateDraftSchema = z.strictObject({
   artwork: mediaArtworkSchema.nullable().default(null),
   captionStatus: z.enum(["unavailable", "platform_manual", "platform_auto", "asr"]),
   // Keep long videos intact when ASR produces fine-grained sentence timing.
-  segments: z.array(videoCandidateSegmentSchema).max(2_000),
+  segments: z.array(videoCandidateSegmentSchema).max(maxMediaSegments),
   contentHash: hashSchema,
   changeReason: z.string().trim().min(1).max(1_000),
 });

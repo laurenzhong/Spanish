@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
-import { mediaSegmentSourceKinds } from "@/src/modules/media/domain";
+import { maxMediaSegments, mediaSegmentSourceKinds } from "@/src/modules/media/domain";
 import { mediaArtworkSchema } from "@/src/modules/media/schemas";
+import { mediaWordTimingsSchema } from "@/src/modules/media/schemas/media";
 
 const stableKeySchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -14,6 +15,7 @@ const persistedIsoDateSchema = z.union([
 ]).transform((value) => typeof value === "string" ? value : value.$date);
 
 export const podcastCandidateSegmentSchema = z.strictObject({
+  words: mediaWordTimingsSchema.optional(),
   index: z.number().int().nonnegative(),
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),
@@ -54,7 +56,7 @@ export const podcastCandidateDraftSchema = z.strictObject({
   transcriptUrl: httpsUrlSchema.nullable(),
   // Long-form podcasts can legitimately produce more than 500 sentence
   // segments; keep the bound high enough to avoid dropping a full transcript.
-  segments: z.array(podcastCandidateSegmentSchema).max(2_000),
+  segments: z.array(podcastCandidateSegmentSchema).max(maxMediaSegments),
   contentHash: hashSchema,
   changeReason: z.string().trim().min(1).max(1_000),
 });
