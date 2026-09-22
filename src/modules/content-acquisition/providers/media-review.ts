@@ -57,7 +57,9 @@ type MiniMaxMediaReviewProviderOptions = Readonly<{
 const defaultMiniMaxEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
 const defaultMiniMaxModel = "MiniMax-M3";
 const anthropicResponseSchema = z.object({
-  content: z.array(z.object({ type: z.literal("text"), text: z.string() }).strict()).min(1),
+  // MiniMax may add provider-specific fields to text blocks. Only the text
+  // payload is part of our contract.
+  content: z.array(z.object({ type: z.literal("text"), text: z.string() }).passthrough()).min(1),
 }).passthrough();
 const providerPayloadSchema = z.object({
   decision: z.preprocess((value) => {

@@ -44,7 +44,7 @@ type ProviderOptions = Readonly<{
 const defaultEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
 const defaultModel = "MiniMax-M3";
 const responseSchema = z.object({
-  content: z.array(z.object({ type: z.literal("text"), text: z.string() }).strict()).min(1),
+  content: z.array(z.object({ type: z.literal("text"), text: z.string() }).passthrough()).min(1),
 }).passthrough();
 
 export class MiniMaxMediaRevisionProvider implements MediaRevisionProvider {
