@@ -238,7 +238,9 @@ async function main() {
         if (!source || source.rightsStatus !== "verified") throw new Error("RIGHTS_NOT_VERIFIED");
         results.push(await processOne(repository, candidate, source));
       } catch (error) {
-        const cause = error instanceof Error && error.cause instanceof Error ? `: ${error.cause.message}` : "";
+        const cause = error instanceof Error && error.cause instanceof Error
+          ? `: ${error.cause.message}${error.cause.cause instanceof Error ? ` [${error.cause.cause.message}]` : ""}`
+          : "";
         results.push({ id: candidate.id, status: "failed", error: `${error instanceof Error ? error.message : "MEDIA_TRANSCRIPT_FAILED"}${cause}` });
       }
     }
