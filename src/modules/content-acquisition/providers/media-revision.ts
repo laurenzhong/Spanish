@@ -44,7 +44,7 @@ type ProviderOptions = Readonly<{
 const defaultEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
 const defaultModel = "MiniMax-M3";
 const responseSchema = z.object({
-  content: z.array(z.object({ type: z.literal("text"), text: z.string() }).passthrough()).min(1),
+  content: z.array(z.object({ type: z.string(), text: z.string().optional() }).passthrough()).min(1),
 }).passthrough();
 
 export class MiniMaxMediaRevisionProvider implements MediaRevisionProvider {
@@ -96,7 +96,8 @@ export class MiniMaxMediaRevisionProvider implements MediaRevisionProvider {
         }
         const envelope = responseSchema.safeParse(await response.json().catch(() => null));
         if (!envelope.success) throw new Error("MEDIA_REVISION_PROVIDER_RESPONSE_INVALID");
-        const payload = envelope.data.content.map((block) => block.text).join("\n");
+        const payload = envelope.data.content.filter((block) => block.type === "text" && typeof block.text === "string").map((block) => block.text as string).join("\n");
+        if (!payload.trim()) throw new Error("MEDIA_REVISION_PROVIDER_RESPONSE_INVALID:no-text-block");
         const invalidPaths = new Set<string>();
         for (const candidate of parseProviderJsonCandidates(payload)) {
           const parsed = revisionPayloadSchema.safeParse(candidate);
