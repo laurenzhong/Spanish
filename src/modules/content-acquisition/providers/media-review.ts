@@ -57,9 +57,8 @@ type MiniMaxMediaReviewProviderOptions = Readonly<{
 const defaultMiniMaxEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
 const defaultMiniMaxModel = "MiniMax-M3";
 const anthropicResponseSchema = z.object({
-  // MiniMax may add provider-specific fields to text blocks. Only the text
-  // payload is part of our contract.
-  content: z.array(z.object({ type: z.literal("text"), text: z.string() }).passthrough()).min(1),
+  // Anthropic-compatible providers may include thinking/tool blocks before the text answer.
+  content: z.array(z.object({ type: z.string(), text: z.string().optional() }).passthrough()).min(1),
 }).passthrough();
 const providerPayloadSchema = z.object({
   decision: z.preprocess((value) => {
@@ -147,7 +146,8 @@ export class MiniMaxMediaReviewProvider implements MediaReviewProvider {
       if (!response.ok) throw providerStatusError(response.status);
       const envelope = anthropicResponseSchema.safeParse(await response.json().catch(() => null));
       if (!envelope.success) throw new Error("MEDIA_REVIEW_PROVIDER_RESPONSE_INVALID");
-      const text = envelope.data.content.map((block) => block.text).join("\n");
+      const text = envelope.data.content.filter((block) => block.type === "text" && typeof block.text === "string").map((block) => block.text as string).join("\n");
+      if (!text.trim()) throw new Error("MEDIA_REVIEW_PROVIDER_RESPONSE_INVALID:no-text-block");
       for (const candidate of parseProviderJsonCandidates(text)) {
         const payload = providerPayloadSchema.safeParse(candidate);
         if (payload.success) {
