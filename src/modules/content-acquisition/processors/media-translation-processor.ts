@@ -15,25 +15,51 @@ export async function translateMediaSegments(input: Readonly<{
   sourceLocale?: string;
   targetLocale?: string;
   signal?: AbortSignal;
+  concurrency?: number;
 }>): Promise<MediaTranslationResult> {
-  let translatedCount = 0;
-  let failedCount = 0;
-  let estimatedCostMicros = 0;
-  const errors: string[] = [];
-  const segments: DraftMediaSegment[] = [];
-  for (const segment of input.segments) {
-    try {
-      const result = await input.provider.translate({ text: segment.sourceText, sourceLocale: input.sourceLocale ?? "es-ES", targetLocale: input.targetLocale ?? "zh-CN" }, { signal: input.signal });
-      segments.push({ ...segment, translation: result.text.trim() || null });
-      if (result.text.trim()) translatedCount += 1;
-      estimatedCostMicros += result.estimatedCostMicros ?? 0;
-    } catch (error) {
-      if (input.signal?.aborted || (error instanceof TranslationError && error.code === "provider-cancelled")) throw error;
-      failedCount += 1;
-      const code = error instanceof TranslationError ? error.code : "provider-unavailable";
-      errors.push(code);
-      segments.push({ ...segment, translation: null });
+  const concurrency = Math.max(1, Math.min(4, Math.floor(input.concurrency ?? 2)));
+  const results: Array<{ segment: DraftMediaSegment; translated: boolean; cost: number; error?: string }> = [];
+  let nextIndex = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      if (input.signal?.aborted) throw new TranslationError("provider-cancelled", "Translation was cancelled.", false);
+      const index = nextIndex++;
+      const segment = input.segments[index];
+      if (!segment) return;
+      try {
+        const result = await translateWithRetry(input.provider, { text: segment.sourceText, sourceLocale: input.sourceLocale ?? "es-ES", targetLocale: input.targetLocale ?? "zh-CN" }, input.signal);
+        results[index] = { segment: { ...segment, translation: result.text.trim() || null }, translated: Boolean(result.text.trim()), cost: result.estimatedCostMicros ?? 0 };
+      } catch (error) {
+        if (input.signal?.aborted || (error instanceof TranslationError && error.code === "provider-cancelled")) throw error;
+        results[index] = { segment: { ...segment, translation: null }, translated: false, cost: 0, error: error instanceof TranslationError ? error.code : "provider-unavailable" };
+      }
     }
   }
-  return { segments, translatedCount, failedCount, estimatedCostMicros, errors };
+  await Promise.all(Array.from({ length: Math.min(concurrency, input.segments.length) }, () => worker()));
+  return {
+    segments: results.map((result) => result.segment),
+    translatedCount: results.filter((result) => result.translated).length,
+    failedCount: results.filter((result) => result.error).length,
+    estimatedCostMicros: results.reduce((sum, result) => sum + result.cost, 0),
+    errors: results.flatMap((result) => result.error ? [result.error] : []),
+  };
+}
+
+async function translateWithRetry(provider: TranslationProvider, request: Readonly<{ text: string; sourceLocale: string; targetLocale: string }>, signal?: AbortSignal) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await provider.translate(request, { signal });
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof TranslationError) || !error.retryable || attempt === 2) throw error;
+      await new Promise<void>((resolve, reject) => {
+        const cleanup = () => signal?.removeEventListener("abort", abort);
+        const timer = setTimeout(() => { cleanup(); resolve(); }, 500 * (attempt + 1));
+        const abort = () => { clearTimeout(timer); cleanup(); reject(new TranslationError("provider-cancelled", "Translation was cancelled.", false)); };
+        signal?.addEventListener("abort", abort, { once: true });
+      });
+    }
+  }
+  throw lastError instanceof Error ? lastError : new TranslationError("provider-unavailable", "Translation failed.", true);
 }
