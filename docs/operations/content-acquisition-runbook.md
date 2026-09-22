@@ -4,7 +4,7 @@
 
 每日任务只从已启用且权利状态为 `verified` 的白名单来源发现候选，并推进到审核库。文章和媒体都按受保护的分阶段策略运行；视频和播客可在 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true` 且当前版本通过内容、西语教学和结构三维审核时进入 `auto-publish`，否则最多停在 `review_ready`。自动发布仍不能绕过来源权利、结构校验、审核记录、revision/hash CAS 或资产可播放性门禁。
 
-GitHub Actions 使用 UTC `03:17` 运行，对应 Asia/Shanghai 每日 `11:17`。同一 ref 使用 concurrency 互斥，前一次运行结束前不会启动第二个运行；整条文章、媒体、托管和报告流水线的硬上限为 60 分钟，避免 50 条候选在完整审核和托管阶段被 30 分钟总超时截断。
+GitHub Actions 使用 UTC `03:17` 运行，对应 Asia/Shanghai 每日 `11:17`。同一 ref 使用 concurrency 互斥，前一次运行结束前不会启动第二个运行；整条文章、媒体、托管和报告流水线的硬上限为 60 分钟，避免 10 条视频与 10 条播客候选在完整审核和托管阶段被 30 分钟总超时截断。
 
 ## 命令
 
@@ -19,15 +19,21 @@ pnpm content:pipeline -- report --limit 100
 
 文章日流水线使用 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` 作为受保护 Environment 的显式发布门闩。缺失或非 `true` 时，`auto-publish` 在 CLI 入口直接 fail closed；`disabled`、`discover-only` 和 `review-only` 不受此门闩影响。该变量表示发布开关已由维护者明确置于可运行状态，不代表绕过来源权利、双审核、结构校验或 CAS 门禁。
 
-媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`，受 `CONTENT_MEDIA_DAILY_LIMIT`（全局，最大 50）和 `CONTENT_MEDIA_SOURCE_LIMIT`（单来源，最大 50）约束。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。该命令只选择 `youtube`、`podcast-rss` 或已登记的 `language-reactor` 的 `enabled=true`、`rights_status=verified` 来源，并在报告中显式列出因权利未验证而跳过的媒体来源。媒体来源的配额顺序固定为 Language Reactor YouTube mix（`t_yt_mix_es`）→其他视频→Language Reactor podcast mix（`t_pd_mix_es`）→其他播客；`t_pd_mix_es` 的 API 返回类型是 `AUDIO_FILE`，因此只能生成播客候选，不能伪装为视频。`language-reactor` 只允许已验证的西语视频/播客目录和其来源策略中指定的 API、媒体主机；适配器不会从页面或 API 响应扩大 allowlist。音频资源会逐跳校验 HTTPS、重定向目标 host、MIME 和大小；失败会记录稳定的脱敏原因码（例如 `RESOURCE_HOST_NOT_ALLOWLISTED`、`RESOURCE_CONTENT_TYPE_UNSUPPORTED`、`RESOURCE_REQUEST_FAILED`），不会记录完整媒体 URL。若授权目录使用 CDN/跟踪重定向，必须先在来源策略中明确登记所有预期跳转 host，并重新运行来源策略校验。
+媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`。自动发布目标按类型独立计算：`CONTENT_MEDIA_VIDEO_DAILY_LIMIT=10` 和 `CONTENT_MEDIA_PODCAST_DAILY_LIMIT=10`，合计目标为每天 10 条视频和 10 条播客；未显式设置环境变量时 CLI 也默认使用总计 20、视频 10、播客 10。`CONTENT_MEDIA_SOURCE_LIMIT` 仍限制单来源，最大 50。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。
 
-每个媒体来源的 discovery 请求有 45 秒硬超时；超时会在报告中记录 `MEDIA_SOURCE_TIMEOUT` 并继续后续已授权来源，保留该来源游标，不会把未完成 discovery 当作成功或发布。媒体候选审核默认以 2 个候选并发运行，可由受保护变量 `CONTENT_MEDIA_REVIEW_CONCURRENCY` 调整（限制为 1-10）；每个候选仍独立完成内容、教学、结构审核和 CAS。`daily-limit` 是本次运行的处理上限，不是保证可发现或可发布的数量；视频还必须先完成 Bunny MP4 托管门禁。
+当 `CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES=true`（生产默认值）时，流水线会先为无字幕或单语字幕的授权媒体创建临时音频，使用配置的 ASR 生成时间轴，再用 MiniMax 逐句翻译为简体中文；临时音频在成功、失败、取消和超时后删除。当前 revision 必须存在至少一个合法时间轴、每句同时有西语原文和中文翻译才允许自动发布；缺少字幕、只有单语字幕或翻译不完整的候选会记录 `MEDIA_BILINGUAL_SUBTITLES_REQUIRED`，不计入视频/播客完成数。该门禁不会把无字幕候选伪装成已完成，也不会绕过 ASR、翻译或审核流程。报告返回 `publishedByType` 和 `targetDeficitByType`，用于区分两类缺口；数据库配额计数同样只统计已发布正式媒体版本中完整双语时间轴的条目，不统计历史无字幕版本。
+
+生产媒体转写配置使用受保护的 GitHub Environment 变量/secret：`CONTENT_MEDIA_PROVIDER_MODE=live`、`CONTENT_MEDIA_STT_PROVIDER=minimax|openai`、`CONTENT_MEDIA_TRANSLATION_PROVIDER=minimax`，默认使用 MiniMax ASR；只有显式设置 `CONTENT_MEDIA_STT_PROVIDER=openai` 时才切换到 OpenAI。默认 provider 需要 `MINIMAX_API_KEY`，显式切换 OpenAI 时需要 `OPENAI_API_KEY`。OpenAI 使用 `OPENAI_TRANSCRIPTION_ENDPOINT` 与 `OPENAI_TRANSCRIPTION_MODEL`；MiniMax ASR 使用 `MINIMAX_TRANSCRIPTION_API_ENDPOINT`（默认 `https://api.minimax.cn/v1/speech_to_text`）和 `MINIMAX_TRANSCRIPTION_MODEL=asr-1.0`。`CONTENT_MEDIA_ASR_MAX_DURATION_MS`、`CONTENT_MEDIA_ASR_MAX_ASSET_BYTES`、`CONTENT_MEDIA_ASR_MAX_COST_MICROS` 和 `CONTENT_MEDIA_ASR_MIN_CONFIDENCE` 控制单条媒体的时长、临时文件大小、预算和最低置信度，默认时长上限与 Language Reactor 播客策略一致为 60 分钟。默认临时媒体上限为 50 MB；超过转写 provider 输入限制的音频会在临时目录内转换为 48 kbps 单声道 MP3，转换后的文件仍必须不超过 25 MB。默认测试使用 `CONTENT_MEDIA_PROVIDER_MODE=fake`，不会请求收费 Provider。缺少 live provider 凭据时 `auto-publish` fail closed，不会把候选或审核通过计为正式发布。
+
+该命令只选择 `youtube`、`podcast-rss` 或已登记的 `language-reactor` 的 `enabled=true`、`rights_status=verified` 来源，并在报告中显式列出因权利未验证而跳过的媒体来源。媒体来源的配额顺序固定为 Language Reactor YouTube mix（`t_yt_mix_es`）→其他视频→Language Reactor podcast mix（`t_pd_mix_es`）→其他播客；`t_pd_mix_es` 的 API 返回类型是 `AUDIO_FILE`，因此只能生成播客候选，不能伪装为视频。`language-reactor` 只允许已验证的西语视频/播客目录和其来源策略中指定的 API、媒体主机；适配器不会从页面或 API 响应扩大 allowlist。音频资源会逐跳校验 HTTPS、重定向目标 host、MIME 和大小；失败会记录稳定的脱敏原因码（例如 `RESOURCE_HOST_NOT_ALLOWLISTED`、`RESOURCE_CONTENT_TYPE_UNSUPPORTED`、`RESOURCE_REQUEST_FAILED`），不会记录完整媒体 URL。若授权目录使用 CDN/跟踪重定向，必须先在来源策略中明确登记所有预期跳转 host，并重新运行来源策略校验。
+
+每个媒体来源的 discovery 请求有 180 秒硬超时（包含授权音频的大小/MIME 探测和播客 artwork 查询）；超时会在报告中记录 `MEDIA_SOURCE_TIMEOUT` 并继续后续已授权来源，保留该来源游标，不会把未完成 discovery 当作成功或发布。候选下载、ASR、翻译和审核不共用 discovery 超时；每个候选默认有 15 分钟处理超时，可由受保护变量 `CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS` 调整。媒体候选审核默认以 2 个候选并发运行，可由受保护变量 `CONTENT_MEDIA_REVIEW_CONCURRENCY` 调整（限制为 1-10）；每个候选仍独立完成内容、教学、结构审核和 CAS。分类 `daily-limit` 是本次运行的处理上限，不是保证可发现或可发布的数量；视频还必须先完成 Bunny MP4 托管门禁和双语字幕门禁。
 
 文章候选审核默认以 2 个候选并发运行，可由受保护变量 `CONTENT_ARTICLE_REVIEW_CONCURRENCY` 调整（限制为 1-10）。发现、准备、双维度 MiniMax 审核、最多一次修订和发布仍按候选保持 revision/hash CAS；单个候选失败会记录脱敏错误并继续同批其他候选。并发只解决吞吐，不减少任一审核维度，也不把 `discovered`、`prepared` 或 `reviewed` 计为 `published`。
 
 新视频发布时，YouTube URL 仅保存为来源与 provenance；公开播放资产必须先经 yt-dlp/ffmpeg 处理、上传 Bunny Storage + Pull Zone，并通过 MP4、SHA-256、字节数、CDN HEAD 与浏览器播放/seek 校验。没有 `bunnyVideoAsset` 的视频候选只能停留在审核或托管准备阶段，不能通过媒体 publisher；已存在的旧 official embed 不因迁移脚本成功而自动宣称已转为 Bunny。
 
-媒体自动发布的托管步骤默认从所有当前 revision 已通过三维审核、仍为 draft 且没有 `bunnyVideoAsset` 的视频候选中按 `last_activity_at` 取最多 50 条。审核前已存在的候选仍可在本次运行中托管；不能用运行开始时间排除它们。仅在人工单次回填需要限制时间窗口时，才显式设置 `MEDIA_VIDEO_HOSTING_SINCE`。
+媒体自动发布的托管步骤会先按 Asia/Shanghai 自然日统计正式 `published` 视频，再从所有当前 revision 已通过三维审核、仍为 draft 且没有 `bunnyVideoAsset` 的视频候选中按 `last_activity_at` 只取当天剩余缺口。审核前已存在的候选仍可在本次运行中托管；不能用运行开始时间排除它们。仅在人工单次回填需要限制时间窗口时，才显式设置 `MEDIA_VIDEO_HOSTING_SINCE`。
 
 ### YouTube 授权 cookies（仅在来源账户已获授权时）
 

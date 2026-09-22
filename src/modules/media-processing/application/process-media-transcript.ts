@@ -51,7 +51,25 @@ export async function processMediaTranscript(options: Readonly<{
 }>): Promise<ProcessMediaTranscriptResult> {
   const { input, policy, signal } = options;
   if (input.captionStatus !== "unavailable" && input.existingSegments.length > 0) {
-    return { segments: input.existingSegments, review: getMediaProcessingReviewResult(input.existingSegments, { captionStatus: input.captionStatus, minimumConfidence: policy.minimumConfidence }), provider: null, artifactDeleted: true };
+    let segments = [...input.existingSegments];
+    if (options.translationProvider && segments.some((segment) => !segment.translation?.trim())) {
+      const translated: MediaTranscriptSegment[] = [];
+      for (const segment of segments) {
+        if (segment.translation?.trim()) {
+          translated.push(segment);
+          continue;
+        }
+        try {
+          const result = await options.translationProvider.translate({ index: segment.index, sourceText: segment.sourceText }, { signal });
+          translated.push({ ...segment, translation: result.text });
+        } catch (error) {
+          if (error instanceof MediaProcessingError && error.code === "MEDIA_PROCESSING_CANCELLED") throw error;
+          translated.push(segment);
+        }
+      }
+      segments = translated;
+    }
+    return { segments, review: getMediaProcessingReviewResult(segments, { captionStatus: input.captionStatus, minimumConfidence: policy.minimumConfidence }), provider: null, artifactDeleted: true };
   }
   if (options.timeoutMs !== undefined && (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0)) {
     throw new RangeError("timeoutMs must be a positive safe integer.");

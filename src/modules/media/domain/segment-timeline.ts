@@ -57,7 +57,7 @@ export function validateSegmentTimeline(
   }>[],
   durationMs: number,
 ): void {
-  if (!Number.isInteger(durationMs) || durationMs <= 0 || segments.length === 0 || segments.length > 500) {
+  if (!Number.isInteger(durationMs) || durationMs <= 0 || segments.length === 0 || segments.length > 2_000) {
     throw new MediaSegmentTimelineError("The timeline duration or segment count is invalid.");
   }
   let previousEnd = 0;

@@ -10899,6 +10899,12 @@ body {
   background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
 }
 
+.segment-transcript__word.is-current {
+  color: var(--foreground);
+  background: var(--accent-soft);
+  box-shadow: inset 0 -2px var(--accent-strong);
+}
+
 .segment-transcript__translation {
   margin-top: 5px !important;
   color: var(--muted);

@@ -60,8 +60,17 @@ const anthropicResponseSchema = z.object({
   content: z.array(z.object({ type: z.literal("text"), text: z.string() }).strict()).min(1),
 }).passthrough();
 const providerPayloadSchema = z.object({
-  decision: z.enum(mediaReviewDecisions),
-  notes: z.string().trim().max(4_000),
+  decision: z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    const normalized = value.trim().toLowerCase().replace(/[\s-]+/gu, "_");
+    if (normalized === "approve" || normalized === "approved") return "approved";
+    if (normalized === "changes_requested" || normalized === "request_changes" || normalized === "needs_changes") return "changes_requested";
+    if (normalized === "reject" || normalized === "rejected") return "rejected";
+    return value;
+  }, z.enum(mediaReviewDecisions)),
+  // Provider explanations can exceed the persisted review-note limit. Validate
+  // the decision and text first, then trim notes at the storage boundary.
+  notes: z.string().trim(),
 });
 
 function providerStatusError(status: number): Error {
@@ -139,7 +148,14 @@ export class MiniMaxMediaReviewProvider implements MediaReviewProvider {
       const text = envelope.data.content.map((block) => block.text).join("\n");
       for (const candidate of parseProviderJsonCandidates(text)) {
         const payload = providerPayloadSchema.safeParse(candidate);
-        if (payload.success) return { ...payload.data, modelVersion: this.modelVersion, inputHash: mediaReviewInputHash(input) };
+        if (payload.success) {
+          return {
+            decision: payload.data.decision,
+            notes: payload.data.notes.trim().slice(0, 4_000),
+            modelVersion: this.modelVersion,
+            inputHash: mediaReviewInputHash(input),
+          };
+        }
       }
       throw new Error("MEDIA_REVIEW_PROVIDER_RESPONSE_INVALID");
     } catch (error) {

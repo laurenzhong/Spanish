@@ -5,7 +5,7 @@ import type { MediaTranscriptionProvider } from "@/src/modules/media-processing/
 import type { MediaTranslationProvider } from "@/src/modules/media-processing/providers/media-translation";
 import { calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers/podcast-candidate";
 import { calculateVideoCandidateContentHash, videoCandidateDraftSchema } from "../normalizers/youtube-candidate";
-import type { ContentAcquisitionRepository, ContentCandidateRecord } from "../repositories";
+import type { ContentAcquisitionRepository, ContentCandidateRecord, ContentSourceRecord } from "../repositories";
 
 export type ProcessMediaCandidateDependencies = Readonly<{
   transcriptionProvider: MediaTranscriptionProvider;
@@ -14,6 +14,8 @@ export type ProcessMediaCandidateDependencies = Readonly<{
   policy: MediaAsrPolicy;
   makeAttemptId?: () => string;
   now?: () => Date;
+  resolveArtifactStore?: (input: Readonly<{ candidate: ContentCandidateRecord; source: ContentSourceRecord }>) => MediaProcessingArtifactStore;
+  signal?: AbortSignal;
 }>;
 
 export class MediaCandidateProcessingError extends Error {
@@ -39,7 +41,7 @@ export async function processMediaCandidate(
   const video = candidate.contentType === "video" ? parseVideo(candidate.metadata.videoDraft) : null;
   const draft = podcast?.draft ?? video!.draft;
   const captionStatus = podcast?.captionStatus ?? video!.captionStatus;
-  const sourceUrl = podcast ? podcast.draft.enclosureUrl : String((candidate.metadata as Record<string, unknown>).processingAssetUrl ?? "");
+  const sourceUrl = podcast ? podcast.draft.enclosureUrl : String((candidate.metadata as Record<string, unknown>).processingAssetUrl ?? video?.draft.canonicalUrl ?? "");
   if (!sourceUrl) throw new MediaCandidateProcessingError("no downloadable processing asset is available.");
   const startedAt = (dependencies.now ?? (() => new Date()))();
   let result;
@@ -61,7 +63,10 @@ export async function processMediaCandidate(
       policy: dependencies.policy,
       transcriptionProvider: dependencies.transcriptionProvider,
       translationProvider: dependencies.translationProvider,
-      artifactStore: dependencies.artifactStore,
+      artifactStore: dependencies.resolveArtifactStore
+        ? dependencies.resolveArtifactStore({ candidate, source: source })
+        : dependencies.artifactStore,
+      signal: dependencies.signal,
     });
   } catch (error) {
     const completedAt = (dependencies.now ?? (() => new Date()))();
@@ -82,10 +87,10 @@ export async function processMediaCandidate(
   }
   const nextMetadata = { ...candidate.metadata } as Record<string, unknown>;
   if (podcast) {
-    const nextDraft = { ...podcast.draft, transcriptStatus: "asr" as const, transcriptUrl: null, segments: [...result.segments] };
+    const nextDraft = { ...podcast.draft, transcriptStatus: podcast.draft.transcriptStatus === "unavailable" ? "asr" as const : podcast.draft.transcriptStatus, transcriptUrl: podcast.draft.transcriptStatus === "asr" ? null : podcast.draft.transcriptUrl, segments: [...result.segments] };
     nextMetadata.podcastDraft = { ...nextDraft, contentHash: calculatePodcastCandidateContentHash(nextDraft) };
   } else {
-    const nextDraft = { ...video!.draft, captionStatus: "asr" as const, segments: [...result.segments] };
+    const nextDraft = { ...video!.draft, captionStatus: video!.draft.captionStatus === "unavailable" ? "asr" as const : video!.draft.captionStatus, segments: [...result.segments] };
     nextMetadata.videoDraft = { ...nextDraft, contentHash: calculateVideoCandidateContentHash(nextDraft) };
   }
   nextMetadata.mediaProcessingReview = result.review;

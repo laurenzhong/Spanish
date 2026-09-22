@@ -68,6 +68,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
           LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS: ${{ vars.LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS }}
+          LANGUAGE_REACTOR_PODCAST_TEMPORARY_MEDIA_PROCESSING: ${{ vars.LANGUAGE_REACTOR_PODCAST_TEMPORARY_MEDIA_PROCESSING || 'source-audio' }}
           LANGUAGE_REACTOR_PODCAST_RESET_CURSOR: ${{ vars.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR || 'false' }}
         run: pnpm exec tsx scripts/register-language-reactor-audio-hosts.ts
       - name: Run staged article pipeline
@@ -84,7 +85,7 @@ jobs:
           CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || 'readlang-links-v6' }}
           CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
           ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'auto-publish' }}
-          ARTICLE_DAILY_LIMIT: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}
+          ARTICLE_DAILY_LIMIT: ${{ vars.CONTENT_ARTICLE_DAILY_LIMIT || '10' }}
         run: >-
           set -o pipefail
           &&
@@ -103,6 +104,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BUNNY_STORAGE_ZONE_NAME: ${{ secrets.BUNNY_STORAGE_ZONE_NAME }}
           BUNNY_STORAGE_PASSWORD: ${{ secrets.BUNNY_STORAGE_PASSWORD }}
           BUNNY_STORAGE_REGION: ${{ vars.BUNNY_STORAGE_REGION || 'storage' }}
@@ -115,19 +117,30 @@ jobs:
           CONTENT_MEDIA_REVISION_PROVIDER: ${{ vars.CONTENT_MEDIA_REVISION_PROVIDER || 'minimax' }}
           CONTENT_MEDIA_REVIEW_CONCURRENCY: ${{ vars.CONTENT_MEDIA_REVIEW_CONCURRENCY || '2' }}
           CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
+          CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES: ${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}
+          CONTENT_MEDIA_PROVIDER_MODE: ${{ vars.CONTENT_MEDIA_PROVIDER_MODE || 'live' }}
+          CONTENT_MEDIA_STT_PROVIDER: ${{ vars.CONTENT_MEDIA_STT_PROVIDER || 'minimax' }}
+          CONTENT_MEDIA_TRANSLATION_PROVIDER: ${{ vars.CONTENT_MEDIA_TRANSLATION_PROVIDER || 'minimax' }}
+          OPENAI_TRANSCRIPTION_MODEL: ${{ vars.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe' }}
+          OPENAI_TRANSCRIPTION_ENDPOINT: ${{ vars.OPENAI_TRANSCRIPTION_ENDPOINT || 'https://api.openai.com/v1/audio/transcriptions' }}
+          MINIMAX_TRANSCRIPTION_MODEL: ${{ vars.MINIMAX_TRANSCRIPTION_MODEL || 'asr-1.0' }}
+          MINIMAX_TRANSCRIPTION_API_ENDPOINT: ${{ vars.MINIMAX_TRANSCRIPTION_API_ENDPOINT || 'https://api.minimax.cn/v1/speech_to_text' }}
           MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}
-          MEDIA_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_DAILY_LIMIT || '50' }}
+          MEDIA_VIDEO_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}
+          MEDIA_PODCAST_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}
           MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
+          CONTENT_MEDIA_SOURCE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_SOURCE_TIMEOUT_MS || '180000' }}
+          CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS || '900000' }}
         run: >-
           set -o pipefail
           &&
           if [ "$MEDIA_MODE" = "auto-publish" ]; then
-          export MEDIA_VIDEO_HOSTING_LIMIT="$MEDIA_DAILY_LIMIT";
-          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
+          export MEDIA_VIDEO_HOSTING_LIMIT="$MEDIA_VIDEO_DAILY_LIMIT";
+          pnpm content:pipeline -- media-daily --mode review-only --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
-          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log";
+          pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log";
           else
-          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit "$MEDIA_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
+          pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           fi
       - name: Cleanup expired candidates and artifacts
         if: always()
@@ -161,7 +174,9 @@ jobs:
           } else {
             const counts = result.counts ?? {};
             const failures = Array.isArray(result.failures) ? result.failures.length : 0;
-            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, approved=${counts.approved ?? 0}, published=${counts.published ?? 0}, failures=${failures}`);
+            const publishedByType = result.publishedByType ?? {};
+            const targetDeficitByType = result.targetDeficitByType ?? {};
+            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, approved=${counts.approved ?? 0}, published=${counts.published ?? 0}, videoPublished=${publishedByType.video ?? 0}, podcastPublished=${publishedByType.podcast ?? 0}, videoDeficit=${targetDeficitByType.video ?? 0}, podcastDeficit=${targetDeficitByType.podcast ?? 0}, failures=${failures}`);
           }
           NODE
           }
@@ -169,8 +184,9 @@ jobs:
             echo '## Daily content run'
             echo '- Secrets, article bodies, provider responses, and query credentials are intentionally omitted.'
             echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
-            echo "- Requested global limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
+            echo "- Requested article limit: ${{ vars.CONTENT_ARTICLE_DAILY_LIMIT || '10' }}"
             echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}"
+            echo "- Media targets: video=${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}, podcast=${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}, bilingual subtitles required=${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}"
             summarize_stage "Articles" "$RUNNER_TEMP/article-daily.log"
             summarize_stage "Media" "$RUNNER_TEMP/media-daily.log"
           } >> "$GITHUB_STEP_SUMMARY"

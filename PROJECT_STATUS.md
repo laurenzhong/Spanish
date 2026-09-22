@@ -2,12 +2,36 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-20
+- 最后更新：2026-09-21
 - 当前里程碑：内容驱动学习与自动内容供应重构
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。媒体自动发布仅在受保护 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true` 时开启，缺失或非 `true` 仍停在候选审核库。ALPHA-033 最终门禁要求 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 全部通过，且 P0/P1 清零并有产品本人确认。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter、远端迁移、真实来源抓取和真实收费 Provider 继续如实记录
 - 2026-09-20 运行核对：旧默认分支运行 `35479652473` 在 30 分钟硬上限被取消，文章阶段未输出结构化结果，媒体阶段未开始；默认分支运行 `35482150149` 仅为 `discover-only`、limit 1，Readlang 旧适配器返回 `CONTENT_PROCESSING_FAILED`，两次运行均无可计入的发布数。修复已集中在开放 PR `#15`（分支 `codex/release-review`，当前可合并）：Readlang v5 精确 URL、文章审核有界并发、60 分钟总超时、脱敏阶段计数、统一媒体工作台及回归测试。PR 合并前不得把默认分支运行描述为已完成今日发布。
+
+### 2026-09-21：媒体每日 10 视频 + 10 播客与双语字幕处理
+
+- 当前真实收口核验（北京时间 `2026-09-21`）：正式发布候选视频 `19`、播客 `10`；按“正式媒体版本存在完整西语原文 + 简体中文翻译时间轴”计数，视频双语 `1/10`、播客双语 `10/10`，因此目标尚未完全达成，不能把视频正式数当作视频双语完成数。该计数口径已下沉到 `countPublishedMediaByType`，历史无字幕版本不会再挤占每日目标。
+- 播放验收补强：视频和播客继续统一使用 `MediaLearningWorkbench`；当前句会随播放时间自动高亮字幕中的词，并在句子切换时滚动到当前字幕。桌面/移动 Playwright 媒体回归 `6/6` 通过，覆盖双语切换与自动选词。
+- 本轮实现 Commit：`cf5139b`（双语媒体配额按正式版本字幕完整度计数；统一视频/播客工作台增加播放词语自动跟随与当前句滚动）和 `31cfc26`（来源 discovery 失败时继续处理已有媒体草稿）。
+- 本轮真实自动发布最终结果：播客目标从 `1` 增至 `10`，`targetDeficitByType={video:0,podcast:0}` 仅表示发布数量配额，不表示历史视频字幕已回填。视频双语补齐批次处理 10 个授权 YouTube 草稿，其中 2 个进入 `review_ready` 且已有双语段，但尚未通过 Bunny 托管和三维发布门禁；其余候选因 `MEDIA_AUDIO_COMMAND_FAILED`、`MEDIA_TRANSCRIPTION_FAILED` 或审核 provider 响应格式无效而未发布。
+- 本轮实现 Commit：`f7842ae`（候选 SQL 显式按 `publicationStatus=draft` 过滤，避免已发布候选挤占调度 limit；MiniMax 文章修订逐字段容错）和 `212a5bd`（Language Reactor 授权播客 CDN 多跳重定向上限提升至 6，并增加回归测试）。播客 allowlist 仅显式增加已验证的 `dcs-cached.megaphone.fm`、`content.blubrry.com`；视频源仅登记已有授权策略的 `temporaryMediaProcessing=yt-dlp`，没有扩大来源范围。
+- 验证：相关 Vitest `5 files / 24 tests`、媒体/文章聚焦测试、`pnpm typecheck`、`pnpm lint` 和 `git diff --check` 通过。真实数据库只读核验确认正式媒体资产全部可用（视频 `bunny-storage` 18、播客 `language-reactor` 10）。
+- 下一步：为至少 9 个视频草稿完成授权 `yt-dlp` 下载、双语 ASR/翻译、Bunny MP4 托管、统一 `MediaLearningWorkbench` 播放验收和三维审核后再发布；完成前每日指标应显示为“播客双语 10/10、视频双语 1/10（视频正式版本 19）”。
+
+- 实现 Commit：`9e155a2`，取消传播修复：`d67b2bd`（当前分支 `codex/youtube-download-resilience`）。每日媒体配额继续按 Asia/Shanghai 自然日独立累计：视频 10 条、播客 10 条；工作流在审核阶段和自动发布阶段都显式要求双语字幕。
+- 自动处理链已接入每日媒体流水线：无字幕授权媒体下载临时音频，默认使用 MiniMax ASR（显式设置 `CONTENT_MEDIA_STT_PROVIDER=openai` 才切换到 OpenAI）生成西语时间轴，再使用 MiniMax 逐句翻译为简体中文；已有单语字幕只补翻译。临时目录在成功、失败、取消和超时路径清理，发布前仍执行完整西语/中文时间轴门禁。
+- Language Reactor 播客适配器现在跳过单个暂时不可用的授权音频并继续处理同页后续文档；来源 API、取消、游标和权利策略错误仍会中止来源并保留 fail-closed 行为。
+- 配置同步：`.env.example`、GitHub workflow 和 `docs/operations/content-acquisition-runbook.md` 增加 `CONTENT_MEDIA_PROVIDER_MODE`、STT/翻译 provider、模型、预算和置信度变量；内容 CLI 使用 `react-server` 条件加载 server-only provider。
+- 配额补强 Commit：`49b465f`。CLI 在缺少环境变量时也默认总计 20、视频 10、播客 10，并默认启用双语字幕门禁；Bunny 批量托管脚本按 Asia/Shanghai 当天已正式发布的视频数只处理剩余缺口，避免目标已满后继续托管候选。同步更新媒体运行手册并增加 CLI 默认值回归测试。
+- 本轮补充验证：聚焦 Vitest `4 files / 28 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check`，以及 Playwright Chrome workflow smoke 桌面/移动 `2/2`；此前视频/播客媒体工作台桌面/移动 `6/6` 回归仍通过。
+- 验证：定向 Vitest `4 files / 27 tests`、STT/字幕聚焦 `3 files / 26 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；项目 Playwright Chrome 桌面媒体回归 `5/5`、移动 `5/5`，workflow smoke `1/1` 通过。全量 Vitest `237 files / 952 passed, 9 failed`；9 个失败均为已知 PGLite 测试基线缺失 `media_versions.artwork_*` 迁移列，与本提交无关。
+- 媒体 provider 补充：MiniMax ASR 支持超过 500 秒的临时音频按 450 秒分片，使用真实临时资产路径，取消/超时后清理分片目录；定向 STT/媒体测试 `7 files / 45 tests`、`pnpm typecheck`、`pnpm lint` 和 `git diff --check` 通过。
+- 2026-09-21 本地数据库 `review-only` canary（播客目标 1、来源上限 1）结构化结果为 `publishedByType={video:18,podcast:0}`、`targetDeficitByType={video:0,podcast:1}`，候选失败 `provider-cancelled`；未新增正式发布。一次更长 canary 已中止并清理遗留临时媒体目录。当前不能宣称今天完成 10/10；Bunny 凭据未配置，后续需先解决 MiniMax/候选处理超时，再按 `review-only → auto-publish` 分阶段运行。
+- 最终发布门禁 Commit：`5d4d2b4`。`auto-publish-media`、视频 publisher 和播客 publisher 现在都会在发布边界再次检查每个字幕片段同时存在非空西语原文与中文翻译；缺失双语字幕的媒体不会创建正式版本，也不会计入 `publishedByType`。新增视频/播客发布器回归测试，定向媒体单测 `5 files / 21 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 和媒体 Playwright `10/10`（改用 3111 端口）通过。
+- 只读核验本地 `.env` 数据库的北京时间 `2026-09-21` 窗口：正式发布视频 `18`、播客 `1`；视频 `18` 条均无完整双语字幕时间轴，播客 `1` 条有完整双语字幕时间轴。该核验未写入数据库、未调用真实 provider、未修改历史已发布版本，因此当前仍不能宣称达到双语门禁下的 `10/10`；需先用 `media_transcript_backfills` 或新媒体版本补齐视频字幕，并继续获取 9 条新的播客候选，完成三维审核后再执行 `review-only → auto-publish`。
+- 本轮收口实现 Commit：`cbd786e`。MiniMax 作为 live STT 默认值与示例/workflow/运行手册一致；ASR 与翻译对可重试 provider 错误执行最多 3 次有界退避并保持取消可传播；Language Reactor 临时音频处理策略可显式登记；长媒体字幕时间轴上限提升到 2,000 段；MiniMax 审核说明在存储边界截断而不误判长响应失败。新增默认配置、超长审核说明、长时间轴和 workflow 目标断言回归测试。
+- 本轮验证：定向 Vitest `7 files / 35 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；内容 workflow Playwright 桌面/移动 `2/2`、视频/播客学习页 Playwright 桌面/移动 `6/6` 通过。真实来源抓取、生产数据库写入、Bunny 托管和收费 provider 运行仍以实际环境凭据与当天正式 `publishedByType` 为准。
 
 ### 2026-09-20：SOURCE-PRIORITY-001 来源优先级与 Readlang v6
 

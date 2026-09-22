@@ -52,7 +52,9 @@ export const podcastCandidateDraftSchema = z.strictObject({
   artwork: mediaArtworkSchema.nullable().default(null),
   transcriptStatus: z.enum(["unavailable", "platform_manual", "platform_auto", "asr"]),
   transcriptUrl: httpsUrlSchema.nullable(),
-  segments: z.array(podcastCandidateSegmentSchema).max(500),
+  // Long-form podcasts can legitimately produce more than 500 sentence
+  // segments; keep the bound high enough to avoid dropping a full transcript.
+  segments: z.array(podcastCandidateSegmentSchema).max(2_000),
   contentHash: hashSchema,
   changeReason: z.string().trim().min(1).max(1_000),
 });

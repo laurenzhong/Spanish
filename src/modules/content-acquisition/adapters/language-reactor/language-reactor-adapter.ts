@@ -246,6 +246,9 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           allowedHosts: policy.allowedAudioHosts,
           allowedContentTypes: policy.allowedAudioMimeTypes,
           maxBytes: policy.maxEnclosureBytes,
+          // Podcast directory enclosures commonly pass through several
+          // authorized CDN redirectors before reaching the audio asset.
+          maxRedirects: 6,
           signal: requestOptions?.signal,
         });
         const artwork = await this.podcastArtwork(document.info.itunesId, document.info.feedTitle?.trim() || title, requestOptions?.signal);
@@ -284,7 +287,10 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
         items.push({ externalItemId: document.diocoDocId, canonicalUrl: draft.canonicalUrl, title, contentType: "podcast", language: "es", publishedAt, contentHash: draft.contentHash, metadata: { podcastDraft: draft } });
       } catch (error) {
         if (requestOptions?.signal?.aborted) throw error;
-        if (error instanceof ContentSourceAdapterError && error.retryable) throw error;
+        // A single enclosure can be temporarily unavailable while the
+        // directory itself remains healthy. Skip that episode and continue
+        // discovering later documents; source-level failures are handled by
+        // the API request above.
       }
     }
     return {

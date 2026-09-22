@@ -25,3 +25,4 @@ export * from "./run-daily-article-pipeline";
 export * from "./run-daily-media-pipeline";
 export * from "./revise-media-candidate";
 export * from "./run-media-review";
+export * from "./process-daily-media-candidate";

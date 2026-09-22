@@ -39,6 +39,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
   const [activeIndex, setActiveIndex] = useState<number | null>(initialActiveIndex);
   const [captionMode, setCaptionMode] = useState<CaptionMode>("es");
   const [autoPause, setAutoPause] = useState(false);
+  const [currentPositionMs, setCurrentPositionMs] = useState(initialPositionMs);
   const [playerState, setPlayerState] = useState<VideoPlayerState | "loading">("loading");
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [progressSyncState, setProgressSyncState] = useState<ProgressSyncState>("idle");
@@ -137,6 +138,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
     const segment = playback.segments[index];
     if (!segment || !playerRef.current) return;
     updateActiveIndex(index);
+    setCurrentPositionMs(segment.startMs);
     playerRef.current.seek(segment.startMs);
     playerRef.current.play();
   }, [playback.segments, updateActiveIndex]);
@@ -161,6 +163,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
     if (!playerRef.current || playerState !== "playing") return;
     const timer = window.setInterval(() => {
       const current = playerRef.current?.currentTime() ?? 0;
+      setCurrentPositionMs(current);
       const found = findSegmentIndexAt(playback.segments, current);
       if (found !== null) updateActiveIndex(found);
       const currentSegment = playback.segments[activeIndex ?? found ?? -1];
@@ -179,6 +182,8 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
     playerRef.current = port;
   }, []);
   const handleStateChange = useCallback((state: VideoPlayerState | AudioPlayerState) => {
+    const current = playerRef.current?.currentTime();
+    if (current !== undefined && Number.isFinite(current)) setCurrentPositionMs(current);
     setPlayerState(state);
     if (state === "ready" && initialPositionMs) playerRef.current?.seek(initialPositionMs);
     if (state === "paused" || state === "ended") sendProgress(progressSnapshot(state));
@@ -214,7 +219,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
     <section aria-labelledby="media-transcript-title" className="media-learning-workbench__transcript">
       <header><div><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
         <div aria-label="字幕模式" className="caption-mode">{(["es", "bilingual", "hidden"] as const).map((mode) => <button aria-pressed={captionMode === mode} key={mode} onClick={() => setCaptionMode(mode)} type="button">{mode === "es" ? "西语" : mode === "bilingual" ? "双语" : "隐藏"}</button>)}</div></header>
-      <SegmentTranscript activeIndex={activeIndex} captionMode={captionMode} mediaKind={playback.media.kind} onSeek={selectSegment} onWord={openWord} segments={playback.segments} />
+      <SegmentTranscript activeIndex={activeIndex} captionMode={captionMode} currentPositionMs={currentPositionMs} mediaKind={playback.media.kind} onSeek={selectSegment} onWord={openWord} segments={playback.segments} />
     </section>
     {lexicalSelection ? <LexicalDrawer onClose={closeWord} sentence={lexicalSelection.sentence} word={lexicalSelection.word} /> : null}
   </div>;

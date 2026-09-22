@@ -57,7 +57,7 @@ describe("Language Reactor adapter", () => {
     });
   });
 
-  it("surfaces a stable retry reason when an authorized audio host is temporarily unreachable", async () => {
+  it("skips one unavailable enclosure without aborting the directory page", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         status: "success",
@@ -70,15 +70,59 @@ describe("Language Reactor adapter", () => {
           diocoDocName: "Un episodio",
           description: "Practica cotidiana.",
           lang_G: "es",
+        }, {
+          mediaClass: "AUDIO_FILE",
+          info: { feedTitle: "Podcast" },
+          audioFileURL: "https://audio.example.test/episode-2.mp3",
+          duration_ms: 120_000,
+          diocoDocId: "it_available",
+          diocoDocName: "Otro episodio",
+          description: "Practica cotidiana.",
+          lang_G: "es",
         }] },
       }), { status: 200, headers: { "content-type": "application/json" } }))
-      .mockRejectedValueOnce(new TypeError("socket closed"));
+      .mockRejectedValueOnce(new TypeError("socket closed"))
+      .mockResolvedValueOnce(new Response(null, { status: 200, headers: { "content-type": "audio/mpeg", "content-length": "1000" } }));
     const adapter = new LanguageReactorAdapter({
       fetch: fetchImpl,
       source: { sourceKind: "podcast-feed", playlistId: "t_pd_mix_es", displayName: "Language Reactor", region: "es-ES", policy: { ...policy, directoryUrl: "https://www.languagereactor.com/c/es/pd/t_pd_mix_es" } },
     });
 
-    await expect(adapter.discover({ sourceStableKey: "language-reactor.podcast-mix-es", externalSourceId: "t_pd_mix_es", cursor: null, limit: 1 }))
-      .rejects.toMatchObject({ reasonCode: "RESOURCE_REQUEST_FAILED", retryable: true });
+    const page = await adapter.discover({ sourceStableKey: "language-reactor.podcast-mix-es", externalSourceId: "t_pd_mix_es", cursor: null, limit: 2 });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ contentType: "podcast", externalItemId: "it_available" });
+  });
+
+  it("follows the authorized multi-hop CDN redirect chain for podcast audio", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        status: "success",
+        data: { docs_metadata: [{
+          mediaClass: "AUDIO_FILE",
+          info: { feedTitle: "Podcast" },
+          audioFileURL: "https://audio.example.test/episode.mp3",
+          duration_ms: 120_000,
+          diocoDocId: "it_multihop",
+          diocoDocName: "Un episodio con CDN",
+          description: "Practica cotidiana.",
+          lang_G: "es",
+        }] },
+      }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "https://audio.example.test/hop-1.mp3" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "https://audio.example.test/hop-2.mp3" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "https://audio.example.test/hop-3.mp3" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "https://audio.example.test/hop-4.mp3" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 200, headers: { "content-type": "audio/mpeg", "content-length": "1000" } }));
+    const adapter = new LanguageReactorAdapter({
+      fetch: fetchImpl,
+      source: { sourceKind: "podcast-feed", playlistId: "t_pd_mix_es", displayName: "Language Reactor", region: "es-ES", policy: { ...policy, directoryUrl: "https://www.languagereactor.com/c/es/pd/t_pd_mix_es" } },
+    });
+
+    const page = await adapter.discover({ sourceStableKey: "language-reactor.podcast-mix-es", externalSourceId: "t_pd_mix_es", cursor: null, limit: 1 });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ contentType: "podcast", externalItemId: "it_multihop" });
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
   });
 });

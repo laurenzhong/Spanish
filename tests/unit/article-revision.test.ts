@@ -93,6 +93,23 @@ describe("article revision", () => {
     expect(merged.format).toBe("news");
   });
 
+  it("keeps valid revision fields when an optional provider field has the wrong shape", async () => {
+    const provider = new MiniMaxArticleRevisionProvider({
+      apiKey: "test-key",
+      fetchImplementation: async () => new Response(JSON.stringify({
+        content: [{ type: "text", text: JSON.stringify({ summary: "Un resumen corregido.", changeReason: { invalid: true } }) }],
+      }), { status: 200, headers: { "content-type": "application/json" } }),
+    });
+    const result = await provider.revise({
+      candidateId: "candidate-1",
+      candidateRevision: 2,
+      draft,
+      feedback: [{ dimension: "content-es-ES", status: "changes_requested", notes: "Corrige una errata." }],
+    });
+    expect(result.summary).toBe("Un resumen corregido.");
+    expect(result.changeReason).toBeUndefined();
+  });
+
   it("retries a malformed provider response once", async () => {
     let calls = 0;
     const provider = new MiniMaxArticleRevisionProvider({

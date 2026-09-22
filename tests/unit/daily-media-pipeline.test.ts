@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { runDailyMediaPipeline } from "@/src/modules/content-acquisition/application/run-daily-media-pipeline";
+import { hasBilingualSubtitleTimeline, runDailyMediaPipeline } from "@/src/modules/content-acquisition/application/run-daily-media-pipeline";
 import { createVideoCandidateDraft } from "@/src/modules/content-acquisition/normalizers";
 import { mediaReviewInputHash, type MediaReviewInput } from "@/src/modules/content-acquisition/providers/media-review";
 import { CandidatePublisherRegistry } from "@/src/modules/content-acquisition/publishers";
@@ -42,6 +42,13 @@ function repository(sources: readonly ContentSourceRecord[]) {
 }
 
 describe("runDailyMediaPipeline", () => {
+  it("recognizes only complete Spanish-Chinese subtitle timelines", () => {
+    const base = { contentType: "video" as const, metadata: { videoDraft: { segments: [{ sourceText: "Hola", translation: "你好" }] } } };
+    expect(hasBilingualSubtitleTimeline(base)).toBe(true);
+    expect(hasBilingualSubtitleTimeline({ ...base, metadata: { videoDraft: { segments: [{ sourceText: "Hola", translation: null }] } } })).toBe(false);
+    expect(hasBilingualSubtitleTimeline({ ...base, metadata: { videoDraft: { segments: [] } } })).toBe(false);
+  });
+
   it("fails closed for disabled mode and ignores unverified media sources", async () => {
     const repo = repository([
       source(),
@@ -53,6 +60,22 @@ describe("runDailyMediaPipeline", () => {
     expect(result.skippedSources).toEqual([{ sourceStableKey: "podcast.unverified", reason: "RIGHTS_NOT_VERIFIED" }]);
     expect(resolveAdapter).not.toHaveBeenCalled();
     expect(repo.createRun).not.toHaveBeenCalled();
+  });
+
+  it("does not exceed the per-type target when the natural day is already complete", async () => {
+    const repo = repository([source()]) as ReturnType<typeof repository> & { countPublishedMediaByType: ReturnType<typeof vi.fn> };
+    repo.countPublishedMediaByType = vi.fn(async () => ({ video: 10, podcast: 10 }));
+    const resolveAdapter = vi.fn();
+    const result = await runDailyMediaPipeline({ repository: repo as never, resolveAdapter }, {
+      mode: "discover-only",
+      dailyLimit: 20,
+      videoDailyLimit: 10,
+      podcastDailyLimit: 10,
+      defaultSourceLimit: 10,
+      date: "2026-09-19",
+    });
+    expect(resolveAdapter).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ publishedByType: { video: 10, podcast: 10 }, targetDeficitByType: { video: 0, podcast: 0 } });
   });
 
   it("runs discovery in discover-only mode and keeps media unpublished", async () => {
@@ -341,8 +364,82 @@ describe("runDailyMediaPipeline", () => {
       }),
     }, { mode: "review-only", dailyLimit: 10, defaultSourceLimit: 10, date: "2026-09-19" });
 
-    expect(repo.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ status: "processing", contentType: "video" }));
+    expect(repo.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ status: "processing", contentType: "video", publicationStatus: "draft" }));
     expect(result).toMatchObject({ prepared: 1, reviewReady: 1, failures: [] });
     expect(repo.compareAndSwapCandidate).toHaveBeenCalledWith(expect.objectContaining({ candidateId: candidate.id, status: "review_ready" }));
+  });
+
+  it("continues existing draft candidates when source discovery fails", async () => {
+    const mediaSource = source();
+    const repo = repository([mediaSource]);
+    const candidate = createVideoCandidateDraft({
+      stableKey: "youtube.discovery-failure-draft",
+      platform: "youtube",
+      platformVideoId: "discoveryFailure1",
+      sourceChannelId: "UC1234567890123456789012",
+      canonicalUrl: "https://www.youtube.com/watch?v=discoveryFailure1",
+      embedUrl: "https://www.youtube-nocookie.com/embed/discoveryFailure1?enablejsapi=1",
+      title: "Una conversación preparada",
+      summary: "Resumen",
+      sourceName: "Demo",
+      language: "es",
+      region: "ES",
+      cefr: "A2",
+      topics: ["topic.media"],
+      durationMs: 60_000,
+      publicationDate: "2026-09-18T00:00:00.000Z",
+      fetchedAt: "2026-09-19T00:00:00.000Z",
+      license: "licensed",
+      attribution: "Demo",
+      licenseEvidence: "https://example.test/license",
+      copyrightStatus: "cleared",
+      captionStatus: "platform_manual",
+      segments: [{ index: 0, startMs: 0, endMs: 60_000, sourceText: "Hola.", translation: "你好。", speaker: null, confidence: null, sourceKind: "platform_manual" }],
+      changeReason: "Prepared candidate.",
+    });
+    const candidateRecord = {
+      id: "candidate-discovery-failure",
+      sourceId: mediaSource.id,
+      externalItemId: candidate.platformVideoId,
+      normalizedUrl: candidate.canonicalUrl,
+      title: candidate.title,
+      contentType: "video",
+      language: "es",
+      metadata: { videoDraft: candidate, bunnyVideoAsset: { providerKey: "bunny-storage", playbackUrl: "https://sueno-media.b-cdn.net/media/x/video.mp4", mimeType: "video/mp4", sha256: "a".repeat(64), byteSize: 1 } },
+      publishedAt: null,
+      contentHash: candidate.contentHash,
+      rightsStatus: "verified",
+      status: "review_ready",
+      revision: 1,
+      generationId: "generation-1",
+      lastActivityAt: new Date("2026-09-18T00:00:00.000Z"),
+      rejectedAt: null,
+      publicationStatus: "draft",
+      publicationRef: null,
+      publishedCandidateRevision: null,
+      publishedContentHash: null,
+      publishedAtInternal: null,
+      archivedAt: null,
+    } satisfies ContentCandidateRecord;
+    repo.listCandidates.mockResolvedValue([candidateRecord]);
+    repo.getCandidateReview.mockResolvedValue({ candidate: candidateRecord, reviews: [
+      ...["content-es-ES", "teaching-zh-CN", "structure"].map((dimension) => ({ id: dimension, candidateId: candidateRecord.id, dimension, status: "approved", reviewerReference: "codex-ai-owner-authorized-review", candidateRevision: 1, notes: null })),
+    ] } as never);
+    const reviewProvider = {
+      dimension: "content-es-ES" as const,
+      review: vi.fn(async (input: MediaReviewInput) => ({ decision: "approved" as const, notes: "ok", modelVersion: "test", inputHash: mediaReviewInputHash(input) })),
+    };
+    const teachingProvider = { ...reviewProvider, dimension: "teaching-zh-CN" as const };
+    const publisher = { contentType: "video" as const, publish: vi.fn(async () => ({ kind: "media" as const, stableKey: candidate.stableKey, version: 1 })), archive: vi.fn(async () => undefined) };
+    const result = await runDailyMediaPipeline({
+      repository: repo as never,
+      resolveAdapter: async () => ({ key: "youtube", discover: async () => { throw new Error("temporary discovery failure"); } }),
+      reviewProviders: { content: reviewProvider, teaching: teachingProvider },
+      publishers: new CandidatePublisherRegistry([publisher]),
+    }, { mode: "auto-publish", dailyLimit: 1, videoDailyLimit: 1, podcastDailyLimit: 0, defaultSourceLimit: 1, date: "2026-09-19" });
+
+    expect(result.published).toBe(1);
+    expect(result.failures).toEqual([{ scope: "source", sourceStableKey: mediaSource.stableKey, code: "temporary_discovery_failure" }]);
+    expect(publisher.publish).toHaveBeenCalledOnce();
   });
 });

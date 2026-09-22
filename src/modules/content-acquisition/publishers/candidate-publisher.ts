@@ -17,6 +17,7 @@ export type CandidatePublisherInput = Readonly<{
   normalizedUrl: string;
   metadata: Readonly<Record<string, unknown>>;
   reviews: readonly CandidateReviewRecord[];
+  requireBilingualSubtitles?: boolean;
 }>;
 
 export interface CandidatePublisher {

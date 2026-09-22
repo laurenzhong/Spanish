@@ -36,7 +36,7 @@ import {
   type ContentAcquisitionRepository,
   type ContentSourceRecord,
   type ContentSourceAdapter,
-} from "../src/modules/content-acquisition/index";
+} from "../src/modules/content-acquisition/server";
 import { createDatabaseConnection } from "../src/shared/db/client";
 import { createDrizzleArticleRepository } from "../src/modules/content/repositories";
 
@@ -66,7 +66,10 @@ export type ContentPipelineCliOptions = AcquireContentCliOptions & Readonly<{
   policyVersion?: string;
   mediaMode?: typeof mediaPublicationModes[number];
   mediaDailyLimit?: number;
+  mediaVideoDailyLimit?: number;
+  mediaPodcastDailyLimit?: number;
   mediaSourceLimit?: number;
+  mediaRequireBilingualSubtitles?: boolean;
 }>;
 
 /** Returns the calendar date used by the article policy, independent of the runner's UTC clock. */
@@ -178,13 +181,30 @@ export function parseContentPipelineArguments(args: readonly string[]): ContentP
     const modeIndex = args.indexOf("--mode");
     const mode = modeIndex >= 0 ? args[modeIndex + 1] : process.env.CONTENT_MEDIA_DAILY_MODE ?? "disabled";
     const dailyIndex = args.indexOf("--daily-limit");
+    const videoDailyIndex = args.indexOf("--video-daily-limit");
+    const podcastDailyIndex = args.indexOf("--podcast-daily-limit");
     const sourceIndex = args.indexOf("--source-limit");
-    const dailyLimit = Number(dailyIndex >= 0 ? args[dailyIndex + 1] : process.env.CONTENT_MEDIA_DAILY_LIMIT ?? 50);
+    const dailyLimit = Number(dailyIndex >= 0 ? args[dailyIndex + 1] : process.env.CONTENT_MEDIA_DAILY_LIMIT ?? 20);
+    const videoDailyLimit = videoDailyIndex >= 0
+      ? Number(args[videoDailyIndex + 1])
+      : process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT === undefined
+        ? 10
+        : Number(process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT);
+    const podcastDailyLimit = podcastDailyIndex >= 0
+      ? Number(args[podcastDailyIndex + 1])
+      : process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT === undefined
+        ? 10
+        : Number(process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT);
     const sourceLimit = Number(sourceIndex >= 0 ? args[sourceIndex + 1] : process.env.CONTENT_MEDIA_SOURCE_LIMIT ?? 10);
+    const requireBilingualSubtitles = args.includes("--require-bilingual-subtitles")
+      || (process.env.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES ?? "true") === "true";
     if (!mode || !mediaPublicationModes.includes(mode as typeof mediaPublicationModes[number])) throw new AcquireContentCliInputError("--mode must be a valid media publication mode.");
     if (!Number.isInteger(dailyLimit) || dailyLimit < 0 || dailyLimit > 50) throw new AcquireContentCliInputError("--daily-limit must be between 0 and 50.");
+    for (const [name, value] of [["--video-daily-limit", videoDailyLimit], ["--podcast-daily-limit", podcastDailyLimit]] as const) {
+      if (value !== undefined && (!Number.isInteger(value) || value < 0 || value > 50)) throw new AcquireContentCliInputError(`${name} must be between 0 and 50.`);
+    }
     if (!Number.isInteger(sourceLimit) || sourceLimit < 1 || sourceLimit > 50) throw new AcquireContentCliInputError("--source-limit must be between 1 and 50.");
-    return { sourceStableKey: "media-daily", dryRun: false, limit: dailyLimit || 1, command, allEnabled: false, mediaMode: mode as typeof mediaPublicationModes[number], mediaDailyLimit: dailyLimit, mediaSourceLimit: sourceLimit };
+    return { sourceStableKey: "media-daily", dryRun: false, limit: dailyLimit || 1, command, allEnabled: false, mediaMode: mode as typeof mediaPublicationModes[number], mediaDailyLimit: dailyLimit, mediaVideoDailyLimit: videoDailyLimit, mediaPodcastDailyLimit: podcastDailyLimit, mediaSourceLimit: sourceLimit, mediaRequireBilingualSubtitles: requireBilingualSubtitles };
   }
   const allEnabled = args.includes("--all-enabled");
   const flags = args.filter((argument) => argument !== command && argument !== "--all-enabled");
@@ -331,6 +351,17 @@ async function main(): Promise<void> {
     if (options.command === "media-daily") {
       const mediaMode = options.mediaMode ?? "disabled";
       assertMediaAutoPublishKillSwitch(mediaMode);
+      let mediaRuntime: import("../src/modules/content-acquisition/application/content-media-runtime").ContentMediaRuntime | undefined;
+      if (options.mediaRequireBilingualSubtitles && (mediaMode === "review-only" || mediaMode === "auto-publish")) {
+        try {
+          const { createContentMediaRuntime } = await import("../src/modules/content-acquisition/application/content-media-runtime");
+          mediaRuntime = createContentMediaRuntime();
+        } catch (error) {
+          if (mediaMode === "auto-publish") {
+            throw new AcquireContentCliInputError(error instanceof Error ? error.message : "CONTENT_MEDIA_PROVIDER_NOT_CONFIGURED");
+          }
+        }
+      }
       const mediaReviewRequired = mediaMode === "review-only" || mediaMode === "auto-publish";
       let mediaReviewProviders: (ReturnType<typeof createConfiguredMediaReviewProviders> & { revision?: ReturnType<typeof createConfiguredMediaRevisionProvider> }) | undefined;
       if (mediaReviewRequired) {
@@ -360,15 +391,22 @@ async function main(): Promise<void> {
             ? createPodcastRssAdapterFromSource(source)
             : createYouTubeChannelAdapterFromSource(source),
         reviewProviders: mediaReviewProviders,
+        mediaRuntime,
         publishers: mediaMode === "auto-publish" ? contentWorkflowPublishers : undefined,
       }, {
         mode: mediaMode,
         dailyLimit: options.mediaDailyLimit ?? 50,
+        videoDailyLimit: options.mediaVideoDailyLimit,
+        podcastDailyLimit: options.mediaPodcastDailyLimit,
+        requireBilingualSubtitles: options.mediaRequireBilingualSubtitles,
         defaultSourceLimit: options.mediaSourceLimit ?? 10,
+        sourceTimeoutMs: Number(process.env.CONTENT_MEDIA_SOURCE_TIMEOUT_MS ?? 180_000),
+        candidateTimeoutMs: Number(process.env.CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS ?? 15 * 60_000),
         reviewConcurrency: Number(process.env.CONTENT_MEDIA_REVIEW_CONCURRENCY ?? 2),
       });
-       const mediaPartial = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0 || result.skipped > 0 || result.skippedSources.length > 0;
-       process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: mediaPartial ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewReady: result.reviewReady, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, skippedReasons: result.skippedReasons, skippedSources: result.skippedSources, failures: result.failures })}\n`);
+       const mediaTargetIncomplete = result.mode === "auto-publish" && (result.targetDeficitByType.video > 0 || result.targetDeficitByType.podcast > 0);
+       const mediaPartial = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0 || result.skipped > 0 || result.skippedSources.length > 0 || mediaTargetIncomplete;
+       process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: mediaPartial ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewReady: result.reviewReady, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, publishedByType: result.publishedByType, targetDeficitByType: result.targetDeficitByType, skippedReasons: result.skippedReasons, skippedSources: result.skippedSources, failures: result.failures })}\n`);
       return;
     }
     if (options.command === "cleanup") {

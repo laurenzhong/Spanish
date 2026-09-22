@@ -184,7 +184,7 @@ describe("runDailyArticlePipeline", () => {
     await runDailyArticlePipeline(dependencies, { date: "2026-09-17", mode: "discover-only", policyVersion: "p1", dailyLimit: 10, defaultSourceLimit: 10 });
     const result = await runDailyArticlePipeline(dependencies, { date: "2026-09-18", mode: "review-only", policyVersion: "p1", dailyLimit: 10, defaultSourceLimit: 10 });
 
-    expect(repo.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ sourceId: sources[0]!.id, status: "review_ready", contentType: "article" }));
+    expect(repo.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ sourceId: sources[0]!.id, status: "review_ready", contentType: "article", publicationStatus: "draft" }));
     expect(result.prepared).toBe(1);
     expect(result.reviewed).toBe(1);
     expect(result.approved).toBe(1);

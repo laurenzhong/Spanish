@@ -6,6 +6,8 @@ import { runAcquisitionSource } from "./run-acquisition-source";
 import { runMediaReview } from "./run-media-review";
 import { reviseMediaCandidateAfterReview } from "./revise-media-candidate";
 import { autoPublishMediaCandidate } from "./auto-publish-media";
+import { processDailyMediaCandidate } from "./process-daily-media-candidate";
+import type { ContentMediaRuntime } from "./content-media-runtime";
 import type { MediaReviewProvider } from "../providers/media-review";
 import type { MediaRevisionProvider } from "../providers/media-revision";
 import type { CandidatePublisherRegistry } from "../publishers";
@@ -39,6 +41,10 @@ export type DailyMediaPipelineResult = Readonly<{
   runKey: string;
   mode: MediaPublicationMode;
   dailyLimit: number;
+  videoDailyLimit: number;
+  podcastDailyLimit: number;
+  publishedByType: Readonly<{ video: number; podcast: number }>;
+  targetDeficitByType: Readonly<{ video: number; podcast: number }>;
   discovered: number;
   inserted: number;
   duplicates: number;
@@ -61,10 +67,12 @@ export type RunDailyMediaPipelineDependencies = Readonly<{
   resolveAdapter: (source: ContentSourceRecord) => ContentSourceAdapter | Promise<ContentSourceAdapter>;
   reviewProviders?: Readonly<{ content: MediaReviewProvider; teaching: MediaReviewProvider; revision?: MediaRevisionProvider }>;
   publishers?: CandidatePublisherRegistry;
+  mediaRuntime?: ContentMediaRuntime;
   now?: () => Date;
 }>;
 
-const DEFAULT_MEDIA_SOURCE_TIMEOUT_MS = 45_000;
+const DEFAULT_MEDIA_SOURCE_TIMEOUT_MS = 180_000;
+const DEFAULT_MEDIA_CANDIDATE_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_MEDIA_REVIEW_CONCURRENCY = 2;
 
 function errorCode(error: unknown): string {
@@ -111,15 +119,31 @@ function hasHostedVideoAsset(candidate: Readonly<Pick<ContentCandidateRecord, "c
     && typeof candidate.metadata.bunnyVideoAsset === "object";
 }
 
+export function hasBilingualSubtitleTimeline(candidate: Readonly<Pick<ContentCandidateRecord, "contentType" | "metadata">>): boolean {
+  const draftKey = candidate.contentType === "video" ? "videoDraft" : "podcastDraft";
+  const draft = candidate.metadata[draftKey];
+  if (!draft || typeof draft !== "object" || !("segments" in draft) || !Array.isArray(draft.segments)) return false;
+  return draft.segments.length > 0 && draft.segments.every((segment) => {
+    if (!segment || typeof segment !== "object") return false;
+    const value = segment as Record<string, unknown>;
+    return typeof value.sourceText === "string" && value.sourceText.trim().length > 0
+      && typeof value.translation === "string" && value.translation.trim().length > 0;
+  });
+}
+
 export async function runDailyMediaPipeline(
   dependencies: RunDailyMediaPipelineDependencies,
   input: Readonly<{
     date?: string;
     mode: MediaPublicationMode;
     dailyLimit: number;
+    videoDailyLimit?: number;
+    podcastDailyLimit?: number;
     defaultSourceLimit: number;
     sourceTimeoutMs?: number;
+    candidateTimeoutMs?: number;
     reviewConcurrency?: number;
+    requireBilingualSubtitles?: boolean;
   }>,
 ): Promise<DailyMediaPipelineResult> {
   const date = input.date ?? naturalDate((dependencies.now ?? (() => new Date()))());
@@ -136,6 +160,13 @@ export async function runDailyMediaPipeline(
     runKey,
     mode: input.mode,
     dailyLimit: input.dailyLimit,
+    videoDailyLimit: input.videoDailyLimit ?? input.dailyLimit,
+    podcastDailyLimit: input.podcastDailyLimit ?? input.dailyLimit,
+    publishedByType: { video: 0, podcast: 0 },
+    targetDeficitByType: {
+      video: input.videoDailyLimit ?? input.dailyLimit,
+      podcast: input.podcastDailyLimit ?? input.dailyLimit,
+    },
     discovered: 0,
     inserted: 0,
     duplicates: 0,
@@ -152,20 +183,37 @@ export async function runDailyMediaPipeline(
     skippedSources,
     failures,
   });
-  if (input.mode === "disabled" || input.dailyLimit === 0) return empty();
+  const videoDailyLimit = input.videoDailyLimit ?? input.dailyLimit;
+  const podcastDailyLimit = input.podcastDailyLimit ?? input.dailyLimit;
+  if (input.mode === "disabled" || (videoDailyLimit === 0 && podcastDailyLimit === 0)) return empty();
 
   const skippedReasons: Record<string, number> = {};
-  const result = { discovered: 0, inserted: 0, duplicates: 0, conflicts: 0, prepared: 0, reviewReady: 0, reviewed: 0, approved: 0, changesRequested: 0, rejected: 0, published: 0, skipped: 0 };
+  const result = { discovered: 0, inserted: 0, duplicates: 0, conflicts: 0, prepared: 0, reviewReady: 0, reviewed: 0, approved: 0, changesRequested: 0, rejected: 0, published: 0, skipped: 0, publishedByType: { video: 0, podcast: 0 } };
   const failures: DailyMediaPipelineFailure[] = [];
+  let previouslyPublished = { video: 0, podcast: 0 };
+  let publishedCountAvailable = true;
+  if (dependencies.repository.countPublishedMediaByType) {
+    try {
+      previouslyPublished = await dependencies.repository.countPublishedMediaByType({ date });
+    } catch (error) {
+      publishedCountAvailable = false;
+      failures.push({ scope: "source", sourceStableKey: "media-daily", code: errorCode(error) });
+    }
+  }
   const sourceTimeoutMs = input.sourceTimeoutMs ?? DEFAULT_MEDIA_SOURCE_TIMEOUT_MS;
+  const candidateTimeoutMs = input.candidateTimeoutMs ?? DEFAULT_MEDIA_CANDIDATE_TIMEOUT_MS;
   const requestedReviewConcurrency = input.reviewConcurrency ?? DEFAULT_MEDIA_REVIEW_CONCURRENCY;
   const reviewConcurrency = Number.isFinite(requestedReviewConcurrency)
     ? Math.max(1, Math.min(10, Math.floor(requestedReviewConcurrency)))
     : DEFAULT_MEDIA_REVIEW_CONCURRENCY;
-  let remaining = input.dailyLimit;
+  const remainingByType: Record<"video" | "podcast", number> = {
+    video: publishedCountAvailable ? Math.max(0, videoDailyLimit - previouslyPublished.video) : 0,
+    podcast: publishedCountAvailable ? Math.max(0, podcastDailyLimit - previouslyPublished.podcast) : 0,
+  };
   for (const source of eligible) {
-    if (remaining <= 0) break;
-    const limit = Math.min(input.defaultSourceLimit, remaining);
+    const contentType = source.sourceKind === "video-channel" ? "video" : "podcast";
+    if (remainingByType[contentType] <= 0) continue;
+    const limit = Math.min(input.defaultSourceLimit, remainingByType[contentType]);
     const sourceSignal = AbortSignal.timeout(sourceTimeoutMs);
     try {
       const adapter = await dependencies.resolveAdapter(source);
@@ -179,13 +227,23 @@ export async function runDailyMediaPipeline(
       result.inserted += acquisition.inserted;
       result.duplicates += acquisition.duplicates;
       result.conflicts += acquisition.conflicts;
-      remaining -= acquisition.inserted;
+      remainingByType[contentType] -= acquisition.inserted;
       if (input.mode === "discover-only") continue;
+    } catch (error) {
+      failures.push({
+        scope: "source",
+        sourceStableKey: source.stableKey,
+        code: sourceSignal.aborted ? "MEDIA_SOURCE_TIMEOUT" : errorCode(error),
+      });
+      // A transient discovery failure must not strand already discovered,
+      // review-ready, or processing drafts for the same verified source.
+      if (input.mode === "discover-only") continue;
+    }
 
-      const contentType = source.sourceKind === "video-channel" ? "video" : "podcast";
+    try {
       const resumableStatuses = ["discovered", "screened", "acquiring", "processing", "review_ready"] as const;
       const pending = await Promise.all(resumableStatuses.map((status) =>
-        dependencies.repository.listCandidates({ sourceId: source.id, status, limit, contentType })));
+        dependencies.repository.listCandidates({ sourceId: source.id, status, contentType, publicationStatus: "draft", limit })));
       const candidates = pending.flat().sort((left, right) => {
         // A hosted, fully reviewed video can publish immediately. Prioritize it
         // over older unhosted drafts so the daily run makes forward progress
@@ -199,11 +257,17 @@ export async function runDailyMediaPipeline(
         const batch = candidates.slice(offset, offset + reviewConcurrency);
         await Promise.all(batch.map(async (candidate) => {
           try {
-          const prepared = candidate.status === "review_ready"
-            ? candidate
-            : candidate.contentType === "video"
-              ? await prepareVideoCandidateForReview(dependencies.repository, candidate.id)
-              : await preparePodcastCandidateForReview(dependencies.repository, candidate.id);
+          const candidateSignal = AbortSignal.timeout(candidateTimeoutMs);
+          const processed = input.requireBilingualSubtitles
+            && dependencies.mediaRuntime
+            && !hasBilingualSubtitleTimeline(candidate)
+            ? await processDailyMediaCandidate({ repository: dependencies.repository, candidate, runtime: dependencies.mediaRuntime, now: dependencies.now, signal: candidateSignal })
+            : candidate;
+          const prepared = processed.status === "review_ready"
+            ? processed
+            : processed.contentType === "video"
+              ? await prepareVideoCandidateForReview(dependencies.repository, processed.id, { now: dependencies.now })
+              : await preparePodcastCandidateForReview(dependencies.repository, processed.id, { now: dependencies.now });
           if (candidate.status !== "review_ready") result.prepared += 1;
            if (prepared.status !== "review_ready") return;
           result.reviewReady += 1;
@@ -215,11 +279,11 @@ export async function runDailyMediaPipeline(
                return;
             }
             const existingReview = input.mode === "auto-publish"
-              ? await dependencies.repository.getCandidateReview(candidate.id)
+              ? await dependencies.repository.getCandidateReview(prepared.id)
               : null;
-            let review = existingReview && hasCurrentMediaApprovals(candidate, existingReview.reviews)
+            let review = existingReview && hasCurrentMediaApprovals(prepared, existingReview.reviews)
               ? { status: "approved" as const, reason: null }
-              : await runMediaReview(dependencies.repository, { candidateId: candidate.id, contentProvider: dependencies.reviewProviders.content, teachingProvider: dependencies.reviewProviders.teaching });
+              : await runMediaReview(dependencies.repository, { candidateId: prepared.id, contentProvider: dependencies.reviewProviders.content, teachingProvider: dependencies.reviewProviders.teaching });
             result.reviewed += 1;
             if (review.status === "approved") result.approved += 1;
             else if (review.status === "changes_requested") result.changesRequested += 1;
@@ -231,17 +295,17 @@ export async function runDailyMediaPipeline(
             if (review.status === "changes_requested" && dependencies.reviewProviders.revision) {
               try {
                 await reviseMediaCandidateAfterReview(dependencies.repository, {
-                  candidateId: candidate.id,
+                  candidateId: prepared.id,
                   revisionProvider: dependencies.reviewProviders.revision,
                   now: dependencies.now,
                 });
-                const revised = candidate.contentType === "video"
-                  ? await prepareVideoCandidateForReview(dependencies.repository, candidate.id, { now: dependencies.now })
-                  : await preparePodcastCandidateForReview(dependencies.repository, candidate.id, { now: dependencies.now });
+                const revised = prepared.contentType === "video"
+                  ? await prepareVideoCandidateForReview(dependencies.repository, prepared.id, { now: dependencies.now })
+                  : await preparePodcastCandidateForReview(dependencies.repository, prepared.id, { now: dependencies.now });
                 if (revised.status === "review_ready") {
                   result.prepared += 1;
                   result.reviewReady += 1;
-                  review = await runMediaReview(dependencies.repository, { candidateId: candidate.id, contentProvider: dependencies.reviewProviders.content, teachingProvider: dependencies.reviewProviders.teaching });
+                  review = await runMediaReview(dependencies.repository, { candidateId: revised.id, contentProvider: dependencies.reviewProviders.content, teachingProvider: dependencies.reviewProviders.teaching });
                   result.reviewed += 1;
                   if (review.status === "approved") result.approved += 1;
                   else if (review.status === "changes_requested") result.changesRequested += 1;
@@ -253,12 +317,20 @@ export async function runDailyMediaPipeline(
               }
             }
              if (input.mode !== "auto-publish" || review.status !== "approved") return;
+            if (input.requireBilingualSubtitles && !hasBilingualSubtitleTimeline(prepared)) {
+              result.skipped += 1;
+              skippedReasons.MEDIA_BILINGUAL_SUBTITLES_REQUIRED = (skippedReasons.MEDIA_BILINGUAL_SUBTITLES_REQUIRED ?? 0) + 1;
+              return;
+            }
             if (!dependencies.publishers) {
               failures.push({ scope: "candidate", sourceStableKey: source.stableKey, candidateId: candidate.id, code: "MEDIA_PUBLISHER_UNAVAILABLE" });
                return;
             }
-            const publication = await autoPublishMediaCandidate(dependencies.repository, dependencies.publishers, { candidateId: candidate.id, actor: "media-auto-publication", runId: runKey, now: dependencies.now });
-            if (publication.status === "published") result.published += 1;
+            const publication = await autoPublishMediaCandidate(dependencies.repository, dependencies.publishers, { candidateId: prepared.id, actor: "media-auto-publication", runId: runKey, now: dependencies.now, requireBilingualSubtitles: input.requireBilingualSubtitles });
+            if (publication.status === "published") {
+              result.published += 1;
+              result.publishedByType[contentType] += 1;
+            }
             else if (publication.status === "skipped") {
               result.skipped += 1;
               const reason = publication.reason ?? "MEDIA_PUBLICATION_SKIPPED";
@@ -275,9 +347,23 @@ export async function runDailyMediaPipeline(
       failures.push({
         scope: "source",
         sourceStableKey: source.stableKey,
-        code: sourceSignal.aborted ? "MEDIA_SOURCE_TIMEOUT" : errorCode(error),
+        code: errorCode(error),
       });
     }
   }
-  return { ...empty(failures), ...result, skippedReasons };
+  return {
+    ...empty(failures),
+    ...result,
+    videoDailyLimit,
+    podcastDailyLimit,
+    publishedByType: {
+      video: previouslyPublished.video + result.publishedByType.video,
+      podcast: previouslyPublished.podcast + result.publishedByType.podcast,
+    },
+    targetDeficitByType: {
+      video: Math.max(0, videoDailyLimit - previouslyPublished.video - result.publishedByType.video),
+      podcast: Math.max(0, podcastDailyLimit - previouslyPublished.podcast - result.publishedByType.podcast),
+    },
+    skippedReasons,
+  };
 }

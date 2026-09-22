@@ -67,4 +67,14 @@ describe("acquired podcast publisher", () => {
     await expect(publisher.publish({ ...input, metadata: { podcastDraft: { ...podcast, transcriptUrl: null } } })).rejects.toBeInstanceOf(PodcastPublicationConflictError);
     expect(publishAcquiredPodcast).not.toHaveBeenCalled();
   });
+
+  it("rejects an otherwise approved podcast when the daily bilingual gate is enabled", async () => {
+    const podcast = createPodcastCandidateDraft({ ...draft(), transcriptStatus: "unavailable", transcriptUrl: null, segments: [] });
+    const publisher = new AcquiredPodcastPublisher({ publishAcquiredPodcast: vi.fn(), archiveAcquiredPodcast: vi.fn() } as unknown as AcquiredPodcastRepository);
+    await expect(publisher.publish({
+      candidateId: "candidate-1", candidateRevision: 5, contentHash: podcast.contentHash, contentType: "podcast",
+      title: podcast.title, language: podcast.language, normalizedUrl: podcast.canonicalUrl, metadata: { podcastDraft: podcast }, reviews,
+      requireBilingualSubtitles: true,
+    })).rejects.toBeInstanceOf(PodcastPublicationConflictError);
+  });
 });

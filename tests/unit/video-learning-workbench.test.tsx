@@ -122,6 +122,18 @@ describe("video learning workbench", () => {
     expect(word).toHaveFocus();
   });
 
+  it("follows playback time with a current word selection inside the active subtitle", () => {
+    vi.useFakeTimers();
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    player.setCurrentTime(900);
+    act(() => player.lifecycle().onStateChange("playing"));
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.getByRole("button", { name: "查看词语 días" })).toHaveAttribute("data-active-word", "true");
+    expect(screen.getByRole("button", { name: "查看词语 Buenos" })).not.toHaveAttribute("data-active-word", "true");
+  });
+
   it("auto-pauses at the reviewed segment boundary and ignores stale player callbacks after replacement", () => {
     vi.useFakeTimers();
     const first = fakePlayer();
