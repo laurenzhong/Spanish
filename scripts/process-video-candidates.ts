@@ -83,6 +83,10 @@ function candidateInput(candidate: ContentCandidateRecord, draft: ReturnType<typ
   };
 }
 
+function cueKey(segment: Readonly<{ startMs: number; endMs: number; sourceText: string }>): string {
+  return `${segment.startMs}:${segment.endMs}:${segment.sourceText.trim()}`;
+}
+
 async function processOne(repository: ReturnType<typeof createDrizzleContentAcquisitionRepository>, candidate: ContentCandidateRecord): Promise<Readonly<{ id: string; status: string; segments: number }>> {
   const currentDraft = videoCandidateDraftSchema.parse(candidate.metadata.videoDraft);
   if (["platform_manual", "platform_auto"].includes(currentDraft.captionStatus) && currentDraft.segments.length > 0 && currentDraft.segments.every((segment) => segment.translation && segment.words?.length)) {
@@ -112,7 +116,7 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
       candidate: candidateInput(candidate, currentDraft),
       audio,
       transcriptionProvider: createMiniMaxTranscriptionProvider({ timestampLevel: "word" }),
-      translationProvider: createMiniMaxTranslationProvider({ timeoutMs: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_TIMEOUT_MS ?? 120_000) }),
+      translationProvider: currentDraft.captionStatus === "platform_manual" ? undefined : createMiniMaxTranslationProvider({ timeoutMs: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_TIMEOUT_MS ?? 120_000) }),
       budgetPolicy: {
         dailyCostLimitMicros: Number(process.env.MEDIA_TRANSCRIPT_DAILY_LIMIT_MICROS ?? 5_000_000),
         monthlyCostLimitMicros: Number(process.env.MEDIA_TRANSCRIPT_MONTHLY_LIMIT_MICROS ?? 20_000_000),
@@ -125,19 +129,25 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
     });
     if (!pcm || result.segments.length === 0) throw new Error("MEDIA_VIDEO_TRANSCRIPT_EMPTY");
     validateSegmentTimeline(result.segments, currentDraft.durationMs);
-    const authorizedCues = await fetchLanguageReactorYoutubeTranscript(currentDraft.platformVideoId);
+    const authorizedCues = currentDraft.captionStatus === "platform_manual"
+      ? currentDraft.segments.map(({ startMs, endMs, sourceText }) => ({ begin: startMs, end: endMs, text: sourceText }))
+      : await fetchLanguageReactorYoutubeTranscript(currentDraft.platformVideoId);
     const authorizedSegments = alignAuthorizedTranscript(authorizedCues, result.segments, currentDraft.durationMs, "platform_manual");
+    const savedTranslations = new Map(currentDraft.segments.map((segment) => [cueKey(segment), segment.translation?.trim() || null]));
+    const segmentsNeedingTranslation = authorizedSegments.map((segment) => ({ ...segment, translation: savedTranslations.get(cueKey(segment)) ?? null }));
     const translated = await translateMediaSegments({
-      segments: authorizedSegments,
+      segments: segmentsNeedingTranslation.filter((segment) => !segment.translation?.trim()),
       provider: createMiniMaxTranslationProvider({ timeoutMs: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_TIMEOUT_MS ?? 120_000) }),
       concurrency: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_CONCURRENCY ?? 4),
       signal: controller,
     });
-    if (translated.failedCount > 0 || translated.segments.some((segment) => !segment.translation?.trim())) throw new Error("MEDIA_AUTHORIZED_TRANSCRIPT_TRANSLATION_INCOMPLETE");
+    const translatedByCue = new Map(translated.segments.map((segment) => [cueKey(segment), segment.translation?.trim() || null]));
+    const completedSegments = segmentsNeedingTranslation.map((segment) => ({ ...segment, translation: segment.translation?.trim() || translatedByCue.get(cueKey(segment)) || null }));
+    if (translated.failedCount > 0 || completedSegments.some((segment) => !segment.translation?.trim())) throw new Error("MEDIA_AUTHORIZED_TRANSCRIPT_TRANSLATION_INCOMPLETE");
     const nextDraft = createVideoCandidateDraft({
       ...currentDraft,
       captionStatus: "platform_manual",
-      segments: [...translated.segments],
+      segments: completedSegments,
       changeReason: "Reprocessed from the owner-authorized Language Reactor platform transcript; MiniMax supplies translations and aligned word timing only.",
     });
     const updated = await repository.requestCandidateReprocessing({

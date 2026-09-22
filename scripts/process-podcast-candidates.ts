@@ -132,12 +132,19 @@ function candidateInput(candidate: ContentCandidateRecord, draft: ReturnType<typ
   };
 }
 
+function cueKey(segment: Readonly<{ startMs: number; endMs: number; sourceText: string }>): string {
+  return `${segment.startMs}:${segment.endMs}:${segment.sourceText.trim()}`;
+}
+
 async function processOne(repository: ReturnType<typeof createDrizzleContentAcquisitionRepository>, candidate: ContentCandidateRecord, source: ContentSourceRecord): Promise<Readonly<{ id: string; status: string; segments: number }>> {
   const currentDraft = podcastCandidateDraftSchema.parse(candidate.metadata.podcastDraft);
   if (["platform_manual", "platform_auto"].includes(currentDraft.transcriptStatus) && currentDraft.segments.length > 0 && currentDraft.segments.every((segment) => segment.translation && segment.words?.length)) {
     return { id: candidate.id, status: "already-processed", segments: currentDraft.segments.length };
   }
   const hosts = sourceHosts(source);
+  const savedAuthorizedCues = currentDraft.transcriptStatus === "platform_auto" && currentDraft.segments.length > 0
+    ? currentDraft.segments.map(({ startMs, endMs, sourceText }) => ({ begin: startMs, end: endMs, text: sourceText }))
+    : null;
   const controller = AbortSignal.timeout(Number(process.env.MEDIA_TRANSCRIPT_CANDIDATE_TIMEOUT_MS ?? 15 * 60_000));
   let activeEnclosureUrl = currentDraft.enclosureUrl;
   const downloadAudio = async () => {
@@ -165,7 +172,10 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
     candidate: candidateInput(candidate, currentDraft, decodedDurationMs),
     audio,
     transcriptionProvider: createMiniMaxTranscriptionProvider({ timestampLevel: "word" }),
-    translationProvider: createMiniMaxTranslationProvider({ timeoutMs: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_TIMEOUT_MS ?? 120_000) }),
+    // Existing platform-authorized drafts already contain the authoritative
+    // cue text and translations. Translate the ASR pass only when there is no
+    // saved authorized draft; otherwise spend the provider budget on timing.
+    translationProvider: savedAuthorizedCues ? undefined : createMiniMaxTranslationProvider({ timeoutMs: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_TIMEOUT_MS ?? 120_000) }),
     budgetPolicy: {
       dailyCostLimitMicros: Number(process.env.MEDIA_TRANSCRIPT_DAILY_LIMIT_MICROS ?? 5_000_000),
       monthlyCostLimitMicros: Number(process.env.MEDIA_TRANSCRIPT_MONTHLY_LIMIT_MICROS ?? 20_000_000),
@@ -178,10 +188,12 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
   });
   if (!pcm || result.segments.length === 0) throw new Error("MEDIA_TRANSCRIPT_EMPTY");
   validateSegmentTimeline(result.segments, decodedDurationMs);
-  const authorizedCues = await fetchLanguageReactorPodcastTranscript({ audioUrl: activeEnclosureUrl, docId: currentDraft.episodeGuid, signal: controller });
+  const authorizedCues = savedAuthorizedCues ?? await fetchLanguageReactorPodcastTranscript({ audioUrl: activeEnclosureUrl, docId: currentDraft.episodeGuid, signal: controller });
   const authorizedSegments = alignAuthorizedTranscript(authorizedCues, result.segments, decodedDurationMs, "platform_auto");
+  const savedTranslations = new Map(currentDraft.segments.map((segment) => [cueKey(segment), segment.translation?.trim() || null]));
+  const segmentsNeedingTranslation = authorizedSegments.map((segment) => ({ ...segment, translation: savedTranslations.get(cueKey(segment)) ?? null }));
   const translated = await translateMediaSegments({
-    segments: authorizedSegments,
+    segments: segmentsNeedingTranslation.filter((segment) => !segment.translation?.trim()),
     provider: createMiniMaxTranslationProvider({ timeoutMs: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_TIMEOUT_MS ?? 120_000) }),
     // Authorized transcript alignment is translated independently from the
     // ASR pass. Serial requests make even short podcast episodes exceed the
@@ -189,7 +201,9 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
     concurrency: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_CONCURRENCY ?? 4),
     signal: controller,
   });
-  if (translated.failedCount > 0 || translated.segments.some((segment) => !segment.translation?.trim())) {
+  const translatedByCue = new Map(translated.segments.map((segment) => [cueKey(segment), segment.translation?.trim() || null]));
+  const completedSegments = segmentsNeedingTranslation.map((segment) => ({ ...segment, translation: segment.translation?.trim() || translatedByCue.get(cueKey(segment)) || null }));
+  if (translated.failedCount > 0 || completedSegments.some((segment) => !segment.translation?.trim())) {
     throw new Error(`MEDIA_AUTHORIZED_TRANSCRIPT_TRANSLATION_INCOMPLETE:${translated.errors.join(",") || "missing-translation"}`);
   }
   const nextDraft = createPodcastCandidateDraft({
@@ -198,7 +212,7 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
     durationMs: decodedDurationMs,
     transcriptStatus: "platform_auto",
     transcriptUrl: currentDraft.canonicalUrl,
-    segments: [...translated.segments],
+    segments: completedSegments,
     changeReason: "Reprocessed from the owner-authorized Language Reactor transcript; MiniMax supplies translations and aligned word timing only.",
   });
   if (nextDraft.contentHash === currentDraft.contentHash) throw new Error("MEDIA_TRANSCRIPT_DRAFT_UNCHANGED");
