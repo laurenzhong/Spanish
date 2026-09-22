@@ -347,8 +347,9 @@ function runCommand(command: string, args: readonly string[], signal: AbortSigna
     child.once("close", (code) => finish(() => {
       if (code === 0) return resolve();
       const diagnostic = Buffer.concat(errors).toString("utf8").toLowerCase();
-      const reason = diagnostic.includes("sign in") || diagnostic.includes("login") || diagnostic.includes("confirm you’re not a bot")
-        ? "AUTH_REQUIRED"
+      const authRequired = diagnostic.includes("sign in") || diagnostic.includes("login") || diagnostic.includes("confirm you’re not a bot");
+      const reason = authRequired
+        ? (process.env.YOUTUBE_COOKIES_B64?.trim() ? "AUTH_REQUIRED_COOKIES_REJECTED" : "AUTH_REQUIRED_COOKIES_MISSING")
         : diagnostic.includes("age-restricted") || diagnostic.includes("age restricted")
           ? "AGE_RESTRICTED"
           : diagnostic.includes("not available") || diagnostic.includes("private video")
