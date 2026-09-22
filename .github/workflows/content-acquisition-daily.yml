@@ -85,7 +85,7 @@ jobs:
           CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || 'readlang-links-v6' }}
           CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
           ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'auto-publish' }}
-          ARTICLE_DAILY_LIMIT: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}
+          ARTICLE_DAILY_LIMIT: ${{ vars.CONTENT_ARTICLE_DAILY_LIMIT || '10' }}
         run: >-
           set -o pipefail
           &&
@@ -184,7 +184,7 @@ jobs:
             echo '## Daily content run'
             echo '- Secrets, article bodies, provider responses, and query credentials are intentionally omitted.'
             echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
-            echo "- Requested article limit: ${{ inputs.limit || vars.CONTENT_ARTICLE_DAILY_LIMIT || '50' }}"
+            echo "- Requested article limit: ${{ vars.CONTENT_ARTICLE_DAILY_LIMIT || '10' }}"
             echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}"
             echo "- Media targets: video=${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}, podcast=${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}, bilingual subtitles required=${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}"
             summarize_stage "Articles" "$RUNNER_TEMP/article-daily.log"
