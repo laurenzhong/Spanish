@@ -189,7 +189,9 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
     concurrency: Number(process.env.MEDIA_TRANSCRIPT_TRANSLATION_CONCURRENCY ?? 4),
     signal: controller,
   });
-  if (translated.failedCount > 0 || translated.segments.some((segment) => !segment.translation?.trim())) throw new Error("MEDIA_AUTHORIZED_TRANSCRIPT_TRANSLATION_INCOMPLETE");
+  if (translated.failedCount > 0 || translated.segments.some((segment) => !segment.translation?.trim())) {
+    throw new Error(`MEDIA_AUTHORIZED_TRANSCRIPT_TRANSLATION_INCOMPLETE:${translated.errors.join(",") || "missing-translation"}`);
+  }
   const nextDraft = createPodcastCandidateDraft({
     ...currentDraft,
     enclosureUrl: activeEnclosureUrl,
