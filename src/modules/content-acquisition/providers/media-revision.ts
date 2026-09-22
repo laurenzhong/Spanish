@@ -24,7 +24,9 @@ const revisionPayloadSchema = z.object({
   cefr: z.preprocess((value) => value === "A2" || value === "B1" ? value : undefined, z.enum(["A2", "B1"]).optional()),
   topics: z.array(z.string().trim().min(1).max(160)).min(1).max(20).optional(),
   region: z.string().trim().min(2).max(35).nullable().optional(),
-  changeReason: z.string().trim().min(1).max(1_000).optional(),
+  // Some valid revisions omit a new reason or return an empty one. The merge
+  // layer retains the existing immutable audit reason in that case.
+  changeReason: z.preprocess((value) => typeof value === "string" && value.trim() ? value : undefined, z.string().trim().min(1).max(1_000).optional()),
 }).refine((value) => Object.keys(value).length > 0, "Revision response must change at least one field.");
 
 export type MediaRevisionPayload = z.infer<typeof revisionPayloadSchema>;
