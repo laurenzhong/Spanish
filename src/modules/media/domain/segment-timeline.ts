@@ -1,8 +1,12 @@
+import type { MediaWordTiming } from "./word-timeline";
+
 export const mediaSegmentSourceKinds = ["platform_manual", "platform_auto", "asr"] as const;
+export const maxMediaSegments = 2_000;
 
 export type MediaSegmentSourceKind = (typeof mediaSegmentSourceKinds)[number];
 
 export type DraftMediaSegment = Readonly<{
+  words?: readonly MediaWordTiming[];
   index: number;
   startMs: number;
   endMs: number;
