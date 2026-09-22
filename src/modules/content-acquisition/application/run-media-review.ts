@@ -49,7 +49,7 @@ export async function runMediaReview(repository: ContentWorkflowRepository, inpu
   if ((candidate.contentType !== "video" && candidate.contentType !== "podcast") || candidate.status !== "review_ready" || candidate.publicationStatus !== "draft" || !candidate.contentHash || !draft || typeof draft !== "object") return { status: "failed", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten: 0, reason: "CANDIDATE_NOT_REVIEWABLE", providerResults: {} };
   const parsed = candidate.contentType === "video" ? videoCandidateDraftSchema.safeParse(draft) : podcastCandidateDraftSchema.safeParse(draft);
   if (!parsed.success) {
-    const paths = parsed.error.issues.map((issue) => issue.path.join(".") || "root").slice(0, 8).join(",");
+    const paths = parsed.error.issues.map((issue) => `${issue.path.join(".") || "root"}:${issue.code}`).slice(0, 8).join(",");
     return { status: "failed", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten: 0, reason: `INVALID_MEDIA_DRAFT:${paths || "schema"}`, providerResults: {} };
   }
   const reviewInput = { candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, contentType: candidate.contentType, title: candidate.title, summary: parsed.data.summary, draft: parsed.data } as const;
