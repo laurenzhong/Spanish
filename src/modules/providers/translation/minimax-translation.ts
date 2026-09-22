@@ -27,7 +27,8 @@ export class MiniMaxTranslationProvider implements TranslationProvider {
     validateTranslationInput(input);
     if (!this.options.apiKey.trim()) throw new TranslationError("provider-auth-failed", "Translation is not configured.", false);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    let timedOut = false;
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, this.timeoutMs);
     const abort = () => controller.abort();
     options.signal?.addEventListener("abort", abort, { once: true });
     const startedAt = Date.now();
@@ -51,7 +52,8 @@ export class MiniMaxTranslationProvider implements TranslationProvider {
       return { text, provider: "minimax", modelVersion: this.modelVersion, providerRequestId: response.headers.get("x-request-id"), latencyMs: Date.now() - startedAt, estimatedCostMicros: null };
     } catch (error) {
       if (error instanceof TranslationError) throw error;
-      if (options.signal?.aborted || controller.signal.aborted) throw new TranslationError("provider-cancelled", "Translation was cancelled.", false);
+      if (timedOut) throw new TranslationError("provider-timeout", "Translation timed out.", true);
+      if (options.signal?.aborted) throw new TranslationError("provider-cancelled", "Translation was cancelled.", false);
       throw new TranslationError("provider-unavailable", "Translation is temporarily unavailable.", true);
     } finally {
       clearTimeout(timeout);
