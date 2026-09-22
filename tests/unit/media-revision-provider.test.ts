@@ -48,9 +48,6 @@ describe("MiniMax media revision response boundary", () => {
       candidateId: "candidate-1",
       candidateRevision: 1,
       contentType: "podcast",
-      contentHash: draft().contentHash,
-      title: draft().title,
-      summary: draft().summary,
       draft: draft(),
       feedback: [{ dimension: "content-es-ES", notes: "Corrige el resumen." }],
     })).resolves.toMatchObject({ summary: "Resumen corregido." });

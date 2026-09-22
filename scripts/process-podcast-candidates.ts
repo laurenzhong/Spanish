@@ -20,6 +20,7 @@ const MAX_SOURCE_BYTES = Number(process.env.MEDIA_TRANSCRIPT_MAX_SOURCE_BYTES ??
 const MAX_PCM_BYTES = 512 * 1024 * 1024;
 const FFMPEG_BIN = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
 const confirmation = "I_HAVE_AUTHORIZATION";
+const LANGUAGE_REACTOR_MEDIA_DOCS_ENDPOINT = "https://api-cdn.dioco.io/base_media_getMediaDocs_5";
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(name);
@@ -84,6 +85,33 @@ async function transcode(bytes: Uint8Array, signal: AbortSignal): Promise<Uint8A
   }
 }
 
+async function refreshLanguageReactorAudioUrl(docId: string, signal: AbortSignal): Promise<string> {
+  const response = await fetch(LANGUAGE_REACTOR_MEDIA_DOCS_ENDPOINT, {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({
+      userEmail: null,
+      diocoToken: null,
+      translationLang_G: "zh-CN",
+      freq95: { min: 0, max: 100_000 },
+      lang_G: "es",
+      filters: { mediaTab: "TAB_PODCASTS" },
+      pinnedDiocoPlaylistIds: [],
+      selectedDiocoPlaylistId: "t_pd_mix_es",
+      diocoPlaylistId: "t_pd_mix_es",
+      forceIncludeDiocoDocId: docId,
+      offset: 0,
+      limit: 100,
+    }),
+    signal,
+  });
+  if (!response.ok) throw new Error("MEDIA_AUDIO_SOURCE_REFRESH_FAILED");
+  const body = await response.json() as { data?: { docs_metadata?: Array<{ diocoDocId?: string; audioFileURL?: string }> } };
+  const match = body.data?.docs_metadata?.find((doc) => doc.diocoDocId?.toLowerCase() === docId.toLowerCase());
+  if (!match?.audioFileURL) throw new Error("MEDIA_AUDIO_SOURCE_REFRESH_FAILED");
+  return match.audioFileURL;
+}
+
 function sourceHosts(source: ContentSourceRecord): string[] {
   const policy = source.rightsPolicy;
   if (!policy || typeof policy !== "object" || !Array.isArray(policy.allowedAudioHosts)) throw new Error("MEDIA_AUDIO_ALLOWLIST_MISSING");
@@ -111,11 +139,21 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
   }
   const hosts = sourceHosts(source);
   const controller = AbortSignal.timeout(Number(process.env.MEDIA_TRANSCRIPT_CANDIDATE_TIMEOUT_MS ?? 15 * 60_000));
+  let activeEnclosureUrl = currentDraft.enclosureUrl;
+  const downloadAudio = async () => {
+    try {
+      return await download(assertAllowedUrl(activeEnclosureUrl, hosts), hosts, controller);
+    } catch (error) {
+      if (source.adapterType !== "language-reactor") throw error;
+      activeEnclosureUrl = await refreshLanguageReactorAudioUrl(currentDraft.episodeGuid, controller);
+      return download(assertAllowedUrl(activeEnclosureUrl, hosts), hosts, controller);
+    }
+  };
   let pcm: Uint8Array | null = null;
   let decodedDurationMs = currentDraft.durationMs;
   const audio: MediaAudioAssetProvider = {
     acquire: async () => {
-      const sourceBytes = await download(assertAllowedUrl(currentDraft.enclosureUrl, hosts), hosts, controller);
+      const sourceBytes = await downloadAudio();
       pcm = await transcode(sourceBytes, controller);
       decodedDurationMs = Math.round(pcm.byteLength / 32);
       const hash = createHash("sha256").update(pcm).digest("hex");
@@ -140,7 +178,7 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
   });
   if (!pcm || result.segments.length === 0) throw new Error("MEDIA_TRANSCRIPT_EMPTY");
   validateSegmentTimeline(result.segments, decodedDurationMs);
-  const authorizedCues = await fetchLanguageReactorPodcastTranscript({ audioUrl: currentDraft.enclosureUrl, docId: currentDraft.episodeGuid, signal: controller });
+  const authorizedCues = await fetchLanguageReactorPodcastTranscript({ audioUrl: activeEnclosureUrl, docId: currentDraft.episodeGuid, signal: controller });
   const authorizedSegments = alignAuthorizedTranscript(authorizedCues, result.segments, decodedDurationMs, "platform_auto");
   const translated = await translateMediaSegments({
     segments: authorizedSegments,
@@ -154,6 +192,7 @@ async function processOne(repository: ReturnType<typeof createDrizzleContentAcqu
   if (translated.failedCount > 0 || translated.segments.some((segment) => !segment.translation?.trim())) throw new Error("MEDIA_AUTHORIZED_TRANSCRIPT_TRANSLATION_INCOMPLETE");
   const nextDraft = createPodcastCandidateDraft({
     ...currentDraft,
+    enclosureUrl: activeEnclosureUrl,
     durationMs: decodedDurationMs,
     transcriptStatus: "platform_auto",
     transcriptUrl: currentDraft.canonicalUrl,
