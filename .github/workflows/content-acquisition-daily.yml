@@ -1,0 +1,234 @@
+name: Daily content acquisition
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum items per source"
+        required: false
+        default: "50"
+        type: string
+      article_mode:
+        description: "Article publication stage; protected auto-publish is the daily default"
+        required: false
+        default: "auto-publish"
+        type: choice
+        options:
+          - disabled
+          - discover-only
+          - review-only
+          - auto-publish
+      media_mode:
+        description: "Video/podcast publication stage; protected auto-publish is the daily default"
+        required: false
+        default: "auto-publish"
+        type: choice
+        options:
+          - disabled
+          - discover-only
+          - review-only
+          - auto-publish
+
+concurrency:
+  group: content-acquisition-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    environment: content-production
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install media hosting tools
+        if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
+        run: |
+          python -m pip install --disable-pip-version-check --no-warn-script-location yt-dlp
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ffmpeg
+          pnpm exec playwright install --with-deps chromium
+      - name: Register owner-authorized Readlang policy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:register-readlang-links
+      - name: Run staged article pipeline
+        id: article_daily
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          CONTENT_ARTICLE_REVIEW_PROVIDER: ${{ vars.CONTENT_ARTICLE_REVIEW_PROVIDER || 'minimax' }}
+          CONTENT_ARTICLE_REVISION_PROVIDER: ${{ vars.CONTENT_ARTICLE_REVISION_PROVIDER || 'minimax' }}
+          CONTENT_ARTICLE_SOURCE_LIMIT: ${{ vars.CONTENT_ARTICLE_SOURCE_LIMIT || '10' }}
+          CONTENT_ARTICLE_REVIEW_CONCURRENCY: ${{ vars.CONTENT_ARTICLE_REVIEW_CONCURRENCY || '2' }}
+          CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION: ${{ vars.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION || 'readlang-links-v6' }}
+          CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
+          ARTICLE_MODE: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'auto-publish' }}
+          ARTICLE_DAILY_LIMIT: ${{ vars.CONTENT_ARTICLE_DAILY_LIMIT || '10' }}
+        run: >-
+          set -o pipefail
+          &&
+          test -n "$ARTICLE_MODE"
+          &&
+          pnpm content:pipeline -- article-daily
+          --mode "$ARTICLE_MODE"
+          --daily-limit "$ARTICLE_DAILY_LIMIT"
+          --source-limit "${CONTENT_ARTICLE_SOURCE_LIMIT:-10}"
+          --policy-version "${CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION:-}" 2>&1
+          | tee "$RUNNER_TEMP/article-daily.log"
+      - name: Recover authorized article shortfall
+        id: article_recovery
+        if: ${{ always() && (inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
+          CONTENT_WORKFLOW_OWNER_USER_IDS: ${{ secrets.CONTENT_WORKFLOW_OWNER_USER_IDS }}
+          CONTENT_WORKFLOW_REPROCESS_CONFIRM: ${{ secrets.CONTENT_WORKFLOW_REPROCESS_CONFIRM }}
+        run: |
+          set -euo pipefail
+          shortfall=$(node - "$RUNNER_TEMP/article-daily.log" <<'NODE'
+          const fs = require("node:fs");
+          const path = process.argv[2];
+          if (!fs.existsSync(path)) process.exit(2);
+          const lines = fs.readFileSync(path, "utf8").split(/\r?\n/u).reverse();
+          const line = lines.find((value) => value.trim().startsWith("{"));
+          if (!line) process.exit(2);
+          const result = JSON.parse(line);
+          const value = Number(result?.counts?.shortfall ?? 0);
+          if (!Number.isInteger(value) || value < 0) process.exit(2);
+          process.stdout.write(String(value));
+          NODE
+          )
+          echo "article-shortfall=$shortfall" | tee "$RUNNER_TEMP/article-recovery.log"
+          if [ "$shortfall" -eq 0 ]; then
+            echo '{"status":"not-needed","published":0}' | tee -a "$RUNNER_TEMP/article-recovery.log"
+            exit 0
+          fi
+          pnpm content:reprocess-authorized-articles -- --limit "$shortfall" 2>&1 | tee -a "$RUNNER_TEMP/article-recovery.log"
+      - name: Run staged media pipeline
+        id: media_daily
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          YOUTUBE_DATA_API_KEY: ${{ secrets.YOUTUBE_DATA_API_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          BUNNY_STORAGE_ZONE_NAME: ${{ secrets.BUNNY_STORAGE_ZONE_NAME }}
+          BUNNY_STORAGE_PASSWORD: ${{ secrets.BUNNY_STORAGE_PASSWORD }}
+          BUNNY_STORAGE_REGION: ${{ vars.BUNNY_STORAGE_REGION || 'storage' }}
+          BUNNY_STORAGE_PULL_ZONE_HOSTNAME: ${{ vars.BUNNY_STORAGE_PULL_ZONE_HOSTNAME }}
+          MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
+          # This is consumed only by the bounded candidate processors. It is
+          # intentionally explicit so a deployed workflow cannot silently skip
+          # authorized ASR/translation and still look successful.
+          MEDIA_TRANSCRIPT_CANDIDATE_CONFIRM: I_HAVE_AUTHORIZATION
+          YTDLP_BIN: yt-dlp
+          FFMPEG_BIN: ffmpeg
+          MEDIA_VIDEO_COMMAND_TIMEOUT_MS: ${{ vars.MEDIA_VIDEO_COMMAND_TIMEOUT_MS || '1200000' }}
+          CONTENT_MEDIA_REVIEW_PROVIDER: ${{ vars.CONTENT_MEDIA_REVIEW_PROVIDER || 'minimax' }}
+          CONTENT_MEDIA_REVISION_PROVIDER: ${{ vars.CONTENT_MEDIA_REVISION_PROVIDER || 'minimax' }}
+          CONTENT_MEDIA_REVIEW_CONCURRENCY: ${{ vars.CONTENT_MEDIA_REVIEW_CONCURRENCY || '2' }}
+          MEDIA_TRANSCRIPT_TRANSLATION_TIMEOUT_MS: ${{ vars.MEDIA_TRANSCRIPT_TRANSLATION_TIMEOUT_MS || '120000' }}
+          MEDIA_TRANSCRIPT_CANDIDATE_TIMEOUT_MS: ${{ vars.MEDIA_TRANSCRIPT_CANDIDATE_TIMEOUT_MS || '900000' }}
+          MEDIA_TRANSCRIPT_DURATION_TOLERANCE_MS: ${{ vars.MEDIA_TRANSCRIPT_DURATION_TOLERANCE_MS || '2000' }}
+          MEDIA_TRANSCRIPT_MAX_SOURCE_BYTES: ${{ vars.MEDIA_TRANSCRIPT_MAX_SOURCE_BYTES || '2147483648' }}
+          MEDIA_TRANSCRIPT_DOWNLOAD_TIMEOUT_MS: ${{ vars.MEDIA_TRANSCRIPT_DOWNLOAD_TIMEOUT_MS || '1800000' }}
+          CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH: ${{ vars.CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH || 'false' }}
+          MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}
+          MEDIA_VIDEO_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}
+          MEDIA_PODCAST_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}
+          MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
+        run: |
+          set -o pipefail
+          if [ "$MEDIA_MODE" = "auto-publish" ]; then
+            pnpm content:pipeline -- media-daily --mode review-only --video-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-limit "$MEDIA_PODCAST_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log"
+            set +e
+            pnpm content:process-podcast-candidates -- --limit "$MEDIA_PODCAST_DAILY_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log"
+            podcast_processing_status=${PIPESTATUS[0]}
+            set -e
+            echo "podcast-processing-exit=$podcast_processing_status" | tee -a "$RUNNER_TEMP/media-daily.log"
+            set +e
+            pnpm content:process-video-candidates -- --limit "$MEDIA_VIDEO_DAILY_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log"
+            video_processing_status=${PIPESTATUS[0]}
+            set -e
+            echo "video-processing-exit=$video_processing_status" | tee -a "$RUNNER_TEMP/media-daily.log"
+            # ASR creates a new immutable candidate revision. Review that exact
+            # revision before Bunny hosting, otherwise hosting could get ahead
+            # of the required content/teaching/structure gates.
+            pnpm content:pipeline -- media-daily --mode review-only --video-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-limit "$MEDIA_PODCAST_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log"
+            set +e
+            pnpm content:host-video-candidates-to-bunny -- --limit "$MEDIA_VIDEO_DAILY_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log"
+            hosting_status=${PIPESTATUS[0]}
+            set -e
+            echo "video-hosting-exit=$hosting_status" | tee -a "$RUNNER_TEMP/media-daily.log"
+            # Hosting is best-effort for this stage. Auto-publish still runs so
+            # podcasts and already-hosted videos are not blocked by one video.
+            pnpm content:pipeline -- media-daily --mode auto-publish --video-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-limit "$MEDIA_PODCAST_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log"
+          else
+            pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --video-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-limit "$MEDIA_PODCAST_DAILY_LIMIT" --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log"
+          fi
+      - name: Cleanup expired candidates and artifacts
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:pipeline -- cleanup --limit 100
+      - name: Write acquisition report
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm content:pipeline -- report --limit 100
+      - name: Write redacted summary
+        if: always()
+        run: |
+          summarize_stage() {
+            local label="$1"
+            local path="$2"
+            node - "$label" "$path" <<'NODE'
+          const fs = require("node:fs");
+          const [label, path] = process.argv.slice(2);
+          let result = null;
+          if (fs.existsSync(path)) {
+            const lines = fs.readFileSync(path, "utf8").split(/\r?\n/u).reverse();
+            for (const line of lines) {
+              if (!line.trim().startsWith("{")) continue;
+              try { result = JSON.parse(line); break; } catch {}
+            }
+          }
+          if (!result) {
+            console.log(`- ${label}: no structured stage result (check the workflow step outcome)`);
+          } else {
+            const counts = result.counts ?? {};
+            const failures = Array.isArray(result.failures) ? result.failures.length : 0;
+            const targetText = result.targets ? `, targets=video:${result.targets.video ?? 0}/podcast:${result.targets.podcast ?? 0}` : "";
+            const publishedText = result.targets ? `, publishedVideo=${counts.publishedVideo ?? 0}, publishedPodcast=${counts.publishedPodcast ?? 0}` : "";
+            console.log(`- ${label}: status=${result.status ?? "unknown"}${targetText}, discovered=${counts.discovered ?? 0}, approved=${counts.approved ?? 0}, published=${counts.published ?? 0}${publishedText}, failures=${failures}`);
+          }
+NODE
+          }
+          {
+            echo '## Daily content run'
+            echo '- Secrets, article bodies, provider responses, and query credentials are intentionally omitted.'
+            echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
+            echo "- Requested article limit: ${{ vars.CONTENT_ARTICLE_DAILY_LIMIT || '10' }}"
+            echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}"
+            echo "- Media targets: video=${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}, podcast=${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}"
+            summarize_stage "Articles" "$RUNNER_TEMP/article-daily.log"
+            summarize_stage "Article recovery" "$RUNNER_TEMP/article-recovery.log"
+            summarize_stage "Media" "$RUNNER_TEMP/media-daily.log"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail after independent stage attempts
+        if: always() && (steps.article_daily.outcome == 'failure' || steps.article_recovery.outcome == 'failure' || steps.media_daily.outcome == 'failure')
+        run: exit 1

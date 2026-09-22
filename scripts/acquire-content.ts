@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -9,19 +10,35 @@ import {
   ContentSourceNotFoundError,
   FakeContentSourceAdapter,
   createArticleRssAdapterFromSource,
+  createReadlangLinksAdapterFromSource,
+  createLanguageReactorAdapterFromSource,
   createPodcastRssAdapterFromSource,
   createYouTubeChannelAdapterFromSource,
-  createLanguageReactorAdapterFromSource,
   contentSourcePageSchema,
   createDrizzleContentAcquisitionRepository,
   runAcquisitionSource,
+  runContentCleanup,
+  articlePublicationModes,
+  planContentPipelineSources,
   prepareArticleCandidateForReview,
   preparePodcastCandidateForReview,
   prepareVideoCandidateForReview,
+  runDailyArticlePipeline,
+  runDailyMediaPipeline,
+  mediaPublicationModes,
+  createConfiguredArticleReviewProviders,
+  createConfiguredArticleRevisionProvider,
+  createConfiguredMediaReviewProviders,
+  createConfiguredMediaRevisionProvider,
+  contentWorkflowPublishers,
+  CandidatePublisherRegistry,
+  AcquiredArticlePublisher,
   type ContentAcquisitionRepository,
+  type ContentSourceRecord,
   type ContentSourceAdapter,
 } from "../src/modules/content-acquisition/index";
 import { createDatabaseConnection } from "../src/shared/db/client";
+import { createDrizzleArticleRepository } from "../src/modules/content/repositories";
 
 export class AcquireContentCliInputError extends Error {
   readonly code = "VALIDATION_FAILED" as const;
@@ -37,6 +54,63 @@ export type AcquireContentCliOptions = Readonly<{
   dryRun: boolean;
   limit: number;
 }>;
+
+export type ContentPipelineCommand = "discover" | "process" | "cleanup" | "report" | "article-daily" | "media-daily";
+
+export type ContentPipelineCliOptions = AcquireContentCliOptions & Readonly<{
+  command: ContentPipelineCommand;
+  allEnabled: boolean;
+  articleMode?: typeof articlePublicationModes[number];
+  dailyLimit?: number;
+  sourceLimit?: number;
+  policyVersion?: string;
+  mediaMode?: typeof mediaPublicationModes[number];
+  mediaDailyLimit?: number;
+  mediaVideoDailyLimit?: number;
+  mediaPodcastDailyLimit?: number;
+  mediaSourceLimit?: number;
+}>;
+
+/** Returns the calendar date used by the article policy, independent of the runner's UTC clock. */
+export function formatArticleNaturalDate(
+  value: Date = new Date(),
+  timeZone = "Asia/Shanghai",
+): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value;
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  if (!year || !month || !day) throw new AcquireContentCliInputError("Unable to determine the article natural date.");
+  return `${year}-${month}-${day}`;
+}
+
+export function assertAutoPublishKillSwitch(
+  mode: typeof articlePublicationModes[number],
+  value = process.env.CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH,
+): void {
+  if (mode === "auto-publish" && value !== "true") {
+    throw new AcquireContentCliInputError(
+      "CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH must be true for auto-publish.",
+    );
+  }
+}
+
+export function assertMediaAutoPublishKillSwitch(
+  mode: typeof mediaPublicationModes[number],
+  value = process.env.CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH,
+): void {
+  if (mode === "auto-publish" && value !== "true") {
+    throw new AcquireContentCliInputError(
+      "CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH must be true for media auto-publish.",
+    );
+  }
+}
 
 export type AcquireContentCliDependencies = Readonly<{
   repository: ContentAcquisitionRepository;
@@ -85,6 +159,66 @@ export function parseAcquireContentArguments(args: readonly string[]): AcquireCo
   return { sourceStableKey, dryRun, limit };
 }
 
+export function parseContentPipelineArguments(args: readonly string[]): ContentPipelineCliOptions {
+  const command = args.find((argument) => ["discover", "process", "cleanup", "report", "article-daily", "media-daily"].includes(argument)) as ContentPipelineCommand | undefined;
+  if (command === "article-daily") {
+    const modeIndex = args.indexOf("--mode");
+    const mode = modeIndex >= 0 ? args[modeIndex + 1] : process.env.CONTENT_ARTICLE_DAILY_MODE ?? "disabled";
+    const dailyIndex = args.indexOf("--daily-limit");
+    const sourceIndex = args.indexOf("--source-limit");
+    const policyIndex = args.indexOf("--policy-version");
+    const dailyLimit = Number(dailyIndex >= 0 ? args[dailyIndex + 1] : process.env.CONTENT_ARTICLE_DAILY_LIMIT ?? 10);
+    const sourceLimit = Number(sourceIndex >= 0 ? args[sourceIndex + 1] : process.env.CONTENT_ARTICLE_SOURCE_LIMIT ?? 10);
+    const policyVersion = policyIndex >= 0 ? args[policyIndex + 1] : process.env.CONTENT_ARTICLE_PUBLICATION_POLICY_VERSION ?? "";
+    if (!mode || !articlePublicationModes.includes(mode as typeof articlePublicationModes[number])) throw new AcquireContentCliInputError("--mode must be a valid article publication mode.");
+    if (!Number.isInteger(dailyLimit) || dailyLimit < 0 || dailyLimit > 50) throw new AcquireContentCliInputError("--daily-limit must be between 0 and 50.");
+    if (!Number.isInteger(sourceLimit) || sourceLimit < 1 || sourceLimit > 50) throw new AcquireContentCliInputError("--source-limit must be between 1 and 50.");
+    if (mode !== "disabled" && !policyVersion) throw new AcquireContentCliInputError("policy version is required unless article mode is disabled.");
+    return { sourceStableKey: "article-daily", dryRun: false, limit: dailyLimit || 1, command, allEnabled: false, articleMode: mode as typeof articlePublicationModes[number], dailyLimit, sourceLimit, policyVersion };
+  }
+  if (command === "media-daily") {
+    const modeIndex = args.indexOf("--mode");
+    const mode = modeIndex >= 0 ? args[modeIndex + 1] : process.env.CONTENT_MEDIA_DAILY_MODE ?? "disabled";
+    const dailyIndex = args.indexOf("--daily-limit");
+    const videoIndex = args.indexOf("--video-limit");
+    const podcastIndex = args.indexOf("--podcast-limit");
+    const sourceIndex = args.indexOf("--source-limit");
+    const hasSplitEnvironment = process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT !== undefined
+      || process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT !== undefined;
+    const hasLegacyEnvironment = process.env.CONTENT_MEDIA_DAILY_LIMIT !== undefined;
+    const legacyDailyLimit = dailyIndex >= 0 || (!hasSplitEnvironment && hasLegacyEnvironment)
+      ? Number(dailyIndex >= 0 ? args[dailyIndex + 1] : process.env.CONTENT_MEDIA_DAILY_LIMIT)
+      : null;
+    const videoDailyLimit = Number(videoIndex >= 0
+      ? args[videoIndex + 1]
+      : legacyDailyLimit === null
+        ? process.env.CONTENT_MEDIA_VIDEO_DAILY_LIMIT ?? process.env.CONTENT_MEDIA_DAILY_LIMIT ?? 10
+        : 0);
+    const podcastDailyLimit = Number(podcastIndex >= 0
+      ? args[podcastIndex + 1]
+      : legacyDailyLimit === null
+        ? process.env.CONTENT_MEDIA_PODCAST_DAILY_LIMIT ?? process.env.CONTENT_MEDIA_DAILY_LIMIT ?? 10
+        : 0);
+    const dailyLimit = legacyDailyLimit ?? videoDailyLimit + podcastDailyLimit;
+    const sourceLimit = Number(sourceIndex >= 0 ? args[sourceIndex + 1] : process.env.CONTENT_MEDIA_SOURCE_LIMIT ?? 10);
+    if (!mode || !mediaPublicationModes.includes(mode as typeof mediaPublicationModes[number])) throw new AcquireContentCliInputError("--mode must be a valid media publication mode.");
+    if (![dailyLimit, videoDailyLimit, podcastDailyLimit].every((limit) => Number.isInteger(limit) && limit >= 0 && limit <= 50)) throw new AcquireContentCliInputError("media daily limits must be between 0 and 50.");
+    if (!Number.isInteger(sourceLimit) || sourceLimit < 1 || sourceLimit > 50) throw new AcquireContentCliInputError("--source-limit must be between 1 and 50.");
+    return { sourceStableKey: "media-daily", dryRun: false, limit: dailyLimit || 1, command, allEnabled: false, mediaMode: mode as typeof mediaPublicationModes[number], mediaDailyLimit: legacyDailyLimit ?? dailyLimit, ...(legacyDailyLimit === null ? { mediaVideoDailyLimit: videoDailyLimit, mediaPodcastDailyLimit: podcastDailyLimit } : {}), mediaSourceLimit: sourceLimit };
+  }
+  const allEnabled = args.includes("--all-enabled");
+  const flags = args.filter((argument) => argument !== command && argument !== "--all-enabled");
+  if (allEnabled) {
+    const withoutSource = flags.filter((argument, index) => argument !== "--source" && flags[index - 1] !== "--source");
+    const parsed = parseAcquireContentArguments(["--source", "all-enabled", ...withoutSource]);
+    return { command: command ?? "discover", allEnabled: true, ...parsed };
+  }
+  if (command !== "discover" && !flags.includes("--source")) {
+    return { command: command ?? "discover", allEnabled: false, ...parseAcquireContentArguments(["--source", "pipeline", ...flags]) };
+  }
+  return { command: command ?? "discover", allEnabled: false, ...parseAcquireContentArguments(flags) };
+}
+
 export async function runAcquireContentCli(
   args: readonly string[],
   dependencies: AcquireContentCliDependencies,
@@ -103,13 +237,11 @@ export async function runAcquireContentCli(
         await prepareArticleCandidateForReview(dependencies.repository, candidateId);
       } else if (dependencies.adapter.key === "podcast-rss") {
         await preparePodcastCandidateForReview(dependencies.repository, candidateId);
-      } else if (dependencies.adapter.key === "youtube") {
-        await prepareVideoCandidateForReview(dependencies.repository, candidateId);
       } else {
         const candidate = await dependencies.repository.findCandidateById(candidateId);
         if (!candidate) throw new ContentAcquisitionRunError("The acquired candidate disappeared before preparation.");
-        if (candidate.contentType === "video") await prepareVideoCandidateForReview(dependencies.repository, candidateId);
-        else if (candidate.contentType === "podcast") await preparePodcastCandidateForReview(dependencies.repository, candidateId);
+        if (candidate.contentType === "podcast") await preparePodcastCandidateForReview(dependencies.repository, candidateId);
+        else await prepareVideoCandidateForReview(dependencies.repository, candidateId);
       }
       reviewReady += 1;
     }
@@ -145,7 +277,8 @@ async function loadConfiguredFakeAdapter(): Promise<FakeContentSourceAdapter> {
 }
 
 async function main(): Promise<void> {
-  const options = parseAcquireContentArguments(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const options = parseContentPipelineArguments(args);
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl || !/^postgres(?:ql)?:\/\//u.test(databaseUrl)) {
     throw new AcquireContentCliInputError("DATABASE_URL must be a PostgreSQL connection string.");
@@ -154,26 +287,191 @@ async function main(): Promise<void> {
   const connection = createDatabaseConnection(databaseUrl);
   try {
     const repository = createDrizzleContentAcquisitionRepository(connection.db);
-    const source = await repository.findSourceByStableKey(options.sourceStableKey);
-    if (!source) throw new ContentSourceNotFoundError();
-    if (!source.enabled) throw new ContentSourceDisabledError();
-    const adapter = source.adapterType === "fake"
-      ? await loadConfiguredFakeAdapter()
-      : source.adapterType === "article-rss"
-        ? createArticleRssAdapterFromSource(source)
-        : source.adapterType === "podcast-rss"
-          ? createPodcastRssAdapterFromSource(source)
-        : source.adapterType === "youtube"
-          ? createYouTubeChannelAdapterFromSource(source)
-        : source.adapterType === "language-reactor"
+    if (options.command === "report") {
+      const [sources, runs, candidates] = await Promise.all([
+        repository.listSources(),
+        repository.listRuns({ limit: options.limit }),
+        repository.listCandidates({ limit: options.limit }),
+      ]);
+      process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { report: "completed" }, counts: { sources: sources.length, runs: runs.length, candidates: candidates.length } })}\n`);
+      return;
+    }
+    if (options.command === "article-daily") {
+      const today = formatArticleNaturalDate();
+      const mode = options.articleMode ?? "disabled";
+      assertAutoPublishKillSwitch(mode);
+      const reviewRequired = mode === "review-only" || mode === "auto-publish";
+      let reviewProviders: (ReturnType<typeof createConfiguredArticleReviewProviders> & { revision?: ReturnType<typeof createConfiguredArticleRevisionProvider> }) | undefined;
+      if (reviewRequired) {
+        try {
+          reviewProviders = createConfiguredArticleReviewProviders({
+            provider: (process.env.CONTENT_ARTICLE_REVIEW_PROVIDER as "minimax" | "fake" | undefined) ?? "minimax",
+          });
+        } catch (error) {
+          throw new AcquireContentCliInputError(
+            error instanceof Error
+              ? error.message
+              : "ARTICLE_REVIEW_PROVIDER_UNAVAILABLE",
+          );
+        }
+        try {
+          reviewProviders = {
+            ...reviewProviders,
+            revision: createConfiguredArticleRevisionProvider({
+              provider: (process.env.CONTENT_ARTICLE_REVISION_PROVIDER as "minimax" | "fake" | undefined) ?? "minimax",
+            }),
+          };
+        } catch (error) {
+          throw new AcquireContentCliInputError(
+            error instanceof Error
+              ? error.message
+              : "ARTICLE_REVISION_PROVIDER_UNAVAILABLE",
+          );
+        }
+      }
+      const publishers = mode === "auto-publish"
+        ? new CandidatePublisherRegistry([new AcquiredArticlePublisher(createDrizzleArticleRepository(connection.db))])
+        : undefined;
+      const result = await runDailyArticlePipeline({
+        repository: repository as never,
+        resolveAdapter: (source) => source.adapterType === "readlang-links"
+          ? createReadlangLinksAdapterFromSource(source)
+          : createArticleRssAdapterFromSource(source),
+        reviewProviders,
+        publishers,
+      }, {
+        date: today,
+        mode,
+        policyVersion: options.policyVersion ?? "",
+        dailyLimit: options.dailyLimit ?? 50,
+        defaultSourceLimit: options.sourceLimit ?? 10,
+        reviewConcurrency: Number(process.env.CONTENT_ARTICLE_REVIEW_CONCURRENCY ?? 2),
+      });
+      const articleShortfall = mode === "auto-publish" ? Math.max(0, result.dailyLimit - result.publishedBeforeRun - result.published) : 0;
+      const articlePartial = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0 || result.skippedSources.length > 0 || articleShortfall > 0;
+      process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: articlePartial ? "partial" : "succeeded", mode: result.mode, targets: { articles: result.dailyLimit }, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, publishedBeforeRun: result.publishedBeforeRun, published: result.published, skipped: result.skipped, shortfall: articleShortfall, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
+      // Auto-publish is a production contract: a partial result must fail the
+      // process so the scheduler cannot report a green run with a shortfall.
+      if (mode === "auto-publish" && articlePartial) process.exitCode = 1;
+      return;
+    }
+    if (options.command === "media-daily") {
+      const mediaMode = options.mediaMode ?? "disabled";
+      assertMediaAutoPublishKillSwitch(mediaMode);
+      const mediaReviewRequired = mediaMode === "review-only" || mediaMode === "auto-publish";
+      let mediaReviewProviders: (ReturnType<typeof createConfiguredMediaReviewProviders> & { revision?: ReturnType<typeof createConfiguredMediaRevisionProvider> }) | undefined;
+      if (mediaReviewRequired) {
+        try {
+          mediaReviewProviders = createConfiguredMediaReviewProviders({
+            provider: (process.env.CONTENT_MEDIA_REVIEW_PROVIDER as "minimax" | "fake" | undefined) ?? "minimax",
+          });
+        } catch (error) {
+            throw new AcquireContentCliInputError(error instanceof Error ? error.message : "MEDIA_REVIEW_PROVIDER_UNAVAILABLE");
+        }
+        try {
+          mediaReviewProviders = {
+            ...mediaReviewProviders,
+            revision: createConfiguredMediaRevisionProvider({
+              provider: (process.env.CONTENT_MEDIA_REVISION_PROVIDER as "minimax" | "fake" | undefined) ?? "minimax",
+            }),
+          };
+        } catch (error) {
+          throw new AcquireContentCliInputError(error instanceof Error ? error.message : "MEDIA_REVISION_PROVIDER_UNAVAILABLE");
+        }
+      }
+      const result = await runDailyMediaPipeline({
+        repository: repository as never,
+        resolveAdapter: (source) => source.adapterType === "language-reactor"
           ? createLanguageReactorAdapterFromSource(source)
-        : null;
-    if (!adapter) throw new ContentAcquisitionRunError("No runtime adapter is available for this source type.");
-    await runAcquireContentCli(process.argv.slice(2), {
-      repository,
-      adapter,
-      write: (line) => process.stdout.write(`${line}\n`),
-    });
+          : source.adapterType === "podcast-rss"
+            ? createPodcastRssAdapterFromSource(source)
+            : createYouTubeChannelAdapterFromSource(source),
+        reviewProviders: mediaReviewProviders,
+        publishers: mediaMode === "auto-publish" ? contentWorkflowPublishers : undefined,
+      }, {
+        mode: mediaMode,
+        dailyLimit: options.mediaDailyLimit,
+        videoDailyLimit: options.mediaVideoDailyLimit,
+        podcastDailyLimit: options.mediaPodcastDailyLimit,
+        defaultSourceLimit: options.mediaSourceLimit ?? 10,
+        reviewConcurrency: Number(process.env.CONTENT_MEDIA_REVIEW_CONCURRENCY ?? 2),
+      });
+       const videoShortfall = mediaMode === "auto-publish" ? Math.max(0, result.videoDailyLimit - result.publishedBeforeRunVideo - result.publishedVideo) : 0;
+       const podcastShortfall = mediaMode === "auto-publish" ? Math.max(0, result.podcastDailyLimit - result.publishedBeforeRunPodcast - result.publishedPodcast) : 0;
+       const mediaPartial = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0 || result.skipped > 0 || result.skippedSources.length > 0 || videoShortfall > 0 || podcastShortfall > 0;
+       process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: mediaPartial ? "partial" : "succeeded", mode: result.mode, targets: { video: result.videoDailyLimit, podcast: result.podcastDailyLimit }, counts: { discovered: result.discovered, inserted: result.inserted, insertedVideo: result.insertedVideo, insertedPodcast: result.insertedPodcast, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewReady: result.reviewReady, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, publishedVideo: result.publishedVideo, publishedPodcast: result.publishedPodcast, skipped: result.skipped, shortfall: { video: videoShortfall, podcast: podcastShortfall }, skippedSources: result.skippedSources.length }, skippedSources: result.skippedSources, failures: result.failures })}\n`);
+      // Review-only is intentionally resumable; auto-publish must be
+      // observable as failed whenever either type misses its target.
+      if (mediaMode === "auto-publish" && mediaPartial) process.exitCode = 1;
+      return;
+    }
+    if (options.command === "cleanup") {
+      if (!repository.listCandidatesForCleanup || !repository.listCandidateArtifactsForCleanup || !repository.deleteCandidateArtifact || !repository.purgeCandidate) {
+        throw new AcquireContentCliInputError("The configured repository does not support cleanup.");
+      }
+      const result = await runContentCleanup({
+        repository: {
+          listCandidatesForCleanup: repository.listCandidatesForCleanup,
+          listCandidateArtifactsForCleanup: repository.listCandidateArtifactsForCleanup,
+          deleteCandidateArtifact: repository.deleteCandidateArtifact,
+          purgeCandidate: repository.purgeCandidate,
+        },
+        now: new Date(),
+        largeArtifactThresholdBytes: Number(process.env.CONTENT_LARGE_ARTIFACT_THRESHOLD_BYTES ?? 1_000_000),
+        limit: options.limit,
+        dryRun: options.dryRun,
+      });
+      process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { cleanup: options.dryRun ? "skipped" : "completed" }, counts: { candidates: result.candidates, attemptedArtifacts: result.attemptedArtifacts, deletedArtifacts: result.deletedArtifacts, deferredArtifacts: result.deferredArtifacts, purgedCandidates: result.purgedCandidates } })}\n`);
+      return;
+    }
+    if (options.command === "process") {
+      const candidates = await repository.listCandidates({ limit: options.limit });
+      let processed = 0;
+      for (const candidate of candidates) {
+        if (options.dryRun) continue;
+        if (candidate.contentType === "article") await prepareArticleCandidateForReview(repository, candidate.id);
+        else if (candidate.contentType === "podcast") await preparePodcastCandidateForReview(repository, candidate.id);
+        else await prepareVideoCandidateForReview(repository, candidate.id);
+        processed += 1;
+      }
+      process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { processing: options.dryRun ? "skipped" : "completed" }, counts: { candidates: candidates.length, processed } })}\n`);
+      return;
+    }
+    let sources: ContentSourceRecord[];
+    if (options.allEnabled) {
+      const configuredSources = await repository.listSources();
+      const plans = planContentPipelineSources({ sources: configuredSources, limit: options.limit });
+      sources = plans.map((plan) => configuredSources.find((source) => source.stableKey === plan.sourceStableKey)).filter((source): source is ContentSourceRecord => Boolean(source));
+    } else {
+      const source = await repository.findSourceByStableKey(options.sourceStableKey);
+      if (!source) throw new ContentSourceNotFoundError();
+      sources = [source];
+    }
+    const outputLines: string[] = [];
+    for (const source of sources) {
+      if (!source.enabled) throw new ContentSourceDisabledError();
+      const adapter = source.adapterType === "fake"
+        ? await loadConfiguredFakeAdapter()
+        : source.adapterType === "article-rss"
+          ? createArticleRssAdapterFromSource(source)
+          : source.adapterType === "readlang-links"
+            ? createReadlangLinksAdapterFromSource(source)
+          : source.adapterType === "language-reactor"
+            ? createLanguageReactorAdapterFromSource(source)
+          : source.adapterType === "podcast-rss"
+            ? createPodcastRssAdapterFromSource(source)
+            : source.adapterType === "youtube"
+              ? createYouTubeChannelAdapterFromSource(source)
+              : null;
+      if (!adapter) throw new ContentAcquisitionRunError("No runtime adapter is available for this source type.");
+      const sourceArgs = ["--source", source.stableKey, "--limit", String(options.limit), ...(options.dryRun ? ["--dry-run"] : [])];
+      await runAcquireContentCli(sourceArgs, {
+        repository,
+        adapter,
+        write: (line) => outputLines.push(line),
+      });
+    }
+    for (const line of outputLines) process.stdout.write(`${line}\n`);
   } finally {
     await connection.client.end();
   }
