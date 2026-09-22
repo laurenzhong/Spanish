@@ -307,9 +307,19 @@ async function downloadAuthorizedYouTubeAudio(url: string, directory: string, ma
   if (source.adapterType !== "language-reactor") throw new Error("MEDIA_VIDEO_PROCESSING_NOT_AUTHORIZED");
   const policy = languageReactorRightsPolicySchema.parse(source.rightsPolicy ?? {});
   if (policy.temporaryMediaProcessing !== "yt-dlp") throw new Error("MEDIA_VIDEO_PROCESSING_NOT_AUTHORIZED");
+  const cookieArgs: string[] = [];
+  const cookies = process.env.YOUTUBE_COOKIES_B64?.trim();
+  if (cookies) {
+    let decoded: Buffer;
+    try { decoded = Buffer.from(cookies, "base64"); } catch { throw new Error("MEDIA_YOUTUBE_COOKIES_INVALID"); }
+    if (!decoded.length || !decoded.toString("utf8").includes("# Netscape HTTP Cookie File")) throw new Error("MEDIA_YOUTUBE_COOKIES_INVALID");
+    const cookiePath = path.join(directory, "youtube-cookies.txt");
+    await writeFile(cookiePath, decoded, { mode: 0o600 });
+    cookieArgs.push("--cookies", cookiePath);
+  }
   await runCommand(process.env.YTDLP_BIN?.trim() || "yt-dlp", [
     "--ignore-config", "--no-playlist", "--no-progress", "--no-warnings", "--quiet",
-    "--format", "bestaudio/best", "--max-filesize", String(maxBytes), "--output", path.join(directory, "audio.%(ext)s"), url,
+    ...cookieArgs, "--format", "bestaudio/best", "--max-filesize", String(maxBytes), "--output", path.join(directory, "audio.%(ext)s"), url,
   ], signal, 15 * 60_000);
   const names = await readdir(directory);
   const name = names.find((value) => value.startsWith("audio."));
@@ -319,7 +329,9 @@ async function downloadAuthorizedYouTubeAudio(url: string, directory: string, ma
 
 function runCommand(command: string, args: readonly string[], signal: AbortSignal | undefined, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, [...args], { windowsHide: true, stdio: "ignore" });
+    const errors: Buffer[] = [];
+    const child = spawn(command, [...args], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
     let settled = false;
     const timeout = setTimeout(() => { child.kill(); finish(() => reject(new Error("MEDIA_AUDIO_TIMEOUT"))); }, timeoutMs);
     const abort = () => { child.kill(); finish(() => reject(new Error("MEDIA_AUDIO_CANCELLED"))); };
@@ -332,7 +344,18 @@ function runCommand(command: string, args: readonly string[], signal: AbortSigna
     };
     signal?.addEventListener("abort", abort, { once: true });
     child.once("error", () => finish(() => reject(new Error("MEDIA_AUDIO_COMMAND_UNAVAILABLE"))));
-    child.once("close", (code) => finish(() => code === 0 ? resolve() : reject(new Error("MEDIA_AUDIO_COMMAND_FAILED"))));
+    child.once("close", (code) => finish(() => {
+      if (code === 0) return resolve();
+      const diagnostic = Buffer.concat(errors).toString("utf8").toLowerCase();
+      const reason = diagnostic.includes("sign in") || diagnostic.includes("login") || diagnostic.includes("confirm you’re not a bot")
+        ? "AUTH_REQUIRED"
+        : diagnostic.includes("age-restricted") || diagnostic.includes("age restricted")
+          ? "AGE_RESTRICTED"
+          : diagnostic.includes("not available") || diagnostic.includes("private video")
+            ? "UNAVAILABLE"
+            : "PROCESS_FAILED";
+      reject(new Error(`MEDIA_AUDIO_COMMAND_FAILED_${reason}`));
+    }));
   });
 }
 
