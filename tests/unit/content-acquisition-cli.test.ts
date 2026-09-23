@@ -82,6 +82,8 @@ describe("content acquisition CLI", () => {
       .toMatchObject({ command: "media-daily", mediaMode: "auto-publish", mediaDailyLimit: 50, mediaSourceLimit: 10 });
     expect(parseContentPipelineArguments(["media-daily", "--mode", "auto-publish", "--daily-limit", "20", "--video-daily-limit", "10", "--podcast-daily-limit", "10", "--require-bilingual-subtitles"]))
       .toMatchObject({ command: "media-daily", mediaVideoDailyLimit: 10, mediaPodcastDailyLimit: 10, mediaRequireBilingualSubtitles: true });
+    expect(parseContentPipelineArguments(["media-daily", "--mode", "auto-publish", "--video-daily-limit", "0", "--podcast-daily-limit", "10"]))
+      .toMatchObject({ command: "media-daily", mediaVideoDailyLimit: 0, mediaPodcastDailyLimit: 10 });
     expect(() => assertMediaAutoPublishKillSwitch("auto-publish", undefined)).toThrow(
       "CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH must be true",
     );

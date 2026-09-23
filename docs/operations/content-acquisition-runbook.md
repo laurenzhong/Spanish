@@ -19,7 +19,7 @@ pnpm content:pipeline -- report --limit 100
 
 文章日流水线使用 `CONTENT_ARTICLE_AUTO_PUBLISH_KILL_SWITCH=true` 作为受保护 Environment 的显式发布门闩。缺失或非 `true` 时，`auto-publish` 在 CLI 入口直接 fail closed；`disabled`、`discover-only` 和 `review-only` 不受此门闩影响。该变量表示发布开关已由维护者明确置于可运行状态，不代表绕过来源权利、双审核、结构校验或 CAS 门禁。
 
-媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`。自动发布目标按类型独立计算：`CONTENT_MEDIA_VIDEO_DAILY_LIMIT=10` 和 `CONTENT_MEDIA_PODCAST_DAILY_LIMIT=10`，合计目标为每天 10 条视频和 10 条播客；未显式设置环境变量时 CLI 也默认使用总计 20、视频 10、播客 10。`CONTENT_MEDIA_SOURCE_LIMIT` 仍限制单来源，最大 50。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。
+媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`。自动发布目标按类型独立计算：`CONTENT_MEDIA_VIDEO_DAILY_LIMIT=10` 和 `CONTENT_MEDIA_PODCAST_DAILY_LIMIT=10`，合计目标为每天 10 条视频和 10 条播客；未显式设置环境变量时 CLI 也默认使用总计 20、视频 10、播客 10。将受保护 Environment 的 `CONTENT_MEDIA_VIDEO_DAILY_LIMIT` 设为 `0` 可暂停每日视频发现、处理、托管和发布，同时让播客按独立额度继续运行；workflow 会跳过 yt-dlp/PO Token 与视频托管步骤。恢复时将额度设为正数。`CONTENT_MEDIA_SOURCE_LIMIT` 仍限制单来源，最大 50。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。
 
 当 `CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES=true`（生产默认值）时，流水线会先为无字幕或单语字幕的授权媒体创建临时音频，使用配置的 ASR 生成时间轴，再用 MiniMax 逐句翻译为简体中文；临时音频在成功、失败、取消和超时后删除。当前 revision 必须存在至少一个合法时间轴、每句同时有西语原文和中文翻译才允许自动发布；缺少字幕、只有单语字幕或翻译不完整的候选会记录 `MEDIA_BILINGUAL_SUBTITLES_REQUIRED`，不计入视频/播客完成数。该门禁不会把无字幕候选伪装成已完成，也不会绕过 ASR、翻译或审核流程。报告返回 `publishedByType` 和 `targetDeficitByType`，用于区分两类缺口；数据库配额计数同样只统计已发布正式媒体版本中完整双语时间轴的条目，不统计历史无字幕版本。
 
