@@ -11,7 +11,7 @@ const confirmation = "I_HAVE_AUTHORIZATION";
 const limit = Number(process.env.MEDIA_VIDEO_HOSTING_LIMIT ?? 50);
 const hostingSince = process.env.MEDIA_VIDEO_HOSTING_SINCE?.trim() || null;
 const canaryOnly = process.env.MEDIA_VIDEO_HOSTING_CANARY_ONLY === "true";
-const canaryCandidateLimit = 5;
+const canaryCandidateLimit = 10;
 if (process.env.MEDIA_VIDEO_HOSTING_CONFIRM !== confirmation) throw new Error("MEDIA_AUTHORIZATION_REQUIRED");
 if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("MEDIA_VIDEO_HOSTING_LIMIT_INVALID");
 if (hostingSince && Number.isNaN(Date.parse(hostingSince))) throw new Error("MEDIA_VIDEO_HOSTING_SINCE_INVALID");
