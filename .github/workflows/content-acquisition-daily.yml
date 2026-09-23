@@ -56,23 +56,26 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Install media hosting tools
+      - name: Install media processing tools
         if: ${{ inputs.media_canary_only || (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
         env:
           BGUTIL_PROVIDER_CONTAINER: bgutil-ytdlp-pot-provider-${{ github.run_id }}
+          VIDEO_TOOLS_ENABLED: ${{ inputs.media_canary_only || ((inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' && (vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10') != '0') }}
         run: |
-          python -m pip install --disable-pip-version-check --no-warn-script-location yt-dlp bgutil-ytdlp-pot-provider==2.0.0
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y ffmpeg
-          pnpm exec playwright install --with-deps chromium
-          docker run --rm --detach --name "$BGUTIL_PROVIDER_CONTAINER" --publish 127.0.0.1:4416:4416 brainicism/bgutil-ytdlp-pot-provider:2.0.0
-          for attempt in {1..30}; do
-            if python -c "import socket; connection = socket.create_connection(('127.0.0.1', 4416), timeout=1); connection.close()"; then
-              break
-            fi
-            sleep 1
-          done
-          python -c "import socket; connection = socket.create_connection(('127.0.0.1', 4416), timeout=1); connection.close()"
+          if [ "$VIDEO_TOOLS_ENABLED" = "true" ]; then
+            python -m pip install --disable-pip-version-check --no-warn-script-location yt-dlp bgutil-ytdlp-pot-provider==2.0.0
+            pnpm exec playwright install --with-deps chromium
+            docker run --rm --detach --name "$BGUTIL_PROVIDER_CONTAINER" --publish 127.0.0.1:4416:4416 brainicism/bgutil-ytdlp-pot-provider:2.0.0
+            for attempt in {1..30}; do
+              if python -c "import socket; connection = socket.create_connection(('127.0.0.1', 4416), timeout=1); connection.close()"; then
+                break
+              fi
+              sleep 1
+            done
+            python -c "import socket; connection = socket.create_connection(('127.0.0.1', 4416), timeout=1); connection.close()"
+          fi
       - name: Register owner-authorized Readlang policy
         if: ${{ !inputs.media_canary_only }}
         env:
@@ -88,7 +91,7 @@ jobs:
           LANGUAGE_REACTOR_PODCAST_RESET_CURSOR: ${{ vars.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR || 'false' }}
         run: pnpm exec tsx scripts/register-language-reactor-audio-hosts.ts
       - name: Enable owner-authorized Language Reactor video processing
-        if: ${{ !inputs.media_canary_only && (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
+        if: ${{ !inputs.media_canary_only && (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' && (vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10') != '0' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
@@ -166,15 +169,19 @@ jobs:
           export MEDIA_VIDEO_HOSTING_CANARY_ONLY=true;
           pnpm exec tsx scripts/host-video-candidates-to-bunny.ts 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           elif [ "$MEDIA_MODE" = "auto-publish" ]; then
-          export MEDIA_VIDEO_HOSTING_LIMIT="$MEDIA_VIDEO_DAILY_LIMIT";
           pnpm content:pipeline -- media-daily --mode review-only --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
-          pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
+          if [ "$MEDIA_VIDEO_DAILY_LIMIT" -gt 0 ]; then
+            export MEDIA_VIDEO_HOSTING_LIMIT="$MEDIA_VIDEO_DAILY_LIMIT";
+            pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
+          else
+            echo '{"stage":"video-host","status":"skipped","reason":"video-daily-limit-zero"}' | tee -a "$RUNNER_TEMP/media-daily.log";
+          fi
           pnpm content:pipeline -- media-daily --mode auto-publish --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee -a "$RUNNER_TEMP/media-daily.log";
           else
           pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           fi
       - name: Stop PO Token provider
-        if: ${{ always() && (inputs.media_canary_only || (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish') }}
+        if: ${{ always() && (inputs.media_canary_only || ((inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' && (vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10') != '0') }}
         env:
           BGUTIL_PROVIDER_CONTAINER: bgutil-ytdlp-pot-provider-${{ github.run_id }}
         run: docker rm --force "$BGUTIL_PROVIDER_CONTAINER" 2>/dev/null || true

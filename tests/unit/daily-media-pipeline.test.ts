@@ -123,6 +123,23 @@ describe("runDailyMediaPipeline", () => {
     expect(calls).toEqual([video.stableKey, podcast.stableKey]);
   });
 
+  it("continues podcast discovery when the video daily limit is zero", async () => {
+    const podcast = source({ id: "source-podcast", stableKey: "demo.podcast", adapterType: "podcast-rss", sourceKind: "podcast-feed" });
+    const video = source({ id: "source-video", stableKey: "demo.video" });
+    const repo = repository([video, podcast]);
+    const calls: string[] = [];
+    const result = await runDailyMediaPipeline({
+      repository: repo as never,
+      resolveAdapter: async (item) => {
+        calls.push(item.stableKey);
+        return { key: item.sourceKind === "video-channel" ? "youtube" : "podcast-rss", discover: async () => ({ sourceStableKey: item.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }) };
+      },
+    }, { mode: "discover-only", dailyLimit: 1, videoDailyLimit: 0, podcastDailyLimit: 1, defaultSourceLimit: 1, date: "2026-09-23" });
+
+    expect(calls).toEqual([podcast.stableKey]);
+    expect(result).toMatchObject({ videoDailyLimit: 0, podcastDailyLimit: 1, discovered: 0, failures: [] });
+  });
+
   it("prefers the authorized Language Reactor directories within each media type", async () => {
     const genericVideo = source({ id: "source-generic-video", stableKey: "aaa.video" });
     const languageReactorVideo = source({
