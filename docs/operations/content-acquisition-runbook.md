@@ -37,7 +37,7 @@ pnpm content:pipeline -- report --limit 100
 
 ### YouTube PO Token provider（每日 workflow 默认）
 
-每日 workflow 在 auto-publish 或 `media_canary_only` 模式安装 `bgutil-ytdlp-pot-provider==2.0.0`，并启动 `brainicism/bgutil-ytdlp-pot-provider:2.0.0` 容器。容器端口只绑定 runner loopback `127.0.0.1:4416`，yt-dlp 插件从本机 provider 获取 PO Token；视频下载使用 yt-dlp 官方当前推荐的 `mweb` player client，不需要账号或 cookies。服务启动失败时 job fail closed，job 收尾时删除 provider 容器。若改用专用 self-hosted runner，必须安装 Docker 并允许 runner 用户访问 Docker daemon。
+每日 workflow 在 auto-publish 或 `media_canary_only` 模式安装 `bgutil-ytdlp-pot-provider==2.0.0`，并启动 `brainicism/bgutil-ytdlp-pot-provider:2.0.0` 容器。容器端口只绑定 runner loopback `127.0.0.1:4416`，yt-dlp 显式选择 `youtubepot-bgutilhttp` 并指向 `http://127.0.0.1:4416`，避免误选需要本机源码 checkout 的 script provider；视频下载使用 yt-dlp 官方当前推荐的 `mweb` player client，不需要账号或 cookies。服务启动失败时 job fail closed，job 收尾时删除 provider 容器。若改用专用 self-hosted runner，必须安装 Docker 并允许 runner 用户访问 Docker daemon。
 
 PO Token 只用于 YouTube 客户端请求验证，不等于来源许可或下载授权；候选仍必须满足既有权利状态、审核、Bunny 资产和发布门禁。YouTube 可能继续对特定 IP、视频或格式返回拒绝，因此 token provider 不保证所有下载成功。插件在 yt-dlp PO Token Guide 中列为 featured provider，但并非 yt-dlp 官方项目的一部分。版本升级需同时核对插件和容器兼容性，并先执行单个已授权候选 canary。
 
