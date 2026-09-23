@@ -75,10 +75,20 @@ async function main() {
       // `--ffmpeg-location` accepts a directory, not an executable name. The
       // runner already exposes ffmpeg on PATH, so omit it for the normal case.
       const ffmpegDirectory = process.env.FFMPEG_DIRECTORY?.trim();
-      // The visionOS client returns stable MP4/M4A URLs without requiring a
-      // browser session or an extractor-side PO token. It is still a normal
-      // yt-dlp client and does not bypass DRM or access controls.
-      const base = ["--ignore-config", "--no-playlist", "--extractor-args", "youtube:player_client=visionos", "--js-runtimes", "node", "--force-ipv4", "--socket-timeout", "30", "--retries", "3", ...(ffmpegDirectory ? ["--ffmpeg-location", ffmpegDirectory] : [])];
+      const base = [
+        "--ignore-config",
+        "--no-playlist",
+        "--extractor-args",
+        "youtube:player_client=mweb",
+        "--js-runtimes",
+        "node",
+        "--force-ipv4",
+        "--socket-timeout",
+        "30",
+        "--retries",
+        "3",
+        ...(ffmpegDirectory ? ["--ffmpeg-location", ffmpegDirectory] : []),
+      ];
       const downloadArgs = [...base, "--no-progress", "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "--output", source];
       await run(ytdlp, [...withYoutubeCookies(downloadArgs, cookieFile), `https://www.youtube.com/watch?v=${videoId}`], 20 * 60_000);
     }

@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 
 test("daily content workflow is protected and stage-gated", async () => {
   const workflow = await readFile(".github/workflows/content-acquisition-daily.yml", "utf8");
+  const videoHosting = await readFile("scripts/host-video-candidate-to-bunny.ts", "utf8");
+  const batchHosting = await readFile("scripts/host-video-candidates-to-bunny.ts", "utf8");
   expect(workflow).toContain("concurrency:");
   expect(workflow).toContain("workflow_dispatch:");
   expect(workflow).toContain("article_mode:");
@@ -34,8 +36,18 @@ test("daily content workflow is protected and stage-gated", async () => {
   expect(workflow).toContain("pnpm exec tsx scripts/host-video-candidates-to-bunny.ts");
   expect(workflow).toContain("CONTENT_MEDIA_RUNNER_LABELS");
   expect(workflow).toContain("MEDIA_VIDEO_AUTHORIZED_ASSET_DIR");
+  expect(workflow).toContain("bgutil-ytdlp-pot-provider==2.0.0");
+  expect(workflow).toContain("brainicism/bgutil-ytdlp-pot-provider:2.0.0");
+  expect(workflow).toContain("BGUTIL_PROVIDER_CONTAINER: bgutil-ytdlp-pot-provider-${{ github.run_id }}");
+  expect(workflow).toContain("--publish 127.0.0.1:4416:4416");
+  expect(workflow).toContain("name: Stop PO Token provider");
+  expect(workflow).toContain("media_canary_only:");
+  expect(workflow).toContain("MEDIA_VIDEO_HOSTING_CANARY_ONLY=true");
+  expect(workflow).toContain("publication=skipped");
+  expect(videoHosting).toContain('"youtube:player_client=mweb"');
+  expect(batchHosting).toContain("MEDIA_VIDEO_HOSTING_CANARY_ONLY");
   expect(workflow).not.toContain('export MEDIA_VIDEO_HOSTING_SINCE=');
-  expect(workflow).toContain("if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}");
+  expect(workflow).toContain("(inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish'");
   expect(workflow).not.toContain("version: 11");
   expect(workflow).not.toContain("content:publish");
 });
