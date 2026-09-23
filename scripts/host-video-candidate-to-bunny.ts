@@ -25,14 +25,22 @@ if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error("MEDIA_VID
 
 function run(command: string, args: string[], timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { windowsHide: true, stdio: ["ignore", "ignore", "ignore"] });
+    const diagnostics: Buffer[] = [];
+    const child = spawn(command, args, { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    child.stderr.on("data", (chunk: Buffer) => { if (process.env.MEDIA_VIDEO_CANARY_DIAGNOSTICS === "true") diagnostics.push(chunk); });
     const timer = setTimeout(() => { child.kill(); reject(new Error("MEDIA_VIDEO_COMMAND_TIMEOUT")); }, timeoutMs);
     child.once("error", () => { clearTimeout(timer); reject(new Error("MEDIA_VIDEO_COMMAND_UNAVAILABLE")); });
     child.once("close", (code) => {
       clearTimeout(timer);
       // Keep provider output out of logs: yt-dlp may echo source URLs or
       // authentication details. The workflow only needs a stable failure code.
-      if (code !== 0) reject(new Error("MEDIA_VIDEO_COMMAND_FAILED"));
+      if (code !== 0) {
+        if (process.env.MEDIA_VIDEO_CANARY_DIAGNOSTICS === "true") {
+          const detail = Buffer.concat(diagnostics).toString("utf8").replace(/https?:\/\/\S+/gu, "<redacted-url>").slice(-2_000);
+          console.error(`MEDIA_VIDEO_COMMAND_DIAGNOSTICS ${detail}`);
+        }
+        reject(new Error("MEDIA_VIDEO_COMMAND_FAILED"));
+      }
       else resolve();
     });
   });
