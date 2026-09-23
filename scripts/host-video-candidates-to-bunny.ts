@@ -11,6 +11,7 @@ const confirmation = "I_HAVE_AUTHORIZATION";
 const limit = Number(process.env.MEDIA_VIDEO_HOSTING_LIMIT ?? 50);
 const hostingSince = process.env.MEDIA_VIDEO_HOSTING_SINCE?.trim() || null;
 const canaryOnly = process.env.MEDIA_VIDEO_HOSTING_CANARY_ONLY === "true";
+const canaryCandidateLimit = 5;
 if (process.env.MEDIA_VIDEO_HOSTING_CONFIRM !== confirmation) throw new Error("MEDIA_AUTHORIZATION_REQUIRED");
 if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("MEDIA_VIDEO_HOSTING_LIMIT_INVALID");
 if (hostingSince && Number.isNaN(Date.parse(hostingSince))) throw new Error("MEDIA_VIDEO_HOSTING_SINCE_INVALID");
@@ -83,7 +84,7 @@ async function main() {
                and r.status='approved'
                and r.dimension in ('content-es-ES','teaching-zh-CN','structure')) = 3
       order by last_activity_at asc
-      limit ${remaining}
+      limit ${canaryOnly ? canaryCandidateLimit : remaining}
     `;
     if (canaryOnly && rows.length === 0) {
       console.log(JSON.stringify({ requested: 0, hosted: 0, failed: 0, publishedToday, remaining, canaryOnly: true, canaryCandidateId: null }));
@@ -94,17 +95,21 @@ async function main() {
     let failed = 0;
     let authorizedMp4 = 0;
     let youtube = 0;
+    let canaryCandidateId: string | null = null;
     const assetDirectory = process.env.MEDIA_VIDEO_AUTHORIZED_ASSET_DIR?.trim() || null;
     for (const row of rows as unknown as { id: string }[]) {
       try {
         const source = await run(row.id, assetDirectory);
         hosted += 1;
+        canaryCandidateId = row.id;
         if (source === "authorized-mp4") authorizedMp4 += 1;
         else youtube += 1;
+        if (canaryOnly) break;
+      } catch {
+        failed += 1;
       }
-      catch { failed += 1; }
     }
-    console.log(JSON.stringify({ requested: rows.length, hosted, failed, authorizedMp4, youtube, publishedToday, remaining, ...(canaryOnly ? { canaryOnly: true, canaryCandidateId: (rows[0] as { id: string } | undefined)?.id ?? null } : {}) }));
+    console.log(JSON.stringify({ requested: rows.length, hosted, failed, authorizedMp4, youtube, publishedToday, remaining, ...(canaryOnly ? { canaryOnly: true, canaryCandidateId, candidatesChecked: Math.min(rows.length, failed + hosted) } : {}) }));
     if (failed > 0) process.exitCode = 2;
   } finally {
     await db.end();
