@@ -4,11 +4,13 @@ import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import postgres from "postgres";
 
+import { getMediaVideoHostingBatchLimit } from "../src/modules/content-acquisition/media/video-hosting-batch-limit";
 import { resolveAuthorizedVideoAssetPath } from "../src/modules/content-acquisition/media/authorized-video-asset";
 
 const confirmation = "I_HAVE_AUTHORIZATION";
 const limit = Number(process.env.MEDIA_VIDEO_HOSTING_LIMIT ?? 50);
 const hostingSince = process.env.MEDIA_VIDEO_HOSTING_SINCE?.trim() || null;
+const canaryOnly = process.env.MEDIA_VIDEO_HOSTING_CANARY_ONLY === "true";
 if (process.env.MEDIA_VIDEO_HOSTING_CONFIRM !== confirmation) throw new Error("MEDIA_AUTHORIZATION_REQUIRED");
 if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("MEDIA_VIDEO_HOSTING_LIMIT_INVALID");
 if (hostingSince && Number.isNaN(Date.parse(hostingSince))) throw new Error("MEDIA_VIDEO_HOSTING_SINCE_INVALID");
@@ -63,9 +65,9 @@ async function main() {
         and published_at_internal < ${dayEnd}
     `;
     const publishedToday = Number((publishedRows as unknown as { count?: number | string }[])[0]?.count ?? 0);
-    const remaining = Math.max(0, limit - publishedToday);
+    const remaining = getMediaVideoHostingBatchLimit(limit, publishedToday, canaryOnly);
     if (remaining === 0) {
-      console.log(JSON.stringify({ requested: 0, hosted: 0, failed: 0, publishedToday, remaining }));
+      console.log(JSON.stringify({ requested: 0, hosted: 0, failed: 0, publishedToday, remaining, ...(canaryOnly ? { canaryOnly: true, canaryCandidateId: null } : {}) }));
       return;
     }
     const rows = await db`
@@ -83,6 +85,11 @@ async function main() {
       order by last_activity_at asc
       limit ${remaining}
     `;
+    if (canaryOnly && rows.length === 0) {
+      console.log(JSON.stringify({ requested: 0, hosted: 0, failed: 0, publishedToday, remaining, canaryOnly: true, canaryCandidateId: null }));
+      process.exitCode = 3;
+      return;
+    }
     let hosted = 0;
     let failed = 0;
     let authorizedMp4 = 0;
@@ -97,7 +104,7 @@ async function main() {
       }
       catch { failed += 1; }
     }
-    console.log(JSON.stringify({ requested: rows.length, hosted, failed, authorizedMp4, youtube, publishedToday, remaining }));
+    console.log(JSON.stringify({ requested: rows.length, hosted, failed, authorizedMp4, youtube, publishedToday, remaining, ...(canaryOnly ? { canaryOnly: true, canaryCandidateId: (rows[0] as { id: string } | undefined)?.id ?? null } : {}) }));
     if (failed > 0) process.exitCode = 2;
   } finally {
     await db.end();

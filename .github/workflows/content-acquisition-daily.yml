@@ -30,6 +30,11 @@ on:
           - discover-only
           - review-only
           - auto-publish
+      media_canary_only:
+        description: "Host one previously approved video only; skip discovery and publishing"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: content-acquisition-${{ github.ref }}
@@ -52,18 +57,29 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Install media hosting tools
-        if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
+        if: ${{ inputs.media_canary_only || (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
+        env:
+          BGUTIL_PROVIDER_CONTAINER: bgutil-ytdlp-pot-provider-${{ github.run_id }}
         run: |
-          python -m pip install --disable-pip-version-check --no-warn-script-location yt-dlp
+          python -m pip install --disable-pip-version-check --no-warn-script-location yt-dlp bgutil-ytdlp-pot-provider==2.0.0
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y ffmpeg
           pnpm exec playwright install --with-deps chromium
+          docker run --rm --detach --name "$BGUTIL_PROVIDER_CONTAINER" --publish 127.0.0.1:4416:4416 brainicism/bgutil-ytdlp-pot-provider:2.0.0
+          for attempt in {1..30}; do
+            if python -c "import socket; connection = socket.create_connection(('127.0.0.1', 4416), timeout=1); connection.close()"; then
+              break
+            fi
+            sleep 1
+          done
+          python -c "import socket; connection = socket.create_connection(('127.0.0.1', 4416), timeout=1); connection.close()"
       - name: Register owner-authorized Readlang policy
+        if: ${{ !inputs.media_canary_only }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm content:register-readlang-links
       - name: Register explicit Language Reactor audio redirect hosts
-        if: ${{ vars.LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS != '' }}
+        if: ${{ !inputs.media_canary_only && vars.LANGUAGE_REACTOR_PODCAST_AUDIO_HOSTS != '' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
@@ -72,7 +88,7 @@ jobs:
           LANGUAGE_REACTOR_PODCAST_RESET_CURSOR: ${{ vars.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR || 'false' }}
         run: pnpm exec tsx scripts/register-language-reactor-audio-hosts.ts
       - name: Enable owner-authorized Language Reactor video processing
-        if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
+        if: ${{ !inputs.media_canary_only && (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
@@ -80,6 +96,7 @@ jobs:
         run: pnpm exec tsx scripts/register-language-reactor-video-policy.ts
       - name: Run staged article pipeline
         id: article_daily
+        if: ${{ !inputs.media_canary_only }}
         continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -139,10 +156,15 @@ jobs:
           MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
           CONTENT_MEDIA_SOURCE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_SOURCE_TIMEOUT_MS || '180000' }}
           CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS || '900000' }}
+          MEDIA_VIDEO_HOSTING_CANARY_ONLY: ${{ inputs.media_canary_only }}
         run: >-
           set -o pipefail
           &&
-          if [ "$MEDIA_MODE" = "auto-publish" ]; then
+          if [ "$MEDIA_VIDEO_HOSTING_CANARY_ONLY" = "true" ]; then
+          export MEDIA_VIDEO_HOSTING_LIMIT=1;
+          export MEDIA_VIDEO_HOSTING_CANARY_ONLY=true;
+          pnpm exec tsx scripts/host-video-candidates-to-bunny.ts 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
+          elif [ "$MEDIA_MODE" = "auto-publish" ]; then
           export MEDIA_VIDEO_HOSTING_LIMIT="$MEDIA_VIDEO_DAILY_LIMIT";
           pnpm content:pipeline -- media-daily --mode review-only --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           pnpm exec tsx scripts/host-video-candidates-to-bunny.ts || test "$?" = "2";
@@ -150,13 +172,18 @@ jobs:
           else
           pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           fi
+      - name: Stop PO Token provider
+        if: ${{ always() && (inputs.media_canary_only || (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish') }}
+        env:
+          BGUTIL_PROVIDER_CONTAINER: bgutil-ytdlp-pot-provider-${{ github.run_id }}
+        run: docker rm --force "$BGUTIL_PROVIDER_CONTAINER" 2>/dev/null || true
       - name: Cleanup expired candidates and artifacts
-        if: always()
+        if: ${{ always() && !inputs.media_canary_only }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm content:pipeline -- cleanup --limit 100
       - name: Write acquisition report
-        if: always()
+        if: ${{ always() && !inputs.media_canary_only }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm content:pipeline -- report --limit 100
@@ -179,6 +206,8 @@ jobs:
           }
           if (!result) {
             console.log(`- ${label}: no structured stage result (check the workflow step outcome)`);
+          } else if (result.canaryOnly) {
+            console.log(`- ${label}: canaryOnly=true, candidate=${result.canaryCandidateId ?? "none"}, hosted=${result.hosted ?? 0}, failed=${result.failed ?? 0}, authorizedMp4=${result.authorizedMp4 ?? 0}, youtube=${result.youtube ?? 0}, publication=skipped`);
           } else {
             const counts = result.counts ?? {};
             const failures = Array.isArray(result.failures) ? result.failures.length : 0;
@@ -194,6 +223,7 @@ jobs:
             echo "- Requested mode: ${{ inputs.article_mode || vars.CONTENT_ARTICLE_DAILY_MODE || 'unset' }}"
             echo "- Requested article limit: ${{ vars.CONTENT_ARTICLE_DAILY_LIMIT || '10' }}"
             echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}"
+            echo "- Video hosting canary only: ${{ inputs.media_canary_only }}"
             echo "- Media targets: video=${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}, podcast=${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}, bilingual subtitles required=${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}"
             summarize_stage "Articles" "$RUNNER_TEMP/article-daily.log"
             summarize_stage "Media" "$RUNNER_TEMP/media-daily.log"

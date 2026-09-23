@@ -35,9 +35,28 @@ pnpm content:pipeline -- report --limit 100
 
 媒体自动发布的托管步骤会先按 Asia/Shanghai 自然日统计正式 `published` 视频，再从所有当前 revision 已通过三维审核、仍为 draft 且没有 `bunnyVideoAsset` 的视频候选中按 `last_activity_at` 只取当天剩余缺口。审核前已存在的候选仍可在本次运行中托管；不能用运行开始时间排除它们。仅在人工单次回填需要限制时间窗口时，才显式设置 `MEDIA_VIDEO_HOSTING_SINCE`。
 
-### YouTube 授权 cookies（仅在来源账户已获授权时）
+### YouTube PO Token provider（每日 workflow 默认）
 
-YouTube 返回 `Sign in to confirm you’re not a bot` 时，托管步骤不会绕过验证，也不会使用 DRM、录屏或网页抓取。若所有者对该视频拥有可下载授权，可从自己的浏览器导出 Netscape cookies 文件，并先在本地验证一次。cookies 只作为临时 yt-dlp 输入，脚本会复制到临时目录、任务结束删除，不写入数据库、候选 metadata、日志或仓库。
+每日 workflow 在 auto-publish 或 `media_canary_only` 模式安装 `bgutil-ytdlp-pot-provider==2.0.0`，并启动 `brainicism/bgutil-ytdlp-pot-provider:2.0.0` 容器。容器端口只绑定 runner loopback `127.0.0.1:4416`，yt-dlp 插件从本机 provider 获取 PO Token；视频下载使用 yt-dlp 官方当前推荐的 `mweb` player client，不需要账号或 cookies。服务启动失败时 job fail closed，job 收尾时删除 provider 容器。若改用专用 self-hosted runner，必须安装 Docker 并允许 runner 用户访问 Docker daemon。
+
+PO Token 只用于 YouTube 客户端请求验证，不等于来源许可或下载授权；候选仍必须满足既有权利状态、审核、Bunny 资产和发布门禁。YouTube 可能继续对特定 IP、视频或格式返回拒绝，因此 token provider 不保证所有下载成功。插件在 yt-dlp PO Token Guide 中列为 featured provider，但并非 yt-dlp 官方项目的一部分。版本升级需同时核对插件和容器兼容性，并先执行单个已授权候选 canary。
+
+单候选 canary：手动运行 `Daily content acquisition` workflow，勾选 `media_canary_only`。该模式只选择当前 revision 三维审核通过、仍为 draft 且尚无 Bunny 视频资产的最早候选，最多托管 1 条；跳过文章阶段、媒体发现/审核/自动发布、候选 cleanup 和 report。结果写入 workflow summary，包含候选 ID、上传来源、托管成功/失败数，并明确标记 `publication=skipped`。无合格候选或托管失败时 job 失败；canary 成功后仍需核对 Bunny HEAD 与浏览器播放/seek，之后再用普通 workflow 恢复日常发布。
+
+本地 Windows 验证需使用同一 Python 环境安装 yt-dlp 与插件，并运行 Docker Desktop provider：
+
+```powershell
+python -m pip install --upgrade yt-dlp bgutil-ytdlp-pot-provider==2.0.0
+docker run --rm --detach --name bgutil-ytdlp-pot-provider --publish 127.0.0.1:4416:4416 brainicism/bgutil-ytdlp-pot-provider:2.0.0
+```
+
+本地候选处理完成后停止该容器：
+
+```powershell
+docker rm --force bgutil-ytdlp-pot-provider
+```
+
+只有在授权来源明确要求账户身份时，才考虑临时 cookies。不得通过 cookies 访问未授权内容。cookies 只作为临时 yt-dlp 输入，脚本会复制到临时目录、任务结束删除，不写入数据库、候选 metadata、日志或仓库。
 
 本地 Windows 运行：
 
