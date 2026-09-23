@@ -48,7 +48,7 @@ pnpm exec tsx scripts/host-video-candidate-to-bunny.ts <candidate-uuid>
 Remove-Item -LiteralPath $env:MEDIA_VIDEO_COOKIES_FILE
 ```
 
-若授权方直接提供原始 MP4，可在本机对单条已审核候选使用 `MEDIA_VIDEO_LOCAL_FILE`；脚本只复制该文件到临时目录进行 ffmpeg、哈希、Bunny HEAD 和 Chrome 播放/seek 校验，绝不删除原始文件。该变量不写入 GitHub Environment，也不会被 workflow 传入：
+若授权方直接提供原始 MP4，可在本机对单条已审核候选使用 `MEDIA_VIDEO_LOCAL_FILE`；脚本只复制该文件到临时目录进行 ffmpeg、哈希、Bunny HEAD 和 Chrome 播放/seek 校验，绝不删除原始文件：
 
 ```powershell
 $env:MEDIA_VIDEO_LOCAL_FILE = 'C:\secure\authorized-video.mp4'
@@ -56,6 +56,8 @@ $env:MEDIA_VIDEO_HOSTING_CONFIRM = 'I_HAVE_AUTHORIZATION'
 pnpm exec tsx scripts/host-video-candidate-to-bunny.ts <candidate-uuid>
 Remove-Item Env:MEDIA_VIDEO_LOCAL_FILE
 ```
+
+每日 workflow 也可从专用 Linux self-hosted runner 读取授权 MP4。先将每个文件明确对应到数据库中的候选 UUID，并放入 runner 专用目录，文件名必须为 `<candidate-uuid>.mp4`。在 GitHub repository variables 中设置 `CONTENT_MEDIA_RUNNER_LABELS=["self-hosted","linux","x64","content-media"]`（标签必须匹配已注册的专用 runner），并在 `content-production` Environment variables 中设置 `CONTENT_MEDIA_AUTHORIZED_ASSET_DIR` 为该 runner 上的素材目录。workflow 只把文件传给当前 revision 三维审核通过、仍为 draft 的对应候选；缺失文件才回退到既有 yt-dlp 路径。批处理拒绝单文件变量，避免同一个 MP4 被错误复用于多条候选。上传仍经过完整 FFmpeg、SHA-256、Bunny HEAD 和浏览器播放/seek 校验；源文件不删除。self-hosted runner 未配置时继续使用 GitHub-hosted runner 与原有 yt-dlp 处理。
 
 GitHub Actions 使用受保护的 `content-production` Environment secret。不要把 cookies 文件提交到仓库或粘贴到 issue/聊天；先在本地生成一次 base64 文件，再通过标准输入写入 secret：
 

@@ -32,6 +32,8 @@ test("daily content workflow is protected and stage-gated", async () => {
   expect(workflow).toContain("--require-bilingual-subtitles");
   expect(workflow).toContain("CONTENT_MEDIA_STT_PROVIDER: ${{ vars.CONTENT_MEDIA_STT_PROVIDER || 'minimax' }}");
   expect(workflow).toContain("pnpm exec tsx scripts/host-video-candidates-to-bunny.ts");
+  expect(workflow).toContain("CONTENT_MEDIA_RUNNER_LABELS");
+  expect(workflow).toContain("MEDIA_VIDEO_AUTHORIZED_ASSET_DIR");
   expect(workflow).not.toContain('export MEDIA_VIDEO_HOSTING_SINCE=');
   expect(workflow).toContain("if: ${{ (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}");
   expect(workflow).not.toContain("version: 11");
