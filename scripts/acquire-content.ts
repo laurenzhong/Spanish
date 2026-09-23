@@ -407,7 +407,8 @@ async function main(): Promise<void> {
        const mediaTargetIncomplete = result.mode === "auto-publish" && (result.targetDeficitByType.video > 0 || result.targetDeficitByType.podcast > 0);
       const mediaPartial = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0 || result.skipped > 0 || result.skippedSources.length > 0 || mediaTargetIncomplete;
        process.stdout.write(`${JSON.stringify({ runKey: result.runKey, status: mediaPartial ? "partial" : "succeeded", mode: result.mode, counts: { discovered: result.discovered, inserted: result.inserted, duplicates: result.duplicates, conflicts: result.conflicts, prepared: result.prepared, reviewReady: result.reviewReady, reviewed: result.reviewed, approved: result.approved, changesRequested: result.changesRequested, rejected: result.rejected, published: result.published, skipped: result.skipped, skippedSources: result.skippedSources.length }, publishedByType: result.publishedByType, targetDeficitByType: result.targetDeficitByType, skippedReasons: result.skippedReasons, skippedSources: result.skippedSources, failures: result.failures })}\n`);
-      if (mediaMode === "auto-publish" && mediaPartial) process.exitCode = 1;
+      const mediaOperationalFailure = result.failures.length > 0 || result.changesRequested > 0 || result.rejected > 0;
+      if (mediaMode === "auto-publish" && mediaOperationalFailure) process.exitCode = 1;
       return;
     }
     if (options.command === "cleanup") {
