@@ -46,6 +46,8 @@ test("daily content workflow is protected and stage-gated", async () => {
   expect(workflow).toContain("publication=skipped");
   expect(videoHosting).toContain('"youtube:player_client=mweb"');
   expect(batchHosting).toContain("MEDIA_VIDEO_HOSTING_CANARY_ONLY");
+  expect(batchHosting).toContain("const canaryCandidateLimit = 5");
+  expect(batchHosting).toContain("if (canaryOnly) break");
   expect(workflow).not.toContain('export MEDIA_VIDEO_HOSTING_SINCE=');
   expect(workflow).toContain("(inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish'");
   expect(workflow).not.toContain("version: 11");

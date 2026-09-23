@@ -208,7 +208,7 @@ jobs:
           if (!result) {
             console.log(`- ${label}: no structured stage result (check the workflow step outcome)`);
           } else if (result.canaryOnly) {
-            console.log(`- ${label}: canaryOnly=true, candidate=${result.canaryCandidateId ?? "none"}, hosted=${result.hosted ?? 0}, failed=${result.failed ?? 0}, authorizedMp4=${result.authorizedMp4 ?? 0}, youtube=${result.youtube ?? 0}, publication=skipped`);
+            console.log(`- ${label}: canaryOnly=true, candidate=${result.canaryCandidateId ?? "none"}, candidatesChecked=${result.candidatesChecked ?? 0}, hosted=${result.hosted ?? 0}, failed=${result.failed ?? 0}, authorizedMp4=${result.authorizedMp4 ?? 0}, youtube=${result.youtube ?? 0}, publication=skipped`);
           } else {
             const counts = result.counts ?? {};
             const failures = Array.isArray(result.failures) ? result.failures.length : 0;

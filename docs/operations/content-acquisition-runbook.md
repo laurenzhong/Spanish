@@ -41,7 +41,7 @@ pnpm content:pipeline -- report --limit 100
 
 PO Token 只用于 YouTube 客户端请求验证，不等于来源许可或下载授权；候选仍必须满足既有权利状态、审核、Bunny 资产和发布门禁。YouTube 可能继续对特定 IP、视频或格式返回拒绝，因此 token provider 不保证所有下载成功。插件在 yt-dlp PO Token Guide 中列为 featured provider，但并非 yt-dlp 官方项目的一部分。版本升级需同时核对插件和容器兼容性，并先执行单个已授权候选 canary。
 
-单候选 canary：手动运行 `Daily content acquisition` workflow，勾选 `media_canary_only`。该模式只选择当前 revision 三维审核通过、仍为 draft 且尚无 Bunny 视频资产的最早候选，最多托管 1 条；跳过文章阶段、媒体发现/审核/自动发布、候选 cleanup 和 report。结果写入 workflow summary，包含候选 ID、上传来源、托管成功/失败数，并明确标记 `publication=skipped`。无合格候选或托管失败时 job 失败；canary 成功后仍需核对 Bunny HEAD 与浏览器播放/seek，之后再用普通 workflow 恢复日常发布。
+单视频 canary：手动运行 `Daily content acquisition` workflow，勾选 `media_canary_only`。该模式按审核资格顺序最多尝试 5 个当前 revision 三维审核通过、仍为 draft 且尚无 Bunny 视频资产的候选，遇到年龄限制、区域或格式拒绝时记录脱敏错误并继续；只在第一条成功通过托管流程后停止，因此最多托管 1 条。它跳过文章阶段、媒体发现/审核/自动发布、候选 cleanup 和 report。结果写入 workflow summary，包含成功候选 ID、检查数量、上传来源、托管成功/失败数，并明确标记 `publication=skipped`。没有候选成功时 job 失败；canary 成功后仍需核对 Bunny HEAD 与浏览器播放/seek，之后再用普通 workflow 恢复日常发布。年龄/登录门槛代表 YouTube 访问限制，PO Token 不会绕过这些门槛。
 
 本地 Windows 验证需使用同一 Python 环境安装 yt-dlp 与插件，并运行 Docker Desktop provider：
 
