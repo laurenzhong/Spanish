@@ -29,31 +29,29 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
     // the complete interaction flow without publishing unreviewed material.
     allowDraft: process.env.NODE_ENV !== "production",
   } as const;
-  let dashboard;
-  try {
-    dashboard = await getExploreDashboardForUser(
-      new BundleExploreRepository(),
-      userStateRepository,
-      user.id,
-      dashboardOptions,
-    );
-  } catch {
+  const dashboardPromise = getExploreDashboardForUser(
+    new BundleExploreRepository(),
+    userStateRepository,
+    user.id,
+    dashboardOptions,
+  ).catch(async () => {
     // User state is auxiliary to the content index. If the database is
     // temporarily unreachable, keep the explore goals and packs usable while
     // clearly marking persistence as unavailable in the DTO.
-    dashboard = await getExploreDashboardForUser(
+    return getExploreDashboardForUser(
       new BundleExploreRepository(),
       emptyExploreUserStateRepository,
       user.id,
       dashboardOptions,
     );
-  }
+  });
   const params = await searchParams;
-  const library = await getExploreLibraryForUser(
+  const libraryPromise = getExploreLibraryForUser(
     new CatalogExploreLibraryRepository(database ? createDrizzleScenarioLibraryRepository(database) : undefined),
     user.id,
     dashboardOptions,
   );
+  const [dashboard, library] = await Promise.all([dashboardPromise, libraryPromise]);
   const filter = first(params.filter);
   return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} library={library} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} initialFilter={filter === "saved" || filter === "recent-error" || filter === "reading" || filter === "available" ? filter : "all"} />;
 }

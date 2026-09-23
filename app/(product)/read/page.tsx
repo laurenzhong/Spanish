@@ -39,6 +39,16 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   let initialReaderProgress: Record<string, { position: number; status: "in_progress" | "completed"; lastOpenedAt: string }> = {};
   let savedFilterAvailable = false;
   let initialGeneratedArticles: Awaited<ReturnType<typeof listPrivateStories>>["articles"] = [];
+  const articleResultPromise = savedOnly ? null : getArticles(repository, {
+    search,
+    topic,
+    cefr: cefr as "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | undefined,
+    minutes: minutes as "short" | "medium" | "long" | undefined,
+    sort,
+    savedOnly: false,
+    pageSize: ARTICLE_PAGE_SIZE,
+    cursor: String((requestedPage - 1) * ARTICLE_PAGE_SIZE),
+  });
   // The Web Sites tab is intentionally an honest empty state and does not need
   // any user-specific database reads. Avoid blocking it on auth/DB round trips.
   if (process.env.DATABASE_URL && source !== "web") {
@@ -81,7 +91,7 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
     pageSize: ARTICLE_PAGE_SIZE,
     cursor: String((requestedPage - 1) * ARTICLE_PAGE_SIZE),
   };
-  let result = await getArticles(repository, query);
+  let result = await (articleResultPromise ?? getArticles(repository, query));
   const totalPages = Math.max(Math.ceil(result.totalCount / ARTICLE_PAGE_SIZE), 1);
   const page = Math.min(requestedPage, totalPages);
   if (page !== requestedPage) {

@@ -34,7 +34,6 @@ export function DesktopNavigation() {
                     title={item.label}
                     onClick={() => setPendingHref(item.href)}
                     data-pending={pendingHref === item.href && pathname !== item.href ? "true" : undefined}
-                    prefetch
                   >
                     <span className="desktop-navigation__icon"><NavigationIcon name={item.icon} /></span>
                     <span className="desktop-navigation__label">{item.label}</span>

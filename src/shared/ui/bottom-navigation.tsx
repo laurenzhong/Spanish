@@ -99,7 +99,6 @@ export function BottomNavigation() {
                     key={item.href}
                     onClick={() => setPendingHref(item.href)}
                     data-pending={pendingHref === item.href && pathname !== item.href ? "true" : undefined}
-                    prefetch
                   >
                     <span className="navigation-icon">
                       <NavigationIcon name={item.icon} />

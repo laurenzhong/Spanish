@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MediaLibrary } from "@/src/modules/media";
+import { MediaLibrary, type MediaCard } from "@/src/modules/media";
 
 afterEach(cleanup);
 
@@ -43,6 +43,35 @@ describe("media library", () => {
       artwork: { url: "https://images.example.test/video.jpg", alt: "Una conversación", source: "youtube", width: 1280, height: 720, expiresAt: null }, progress: null,
     }], nextCursor: null, hasMore: false }} query={{}} />);
     expect(screen.getByRole("img", { name: "Una conversación" })).toHaveAttribute("src", "https://images.example.test/video.jpg");
+  });
+
+  it("switches media kinds immediately and reuses cached results", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    const originalFetch = globalThis.fetch;
+    const podcast: MediaCard = {
+      id: "media.fixture.podcast@1", stableKey: "media.fixture.podcast", version: 1, kind: "podcast",
+      title: "Podcast rápido", summary: "Una charla.", sourceName: "Radio", language: "es", region: "es-ES", cefr: "A2", topics: [], durationMs: 120_000,
+      publishedAt: null, curatedAt: "2026-09-13T08:00:00.000Z", contentHash: "e".repeat(64), progress: null,
+    };
+    let resolveResponse!: (response: Response) => void;
+    const responsePromise = new Promise<Response>((resolve) => { resolveResponse = resolve; });
+    globalThis.fetch = vi.fn().mockReturnValue(responsePromise);
+    const user = userEvent.setup();
+
+    try {
+      render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{}} />);
+      await user.click(screen.getByRole("link", { name: "播客" }));
+      await waitFor(() => expect(screen.getByTestId("media-library")).toHaveAttribute("aria-busy", "true"));
+      expect(screen.getByRole("link", { name: "播客" })).toHaveAttribute("aria-current", "page");
+      resolveResponse(new Response(JSON.stringify({ data: { items: [podcast] }, page: { nextCursor: null, hasMore: false } }), { status: 200, headers: { "content-type": "application/json" } }));
+      expect(await screen.findByRole("link", { name: /Podcast rápido/ })).toHaveAttribute("href", "/learn/media/media.fixture.podcast");
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      await user.click(screen.getByRole("link", { name: "全部" }));
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("link", { name: /Podcast rápido/ })).not.toBeInTheDocument();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("opens a keyboard-accessible filter panel and restores focus on cancel", async () => {

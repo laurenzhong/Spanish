@@ -19,6 +19,12 @@ type MediaListApiResponse = Readonly<{
   page?: Readonly<{ nextCursor?: string | null; hasMore?: boolean }>;
 }>;
 
+type MediaPage = Readonly<{
+  items: readonly MediaCard[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}>;
+
 function queryHref(query: MediaListQuery, patch: Partial<Record<keyof MediaListQuery, string | undefined>>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries({ ...query, ...patch })) {
@@ -29,18 +35,79 @@ function queryHref(query: MediaListQuery, patch: Partial<Record<keyof MediaListQ
 }
 
 function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ result: MediaLibraryResult; query: MediaListQuery; unavailable?: boolean }>) {
-  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [activeQuery, setActiveQuery] = useState(query);
   const [items, setItems] = useState<readonly MediaCard[]>(result.items);
   const [nextCursor, setNextCursor] = useState(result.nextCursor);
   const [hasMore, setHasMore] = useState(result.hasMore);
+  const [isSwitchingKind, setIsSwitchingKind] = useState(false);
+  const [kindLoadError, setKindLoadError] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const scrollFrameRef = useRef<number | null>(null);
-  const hasFilters = Boolean(query.search || query.kind || query.region || query.cefr || query.duration);
+  const kindCacheRef = useRef(new Map<string, MediaPage>([[JSON.stringify(query), result]]));
+  const kindRequestRef = useRef(0);
+  const hasFilters = Boolean(activeQuery.search || activeQuery.kind || activeQuery.region || activeQuery.cefr || activeQuery.duration);
   const tabs = [[undefined, "全部"], ["video", "视频"], ["podcast", "播客"]] as const;
+
+  const loadKind = useCallback(async (kind: "video" | "podcast" | undefined, href: string, pushHistory = true) => {
+    const nextQuery = { ...activeQuery, kind, cursor: undefined };
+    const key = JSON.stringify(nextQuery);
+    const requestId = ++kindRequestRef.current;
+    setActiveQuery(nextQuery);
+    setIsSwitchingKind(true);
+    setKindLoadError(false);
+    setItems([]);
+    setNextCursor(null);
+    setHasMore(false);
+    if (pushHistory) window.history.pushState(null, "", href);
+
+    const cached = kindCacheRef.current.get(key);
+    if (cached) {
+      setItems(cached.items);
+      setNextCursor(cached.nextCursor);
+      setHasMore(cached.hasMore);
+      setIsSwitchingKind(false);
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams();
+      for (const [param, value] of Object.entries({ ...nextQuery, cursor: undefined, pageSize: 20 })) {
+        if (value !== undefined && value !== "") params.set(param, String(value));
+      }
+      const response = await fetch(`/api/v1/media?${params.toString()}`, { headers: { accept: "application/json" } });
+      if (!response.ok) throw new Error("MEDIA_KIND_LOAD_FAILED");
+      const payload = await response.json() as MediaListApiResponse;
+      const page: MediaPage = {
+        items: payload.data?.items ?? [],
+        nextCursor: payload.page?.nextCursor ?? null,
+        hasMore: payload.page?.hasMore ?? false,
+      };
+      kindCacheRef.current.set(key, page);
+      if (requestId !== kindRequestRef.current) return;
+      setItems(page.items);
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } catch {
+      if (requestId !== kindRequestRef.current) return;
+      setKindLoadError(true);
+    } finally {
+      if (requestId === kindRequestRef.current) setIsSwitchingKind(false);
+    }
+  }, [activeQuery]);
+
+  useEffect(() => {
+    const syncFromHistory = () => {
+      const kind = new URLSearchParams(window.location.search).get("kind");
+      if (kind === (activeQuery.kind ?? "")) return;
+      void loadKind(kind === "video" || kind === "podcast" ? kind : undefined, `${window.location.pathname}${window.location.search}`, false);
+    };
+    window.addEventListener("popstate", syncFromHistory);
+    return () => window.removeEventListener("popstate", syncFromHistory);
+  }, [activeQuery.kind, loadKind]);
 
   useEffect(() => {
     const updateScrollState = () => {
@@ -72,7 +139,7 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
     setLoadMoreError(false);
     try {
       const params = new URLSearchParams();
-      for (const [key, value] of Object.entries({ ...query, cursor: nextCursor, pageSize: 18 })) {
+      for (const [key, value] of Object.entries({ ...activeQuery, cursor: nextCursor, pageSize: 18 })) {
         if (value !== undefined && value !== "") params.set(key, String(value));
       }
       const response = await fetch(`/api/v1/media?${params.toString()}`, { headers: { accept: "application/json" } });
@@ -91,7 +158,7 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
       loadingRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [hasMore, nextCursor, query]);
+  }, [activeQuery, hasMore, nextCursor]);
 
   useEffect(() => {
     const sentinel = loadMoreRef.current;
@@ -109,27 +176,35 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
 
   return (
     <>
-      <div className="page-stack media-library" data-testid="media-library">
+      <div className="page-stack media-library" data-testid="media-library" aria-busy={isSwitchingKind}>
         <header className="media-library__topbar">
           <Link className="media-library__wordmark" href="/learn" aria-label="Sueño 学习首页">Sue<span>ñ</span>o</Link>
           <nav className="media-library__topnav" aria-label="学习频道">
             {tabs.map(([kind, label]) => {
-              const href = queryHref(query, { cursor: undefined, kind });
-              const active = query.kind === kind || (!query.kind && !kind);
-              return <Link aria-current={active ? "page" : undefined} className={pendingHref === href && !active ? "is-pending" : undefined} href={href} prefetch onClick={() => setPendingHref(href)} key={label}>{label}</Link>;
+              const href = queryHref(activeQuery, { cursor: undefined, kind });
+              const active = activeQuery.kind === kind || (!activeQuery.kind && !kind);
+              return <Link aria-current={active ? "page" : undefined} href={href} onClick={(event) => { event.preventDefault(); if (!active) void loadKind(kind, href); }} key={label}>{label}</Link>;
             })}
           </nav>
           <form action="/learn" className="media-library__search" role="search">
-            {query.kind ? <input name="kind" type="hidden" value={query.kind} /> : null}
+            {activeQuery.kind ? <input name="kind" type="hidden" value={activeQuery.kind} /> : null}
             <label htmlFor="media-search">搜索视频和播客</label>
-            <div><input defaultValue={query.search ?? ""} id="media-search" maxLength={120} name="search" placeholder="搜索西语内容" type="search" /><button aria-label="提交搜索" type="submit"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.6" /><path d="m16 16 5 5" /></svg></button></div>
+            <div><input defaultValue={activeQuery.search ?? ""} id="media-search" maxLength={120} name="search" placeholder="搜索西语内容" type="search" /><button aria-label="提交搜索" type="submit"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.6" /><path d="m16 16 5 5" /></svg></button></div>
           </form>
         </header>
         <h1 className="sr-only">学习媒体库</h1>
-        <MediaLibraryToolbar query={query} />
-        {unavailable ? <p className="media-library__notice" role="alert">媒体资料库暂时无法读取，请稍后重试。</p> : null}
+        <MediaLibraryToolbar query={activeQuery} />
+        {unavailable || kindLoadError ? <p className="media-library__notice" role="alert">媒体资料库暂时无法读取，请稍后重试。</p> : null}
+        {isSwitchingKind ? <p className="media-library__load-more-state" role="status">正在切换内容…</p> : null}
         {items.length > 0 ? (
           <div className="media-grid" aria-label="视频和播客">{items.map((item) => <MediaCardView item={item} key={item.id} />)}</div>
+        ) : isSwitchingKind ? null : kindLoadError ? (
+          <section className="media-library__empty" role="alert">
+            <p className="eyebrow">暂时无法读取</p>
+            <h2>媒体资料库暂时无法读取</h2>
+            <p>网络恢复后可以重新选择频道。</p>
+            <button type="button" onClick={() => void loadKind(activeQuery.kind, queryHref(activeQuery, { cursor: undefined }), false)}>重试</button>
+          </section>
         ) : (
           <section className="media-library__empty">
             <p className="eyebrow">{hasFilters ? "没有匹配内容" : "内容准备中"}</p>

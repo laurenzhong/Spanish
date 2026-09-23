@@ -6,20 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { createSupabaseBrowserClient } from "@/src/shared/auth/browser";
 import { ThemeToggle } from "./theme-toggle";
-
-type AccountProfileDto = Readonly<{
-  publicUid: string;
-  displayName: string | null;
-  targetLanguage: string;
-  updatedAt: string;
-  avatar: Readonly<{
-    kind: "upload" | "preset" | "initials";
-    presetId: string | null;
-    url: string | null;
-    initials: string;
-    colorIndex: number;
-  }>;
-}>;
+import { loadAccountProfile, type AccountProfileDto } from "./account-profile-cache";
 
 const avatarPresetColors: Record<string, string> = {
   "sunlit-window": "#d67d5d",
@@ -58,12 +45,9 @@ export function AccountMenu() {
 
   useEffect(() => {
     const refreshProfile = () => {
-      void fetch("/api/v1/me", { cache: "no-store", credentials: "same-origin", headers: { accept: "application/json" } })
-        .then(async (response) => {
-          if (!response.ok) throw new Error("unavailable");
-          const payload = await response.json() as { data?: AccountProfileDto };
-          if (!payload.data) throw new Error("invalid");
-          setProfile(payload.data);
+      void loadAccountProfile()
+        .then((nextProfile) => {
+          setProfile(nextProfile);
           setNotice(null);
         })
         .catch(() => setNotice("账户资料暂时不可用"));

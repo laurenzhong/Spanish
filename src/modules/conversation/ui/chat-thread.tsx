@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/src/shared/ui/primitives";
+import { loadAccountProfile, type AccountProfileDto } from "@/src/shared/ui/account-profile-cache";
 
 import {
   ConversationNdjsonParser,
@@ -31,11 +32,6 @@ type ChatThreadProps = Readonly<{
   avatarClassName?: string;
   initialMessageId?: string;
   initialMessages?: readonly ConversationState["messages"][number][];
-}>;
-
-type UserAvatarProfile = Readonly<{
-  displayName: string | null;
-  avatar: Readonly<{ url: string | null; initials: string; colorIndex: number }>;
 }>;
 
 type MessageTranslation =
@@ -78,7 +74,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
-  const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<AccountProfileDto | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const translationAbortRef = useRef<AbortController | null>(null);
   const translationRequestIdRef = useRef(0);
@@ -116,12 +112,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
   useEffect(() => {
     const load = () => {
-      void fetch("/api/v1/me", { cache: "no-store", credentials: "same-origin", headers: { accept: "application/json" } })
-        .then(async (response) => {
-          if (!response.ok) throw new Error("unavailable");
-          const payload = await response.json() as { data?: UserAvatarProfile };
-          if (payload.data) setUserProfile(payload.data);
-        })
+      void loadAccountProfile()
+        .then((profile) => setUserProfile(profile))
         .catch(() => undefined);
     };
     load();
