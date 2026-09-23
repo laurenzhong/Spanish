@@ -157,7 +157,7 @@ jobs:
           CONTENT_MEDIA_SOURCE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_SOURCE_TIMEOUT_MS || '180000' }}
           CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS || '900000' }}
           MEDIA_VIDEO_HOSTING_CANARY_ONLY: ${{ inputs.media_canary_only }}
-          MEDIA_VIDEO_CANARY_DIAGNOSTICS: ${{ inputs.media_canary_only }}
+          MEDIA_VIDEO_CANARY_DIAGNOSTICS: ${{ inputs.media_canary_only }}`n>>>>>>> origin/main
         run: >-
           set -o pipefail
           &&
