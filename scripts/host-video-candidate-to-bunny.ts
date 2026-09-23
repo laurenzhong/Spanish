@@ -97,7 +97,7 @@ async function main() {
         "3",
         ...(ffmpegDirectory ? ["--ffmpeg-location", ffmpegDirectory] : []),
       ];
-      const downloadArgs = [...base, "--no-progress", "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "--output", source];
+      const downloadArgs = [...base, ...(process.env.MEDIA_VIDEO_CANARY_DIAGNOSTICS === "true" ? ["--verbose"] : []), "--no-progress", "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b", "--merge-output-format", "mp4", "--output", source];
       await run(ytdlp, [...withYoutubeCookies(downloadArgs, cookieFile), `https://www.youtube.com/watch?v=${videoId}`], 20 * 60_000);
     }
     const sourceInfo = await stat(source);
