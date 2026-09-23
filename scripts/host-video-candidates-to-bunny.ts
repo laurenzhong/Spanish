@@ -1,7 +1,10 @@
 import "dotenv/config";
 
 import { spawn } from "node:child_process";
+import { access } from "node:fs/promises";
 import postgres from "postgres";
+
+import { resolveAuthorizedVideoAssetPath } from "../src/modules/content-acquisition/media/authorized-video-asset";
 
 const confirmation = "I_HAVE_AUTHORIZATION";
 const limit = Number(process.env.MEDIA_VIDEO_HOSTING_LIMIT ?? 50);
@@ -9,16 +12,30 @@ const hostingSince = process.env.MEDIA_VIDEO_HOSTING_SINCE?.trim() || null;
 if (process.env.MEDIA_VIDEO_HOSTING_CONFIRM !== confirmation) throw new Error("MEDIA_AUTHORIZATION_REQUIRED");
 if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("MEDIA_VIDEO_HOSTING_LIMIT_INVALID");
 if (hostingSince && Number.isNaN(Date.parse(hostingSince))) throw new Error("MEDIA_VIDEO_HOSTING_SINCE_INVALID");
+if (process.env.MEDIA_VIDEO_LOCAL_FILE?.trim()) throw new Error("MEDIA_VIDEO_LOCAL_FILE_NOT_ALLOWED_IN_BATCH");
 
-function run(candidateId: string): Promise<void> {
+async function run(candidateId: string, assetDirectory: string | null): Promise<"authorized-mp4" | "youtube"> {
+  const localFile = resolveAuthorizedVideoAssetPath(assetDirectory, candidateId);
+  let assetSource: "authorized-mp4" | "youtube" = "youtube";
+  if (localFile) {
+    try {
+      await access(localFile);
+      assetSource = "authorized-mp4";
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
   return new Promise((resolve, reject) => {
+    const env = { ...process.env };
+    delete env.MEDIA_VIDEO_LOCAL_FILE;
+    if (assetSource === "authorized-mp4" && localFile) env.MEDIA_VIDEO_LOCAL_FILE = localFile;
     const child = spawn(process.execPath, ["--import", "tsx/esm", "scripts/host-video-candidate-to-bunny.ts", candidateId], {
       stdio: "inherit",
       windowsHide: true,
-      env: process.env,
+      env,
     });
     child.once("error", reject);
-    child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`MEDIA_VIDEO_HOSTING_FAILED:${candidateId}`)));
+    child.once("close", (code) => code === 0 ? resolve(assetSource) : reject(new Error(`MEDIA_VIDEO_HOSTING_FAILED:${candidateId}`)));
   });
 }
 
@@ -68,11 +85,19 @@ async function main() {
     `;
     let hosted = 0;
     let failed = 0;
+    let authorizedMp4 = 0;
+    let youtube = 0;
+    const assetDirectory = process.env.MEDIA_VIDEO_AUTHORIZED_ASSET_DIR?.trim() || null;
     for (const row of rows as unknown as { id: string }[]) {
-      try { await run(row.id); hosted += 1; }
+      try {
+        const source = await run(row.id, assetDirectory);
+        hosted += 1;
+        if (source === "authorized-mp4") authorizedMp4 += 1;
+        else youtube += 1;
+      }
       catch { failed += 1; }
     }
-    console.log(JSON.stringify({ requested: rows.length, hosted, failed, publishedToday, remaining }));
+    console.log(JSON.stringify({ requested: rows.length, hosted, failed, authorizedMp4, youtube, publishedToday, remaining }));
     if (failed > 0) process.exitCode = 2;
   } finally {
     await db.end();

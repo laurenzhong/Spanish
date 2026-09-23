@@ -40,7 +40,7 @@ permissions:
 
 jobs:
   daily:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CONTENT_MEDIA_RUNNER_LABELS || '["ubuntu-latest"]') }}
     environment: content-production
     timeout-minutes: 60
     steps:
@@ -118,6 +118,7 @@ jobs:
           BUNNY_STORAGE_PULL_ZONE_HOSTNAME: ${{ vars.BUNNY_STORAGE_PULL_ZONE_HOSTNAME }}
           MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
           YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
+          MEDIA_VIDEO_AUTHORIZED_ASSET_DIR: ${{ vars.CONTENT_MEDIA_AUTHORIZED_ASSET_DIR }}
           YTDLP_BIN: yt-dlp
           FFMPEG_BIN: ffmpeg
           CONTENT_MEDIA_REVIEW_PROVIDER: ${{ vars.CONTENT_MEDIA_REVIEW_PROVIDER || 'minimax' }}
