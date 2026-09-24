@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { NavigationLink } from "./navigation-link";
 
 export const navigationGroups = [
   {
@@ -92,7 +93,7 @@ export function BottomNavigation() {
                   pathname === item.href || pathname.startsWith(`${item.href}/`);
 
                 return (
-                  <Link
+                  <NavigationLink
                     aria-current={isCurrent ? "page" : undefined}
                     className="navigation-link"
                     href={item.href}
@@ -104,7 +105,7 @@ export function BottomNavigation() {
                       <NavigationIcon name={item.icon} />
                     </span>
                     <span>{item.label}</span>
-                  </Link>
+                  </NavigationLink>
                 );
               })}
             </div>
