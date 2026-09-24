@@ -41,6 +41,21 @@ describe("media processing orchestrator", () => {
     expect(result.segments).toEqual(existing);
   });
 
+  it("runs ASR when a stale caption label has no timeline", async () => {
+    const provider = new FakeMediaTranscriptionProvider([
+      { type: "segment", segment: { startMs: 0, endMs: 1_000, text: "Hola", confidence: 0.9 } },
+      { type: "done", providerRequestId: "req-stale-caption", modelVersion: "fake-asr-v1", estimatedCostMicros: 10_000 },
+    ]);
+    const result = await processMediaTranscript({
+      input: { ...input, captionStatus: "platform_auto", existingSegments: [] },
+      policy,
+      artifactStore: store(),
+      transcriptionProvider: provider,
+    });
+    expect(result.provider).toMatchObject({ requestId: "req-stale-caption" });
+    expect(result.segments[0]).toMatchObject({ sourceText: "Hola", sourceKind: "asr" });
+  });
+
   it("fills missing translations on reviewed captions without rerunning ASR", async () => {
     const provider = { transcribe: vi.fn() };
     const existing = [{ index: 0, startMs: 0, endMs: 900, sourceText: "Buenos días.", translation: null, speaker: null, confidence: null, sourceKind: "platform_manual" as const }];

@@ -81,7 +81,9 @@ export async function processMediaTranscript(options: Readonly<{
     durationMs: input.durationMs,
     assetBytes: input.assetBytes,
     estimatedCostMicros: input.estimatedCostMicros,
-    captionStatus: input.captionStatus,
+    // A stale caption label without any timeline is not usable evidence;
+    // allow the configured ASR provider to generate a reviewed transcript.
+    captionStatus: input.existingSegments.length > 0 ? input.captionStatus : "unavailable",
     segmentCount: input.existingSegments.length,
   }, policy);
   if (!eligibility.allowed) {
