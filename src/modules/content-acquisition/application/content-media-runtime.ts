@@ -317,14 +317,33 @@ async function downloadAuthorizedYouTubeAudio(url: string, directory: string, ma
     await writeFile(cookiePath, decoded, { mode: 0o600 });
     cookieArgs.push("--cookies", cookiePath);
   }
-  await runCommand(process.env.YTDLP_BIN?.trim() || "yt-dlp", [
-    "--ignore-config", "--no-playlist", "--no-progress", "--no-warnings", "--quiet",
-    ...cookieArgs, "--format", "bestaudio/best", "--max-filesize", String(maxBytes), "--output", path.join(directory, "audio.%(ext)s"), url,
-  ], signal, 15 * 60_000);
+  await runCommand(process.env.YTDLP_BIN?.trim() || "yt-dlp", createYoutubeDownloadArguments({
+    url,
+    outputPath: path.join(directory, "audio.%(ext)s"),
+    maxBytes,
+    cookieArgs,
+    potProviderUrl: process.env.YTDLP_POT_PROVIDER_URL?.trim() || null,
+  }), signal, 15 * 60_000);
   const names = await readdir(directory);
   const name = names.find((value) => value.startsWith("audio."));
   if (!name) throw new Error("MEDIA_YTDLP_FAILED");
   return path.join(directory, name);
+}
+
+export function createYoutubeDownloadArguments(input: Readonly<{
+  url: string;
+  outputPath: string;
+  maxBytes: number;
+  cookieArgs?: readonly string[];
+  potProviderUrl?: string | null;
+}>): string[] {
+  const extractorArgs = input.potProviderUrl
+    ? ["--extractor-args", `youtube:player_client=mweb;youtubepot-bgutilhttp:base_url=${input.potProviderUrl}`]
+    : [];
+  return [
+    "--ignore-config", "--no-playlist", "--no-progress", "--no-warnings", "--quiet",
+    ...(input.cookieArgs ?? []), ...extractorArgs, "--format", "bestaudio/best", "--max-filesize", String(input.maxBytes), "--output", input.outputPath, input.url,
+  ];
 }
 
 function runCommand(command: string, args: readonly string[], signal: AbortSignal | undefined, timeoutMs: number): Promise<void> {
