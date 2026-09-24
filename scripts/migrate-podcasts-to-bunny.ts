@@ -15,9 +15,14 @@ const maxBytes = 512 * 1024 * 1024;
 const hash = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
 const allowed = new Set([
   "content.libsyn.com", "traffic.libsyn.com", "traffic.megaphone.fm", "dcs-spotify.megaphone.fm", "dcs-cached.megaphone.fm",
-  "ztnr.rtve.es", "rtve-mediavod-lote3.rtve.es", "content.blubrry.com", "episodes.castos.com",
-  "injector.simplecastaudio.com", "sonoro.simplecastaudio.com",
+  "ztnr.rtve.es", "rtve-mediavod-lote3.rtve.es", "prisa-es.mc.tritondigital.com", "content.blubrry.com", "episodes.castos.com",
+  "injector.simplecastaudio.com", "sonoro.simplecastaudio.com", "mc.tritondigital.com",
 ]);
+
+function allowedHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return allowed.has(host) || (allowed.has("mc.tritondigital.com") && host.endsWith(".mc.tritondigital.com"));
+}
 
 async function refreshPodcastSource(stableKey: string) {
   const docId = stableKey.slice("podcast.language-reactor.".length);
@@ -35,7 +40,7 @@ async function refreshPodcastSource(stableKey: string) {
 async function download(source: string) {
   let url = new URL(source);
   for (let hop = 0; hop < 5; hop++) {
-    if (url.protocol !== "https:" || url.username || url.password || !allowed.has(url.hostname)) throw new Error("AUDIO_SOURCE_NOT_ALLOWED");
+    if (url.protocol !== "https:" || url.username || url.password || !allowedHost(url.hostname)) throw new Error("AUDIO_SOURCE_NOT_ALLOWED");
     const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(300_000) });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
@@ -86,7 +91,7 @@ async function downloadWithCurl(source: string, directory: string) {
   let url = new URL(source);
   try {
     for (let hop = 0; hop < 5; hop++) {
-      if (url.protocol !== "https:" || url.username || url.password || !allowed.has(url.hostname)) throw new Error("AUDIO_SOURCE_NOT_ALLOWED");
+      if (url.protocol !== "https:" || url.username || url.password || !allowedHost(url.hostname)) throw new Error("AUDIO_SOURCE_NOT_ALLOWED");
       await new Promise<void>((done, reject) => {
         const child = spawn("curl.exe", ["-4", "--silent", "--show-error", "--connect-timeout", "15", "--max-time", "180", "--retry", "1", "--max-filesize", String(maxBytes), "--dump-header", headerFile, "--output", bodyFile, url.toString()], { windowsHide: true, stdio: "ignore" });
         const timer = setTimeout(() => child.kill(), 390_000);

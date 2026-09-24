@@ -4,6 +4,11 @@ import { resolve } from "node:path";
 
 const digest = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex");
 
+function allowedHost(hostname: string, hosts: ReadonlySet<string>): boolean {
+  const host = hostname.toLowerCase();
+  return hosts.has(host) || (hosts.has("mc.tritondigital.com") && host.endsWith(".mc.tritondigital.com"));
+}
+
 /** Persist only verified chunks; never persist source signatures or credentials. */
 export async function downloadResumableAudio(options: {
   source: () => Promise<URL>;
@@ -19,7 +24,7 @@ export async function downloadResumableAudio(options: {
   async function request(start: number, end: number, validator?: string) {
     let url = await options.source();
     for (let hop = 0; hop < 5; hop++) {
-      if (url.protocol !== "https:" || url.username || url.password || !options.allowedHosts.has(url.hostname)) throw new Error("AUDIO_SOURCE_NOT_ALLOWED");
+      if (url.protocol !== "https:" || url.username || url.password || !allowedHost(url.hostname, options.allowedHosts)) throw new Error("AUDIO_SOURCE_NOT_ALLOWED");
       let response: Response;
       try {
         response = await fetcher(url, { headers: { range: `bytes=${start}-${end}`, ...(validator ? { "if-range": validator } : {}) }, redirect: "manual", signal: AbortSignal.timeout(60_000) });
