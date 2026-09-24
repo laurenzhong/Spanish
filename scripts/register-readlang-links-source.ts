@@ -41,10 +41,14 @@ async function main(): Promise<void> {
   }
   const connection = createDatabaseConnection(databaseUrl);
   try {
-    const source = await registerContentSource(
-      createDrizzleContentAcquisitionRepository(connection.db),
-      createReadlangLinksSourceInput(),
-    );
+    const repository = createDrizzleContentAcquisitionRepository(connection.db);
+    const existing = await repository.findSourceByStableKey(STABLE_KEY);
+    const source = await registerContentSource(repository, {
+      ...createReadlangLinksSourceInput(),
+      // Policy registration must not rewind the discovery cursor on every
+      // daily run; an explicit policy revision can still reset it deliberately.
+      cursor: existing?.cursor ?? null,
+    });
     process.stdout.write(`${JSON.stringify({ stableKey: source.stableKey, policyVersion: source.rightsPolicy?.policyVersion, enabled: source.enabled, rightsStatus: source.rightsStatus })}\n`);
   } finally {
     await connection.client.end();
