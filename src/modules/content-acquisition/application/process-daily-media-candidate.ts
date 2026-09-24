@@ -12,7 +12,7 @@ export async function processDailyMediaCandidate(input: Readonly<{
   signal?: AbortSignal;
 }>): Promise<ContentCandidateRecord> {
   let current = input.candidate;
-  if (current.status === "review_ready" && input.repository.requestCandidateReprocessing) {
+  if ((current.status === "review_ready" || current.status === "failed") && input.repository.requestCandidateReprocessing) {
     current = await input.repository.requestCandidateReprocessing({
       candidateId: current.id,
       expectedRevision: current.revision,

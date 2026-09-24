@@ -5,6 +5,7 @@ import type { MediaTranscriptionProvider } from "@/src/modules/media-processing/
 import type { MediaTranslationProvider } from "@/src/modules/media-processing/providers/media-translation";
 import { calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers/podcast-candidate";
 import { calculateVideoCandidateContentHash, videoCandidateDraftSchema } from "../normalizers/youtube-candidate";
+import { processCandidate } from "./process-candidate";
 import type { ContentAcquisitionRepository, ContentCandidateRecord, ContentSourceRecord } from "../repositories";
 
 export type ProcessMediaCandidateDependencies = Readonly<{
@@ -83,6 +84,17 @@ export async function processMediaCandidate(
       completedAt,
       errorCode: error instanceof MediaProcessingError ? error.code : "MEDIA_TRANSCRIPTION_FAILED",
     });
+    // Persist a retryable terminal state so the next scheduled run can use
+    // the failed -> retry transition instead of leaving the candidate stuck.
+    try {
+      await processCandidate(repository, {
+        candidateId: candidate.id,
+        event: { type: "fail", expectedRevision: candidate.revision, generationId: candidate.generationId },
+        now: dependencies.now,
+      });
+    } catch {
+      // A concurrent worker may have advanced the candidate already.
+    }
     throw error;
   }
   const nextMetadata = { ...candidate.metadata } as Record<string, unknown>;

@@ -31,6 +31,8 @@ export async function fetchBoundedResourceMetadata(input: Readonly<{
   maxBytes: number;
   signal?: AbortSignal;
   maxRedirects?: number;
+  maxAttempts?: number;
+  retryDelayMs?: number;
 }>): Promise<BoundedResourceMetadata> {
   const allowedHosts = new Set(input.allowedHosts.map((host) => host.trim().toLowerCase()).filter(Boolean));
   if (allowedHosts.size === 0) {
@@ -38,15 +40,22 @@ export async function fetchBoundedResourceMetadata(input: Readonly<{
   }
   let current = safeResourceUrl(input.url, allowedHosts);
   const maxRedirects = input.maxRedirects ?? 3;
+  const maxAttempts = Math.max(1, Math.min(4, input.maxAttempts ?? 3));
+  const retryDelayMs = Math.max(0, input.retryDelayMs ?? 250);
   for (let redirects = 0; redirects <= maxRedirects; redirects += 1) {
     if (input.signal?.aborted) throw new ContentSourceAdapterError("Resource request was cancelled.", false, "RESOURCE_REQUEST_CANCELLED");
-    let response: Response;
-    try {
-      response = await input.fetch(current, { method: "HEAD", redirect: "manual", signal: input.signal });
-    } catch {
-      if (input.signal?.aborted) throw new ContentSourceAdapterError("Resource request was cancelled.", false, "RESOURCE_REQUEST_CANCELLED");
-      throw new ContentSourceAdapterError("Resource request failed.", true, "RESOURCE_REQUEST_FAILED");
+    let response: Response | undefined;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        response = await input.fetch(current, { method: "HEAD", redirect: "manual", signal: input.signal });
+      } catch {
+        if (input.signal?.aborted) throw new ContentSourceAdapterError("Resource request was cancelled.", false, "RESOURCE_REQUEST_CANCELLED");
+        if (attempt === maxAttempts) throw new ContentSourceAdapterError("Resource request failed.", true, "RESOURCE_REQUEST_FAILED");
+      }
+      if (response && !(response.status === 429 || response.status >= 500)) break;
+      if (attempt < maxAttempts) await new Promise((resolve) => setTimeout(resolve, retryDelayMs * 2 ** (attempt - 1)));
     }
+    if (!response) throw new ContentSourceAdapterError("Resource request failed.", true, "RESOURCE_REQUEST_FAILED");
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       if (!location) throw new ContentSourceAdapterError("Resource redirect omitted its destination.", false, "RESOURCE_REDIRECT_MISSING_LOCATION");

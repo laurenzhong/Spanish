@@ -241,7 +241,7 @@ export async function runDailyMediaPipeline(
     }
 
     try {
-      const resumableStatuses = ["discovered", "screened", "acquiring", "processing", "review_ready"] as const;
+      const resumableStatuses = ["discovered", "screened", "acquiring", "processing", "review_ready", "failed"] as const;
       const pending = await Promise.all(resumableStatuses.map((status) =>
         dependencies.repository.listCandidates({ sourceId: source.id, status, contentType, publicationStatus: "draft", limit })));
       const candidates = pending.flat().sort((left, right) => {

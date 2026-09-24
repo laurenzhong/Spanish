@@ -56,7 +56,27 @@ export async function runMediaReview(repository: ContentWorkflowRepository, inpu
   const expectedInputHash = mediaReviewInputHash(reviewInput);
   const providerResults: Record<string, MediaReviewResult | null> = {};
   const timeoutMs = input.timeoutMs ?? 60_000;
-  const run = (provider: MediaReviewProvider) => Promise.race([provider.review(reviewInput), new Promise<MediaReviewResult>((_, reject) => setTimeout(() => reject(new Error("MEDIA_REVIEW_TIMEOUT")), timeoutMs))]);
+  const run = async (provider: MediaReviewProvider): Promise<MediaReviewResult> => {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        return await Promise.race([
+          provider.review(reviewInput),
+          new Promise<MediaReviewResult>((_, reject) => setTimeout(() => reject(new Error("MEDIA_REVIEW_TIMEOUT")), timeoutMs)),
+        ]);
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : "MEDIA_REVIEW_FAILED";
+        const retryable = message.startsWith("MEDIA_REVIEW_PROVIDER_RESPONSE_INVALID")
+          || message === "MEDIA_REVIEW_PROVIDER_TIMEOUT"
+          || message === "MEDIA_REVIEW_PROVIDER_UNAVAILABLE"
+          || message === "MEDIA_REVIEW_PROVIDER_RATE_LIMITED";
+        if (!retryable || attempt === 2) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("MEDIA_REVIEW_FAILED");
+  };
   try {
     const [content, teaching] = await Promise.all([run(input.contentProvider), run(input.teachingProvider)]);
     if (input.contentProvider.dimension !== "content-es-ES" || input.teachingProvider.dimension !== "teaching-zh-CN") throw new Error("MEDIA_REVIEW_PROVIDER_DIMENSION_MISMATCH");
