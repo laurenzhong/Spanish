@@ -104,6 +104,18 @@ describe("browser speech capabilities", () => {
     expect(spokenUtterance.voice).toBe(voice);
   });
 
+  it("resumes a paused synthesis queue before speaking", async () => {
+    const resume = vi.fn();
+    const speak = vi.fn((value: SpeechSynthesisUtterance) => value.onend?.(new Event("end") as SpeechSynthesisEvent));
+    const tts = new BrowserTextToSpeech(
+      { getVoices: () => [], cancel: vi.fn(), resume, speak } as unknown as SpeechSynthesis,
+      (text) => ({ text, lang: "", rate: 1, pitch: 1, voice: null, onend: null, onerror: null }) as unknown as SpeechSynthesisUtterance,
+    );
+    await tts.speak("Hola", { languageTag: "es-ES" });
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(speak).toHaveBeenCalledTimes(1);
+  });
+
   it("reports an unavailable browser without touching media APIs", () => {
     const recorder = new BrowserAudioRecorder(null, null);
     const tts = new BrowserTextToSpeech(null, null);

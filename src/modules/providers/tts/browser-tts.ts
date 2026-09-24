@@ -11,7 +11,9 @@ export type TextToSpeechOptions = Readonly<{
   voiceURI?: string;
 }>;
 
-type SpeechSynthesisLike = Pick<SpeechSynthesis, "speak" | "cancel" | "getVoices">;
+type SpeechSynthesisLike = Pick<SpeechSynthesis, "speak" | "cancel" | "getVoices"> & {
+  resume?: () => void;
+};
 type UtteranceLike = SpeechSynthesisUtterance & {
   onend: ((event: SpeechSynthesisEvent) => void) | null;
   onerror: ((event: SpeechSynthesisErrorEvent) => void) | null;
@@ -53,7 +55,8 @@ export class BrowserTextToSpeech {
     utterance.lang = options.languageTag;
     utterance.rate = clamp(options.rate ?? 0.9, 0.5, 2);
     utterance.pitch = clamp(options.pitch ?? 1, 0, 2);
-    utterance.voice = this.selectVoice(options);
+    const voice = this.selectVoice(options);
+    if (voice) utterance.voice = voice;
 
     return new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -80,6 +83,10 @@ export class BrowserTextToSpeech {
             "Text to speech failed.",
           ),
         );
+      // Chrome and Safari can leave the synthesis queue paused after a page
+      // switch or an interrupted utterance. Resume before enqueueing the next
+      // user-triggered utterance so both the reader and chat stay audible.
+      this.synthesis!.resume?.();
       this.synthesis!.speak(utterance);
     });
   }
