@@ -56,11 +56,11 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Install media processing tools
+      - name: Install podcast processing tools
         if: ${{ inputs.media_canary_only || (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' }}
         env:
           BGUTIL_PROVIDER_CONTAINER: bgutil-ytdlp-pot-provider-${{ github.run_id }}
-          VIDEO_TOOLS_ENABLED: ${{ inputs.media_canary_only || ((inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' && (vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10') != '0') }}
+          VIDEO_TOOLS_ENABLED: ${{ inputs.media_canary_only }}
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y ffmpeg
@@ -91,7 +91,7 @@ jobs:
           LANGUAGE_REACTOR_PODCAST_RESET_CURSOR: ${{ vars.LANGUAGE_REACTOR_PODCAST_RESET_CURSOR || 'false' }}
         run: pnpm exec tsx scripts/register-language-reactor-audio-hosts.ts
       - name: Enable owner-authorized Language Reactor video processing
-        if: ${{ !inputs.media_canary_only && (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' && (vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10') != '0' }}
+        if: ${{ inputs.media_canary_only }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MEDIA_VIDEO_HOSTING_CONFIRM: ${{ secrets.MEDIA_VIDEO_HOSTING_CONFIRM }}
@@ -154,7 +154,8 @@ jobs:
           MINIMAX_TRANSCRIPTION_MODEL: ${{ vars.MINIMAX_TRANSCRIPTION_MODEL || 'asr-1.0' }}
           MINIMAX_TRANSCRIPTION_API_ENDPOINT: ${{ vars.MINIMAX_TRANSCRIPTION_API_ENDPOINT || 'https://api.minimax.cn/v1/speech_to_text' }}
           MEDIA_MODE: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}
-          MEDIA_VIDEO_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}
+          # Video acquisition, processing, hosting, and publication are paused.
+          MEDIA_VIDEO_DAILY_LIMIT: '0'
           MEDIA_PODCAST_DAILY_LIMIT: ${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}
           MEDIA_SOURCE_LIMIT: ${{ vars.CONTENT_MEDIA_SOURCE_LIMIT || '10' }}
           CONTENT_MEDIA_SOURCE_TIMEOUT_MS: ${{ vars.CONTENT_MEDIA_SOURCE_TIMEOUT_MS || '180000' }}
@@ -180,7 +181,7 @@ jobs:
           pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           fi
       - name: Stop PO Token provider
-        if: ${{ always() && (inputs.media_canary_only || ((inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish' && (vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10') != '0')) }}
+        if: ${{ always() && inputs.media_canary_only }}
         env:
           BGUTIL_PROVIDER_CONTAINER: bgutil-ytdlp-pot-provider-${{ github.run_id }}
         run: docker rm --force "$BGUTIL_PROVIDER_CONTAINER" 2>/dev/null || true
@@ -231,7 +232,7 @@ jobs:
             echo "- Requested article limit: ${{ vars.CONTENT_ARTICLE_DAILY_LIMIT || '10' }}"
             echo "- Media mode: ${{ inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish' }}"
             echo "- Video hosting canary only: ${{ inputs.media_canary_only }}"
-            echo "- Media targets: video=${{ vars.CONTENT_MEDIA_VIDEO_DAILY_LIMIT || '10' }}, podcast=${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}, bilingual subtitles required=${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}"
+            echo "- Media targets: video=0 (paused), podcast=${{ vars.CONTENT_MEDIA_PODCAST_DAILY_LIMIT || '10' }}, bilingual subtitles required=${{ vars.CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES || 'true' }}"
             summarize_stage "Articles" "$RUNNER_TEMP/article-daily.log"
             summarize_stage "Media" "$RUNNER_TEMP/media-daily.log"
           } >> "$GITHUB_STEP_SUMMARY"
