@@ -29,4 +29,8 @@ describe("Readlang links source registration", () => {
     expect(urls.slice(0, libraryUrls.length)).toEqual(libraryUrls);
     expect(urls).toHaveLength(164);
   });
+
+  it("defaults a new source to an empty cursor", () => {
+    expect(createReadlangLinksSourceInput().cursor).toBeNull();
+  });
 });
