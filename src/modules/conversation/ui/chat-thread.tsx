@@ -78,6 +78,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const queuedMessagesRef = useRef<Array<{ text: string; clientMessageId: string; generationId: string }>>([]);
+  const pumpingQueueRef = useRef(false);
   const translationAbortRef = useRef<AbortController | null>(null);
   const translationRequestIdRef = useRef(0);
   const translationCharacterKeyRef = useRef(characterKey);
@@ -407,17 +409,34 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
+      pumpingQueueRef.current = false;
+      pumpQueue();
     }
+  }
+
+  function pumpQueue() {
+    if (pumpingQueueRef.current || abortRef.current || queuedMessagesRef.current.length === 0) return;
+    const next = queuedMessagesRef.current.shift();
+    if (!next) return;
+    pumpingQueueRef.current = true;
+    apply({ type: "submit", ...next, createdAt: undefined });
+    void consume(next.text, next.clientMessageId, next.generationId);
   }
 
   function submit() {
     const text = draft.trim();
-    if (!text || state.status === "streaming") return;
+    if (!text) return;
     const clientMessageId = createId("client");
     const generationId = createId("generation");
     setDraft("");
     setQuotedMessage(null);
-    apply({ type: "submit", text, clientMessageId, generationId, createdAt: new Date().toISOString() });
+    const createdAt = new Date().toISOString();
+    if (state.status === "streaming" || abortRef.current || pumpingQueueRef.current) {
+      queuedMessagesRef.current.push({ text, clientMessageId, generationId });
+      apply({ type: "queue", text, clientMessageId, createdAt });
+      return;
+    }
+    apply({ type: "submit", text, clientMessageId, generationId, createdAt });
     void consume(text, clientMessageId, generationId);
   }
 
@@ -433,6 +452,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     if (!generationId) return;
     abortRef.current?.abort();
     apply({ type: "cancel", generationId });
+    pumpingQueueRef.current = false;
+    pumpQueue();
   }
 
   function retryHistory() {
