@@ -139,6 +139,7 @@ jobs:
           YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
           MEDIA_VIDEO_AUTHORIZED_ASSET_DIR: ${{ vars.CONTENT_MEDIA_AUTHORIZED_ASSET_DIR }}
           YTDLP_BIN: yt-dlp
+          YTDLP_POT_PROVIDER_URL: http://127.0.0.1:4416
           FFMPEG_BIN: ffmpeg
           CONTENT_MEDIA_REVIEW_PROVIDER: ${{ vars.CONTENT_MEDIA_REVIEW_PROVIDER || 'minimax' }}
           CONTENT_MEDIA_REVISION_PROVIDER: ${{ vars.CONTENT_MEDIA_REVISION_PROVIDER || 'minimax' }}
@@ -179,7 +180,7 @@ jobs:
           pnpm content:pipeline -- media-daily --mode "$MEDIA_MODE" --daily-limit 20 --video-daily-limit "$MEDIA_VIDEO_DAILY_LIMIT" --podcast-daily-limit "$MEDIA_PODCAST_DAILY_LIMIT" --require-bilingual-subtitles --source-limit "$MEDIA_SOURCE_LIMIT" 2>&1 | tee "$RUNNER_TEMP/media-daily.log";
           fi
       - name: Stop PO Token provider
-        if: ${{ always() && inputs.media_canary_only }}
+        if: ${{ always() && (inputs.media_canary_only || (inputs.media_mode || vars.CONTENT_MEDIA_DAILY_MODE || 'auto-publish') == 'auto-publish') }}
         env:
           BGUTIL_PROVIDER_CONTAINER: bgutil-ytdlp-pot-provider-${{ github.run_id }}
         run: docker rm --force "$BGUTIL_PROVIDER_CONTAINER" 2>/dev/null || true
