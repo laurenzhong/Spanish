@@ -9602,7 +9602,8 @@ body {
 
 @media (min-width: 960px) {
   .product-content:has(.article-reader) { width: 100%; max-width: none; padding: 0; }
-  .article-reader__topbar { left: 248px; }
+  .article-reader__topbar { left: 204px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .article-reader__topbar { left: 72px; }
   .article-reader.article-reader--tools-open { padding-right: 0; }
   .article-reader.article-reader--tools-open .article-reader__topbar { padding-right: 18px; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); pointer-events: auto; }
   .article-reader.article-reader--tools-open .article-reader__content { margin-right: auto; }
