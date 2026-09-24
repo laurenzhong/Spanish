@@ -2202,7 +2202,7 @@ body { background: var(--background); }
 @media (min-width: 960px) {
   .article-reader { position: relative; padding-right: 24px; }
   .article-reader.article-reader--tools-open { padding-right: calc(24px + var(--reader-tools-width)); }
-  .article-reader__topbar { position: fixed; z-index: 40; top: 0; right: 0; left: 204px; width: auto; margin: 0; border-width: 0 0 1px; border-radius: 0; padding-right: 24px; }
+  .article-reader__topbar { position: fixed; z-index: 40; top: 0; right: 0; left: 134px; width: auto; margin: 0; border-width: 0 0 1px; border-radius: 0; padding-right: 24px; }
   .article-reader.article-reader--tools-open .article-reader__topbar { padding-right: calc(var(--reader-tools-width) + 24px); }
   .article-reader__layout, .article-reader__notice { width: 100%; margin-inline: 0; }
   .article-reader__layout { position: static; display: block; }
@@ -9602,7 +9602,7 @@ body {
 
 @media (min-width: 960px) {
   .product-content:has(.article-reader) { width: 100%; max-width: none; padding: 0; }
-  .article-reader__topbar { left: 204px; }
+  .article-reader__topbar { left: 134px; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .article-reader__topbar { left: 72px; }
   .article-reader.article-reader--tools-open { padding-right: 0; }
   .article-reader.article-reader--tools-open .article-reader__topbar { padding-right: 18px; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); pointer-events: auto; }
