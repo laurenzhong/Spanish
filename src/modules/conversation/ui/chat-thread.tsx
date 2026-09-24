@@ -4,7 +4,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
-import { createBrowserTextToSpeech } from "@/src/modules/providers/tts";
+import { createBrowserTextToSpeech, preferredSpanishVoice, readSpanishVoicePreference } from "@/src/modules/providers/tts";
 
 import {
   ConversationNdjsonParser,
@@ -70,8 +70,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [contextMenu, setContextMenu] = useState<MessageMenuState | null>(null);
   const [translations, setTranslations] = useState<Record<string, MessageTranslation>>({});
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUrlRef = useRef<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -193,8 +191,6 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     abortRef.current?.abort();
     translationAbortRef.current?.abort();
     textToSpeech.stop();
-    audioRef.current?.pause();
-    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
   }, [textToSpeech]);
 
   useEffect(() => {
@@ -610,32 +606,21 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   async function speakMessage(message: ConversationState["messages"][number]) {
     setContextMenu(null);
     if (speakingMessageId === message.id) {
-      audioRef.current?.pause();
       textToSpeech.stop();
       setSpeakingMessageId(null);
       return;
     }
+    if (!textToSpeech.isSupported) {
+      setNotice("当前浏览器不支持朗读，请直接阅读这条消息");
+      return;
+    }
     setSpeakingMessageId(message.id);
     try {
-      const response = await fetch("/api/v1/conversations/tts", { method: "POST", headers: { "content-type": "application/json", accept: "audio/mpeg" }, body: JSON.stringify({ text: message.text, languageTag: "es-ES" }) });
-      if (response.ok) {
-        const blob = await response.blob();
-        if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-        const url = URL.createObjectURL(blob);
-        audioUrlRef.current = url;
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        audio.onended = () => setSpeakingMessageId((current) => current === message.id ? null : current);
-        await audio.play();
-        return;
-      }
-      if (!textToSpeech.isSupported) throw new Error("tts-unavailable");
-      await textToSpeech.speak(message.text, { languageTag: "es-ES", rate: 0.88 });
+      const voicePreference = readSpanishVoicePreference();
+      const voice = preferredSpanishVoice(textToSpeech.voices(), voicePreference);
+      await textToSpeech.speak(message.text, { languageTag: "es-ES", rate: 0.88, voiceName: voice?.name, voiceURI: voice?.voiceURI });
     } catch {
-      if (textToSpeech.isSupported) {
-        try { await textToSpeech.speak(message.text, { languageTag: "es-ES", rate: 0.88 }); }
-        catch { setNotice("浏览器暂时无法朗读，请稍后重试"); }
-      } else setNotice("朗读暂时不可用，请稍后重试");
+      setNotice("浏览器暂时无法朗读，请稍后重试");
     } finally {
       setSpeakingMessageId((current) => current === message.id ? null : current);
     }
