@@ -44,7 +44,7 @@ describe("content media runtime", () => {
       potProviderUrl: "http://127.0.0.1:4416",
     });
     expect(args).toContain("--extractor-args");
-    expect(args).toContain("youtube:player_client=mweb;youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416");
+    expect(args).toContain("youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416");
     expect(args).not.toContain("--cookies");
   });
 });

@@ -338,7 +338,7 @@ export function createYoutubeDownloadArguments(input: Readonly<{
   potProviderUrl?: string | null;
 }>): string[] {
   const extractorArgs = input.potProviderUrl
-    ? ["--extractor-args", `youtube:player_client=mweb;youtubepot-bgutilhttp:base_url=${input.potProviderUrl}`]
+    ? ["--extractor-args", `youtubepot-bgutilhttp:base_url=${input.potProviderUrl}`]
     : [];
   return [
     "--ignore-config", "--no-playlist", "--no-progress", "--no-warnings", "--quiet",
