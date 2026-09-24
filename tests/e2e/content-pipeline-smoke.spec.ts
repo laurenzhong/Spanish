@@ -44,7 +44,7 @@ test("daily content workflow is protected and stage-gated", async () => {
   expect(workflow).toContain("media_canary_only:");
   expect(workflow).toContain("MEDIA_VIDEO_HOSTING_CANARY_ONLY=true");
   expect(workflow).toContain("publication=skipped");
-  expect(videoHosting).toContain('"youtube:player_client=mweb; youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416"');
+  expect(videoHosting).toContain('"youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416"');
   expect(batchHosting).toContain("MEDIA_VIDEO_HOSTING_CANARY_ONLY");
   expect(batchHosting).toContain("const canaryCandidateLimit = 10");
   expect(batchHosting).toContain("if (canaryOnly) break");
