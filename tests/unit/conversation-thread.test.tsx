@@ -205,9 +205,38 @@ describe("ChatThread persistence status", () => {
     expect(screen.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "复制" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "翻译" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "朗读" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "引用回复" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "撤回" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "删除" })).not.toBeInTheDocument();
+  });
+
+  it("reads a friend message from the message menu and can stop it", async () => {
+    const speak = vi.fn((utterance: SpeechSynthesisUtterance) => {
+      window.setTimeout(() => utterance.onend?.(new Event("end") as SpeechSynthesisEvent), 0);
+    });
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: { speak, cancel: vi.fn(), getVoices: () => [] },
+    });
+    class TestUtterance {
+      text: string;
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      voice = null;
+      onend: ((event: SpeechSynthesisEvent) => void) | null = null;
+      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
+      constructor(text: string) { this.text = text; }
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", TestUtterance);
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[{ id: "speak-1", role: "character", text: "¿Quieres tomar un café?", complete: true }]} />);
+    const message = screen.getByText("¿Quieres tomar un café?");
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "朗读" }));
+    await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
+    expect(speak.mock.calls[0]?.[0].text).toBe("¿Quieres tomar un café?");
   });
 
   it("translates a friend message inline and opens the same menu on double click", async () => {

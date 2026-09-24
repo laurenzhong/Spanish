@@ -4,6 +4,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
+import { createBrowserTextToSpeech } from "@/src/modules/providers/tts";
 
 import {
   ConversationNdjsonParser,
@@ -68,6 +69,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [quotedMessage, setQuotedMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [contextMenu, setContextMenu] = useState<MessageMenuState | null>(null);
   const [translations, setTranslations] = useState<Record<string, MessageTranslation>>({});
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -99,6 +101,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   ));
   const serverHistoryLoadedRef = useRef(Boolean(initialMessages));
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
+  const textToSpeech = useMemo(() => createBrowserTextToSpeech(), []);
   const contextMenuMessageId = contextMenu?.messageId;
 
   useEffect(() => {
@@ -187,6 +190,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   useEffect(() => () => {
     abortRef.current?.abort();
     translationAbortRef.current?.abort();
+    textToSpeech.stop();
   }, []);
 
   useEffect(() => {
@@ -599,6 +603,27 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     setContextMenu(null);
   }
 
+  async function speakMessage(message: ConversationState["messages"][number]) {
+    setContextMenu(null);
+    if (speakingMessageId === message.id) {
+      textToSpeech.stop();
+      setSpeakingMessageId(null);
+      return;
+    }
+    if (!textToSpeech.isSupported) {
+      setNotice("当前浏览器不支持朗读，请直接阅读这条消息");
+      return;
+    }
+    setSpeakingMessageId(message.id);
+    try {
+      await textToSpeech.speak(message.text, { languageTag: "es-ES", rate: 0.88 });
+    } catch {
+      setNotice("浏览器暂时无法朗读，请稍后重试");
+    } finally {
+      setSpeakingMessageId((current) => current === message.id ? null : current);
+    }
+  }
+
   async function deleteMessage(message: ConversationState["messages"][number]) {
     if (!window.confirm("删除后将从你的聊天记录中移除，是否继续？")) return;
     setContextMenu(null);
@@ -746,6 +771,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {contextMenu && selectedMessage() && typeof document !== "undefined" ? createPortal(
         <div ref={messageMenuRef} className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x ?? contextMenu.anchorX, top: contextMenu.y ?? contextMenu.anchorBottom, visibility: contextMenu.x === undefined ? "hidden" : undefined }} onClick={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
+          {selectedMessage()?.role === "character" ? <button type="button" role="menuitem" onClick={() => void speakMessage(selectedMessage()!)}>{speakingMessageId === selectedMessage()?.id ? "停止朗读" : "朗读"}</button> : null}
           {selectedMessage()?.role === "character" ? (() => {
             const selected = selectedMessage()!;
             const translation = translations[selected.id];
