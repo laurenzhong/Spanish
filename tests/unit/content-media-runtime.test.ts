@@ -46,5 +46,12 @@ describe("content media runtime", () => {
     expect(args).toContain("--extractor-args");
     expect(args).toContain("youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416");
     expect(args).not.toContain("--cookies");
+    expect(createYoutubeDownloadArguments({
+      url: "https://www.youtube.com/watch?v=authorized",
+      outputPath: "/tmp/audio.%(ext)s",
+      maxBytes: 200_000_000,
+      potProviderUrl: "http://127.0.0.1:4416",
+      playerClient: "android_vr",
+    })).toContain("youtube:player_client=android_vr;youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416");
   });
 });
