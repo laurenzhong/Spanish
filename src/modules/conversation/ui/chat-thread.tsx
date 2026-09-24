@@ -14,7 +14,7 @@ import {
 } from "@/src/modules/conversation";
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
-import { ConversationContactRail } from "./conversation-contact-rail";
+import { CONVERSATION_LIST_UPDATED_EVENT, ConversationContactRail } from "./conversation-contact-rail";
 import {
   getCachedConversationHistory,
   loadConversationHistory,
@@ -373,7 +373,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           const timestamped = normalized.type === "meta" && !normalized.createdAt
             ? { ...normalized, createdAt: new Date().toISOString() }
             : normalized;
-          if (timestamped.type === "done") receivedDone = true;
+          if (timestamped.type === "done") {
+            receivedDone = true;
+            window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
+          }
           apply({ type: "stream-event", event: timestamped });
         }
       }
@@ -382,7 +385,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         const timestamped = normalized.type === "meta" && !normalized.createdAt
           ? { ...normalized, createdAt: new Date().toISOString() }
           : normalized;
-        if (timestamped.type === "done") receivedDone = true;
+        if (timestamped.type === "done") {
+          receivedDone = true;
+          window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
+        }
         apply({ type: "stream-event", event: timestamped });
       }
       for (const event of parser.finish()) {
@@ -462,7 +468,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function openMessageMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (message.withdrawn || !message.text || !message.complete) return;
+    // A streamed reply may still be marked incomplete while its first text
+    // has already arrived. Its actions are still safe to expose immediately.
+    if (message.withdrawn || !message.text) return;
     event.preventDefault();
     event.stopPropagation();
     messageMenuTriggerRef.current = event.currentTarget;
@@ -498,12 +506,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
   function handleMessageClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     if (window.getSelection()?.toString()) return;
-    if (message.text && message.complete && !message.withdrawn) openMessageMenu(event, message);
     if (message.createdAt) setExpandedTimestampId(message.id);
   }
 
   function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (message.text && message.complete && !message.withdrawn) openMessageMenu(event, message);
+    if (message.text && !message.withdrawn) openMessageMenu(event, message);
     else if (message.createdAt) {
       event.preventDefault();
       toggleMessageTimestamp(message.id);
@@ -511,13 +518,13 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function handleMessageDoubleClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (!message.text || !message.complete || message.withdrawn) return;
+    if (!message.text || message.withdrawn) return;
     openMessageMenu(event, message);
   }
 
   function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     openMessageMenuFromKeyboard(event, message);
-    if ((event.key === "Enter" || event.key === " ") && message.text && message.complete && !message.withdrawn) {
+    if ((event.key === "Enter" || event.key === " ") && message.text && !message.withdrawn) {
       event.preventDefault();
       messageMenuTriggerRef.current = event.currentTarget;
       const rect = event.currentTarget.getBoundingClientRect();
