@@ -1,0 +1,39 @@
+name: Lucía proactive daily message
+
+on:
+  schedule:
+    # 09:15 Asia/Shanghai; GitHub Actions schedules use UTC.
+    - cron: "15 1 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: lucia-proactive-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  proactive:
+    runs-on: ubuntu-latest
+    environment: content-production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Lucía message
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LUCIA_PROACTIVE_USER_IDS: ${{ vars.LUCIA_PROACTIVE_USER_IDS }}
+          CONVERSATION_PROVIDER: ${{ vars.CONVERSATION_PROVIDER || 'minimax' }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          MINIMAX_API_ENDPOINT: ${{ vars.MINIMAX_API_ENDPOINT }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT }}
+          OPENAI_CONVERSATION_MODEL: ${{ vars.OPENAI_CONVERSATION_MODEL }}
+        run: pnpm conversation:proactive
