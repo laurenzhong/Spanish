@@ -47,7 +47,20 @@ export function createBunnyStorageMediaAssetStorage(): MediaAssetStorage | null 
     }
   }
   return {
-    async putAudio() { throw new Error("bunny-storage-audio-not-configured"); },
+    async putAudio(path, body, contentType) {
+      if (contentType !== "audio/mpeg" || !body.byteLength) throw new Error("bunny-storage-audio-invalid");
+      const key = encodedPath(path);
+      const response = await fetch(`${endpoint}/${key}`, {
+        method: "PUT",
+        headers: { ...headers, "content-type": contentType, "content-length": String(body.byteLength) },
+        body: Buffer.from(body),
+        redirect: "error",
+        signal: AbortSignal.timeout(10 * 60 * 1_000),
+      });
+      await response.body?.cancel();
+      if (!response.ok) throw new Error(`bunny-storage-upload-${response.status}`);
+      return { url: `https://${pullZone}/${key}` };
+    },
     async putVideo(path, body, contentType) {
       if (contentType !== "video/mp4" || !body.byteLength) throw new Error("bunny-storage-video-invalid");
       const key = encodedPath(path);
