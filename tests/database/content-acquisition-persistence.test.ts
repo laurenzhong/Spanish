@@ -174,6 +174,42 @@ describe("content acquisition persistence", () => {
     expect(Number(count)).toBe(1);
   });
 
+  it("refreshes an unpublished conflicted candidate without replacing published content", async () => {
+    const acquisition = repository();
+    const source = await registerSource();
+    await acquisition.createRun({ id: runId, sourceId, generationId: "generation-1", initialCursor: "page-1", startedAt: new Date("2026-09-13T00:00:00.000Z") });
+    const candidate = {
+      id: candidateId,
+      sourceId,
+      externalItemId: "article-1",
+      normalizedUrl: "https://example.test/article",
+      title: "Old article",
+      contentType: "article" as const,
+      language: "es",
+      publishedAt: null,
+      contentHash: "a".repeat(64),
+      metadata: { articleDraft: { contentHash: "a".repeat(64) } },
+      rightsStatus: "verified" as const,
+      generationId: "generation-1",
+      discoveredAt: new Date("2026-09-13T00:00:00.000Z"),
+    };
+    await acquisition.commitDiscoveryPage({ runId, sourceId, expectedSourceRevision: source.revision, nextCursor: "page-2", candidates: [candidate] });
+    let revision = 1;
+    for (const type of ["screen-approved", "start-acquisition", "start-processing", "mark-review-ready"] as const) {
+      revision = (await processCandidate(acquisition, { candidateId, event: { type, expectedRevision: revision, generationId: "generation-1" }, now: () => new Date("2026-09-13T01:00:00.000Z") })).revision;
+    }
+    await processCandidate(acquisition, { candidateId, event: { type: "reject", expectedRevision: revision, generationId: "generation-1" }, now: () => new Date("2026-09-13T01:01:00.000Z") });
+    await acquisition.createRun({ id: "00000000-0000-4000-8000-000000000507", sourceId, generationId: "generation-2", initialCursor: "page-2", startedAt: new Date("2026-09-14T00:00:00.000Z") });
+    await expect(acquisition.commitDiscoveryPage({
+      runId: "00000000-0000-4000-8000-000000000507",
+      sourceId,
+      expectedSourceRevision: 2,
+      nextCursor: "page-3",
+      candidates: [{ ...candidate, id: "00000000-0000-4000-8000-000000000508", title: "New article", contentHash: "b".repeat(64), metadata: { articleDraft: { contentHash: "b".repeat(64) } }, generationId: "generation-2", discoveredAt: new Date("2026-09-14T00:00:00.000Z") }],
+    })).resolves.toMatchObject({ inserted: 1, conflicts: 0, insertedCandidateIds: [candidateId] });
+    await expect(acquisition.findCandidateById(candidateId)).resolves.toMatchObject({ status: "discovered", revision: 7, title: "New article", contentHash: "b".repeat(64) });
+  });
+
   it("rolls the candidate insert back when the source revision is stale", async () => {
     const acquisition = repository();
     await registerSource();
