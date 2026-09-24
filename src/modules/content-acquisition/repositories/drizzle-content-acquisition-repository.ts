@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -353,6 +353,39 @@ export function createDrizzleContentAcquisitionRepository(
             continue;
           }
           if (resolution.kind === "conflict") {
+            const conflictedId = resolution.candidateId;
+            if (conflictedId) {
+              const refreshed = await transaction
+                .update(schema.contentCandidates)
+                .set({
+                  externalItemId: candidate.externalItemId,
+                  normalizedUrl: candidate.normalizedUrl,
+                  title: candidate.title,
+                  contentType: candidate.contentType,
+                  language: candidate.language,
+                  publishedAt: candidate.publishedAt,
+                  contentHash: candidate.contentHash,
+                  metadata: candidate.metadata,
+                  status: "discovered",
+                  rightsStatus: candidate.rightsStatus,
+                  generationId: candidate.generationId,
+                  revision: sql`${schema.contentCandidates.revision} + 1`,
+                  lastActivityAt: candidate.discoveredAt,
+                  rejectedAt: null,
+                  updatedAt: candidate.discoveredAt,
+                })
+                .where(and(
+                  eq(schema.contentCandidates.id, conflictedId),
+                  eq(schema.contentCandidates.publicationStatus, "draft"),
+                  sql`${schema.contentCandidates.status} in ('rejected', 'failed', 'discovered', 'screened', 'acquiring', 'processing', 'review_ready')`,
+                ))
+                .returning({ id: schema.contentCandidates.id });
+              if (refreshed.length > 0) {
+                inserted += 1;
+                insertedCandidateIds.push(conflictedId);
+                continue;
+              }
+            }
             conflicts += 1;
             continue;
           }
