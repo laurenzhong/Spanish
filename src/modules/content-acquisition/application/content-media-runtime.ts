@@ -317,13 +317,23 @@ async function downloadAuthorizedYouTubeAudio(url: string, directory: string, ma
     await writeFile(cookiePath, decoded, { mode: 0o600 });
     cookieArgs.push("--cookies", cookiePath);
   }
-  await runCommand(process.env.YTDLP_BIN?.trim() || "yt-dlp", createYoutubeDownloadArguments({
+  const command = process.env.YTDLP_BIN?.trim() || "yt-dlp";
+  const downloadInput = {
     url,
     outputPath: path.join(directory, "audio.%(ext)s"),
     maxBytes,
     cookieArgs,
     potProviderUrl: process.env.YTDLP_POT_PROVIDER_URL?.trim() || null,
-  }), signal, 15 * 60_000);
+  } as const;
+  try {
+    await runCommand(command, createYoutubeDownloadArguments(downloadInput), signal, 15 * 60_000);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("MEDIA_AUDIO_COMMAND_FAILED_AUTH_REQUIRED")) throw error;
+    for (const name of await readdir(directory)) {
+      if (name.startsWith("audio.")) await rm(path.join(directory, name), { force: true });
+    }
+    await runCommand(command, createYoutubeDownloadArguments({ ...downloadInput, playerClient: "android_vr" }), signal, 15 * 60_000);
+  }
   const names = await readdir(directory);
   const name = names.find((value) => value.startsWith("audio."));
   if (!name) throw new Error("MEDIA_YTDLP_FAILED");
@@ -336,10 +346,11 @@ export function createYoutubeDownloadArguments(input: Readonly<{
   maxBytes: number;
   cookieArgs?: readonly string[];
   potProviderUrl?: string | null;
+  playerClient?: string | null;
 }>): string[] {
   const extractorArgs = input.potProviderUrl
-    ? ["--extractor-args", `youtubepot-bgutilhttp:base_url=${input.potProviderUrl}`]
-    : [];
+    ? ["--extractor-args", `${input.playerClient ? `youtube:player_client=${input.playerClient};` : ""}youtubepot-bgutilhttp:base_url=${input.potProviderUrl}`]
+    : input.playerClient ? ["--extractor-args", `youtube:player_client=${input.playerClient}`] : [];
   return [
     "--ignore-config", "--no-playlist", "--no-progress", "--no-warnings", "--quiet",
     ...(input.cookieArgs ?? []), ...extractorArgs, "--format", "bestaudio/best", "--max-filesize", String(input.maxBytes), "--output", input.outputPath, input.url,
