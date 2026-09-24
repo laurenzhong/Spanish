@@ -99,7 +99,7 @@ export async function processMediaCandidate(
   }
   const nextMetadata = { ...candidate.metadata } as Record<string, unknown>;
   if (podcast) {
-    const nextDraft = { ...podcast.draft, transcriptStatus: podcast.draft.transcriptStatus === "unavailable" ? "asr" as const : podcast.draft.transcriptStatus, transcriptUrl: podcast.draft.transcriptStatus === "asr" ? null : podcast.draft.transcriptUrl, segments: [...result.segments] };
+    const nextDraft = { ...podcast.draft, transcriptStatus: result.provider ? "asr" as const : podcast.draft.transcriptStatus, transcriptUrl: result.provider ? null : podcast.draft.transcriptUrl, segments: [...result.segments] };
     nextMetadata.podcastDraft = { ...nextDraft, contentHash: calculatePodcastCandidateContentHash(nextDraft) };
   } else {
     const nextDraft = { ...video!.draft, captionStatus: video!.draft.captionStatus === "unavailable" ? "asr" as const : video!.draft.captionStatus, segments: [...result.segments] };
