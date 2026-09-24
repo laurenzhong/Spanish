@@ -94,7 +94,10 @@ export class BrowserTextToSpeech {
   stop(): void {
     const active = this.active;
     this.active = null;
-    this.synthesis?.cancel();
+    // Calling cancel() on an idle synthesis queue can silence the very next
+    // utterance in Chrome/Safari. Only cancel when this adapter owns an active
+    // utterance; a fresh speak should be allowed to enter the queue directly.
+    if (active) this.synthesis?.cancel();
     active?.resolve();
   }
 
