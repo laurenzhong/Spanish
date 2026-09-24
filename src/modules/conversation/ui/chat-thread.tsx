@@ -659,7 +659,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         ) : null}
         {state.messages.map((message, index) => {
-          if (message.role === "character" && !message.complete && !message.text && state.status !== "streaming") return null;
+          // The header already exposes the typing state while a reply is being
+          // generated. Do not create an empty assistant bubble for the meta
+          // event; the bubble should appear with the first actual delta.
+          if (message.role === "character" && !message.text && !message.withdrawn) return null;
           const previous = state.messages[index - 1];
           const messageDate = message.createdAt ? new Date(message.createdAt) : null;
           const previousDate = previous?.createdAt ? new Date(previous.createdAt) : null;
@@ -671,7 +674,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           const timestampExpanded = expandedTimestampId === message.id;
           const timestampValue = message.createdAt;
           const translation = message.role === "character" && translationCharacterKeyRef.current === characterKey ? translations[message.id] : undefined;
-          const bubbleText = message.withdrawn ? "你撤回了一条消息" : message.text || "…";
+          const bubbleText = message.withdrawn ? "你撤回了一条消息" : message.text;
           return <Fragment key={message.id}>
           {(showTimestamp || timestampExpanded) && timestampValue ? <time className={`conversation-thread__timestamp${timestampExpanded ? " conversation-thread__timestamp--exact" : ""}`} dateTime={timestampValue}>
             {timestampExpanded ? formatFullTimestamp(timestampValue) : formatConversationTimestamp(timestampValue, dayChanged)}
