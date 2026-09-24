@@ -2112,6 +2112,8 @@ body { background: var(--background); }
 .article-reader__settings-toggle { min-height: 40px; padding: 8px 12px; }
 .article-reader__assist-toggle { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--border); border-radius: 8px; color: var(--accent); background: var(--surface); cursor: pointer; font-size: 1.1rem; }
 .article-reader__assist-toggle svg { width: 24px; height: 24px; }
+.article-reader__topbar > .article-reader__progress { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; padding: 0; overflow: hidden; border-radius: 0 0 14px 14px; }
+.article-reader__topbar > .article-reader__progress span { display: block; height: 100%; background: var(--terracotta); transition: width 240ms ease; }
 .article-reader__progress { padding: 18px 0 8px; }
 .article-reader__progress-copy { display: flex; justify-content: space-between; color: var(--muted); font-size: .74rem; font-weight: 750; }
 .article-reader__progress-copy strong { color: var(--terracotta); }
