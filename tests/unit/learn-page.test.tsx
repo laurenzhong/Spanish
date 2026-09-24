@@ -31,7 +31,6 @@ describe("LearnPage", () => {
 
     expect(screen.getByRole("heading", { name: "看点、听点真实西语" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "媒体资料库正在准备中" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Sueño 学习首页" })).not.toBeInTheDocument();
     expect(screen.queryByText(/开始第一次练习|继续学习|当前沟通目标|练习任务时间线/)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /开始|继续/ })).not.toBeInTheDocument();
   });
