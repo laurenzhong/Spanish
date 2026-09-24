@@ -290,7 +290,12 @@ async function main(): Promise<void> {
         repository.listRuns({ limit: options.limit }),
         repository.listCandidates({ limit: options.limit }),
       ]);
-      process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { report: "completed" }, counts: { sources: sources.length, runs: runs.length, candidates: candidates.length } })}\n`);
+      const candidateSummary: Record<string, number> = {};
+      for (const candidate of candidates) {
+        const key = `${candidate.contentType}:${candidate.status}:${candidate.publicationStatus}`;
+        candidateSummary[key] = (candidateSummary[key] ?? 0) + 1;
+      }
+      process.stdout.write(`${JSON.stringify({ runId: randomUUID(), status: "succeeded", steps: { report: "completed" }, counts: { sources: sources.length, runs: runs.length, candidates: candidates.length }, candidateSummary })}\n`);
       return;
     }
     if (options.command === "article-daily") {
