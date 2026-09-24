@@ -12532,13 +12532,11 @@ body {
   .desktop-navigation__account .account-menu__chevron { display: none; }
 }
 
-.product-shell:has(.media-library) .media-library__topbar { grid-template-columns: auto minmax(0, 1fr) minmax(280px, 420px); }
-.product-shell:has(.media-library) .media-library__wordmark { display: inline-flex; gap: 0; align-items: center; color: var(--learn-text); font-size: 24px; font-weight: 700; letter-spacing: 0; }
-.product-shell:has(.media-library) .media-library__wordmark > span { color: var(--learn-accent); }
+.product-shell:has(.media-library) .media-library__topbar { grid-template-columns: minmax(0, 1fr) minmax(280px, 420px); }
 
 @media (max-width: 959px) {
   .product-shell:has(.media-library) .mobile-product-header { display: none; }
-  .product-shell:has(.media-library) .media-library__topbar { grid-template-columns: auto minmax(0, 1fr); }
+  .product-shell:has(.media-library) .media-library__topbar { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Media detail refinement: use the same dark learning workspace as /learn. */
