@@ -2,10 +2,11 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-23
+- 最后更新：2026-09-24
 - 当前里程碑：内容驱动学习与自动内容供应重构
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
+- 2026-09-24 内容流水线核验：PR `#57`、`#58`、`#60`、`#62`、`#63` 已合入 `main`。播客最新正式双语数为 `10/10`；视频仍为 `0/10`，YouTube 数据中心 IP 在 bgutil PO Token 与无 cookies `android_vr` 回退后仍返回 bot/auth 拒绝，未伪造字幕或发布。文章运行 `35972206914` 为 `discovered=19, inserted=1, conflicts=16, published=0`；未发布冲突候选已支持新 revision 刷新，已发布候选仍不可覆盖。当前文章剩余问题是 MiniMax 复核 `changes_requested/rejected`，不是来源游标；`readlang.links.es.v3/v4` 是已停用历史来源，当前精确来源为 `readlang.links.es` / `https://readlang.com/es/links`。工作树另有未提交 UI 改动，未由本轮覆盖。
 - OPS-001 媒体托管后续：PR `#41` 已于 `2026-09-23` 合入（`ec381ee`），实现 Commit `c3ef168` 接入专用 Linux self-hosted runner 的候选 UUID 命名授权 MP4。聚焦 Vitest `5 files / 26 tests`、新增路径单测 `3/3`、workflow Playwright 桌面/移动 `2/2`、`pnpm exec tsc --noEmit`、受影响 ESLint 和 `git diff --check` 通过。GitHub repository/environment variables 中目前都没有 `CONTENT_MEDIA_RUNNER_LABELS` 或 `CONTENT_MEDIA_AUTHORIZED_ASSET_DIR`；没有已核实的候选 UUID ↔ 授权 MP4 映射，因此未执行 Bunny 上传或 canary。下一步配置专用 runner labels/授权资产目录，并提供一份有来源授权证明、按候选 UUID 命名的 MP4，再执行单候选 canary。
 - OPS-001 YouTube 下载后续：PR `#43`（实现 Commit `a43e626`）将托管请求切换到 yt-dlp 官方推荐的 `mweb` PO Token 路径，在 workflow 安装固定版本 `bgutil-ytdlp-pot-provider==2.0.0` 并运行 loopback-only Docker provider；增加 `media_canary_only` 单候选托管模式，跳过发现、审核、文章/媒体发布及清理/report。验证：Vitest `4 files / 23 tests`、workflow Playwright 桌面/移动 `2/2`、受影响 ESLint、TypeScript、PyYAML workflow 解析、`git diff --check` 通过。开发机没有 Docker，尚未实际启动 provider 或访问 YouTube；需 PR 合并后运行 canary，核对候选 ID、PO Token 下载结果、Bunny HEAD 和浏览器播放/seek，确认发布仍为跳过。
 - 当前门禁：文章、YouTube 视频与播客只有在来源权利已验证、候选字段/hash/revision 一致且当前修订版通过三维审核后才能正式发布；媒体公开投影还必须满足当前版本已发布、版权清晰、资产可用且播放信息未过期。媒体自动发布仅在受保护 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true` 时开启，缺失或非 `true` 仍停在候选审核库。ALPHA-033 最终门禁要求 lint、typecheck、unit、桌面 E2E、build、database/RLS、content/privacy 全部通过，且 P0/P1 清零并有产品本人确认。现有训练 route、状态机、推荐、八维证据和数据库记录不删除。iPhone Safari/PWA 真机、Flutter、远端迁移、真实来源抓取和真实收费 Provider 继续如实记录
