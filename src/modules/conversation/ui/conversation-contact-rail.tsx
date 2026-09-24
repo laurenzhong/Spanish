@@ -23,6 +23,7 @@ let introductionOfferRequest: Promise<void> | null = null;
 
 const CONTACT_SEARCH_THRESHOLD = 8;
 const CONTACT_REQUEST_TIMEOUT_MS = 8_000;
+export const CONVERSATION_LIST_UPDATED_EVENT = "conversation-list-updated";
 
 async function fetchContactJson<T>(url: string): Promise<T> {
   const controller = new AbortController();
@@ -150,6 +151,30 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
     });
     return () => { active = false; };
   }, [initialConversations]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadConversationList(true).then(() => {
+        const nextConversations = cachedConversations ?? [];
+        setConversations(nextConversations);
+        setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }])));
+        setStatus(cachedStatus);
+      });
+    };
+    window.addEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
+  }, []);
+
+  useEffect(() => {
+    const conversation = conversations.find((item) => item.characterKey === activeCharacterKey);
+    if (!conversation || (conversation.unreadCount ?? 0) < 1) return;
+    void fetch("/api/v1/conversations/preferences", {
+      method: "PATCH",
+      keepalive: true,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }),
+    }).then(() => window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT))).catch(() => undefined);
+  }, [activeCharacterKey, conversations]);
 
   useEffect(() => {
     if (!showIntroductions) return;
@@ -293,6 +318,11 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
     });
   }
 
+  function cancelLongPress() {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+
   async function applyOrder(nextConversations: readonly ConversationPreview[], preferenceOverrides: Readonly<Record<string, Partial<ConversationPreference>>> = {}) {
     const order = nextConversations.map((conversation) => conversation.characterKey);
     const previous = preferences;
@@ -385,6 +415,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
         {visibleConversations.map((conversation) => {
           const preference = preferenceFor(conversation);
           const isUnread = markedUnread.has(conversation.characterKey);
+          const unreadCount = conversation.unreadCount ?? 0;
           const isTyping = typingCharacters.has(conversation.characterKey);
           return (
             <div
@@ -407,8 +438,9 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                   openContextMenuAt(conversation.characterKey, railRect ? touch.clientX - railRect.left : touch.clientX, railRect ? touch.clientY - railRect.top + (railRef.current?.scrollTop ?? 0) : touch.clientY);
                 }, 450);
               }}
-              onTouchEnd={() => { if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }}
-              onTouchCancel={() => { if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }}
+              onTouchMove={cancelLongPress}
+              onTouchEnd={cancelLongPress}
+              onTouchCancel={cancelLongPress}
             >
               <Link
                 className={`conversation-contact-row ${activeCharacterKey === conversation.characterKey ? "conversation-contact-row--active" : ""} ${isUnread ? "conversation-contact-row--unread" : ""}`}
@@ -421,6 +453,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                     return;
                   }
                   setMarkedUnread((current) => { const next = new Set(current); next.delete(conversation.characterKey); return next; });
+                  if (unreadCount > 0) void fetch("/api/v1/conversations/preferences", { method: "PATCH", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }) });
                 }}
                 onMouseEnter={() => prefetchConversationHistory(conversation.characterKey)}
                 onFocus={() => prefetchConversationHistory(conversation.characterKey)}
@@ -435,7 +468,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                   ) : <small>{conversation.roleLabel}</small>}
                   {conversation.lastMessage ? <span className="conversation-contact-row__preview">{conversation.lastMessage.snippet}</span> : null}
                 </span>
-                {isUnread ? <span className="conversation-contact-row__unread" aria-label="未读" /> : null}
+                {unreadCount > 0 ? <span className="conversation-contact-row__unread-count" aria-label={`${unreadCount} 条未读消息`}>{unreadCount > 99 ? "99+" : unreadCount}</span> : isUnread ? <span className="conversation-contact-row__unread" aria-label="未读" /> : null}
                 {preference.isMuted ? <span className="conversation-contact-row__muted" aria-label="已静音">静音</span> : null}
                 {conversation.lastMessageAt ? <time className="conversation-contact-row__time" dateTime={conversation.lastMessageAt}>{formatConversationTime(conversation.lastMessageAt)}</time> : null}
               </Link>
@@ -478,10 +511,25 @@ type LuciaContactPreview = Readonly<{
   source: Readonly<{ kind: "cultural-event"; city: "Madrid"; topic: "urban-photography" }>;
 }>;
 
-function formatConversationTime(value: string): string {
+export function formatConversationTime(value: string, now = new Date()): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(date);
+  const elapsedMinutes = Math.floor((now.getTime() - date.getTime()) / 60_000);
+  if (elapsedMinutes >= 0 && elapsedMinutes < 1) return "刚刚";
+  if (elapsedMinutes >= 1 && elapsedMinutes < 60) return `${elapsedMinutes}分钟前`;
+
+  const startOfDay = (input: Date) => new Date(input.getFullYear(), input.getMonth(), input.getDate()).getTime();
+  const today = startOfDay(now);
+  const messageDay = startOfDay(date);
+  const dayDifference = Math.floor((today - messageDay) / 86_400_000);
+  if (dayDifference === 0) return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+  if (dayDifference === 1) return `昨天 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date)}`;
+  if (dayDifference === 2) return "前天";
+
+  const mondayOffset = (now.getDay() + 6) % 7;
+  const startOfWeek = today - mondayOffset * 86_400_000;
+  if (messageDay >= startOfWeek && messageDay < today) return new Intl.DateTimeFormat("zh-CN", { weekday: "short" }).format(date);
+  return new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric" }).format(date);
 }
 
 if (typeof window !== "undefined") {

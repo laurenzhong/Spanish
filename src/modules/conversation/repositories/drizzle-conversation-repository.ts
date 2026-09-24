@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, inArray, isNull, or } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -167,6 +167,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
 
       const conversationIds = rows.map(({ conversation }) => conversation.id);
       const latestMessageByConversation = new Map<string, { role: "user" | "character"; content: string; createdAt: Date }>();
+      const unreadCountByConversation = new Map<string, number>();
       if (conversationIds.length > 0) {
         const messages = await database
           .selectDistinctOn([schema.messages.conversationId], {
@@ -187,6 +188,23 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
             });
           }
         }
+        const unreadRows = await database
+          .select({ conversationId: schema.messages.conversationId })
+          .from(schema.messages)
+          .leftJoin(schema.conversationPreferences, and(
+            eq(schema.conversationPreferences.userId, userId),
+            eq(schema.conversationPreferences.characterId, schema.messages.characterId),
+          ))
+          .where(and(
+            inArray(schema.messages.conversationId, conversationIds),
+            eq(schema.messages.role, "character"),
+            eq(schema.messages.status, "completed"),
+            or(
+              isNull(schema.conversationPreferences.lastReadAt),
+              gt(schema.messages.createdAt, schema.conversationPreferences.lastReadAt),
+            ),
+          ));
+        for (const row of unreadRows) unreadCountByConversation.set(row.conversationId, (unreadCountByConversation.get(row.conversationId) ?? 0) + 1);
       }
 
       return rows.map(({ conversation, character, conversationPreferences }) => {
@@ -203,6 +221,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           isPinned: conversationPreferences?.isPinned ?? character.stableKey === "lucia",
           isMuted: conversationPreferences?.isMuted ?? false,
           sortRank: conversationPreferences?.sortRank ?? null,
+          unreadCount: unreadCountByConversation.get(conversation.id) ?? 0,
       } satisfies ConversationListRecord;
       });
     },
@@ -270,6 +289,17 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           });
         }
       });
+    },
+
+    async markConversationRead(userId, characterKey, readAt = new Date()) {
+      const [character] = await database.select({ id: schema.characters.id }).from(schema.characters)
+        .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.status, "published"))).limit(1);
+      if (!character) throw new Error("CHARACTER_UNAVAILABLE");
+      const [conversation] = await database.select({ id: schema.conversations.id }).from(schema.conversations)
+        .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.characterId, character.id))).limit(1);
+      if (!conversation) throw new Error("CONVERSATION_UNAVAILABLE");
+      await database.insert(schema.conversationPreferences).values({ userId, characterId: character.id, lastReadAt: readAt })
+        .onConflictDoUpdate({ target: [schema.conversationPreferences.userId, schema.conversationPreferences.characterId], set: { lastReadAt: readAt, updatedAt: new Date() } });
     },
 
     async searchMessages(userId, query, limit = 50) {

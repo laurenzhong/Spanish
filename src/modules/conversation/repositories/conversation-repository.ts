@@ -33,6 +33,7 @@ export type ConversationListRecord = Readonly<{
   isPinned: boolean;
   isMuted: boolean;
   sortRank: number | null;
+  unreadCount?: number;
 }>;
 
 export type ConversationPreferencePatch = Readonly<{
@@ -66,6 +67,7 @@ export type ConversationRepository = Readonly<{
   listConversations(userId: string): Promise<readonly ConversationListRecord[]>;
   updateConversationPreference(userId: string, characterKey: string, patch: ConversationPreferencePatch): Promise<Readonly<{ characterKey: string; isPinned: boolean; isMuted: boolean; sortRank: number | null }>>;
   reorderConversationPreferences(userId: string, characterKeys: readonly string[]): Promise<void>;
+  markConversationRead(userId: string, characterKey: string, readAt?: Date): Promise<void>;
   searchMessages(userId: string, query: string, limit?: number): Promise<readonly ConversationSearchResultRecord[]>;
   deleteMessage(userId: string, characterKey: string, messageId: string): Promise<boolean>;
   withdrawMessage(userId: string, characterKey: string, messageId: string): Promise<boolean>;

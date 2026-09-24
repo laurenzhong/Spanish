@@ -10,10 +10,11 @@ const preferenceSchema = z.object({
   isPinned: z.boolean().optional(),
   isMuted: z.boolean().optional(),
   sortRank: z.number().int().min(0).max(10_000).nullable().optional(),
+  markRead: z.boolean().optional(),
   orderedCharacterKeys: z.array(z.string().trim().min(1).max(80)).min(1).max(100).optional(),
 }).superRefine((value, context) => {
   if (value.orderedCharacterKeys) return;
-  if (!value.characterKey || (value.isPinned === undefined && value.isMuted === undefined && value.sortRank === undefined)) {
+  if (!value.characterKey || (value.isPinned === undefined && value.isMuted === undefined && value.sortRank === undefined && value.markRead === undefined)) {
     context.addIssue({ code: "custom", message: "At least one preference must be provided" });
   }
 });
@@ -28,6 +29,10 @@ export async function PATCH(request: NextRequest) {
     if (input.orderedCharacterKeys) {
       await repository.reorderConversationPreferences(user.id, input.orderedCharacterKeys);
       return NextResponse.json({ data: { orderedCharacterKeys: input.orderedCharacterKeys } }, { headers: { "cache-control": "no-store" } });
+    }
+    if (input.markRead) {
+      await repository.markConversationRead(user.id, input.characterKey!);
+      return NextResponse.json({ data: { characterKey: input.characterKey, markRead: true } }, { headers: { "cache-control": "no-store" } });
     }
     const preference = await repository.updateConversationPreference(user.id, input.characterKey!, {
       ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),

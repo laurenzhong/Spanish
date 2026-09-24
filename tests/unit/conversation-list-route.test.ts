@@ -20,9 +20,9 @@ describe("conversation list route", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns persisted conversations ordered by the repository", async () => {
-    mocks.listConversations.mockResolvedValue([{ conversationId: "c1", characterKey: "mateo", characterName: "Mateo Ruiz", avatarUrl: null, lastMessageAt: new Date("2026-08-27T10:00:00Z"), lastMessage: { role: "user", content: "Hola", createdAt: new Date("2026-08-27T10:00:00Z") } }]);
+    mocks.listConversations.mockResolvedValue([{ conversationId: "c1", characterKey: "mateo", characterName: "Mateo Ruiz", avatarUrl: null, lastMessageAt: new Date("2026-08-27T10:00:00Z"), lastMessage: { role: "user", content: "Hola", createdAt: new Date("2026-08-27T10:00:00Z") }, unreadCount: 3 }]);
     const response = await GET(new NextRequest("http://localhost/api/v1/conversations"));
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ data: { conversations: [{ characterKey: "mateo", lastMessage: { snippet: "Hola" } }] } });
+    expect(await response.json()).toMatchObject({ data: { conversations: [{ characterKey: "mateo", unreadCount: 3, lastMessage: { snippet: "Hola" } }] } });
   });
 });

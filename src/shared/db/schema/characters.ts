@@ -209,6 +209,7 @@ export const conversationPreferences = pgTable(
     isPinned: boolean("is_pinned").default(false).notNull(),
     isMuted: boolean("is_muted").default(false).notNull(),
     sortRank: integer("sort_rank"),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
