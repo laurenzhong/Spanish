@@ -140,10 +140,19 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const [privateArticles, setPrivateArticles] = useState<readonly GeneratedStoryCard[]>(generatedArticles);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
+  const [pendingSource, setPendingSource] = useState<"public" | "saved" | null>(null);
   const [openMenu, setOpenMenu] = useState<"filter" | "add" | null>(null);
   const toolbarActionsRef = useRef<HTMLDivElement>(null);
   const hasFilters = Boolean(search || topic || cefr || minutes);
   const router = useRouter();
+
+  const publicHref = withParams({ search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes });
+  const savedHref = withParams({ saved: "1", search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes });
+
+  useEffect(() => {
+    router.prefetch(publicHref);
+    router.prefetch(savedHref);
+  }, [publicHref, router, savedHref]);
 
   useEffect(() => {
     if (source === "web") return;
@@ -293,8 +302,8 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
   return (
     <div className="read-library">
       <nav className="read-library__source-tabs" aria-label="文章来源">
-        <Link className={source === "public" && !savedOnly ? "is-selected" : ""} href={withParams({ search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>公共文章</Link>
-        <Link className={savedOnly ? "is-selected" : ""} href={withParams({ saved: "1", search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>我的文章</Link>
+        <Link className={`${source === "public" && !savedOnly ? "is-selected" : ""}${pendingSource === "public" ? " is-pending" : ""}`} href={publicHref} aria-busy={pendingSource === "public"} onClick={() => { if (savedOnly) setPendingSource("public"); }}>公共文章</Link>
+        <Link className={`${savedOnly ? "is-selected" : ""}${pendingSource === "saved" ? " is-pending" : ""}`} href={savedHref} aria-busy={pendingSource === "saved"} onClick={() => { if (!savedOnly) setPendingSource("saved"); }}>我的文章</Link>
         <span className="read-library__source-count">{displayedArticleCount === null ? "— 篇" : `${displayedArticleCount} 篇`}</span>
       </nav>
 

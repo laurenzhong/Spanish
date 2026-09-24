@@ -18,6 +18,17 @@ type ReadPageProps = Readonly<{
 
 type ReadSort = "hot" | "newest" | "shortest";
 const ARTICLE_PAGE_SIZE = 12;
+// Progress and saved-story decorations must not hold the article shelf open.
+// The shelf remains usable when the private projection is briefly degraded.
+const PRIVATE_READ_DATA_TIMEOUT_MS = 800;
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("PRIVATE_READ_DATA_TIMEOUT")), milliseconds); }),
+  ]).finally(() => { if (timeout) clearTimeout(timeout); });
+}
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -40,31 +51,47 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
   let initialReaderProgress: Record<string, { position: number; status: "in_progress" | "completed"; lastOpenedAt: string }> = {};
   let savedFilterAvailable = false;
   let initialGeneratedArticles: Awaited<ReturnType<typeof listPrivateStories>>["articles"] = [];
+  const articleResultPromise = savedOnly ? null : getArticles(repository, {
+    search,
+    topic,
+    cefr: cefr as "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | undefined,
+    minutes: minutes as "short" | "medium" | "long" | undefined,
+    sort,
+    savedOnly: false,
+    pageSize: ARTICLE_PAGE_SIZE,
+    cursor: String((requestedPage - 1) * ARTICLE_PAGE_SIZE),
+  });
   // The Web Sites tab is intentionally an honest empty state and does not need
   // any user-specific database reads. Avoid blocking it on auth/DB round trips.
   if (process.env.DATABASE_URL && source !== "web") {
     try {
-      const user = await getCurrentUser();
-      if (user) {
+      const privateData = await withTimeout((async () => {
+        const user = await getCurrentUser();
+        if (!user) return null;
         const database = getDatabase();
         const readingRepository = createDrizzleReadingRepository(database);
-        const progressPromise = listReadingProgress(readingRepository, user.id);
+        // The saved shelf does not render reading progress before its cards
+        // exist. Avoid making the tab switch wait for that extra projection.
+        const progressPromise = savedOnly ? Promise.resolve([]) : listReadingProgress(readingRepository, user.id);
         const savedPromise = savedOnly ? listSavedArticles(readingRepository, user.id) : null;
         const generatedPromise = savedOnly
           ? listPrivateStories(createDrizzleGeneratedArticleRepository(database), user.id)
           : null;
-        const [progress, saved, generated] = await Promise.all([
-          progressPromise,
-          savedPromise,
-          generatedPromise,
-        ]);
-        initialGeneratedArticles = generated?.articles ?? [];
-        savedArticleIds = saved ?? undefined;
-        initialReaderProgress = Object.fromEntries(progress.map((item) => [item.articleId, {
+        const [progress, saved, generated] = await Promise.all([progressPromise, savedPromise, generatedPromise]);
+        return {
+          generatedArticles: generated?.articles ?? [],
+          savedArticleIds: saved ?? undefined,
+          readerProgress: Object.fromEntries(progress.map((item) => [item.articleId, {
           position: item.position,
           status: item.status,
           lastOpenedAt: item.lastOpenedAt.toISOString(),
-        }]));
+          }])),
+        };
+      })(), PRIVATE_READ_DATA_TIMEOUT_MS);
+      if (privateData) {
+        initialGeneratedArticles = privateData.generatedArticles;
+        savedArticleIds = privateData.savedArticleIds;
+        initialReaderProgress = privateData.readerProgress;
         savedFilterAvailable = savedOnly && savedArticleIds !== undefined;
       }
     } catch {
@@ -82,7 +109,7 @@ export default async function ReadPage({ searchParams }: ReadPageProps) {
     pageSize: ARTICLE_PAGE_SIZE,
     cursor: String((requestedPage - 1) * ARTICLE_PAGE_SIZE),
   };
-  let result = await getArticles(repository, query);
+  let result = await (articleResultPromise ?? getArticles(repository, query));
   const totalPages = Math.max(Math.ceil(result.totalCount / ARTICLE_PAGE_SIZE), 1);
   const page = Math.min(requestedPage, totalPages);
   if (page !== requestedPage) {

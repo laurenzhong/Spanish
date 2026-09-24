@@ -34,7 +34,7 @@ const ALLOWED_HOSTS = new Set([
   "sueno-media.b-cdn.net", "content.libsyn.com", "traffic.libsyn.com", "content.blubrry.com",
   "episodes.castos.com", "injector.simplecastaudio.com", "sonoro.simplecastaudio.com",
   "prisa-es.mc.tritondigital.com", "mc.tritondigital.com", "rtve-mediavod-lote3.rtve.es",
-  "dcs-cached.megaphone.fm", "dcs-spotify.megaphone.fm",
+  "dcs-cached.megaphone.fm", "dcs-spotify.megaphone.fm", "www.podtrac.com", "dts.podtrac.com",
 ]);
 
 function allowedHost(hostname: string): boolean {
@@ -87,6 +87,19 @@ async function download(url: string, directory: string): Promise<{ path: string;
   throw new Error("MEDIA_AUDIO_TOO_MANY_REDIRECTS");
 }
 
+async function refreshLanguageReactorAudio(stableKey: string): Promise<string | null> {
+  if (!stableKey.startsWith("podcast.language-reactor.")) return null;
+  const docId = stableKey.slice("podcast.language-reactor.".length);
+  const response = await fetch("https://api-cdn.dioco.io/base_media_getMediaDocs_5", {
+    method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(30_000),
+    body: JSON.stringify({ userEmail: null, diocoToken: null, translationLang_G: "zh-CN", freq95: { min: 0, max: 100000 }, lang_G: "es", filters: { mediaTab: "TAB_PODCASTS" }, pinnedDiocoPlaylistIds: [], selectedDiocoPlaylistId: "t_pd_mix_es", diocoPlaylistId: "t_pd_mix_es", forceIncludeDiocoDocId: docId, offset: 0, limit: 100 }),
+  });
+  if (!response.ok) return null;
+  const payload = await response.json() as { data?: { docs_metadata?: Array<{ diocoDocId?: string; audioFileURL?: string }> } };
+  const found = payload.data?.docs_metadata?.find((item) => item.diocoDocId?.toLowerCase() === docId.toLowerCase());
+  return found?.audioFileURL ?? null;
+}
+
 async function normalize(input: string, directory: string): Promise<{ path: string; bytes: number }> {
   const output = path.join(directory, "normalized.mp3");
   await new Promise<void>((resolve, reject) => {
@@ -119,7 +132,8 @@ async function main() {
   for (const row of rows) {
     const directory = await mkdtemp(path.join(tmpdir(), "sueno-media-backfill-"));
     try {
-      const source = await download(String(row.playback_url), directory);
+      const refreshed = await refreshLanguageReactorAudio(String(row.stable_key));
+      const source = await download(refreshed ?? String(row.playback_url), directory);
       const normalized = await normalize(source.path, directory);
       const transcription = await transcriber.transcribe({ audioBytes: new Uint8Array(await readFile(normalized.path)), assetPath: normalized.path, mimeType: "audio/mpeg", fileName: "media.mp3", languageTag: "es", durationMs: Number(row.duration_ms) });
       const chunks = sentenceChunks(transcription.text, Number(row.duration_ms));

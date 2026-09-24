@@ -187,6 +187,24 @@ test("keeps the page height stable while the message history grows", async ({ pa
   expect(final.messages?.scrollHeight).toBeGreaterThan(final.messages?.clientHeight ?? 0);
 });
 
+test("keeps the workspace anchored when the page scrollbar state settles", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/chat/lucia");
+
+  const before = await page.getByTestId("conversation-thread").evaluate((element) => ({
+    viewportWidth: document.documentElement.clientWidth,
+    left: Math.round(element.getBoundingClientRect().left),
+  }));
+  await page.waitForTimeout(250);
+  const after = await page.getByTestId("conversation-thread").evaluate((element) => ({
+    viewportWidth: document.documentElement.clientWidth,
+    left: Math.round(element.getBoundingClientRect().left),
+  }));
+
+  expect(after.viewportWidth).toBe(before.viewportWidth);
+  expect(after.left).toBe(before.left);
+});
+
 test("keeps the conversation thread within a phone viewport", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });

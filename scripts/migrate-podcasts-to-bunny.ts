@@ -17,6 +17,7 @@ const allowed = new Set([
   "content.libsyn.com", "traffic.libsyn.com", "traffic.megaphone.fm", "dcs-spotify.megaphone.fm", "dcs-cached.megaphone.fm",
   "ztnr.rtve.es", "rtve-mediavod-lote3.rtve.es", "prisa-es.mc.tritondigital.com", "content.blubrry.com", "episodes.castos.com",
   "injector.simplecastaudio.com", "sonoro.simplecastaudio.com", "mc.tritondigital.com",
+  "www.podtrac.com", "dts.podtrac.com",
 ]);
 
 function allowedHost(hostname: string): boolean {
@@ -132,7 +133,8 @@ async function main() {
   let migrated = 0; let failed = 0;
   try {
     browser = await chromium.launch({ channel: "chrome", headless: true });
-    const rows = await client`select a.id,a.playback_url,a.provider_key,i.stable_key,v.version,v.duration_ms from media_assets a join media_versions v on v.id=a.media_version_id join media_items i on i.id=v.media_item_id and i.current_version=v.version where i.kind='podcast' and i.stable_key like 'podcast.language-reactor.%' and a.kind='audio' and a.provider_key in ('language-reactor','supabase-storage:media-audio') and a.availability='available' and v.status='published' and v.copyright_status='cleared' and not exists (select 1 from media_segments s where s.media_version_id=v.id) order by i.stable_key`;
+    const stableKeyFilter = process.env.MEDIA_AUDIO_STABLE_KEY?.trim() || null;
+    const rows = await client`select a.id,a.playback_url,a.provider_key,i.stable_key,v.version,v.duration_ms from media_assets a join media_versions v on v.id=a.media_version_id join media_items i on i.id=v.media_item_id and i.current_version=v.version where i.kind='podcast' and i.stable_key like 'podcast.language-reactor.%' and a.kind='audio' and a.provider_key in ('language-reactor','podcast-rss','supabase-storage:media-audio') and a.availability='available' and v.status='published' and v.copyright_status='cleared' and ( ${stableKeyFilter}::text is null or i.stable_key=${stableKeyFilter} ) order by i.stable_key`;
     for (const row of rows) {
       if (!/^[a-f0-9-]{36}$/u.test(row.id) || !/^podcast\.language-reactor\.[a-z0-9._-]+$/u.test(row.stable_key)) throw new Error("AUDIO_ID_INVALID");
       const directory = resolve(root, row.id); await mkdir(directory, { recursive: true });
@@ -158,12 +160,13 @@ async function main() {
         await record("downloading");
         if (!data) {
           let source = new URL(row.playback_url);
-          if (row.provider_key === "language-reactor") {
+          if (row.provider_key === "language-reactor" || row.provider_key === "podcast-rss") {
             try { source = await refreshPodcastSource(entry.stableKey); } catch { /* Use the still-authorized stored enclosure once. */ }
           }
-          if (row.provider_key === "language-reactor") {
+          if (row.provider_key === "language-reactor" || row.provider_key === "podcast-rss") {
             data = await downloadResumableAudio({
               source: async () => source, directory, allowedHosts: allowed, maxBytes,
+              chunkSize: 8 * 1024 * 1024,
               progress: (bytes, total) => console.log(JSON.stringify({ stage: "audio-range-downloaded", bytes, total })),
             });
           } else {
@@ -209,4 +212,8 @@ async function main() {
     console.log(JSON.stringify({ migrated, failed, sourceDeletions: 0 })); if (failed) process.exitCode = 1;
   } finally { await browser?.close(); await client.end(); await lock.close(); await rm(lockPath); }
 }
-main().catch(() => { console.error("AUDIO_MIGRATION_CONFIG_OR_LOCK_FAILED"); process.exitCode = 1; });
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(JSON.stringify({ code: "AUDIO_MIGRATION_CONFIG_OR_LOCK_FAILED", error: message }));
+  process.exitCode = 1;
+});

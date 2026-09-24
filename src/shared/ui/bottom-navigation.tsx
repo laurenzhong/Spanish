@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 export const navigationGroups = [
   {
@@ -74,6 +75,7 @@ export function NavigationIcon({ name }: Readonly<{ name: NavigationIconName }>)
 
 export function BottomNavigation() {
   const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   return (
     <nav className="primary-navigation" aria-label="主要导航">
@@ -84,7 +86,6 @@ export function BottomNavigation() {
       <div className="navigation-groups">
         {navigationGroups.map((group) => (
           <div className="navigation-group" key={group.label}>
-            <span className="navigation-group__label">{group.label}</span>
             <div className="navigation-items">
               {group.items.map((item) => {
                 const isCurrent =
@@ -96,6 +97,8 @@ export function BottomNavigation() {
                     className="navigation-link"
                     href={item.href}
                     key={item.href}
+                    onClick={() => setPendingHref(item.href)}
+                    data-pending={pendingHref === item.href && pathname !== item.href ? "true" : undefined}
                   >
                     <span className="navigation-icon">
                       <NavigationIcon name={item.icon} />

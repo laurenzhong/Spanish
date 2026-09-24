@@ -7,6 +7,7 @@ type ConversationHistoryResponse = Readonly<{
 
 const historyCache = new Map<string, readonly ConversationMessage[]>();
 const pendingRequests = new Map<string, Promise<ConversationHistoryResponse>>();
+const HISTORY_REQUEST_TIMEOUT_MS = 8_000;
 
 export function getCachedConversationHistory(characterKey: string): readonly ConversationMessage[] | null {
   return historyCache.get(characterKey) ?? null;
@@ -26,10 +27,13 @@ export function loadConversationHistory(characterKey: string): Promise<Conversat
   const pending = pendingRequests.get(characterKey);
   if (pending) return pending;
 
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), HISTORY_REQUEST_TIMEOUT_MS);
   const request = fetch(`/api/v1/conversations/${characterKey}`, {
     cache: "no-store",
     credentials: "same-origin",
     headers: { accept: "application/json" },
+    signal: controller.signal,
   })
     .then(async (response) => {
       if (!response.ok) throw new Error("CONVERSATION_HISTORY_UNAVAILABLE");
@@ -38,7 +42,10 @@ export function loadConversationHistory(characterKey: string): Promise<Conversat
       setCachedConversationHistory(characterKey, messages);
       return { available: true, messages } satisfies ConversationHistoryResponse;
     })
-    .finally(() => pendingRequests.delete(characterKey));
+    .finally(() => {
+      window.clearTimeout(timeout);
+      pendingRequests.delete(characterKey);
+    });
 
   pendingRequests.set(characterKey, request);
   return request;

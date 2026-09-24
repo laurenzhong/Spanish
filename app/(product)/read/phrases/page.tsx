@@ -8,13 +8,28 @@ export const metadata: Metadata = { title: "短语" };
 
 type PhrasesPageProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
 
+const LEXICON_LOAD_TIMEOUT_MS = 2_500;
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("LEXICON_LOAD_TIMEOUT")), milliseconds); }),
+  ]).finally(() => { if (timeout) clearTimeout(timeout); });
+}
+
 export default async function PhrasesPage({ searchParams }: PhrasesPageProps) {
   const parsed = phraseQuerySchema.safeParse(await searchParams);
   const query = parsed.success ? parsed.data : phraseQuerySchema.parse({});
   let result: Awaited<ReturnType<typeof listPhrases>> = { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
   let unavailable = false;
   if (process.env.DATABASE_URL) {
-    try { const user = await getCurrentUser(); result = await listPhrases(createDrizzleLexiconCorpusRepository(getDatabase()), user?.id, query); } catch { unavailable = true; }
+    try {
+      result = await withTimeout((async () => {
+        const user = await getCurrentUser();
+        return listPhrases(createDrizzleLexiconCorpusRepository(getDatabase()), user?.id, query);
+      })(), LEXICON_LOAD_TIMEOUT_MS);
+    } catch { unavailable = true; }
   }
   const filtered = Boolean(query.search || query.intent || query.pragmaticPurpose || query.register || query.region || query.cefr);
   const resultKey = [query.search, query.intent, query.pragmaticPurpose, query.register, query.region, query.cefr, query.page, query.pageSize].join(":");

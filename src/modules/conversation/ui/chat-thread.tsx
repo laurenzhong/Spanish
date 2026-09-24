@@ -127,7 +127,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     return () => window.removeEventListener("account-profile-updated", load);
   }, []);
 
-  useEffect(() => {
+  // Apply the initial bottom anchor before the hydrated history is painted.
+  // Using a passive effect leaves one visible frame at scrollTop=0, which
+  // looks like the conversation is pushed down and then snaps into place.
+  useLayoutEffect(() => {
     const container = messagesRef.current;
     if (!container) return;
     if (shouldFollowRef.current) container.scrollTop = container.scrollHeight;

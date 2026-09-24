@@ -1,5 +1,7 @@
 export * from "./media-card";
 export * from "./media-library";
+export * from "./media-artwork";
+export * from "./media-library-toolbar";
 export * from "./audio-player-adapter";
 export * from "./video-player-adapter";
 export * from "./segment-transcript";

@@ -1,4 +1,5 @@
-import { MediaLibrary, type MediaLibraryResult, type MediaListQuery } from "@/src/modules/media";
+import { MediaLibrary, type MediaLibraryResult } from "@/src/modules/media/ui/media-library";
+import type { MediaListQuery } from "@/src/modules/media/schemas";
 
 export function LearnPageContent({
   result,

@@ -22,6 +22,19 @@ let cachedIntroductionOfferCount: number | null = null;
 let introductionOfferRequest: Promise<void> | null = null;
 
 const CONTACT_SEARCH_THRESHOLD = 8;
+const CONTACT_REQUEST_TIMEOUT_MS = 8_000;
+
+async function fetchContactJson<T>(url: string): Promise<T> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), CONTACT_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    if (!response.ok) throw new Error("CONTACT_REQUEST_FAILED");
+    return await response.json() as T;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
 
 export function clearConversationContactCache(): void {
   cachedConversations = null;
@@ -57,11 +70,7 @@ function loadConversationList(force = false): Promise<void> {
   if (listRequest) return listRequest;
   if (!force && (cachedConversations !== null || cachedStatus === "unavailable")) return Promise.resolve();
   cachedStatus = "loading";
-  listRequest = fetch("/api/v1/conversations", { cache: "no-store" })
-    .then((response) => {
-      if (!response.ok) throw new Error("CONVERSATION_LIST_UNAVAILABLE");
-      return response.json() as Promise<{ data?: { conversations?: ConversationPreview[] } }>;
-    })
+  listRequest = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations")
     .then((payload) => {
       cachedConversations = payload.data?.conversations ?? [];
       cachedStatus = "available";
@@ -76,8 +85,7 @@ function loadConversationList(force = false): Promise<void> {
 function loadLuciaContact(): Promise<void> {
   if (luciaContactRequest) return luciaContactRequest;
   if (cachedLuciaContact !== null) return Promise.resolve();
-  luciaContactRequest = fetch("/api/v1/character-network/lucia-contact", { cache: "no-store" })
-    .then((response) => { if (!response.ok) throw new Error("CONTACT_UNAVAILABLE"); return response.json() as Promise<{ data?: LuciaContactPreview }>; })
+  luciaContactRequest = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact")
     .then((payload) => { cachedLuciaContact = payload.data ?? null; })
     .catch(() => { cachedLuciaContact = null; })
     .finally(() => { luciaContactRequest = null; });
@@ -87,8 +95,7 @@ function loadLuciaContact(): Promise<void> {
 function loadIntroductionOfferCount(force = false): Promise<void> {
   if (introductionOfferRequest) return introductionOfferRequest;
   if (!force && cachedIntroductionOfferCount !== null) return Promise.resolve();
-  introductionOfferRequest = fetch("/api/v1/character-network/introductions", { cache: "no-store" })
-    .then((response) => { if (!response.ok) throw new Error("INTRODUCTIONS_UNAVAILABLE"); return response.json() as Promise<{ data?: { offers?: unknown[] } }>; })
+  introductionOfferRequest = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions")
     .then((payload) => { cachedIntroductionOfferCount = payload.data?.offers?.length ?? 0; })
     .catch(() => { cachedIntroductionOfferCount = null; })
     .finally(() => { introductionOfferRequest = null; });

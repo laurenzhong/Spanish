@@ -3,9 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
 import { ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
-import { createDrizzleConversationRepository, findConversationCharacter, listConversationHistory, toConversationPreviews, type ConversationPreview } from "@/src/modules/conversation";
-import { getCurrentUser } from "@/src/shared/auth/server";
-import { getDatabase } from "@/src/shared/db/client";
+import { findConversationCharacter } from "@/src/modules/conversation";
 
 type CharacterPageProps = Readonly<{
   params: Promise<{ characterId: string }>;
@@ -24,28 +22,10 @@ export default async function CharacterChatPage({ params, searchParams }: Charac
   if (!character) notFound();
   const paramsValue = await searchParams;
   const messageId = typeof paramsValue.message === "string" ? paramsValue.message : undefined;
-  let initialMessages;
-  let initialConversations: readonly ConversationPreview[] | undefined;
-  if (process.env.DATABASE_URL) {
-    try {
-      const user = await getCurrentUser();
-      if (!user) throw new Error("unauthenticated");
-      const repository = createDrizzleConversationRepository(getDatabase());
-      const [messages, conversations] = await Promise.all([
-        listConversationHistory(repository, user.id, character.key),
-        repository.listConversations(user.id),
-      ]);
-      initialMessages = messages;
-      initialConversations = toConversationPreviews(conversations);
-    } catch {
-      initialMessages = undefined;
-      initialConversations = undefined;
-    }
-  }
   return (
     <div className="page-stack conversation-page conversation-page--detail">
       <div className="conversation-workspace">
-        <ConversationContactRail activeCharacterKey={character.key} {...(initialConversations ? { initialConversations } : {})} />
+        <ConversationContactRail activeCharacterKey={character.key} />
         <ChatThread
           key={character.key}
           characterKey={character.key}
@@ -54,7 +34,6 @@ export default async function CharacterChatPage({ params, searchParams }: Charac
           characterVersion={character.version}
           avatarClassName={character.avatarClass}
           initialMessageId={messageId}
-          {...(initialMessages ? { initialMessages } : {})}
         />
       </div>
     </div>

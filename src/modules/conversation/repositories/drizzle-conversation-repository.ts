@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -165,17 +165,32 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         .where(eq(schema.conversations.userId, userId))
         .orderBy(desc(schema.conversations.lastMessageAt), desc(schema.conversations.updatedAt));
 
-      return Promise.all(rows.map(async ({ conversation, character, conversationPreferences }) => {
-        const [lastMessage] = await database
-          .select({
+      const conversationIds = rows.map(({ conversation }) => conversation.id);
+      const latestMessageByConversation = new Map<string, { role: "user" | "character"; content: string; createdAt: Date }>();
+      if (conversationIds.length > 0) {
+        const messages = await database
+          .selectDistinctOn([schema.messages.conversationId], {
+            conversationId: schema.messages.conversationId,
             role: schema.messages.role,
             content: schema.messages.content,
             createdAt: schema.messages.createdAt,
           })
           .from(schema.messages)
-          .where(and(eq(schema.messages.conversationId, conversation.id), eq(schema.messages.status, "completed")))
-          .orderBy(desc(schema.messages.createdAt))
-          .limit(1);
+          .where(and(inArray(schema.messages.conversationId, conversationIds), eq(schema.messages.status, "completed")))
+          .orderBy(asc(schema.messages.conversationId), desc(schema.messages.createdAt));
+        for (const message of messages) {
+          if (!latestMessageByConversation.has(message.conversationId)) {
+            latestMessageByConversation.set(message.conversationId, {
+              role: message.role === "character" ? "character" : "user",
+              content: message.content,
+              createdAt: message.createdAt,
+            });
+          }
+        }
+      }
+
+      return rows.map(({ conversation, character, conversationPreferences }) => {
+        const lastMessage = latestMessageByConversation.get(conversation.id);
         return {
           conversationId: conversation.id,
           characterKey: character.stableKey,
@@ -183,13 +198,13 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           avatarUrl: character.avatarUrl,
           lastMessageAt: conversation.lastMessageAt,
           lastMessage: lastMessage
-            ? { role: lastMessage.role === "character" ? "character" : "user", content: lastMessage.content, createdAt: lastMessage.createdAt }
+            ? { role: lastMessage.role, content: lastMessage.content, createdAt: lastMessage.createdAt }
             : null,
           isPinned: conversationPreferences?.isPinned ?? character.stableKey === "lucia",
           isMuted: conversationPreferences?.isMuted ?? false,
           sortRank: conversationPreferences?.sortRank ?? null,
-        } satisfies ConversationListRecord;
-      }));
+      } satisfies ConversationListRecord;
+      });
     },
 
     async updateConversationPreference(userId, characterKey, patch) {
