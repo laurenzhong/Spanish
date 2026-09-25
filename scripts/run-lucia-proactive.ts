@@ -38,7 +38,7 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
       try {
         const memoryRepository = createDrizzleMemoryRepository(connection.db);
         const memories = await memoryRepository.listReadableMemories(userId, "lucia");
-        const result = await generateLuciaProactiveMessage({
+        let result = await generateLuciaProactiveMessage({
           userId,
           source: "daily_share",
           sourceEventId: formatNaturalDate(now),
@@ -48,6 +48,18 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
           provider,
           memories,
         });
+        for (let attempt = 1; attempt < 3 && result.status === "failed" && result.reason === "provider-unavailable"; attempt += 1) {
+          result = await generateLuciaProactiveMessage({
+            userId,
+            source: "daily_share",
+            sourceEventId: formatNaturalDate(now),
+            dailyState: "available",
+            now,
+            repository: createDrizzleProactiveMessageRepository(connection.db),
+            provider,
+            memories,
+          });
+        }
         results.push({ userId, status: result.status, reason: result.reason ?? null, messageId: result.message?.id ?? result.candidate?.messageId ?? null });
       } catch (error) {
         results.push({ userId, status: "failed", reason: error instanceof Error ? error.message : "PROACTIVE_FAILED", messageId: null });
