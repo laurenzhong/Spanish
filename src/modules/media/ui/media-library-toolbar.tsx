@@ -48,9 +48,9 @@ export function MediaLibraryToolbar({ query }: Readonly<{ query: MediaListQuery 
         {hasFilters ? <Link className="media-library__clear" href={query.kind ? `/learn?kind=${query.kind}` : "/learn"}>清除筛选</Link> : null}
       </div>
       <div className="sr-only" aria-label="筛选条件">
-        <label>地区<Select aria-label="地区" defaultValue={query.region ?? ""} name="region"><option value="">全部地区</option></Select></label>
-        <label>难度<Select aria-label="难度" defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部难度</option></Select></label>
-        <label>时长<Select aria-label="时长" defaultValue={query.duration ?? ""} name="duration"><option value="">全部时长</option></Select></label>
+        <label>地区<Select aria-label="地区" defaultValue={query.region ?? ""} name="region"><option value="">全部地区</option><option value="es-ES">西班牙</option><option value="latin-amer">拉丁美洲</option><option value="unknown">地区未知</option></Select></label>
+        <label>难度<Select aria-label="难度" defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部难度</option><option value="A2">A2</option><option value="B1">B1</option></Select></label>
+        <label>时长<Select aria-label="时长" defaultValue={query.duration ?? ""} name="duration"><option value="">全部时长</option><option value="short">5 分钟内</option><option value="medium">5–20 分钟</option><option value="long">20 分钟以上</option></Select></label>
       </div>
     </section>
   );

@@ -28,9 +28,9 @@ export default async function LearnPage({ searchParams }: Readonly<{ searchParam
     duration: first(raw.duration),
     sort: first(raw.sort),
     cursor: first(raw.cursor),
-    pageSize: 20,
+    pageSize: 24,
   });
-  const query = parsed.success ? parsed.data : mediaListQuerySchema.parse({ pageSize: 20 });
+  const query = parsed.success ? parsed.data : mediaListQuerySchema.parse({ pageSize: 24 });
   if (!process.env.DATABASE_URL) {
     return <LearnPageContent query={query} result={{ items: [], nextCursor: null, hasMore: false }} unavailable />;
   }

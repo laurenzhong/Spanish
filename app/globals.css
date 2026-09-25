@@ -11339,6 +11339,7 @@ body {
 .media-library__filters button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 
 .media-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 30px 18px; }
+.media-card { content-visibility: auto; contain-intrinsic-size: 0 280px; }
 .media-card__link { gap: 9px; }
 .media-card__art { aspect-ratio: 16 / 9; border: 0; border-radius: 9px; background: linear-gradient(135deg, #d7e8e5 0%, #8abcb2 48%, #315d63 100%); box-shadow: 0 5px 12px rgb(31 55 47 / 8%); }
 .media-card__art::before { position: absolute; inset: 0; background: linear-gradient(115deg, rgb(255 255 255 / 42%), transparent 42%, rgb(23 33 29 / 24%)); content: ""; }

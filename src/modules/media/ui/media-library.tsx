@@ -200,10 +200,28 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
 
   useEffect(() => {
     if (!hasMore || !nextCursor) return;
-    // Prefetching is opportunistic. A slow or temporarily unavailable
-    // prefetch must not show an error before the user reaches the sentinel;
-    // the explicit loadMore path owns the visible retry state.
-    void requestPage(nextCursor).catch(() => undefined);
+    // Prefetch after the first paint so image decoding and route hydration win
+    // the initial network race. The sentinel still loads immediately when the
+    // user reaches it, and requestPage deduplicates both paths.
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") return;
+    let cancelled = false;
+    const run = () => {
+      if (!cancelled) void requestPage(nextCursor).catch(() => undefined);
+    };
+    let idleCallback = false;
+    let scheduled: number;
+    if (typeof window.requestIdleCallback === "function") {
+      idleCallback = true;
+      scheduled = window.requestIdleCallback(run, { timeout: 900 });
+    } else {
+      scheduled = window.setTimeout(run, 180);
+    }
+    return () => {
+      cancelled = true;
+      if (idleCallback) window.cancelIdleCallback?.(scheduled);
+      else window.clearTimeout(scheduled);
+    };
   }, [hasMore, nextCursor, requestPage]);
 
   useEffect(() => {
@@ -235,7 +253,7 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
     if (!sentinel || loadMoreError || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) void loadMore();
-    }, { rootMargin: "720px 0px" });
+    }, { rootMargin: "1200px 0px" });
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMore, loadMoreError]);
@@ -263,7 +281,7 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
           </form>
         </header>
         <h1 className="media-library__heading">看点、听点真实西语</h1>
-        <nav className="media-library__topics" aria-label="内容主题">
+        <nav className="media-library__topics" aria-label="学习主题">
           <Link aria-current={!activeQuery.topic ? "page" : undefined} href={queryHref(activeQuery, { cursor: undefined, topic: undefined })}>全部主题</Link>
           {mediaTopicFilters.map((topic) => {
             const href = queryHref(activeQuery, { cursor: undefined, topic: topic.value });
@@ -275,7 +293,7 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
         {isSwitchingKind ? <p className="media-library__load-more-state" role="status">正在切换内容…</p> : null}
         {items.length > 0 ? (
           <div className="media-grid" aria-label="视频和播客" ref={gridRef}>
-            {items.map((item, index) => <MediaCardView item={item} key={item.id} priority={index < 6} />)}
+            {items.map((item, index) => <MediaCardView item={item} key={item.id} priority={index < 4} />)}
           </div>
         ) : isSwitchingKind ? null : kindLoadError ? (
           <section className="media-library__empty" role="alert">

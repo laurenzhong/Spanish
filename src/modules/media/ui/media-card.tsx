@@ -14,12 +14,13 @@ function formatTime(milliseconds: number): string {
 }
 
 export function MediaCardView({ item, priority = false }: Readonly<{ item: MediaCard; priority?: boolean }>) {
+  const href = `/learn/media/${encodeURIComponent(item.stableKey)}`;
   const resume = item.progress && item.progress.lastPositionMs > 0
     ? `继续 · ${formatTime(item.progress.lastPositionMs)}`
     : null;
   return (
     <article className="media-card">
-      <Link className="media-card__link" href={`/learn/media/${encodeURIComponent(item.stableKey)}`} prefetch={false}>
+      <Link className="media-card__link" href={href} prefetch={priority}>
         <MediaArtworkView artwork={item.artwork} kind={item.kind} sourceName={item.sourceName} title={item.title} priority={priority} />
         <div className="media-card__body">
           <p className="media-card__meta"><span>{item.kind === "video" ? "视频" : "播客"}</span><span>{formatTime(item.durationMs)} · {item.cefr ?? "未分级"}</span></p>

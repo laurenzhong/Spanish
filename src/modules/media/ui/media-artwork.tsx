@@ -30,7 +30,7 @@ export function MediaArtworkView({ artwork, kind, sourceName, title, priority = 
   return (
     <div className={`media-card__art media-card__art--${kind}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt={artwork.alt} width={artwork.width ?? 16} height={artwork.height ?? 9} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} onError={() => {
+      <img src={imageUrl} alt={artwork.alt} width={artwork.width ?? 16} height={artwork.height ?? 9} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={() => {
         if (!fallbackUrl) {
           const match = /^https:\/\/(?:img|i)\.youtube\.com\/vi\/([A-Za-z0-9_-]{6,64})\/(?:mqdefault|maxresdefault)\.jpg$/u.exec(artwork.url);
           if (match) {
