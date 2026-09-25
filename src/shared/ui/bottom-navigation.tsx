@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { NavigationLink } from "./navigation-link";
+import { ConversationUnreadBadge } from "@/src/modules/conversation/ui/conversation-unread-badge";
 
 export const navigationGroups = [
   {
@@ -104,7 +105,8 @@ export function BottomNavigation() {
                     <span className="navigation-icon">
                       <NavigationIcon name={item.icon} />
                     </span>
-                    <span>{item.label}</span>
+                    <span className="navigation-link__label">{item.label}</span>
+                    {item.icon === "chat" ? <ConversationUnreadBadge /> : null}
                   </NavigationLink>
                 );
               })}

@@ -453,7 +453,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                     return;
                   }
                   setMarkedUnread((current) => { const next = new Set(current); next.delete(conversation.characterKey); return next; });
-                  if (unreadCount > 0) void fetch("/api/v1/conversations/preferences", { method: "PATCH", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }) });
+                  if (unreadCount > 0) void fetch("/api/v1/conversations/preferences", { method: "PATCH", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }) }).then(() => window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT))).catch(() => undefined);
                 }}
                 onMouseEnter={() => prefetchConversationHistory(conversation.characterKey)}
                 onFocus={() => prefetchConversationHistory(conversation.characterKey)}

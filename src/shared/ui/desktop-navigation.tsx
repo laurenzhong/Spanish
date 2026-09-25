@@ -9,6 +9,7 @@ import { useState } from "react";
 import { AccountMenu } from "./account-menu";
 import { NavigationIcon, navigationGroups } from "./bottom-navigation";
 import { NavigationLink } from "./navigation-link";
+import { ConversationUnreadBadge } from "@/src/modules/conversation/ui/conversation-unread-badge";
 
 export function DesktopNavigation() {
   const pathname = usePathname();
@@ -40,6 +41,7 @@ export function DesktopNavigation() {
                   >
                     <span className="desktop-navigation__icon"><NavigationIcon name={item.icon} /></span>
                     <span className="desktop-navigation__label">{item.label}</span>
+                    {item.icon === "chat" ? <ConversationUnreadBadge /> : null}
                   </NavigationLink>
                 );
               })}
