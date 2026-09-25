@@ -4751,7 +4751,7 @@ button {
 .conversation-empty-state { display: grid; place-content: center; gap: 8px; min-width: 0; flex: 1; padding: 32px; color: var(--conversation-muted); text-align: center; }
 .conversation-empty-state h1 { margin: 0; color: var(--conversation-ink); font-size: 18px; }
 .conversation-empty-state p { margin: 0; font-size: 13px; }
-.navigation-unread-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: auto; padding: 0 5px; border-radius: 999px; color: #fff; background: #d92d3f; font-size: 10px; font-weight: 700; line-height: 1; }
+.navigation-unread-count { position: absolute; top: 3px; left: calc(50% + 7px); display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border: 2px solid var(--surface, #fff); border-radius: 999px; color: #fff; background: #d92d3f; font-size: 10px; font-weight: 700; line-height: 1; }
 .conversation-contact-rail__state button { width: fit-content; min-height: 32px; padding: 0 10px; border: 1px solid var(--conversation-line); border-radius: 4px; color: var(--conversation-action); background: transparent; font-size: 11px; cursor: pointer; }
 
 .conversation-contact-row__unread {
@@ -8960,6 +8960,7 @@ body {
     font-weight: 750;
   }
   .desktop-navigation__link[data-pending="true"] { opacity: .55; }
+  .desktop-navigation__link .navigation-unread-count { top: 2px; left: 27px; border-color: var(--surface, #fff); }
   .desktop-navigation__link[aria-current="page"]::before { background: var(--terracotta); }
   .desktop-navigation__icon {
     display: grid;
@@ -9000,6 +9001,7 @@ body {
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__group-label { display: none; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link { justify-content: center; padding: 6px; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link::before { left: -8px; }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link .navigation-unread-count { left: calc(50% + 5px); }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account { padding-inline: 14px; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__trigger { justify-content: center; padding: 4px; }
