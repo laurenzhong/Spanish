@@ -16,6 +16,17 @@ export type MountedAutoPauseControl = Readonly<{
   setAutoPause: (enabled: boolean) => void;
 }>;
 
+/**
+ * The media detail route used to render native controls. A tab that was
+ * opened before the Plyr rollout can retain that attribute while React
+ * hydrates or navigates in place, so clear it before mounting the shared
+ * player as well as omitting it from JSX.
+ */
+export function disableNativeMediaControls(element: HTMLMediaElement): void {
+  element.controls = false;
+  element.removeAttribute("controls");
+}
+
 export const audioPlyrOptions = {
   controls: ["play", "progress", "current-time", "duration", "mute", "volume", "settings"],
   iconUrl: "/plyr.svg",

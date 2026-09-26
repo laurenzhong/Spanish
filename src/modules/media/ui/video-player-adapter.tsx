@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import {
+  disableNativeMediaControls,
   mountPlyrAutoPauseControl,
   videoPlyrOptions,
   type MountedAutoPauseControl,
@@ -326,6 +327,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, autoPause, 
       }
     };
 
+    disableNativeMediaControls(video);
     video.src = videoUrl;
     video.dataset.source = videoUrl;
     video.preload = "metadata";

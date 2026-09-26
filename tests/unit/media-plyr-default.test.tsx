@@ -2,6 +2,7 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MediaLearningWorkbench } from "@/src/modules/media";
+import { disableNativeMediaControls } from "@/src/modules/media/ui/media-plyr";
 
 const plyrMock = vi.hoisted(() => ({
   instances: [] as Array<{ target: HTMLElement; options: Readonly<Record<string, unknown>> }>,
@@ -64,12 +65,14 @@ describe("default media player", () => {
     await waitFor(() => expect(plyrMock.instances).toHaveLength(1));
     expect(plyrMock.instances[0]?.target).toBeInstanceOf(HTMLAudioElement);
     expect(plyrMock.instances[0]?.options).toMatchObject({ settings: ["speed"] });
+    expect(document.querySelector("audio")).not.toHaveAttribute("controls");
   });
 
   it("mounts Plyr for hosted videos and YouTube embeds through the same workbench", async () => {
     const hosted = render(<MediaLearningWorkbench playback={media("video")} />);
     await waitFor(() => expect(plyrMock.instances).toHaveLength(1));
     expect(plyrMock.instances[0]?.target).toBeInstanceOf(HTMLVideoElement);
+    expect(document.querySelector("video")).not.toHaveAttribute("controls");
     hosted.unmount();
 
     const youtubePlayback = {
@@ -82,5 +85,13 @@ describe("default media player", () => {
     const youtube = plyrMock.instances[1];
     expect(youtube?.target).toHaveAttribute("data-plyr-provider", "youtube");
     expect(youtube?.options).toMatchObject({ youtube: { noCookie: true } });
+  });
+
+  it("clears a legacy native controls attribute before the shared player mounts", () => {
+    const audio = document.createElement("audio");
+    audio.setAttribute("controls", "");
+    disableNativeMediaControls(audio);
+    expect(audio.controls).toBe(false);
+    expect(audio).not.toHaveAttribute("controls");
   });
 });
