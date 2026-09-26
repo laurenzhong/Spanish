@@ -31,7 +31,20 @@ describe("scenario practice shared UI", () => {
     expect(screen.getByRole("link", { name: /开始实战/ })).toHaveAttribute("href", `/explore/scenarios/${key}/practice`);
     expect(screen.getAllByText(/自然替代表达/).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /^收藏表达：/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^朗读表达：/ })).toHaveLength(scenario.expressions.length);
+    expect(screen.getAllByText(/对应目标/)).toHaveLength(scenario.expressions.length);
     expect(document.querySelector(".scenario-detail__action")).not.toBeInTheDocument();
+  });
+
+  it("keeps expression listening local and explains the matching communication goal", async () => {
+    const scenario = getScenarioPracticeDetail("scenario.campus-administration")!;
+    render(<ScenarioDetail scenario={scenario} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `朗读表达：${scenario.expressions[0]!.text}` }));
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("浏览器暂时无法朗读"));
+    expect(screen.getByText(/目标 1 · 说明你要完成注册手续/)).toBeInTheDocument();
+    expect(screen.queryByText(/能力证据|评分/)).not.toBeInTheDocument();
   });
 
   it("saves a formal expression by versioned server reference", async () => {

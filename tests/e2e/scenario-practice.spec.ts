@@ -36,6 +36,8 @@ test("keeps the scenario detail hierarchy and primary action usable across viewp
     await expect(page.getByRole("link", { name: /开始实战/ })).toBeVisible();
     await expect(page.getByRole("heading", { name: "沟通目标" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "可用表达" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /朗读表达：/ })).toHaveCount(5);
+    await expect(page.getByText(/目标 1 · 说明你要完成注册手续/)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px overflow`).toBeLessThanOrEqual(width);
   }
 });

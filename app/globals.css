@@ -9502,6 +9502,27 @@ body {
   .scenario-goal-list li { min-height: 60px; }
 }
 
+/* Scenario detail expressions: make listening and goal context explicit. */
+.scenario-expression-grid__body { min-width: 0; }
+.scenario-expression-grid article > .scenario-expression-grid__actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.scenario-expression-grid__actions button { flex: none; touch-action: manipulation; }
+.scenario-expression-play { display: inline-flex; min-width: 64px; min-height: 44px; gap: 5px; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--teal) 42%, var(--border)); border-radius: 999px; color: var(--teal); background: var(--surface); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 750; }
+.scenario-expression-play:hover { border-color: var(--teal); background: var(--teal-soft); }
+.scenario-expression-play[aria-pressed="true"] { color: var(--surface); border-color: var(--teal); background: var(--teal); }
+.scenario-expression-play svg { width: 17px; height: 17px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.scenario-expression-grid__actions .scenario-expression-save { width: 44px; min-width: 44px; min-height: 44px; }
+.scenario-expression-play:focus-visible,
+.scenario-expression-grid__actions .scenario-expression-save:focus-visible { outline: 3px solid color-mix(in srgb, var(--teal) 35%, transparent); outline-offset: 2px; }
+.scenario-expression-goals { display: flex; flex-wrap: wrap; gap: 5px; align-items: baseline; margin-top: 3px; }
+.scenario-expression-goals__label { color: var(--muted); font-size: .66rem; font-weight: 750; }
+.scenario-expression-goal { padding: 3px 7px; border-radius: 999px; color: var(--teal); background: var(--teal-soft); font-size: .66rem; line-height: 1.35; }
+.scenario-expression-status { margin: -4px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.45; }
+
+@media (max-width: 760px) {
+  .scenario-expression-grid article > .scenario-expression-grid__actions { align-items: flex-start; }
+  .scenario-expression-play { min-width: 62px; padding-inline: 8px; }
+}
+
 /* UI-014: compact reading shelf and single-surface article reader. */
 .read-page { gap: 0; }
 .read-library { display: grid; gap: 14px; }

@@ -2,13 +2,21 @@ import Link from "next/link";
 
 import type { ScenarioPracticeDetail as ScenarioDetailDto } from "../content";
 import { DeletePersonalScenarioButton } from "./delete-personal-scenario-button";
-import { SaveExpressionButton } from "./save-expression-button";
+import { ScenarioExpressionList, type ScenarioExpressionGoal } from "./scenario-expression-list";
 
 export function ScenarioDetail({ scenario }: Readonly<{ scenario: ScenarioDetailDto }>) {
   const practiceHref = `/explore/scenarios/${encodeURIComponent(scenario.stableKey)}/practice`;
   const fictionalNotice = scenario.fictionalContext
     ? `这是一个虚构练习场景，不代表真实地点或现实安排${scenario.stableKey === "scenario.rental-conversation" ? "；其中的房源与看房时间也并非真实信息" : ""}。`
     : null;
+  const goalsByExpression: Readonly<Record<string, readonly ScenarioExpressionGoal[]>> = Object.fromEntries(
+    scenario.expressions.map((expression) => [
+      expression.stableKey,
+      scenario.tasks
+        .filter((task) => task.targetExpressionKeys.includes(expression.stableKey))
+        .map((task) => ({ position: task.position, prompt: task.prompt })),
+    ]),
+  );
 
   return <main className="scenario-detail page-stack" aria-labelledby="scenario-title">
     <nav className="scenario-detail__nav" aria-label="场景导航">
@@ -37,7 +45,7 @@ export function ScenarioDetail({ scenario }: Readonly<{ scenario: ScenarioDetail
 
       <section className="scenario-detail__section scenario-detail__expressions" aria-labelledby="scenario-expressions-title">
         <div className="section-heading"><div><p className="eyebrow">可直接借用</p><h2 id="scenario-expressions-title">可用表达</h2></div><span className="scenario-detail__helper">自然替代表达同样有效</span></div>
-        <div className="scenario-expression-grid">{scenario.expressions.map((expression) => <article key={expression.stableKey}><div><strong lang="es">{expression.text}</strong><span className="scenario-expression-grid__translation">{expression.translation}</span><small>{expression.communicativeIntent}</small></div>{!scenario.stableKey.startsWith("personal.") ? <SaveExpressionButton expressionKey={expression.stableKey} expressionText={expression.text} version={scenario.version} /> : null}</article>)}</div>
+        <ScenarioExpressionList expressions={scenario.expressions} goalsByExpression={goalsByExpression} version={scenario.version} allowSave={!scenario.stableKey.startsWith("personal.")} languageTag={scenario.temporaryCharacter.locale} />
       </section>
 
       {scenario.stableKey.startsWith("personal.") ? <div className="scenario-detail__delete"><DeletePersonalScenarioButton scenarioKey={scenario.stableKey} /></div> : null}
