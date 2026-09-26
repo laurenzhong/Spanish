@@ -2060,6 +2060,6 @@ Commit：abcdef0
 ### 2026-09-27：统一媒体 Plyr 播放器收口
 
 - 范围：媒体详情页移除旧的裸 `<audio controls>`/`<video controls>` fallback；YouTube、托管视频和播客统一进入 `MediaLearningWorkbench`，生产默认动态挂载 Plyr，原生 media 节点仅作为 Plyr 底层源。
-- 实现：`d3830ad`（播客鉴权 Range 代理）与播放器收口提交（待本地提交）；加入本地 Plyr sprite、自动暂停控件、媒体事件/进度同步和 YouTube no-cookie 配置。
+- 实现：`d3830ad`（播客鉴权 Range 代理）与 `2bb27dd`（播放器统一收口）；加入本地 Plyr sprite、自动暂停控件、媒体事件/进度同步和 YouTube no-cookie 配置。
 - 验证：媒体聚焦 Vitest `4 files / 20 tests` 通过；桌面媒体 Playwright `3/3`、移动媒体 Playwright `3/3` 通过；受影响 ESLint 与 diff check 通过。全局 typecheck 仍被并行 `src/modules/media/ui/media-library.tsx:282` 的既有 props 类型错误阻断。
 - 限制：未做生产真实媒体 URL 的逐条浏览器采样或 iPhone Safari 真机验收；正式数据库的 `official_embed` 可播放投影仍需按托管策略复核。
