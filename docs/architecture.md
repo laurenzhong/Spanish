@@ -219,7 +219,7 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 
 对话工作区通过 `GET /api/v1/conversations` 返回当前用户实际拥有的会话摘要（角色、最后一条已完成消息和时间），不再用角色目录冒充历史。无会话、数据库未配置和请求失败分别呈现为空状态或可重试状态；未读数没有可靠数据来源时不展示。语音消息使用 `POST /api/v1/transcriptions` 一次性转写为可编辑草稿，音频仅在 provider 请求生命周期内使用并以 `ephemeral` 策略处理，确认发送后仍复用文字对话流，不产生学习证据。
 
-Lucía 的好友申请通过 `GET/POST /api/v1/character-network/lucia-contact` 管理，不新增关系表：没有当前用户关系记录时返回 `pending` 及固定的初识来源（马德里文化活动、城市摄影）；接受在同一事务内将 `character_relationships.status` 设为 `active`、幂等创建会话并写入唯一的 authored opening message，拒绝记录为 `declined` 且不创建新会话。好友侧栏只显示真实存在的会话，并以申请状态显示红点/入口。`POST /api/v1/conversations/lucia/stream` 在读取历史、写入用户消息或调用 provider 前再次检查该关系必须为 `active`，否则返回稳定错误 `CONTACT_REQUIRED`；其他角色维持现有流程。
+Lucía 的好友申请通过 `GET/POST /api/v1/character-network/lucia-contact` 管理，不新增关系表：没有当前用户关系记录时返回 `pending` 及固定的初识来源（马德里文化活动、城市摄影）；接受在同一事务内将 `character_relationships.status` 设为 `active`、幂等创建会话并写入唯一的 authored opening message，拒绝记录为 `declined` 且不创建新会话。好友侧栏只显示真实存在的会话，并以申请状态显示红点/入口。`POST /api/v1/conversations/lucia/stream` 在读取历史、写入用户消息或调用 provider 前再次检查该关系必须为 `active`，否则返回稳定错误 `CONTACT_REQUIRED`；其他角色同样走通用 published/capability 门禁，当前 draft 不可生产聊天。
 
 Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/proactive` 供受控手动触发，`.github/workflows/lucia-proactive-daily.yml` 每日按 `Asia/Shanghai` 09:15 UTC 调用 `scripts/run-lucia-proactive.ts`，只处理显式配置在 `LUCIA_PROACTIVE_USER_IDS` 中的用户。服务端先按关系 active 状态、暂停开关、每日/每周上限、12 小时冷却和未回应消息判断资格，再以 `(user_id, dedupe_key)` 创建候选；provider 只收到 `inputKind=proactive`、主动消息来源、关系摘要、情绪上限、日常状态和零问题预算，不能决定发送资格或关系升级。报备型日常分享是默认形式；关系达到 `familiar` 且日常状态为 `waking` 时，允许单句 `Te echo de menos.` 这类低压力想念表达。通过 `isProactiveMessageSafe` 后，候选与 `messages.source_type=proactive` 在同一事务内完成；provider 失败、取消或门禁失败只标记候选失败，不写入半条用户可见消息，也不使用真实运行时 fallback。候选和消息都按用户所有权隔离；当前仍不接 Web Push/APNs/FCM，用户打开聊天页后由现有历史刷新机制看到已生成消息。
 开发环境可传 `preview: true` 进行不落库的声音检查；预览仍调用真实 provider 并执行同一安全门禁，但不创建候选、不消耗每日额度，生产环境忽略该字段。
@@ -295,6 +295,16 @@ Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。
 - 用户告诉当前角色的信息。
 - 用户允许分享给其他角色的信息。
 - 只供教学推荐使用的画像。
+
+### 6.10 角色运行时、发布门禁与长期对话
+
+长期角色是版本化的发布单元，而不是一个可调用模型的显示名称。`characters` 模块拥有角色人物版本、固定事实、透露策略和生命周期；`memory` 模块拥有当前用户与当前角色的关系记忆、共享许可和冲突状态；`conversation` application 通过内部端口读取两者并组装 provider-neutral runtime context。角色目录只能投影已经发布且具备相应 capability 的版本，不能成为第二套人物事实来源。
+
+生命周期与能力独立建模：`draft`、`published`、`retired` 只回答“是否可以进入生产”；`conversation`（`disabled`/`basic`/`full`）、`proactiveMessages`、`romanticSubtext`、`persistentMemory`、`introductions`、`voiceInput` 和 `maxRelationshipStage` 决定“可以做什么”。所有角色列表、详情、联系人接受、会话创建、历史、搜索、stream、主动消息和记忆写入都必须在服务端重检生命周期、版本、所有权和 capability。当前个人 Alpha 只正式开放 Lucía；Mateo/Inés 在各自人物包、审核和 replay 门禁完成前保持 draft/coming-soon；场景临时人物不创建长期角色、会话或关系记忆。
+
+`buildReplyContext` 只消费当前发布版本、`CharacterRuntimePolicy`、`getCharacterRelationship(userId, characterKey, characterVersion)` 返回的关系快照、当前用户可读记忆和已完成消息。不得为非 Lucía 复用 Lucía 的时区、恋爱、主动消息或 claims/commitments 分支。provider 只能生成候选表面文本，不能直接写人物事实、关系阶段、记忆共享权限或主动消息资格。
+
+只有带有明确 `done`、通过 Schema/安全门禁且幂等落库的完整回合，才能触发关系事件候选、开放话题、摘要和长期记忆。旧 generation、取消、断流、删除/撤回和低置信度/技术失败不得更新这些派生状态。场景练习的人物快照继续由 `scenario-practice` 独立拥有，不能进入长期联系人或角色关系。
 
 ## 7. 训练状态机
 

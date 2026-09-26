@@ -1,5 +1,7 @@
 # 对话工作区视觉实现计划
 
+> 2026-09-26 说明：本计划只覆盖工作区视觉实现。角色发布门禁、运行时 policy、流式幂等、隐私删除和长期角色边界以 [`CONV-ROLE-001`](2026-09-26-character-runtime-and-conversation-closure-implementation-plan.md) 为准；视觉计划中的“三角色可选”不能绕过已发布状态。
+
 ## 范围
 
 本切片落地已确认的 Conversation Workspace 视觉方案，只修改 Web 对话页面内容区域，不修改 `AppShell`、`BottomNavigation` 或服务端聊天协议。

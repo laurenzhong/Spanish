@@ -1,5 +1,7 @@
 # Conversation Search and Character Catalog Design
 
+> 2026-09-26 说明：本文描述搜索与目录的交互契约；角色是否可进入生产由 [ADR-0009](../../adr/0009-character-runtime-and-conversation-boundary.md) 与 [`CONV-ROLE-001`](../../plans/2026-09-26-character-runtime-and-conversation-closure-implementation-plan.md) 决定。本文中“三个目录条目”的历史假设不代表三个角色都已发布；当前个人 Alpha 只正式开放已发布的 Lucía，Mateo/Inés 的 `draft`/`coming-soon` 状态必须在服务端和 UI 同时生效。
+
 ## Scope
 
 This slice adds searchable conversation history and makes the existing Lucía,

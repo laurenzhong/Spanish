@@ -278,6 +278,22 @@ Lucía 的 provider A/B 回放基线位于 `tests/fixtures/evaluation/lucia-prov
 
 角色 prompt、人物圣经或记忆策略变更后必须运行该评测集。
 
+### 7.1 角色运行时与对话闭环门禁
+
+`CONV-ROLE-001` 的测试必须把“角色可生成回复”和“角色可以作为正式联系人”分开验证：
+
+- **发布与能力**：`draft`/`retired` 角色不能出现在生产联系人发现、可创建会话列表或新消息入口；直接创建、stream、retry、proactive 和记忆写入返回稳定的角色不可用/能力错误。已有用户拥有的旧版本历史可以在所有权和版本检查后只读恢复，但不能发送新消息或更新关系派生状态。`published` 版本、人物版本号和 capability policy 必须来自服务端，不能由客户端或 provider 决定。
+- **角色隔离**：provider 输入只包含当前角色的人物事实、当前用户可读的该角色关系和已完成消息；Lucía 的恋爱、主动消息、时区、claims/commitments 不得泄漏到 Mateo/Inés。场景临时人物不得创建长期角色、会话或关系记忆。
+- **关系连续性**：按 `(userId, characterKey, characterVersion)` 读取 status、stage、summary、revealed canon keys 和共享权限；接受不同角色介绍后，各自的 stage/summary 可独立恢复。缺失关系不能静默提升为 active。
+- **provider 事实边界**：fake provider 输出不能新增人物固定事实、关系升级、共享许可或现实行动；Schema/安全门禁失败不落完整 assistant、不更新关系或长期记忆。直接询问 AI 身份、现实地点/线下约见和产品元话语应有固定回放断言。
+- **流式幂等**：无 `done` 不算完成；旧/错误 `generationId` 的 `done` 不更新当前 UI；重试、断流恢复、取消、队列停止和离页最多产生一次 provider 终态、一个 assistant 和一组派生状态。测试必须断言不会重复收费、消息、记忆或关系事件。
+- **删除与隐私**：删除/撤回操作幂等；流进行中撤回不会在完成回调后写入 assistant、搜索、上下文、记忆或学习证据。无效 Bearer 不能静默回退到另一个 cookie 身份，客户端历史缓存必须按用户隔离。
+- **语音闭环**：录音、转写、可编辑 draft、重录/取消和用户确认分别覆盖成功、超时、取消、空转写、低置信度和 provider 失败；临时音频在所有终态删除，输入方式/置信度/attempt/generation 元数据不丢失。
+- **入口与恢复**：桌面和 320–1440px 移动视口都能进入至少一个已发布角色；介绍接受后联系人刷新，错误状态区分登录/权限/未发布/可重试/不可重试；移动 dialog 有焦点陷阱和 Esc/返回语义，搜索深链可定位长列表目标消息。
+- **回合反馈**：完整回合后反馈区分文字交流、语音表达、跟读和未验证观察；技术失败、低置信度转写和打字不会伪造口语能力证据。
+
+这些断言优先使用领域、application、数据库/RLS、provider contract/fake 和少量 Playwright 测试覆盖；禁止用页面快照代替 generation、权限、幂等和隐私断言。每个正式角色应有独立 replay manifest，回放只比较人物一致性、自然回应、现实边界、隐私和压力感，不要求 provider 产生同一句话。
+
 ## 8. 时间、成本与性能
 
 Alpha 性能预算：

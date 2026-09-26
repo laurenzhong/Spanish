@@ -2,7 +2,7 @@
 
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
-- 最后更新：2026-09-24
+- 最后更新：2026-09-26
 - 当前里程碑：内容驱动学习与自动内容供应重构
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
@@ -539,6 +539,15 @@
 > 开发预览实现 Commit：`e24b97b`（`preview: true` 只调用 provider 和安全门禁，不落库、不消耗主动消息额度）。
 > `waking` 文案自然度修正 Commit：`0f50941`（优先具体起床/咖啡/早餐报备，避免把无关意象硬拼在一句话里）。
 
+### 2026-09-26：CONV-ROLE-001 角色运行时与对话闭环规划
+
+- 用户确认将“只正式开放 Lucía、Mateo/Inés 先保持 draft/coming-soon、临时场景人物与长期角色隔离、角色能力显式化、对话可靠性与隐私闭环”写入文档。
+- 新增设计：[角色运行时与对话闭环设计](docs/superpowers/specs/2026-09-26-character-runtime-and-conversation-closure-design.md)；新增 ADR：[ADR-0009：版本化角色运行时与对话闭环边界](docs/adr/0009-character-runtime-and-conversation-boundary.md)；新增实施计划：[CONV-ROLE-001](docs/plans/2026-09-26-character-runtime-and-conversation-closure-implementation-plan.md)。
+- 同步 `README.md`、`docs/architecture.md`、`docs/testing-strategy.md`，并在旧角色目录/视觉计划中标注新发布边界。当前只完成文档，未修改聊天实现、数据库或角色发布状态。
+- 实施范围：先冻结 Lucía v1 和 published/capability 门禁，再修复通用关系上下文、stream/retry/删除撤回幂等、移动入口和语音/反馈闭环；Mateo/Inés 的 `basic` 人物包另行批准，不自动领取。
+- 验证：本轮为文档任务，执行 Markdown 结构/链接检查和 `git diff --check`；未运行 lint、typecheck、unit、E2E 或 build。实现前仍需按计划运行相关门禁，并记录真实 provider、数据库和 iPhone Safari/PWA 限制。
+- 文档提交：待本轮提交后补记；下一步建议在当前 `PODCAST-001`/ALPHA-033 发布候选门禁完成后领取 `CONV-ROLE-001`，除非产品本人明确重新排序。
+
 ## 新模型快速接手
 
 进入仓库后按顺序执行：
@@ -595,6 +604,7 @@
 - `PROFILE-001`：四板块能力画像（done；实现 `db68587`、`0d0f149`，Merge Commit `c95fca4`）。
 - `OPS-001`：每日生产调度与全链路门禁（done；实现 `f1fb75b`、`217b9e1`，Merge Commit `a991db2`）。
 - `ALPHA-033`：发布候选门禁（review；实现 `44e87a2`、`1d2a1cd`，Merge Commit `1e8ba94`；等待合并后全量门禁及产品本人确认）。
+- `CONV-ROLE-001`：角色运行时与对话闭环（docs-planned；设计、ADR 与实施计划已记录；不改变当前内容供应队列，等待排期和实现领取）。
 - 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待 ALPHA-033 全量门禁和产品本人确认）。
 
 ### 后续路线（不进入当前 Alpha）
