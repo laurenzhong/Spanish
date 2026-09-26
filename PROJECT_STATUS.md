@@ -546,7 +546,7 @@
 - 同步 `README.md`、`docs/architecture.md`、`docs/testing-strategy.md`，并在旧角色目录/视觉计划中标注新发布边界。当前只完成文档，未修改聊天实现、数据库或角色发布状态。
 - 实施范围：先冻结 Lucía v1 和 published/capability 门禁，再修复通用关系上下文、stream/retry/删除撤回幂等、移动入口和语音/反馈闭环；Mateo/Inés 的 `basic` 人物包另行批准，不自动领取。
 - 验证：本轮为文档任务，执行 Markdown 结构/链接检查和 `git diff --check`；未运行 lint、typecheck、unit、E2E 或 build。实现前仍需按计划运行相关门禁，并记录真实 provider、数据库和 iPhone Safari/PWA 限制。
-- 文档提交：待本轮提交后补记；下一步建议在当前 `PODCAST-001`/ALPHA-033 发布候选门禁完成后领取 `CONV-ROLE-001`，除非产品本人明确重新排序。
+- 文档提交：`8201a03`（`docs: define character runtime and conversation closure`）；下一步建议在当前 `PODCAST-001`/ALPHA-033 发布候选门禁完成后领取 `CONV-ROLE-001`，除非产品本人明确重新排序。
 
 ## 新模型快速接手
 
