@@ -2049,6 +2049,6 @@ Commit：abcdef0
 
 - 范围：媒体详情页移除旧的裸 `<audio controls>`/`<video controls>` 播放路径；YouTube、托管视频和播客统一进入 `MediaLearningWorkbench`，生产默认动态挂载 Plyr，原生 media 节点仅作为 Plyr 底层源。
 - 实现：`7ebfb37`（播放器收口）、`2f94fac`（锁定 `plyr@3.8.4`）、`e5dcd9a`（播客鉴权 Range 代理）和 `dc85060`（词级时间轴透传、契约与回归测试）；加入本地 Plyr sprite、自动暂停控件、媒体事件/进度同步和 YouTube no-cookie 配置。
-- 验证：媒体/契约聚焦 Vitest `6 files / 27 tests`、桌面媒体 Playwright `3/3`、移动媒体 Playwright `3/3`、全局 TypeScript、受影响 ESLint 与 `git diff --check` 通过；合并后的生产部署 `dpl_FsWCXgwfjuv2Bsz8z4Rqu6dwjxJk` 已 `READY`，主域名别名包含 `spanish-self.vercel.app`。
-- 状态：已合入 `main`（合并提交 `8cf4170`；依赖构建修复 `dad3b78`）并完成 Vercel Production 部署。默认生产代码路径已不再使用旧裸播放器。
-- 剩余限制：尚未使用登录后的真实媒体逐条验收部署版本，也尚未进行 iPhone Safari/PWA 真机验收；下一步验证一条 YouTube、一条托管视频和一条播客的播放、字幕、seek、进度同步，并记录移动 Safari 结果。
+- 验证：媒体/契约聚焦 Vitest `6 files / 27 tests`、桌面媒体 Playwright `3/3`、移动媒体 Playwright `3/3`、全局 TypeScript、受影响 ESLint 与 `git diff --check` 通过；旧标签页残留原生 `controls` 的回归修复又通过媒体单测 `3/3`、桌面媒体 Playwright `3/3`、TypeScript、受影响 ESLint 与 diff check。
+- 状态：播放器收口已通过 PR `#66`（合并提交 `8cf4170`）；PR `#67` 已同步状态页；PR `#68`（合并提交 `9bf0670`）清除旧标签页遗留的原生 `controls` 属性并已合入 `main`。最新 Vercel Production 部署 `dpl_A3jU1ev1dmuFYKgLUFCx8JcGaoCH` 已 `READY`，`spanish-self.vercel.app` 已指向该提交。
+- 生产验收边界：代码路径已统一为 `MediaLearningWorkbench` + Plyr，原生 `<audio>/<video>` 只作为底层媒体节点；仍需用真实登录会话逐条验收一条 YouTube、一条托管视频和一条播客的 `.plyr`、字幕、seek、进度同步，并进行 iPhone Safari/PWA 真机验收。若旧界面仍可见，先关闭旧标签页并硬刷新，再确认媒体节点无 `controls` 属性；真实浏览器接管当前受 Codex `apikey` 认证限制，未宣称已完成该项。
