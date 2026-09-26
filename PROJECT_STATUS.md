@@ -2048,6 +2048,6 @@ Commit：abcdef0
 ### 2026-09-27：统一媒体 Plyr 播放器收口
 
 - 范围：媒体详情页移除旧的裸 `<audio controls>`/`<video controls>` 播放路径；YouTube、托管视频和播客统一进入 `MediaLearningWorkbench`，生产默认动态挂载 Plyr，原生 media 节点仅作为 Plyr 底层源。
-- 实现：`7ebfb37`（播放器收口）、`2f94fac`（锁定 `plyr@3.8.4`）、`e5dcd9a`（播客鉴权 Range 代理）和 `dc85060`（词级时间轴透传、契约与回归测试）；加入本地 Plyr sprite、自动暂停控件、媒体事件/进度同步和 YouTube no-cookie 配置。
+- 实现：`7ebfb37`（播放器收口）、`2f94fac`（锁定 `plyr@3.8.4`）、`e5dcd9a`（播客鉴权 Range 代理）、`dc85060`（词级时间轴透传、契约与回归测试）和 `dad3b78`（允许 Vercel/pnpm 构建依赖脚本）；加入本地 Plyr sprite、自动暂停控件、媒体事件/进度同步和 YouTube no-cookie 配置。
 - 验证：媒体/契约聚焦 Vitest `6 files / 27 tests`、桌面媒体 Playwright `3/3`、移动媒体 Playwright `3/3`、全局 TypeScript、受影响 ESLint 与 `git diff --check` 通过。
-- 限制：生产默认分支尚未合入并重新部署；未做生产真实媒体 URL 的逐条浏览器采样或 iPhone Safari 真机验收。合入后需检查部署版本并刷新旧页面缓存，再验证一条 YouTube、一条托管视频和一条播客。
+- 限制：PR `#66` 的 Vercel Preview 已通过，但生产默认分支尚未合入并重新部署；未做生产真实媒体 URL 的逐条浏览器采样或 iPhone Safari 真机验收。合入后需检查部署版本并刷新旧页面缓存，再验证一条 YouTube、一条托管视频和一条播客。
