@@ -9428,6 +9428,80 @@ body {
   .scenario-composer { right: auto; left: auto; }
 }
 
+/* Scenario detail polish: clarify the path and make the primary action easier to find. */
+.scenario-detail { gap: 12px; }
+.scenario-detail__layout { grid-template-areas: "hero rail" "goals rail" "expressions rail" "delete rail"; }
+.scenario-detail__nav { display: flex; min-height: 32px; align-items: center; justify-content: space-between; }
+.scenario-detail__nav > span { color: var(--muted); font-size: .68rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.scenario-detail__nav .scenario-back-link { display: inline-flex; min-height: 44px; gap: 7px; align-items: center; color: var(--muted); font-size: .78rem; font-weight: 650; }
+.scenario-detail__nav .scenario-back-link:hover { color: var(--foreground); }
+.scenario-detail__nav .scenario-back-link svg { width: 17px; height: 17px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.scenario-detail__hero { padding: 26px 0 20px; }
+.scenario-detail__hero-meta { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: .72rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.scenario-detail__level { display: inline-flex; min-height: 24px; align-items: center; padding: 3px 8px; border-radius: 999px; color: var(--teal); background: var(--teal-soft); font-size: .68rem; letter-spacing: .04em; }
+.scenario-detail__hero h1 { margin-top: 12px; letter-spacing: -.035em; text-wrap: balance; }
+.scenario-detail__description { max-width: 640px; }
+.scenario-detail__notice { display: flex; gap: 9px; align-items: flex-start; margin: 20px 0 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--terracotta) 24%, var(--border)); border-left: 3px solid var(--terracotta); border-radius: 0 7px 7px 0; background: color-mix(in srgb, var(--terracotta) 7%, var(--surface)); }
+.scenario-detail__notice > span { display: inline-grid; width: 17px; height: 17px; flex: none; place-items: center; border: 1px solid currentcolor; border-radius: 50%; color: var(--terracotta); font-size: .65rem; font-weight: 800; line-height: 1; }
+.scenario-detail__rail { top: 24px; gap: 16px; padding: 18px; box-shadow: var(--shadow-soft); }
+.scenario-character-card { gap: 12px; padding: 0 0 15px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+.scenario-character-card > span { width: 48px; height: 48px; color: var(--teal); background: var(--teal-soft); font-size: 1.1rem; font-weight: 750; }
+.scenario-character-card div { gap: 2px; }
+.scenario-character-card strong { font-size: .95rem; }
+.scenario-character-card small { font-size: .72rem; }
+.scenario-character-card__label { color: var(--muted); font-size: .64rem !important; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+.scenario-detail__rail dl { padding-top: 0; border-top: 0; }
+.scenario-detail__rail dl div { padding: 8px 0; }
+.scenario-detail__rail-note { display: grid; gap: 3px; padding: 10px 11px; border-radius: 7px; background: var(--surface-soft); }
+.scenario-detail__rail-note span { color: var(--muted); font-size: .68rem; }
+.scenario-detail__rail-note strong { font-size: .82rem; }
+.scenario-detail__primary-action { min-height: 52px !important; margin: 0 !important; padding: 0 14px 0 16px !important; }
+.scenario-detail__primary-copy { display: grid; gap: 2px; text-align: left; }
+.scenario-detail__primary-copy strong { font-size: .9rem; }
+.scenario-detail__primary-copy small { color: color-mix(in srgb, currentcolor 72%, transparent); font-size: .68rem; font-weight: 550; }
+.scenario-detail__primary-action svg { width: 19px; height: 19px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.scenario-detail__section { gap: 12px; padding-top: 24px; }
+.scenario-detail__section .section-heading { align-items: end; margin-bottom: 0; }
+.scenario-detail__section .section-heading > div { display: grid; gap: 3px; }
+.scenario-detail__section .section-heading .eyebrow { margin: 0; color: var(--terracotta); font-size: .66rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.scenario-detail__section .section-heading h2 { font-size: 1.18rem; }
+.scenario-detail__section .section-heading > span { min-height: 0; padding: 0; border: 0; border-radius: 0; color: var(--muted); background: transparent; font-size: .72rem; font-weight: 600; }
+.scenario-detail__helper { white-space: normal; text-align: right; }
+.scenario-goal-list { gap: 0; border-top: 1px solid var(--border); }
+.scenario-goal-list li { min-height: 64px; grid-template-columns: 42px minmax(0, 1fr); gap: 13px; padding: 13px 2px; border-top: 0; border-bottom: 1px solid var(--border); }
+.scenario-goal-list li > .scenario-goal-list__index { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; color: var(--terracotta); background: color-mix(in srgb, var(--terracotta) 10%, var(--surface)); font-family: var(--font-ui); font-size: .68rem; font-weight: 800; }
+.scenario-goal-list li > div { display: grid; gap: 3px; align-content: center; }
+.scenario-goal-list__label { color: var(--muted); font-size: .65rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.scenario-goal-list p { font-size: .92rem; line-height: 1.45; }
+.scenario-expression-grid article { min-height: 72px; padding: 13px 2px; }
+.scenario-expression-grid article > div { gap: 3px; }
+.scenario-expression-grid article strong { font-size: .95rem; line-height: 1.4; }
+.scenario-expression-grid article .scenario-expression-grid__translation { color: var(--foreground); font-size: .78rem; line-height: 1.4; }
+.scenario-expression-grid article small { color: var(--muted); font-size: .7rem; line-height: 1.4; }
+.scenario-expression-grid article:hover { background: color-mix(in srgb, var(--surface-soft) 48%, transparent); }
+
+@media (max-width: 1024px) {
+  .scenario-detail__layout { grid-template-areas: "hero" "rail" "goals" "expressions" "delete"; }
+  .scenario-detail__rail { grid-template-columns: minmax(0, 1fr) auto; }
+  .scenario-detail__rail dl { display: flex; gap: 18px; align-items: center; border: 0; }
+  .scenario-detail__rail dl div { display: grid; gap: 2px; padding: 0; border: 0; }
+  .scenario-detail__rail-note { display: none; }
+}
+
+@media (max-width: 760px) {
+  .scenario-detail { padding-bottom: calc(48px + env(safe-area-inset-bottom)); }
+  .scenario-detail__nav > span { display: none; }
+  .scenario-detail__hero { padding-top: 16px; }
+  .scenario-detail__hero h1 { font-size: clamp(2rem, 9vw, 2.65rem); }
+  .scenario-detail__rail { grid-template-columns: 1fr; gap: 13px; padding: 15px; }
+  .scenario-detail__rail dl { display: flex; gap: 24px; }
+  .scenario-detail__rail-note { display: grid; }
+  .scenario-detail__primary-action { width: 100% !important; }
+  .scenario-detail__section .section-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .scenario-detail__helper { text-align: left !important; }
+  .scenario-goal-list li { min-height: 60px; }
+}
+
 /* UI-014: compact reading shelf and single-surface article reader. */
 .read-page { gap: 0; }
 .read-library { display: grid; gap: 14px; }
