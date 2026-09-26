@@ -38,6 +38,46 @@ function boundedInteger(value: string | string[] | undefined): number | null {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
+function clientPlayback(stableKey: string, playback: MediaPlayback): MediaPlayback {
+  if (playback.media.kind !== "podcast" || playback.asset.kind !== "audio") return playback;
+  try {
+    const host = new URL(playback.asset.url).hostname.toLowerCase();
+    const proxyHosts = new Set([
+      "content.libsyn.com",
+      "traffic.libsyn.com",
+      "traffic.megaphone.fm",
+      "dcs-cached.megaphone.fm",
+      "dcs-spotify.megaphone.fm",
+      "content.blubrry.com",
+      "media.blubrry.com",
+      "episodes.castos.com",
+      "simplecastaudio.com",
+      "injector.simplecastaudio.com",
+      "sonoro.simplecastaudio.com",
+      "pscrb.fm",
+      "anchor.fm",
+      "prisa-es.mc.tritondigital.com",
+      "mc.tritondigital.com",
+      "www.podtrac.com",
+      "dts.podtrac.com",
+      "pdst.fm",
+      "chrt.fm",
+      "ztnr.rtve.es",
+      "rtve-mediavod-lote3.rtve.es",
+      "charlashispanas.com",
+      "www.hoyhablamos.com",
+    ]);
+    const shouldProxy = proxyHosts.has(host)
+      || host.endsWith(".simplecastaudio.com")
+      || host.endsWith(".pscrb.fm")
+      || host.endsWith(".anchor.fm");
+    if (!shouldProxy) return playback;
+  } catch {
+    return playback;
+  }
+  return { ...playback, asset: { ...playback.asset, url: `/api/v1/media/${encodeURIComponent(stableKey)}/stream` } };
+}
+
 export default async function MediaDetailPage({ params, searchParams }: Context) {
   let stableKey: string;
   try {
@@ -64,6 +104,9 @@ export default async function MediaDetailPage({ params, searchParams }: Context)
     }
   }
 
+  const browserPlayback = clientPlayback(stableKey, playback);
+  if ((browserPlayback.media.kind === "podcast" && browserPlayback.asset.kind !== "audio")
+    || (browserPlayback.media.kind === "video" && browserPlayback.asset.kind !== "video" && browserPlayback.asset.kind !== "official_embed")) return <UnavailableDetail />;
   return (
     <article className="media-detail">
       <Link className="media-detail__back" href="/learn">← 返回学习资料库</Link>
@@ -73,7 +116,8 @@ export default async function MediaDetailPage({ params, searchParams }: Context)
         <p>{playback.media.summary}</p>
         <span>{playback.media.sourceName} · {playback.media.region ?? "地区未知"}</span>
       </header>
-      <MediaLearningWorkbench initialPositionMs={requestedPositionMs ?? undefined} initialSegmentIndex={requestedSegmentIndex ?? undefined} playback={playback} />
+      <MediaLearningWorkbench initialPositionMs={requestedPositionMs ?? undefined} initialSegmentIndex={requestedSegmentIndex ?? undefined} playback={browserPlayback} />
     </article>
   );
 }
+

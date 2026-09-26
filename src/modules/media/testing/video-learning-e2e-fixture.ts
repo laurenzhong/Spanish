@@ -34,9 +34,20 @@ export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | n
       expiresAt: null,
     },
     segments: [
-      { id: "e2e-segment-0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null },
-      { id: "e2e-segment-1", index: 1, startMs: 1_800, endMs: 4_250, sourceText: "Quería un café con leche.", translation: "我想要一杯拿铁。", speaker: null },
-      { id: "e2e-segment-2", index: 2, startMs: 4_250, endMs: 6_000, sourceText: "Claro.", translation: "当然。", speaker: null },
+      { id: "e2e-segment-0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, words: [
+        { startMs: 0, endMs: 700, startOffset: 0, endOffset: 6, text: "Buenos" },
+        { startMs: 700, endMs: 1_800, startOffset: 7, endOffset: 11, text: "días" },
+      ] },
+      { id: "e2e-segment-1", index: 1, startMs: 1_800, endMs: 4_250, sourceText: "Quería un café con leche.", translation: "我想要一杯拿铁。", speaker: null, words: [
+        { startMs: 1_800, endMs: 2_200, startOffset: 0, endOffset: 6, text: "Quería" },
+        { startMs: 2_200, endMs: 2_550, startOffset: 7, endOffset: 9, text: "un" },
+        { startMs: 2_550, endMs: 3_150, startOffset: 10, endOffset: 14, text: "café" },
+        { startMs: 3_150, endMs: 3_650, startOffset: 15, endOffset: 18, text: "con" },
+        { startMs: 3_650, endMs: 4_250, startOffset: 19, endOffset: 24, text: "leche" },
+      ] },
+      { id: "e2e-segment-2", index: 2, startMs: 4_250, endMs: 6_000, sourceText: "Claro.", translation: "当然。", speaker: null, words: [
+        { startMs: 4_250, endMs: 6_000, startOffset: 0, endOffset: 5, text: "Claro" },
+      ] },
     ],
   };
 }

@@ -20,7 +20,10 @@ function playback() {
     },
     asset: { kind: "official_embed" as const, url: "https://www.youtube-nocookie.com/embed/publicVideo1?enablejsapi=1", expiresAt: null },
     segments: [
-      { id: "s0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null },
+      { id: "s0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, words: [
+        { startMs: 0, endMs: 700, startOffset: 0, endOffset: 6, text: "Buenos" },
+        { startMs: 700, endMs: 1_800, startOffset: 7, endOffset: 11, text: "días" },
+      ] },
       { id: "s1", index: 1, startMs: 1_800, endMs: 4_250, sourceText: "Quería un café con leche.", translation: "我想要一杯拿铁。", speaker: null },
       { id: "s2", index: 2, startMs: 4_250, endMs: 6_000, sourceText: "Claro.", translation: "当然。", speaker: null },
     ],
@@ -132,6 +135,50 @@ describe("video learning workbench", () => {
     act(() => vi.advanceTimersByTime(300));
     expect(screen.getByRole("button", { name: "查看词语 días" })).toHaveAttribute("data-active-word", "true");
     expect(screen.getByRole("button", { name: "查看词语 Buenos" })).not.toHaveAttribute("data-active-word", "true");
+  });
+
+  it("keeps numeric word boundaries aligned with the reviewed timeline", () => {
+    vi.useFakeTimers();
+    const player = fakePlayer();
+    const numericPlayback = {
+      ...playback(),
+      media: { ...playback().media, id: "youtube.numeric@1", stableKey: "youtube.numeric" },
+      segments: [{
+        id: "numeric", index: 0, startMs: 0, endMs: 3_000, sourceText: "Nivel A2 a las 2:33.", translation: null, speaker: null,
+        words: [
+          { startMs: 0, endMs: 500, startOffset: 0, endOffset: 5, text: "Nivel" },
+          { startMs: 500, endMs: 1_000, startOffset: 6, endOffset: 8, text: "A2" },
+          { startMs: 1_000, endMs: 1_500, startOffset: 9, endOffset: 10, text: "a" },
+          { startMs: 1_500, endMs: 2_000, startOffset: 11, endOffset: 14, text: "las" },
+          { startMs: 2_000, endMs: 3_000, startOffset: 15, endOffset: 19, text: "2:33" },
+        ],
+      }],
+    };
+    render(<MediaLearningWorkbench playback={numericPlayback} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    player.setCurrentTime(700);
+    act(() => player.lifecycle().onStateChange("playing"));
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.getByRole("button", { name: "查看词语 A2" })).toHaveAttribute("data-active-word", "true");
+    expect(screen.getByRole("button", { name: "查看词语 2:33" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看词语 A2" })).toHaveClass("is-speaking");
+  });
+
+  it("syncs a paused native seek and clears the active segment outside reviewed cues", () => {
+    const player = fakeNativePlayer();
+    const nativePlayback = {
+      ...playback(),
+      media: { ...playback().media, id: "video.seek@1", stableKey: "video.seek" },
+      asset: { kind: "video" as const, url: "https://media.example.test/video/seek.mp4", expiresAt: null },
+    };
+    const view = render(<MediaLearningWorkbench nativeVideoFactory={player.factory} playback={nativePlayback} />);
+    act(() => player.lifecycle().onReady());
+    player.setCurrentTime(4_500);
+    act(() => player.lifecycle().onPositionChange?.());
+    expect(view.container.querySelector("#segment-2")).toHaveClass("is-active");
+    player.setCurrentTime(6_000);
+    act(() => player.lifecycle().onPositionChange?.());
+    expect(view.container.querySelector("#segment-2")).not.toHaveClass("is-active");
   });
 
   it("auto-pauses at the reviewed segment boundary and ignores stale player callbacks after replacement", () => {

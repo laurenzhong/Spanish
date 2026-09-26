@@ -7,6 +7,7 @@ import {
   type AudioPlayerFactory,
   type AudioPlayerLifecycle,
   type AudioPlayerPort,
+  nativeAudioPlayerFactory,
 } from "@/src/modules/media";
 
 function playback(withTranscript = true) {
@@ -49,6 +50,28 @@ afterEach(() => {
 });
 
 describe("podcast audio player", () => {
+  it("forwards native seek and timeupdate events while removing them on destroy", () => {
+    const element = document.createElement("audio");
+    const load = vi.spyOn(element, "load").mockImplementation(() => undefined);
+    const pause = vi.spyOn(element, "pause").mockImplementation(() => undefined);
+    const onPositionChange = vi.fn();
+    const lifecycle: AudioPlayerLifecycle = {
+      onReady: vi.fn(), onStateChange: vi.fn(), onError: vi.fn(), onPositionChange,
+    };
+    const port = nativeAudioPlayerFactory(element, { url: "https://media.example.test/episode.mp3", lifecycle });
+    element.dispatchEvent(new Event("timeupdate"));
+    element.dispatchEvent(new Event("seeking"));
+    element.dispatchEvent(new Event("seeked"));
+    expect(onPositionChange).toHaveBeenCalledTimes(3);
+    port.destroy();
+    element.dispatchEvent(new Event("timeupdate"));
+    expect(onPositionChange).toHaveBeenCalledTimes(3);
+    expect(load).toHaveBeenCalled();
+    expect(pause).toHaveBeenCalled();
+    load.mockRestore();
+    pause.mockRestore();
+  });
+
   it("uses the shared sentence controls, transcript drawer, and revisioned progress", async () => {
     const player = fakePlayer();
     const user = userEvent.setup();
