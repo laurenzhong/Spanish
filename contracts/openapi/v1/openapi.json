@@ -54,6 +54,23 @@
         }
       }
     },
+    "/media/{stableKey}/stream": {
+      "get": {
+        "summary": "Proxy an allowlisted podcast asset with authenticated byte-range streaming",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "stableKey", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "Range", "in": "header", "required": false, "schema": { "type": "string", "pattern": "^bytes=\\d+-\\d*$" } }
+        ],
+        "responses": {
+          "200": { "description": "Podcast audio stream", "content": { "audio/*": { "schema": { "type": "string", "format": "binary" } } } },
+          "206": { "description": "Partial podcast audio stream", "content": { "audio/*": { "schema": { "type": "string", "format": "binary" } } } },
+          "401": { "description": "Authentication required" },
+          "404": { "description": "Media unavailable or not an audio asset" },
+          "502": { "description": "Allowlisted podcast source unavailable" }
+        }
+      }
+    },
     "/media/{stableKey}/progress": {
       "put": {
         "summary": "Save an owned immutable-version playback position with revision CAS",

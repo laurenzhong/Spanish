@@ -1,4 +1,5 @@
 import type { MediaProgress } from "./media-progress";
+import type { MediaWordTiming } from "./word-timeline";
 
 export type MediaKind = "video" | "podcast";
 export type MediaCefr = "A2" | "B1" | null;
@@ -73,6 +74,7 @@ export type MediaSegment = Readonly<{
   sourceText: string;
   translation: string | null;
   speaker: string | null;
+  words?: readonly MediaWordTiming[] | null;
   reviewStatus: "pending" | "approved" | "changes_requested";
 }>;
 
@@ -196,6 +198,7 @@ export function projectMediaPlayback(
         sourceText: segment.sourceText,
         translation: segment.translation,
         speaker: segment.speaker,
+        words: segment.words ?? null,
       })),
   };
 }

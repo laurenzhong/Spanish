@@ -106,7 +106,7 @@ export const mediaSegments = pgTable("media_segments", {
   endMs: integer("end_ms").notNull(),
   speaker: text("speaker"),
   sourceText: text("source_text").notNull(),
-  words: jsonb("words").$type<readonly { startMs: number; endMs: number; startOffset: number; endOffset: number }[]>(),
+  words: jsonb("words").$type<readonly { startMs: number; endMs: number; startOffset: number; endOffset: number; text?: string }[]>(),
   translation: text("translation"),
   confidence: real("confidence"),
   sourceKind: text("source_kind"),

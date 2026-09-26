@@ -334,6 +334,7 @@ export function createDrizzleMediaRepository(
             endMs: segment.endMs,
             speaker: segment.speaker,
             sourceText: segment.sourceText,
+            words: segment.words ?? null,
             translation: segment.translation,
             confidence: segment.confidence,
             sourceKind: segment.sourceKind,
@@ -505,6 +506,7 @@ export function createDrizzleMediaRepository(
             endMs: segment.endMs,
             speaker: segment.speaker,
             sourceText: segment.sourceText,
+            words: segment.words ?? null,
             translation: segment.translation,
             confidence: segment.confidence,
             sourceKind: segment.sourceKind,
@@ -627,6 +629,7 @@ export function createDrizzleMediaRepository(
           sourceText: segment.sourceText,
           translation: segment.translation,
           speaker: segment.speaker,
+          words: segment.words ?? null,
           reviewStatus: segment.reviewStatus,
         })),
       }, requestedAt);

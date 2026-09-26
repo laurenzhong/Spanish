@@ -31,6 +31,40 @@ describe("media v1 contracts", () => {
     expect(list({ apiVersion: "v1", data: { items: [{ ...item, internalLocator: "private/path" }] }, page: { nextCursor: null, hasMore: false } })).toBe(false);
     const playback = validator("media-playback-response.schema.json");
     expect(playback({ apiVersion: "v1", data: { media: item, asset: { kind: "official_embed", url: "https://player.example.test/embed/1", expiresAt: null }, segments: [] } }), JSON.stringify(playback.errors)).toBe(true);
+    expect(playback({
+      apiVersion: "v1",
+      data: {
+        media: item,
+        asset: { kind: "official_embed", url: "https://player.example.test/embed/1", expiresAt: null },
+        segments: [{
+          id: "00000000-0000-4000-8000-000000000002",
+          index: 0,
+          startMs: 0,
+          endMs: 1_000,
+          sourceText: "Hola",
+          translation: "你好",
+          speaker: null,
+          words: [{ startMs: 0, endMs: 500, startOffset: 0, endOffset: 4, text: "Hola" }],
+        }],
+      },
+    }), JSON.stringify(playback.errors)).toBe(true);
+    expect(playback({
+      apiVersion: "v1",
+      data: {
+        media: item,
+        asset: { kind: "official_embed", url: "https://player.example.test/embed/1", expiresAt: null },
+        segments: [{
+          id: "00000000-0000-4000-8000-000000000002",
+          index: 0,
+          startMs: 0,
+          endMs: 1_000,
+          sourceText: "Hola",
+          translation: null,
+          speaker: null,
+          words: [{ startMs: 0, endMs: 500, startOffset: 0, endOffset: 4, text: "Hola", extra: true }],
+        }],
+      },
+    })).toBe(false);
   });
 
   it("validates revisioned progress writes", () => {
@@ -48,7 +82,7 @@ describe("media v1 contracts", () => {
 
   it("registers all media routes in OpenAPI", () => {
     const openapi = JSON.parse(readFileSync(path.join(process.cwd(), "contracts", "openapi", "v1", "openapi.json"), "utf8"));
-    for (const route of ["/media", "/media/{stableKey}", "/media/{stableKey}/playback", "/media/{stableKey}/progress"]) {
+    for (const route of ["/media", "/media/{stableKey}", "/media/{stableKey}/playback", "/media/{stableKey}/stream", "/media/{stableKey}/progress"]) {
       expect(openapi.paths[route]).toBeDefined();
     }
     expect(openapi.paths["/media/{stableKey}"].get.responses["200"].content["application/json"].schema.$ref).toContain("media-detail-response");
