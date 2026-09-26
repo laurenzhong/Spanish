@@ -6,7 +6,7 @@ import { findSegmentIndexAt, type MediaPlayback } from "../domain";
 import { AudioPlayerAdapter, type AudioPlayerFactory, type AudioPlayerPort, type AudioPlayerState } from "./audio-player-adapter";
 import { LexicalDrawer } from "./lexical-drawer";
 import { SegmentTranscript, type CaptionMode } from "./segment-transcript";
-import { NativeVideoPlayerAdapter, type NativeVideoPlayerFactory, VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type VideoPlayerState } from "./video-player-adapter";
+import { HostedVideoPlayerAdapter, type NativeVideoPlayerFactory, VideoPlayerAdapter, type VideoPlayerFactory, type VideoPlayerPort, type VideoPlayerState } from "./video-player-adapter";
 
 type ProgressSnapshot = Readonly<{ lastPositionMs: number; lastSegmentIndex: number | null; status: "in_progress" | "completed" }>;
 type ProgressSyncState = "idle" | "saving" | "saved" | "conflict" | "error";
@@ -39,6 +39,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
   const [activeIndex, setActiveIndex] = useState<number | null>(initialActiveIndex);
   const [captionMode, setCaptionMode] = useState<CaptionMode>("es");
   const [autoPause, setAutoPause] = useState(false);
+  const [embeddedAutoPauseControl, setEmbeddedAutoPauseControl] = useState(false);
   const [currentPositionMs, setCurrentPositionMs] = useState(initialPositionMs);
   const [playerState, setPlayerState] = useState<VideoPlayerState | "loading">("loading");
   const [playerError, setPlayerError] = useState<string | null>(null);
@@ -47,6 +48,8 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
   const playerRef = useRef<VideoPlayerPort | AudioPlayerPort | null>(null);
   const lexicalTriggerRef = useRef<HTMLButtonElement | null>(null);
   const activeIndexRef = useRef<number | null>(initialActiveIndex);
+  const playerStateRef = useRef<VideoPlayerState | "loading">("loading");
+  const autoPauseRef = useRef(false);
   const progressRevisionRef = useRef(initialRevision);
   const progressGenerationRef = useRef(0);
   const progressBlockedRef = useRef(false);
@@ -59,6 +62,27 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
     activeIndexRef.current = index;
     setActiveIndex(index);
   }, []);
+  const toggleAutoPause = useCallback((enabled: boolean) => {
+    autoPauseRef.current = enabled;
+    setAutoPause(enabled);
+  }, []);
+  const toggleAutoPauseFromPlayer = useCallback(() => {
+    toggleAutoPause(!autoPauseRef.current);
+  }, [toggleAutoPause]);
+
+  const readCurrentPosition = useCallback(() => {
+    const rawPosition = playerRef.current?.currentTime();
+    if (rawPosition === undefined || !Number.isFinite(rawPosition)) return null;
+    return Math.min(playback.media.durationMs, Math.max(0, Math.round(rawPosition)));
+  }, [playback.media.durationMs]);
+
+  const syncPosition = useCallback((updateIndex = true) => {
+    const current = readCurrentPosition();
+    if (current === null) return null;
+    setCurrentPositionMs(current);
+    if (updateIndex) updateActiveIndex(findSegmentIndexAt(playback.segments, current));
+    return current;
+  }, [playback.segments, readCurrentPosition, updateActiveIndex]);
 
   const sendProgress = useCallback((snapshot: ProgressSnapshot) => {
     if (progressBlockedRef.current) return;
@@ -119,11 +143,11 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
   }, [sendProgress]);
 
   const progressSnapshot = useCallback((state: VideoPlayerState | AudioPlayerState | "paused-by-segment"): ProgressSnapshot => {
-    const rawPosition = state === "ended" ? playback.media.durationMs : (playerRef.current?.currentTime() ?? 0);
+    const rawPosition = state === "ended" ? playback.media.durationMs : (readCurrentPosition() ?? 0);
     const lastPositionMs = Math.min(playback.media.durationMs, Math.max(0, Math.round(rawPosition)));
     const lastSegmentIndex = findSegmentIndexAt(playback.segments, lastPositionMs) ?? activeIndexRef.current;
     return { lastPositionMs, lastSegmentIndex, status: state === "ended" ? "completed" : "in_progress" };
-  }, [playback.media.durationMs, playback.segments]);
+  }, [playback.media.durationMs, playback.segments, readCurrentPosition]);
 
   useEffect(() => {
     return () => {
@@ -152,42 +176,49 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
       const target = event.target;
       if (target instanceof Element && target.matches("input, textarea, select, [contenteditable='true']")) return;
       const key = event.key.toLowerCase();
-      if (key === "a") previous(); else if (key === "s") replay(); else if (key === "d") next(); else if (key === "q") setAutoPause((value) => !value); else return;
+      if (key === "a") previous(); else if (key === "s") replay(); else if (key === "d") next(); else if (key === "q") toggleAutoPause(!autoPauseRef.current); else return;
       event.preventDefault();
     }
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [next, previous, replay]);
+  }, [next, previous, replay, toggleAutoPause]);
 
   useEffect(() => {
-    if (!playerRef.current || playerState !== "playing") return;
+    if (!playerRef.current || playerState === "loading" || playerState === "ended") return;
     const timer = window.setInterval(() => {
-      const current = playerRef.current?.currentTime() ?? 0;
-      setCurrentPositionMs(current);
-      const found = findSegmentIndexAt(playback.segments, current);
-      if (found !== null) updateActiveIndex(found);
-      const currentSegment = playback.segments[activeIndex ?? found ?? -1];
-      if (autoPause && currentSegment && current >= currentSegment.endMs) {
+      const current = readCurrentPosition();
+      if (current === null) return;
+      const trackedSegment = playback.segments.find((segment) => segment.index === activeIndexRef.current);
+      if (playerState === "playing" && autoPause && trackedSegment && current >= trackedSegment.endMs) {
+        setCurrentPositionMs(current);
+        updateActiveIndex(findSegmentIndexAt(playback.segments, current));
         sendProgress(progressSnapshot("paused-by-segment"));
         playerRef.current?.pause();
+        playerStateRef.current = "paused";
         setPlayerState("paused");
-      } else if (Math.abs(current - lastRequestedPositionRef.current) >= 10_000) {
+        return;
+      }
+      setCurrentPositionMs(current);
+      updateActiveIndex(findSegmentIndexAt(playback.segments, current));
+      if (playerState === "playing" && Math.abs(current - lastRequestedPositionRef.current) >= 10_000) {
         sendProgress(progressSnapshot("playing"));
       }
-    }, 250);
+    }, playerState === "playing" ? 250 : 500);
     return () => window.clearInterval(timer);
-  }, [activeIndex, autoPause, playback.segments, playerState, progressSnapshot, sendProgress, updateActiveIndex]);
+  }, [autoPause, playback.segments, playerState, progressSnapshot, readCurrentPosition, sendProgress, updateActiveIndex]);
 
   const handlePortChange = useCallback((port: VideoPlayerPort | AudioPlayerPort | null) => {
     playerRef.current = port;
-  }, []);
+    if (port) syncPosition();
+  }, [syncPosition]);
+  const handlePositionChange = useCallback(() => { syncPosition(!(playerStateRef.current === "playing" && autoPauseRef.current)); }, [syncPosition]);
   const handleStateChange = useCallback((state: VideoPlayerState | AudioPlayerState) => {
-    const current = playerRef.current?.currentTime();
-    if (current !== undefined && Number.isFinite(current)) setCurrentPositionMs(current);
+    syncPosition(!(state === "playing" && autoPauseRef.current));
+    playerStateRef.current = state;
     setPlayerState(state);
     if (state === "ready" && initialPositionMs) playerRef.current?.seek(initialPositionMs);
     if (state === "paused" || state === "ended") sendProgress(progressSnapshot(state));
-  }, [initialPositionMs, progressSnapshot, sendProgress]);
+  }, [initialPositionMs, progressSnapshot, sendProgress, syncPosition]);
   const handlePlayerError = useCallback((message: string | null) => setPlayerError(message), []);
   const openWord = useCallback((word: string, sentence: string, trigger: HTMLButtonElement) => { lexicalTriggerRef.current = trigger; setLexicalSelection({ word, sentence }); }, []);
   const closeWord = useCallback(() => { setLexicalSelection(null); window.setTimeout(() => lexicalTriggerRef.current?.focus(), 0); }, []);
@@ -196,19 +227,24 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
     <section aria-label={playback.media.kind === "podcast" ? "播客学习器" : "视频学习器"} className="media-learning-workbench__main">
       <div className={`media-detail__player media-detail__player--${playback.media.kind}`}>
         {playback.media.kind === "podcast" && playback.asset.kind === "audio"
-          ? <AudioPlayerAdapter audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
-              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />
+          ? <AudioPlayerAdapter key={`audio:${playback.asset.url}`} artwork={playback.media.artwork} audioUrl={playback.asset.url} factory={audioPlayerFactory} onError={handlePlayerError}
+              autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
+              onPortChange={handlePortChange} onPositionChange={handlePositionChange} onStateChange={handleStateChange}
+              onToggleAutoPause={toggleAutoPauseFromPlayer} title={`${playback.media.title} 播放器`} />
           : playback.media.kind === "video" && playback.asset.kind === "video"
-            ? <NativeVideoPlayerAdapter factory={nativeVideoFactory} onError={handlePlayerError}
-                onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
-          : <VideoPlayerAdapter embedUrl={playback.asset.url} factory={playerFactory} onError={handlePlayerError}
-              onPortChange={handlePortChange} onStateChange={handleStateChange} title={`${playback.media.title} 播放器`} />}
+            ? <HostedVideoPlayerAdapter key={`hosted-video:${playback.asset.url}`} factory={nativeVideoFactory} onError={handlePlayerError} onPortChange={handlePortChange}
+                autoPause={autoPause} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl}
+                onPositionChange={handlePositionChange} onStateChange={handleStateChange}
+                onToggleAutoPause={toggleAutoPauseFromPlayer} title={`${playback.media.title} 播放器`} videoUrl={playback.asset.url} />
+          : <VideoPlayerAdapter key={`youtube:${playback.asset.url}`} autoPause={autoPause} embedUrl={playback.asset.url} factory={playerFactory} hasSegments={playback.segments.length > 0} onAutoPauseControlReady={setEmbeddedAutoPauseControl} onError={handlePlayerError}
+              onPortChange={handlePortChange} onPositionChange={handlePositionChange} onStateChange={handleStateChange}
+              onToggleAutoPause={toggleAutoPauseFromPlayer} title={`${playback.media.title} 播放器`} />}
       </div>
       <div aria-label="逐句播放控制" className="media-sentence-controls">
         <button aria-label="上一句" disabled={playback.segments.length === 0} onClick={previous} type="button"><kbd>A</kbd><span>上一句</span></button>
         <button aria-label="重播当前句" disabled={playback.segments.length === 0} onClick={replay} type="button"><kbd>S</kbd><span>重播当前句</span></button>
         <button aria-label="下一句" disabled={playback.segments.length === 0} onClick={next} type="button"><kbd>D</kbd><span>下一句</span></button>
-        <label><input aria-label="自动暂停" checked={autoPause} onChange={(event) => setAutoPause(event.target.checked)} type="checkbox" /><span>自动暂停</span><kbd>Q</kbd></label>
+        {!embeddedAutoPauseControl ? <label><input aria-label="自动暂停" checked={autoPause} disabled={playback.segments.length === 0} onChange={(event) => toggleAutoPause(event.target.checked)} type="checkbox" /><span>自动暂停</span><kbd>Q</kbd></label> : null}
       </div>
       <p className="media-player-status" role={playerError ? "alert" : "status"}>{playerError ?? (playerState === "loading" ? "播放器准备中…" : playerState === "playing" ? "正在播放" : playerState === "ended" ? "播放结束" : "播放器已就绪")}</p>
       {progressSyncState === "conflict" ? <p className="media-progress-status is-error" role="alert">进度已在其他页面更新，请刷新后继续。</p>

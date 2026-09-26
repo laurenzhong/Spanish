@@ -31,9 +31,27 @@ export function getPodcastLearningE2eFixture(stableKey: string): MediaPlayback |
       expiresAt: "2026-09-21T10:00:00.000Z",
     },
     segments: [
-      { id: "podcast-e2e-0", index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días, ¿qué te pongo?", translation: "早上好，你要买点什么？", speaker: null },
-      { id: "podcast-e2e-1", index: 1, startMs: 2_200, endMs: 5_000, sourceText: "Quería medio kilo de naranjas, por favor.", translation: "我想要半公斤橙子，谢谢。", speaker: null },
-      { id: "podcast-e2e-2", index: 2, startMs: 5_000, endMs: 7_000, sourceText: "Claro, ahora mismo.", translation: "当然，马上来。", speaker: null },
+      { id: "podcast-e2e-0", index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días, ¿qué te pongo?", translation: "早上好，你要买点什么？", speaker: null, words: [
+        { startMs: 0, endMs: 550, startOffset: 0, endOffset: 6, text: "Buenos" },
+        { startMs: 550, endMs: 850, startOffset: 7, endOffset: 11, text: "días" },
+        { startMs: 850, endMs: 1_150, startOffset: 14, endOffset: 17, text: "qué" },
+        { startMs: 1_150, endMs: 1_450, startOffset: 18, endOffset: 20, text: "te" },
+        { startMs: 1_450, endMs: 2_200, startOffset: 21, endOffset: 26, text: "pongo" },
+      ] },
+      { id: "podcast-e2e-1", index: 1, startMs: 2_200, endMs: 5_000, sourceText: "Quería medio kilo de naranjas, por favor.", translation: "我想要半公斤橙子，谢谢。", speaker: null, words: [
+        { startMs: 2_200, endMs: 2_600, startOffset: 0, endOffset: 6, text: "Quería" },
+        { startMs: 2_600, endMs: 3_000, startOffset: 7, endOffset: 12, text: "medio" },
+        { startMs: 3_000, endMs: 3_350, startOffset: 13, endOffset: 17, text: "kilo" },
+        { startMs: 3_350, endMs: 3_650, startOffset: 18, endOffset: 20, text: "de" },
+        { startMs: 3_650, endMs: 4_200, startOffset: 21, endOffset: 29, text: "naranjas" },
+        { startMs: 4_200, endMs: 4_550, startOffset: 31, endOffset: 34, text: "por" },
+        { startMs: 4_550, endMs: 5_000, startOffset: 35, endOffset: 40, text: "favor" },
+      ] },
+      { id: "podcast-e2e-2", index: 2, startMs: 5_000, endMs: 7_000, sourceText: "Claro, ahora mismo.", translation: "当然，马上来。", speaker: null, words: [
+        { startMs: 5_000, endMs: 5_650, startOffset: 0, endOffset: 5, text: "Claro" },
+        { startMs: 5_650, endMs: 6_250, startOffset: 7, endOffset: 12, text: "ahora" },
+        { startMs: 6_250, endMs: 7_000, startOffset: 13, endOffset: 18, text: "mismo" },
+      ] },
     ],
   };
 }

@@ -1,6 +1,6 @@
 export type PlyrInstance = {
   currentTime: number;
-  elements?: { controls?: HTMLElement };
+  elements?: { controls?: HTMLElement; container?: HTMLElement };
   media?: HTMLElement & { error?: { code?: number } };
   play(): Promise<void> | void;
   pause(): void;
@@ -18,7 +18,9 @@ export type MountedAutoPauseControl = Readonly<{
 
 export const audioPlyrOptions = {
   controls: ["play", "progress", "current-time", "duration", "mute", "volume", "settings"],
+  iconUrl: "/plyr.svg",
   keyboard: { focused: true, global: false },
+  loadSprite: true,
   settings: ["speed"],
   speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4] },
   tooltips: { controls: true, seek: true },
@@ -26,7 +28,9 @@ export const audioPlyrOptions = {
 
 export const videoPlyrOptions = {
   controls: ["play-large", "play", "progress", "current-time", "mute", "volume", "settings", "pip", "fullscreen"],
+  iconUrl: "/plyr.svg",
   keyboard: { focused: true, global: false },
+  loadSprite: true,
   tooltips: { controls: true, seek: true },
   ratio: "16:9",
   settings: ["speed"],

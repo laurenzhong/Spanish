@@ -15,20 +15,6 @@ export const metadata: Metadata = { title: "媒体学习" };
 
 type Context = Readonly<{ params: Promise<{ stableKey: string }> }>;
 
-function formatTime(milliseconds: number): string {
-  const total = Math.floor(milliseconds / 1_000);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function PlaybackSurface({ playback }: Readonly<{ playback: MediaPlayback }>) {
-  if (playback.asset.kind === "audio") {
-    return <audio controls preload="metadata" src={playback.asset.url}>当前浏览器无法播放音频。</audio>;
-  }
-  return <video controls playsInline preload="metadata" src={playback.asset.url}>当前浏览器无法播放视频。</video>;
-}
-
 function UnavailableDetail() {
   return (
     <section className="media-detail media-detail--empty" role="status">
@@ -52,14 +38,36 @@ function clientPlayback(stableKey: string, playback: MediaPlayback): MediaPlayba
   if (playback.media.kind !== "podcast" || playback.asset.kind !== "audio") return playback;
   try {
     const host = new URL(playback.asset.url).hostname.toLowerCase();
-    if (!new Set([
+    const proxyHosts = new Set([
       "content.libsyn.com",
       "traffic.libsyn.com",
       "traffic.megaphone.fm",
+      "dcs-cached.megaphone.fm",
       "dcs-spotify.megaphone.fm",
+      "content.blubrry.com",
+      "media.blubrry.com",
+      "episodes.castos.com",
+      "simplecastaudio.com",
+      "injector.simplecastaudio.com",
+      "sonoro.simplecastaudio.com",
+      "pscrb.fm",
+      "anchor.fm",
+      "prisa-es.mc.tritondigital.com",
+      "mc.tritondigital.com",
+      "www.podtrac.com",
+      "dts.podtrac.com",
+      "pdst.fm",
+      "chrt.fm",
       "ztnr.rtve.es",
       "rtve-mediavod-lote3.rtve.es",
-    ]).has(host)) return playback;
+      "charlashispanas.com",
+      "www.hoyhablamos.com",
+    ]);
+    const shouldProxy = proxyHosts.has(host)
+      || host.endsWith(".simplecastaudio.com")
+      || host.endsWith(".pscrb.fm")
+      || host.endsWith(".anchor.fm");
+    if (!shouldProxy) return playback;
   } catch {
     return playback;
   }
@@ -90,7 +98,8 @@ export default async function MediaDetailPage({ params }: Context) {
   }
 
   const browserPlayback = clientPlayback(stableKey, playback);
-  if (browserPlayback.media.kind === "video" && browserPlayback.asset.kind !== "video") return <UnavailableDetail />;
+  if ((browserPlayback.media.kind === "podcast" && browserPlayback.asset.kind !== "audio")
+    || (browserPlayback.media.kind === "video" && browserPlayback.asset.kind !== "video" && browserPlayback.asset.kind !== "official_embed")) return <UnavailableDetail />;
   return (
     <article className="media-detail">
       <div className="media-detail__topbar"><Link className="media-detail__back" href="/learn">← 返回学习资料库</Link><span>{playback.media.kind === "video" ? "视频" : "播客"} · {playback.media.cefr ?? "未分级"}</span></div>
@@ -104,21 +113,7 @@ export default async function MediaDetailPage({ params }: Context) {
           <details className="media-detail__summary"><summary>内容简介</summary><p>{playback.media.summary}</p></details>
         </div>
       </header>
-      {(playback.media.kind === "video" && playback.asset.kind === "video")
-        || (playback.media.kind === "podcast" && playback.asset.kind === "audio") ? <MediaLearningWorkbench playback={browserPlayback} /> : <>
-        <div className="media-detail__player"><PlaybackSurface playback={browserPlayback} /></div>
-        <section className="media-transcript" aria-labelledby="media-transcript-title">
-        <div className="media-transcript__heading"><h2 id="media-transcript-title">字幕与文本</h2><span>{playback.segments.length} 段</span></div>
-        {playback.segments.length > 0 ? (
-          <ol>{playback.segments.map((segment) => (
-            <li key={segment.id}>
-              <time>{formatTime(segment.startMs)}</time>
-              <div>{segment.speaker ? <strong>{segment.speaker}</strong> : null}<p lang="es">{segment.sourceText}</p>{segment.translation ? <p>{segment.translation}</p> : null}</div>
-            </li>
-          ))}</ol>
-        ) : <p className="media-transcript__empty">这项内容暂时没有已审核的字幕。</p>}
-        </section>
-      </>}
+      <MediaLearningWorkbench playback={browserPlayback} />
     </article>
   );
 }

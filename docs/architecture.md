@@ -181,7 +181,7 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 
 `/learn` 是视频/播客目录和媒体学习器，不再读取推荐器生成“开始/继续”任务。`/read` 在文章之外提供词汇、短语、语料和文字考察。`training` 继续提供 attempt、录音、状态机和证据编排，但不再拥有任务式学习首页。
 
-`media` 的公开列表和详情只投影当前 `published + cleared + playable` 版本，稳定引用为 `stableKey@version`。播放接口要求用户会话，只返回 HTTPS 播放信息和最多 500 个已审核片段；临时播放地址过期、资产撤下或版本不可用时失败关闭。YouTube SDK 只存在于 `VideoPlayerAdapter`；原生音频元素只存在于 `AudioPlayerAdapter`。两者都通过 play/pause/seek/currentTime/destroy 小型端口驱动同一工作台，并用 generation 隔离旧播放器回调。工作台提供 A/S/D 逐句控制、Q 自动暂停、西语/双语/隐藏字幕和保留上下文的词句抽屉；无已审核 transcript 的播客仍可播放，但逐句控制禁用并明确提示。词义与保存仍由后续词句任务负责。
+`media` 的公开列表和详情只投影当前 `published + cleared + playable` 版本，稳定引用为 `stableKey@version`。播放接口要求用户会话，只返回 HTTPS 播放信息和最多 500 个已审核片段；临时播放地址过期、资产撤下或版本不可用时失败关闭。旧播客 CDN 地址由鉴权的 Range 代理转发，并在跳转后再次校验允许主机。正式视频和播客详情统一由 `Plyr` 渲染；YouTube、托管视频和播客只把各自的 iframe/HTML5 media node 作为 Plyr 的底层媒体源。它们都通过 play/pause/seek/currentTime/destroy 小型端口驱动同一工作台，并用 generation 隔离旧播放器回调。工作台提供 A/S/D 逐句控制、Q 自动暂停、西语/双语/隐藏字幕和保留上下文的词句抽屉；无已审核 transcript 的播客仍可播放，但逐句控制禁用并明确提示。词义与保存仍由后续词句任务负责。
 
 用户进度绑定具体媒体版本，以 revision/CAS 保存位置并允许相同旧请求幂等重放，不能把过期版本、未审核片段或越界位置写入进度。客户端串行同步最新位置，切换媒体或卸载时取消旧请求，并忽略旧 generation 响应；409 必须要求刷新，普通同步失败只提示可重试，均不写学习证据。`/learn` 在没有正式媒体时显示真实空状态，不用 fixture 或 AI 示例内容冒充已发布素材；视频与播客 E2E fixture 只在非生产且 `AUTH_E2E_ENABLED=1`、命中各自固定 stable key 时可用。旧 `/learn/practice` 保留为兼容 route，但不再从学习首页暴露。
 

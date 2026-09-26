@@ -11,24 +11,36 @@ test.beforeEach(async ({ context, page, baseURL }) => {
   }]);
   await page.route("**/*", async (route) => {
     const url = route.request().url();
-    if (url === "https://www.youtube.com/iframe_api") {
+    if (url.startsWith("https://www.youtube.com/iframe_api")) {
       await route.fulfill({
         contentType: "application/javascript",
         body: `
           window.__videoE2E = { currentTime: 0, pauseCalls: 0, destroyed: false, emit: function () {} };
           window.YT = { Player: function (target, options) {
             var runtime = window.__videoE2E;
-            runtime.emit = function (data) { options.events.onStateChange({ data: data }); };
+            runtime.emit = function (data) { options.events.onStateChange({ data: data, target: api }); };
             target.dataset.videoId = options.videoId;
-            queueMicrotask(function () { options.events.onReady(); });
-            return {
+            var api = {
               playVideo: function () { runtime.emit(1); },
               pauseVideo: function () { runtime.pauseCalls += 1; runtime.emit(2); },
               seekTo: function (seconds) { runtime.currentTime = seconds; target.dataset.currentTime = String(seconds); },
               getCurrentTime: function () { return runtime.currentTime; },
+              getDuration: function () { return 6; },
+              getPlaybackRate: function () { return 1; },
+              setPlaybackRate: function () {},
+              getAvailablePlaybackRates: function () { return [0.5, 1, 1.5, 2]; },
+              getVideoLoadedFraction: function () { return 1; },
+              getVideoUrl: function () { return "https://www.youtube.com/watch?v=" + options.videoId; },
+              mute: function () {},
+              unMute: function () {},
+              setVolume: function () {},
+              stopVideo: function () { runtime.emit(0); },
               destroy: function () { runtime.destroyed = true; }
             };
+            queueMicrotask(function () { options.events.onReady({ target: api }); });
+            return api;
           } };
+          if (window.onYouTubeIframeAPIReady) window.onYouTubeIframeAPIReady();
         `,
       });
       return;
@@ -80,7 +92,7 @@ test("keeps a licensed native video in the shared learning workbench", async ({ 
   await page.goto(`/learn/media/${encodeURIComponent(nativeFixtureStableKey)}`);
 
   await expect(page.getByRole("heading", { name: "Una historia breve" })).toBeVisible();
-  const video = page.getByLabel("Una historia breve 播放器");
+  const video = page.locator(".media-detail__player video");
   await expect(video).toHaveAttribute("data-source", "https://media.example.test/video/sample.mp4");
   await expect(page.getByText("播放器已就绪")).toBeVisible();
   await page.getByRole("button", { name: "下一句" }).click();
@@ -93,17 +105,18 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
   await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`);
 
   await expect(page.getByRole("heading", { name: "Cómo pedir un café" })).toBeVisible();
-  await expect(page.getByLabel("Cómo pedir un café 播放器")).toHaveAttribute("data-video-id", "e2eCafe1234");
+  const youtube = page.locator('.video-player-adapter .plyr[aria-label="Cómo pedir un café 播放器"]');
+  await expect(youtube).toHaveAttribute("data-plyr-embed-id", "e2eCafe1234");
   await expect(page.getByText("播放器已就绪")).toBeVisible();
 
   await page.getByRole("button", { name: "下一句" }).click();
-  await expect(page.getByLabel("Cómo pedir un café 播放器")).toHaveAttribute("data-current-time", "1.8");
+  await expect(youtube).toHaveAttribute("data-current-time", "1.8");
   await expect(page.getByRole("button", { name: "查看词语 Quería" })).toHaveAttribute("data-active-word", "true");
   await page.keyboard.press("a");
-  await expect(page.getByLabel("Cómo pedir un café 播放器")).toHaveAttribute("data-current-time", "0");
+  await expect(youtube).toHaveAttribute("data-current-time", "0");
 
   await page.keyboard.press("q");
-  await expect(page.getByRole("checkbox", { name: "自动暂停" })).toBeChecked();
+  await expect(page.getByRole("button", { name: "关闭自动暂停" })).toHaveAttribute("aria-pressed", "true");
   await page.evaluate(() => {
     const runtime = window as unknown as Window & { __videoE2E: { currentTime: number; emit: (state: number) => void } };
     runtime.__videoE2E.currentTime = 1.8;
