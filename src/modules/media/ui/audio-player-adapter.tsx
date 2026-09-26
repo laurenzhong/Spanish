@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MediaArtwork } from "../domain";
 import {
   audioPlyrOptions,
+  disableNativeMediaControls,
   mountPlyrAutoPauseControl,
   type MountedAutoPauseControl,
   type PlyrConstructor,
@@ -187,6 +188,7 @@ export function AudioPlayerAdapter({
     };
 
     onAutoPauseControlReady(false);
+    disableNativeMediaControls(audio);
     audio.src = audioUrl;
     audio.dataset.source = audioUrl;
     audio.preload = "metadata";
