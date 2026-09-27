@@ -10664,6 +10664,26 @@ body {
   height: 100%;
 }
 
+/* The native media node is only the source for Plyr. Hide it while the
+   client bundle mounts so a stale controls attribute or a slow import can
+   never flash the browser's legacy player. Plyr moves the node under its
+   `.plyr` wrapper, where it becomes visible again. */
+.audio-player-adapter > audio,
+.video-player-adapter > video {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.audio-player-adapter > .plyr audio,
+.video-player-adapter > .plyr video {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.media-detail__player .plyr {
+  width: 100%;
+}
+
 .media-detail__player--podcast {
   min-height: 300px;
   aspect-ratio: auto;
@@ -10701,7 +10721,7 @@ body {
   stroke-width: 1.6;
 }
 
-.audio-player-adapter audio {
+.audio-player-adapter > audio {
   width: 100%;
 }
 
