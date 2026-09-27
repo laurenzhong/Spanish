@@ -143,4 +143,46 @@ describe("conversation persistence", () => {
     expect(remaining).toHaveLength(0);
     await expect(repository.deleteMessage(userId, "lucia", user.id)).resolves.toBe(false);
   });
+
+  it("allows privacy mutations for historical turns after a character is demoted", async () => {
+    const repository = createDrizzleConversationRepository(database);
+    const conversationId = "20000000-0000-4000-8000-000000000035";
+    const deleteMessageId = "20000000-0000-4000-8000-000000000036";
+    const withdrawMessageId = "20000000-0000-4000-8000-000000000037";
+    await database.insert(schema.conversations).values({ id: conversationId, userId, characterId: draftCharacterId });
+    await database.insert(schema.messages).values([
+      {
+        id: deleteMessageId,
+        userId,
+        conversationId,
+        characterId: draftCharacterId,
+        clientMessageId: "historical-delete",
+        role: "user",
+        status: "completed",
+        content: "删除这条旧消息",
+        completedAt: new Date(),
+      },
+      {
+        id: withdrawMessageId,
+        userId,
+        conversationId,
+        characterId: draftCharacterId,
+        clientMessageId: "historical-withdraw",
+        role: "user",
+        status: "completed",
+        content: "撤回这条旧消息",
+        completedAt: new Date(),
+      },
+    ]);
+
+    expect(await repository.canDeleteMessage?.(userId, "mateo", deleteMessageId)).toBe(true);
+    await expect(repository.deleteMessage(userId, "mateo", deleteMessageId)).resolves.toBe(true);
+    await expect(repository.withdrawMessage(userId, "mateo", withdrawMessageId)).resolves.toBe(true);
+
+    const [withdrawn] = await database
+      .select({ status: schema.messages.status })
+      .from(schema.messages)
+      .where(eq(schema.messages.id, withdrawMessageId));
+    expect(withdrawn?.status).toBe("withdrawn");
+  });
 });

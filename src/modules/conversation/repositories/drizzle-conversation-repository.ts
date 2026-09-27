@@ -385,6 +385,21 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       }));
     },
 
+    async canDeleteMessage(userId, characterKey, messageId) {
+      const [message] = await database.select({ id: schema.messages.id })
+        .from(schema.messages)
+        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .where(and(
+          eq(schema.messages.id, messageId),
+          eq(schema.messages.userId, userId),
+          eq(schema.characters.stableKey, characterKey),
+          eq(schema.messages.role, "user"),
+        ))
+        .limit(1);
+      return Boolean(message);
+    },
+
     async deleteMessage(userId, characterKey, messageId) {
       return database.transaction(async (transaction) => {
         const [message] = await transaction.select({ id: schema.messages.id, conversationId: schema.messages.conversationId })
@@ -395,7 +410,6 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
             eq(schema.messages.id, messageId),
             eq(schema.messages.userId, userId),
             eq(schema.characters.stableKey, characterKey),
-            eq(schema.characters.status, "published"),
             eq(schema.messages.role, "user"),
           )).limit(1);
         if (!message) return false;
@@ -427,7 +441,6 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           eq(schema.messages.id, messageId),
           eq(schema.messages.userId, userId),
           eq(schema.characters.stableKey, characterKey),
-          eq(schema.characters.status, "published"),
           eq(schema.messages.role, "user"),
           eq(schema.messages.status, "completed"),
           gte(schema.messages.createdAt, cutoff),

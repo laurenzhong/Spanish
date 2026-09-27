@@ -69,6 +69,8 @@ export type ConversationRepository = Readonly<{
   reorderConversationPreferences(userId: string, characterKeys: readonly string[]): Promise<void>;
   markConversationRead(userId: string, characterKey: string, readAt?: Date): Promise<void>;
   searchMessages(userId: string, query: string, limit?: number): Promise<readonly ConversationSearchResultRecord[]>;
+  /** Returns whether a user-owned user turn can be deleted, including historical turns from retired characters. */
+  canDeleteMessage?(userId: string, characterKey: string, messageId: string): Promise<boolean>;
   deleteMessage(userId: string, characterKey: string, messageId: string): Promise<boolean>;
   withdrawMessage(userId: string, characterKey: string, messageId: string): Promise<boolean>;
   isMessageWithdrawn?(userId: string, messageId: string): Promise<boolean>;

@@ -37,7 +37,7 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 }
 
-async function authorize(request: NextRequest, characterId: string) {
+async function authorize(request: NextRequest, characterId: string, options: Readonly<{ allowHistoricalMutation?: boolean }> = {}) {
   const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return { user: null, response: errorResponse("AUTH_REQUIRED", 401) } as const;
   if (!findConversationCharacter(characterId)) return { user: null, response: errorResponse("CHARACTER_UNAVAILABLE", 404) } as const;
@@ -52,6 +52,11 @@ async function authorize(request: NextRequest, characterId: string) {
     });
   } catch (reason) {
     const unavailable = reason instanceof CharacterRuntimeError && reason.code === "CHARACTER_UNAVAILABLE";
+    // Deleting or withdrawing an already-owned turn is a privacy operation,
+    // not a new conversation capability. Keep it available for legacy
+    // messages after a character is retired/demoted, while still failing
+    // closed for database/runtime outages and unknown characters.
+    if (options.allowHistoricalMutation && unavailable) return { user, response: null } as const;
     return { user: null, response: errorResponse(unavailable ? "CHARACTER_UNAVAILABLE" : "CONVERSATION_UNAVAILABLE", unavailable ? 404 : 503) } as const;
   }
   return { user, response: null } as const;
@@ -59,22 +64,26 @@ async function authorize(request: NextRequest, characterId: string) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const { characterId, messageId } = await context.params;
-  const auth = await authorize(request, characterId);
+  const auth = await authorize(request, characterId, { allowHistoricalMutation: true });
   if (auth.response) return auth.response;
   if (!isUuid(messageId)) return errorResponse("MESSAGE_NOT_FOUND", 404);
   try {
-    const deleted = await createDrizzleConversationRepository(getDatabase()).deleteMessage(auth.user.id, characterId, messageId);
-    if (!deleted) return errorResponse("MESSAGE_NOT_FOUND", 404);
-    try {
-      await deleteMemoriesForSourceMessage(
-        createDrizzleMemoryRepository(getDatabase()),
-        auth.user.id,
-        messageId,
-      );
-    } catch {
-      // Message deletion is complete; memory cleanup remains retryable and
-      // must not turn the successful user action into a duplicate delete.
+    const database = getDatabase();
+    const repository = createDrizzleConversationRepository(database);
+    // Memory rows use ON DELETE SET NULL for historical retention. Verify the
+    // mutation target first, then remove dependent memories while the source
+    // message ID is still present; otherwise a later delete would orphan the
+    // private memory and make it impossible to clean up by source ID.
+    if (repository.canDeleteMessage && !(await repository.canDeleteMessage(auth.user.id, characterId, messageId))) {
+      return errorResponse("MESSAGE_NOT_FOUND", 404);
     }
+    await deleteMemoriesForSourceMessage(
+      createDrizzleMemoryRepository(database),
+      auth.user.id,
+      messageId,
+    );
+    const deleted = await repository.deleteMessage(auth.user.id, characterId, messageId);
+    if (!deleted) return errorResponse("MESSAGE_NOT_FOUND", 404);
     return NextResponse.json({ apiVersion: API_VERSION, data: { deleted: true } });
   } catch {
     return errorResponse("CONVERSATION_UNAVAILABLE", 503);
@@ -83,7 +92,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { characterId, messageId } = await context.params;
-  const auth = await authorize(request, characterId);
+  const auth = await authorize(request, characterId, { allowHistoricalMutation: true });
   if (auth.response) return auth.response;
   if (!isUuid(messageId)) return errorResponse("MESSAGE_NOT_FOUND", 404);
   let body: unknown;

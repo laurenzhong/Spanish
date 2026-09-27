@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   repository: {
+    canDeleteMessage: vi.fn(),
     deleteMessage: vi.fn(),
     withdrawMessage: vi.fn(),
   },
   memoryRepository: { deleteBySourceMessage: vi.fn() },
+  deleteMemoriesForSourceMessage: vi.fn(),
   getCurrentUser: vi.fn().mockResolvedValue({ id: "user-1" }),
   verifyRequestUser: vi.fn().mockResolvedValue(null),
 }));
@@ -16,7 +18,7 @@ vi.mock("@/src/modules/characters", () => ({
 }));
 vi.mock("@/src/modules/memory", () => ({
   createDrizzleMemoryRepository: vi.fn(() => mocks.memoryRepository),
-  deleteMemoriesForSourceMessage: vi.fn(),
+  deleteMemoriesForSourceMessage: mocks.deleteMemoriesForSourceMessage,
 }));
 vi.mock("@/src/modules/conversation", () => ({
   CharacterRuntimeError: class CharacterRuntimeError extends Error {
@@ -47,8 +49,10 @@ describe("conversation message mutation v1 envelope", () => {
     vi.stubEnv("DATABASE_URL", "postgresql://test.invalid/db");
     mocks.getCurrentUser.mockResolvedValue({ id: "user-1" });
     mocks.verifyRequestUser.mockResolvedValue(null);
+    mocks.repository.canDeleteMessage.mockResolvedValue(true);
     mocks.repository.deleteMessage.mockResolvedValue(true);
     mocks.repository.withdrawMessage.mockResolvedValue(true);
+    mocks.deleteMemoriesForSourceMessage.mockResolvedValue(1);
   });
 
   afterEach(() => {
@@ -62,6 +66,26 @@ describe("conversation message mutation v1 envelope", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ apiVersion: "v1", data: { deleted: true } });
+    expect(mocks.deleteMemoriesForSourceMessage).toHaveBeenCalledWith(
+      mocks.memoryRepository,
+      "user-1",
+      messageId,
+    );
+    expect(mocks.deleteMemoriesForSourceMessage.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.repository.deleteMessage.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("keeps the source message when memory cleanup fails so the privacy action can be retried", async () => {
+    mocks.deleteMemoriesForSourceMessage.mockRejectedValueOnce(new Error("memory store unavailable"));
+
+    const response = await MESSAGE_DELETE(
+      new NextRequest(`http://localhost/api/v1/conversations/lucia/messages/${messageId}`),
+      routeContext,
+    );
+
+    expect(response.status).toBe(503);
+    expect(mocks.repository.deleteMessage).not.toHaveBeenCalled();
   });
 
   it("wraps withdraw success in the v1 envelope", async () => {
