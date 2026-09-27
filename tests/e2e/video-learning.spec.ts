@@ -93,6 +93,11 @@ test("keeps a licensed native video in the shared learning workbench", async ({ 
 
   await expect(page.getByRole("heading", { name: "Una historia breve" })).toBeVisible();
   const video = page.locator(".media-detail__player video");
+  const player = page.locator(".media-detail__player .plyr");
+  await expect(player).toBeVisible();
+  await expect(player).toHaveAttribute("data-media-player", "plyr");
+  await expect(player).toHaveAttribute("data-media-player-version", "3.8.4");
+  await expect(video).not.toHaveAttribute("controls");
   await expect(video).toHaveAttribute("data-source", "https://media.example.test/video/sample.mp4");
   await expect(page.getByText("播放器已就绪")).toBeVisible();
   await page.getByRole("button", { name: "下一句" }).click();
@@ -106,6 +111,8 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
 
   await expect(page.getByRole("heading", { name: "Cómo pedir un café" })).toBeVisible();
   const youtube = page.locator('.video-player-adapter .plyr[aria-label="Cómo pedir un café 播放器"]');
+  await expect(youtube).toHaveAttribute("data-media-player", "plyr");
+  await expect(youtube).toHaveAttribute("data-media-player-version", "3.8.4");
   await expect(youtube).toHaveAttribute("data-plyr-embed-id", "e2eCafe1234");
   await expect(page.getByText("播放器已就绪")).toBeVisible();
 

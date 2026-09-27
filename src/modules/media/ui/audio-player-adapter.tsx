@@ -6,6 +6,7 @@ import type { MediaArtwork } from "../domain";
 import {
   audioPlyrOptions,
   disableNativeMediaControls,
+  markPlyrContainer,
   mountPlyrAutoPauseControl,
   type MountedAutoPauseControl,
   type PlyrConstructor,
@@ -36,6 +37,9 @@ export type AudioPlayerFactory = (
 
 /** @deprecated Use an injected factory only in tests; production uses Plyr. */
 export const nativeAudioPlayerFactory: AudioPlayerFactory = (element, input) => {
+  // This factory is retained only as a deterministic test seam. Keep the
+  // same native-control invariant if a test installs it on a reused node.
+  disableNativeMediaControls(element);
   const onReady = () => input.lifecycle.onReady();
   const onPlay = () => input.lifecycle.onStateChange("playing");
   const onPause = () => {
@@ -189,14 +193,17 @@ export function AudioPlayerAdapter({
 
     onAutoPauseControlReady(false);
     disableNativeMediaControls(audio);
+    audio.dataset.mediaPlayerState = "loading";
     audio.src = audioUrl;
     audio.dataset.source = audioUrl;
     audio.preload = "metadata";
 
     if (factory) {
       try {
+        audio.dataset.mediaPlayerState = "test-factory";
         attachPort(factory(audio, { url: audioUrl, lifecycle }));
       } catch (error) {
+        audio.dataset.mediaPlayerState = "error";
         if (current()) onError(error instanceof Error ? error.message : "播客播放器初始化失败。");
       }
     } else {
@@ -219,8 +226,9 @@ export function AudioPlayerAdapter({
         if (cancelled || !current()) return;
         const Plyr = resolvePlyrConstructor(module);
         player = new Plyr(audio, audioPlyrOptions);
-        const playerContainer = player.elements?.container;
-        playerContainer?.setAttribute("aria-label", title);
+        const playerContainer = markPlyrContainer(player, audio, "audio");
+        playerContainer.dataset.mediaPlayerState = "ready";
+        playerContainer.setAttribute("aria-label", title);
         audio.removeAttribute("aria-label");
         player.on("ready", ready);
         mountAutoPause();
@@ -248,6 +256,7 @@ export function AudioPlayerAdapter({
         });
         if (audio.readyState >= 1) ready();
       }).catch(() => {
+        audio.dataset.mediaPlayerState = "error";
         if (current()) onError("统一音频播放器加载失败，请重试。");
       });
     }
