@@ -5,7 +5,8 @@
 - 最后更新：2026-09-27
 - 当前里程碑：内容驱动学习与自动内容供应重构
 - 当前插入任务：`CONV-ROLE-001` 阶段 0–1 角色运行时边界实现（仅当前分支；不改变内容供应队列）
-- 2026-09-27 `CONV-ROLE-001` 阶段 0–1 已提交（实现 Commit `d5e3502`，待产品复核）：Lucía 运行时要求数据库 `published` 版本，Mateo/Inés 保持 draft/coming-soon；会话、联系人、介绍、主动消息、搜索、历史和共享权限入口统一做生命周期/能力门禁。认证 invalid bearer 不再回退 cookie；核心会话 JSON Schema/OpenAPI/error envelope 已同步；无数据库和缺失 provider fail-closed；持久化事实缺少 reveal policy 时默认不注入 provider，已撤销共享权限仍可在角色退回 draft 后撤销。客户端历史/联系人缓存按账号 scope 隔离，并在登出、切号和迟到响应时失效；介绍接受的空共享列表仍会校验 source character gate。此前依赖完整时聚焦回归 `21 files / 96 tests`、契约 `23 files / 85 tests` 通过；本提交新增 3 个回归测试。当前复核环境的 Node-only 聚焦测试 `2 files / 17 tests` 通过，浏览器测试因缺少 `@asamuzakjp/css-color`/`picocolors` 未能启动，扩大聚焦运行在 worker OOM 后为 `14 files / 50 tests` 通过；`tsc` 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 与 Playwright 类型依赖错误阻断。尚未完成阶段 2–4、逐路由 Schema 补齐、真实 provider/远端 DB、iPhone Safari/PWA 和 Lucía canonical/replay 发布门禁。
+- 2026-09-27 `CONV-ROLE-001` 阶段 0–1 已提交（实现 Commit `d5e3502`，后置修复 `9acb380`/`d02253c`，待产品复核）：Lucía 运行时要求数据库 `published` 版本，Mateo/Inés 保持 draft/coming-soon；会话、联系人、介绍、主动消息、搜索、历史和共享权限入口统一做生命周期/能力门禁。认证 invalid bearer 不再回退 cookie；核心会话 JSON Schema/OpenAPI/error envelope 已同步；无数据库和缺失 provider fail-closed；持久化事实缺少 reveal policy 时默认不注入 provider，已撤销共享权限仍可在角色退回 draft 后撤销。客户端历史/联系人缓存按账号 scope 隔离，并在登出、切号和迟到响应时失效；介绍接受的空共享列表仍会校验 source character gate。删除路径现先清理来源关系记忆，draft/retired 历史隐私 mutation 可用。此前依赖完整时聚焦回归 `21 files / 96 tests`、契约 `23 files / 85 tests` 通过；本轮针对性回归 `3 files / 13 tests` 通过。浏览器测试因缺少 `@asamuzakjp/css-color`/`picocolors` 未能启动，扩大聚焦运行在 worker OOM 后为 `14 files / 50 tests` 通过；`tsc` 当前仅被并行媒体 `src/modules/media/ui/media-library.tsx:282` 阻断。尚未完成阶段 2–4、逐路由 Schema 补齐、真实 provider/远端 DB、iPhone Safari/PWA 和 Lucía canonical/replay 发布门禁。
+- `9acb380`（`fix: close conversation privacy and identity leaks`）完成 withdrawn assistant 的联系人预览/未读/搜索投影过滤、用户消息与 assistant 子消息的事务删除、request-bound auth、账号缓存 generation 隔离和虚构故事边界修复。随后 `d02253c`（`fix: remove memories before conversation deletion`）将删除路径改为先验证消息归属、清理 `source_message_id` 关系记忆，再删除消息，并允许 draft/retired 角色的历史隐私 mutation；清理失败时源消息保留并返回可重试错误。PGlite 与路由回归已通过。跨模块原子事务、撤回路径失败重试、stream completion CAS 仍属于阶段 3；标准 `pnpm` 入口当前因依赖树/`.bin` 不完整受阻，但直接 Vitest CLI 可运行。
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
 - 2026-09-25 学习页媒体库滚动性能优化：实现提交 `8a5113f`（`perf: speed up media library pagination`）。首屏与分页统一为 24 条；下一页改为空闲时预取并受 `Save-Data/2G` 保护，滚动哨兵提前到 1200px 触发且继续复用请求去重缓存；前四张卡片才进行高优先级图片和详情路由预取，其他图片保持懒加载并异步解码。同步修复筛选隐藏控件的当前值与学习主题无障碍名称。后续 Chrome 只读采样发现屏外布局延迟会改变 `scrollHeight`，已撤掉 `content-visibility`，避免滚动跳动。验证：媒体库/学习页 Vitest `7/7`、`pnpm exec tsc --noEmit`、受影响 ESLint、`pnpm build`、`git diff --check` 通过；隔离数据库采样首屏 24 卡片、媒体分页请求无重复。未引入虚拟列表，保留原生滚动、查找和返回位置语义。下一步：在 iPhone Safari 用真实数据采样连续下滑和弱网，确认预取窗口是否需要按设备调整。
@@ -552,12 +553,12 @@
 
 ### 2026-09-27：CONV-ROLE-001 阶段 0–1 角色边界实现
 
-- 状态：阶段 0–1 的运行时边界代码切片已提交 `d5e3502`，等待产品复核；这不等于 Lucía 已生产发布。
+- 状态：阶段 0–1 的运行时边界代码切片已提交 `d5e3502`，后置隐私修复已提交 `9acb380`、`d02253c`，等待产品复核；这不等于 Lucía 已生产发布。
 - 已实现：新增 `CharacterRuntimePolicy` 与统一 runtime resolver；真实运行时要求 `characters.status = published`，生产缺少数据库权限来源或真实 conversation provider 时 fail-closed；Mateo/Inés 保持 `draft/coming-soon`，从联系人目录、介绍接受、会话创建、history/search、stream、主动消息和相关写入路径隔离；旧角色历史 API 可返回 `readOnly` 标记；浏览器缓存加入用户 scope、generation 和取消/迟到响应保护；空共享列表仍校验介绍来源角色。
 - 修改范围：`src/modules/characters` runtime policy/resolver、conversation catalog/repository、conversation/character-network API gates、`/chat` draft 空状态、账号缓存隔离、相关单元与数据库回归测试。场景临时人物、Lucía 人物 JSON 发布和通用关系上下文不在本切片扩张。
-- 验证：此前依赖完整时角色/会话/网络/认证聚焦 Vitest（单线程）`21 files / 96 tests`、`pnpm test:contracts` `23 files / 85 tests` 通过；本提交新增 3 个回归测试。当前 Node-only 聚焦 `2 files / 17 tests` 通过，浏览器测试因 `@asamuzakjp/css-color`/`picocolors` 缺失无法启动，扩大聚焦运行在 worker OOM 后报告 `14 files / 50 tests` 通过。受影响 ESLint 因缺少 `@babel/core` 无法重跑；全局 typecheck 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 与 Playwright 类型依赖错误阻断。
-- 未完成：Lucía canonical v1（`García`/`Martín` 冲突）、双维度审核/replay、数据库 published 状态、introductions/proactive/preferences/translation/TTS 的逐路由 Schema、完整 RLS/只读历史 UI、阶段 2 通用关系/runtime context、阶段 3 剩余 retry/CAS/流竞态门禁与阶段 4 语音/反馈/移动验收。未运行全量 unit/E2E/build、真实 provider、远端数据库或 iPhone Safari/PWA。
-- 下一步：产品先复核 `d5e3502` 的阶段 0–1 边界并确认 Lucía canonical 身份；完成人物审核/replay 与数据库发布门禁后，再领取阶段 2。Mateo/Inés basic 人物包仍不自动领取。
+- 验证：此前依赖完整时角色/会话/网络/认证聚焦 Vitest（单线程）`21 files / 96 tests`、`pnpm test:contracts` `23 files / 85 tests` 通过；本轮针对性回归（含 PGlite memory/conversation 与 mutation envelope）`3 files / 13 tests` 通过。浏览器测试因 `@asamuzakjp/css-color`/`picocolors` 缺失无法启动，扩大聚焦运行在 worker OOM 后报告 `14 files / 50 tests` 通过。受影响 ESLint 因缺少 `@babel/core` 无法重跑；全局 typecheck 当前仅被并行媒体 `src/modules/media/ui/media-library.tsx:282` 阻断。
+- 未完成：Lucía canonical v1（`García`/`Martín` 冲突）、双维度审核/replay、数据库 published 状态、introductions/proactive/preferences/translation/TTS 的逐路由 Schema、完整 RLS/只读历史 UI、阶段 2 通用关系/runtime context、阶段 3 剩余 retry/CAS/流竞态与撤回记忆失败重试门禁，以及阶段 4 语音/反馈/移动验收。未运行全量 unit/E2E/build、真实 provider、远端数据库或 iPhone Safari/PWA。
+- 下一步：产品先复核 `d5e3502`/`9acb380`/`d02253c` 的阶段 0–1 边界并确认 Lucía canonical 身份；随后领取阶段 3 的消息完成/撤回/删除 CAS、跨模块隐私事务和撤回失败重试（阶段 2 runtime context 可并行但不能绕过这些门禁）。完成人物审核/replay 与数据库发布门禁后，再进入阶段 4。Mateo/Inés basic 人物包仍不自动领取。
 
 ## 新模型快速接手
 
@@ -1894,7 +1895,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
 | ALPHA-033 | blocked | `main` | 待重排 | 旧 Alpha 发布候选门禁；等待按内容驱动新路径重新定义 | OPS-001 与产品本人确认 |
-| CONV-ROLE-001 | review | `codex/disable-legacy-readlang` | Codex | 阶段 0–1 角色运行时 policy、published gate、draft 隔离、auth fallback、账号缓存隔离与核心会话契约完成（`d5e3502`）；阶段 2–4 未开始 | 产品本人复核本切片；随后决定是否领取阶段 2 |
+| CONV-ROLE-001 | review | `codex/disable-legacy-readlang` | Codex | 阶段 0–1 角色运行时 policy、published gate、draft 隔离、auth fallback、账号缓存隔离与核心会话契约完成（`d5e3502`）；后置隐私/身份修复（`9acb380`、`d02253c`）完成 withdrawn projection、assistant 子消息删除、删除前关系记忆清理和历史隐私 mutation，但撤回失败重试、stream/父消息 CAS 与跨模块原子事务仍阻塞阶段 3；阶段 2–4 未开始 | 产品本人复核本切片；随后领取阶段 3 CAS/隐私事务，不能把当前状态视为完整对话闭环 |
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
@@ -1990,6 +1991,9 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
+| 2026-09-27 | CONV-ROLE-001 删除前关系记忆清理与历史隐私 mutation 修复 | `d02253c` | PGlite/路由 `3 files / 13 tests` 通过；撤回失败重试、stream/父消息 CAS 和跨模块原子事务仍待阶段 3 |
+| 2026-09-27 | CONV-ROLE-001 阶段 0–1 后置隐私/身份修复：撤回投影过滤、assistant 子消息事务删除、request-bound auth、账号缓存竞态与虚构故事边界 | `9acb380` | PGlite 手工回归通过；关系记忆删除顺序、stream/父消息 CAS、旧角色隐私 mutation 仍待阶段 3，标准 Vitest 受 `picocolors` 缺失阻塞 |
+| 2026-09-27 | CONV-ROLE-001 阶段 0–1 角色运行时边界 | `d5e3502` | Lucía published gate 与 Mateo/Inés draft 隔离待产品复核；阶段 2–4 不得跳过 CAS/隐私事务门禁 |
 | 2026-09-14 | PROFILE-001、OPS-001、ALPHA-033 实现按顺序合入 `main` | `c95fca4`、`a991db2`、`1e8ba94` | 执行合并后最终发布候选门禁；阶段 8 仍需产品本人确认 |
 | 2026-09-14 | PODCAST-001 完成播客 RSS、审核发布、音频工作台与撤下纵向闭环，进入 review | `0e047ec` | 等待复核合并；MEDIA-002 继续 blocked |
 | 2026-09-14 | VIDEO-001 通过合并复核并进入 `main` | `7884a86`、`77998c9` | PODCAST-001 解锁为唯一 ready 任务；ASR 与词句任务继续阻塞 |

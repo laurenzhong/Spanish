@@ -1,7 +1,7 @@
 # CONV-ROLE-001：角色运行时与对话闭环实施计划
 
 - 日期：2026-09-26
-- 状态：计划已获产品本人确认；阶段 0–1 代码切片已提交 `d5e3502`，等待产品验收。阶段 2–4 尚未开始，阶段 5 默认不领取
+- 状态：计划已获产品本人确认；阶段 0–1 代码切片已提交 `d5e3502`，隐私/身份后置修复已提交 `9acb380`，删除前记忆清理与历史隐私 mutation 修复已提交 `d02253c`，等待产品验收。阶段 2–4 尚未开始，阶段 5 默认不领取。当前仍未完成删除/撤回与关系记忆的原子事务、stream CAS 和完整语音/移动闭环，不能把当前切片视为对话功能已完全闭环。
 - 建议分支：`codex/conv-role-001-character-runtime`（本轮实际工作树为 `codex/disable-legacy-readlang`；混合工作树只提交本任务相关文件）
 - 设计依据：[角色运行时与对话闭环设计](../superpowers/specs/2026-09-26-character-runtime-and-conversation-closure-design.md)、[ADR-0009](../adr/0009-character-runtime-and-conversation-boundary.md)
 - 前置关系：不改变当前内容供应队列；建议在 `PODCAST-001`/发布候选门禁完成后排期，除非产品本人明确重新排序
@@ -55,6 +55,14 @@
 - 浏览器历史与联系人缓存使用服务端生成的用户 scope，并在登出、切号或请求迟到时中止/忽略旧 generation；介绍接受即使没有共享记忆，也必须重新校验来源角色仍可用。
 - 本轮没有把 Lucía 人物 JSON 或数据库记录改成 `published`，也没有解决 `Lucía García` / `Lucía Martín` 的 canonical 选择。
 
+### 3.2 本轮复核后置修复（`9acb380`、`d02253c`）
+
+- 撤回用户消息后，联系人预览、未读数和历史搜索均排除指向该消息的 assistant；删除用户消息时在同一事务内删除其 assistant 回复，重复删除保持幂等。由于 `relationship_memories.source_message_id` 使用 `ON DELETE SET NULL`，`d02253c` 已改为先验证消息归属、先清理来源关系记忆，再删除消息；记忆清理失败时保留源消息并返回可重试错误。跨模块原子事务仍未建立，撤回路径的失败重试与 completion/withdraw/delete CAS 仍属于阶段 3。
+- 角色运行时不再在已发布数据库版本缺少 active facts 时恢复静态人物 biography；只保留必要的 AI 身份边界，其他未持久化 reveal policy 的事实继续按 `never` 处理。
+- 账号、头像、账号数据、Lucía 数据、provider 偏好和转写入口统一使用 request-bound auth helper；显式 invalid Bearer 不再回退到 cookie 身份。未读徽标按账号 scope/generation 隔离，scope 切换、登出和迟到响应不会复用旧账号数量。
+- Lucía 好友申请和 authored opening 明确标注为虚构故事背景，不把文化活动或线下见面描述成现实经历。
+- 本修复仍不宣称阶段 3 已完成：completion/withdraw/delete 的并发 CAS、撤回路径关系记忆失败重试、父消息存在性校验、逐路由 Schema 补齐、语音 draft/review 和移动验收保留在后续停点。
+
 ## 4. 先写测试的要求
 
 ### 4.1 角色与发布
@@ -84,6 +92,9 @@
 
 - 消息、assistant 回复、搜索、上下文和关系记忆按当前用户隔离。
 - 删除/撤回重复调用幂等；流进行中撤回不会在 done 后写入 assistant 或记忆。
+- 阶段 3 必须以父消息锁/CAS 或等价的权威状态检查协调完成、撤回和删除：assistant completion 只能写入仍存在且未撤回的父消息，删除父消息后不得留下孤儿 assistant，撤回竞态不得产生关系记忆或学习证据。
+- 删除用户消息与其来源关系记忆必须采用原子事务，或采用“先清理记忆、失败则不删消息并返回可重试错误”的隐私优先方案；不能依赖 `ON DELETE SET NULL` 后再按 source ID 补偿清理。
+- 角色退回 `draft`/`retired` 后，历史会话仍不可发送新消息，但用户的删除/撤回等隐私操作必须继续可用。
 - 无效 Bearer 不回退到另一个 cookie 身份；客户端历史缓存按用户 ID 隔离。
 - 临时录音在成功、失败、取消和超时后删除；低置信度转写不创建口语证据。
 
@@ -127,10 +138,12 @@ pnpm build
 
 ### 7.1 本轮验证记录
 
-- 实现 Commit：`d5e3502`（`feat: enforce published character conversation runtime`）。
+- 实现 Commit：`d5e3502`（`feat: enforce published character conversation runtime`）；隐私/身份后置修复：`9acb380`（`fix: close conversation privacy and identity leaks`）与 `d02253c`（`fix: remove memories before conversation deletion`）。
 - 此前依赖完整时角色/会话/网络/认证聚焦回归：21 files / 96 tests 通过（包含数据库持久化、偏好/TTS envelope、草稿门禁、无数据库 fail-closed、共享权限撤销和持久化事实隐私回归）；本提交另新增缓存竞态 2 条、空共享 source gate 1 条回归。
 - `pnpm test:contracts`：23 files / 85 tests 通过；核心会话 history/list/message/search/stream JSON Schema、OpenAPI 路径和统一错误 envelope 已同步。
-- 当前复核的 Node-only 聚焦测试 2 files / 17 tests 通过；扩大聚焦运行在 worker OOM 后报告 14 files / 50 tests 通过。浏览器测试因工作树依赖缺少 `@asamuzakjp/css-color`/`picocolors` 未能启动，受影响 ESLint 因缺少 `@babel/core` 未能重跑；`pnpm exec tsc --noEmit` 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 和 Playwright 类型依赖错误阻断，筛选输出未发现本任务源文件错误。
+- 当前复核的 Node-only 聚焦测试 3 files / 13 tests 通过（直接调用工作树 Vitest CLI）；此前扩大聚焦运行在 worker OOM 后报告 14 files / 50 tests 通过。浏览器测试因工作树依赖缺少 `@asamuzakjp/css-color`/`picocolors` 未能启动，受影响 ESLint 因缺少 `@babel/core` 未能重跑；`pnpm exec tsc --noEmit` 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 阻断，筛选输出未发现本任务源文件错误。
+- 已用包含完整 `0013_smart_stick.sql` 的 PGlite 迁移集合验证 withdrawn assistant 的预览/未读/搜索过滤、删除事务同时删除用户消息和 assistant、来源关系记忆在删除前清理，以及 draft 角色历史消息仍可删除/撤回；路由单测还验证记忆清理失败时源消息保留并可重试。
+- 阶段 3 尚未完成：stream 当前仍可能在最终 `isMessageWithdrawn` 检查前写入 assistant，`completeAssistantMessage` 也尚未验证父消息仍存在且未撤回；撤回路径的记忆清理失败重试、删除/撤回与关系记忆的 CAS/事务设计仍待实现。
 - 仍未完成全量 unit/E2E/build、introductions/proactive/preferences/translation/TTS 的逐路由 Schema 补齐、完整 RLS/只读历史 UI、真实 provider/远端数据库和 iPhone Safari/PWA 验收。
 - 角色数据库当前尚未保存人物事实的 `reveal/audience/trigger` policy；运行时对非 AI 身份事实保守按 `never` 处理。Lucía 发布前必须完成版本化 reveal 持久化与关系阶段过滤，不能把静态 fallback 当作生产事实。
 
