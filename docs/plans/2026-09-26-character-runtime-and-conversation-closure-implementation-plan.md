@@ -1,7 +1,7 @@
 # CONV-ROLE-001：角色运行时与对话闭环实施计划
 
 - 日期：2026-09-26
-- 状态：计划已获产品本人确认；阶段 0–1 代码切片已实现，待本分支提交与验收。阶段 2–4 尚未开始，阶段 5 默认不领取
+- 状态：计划已获产品本人确认；阶段 0–1 代码切片已提交 `d5e3502`，等待产品验收。阶段 2–4 尚未开始，阶段 5 默认不领取
 - 建议分支：`codex/conv-role-001-character-runtime`（本轮实际工作树为 `codex/disable-legacy-readlang`；混合工作树只提交本任务相关文件）
 - 设计依据：[角色运行时与对话闭环设计](../superpowers/specs/2026-09-26-character-runtime-and-conversation-closure-design.md)、[ADR-0009](../adr/0009-character-runtime-and-conversation-boundary.md)
 - 前置关系：不改变当前内容供应队列；建议在 `PODCAST-001`/发布候选门禁完成后排期，除非产品本人明确重新排序
@@ -52,6 +52,7 @@
 - 新增 `CharacterRuntimePolicy` 与 `resolveConversationCharacter`：真实运行时要求 `characters.status = published`；无数据库或真实 provider 时生产 fail-closed，deterministic fake 只保留给测试/E2E/显式开发注入。
 - 会话列表、搜索、详情、history、stream、消息操作、主动消息和介绍入口增加角色生命周期/能力门禁；Mateo/Inés 继续保持 `draft/coming-soon`，不创建新关系、会话或共享授权。
 - 已有旧角色历史的 API 投影支持 `readOnly` 标记；只读历史入口与客户端完整展示仍作为后续补强项，不将此切片宣称为完整 UX 闭环。
+- 浏览器历史与联系人缓存使用服务端生成的用户 scope，并在登出、切号或请求迟到时中止/忽略旧 generation；介绍接受即使没有共享记忆，也必须重新校验来源角色仍可用。
 - 本轮没有把 Lucía 人物 JSON 或数据库记录改成 `published`，也没有解决 `Lucía García` / `Lucía Martín` 的 canonical 选择。
 
 ## 4. 先写测试的要求
@@ -126,9 +127,10 @@ pnpm build
 
 ### 7.1 本轮验证记录
 
-- 角色/会话/网络/认证聚焦回归：21 files / 96 tests 通过（包含数据库持久化、偏好/TTS envelope、草稿门禁、无数据库 fail-closed、共享权限撤销和持久化事实隐私回归）。
+- 实现 Commit：`d5e3502`（`feat: enforce published character conversation runtime`）。
+- 此前依赖完整时角色/会话/网络/认证聚焦回归：21 files / 96 tests 通过（包含数据库持久化、偏好/TTS envelope、草稿门禁、无数据库 fail-closed、共享权限撤销和持久化事实隐私回归）；本提交另新增缓存竞态 2 条、空共享 source gate 1 条回归。
 - `pnpm test:contracts`：23 files / 85 tests 通过；核心会话 history/list/message/search/stream JSON Schema、OpenAPI 路径和统一错误 envelope 已同步。
-- 受影响文件 ESLint 通过；`pnpm exec tsc --noEmit` 仍被并行媒体改动 `src/modules/media/ui/media-library.tsx:282` 的既有 props 类型错误阻断，未将其计入本任务失败。
+- 当前复核的 Node-only 聚焦测试 2 files / 17 tests 通过；扩大聚焦运行在 worker OOM 后报告 14 files / 50 tests 通过。浏览器测试因工作树依赖缺少 `@asamuzakjp/css-color`/`picocolors` 未能启动，受影响 ESLint 因缺少 `@babel/core` 未能重跑；`pnpm exec tsc --noEmit` 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 和 Playwright 类型依赖错误阻断，筛选输出未发现本任务源文件错误。
 - 仍未完成全量 unit/E2E/build、introductions/proactive/preferences/translation/TTS 的逐路由 Schema 补齐、完整 RLS/只读历史 UI、真实 provider/远端数据库和 iPhone Safari/PWA 验收。
 - 角色数据库当前尚未保存人物事实的 `reveal/audience/trigger` policy；运行时对非 AI 身份事实保守按 `never` 处理。Lucía 发布前必须完成版本化 reveal 持久化与关系阶段过滤，不能把静态 fallback 当作生产事实。
 

@@ -4,6 +4,8 @@
 
 - 最后更新：2026-09-27
 - 当前里程碑：内容驱动学习与自动内容供应重构
+- 当前插入任务：`CONV-ROLE-001` 阶段 0–1 角色运行时边界实现（仅当前分支；不改变内容供应队列）
+- 2026-09-27 `CONV-ROLE-001` 阶段 0–1 已提交（实现 Commit `d5e3502`，待产品复核）：Lucía 运行时要求数据库 `published` 版本，Mateo/Inés 保持 draft/coming-soon；会话、联系人、介绍、主动消息、搜索、历史和共享权限入口统一做生命周期/能力门禁。认证 invalid bearer 不再回退 cookie；核心会话 JSON Schema/OpenAPI/error envelope 已同步；无数据库和缺失 provider fail-closed；持久化事实缺少 reveal policy 时默认不注入 provider，已撤销共享权限仍可在角色退回 draft 后撤销。客户端历史/联系人缓存按账号 scope 隔离，并在登出、切号和迟到响应时失效；介绍接受的空共享列表仍会校验 source character gate。此前依赖完整时聚焦回归 `21 files / 96 tests`、契约 `23 files / 85 tests` 通过；本提交新增 3 个回归测试。当前复核环境的 Node-only 聚焦测试 `2 files / 17 tests` 通过，浏览器测试因缺少 `@asamuzakjp/css-color`/`picocolors` 未能启动，扩大聚焦运行在 worker OOM 后为 `14 files / 50 tests` 通过；`tsc` 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 与 Playwright 类型依赖错误阻断。尚未完成阶段 2–4、逐路由 Schema 补齐、真实 provider/远端 DB、iPhone Safari/PWA 和 Lucía canonical/replay 发布门禁。
 - 总体状态：`PROFILE-001`、`OPS-001` 与 `ALPHA-033` 实现已按顺序合入 `main`（合并提交分别为 `c95fca4`、`a991db2`、`1e8ba94`）。四板块能力画像、每日候选供应 CLI/workflow 与发布候选门禁已进入主线；当前仍需在合并后的 `main` 执行最终全量门禁并取得产品本人确认，阶段 8 未启动
 - 协调分支：`main`
 - 2026-09-25 学习页媒体库滚动性能优化：实现提交 `8a5113f`（`perf: speed up media library pagination`）。首屏与分页统一为 24 条；下一页改为空闲时预取并受 `Save-Data/2G` 保护，滚动哨兵提前到 1200px 触发且继续复用请求去重缓存；前四张卡片才进行高优先级图片和详情路由预取，其他图片保持懒加载并异步解码。同步修复筛选隐藏控件的当前值与学习主题无障碍名称。后续 Chrome 只读采样发现屏外布局延迟会改变 `scrollHeight`，已撤掉 `content-visibility`，避免滚动跳动。验证：媒体库/学习页 Vitest `7/7`、`pnpm exec tsc --noEmit`、受影响 ESLint、`pnpm build`、`git diff --check` 通过；隔离数据库采样首屏 24 卡片、媒体分页请求无重复。未引入虚拟列表，保留原生滚动、查找和返回位置语义。下一步：在 iPhone Safari 用真实数据采样连续下滑和弱网，确认预取窗口是否需要按设备调整。
@@ -548,6 +550,15 @@
 - 验证：本轮为文档任务，执行 Markdown 结构/链接检查和 `git diff --check`；未运行 lint、typecheck、unit、E2E 或 build。实现前仍需按计划运行相关门禁，并记录真实 provider、数据库和 iPhone Safari/PWA 限制。
 - 文档提交：`8201a03`（`docs: define character runtime and conversation closure`）；下一步建议在当前 `PODCAST-001`/ALPHA-033 发布候选门禁完成后领取 `CONV-ROLE-001`，除非产品本人明确重新排序。
 
+### 2026-09-27：CONV-ROLE-001 阶段 0–1 角色边界实现
+
+- 状态：阶段 0–1 的运行时边界代码切片已提交 `d5e3502`，等待产品复核；这不等于 Lucía 已生产发布。
+- 已实现：新增 `CharacterRuntimePolicy` 与统一 runtime resolver；真实运行时要求 `characters.status = published`，生产缺少数据库权限来源或真实 conversation provider 时 fail-closed；Mateo/Inés 保持 `draft/coming-soon`，从联系人目录、介绍接受、会话创建、history/search、stream、主动消息和相关写入路径隔离；旧角色历史 API 可返回 `readOnly` 标记；浏览器缓存加入用户 scope、generation 和取消/迟到响应保护；空共享列表仍校验介绍来源角色。
+- 修改范围：`src/modules/characters` runtime policy/resolver、conversation catalog/repository、conversation/character-network API gates、`/chat` draft 空状态、账号缓存隔离、相关单元与数据库回归测试。场景临时人物、Lucía 人物 JSON 发布和通用关系上下文不在本切片扩张。
+- 验证：此前依赖完整时角色/会话/网络/认证聚焦 Vitest（单线程）`21 files / 96 tests`、`pnpm test:contracts` `23 files / 85 tests` 通过；本提交新增 3 个回归测试。当前 Node-only 聚焦 `2 files / 17 tests` 通过，浏览器测试因 `@asamuzakjp/css-color`/`picocolors` 缺失无法启动，扩大聚焦运行在 worker OOM 后报告 `14 files / 50 tests` 通过。受影响 ESLint 因缺少 `@babel/core` 无法重跑；全局 typecheck 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 与 Playwright 类型依赖错误阻断。
+- 未完成：Lucía canonical v1（`García`/`Martín` 冲突）、双维度审核/replay、数据库 published 状态、introductions/proactive/preferences/translation/TTS 的逐路由 Schema、完整 RLS/只读历史 UI、阶段 2 通用关系/runtime context、阶段 3 剩余 retry/CAS/流竞态门禁与阶段 4 语音/反馈/移动验收。未运行全量 unit/E2E/build、真实 provider、远端数据库或 iPhone Safari/PWA。
+- 下一步：产品先复核 `d5e3502` 的阶段 0–1 边界并确认 Lucía canonical 身份；完成人物审核/replay 与数据库发布门禁后，再领取阶段 2。Mateo/Inés basic 人物包仍不自动领取。
+
 ## 新模型快速接手
 
 进入仓库后按顺序执行：
@@ -604,7 +615,7 @@
 - `PROFILE-001`：四板块能力画像（done；实现 `db68587`、`0d0f149`，Merge Commit `c95fca4`）。
 - `OPS-001`：每日生产调度与全链路门禁（done；实现 `f1fb75b`、`217b9e1`，Merge Commit `a991db2`）。
 - `ALPHA-033`：发布候选门禁（review；实现 `44e87a2`、`1d2a1cd`，Merge Commit `1e8ba94`；等待合并后全量门禁及产品本人确认）。
-- `CONV-ROLE-001`：角色运行时与对话闭环（docs-planned；设计、ADR 与实施计划已记录；不改变当前内容供应队列，等待排期和实现领取）。
+- `CONV-ROLE-001`：角色运行时与对话闭环（`review`；阶段 0–1 已提交 `d5e3502`，当前分支 `codex/disable-legacy-readlang` 待产品复核；阶段 2–4 未开始，阶段 5 默认不领取）。
 - 阶段 8：电脑端 Web 个人 Alpha 连续使用与人工体验复核（blocked；等待 ALPHA-033 全量门禁和产品本人确认）。
 
 ### 后续路线（不进入当前 Alpha）
@@ -1883,6 +1894,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | UI-005 | done | `fix/login-redirect-after-otp` | 产品本人 / Codex | 好友介绍、共享授权和 Flutter/Web 局部功能验收 | UI-004 |
 | READ-001 | done | `fix/login-redirect-after-otp` | Codex | 文章内容契约、版权字段、文章表族与幂等导入 | ALPHA-006 |
 | ALPHA-033 | blocked | `main` | 待重排 | 旧 Alpha 发布候选门禁；等待按内容驱动新路径重新定义 | OPS-001 与产品本人确认 |
+| CONV-ROLE-001 | review | `codex/disable-legacy-readlang` | Codex | 阶段 0–1 角色运行时 policy、published gate、draft 隔离、auth fallback、账号缓存隔离与核心会话契约完成（`d5e3502`）；阶段 2–4 未开始 | 产品本人复核本切片；随后决定是否领取阶段 2 |
 | SCN-001 | done | `codex/scn-001-scenario-foundation` | Codex | 场景状态机、数据/RLS、契约和 fake Provider 基础 | Web/PWA 场景规格与实施计划批准 |
 | SCN-002 | done | `codex/scn-002-multi-scenario-vertical` | Codex | 通用工作台与餐厅、校园、租房三个基础场景 | SCN-001 |
 | SCN-003 | done | `codex/scn-003-scenario-library` | Codex | 场景与表达库、可解释建议与私人生成 | SCN-001、SCN-002 |
@@ -1927,7 +1939,8 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 | 11 | PROFILE-001 | 四板块能力画像 | 已完成并合入 `main`（`c95fca4`） |
 | 12 | OPS-001 | 每日生产调度与全链路门禁 | 已完成并合入 `main`（`a991db2`） |
 | 13 | ALPHA-033 | 合并后最终发布候选门禁 | 实现已合入 `main`（`1e8ba94`）；执行全量检查并取得产品本人确认 |
-| 14 | 阶段 8 | 电脑端 Web 个人 Alpha 连续使用与人工体验复核 | ALPHA-033 全量门禁通过且产品本人确认 |
+| 14 | CONV-ROLE-001 | 角色运行时与对话闭环（阶段 0–1） | `d5e3502` 已提交；产品本人确认提前排期，等待复核 |
+| 15 | 阶段 8 | 电脑端 Web 个人 Alpha 连续使用与人工体验复核 | ALPHA-033 全量门禁通过、CONV-ROLE-001 角色门禁完成且产品本人确认 |
 
 完整逐文件步骤、测试和停点以 [`2026-09-12 自动内容供应实施计划`](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md) 为准。当前先执行合并后的 ALPHA-033 最终门禁；在产品本人确认前不得启动阶段 8，也不领取后续 ASR/词句扩展任务。
 
