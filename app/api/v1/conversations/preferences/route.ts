@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { createDrizzleConversationRepository } from "@/src/modules/conversation";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
+import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
 
 const preferenceSchema = z.object({
@@ -20,33 +22,53 @@ const preferenceSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest) {
-  const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
-  if (!user) return NextResponse.json({ error: { code: "AUTH_REQUIRED" } }, { status: 401 });
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
+  if (!user) return errorResponse("AUTH_REQUIRED", 401, "A valid user session is required.");
 
   try {
     const input = preferenceSchema.parse(await request.json());
     const repository = createDrizzleConversationRepository(getDatabase());
     if (input.orderedCharacterKeys) {
       await repository.reorderConversationPreferences(user.id, input.orderedCharacterKeys);
-      return NextResponse.json({ data: { orderedCharacterKeys: input.orderedCharacterKeys } }, { headers: { "cache-control": "no-store" } });
+      return NextResponse.json({ apiVersion: API_VERSION, data: { orderedCharacterKeys: input.orderedCharacterKeys } }, { headers: { "cache-control": "no-store" } });
     }
     if (input.markRead) {
       await repository.markConversationRead(user.id, input.characterKey!);
-      return NextResponse.json({ data: { characterKey: input.characterKey, markRead: true } }, { headers: { "cache-control": "no-store" } });
+      return NextResponse.json({ apiVersion: API_VERSION, data: { characterKey: input.characterKey, markRead: true } }, { headers: { "cache-control": "no-store" } });
     }
     const preference = await repository.updateConversationPreference(user.id, input.characterKey!, {
       ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),
       ...(input.isMuted !== undefined ? { isMuted: input.isMuted } : {}),
       ...(input.sortRank !== undefined ? { sortRank: input.sortRank } : {}),
     });
-    return NextResponse.json({ data: { preference } }, { headers: { "cache-control": "no-store" } });
+    return NextResponse.json({ apiVersion: API_VERSION, data: { preference } }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: { code: "INVALID_REQUEST", details: error.issues } }, { status: 400 });
+      return errorResponse("INPUT_INVALID", 400, "The conversation preference request is invalid.", error.issues);
     }
     if (error instanceof Error && error.message === "CHARACTER_UNAVAILABLE") {
-      return NextResponse.json({ error: { code: "CHARACTER_UNAVAILABLE" } }, { status: 404 });
+      return errorResponse("CHARACTER_UNAVAILABLE", 404, "This character is not available.");
     }
-    return NextResponse.json({ error: { code: "CONVERSATION_PREFERENCE_UNAVAILABLE", retryable: true } }, { status: 503 });
+    return errorResponse("CONVERSATION_PREFERENCE_UNAVAILABLE", 503, "Conversation preferences are temporarily unavailable.");
   }
+}
+
+function errorResponse(
+  code: ApiErrorCode,
+  status: number,
+  message: string,
+  details?: readonly unknown[],
+) {
+  return NextResponse.json(
+    {
+      apiVersion: API_VERSION,
+      error: {
+        code,
+        message,
+        retryable: status >= 500,
+        ...(details ? { details: { issues: details } } : {}),
+      },
+    },
+    { status },
+  );
 }

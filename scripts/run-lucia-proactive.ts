@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { pathToFileURL } from "node:url";
 import { generateLuciaProactiveMessage, createDrizzleProactiveMessageRepository } from "../src/modules/conversation";
-import { formatNaturalDate, parseLuciaProactiveUserIds } from "../src/modules/conversation/application/proactive-runner-utils";
+import { formatNaturalDate, getDueLuciaProactiveSlots, parseLuciaProactiveUserIds } from "../src/modules/conversation/application/proactive-runner-utils";
 import { createDrizzleMemoryRepository } from "../src/modules/memory";
 import { createMiniMaxConversationProvider } from "../src/modules/providers/conversation/minimax-conversation";
 import { createOpenAIConversationProvider } from "../src/modules/providers/conversation/openai-conversation";
@@ -38,29 +38,32 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
       try {
         const memoryRepository = createDrizzleMemoryRepository(connection.db);
         const memories = await memoryRepository.listReadableMemories(userId, "lucia");
-        let result = await generateLuciaProactiveMessage({
-          userId,
-          source: "daily_share",
-          sourceEventId: formatNaturalDate(now),
-          dailyState: "available",
-          now,
-          repository: createDrizzleProactiveMessageRepository(connection.db),
-          provider,
-          memories,
-        });
-        for (let attempt = 1; attempt < 3 && result.status === "failed" && result.reason === "provider-unavailable"; attempt += 1) {
-          result = await generateLuciaProactiveMessage({
+        const dueSlots = getDueLuciaProactiveSlots({ userId, now });
+        for (const slot of dueSlots) {
+          let result = await generateLuciaProactiveMessage({
             userId,
             source: "daily_share",
-            sourceEventId: formatNaturalDate(now),
-            dailyState: "available",
+            sourceEventId: slot.sourceEventId,
+            dailyState: slot.dailyState,
             now,
             repository: createDrizzleProactiveMessageRepository(connection.db),
             provider,
             memories,
           });
+          for (let attempt = 1; attempt < 3 && result.status === "failed" && result.reason === "provider-unavailable"; attempt += 1) {
+            result = await generateLuciaProactiveMessage({
+              userId,
+              source: "daily_share",
+              sourceEventId: slot.sourceEventId,
+              dailyState: slot.dailyState,
+              now,
+              repository: createDrizzleProactiveMessageRepository(connection.db),
+              provider,
+              memories,
+            });
+          }
+          results.push({ userId, status: result.status, reason: result.reason ?? null, messageId: result.message?.id ?? result.candidate?.messageId ?? null });
         }
-        results.push({ userId, status: result.status, reason: result.reason ?? null, messageId: result.message?.id ?? result.candidate?.messageId ?? null });
       } catch (error) {
         results.push({ userId, status: "failed", reason: error instanceof Error ? error.message : "PROACTIVE_FAILED", messageId: null });
       }

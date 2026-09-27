@@ -34,9 +34,9 @@ export type IntroductionRepository = Readonly<{
   resolve(userId: string, offerKey: string, status: "accepted" | "declined" | "expired", acceptedMemoryIds?: readonly string[]): Promise<IntroductionRecord>;
   ensureRelationship(userId: string, characterKey: string, characterVersion: number): Promise<CharacterRelationshipRecord>;
   ensureConversation(userId: string, characterKey: string, characterVersion: number): Promise<string>;
-  validateShareableMemories(userId: string, memoryIds: readonly string[], sourceCharacterKey: string): Promise<readonly string[]>;
-  grantMemoryPermissions(userId: string, memoryIds: readonly string[], targetCharacterKey: string): Promise<void>;
-  listShareableMemoryPreviews(userId: string, sourceCharacterKey: string, targetCharacterKey: string): Promise<readonly ShareableMemoryPreview[]>;
+  validateShareableMemories(userId: string, memoryIds: readonly string[], sourceCharacterKey: string, sourceCharacterVersion?: number): Promise<readonly string[]>;
+  grantMemoryPermissions(userId: string, memoryIds: readonly string[], targetCharacterKey: string, targetCharacterVersion?: number): Promise<void>;
+  listShareableMemoryPreviews(userId: string, sourceCharacterKey: string, targetCharacterKey: string, sourceCharacterVersion?: number, targetCharacterVersion?: number): Promise<readonly ShareableMemoryPreview[]>;
   listGrantedMemoryPreviews(userId: string): Promise<readonly ShareableMemoryPreview[]>;
-  revokeMemoryPermission(userId: string, memoryId: string, targetCharacterKey: string): Promise<void>;
+  revokeMemoryPermission(userId: string, memoryId: string, targetCharacterKey: string, targetCharacterVersion?: number): Promise<void>;
 }>;

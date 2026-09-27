@@ -54,8 +54,11 @@ describe("character network persistence", () => {
     database = drizzle(client, { schema });
     await client.exec(`insert into auth.users (id, email) values ('${userId}', 'network@example.test');`);
     await database.insert(schema.characters).values([
-      { id: luciaId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "draft" },
-      { id: mateoId, stableKey: "mateo", displayName: "Mateo", homeLocation: "Valencia", profile: {}, characterVersion: 1, status: "draft" },
+      // Published fixtures are intentional: network persistence must prove
+      // that active roles can be connected, while draft-gate behavior is
+      // covered separately below.
+      { id: luciaId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "published" },
+      { id: mateoId, stableKey: "mateo", displayName: "Mateo", homeLocation: "Valencia", profile: {}, characterVersion: 1, status: "published" },
     ]);
     await database.insert(schema.conversations).values({ id: conversationId, userId, characterId: luciaId });
     await database.insert(schema.relationshipMemories).values({ id: memoryId, userId, characterId: luciaId, factKey: "interest.photo", category: "interest", content: "fotografía", confidence: 0.9, sensitivity: "normal", status: "candidate" });
@@ -148,5 +151,77 @@ describe("character network persistence", () => {
     const reviews = await database.select().from(schema.contentReviews).where(eq(schema.contentReviews.entityType, "character"));
     expect(reviews).toHaveLength(3);
     expect(reviews.every((review) => review.reviewerReference?.startsWith("codex-ai-temporary-review:") === true)).toBe(true);
+  });
+
+  it("does not create an introduction for a draft target", async () => {
+    const draftId = "10000000-0000-4000-8000-000000000063";
+    await database.insert(schema.characters).values({
+      id: draftId,
+      stableKey: "ines",
+      displayName: "Inés",
+      homeLocation: "Barcelona",
+      profile: {},
+      characterVersion: 1,
+      status: "draft",
+    });
+    const repository = createDrizzleIntroductionRepository(database);
+    await expect(proposeIntroduction({ repository, candidate: {
+      userId,
+      sourceCharacterKey: "lucia",
+      sourceCharacterVersion: 1,
+      targetCharacterKey: "ines",
+      targetCharacterVersion: 1,
+      recentMessages: [{ role: "user", content: "trabajo" }],
+    } })).rejects.toThrow("CHARACTER_UNAVAILABLE");
+    expect(await database.select().from(schema.characterRelationships)).toHaveLength(0);
+  });
+
+  it("keeps the source character gate when accepting without shared memories", async () => {
+    const repository = createDrizzleIntroductionRepository(database);
+    const proposed = await proposeIntroduction({ repository, candidate: {
+      userId,
+      sourceCharacterKey: "lucia",
+      sourceCharacterVersion: 1,
+      targetCharacterKey: "mateo",
+      targetCharacterVersion: 1,
+      recentMessages: [{ role: "user", content: "Me encanta la fotografía" }],
+    } });
+    await database.update(schema.characters)
+      .set({ status: "draft" })
+      .where(eq(schema.characters.id, luciaId));
+
+    await expect(respondToIntroduction({
+      repository,
+      userId,
+      offerKey: proposed.offer!.offerKey,
+      decision: "accept",
+      memoryIds: [],
+    })).rejects.toThrow("CHARACTER_UNAVAILABLE");
+    expect(await database.select().from(schema.characterRelationships)).toHaveLength(0);
+    expect(await database.select().from(schema.conversations)).toHaveLength(1);
+  });
+
+  it("keeps privacy revocation available after a target character is drafted", async () => {
+    const repository = createDrizzleIntroductionRepository(database);
+    await database.insert(schema.memorySharingPermissions).values({
+      userId,
+      memoryId,
+      targetCharacterId: mateoId,
+      isAllowed: true,
+    });
+    await database.update(schema.relationshipMemories)
+      .set({ shareScope: "explicit" })
+      .where(eq(schema.relationshipMemories.id, memoryId));
+    await database.update(schema.characters)
+      .set({ status: "draft" })
+      .where(eq(schema.characters.id, mateoId));
+
+    await repository.revokeMemoryPermission(userId, memoryId, "mateo");
+
+    expect(await repository.listGrantedMemoryPreviews(userId)).toHaveLength(0);
+    const [memory] = await database.select({ shareScope: schema.relationshipMemories.shareScope })
+      .from(schema.relationshipMemories)
+      .where(eq(schema.relationshipMemories.id, memoryId));
+    expect(memory?.shareScope).toBe("private");
   });
 });

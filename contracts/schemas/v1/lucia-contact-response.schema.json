@@ -3,8 +3,9 @@
   "$id": "https://sueno.local/contracts/v1/lucia-contact-response.schema.json",
   "title": "Lucía contact response",
   "type": "object",
-  "required": ["data"],
+  "required": ["apiVersion", "data"],
   "properties": {
+    "apiVersion": { "const": "v1" },
     "data": {
       "type": "object",
       "required": ["characterKey", "status", "relationshipStage", "conversationId", "source"],

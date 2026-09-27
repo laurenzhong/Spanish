@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
-import { clearConversationHistoryCache, getCachedConversationHistory } from "@/src/modules/conversation/ui/conversation-history-cache";
+import { clearConversationHistoryCache, getCachedConversationHistory, setCachedConversationHistory } from "@/src/modules/conversation/ui/conversation-history-cache";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
@@ -30,6 +30,21 @@ describe("ChatThread persistence status", () => {
     expect(screen.getByRole("textbox")).toBeDisabled();
     expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
     expect(screen.queryByText(/DATABASE_URL/)).not.toBeInTheDocument();
+  });
+
+  it("keeps pending contact history read-only and never renders a composer", async () => {
+    setCachedConversationHistory("lucia", [{ id: "pending-history-1", role: "character", text: "Te escribiré cuando aceptes.", complete: true }], {
+      readOnly: true,
+      canSend: false,
+      contactStatus: "pending",
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+
+    expect(await screen.findByText("Te escribiré cuando aceptes.")).toBeInTheDocument();
+    expect(screen.getByTestId("conversation-composer-locked")).toHaveTextContent("接受好友申请后才能发送消息");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "发送消息" })).not.toBeInTheDocument();
   });
 
   it("keeps the header to identity, relationship state, and one contextual menu", async () => {

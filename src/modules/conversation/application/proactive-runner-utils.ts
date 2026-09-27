@@ -19,3 +19,46 @@ export function formatNaturalDate(value: Date, timeZone = "Asia/Shanghai"): stri
   if (!year || !month || !day) throw new Error("Unable to determine the proactive natural date.");
   return `${year}-${month}-${day}`;
 }
+
+export type LuciaProactiveSlot = Readonly<{
+  index: number;
+  targetMinutes: number;
+  sourceEventId: string;
+  dailyState: "waking" | "available";
+}>;
+
+const proactiveWindows = [
+  { startMinutes: 9 * 60, endMinutes: 10 * 60 + 30 },
+  { startMinutes: 14 * 60 + 30, endMinutes: 16 * 60 },
+  { startMinutes: 20 * 60, endMinutes: 21 * 60 + 30 },
+] as const;
+
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (const character of value) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function naturalMinutes(value: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value);
+  const hour = Number(parts.find((entry) => entry.type === "hour")?.value);
+  const minute = Number(parts.find((entry) => entry.type === "minute")?.value);
+  return hour * 60 + minute;
+}
+
+export function getLuciaProactiveSlots(userId: string, date: string): readonly LuciaProactiveSlot[] {
+  return proactiveWindows.map((window, index) => {
+    const targetMinutes = window.startMinutes + stableHash(`${userId}:${date}:${index}`) % (window.endMinutes - window.startMinutes);
+    return { index, targetMinutes, sourceEventId: `${date}:slot-${index + 1}`, dailyState: index === 0 ? "waking" : "available" };
+  });
+}
+
+export function getDueLuciaProactiveSlots(input: Readonly<{ userId: string; now: Date; timeZone?: string }>): readonly LuciaProactiveSlot[] {
+  const timeZone = input.timeZone ?? "Asia/Shanghai";
+  const date = formatNaturalDate(input.now, timeZone);
+  const minutes = naturalMinutes(input.now, timeZone);
+  return getLuciaProactiveSlots(input.userId, date).filter((slot) => slot.targetMinutes <= minutes);
+}

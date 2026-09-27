@@ -2,6 +2,11 @@ import { and, count, desc, eq, gte } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
+import {
+  findCharacterRuntimeDefinition,
+  isCharacterConversationEnabled,
+  isPublishedCharacterStatus,
+} from "@/src/modules/characters";
 import type { ProactiveEligibilityState, ProactiveMessageSource } from "../domain/proactive-message";
 import type { ConversationMessageRecord } from "./conversation-repository";
 import type { ProactiveMessageCandidateRecord, ProactiveMessageRepository, ProactiveCandidateStatus } from "./proactive-message-repository";
@@ -44,11 +49,18 @@ function toCandidate(row: typeof schema.proactiveMessageCandidates.$inferSelect)
 }
 
 async function findLucia<TResult extends PgQueryResultHKT>(database: ConversationDatabase<TResult>) {
-  const [character] = await database.select({ id: schema.characters.id })
+  const [character] = await database.select({ id: schema.characters.id, status: schema.characters.status })
     .from(schema.characters)
-    .where(and(eq(schema.characters.stableKey, "lucia"), eq(schema.characters.characterVersion, 1)))
+    .where(and(
+      eq(schema.characters.stableKey, "lucia"),
+      eq(schema.characters.characterVersion, 1),
+      eq(schema.characters.status, "published"),
+    ))
     .limit(1);
-  if (!character) throw new Error("CHARACTER_UNAVAILABLE");
+  const definition = findCharacterRuntimeDefinition("lucia", 1);
+  if (!character || !definition || !isPublishedCharacterStatus(character.status) || !isCharacterConversationEnabled(definition) || !definition.policy.proactiveMessages) {
+    throw new Error("CHARACTER_UNAVAILABLE");
+  }
   return character;
 }
 

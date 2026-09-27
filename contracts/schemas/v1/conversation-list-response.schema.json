@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/conversation-list-response.schema.json",
+  "title": "Conversation list response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conversations"],
+      "properties": {
+        "conversations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "conversationId",
+              "characterKey",
+              "characterName",
+              "avatarUrl",
+              "avatarClass",
+              "roleLabel",
+              "lastMessageAt",
+              "lastMessage",
+              "isPinned",
+              "isMuted",
+              "sortRank",
+              "unreadCount"
+            ],
+            "properties": {
+              "conversationId": { "type": "string", "format": "uuid" },
+              "characterKey": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "characterName": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "avatarUrl": { "type": ["string", "null"] },
+              "avatarClass": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "roleLabel": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "lastMessageAt": { "type": ["string", "null"], "format": "date-time" },
+              "lastMessage": {
+                "anyOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["role", "snippet", "createdAt"],
+                    "properties": {
+                      "role": { "enum": ["user", "character"] },
+                      "snippet": { "type": "string" },
+                      "createdAt": { "type": "string", "format": "date-time" }
+                    }
+                  }
+                ]
+              },
+              "isPinned": { "type": "boolean" },
+              "isMuted": { "type": "boolean" },
+              "sortRank": { "type": ["integer", "null"] },
+              "unreadCount": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

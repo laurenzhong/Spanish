@@ -5,14 +5,17 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   buildReplyContext,
   encodeConversationEvent,
+  CharacterRuntimeError,
   createDrizzleConversationRepository,
   findConversationCharacter,
-  getConversationCharacter,
+  isConversationStaticFallbackAllowed,
   persistCompletedAssistantMessage,
   persistUserMessage,
+  resolveConversationCharacter,
   streamReply,
   type StreamReplyInput,
 } from "@/src/modules/conversation";
+import { createDrizzleCharacterRepository } from "@/src/modules/characters";
 import {
   commitMemories,
   createDrizzleMemoryRepository,
@@ -26,6 +29,8 @@ import {
 } from "@/src/modules/character-network";
 import { createMiniMaxConversationProvider, createOpenAIConversationProvider } from "@/src/modules/providers/conversation/server";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
+import { API_VERSION } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
 import {
   createCorrelationIds,
@@ -39,7 +44,7 @@ type RouteContext = Readonly<{ params: Promise<{ characterId: string }> }>;
 
 function jsonError(code: string, message: string, status: number): NextResponse {
   return NextResponse.json(
-    { error: { code, message, retryable: status >= 500 } },
+    { apiVersion: API_VERSION, error: { code, message, retryable: status >= 500 } },
     { status },
   );
 }
@@ -53,7 +58,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     requestId = createCorrelationIds().requestId;
   }
   // Web sends the Supabase session cookie; Flutter sends a bearer token.
-  const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
+  // An invalid explicit bearer must not fall back to the cookie session.
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return jsonError("AUTH_REQUIRED", "A valid user session is required.", 401);
 
   const { characterId } = await context.params;
@@ -89,7 +95,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const database = process.env.DATABASE_URL ? getDatabase() : null;
+  let database: ReturnType<typeof getDatabase> | null = null;
+  try {
+    database = process.env.DATABASE_URL ? getDatabase() : null;
+  } catch {
+    return jsonError("CONVERSATION_UNAVAILABLE", "Conversation persistence is unavailable.", 503);
+  }
+  let runtimeCharacter: Awaited<ReturnType<typeof resolveConversationCharacter>>;
+  try {
+    runtimeCharacter = await resolveConversationCharacter({
+      characterKey: characterId,
+      characterVersion,
+      repository: database && process.env.NODE_ENV !== "test" ? createDrizzleCharacterRepository(database) : undefined,
+      allowStaticFallback: isConversationStaticFallbackAllowed(),
+    });
+  } catch (error) {
+    const unavailable = error instanceof CharacterRuntimeError && error.code === "CHARACTER_UNAVAILABLE";
+    return jsonError(
+      unavailable ? "CHARACTER_UNAVAILABLE" : "CONVERSATION_UNAVAILABLE",
+      unavailable ? "This character is not available for new conversations." : "Conversation runtime is unavailable.",
+      unavailable ? 404 : 503,
+    );
+  }
   let luciaContact: LuciaContactRecord | null = null;
   let relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend" | undefined;
   if (database && characterId === "lucia") {
@@ -140,7 +167,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       generationId,
       userId: user.id,
       userMessage: text.trim(),
-      character: getConversationCharacter(characterId).snapshot,
+      character: runtimeCharacter.catalog.snapshot,
       recentMessages,
       relationshipStage,
       relationshipSummary: luciaContact?.relationshipSummary,
@@ -153,7 +180,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       generationId,
       userId: user.id,
       userMessage: text.trim(),
-      character: getConversationCharacter(characterId).snapshot,
+      character: runtimeCharacter.catalog.snapshot,
       recentMessages,
       relationshipStage,
       relationshipSummary: luciaContact?.relationshipSummary,
@@ -163,19 +190,23 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();
   const useOpenAI = configuredProvider === "openai" && Boolean(process.env.OPENAI_API_KEY?.trim());
   const useMiniMax = !useOpenAI && Boolean(process.env.MINIMAX_API_KEY?.trim());
+  const replyProvider = useOpenAI
+    ? createOpenAIConversationProvider()
+    : useMiniMax
+      ? createMiniMaxConversationProvider()
+      : undefined;
+  if (!replyProvider && !isConversationStaticFallbackAllowed()) {
+    return jsonError("CONVERSATION_UNAVAILABLE", "A conversation provider is not configured.", 503);
+  }
   const replyInput: StreamReplyInput = {
     characterKey: characterId,
-    characterVersion: 1,
+    characterVersion,
     text,
     clientMessageId,
     generationId,
     messageId: randomUUID(),
     replyContext,
-    replyProvider: useOpenAI
-      ? createOpenAIConversationProvider()
-      : useMiniMax
-        ? createMiniMaxConversationProvider()
-        : undefined,
+    replyProvider,
     providerName: useOpenAI ? "openai" : useMiniMax ? "minimax" : "deterministic-fake",
     providerModelVersion: useOpenAI
       ? (process.env.OPENAI_CONVERSATION_MODEL?.trim() || "gpt-5.6sol")
@@ -186,7 +217,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   let userMessageId: string | null = null;
   if (repository) {
     try {
-      conversationId = await repository.getOrCreateConversation(user.id, characterId, 1);
+      conversationId = await repository.getOrCreateConversation(user.id, characterId, characterVersion);
       const userMessage = await persistUserMessage(repository, {
         userId: user.id,
         conversationId,
@@ -279,7 +310,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
               const candidates = extractMemories({
                 userId: user.id,
                 characterKey: characterId,
-                characterVersion: 1,
+                characterVersion,
                 conversationId,
                 turn: {
                   status: "done",

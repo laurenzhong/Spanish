@@ -17,6 +17,7 @@ import * as schema from "@/src/shared/db/schema";
 
 const userId = "00000000-0000-4000-8000-000000000031";
 const characterId = "10000000-0000-4000-8000-000000000031";
+const draftCharacterId = "10000000-0000-4000-8000-000000000032";
 
 async function migration(name: string) {
   return (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
@@ -37,10 +38,11 @@ describe("conversation persistence", () => {
       grant usage on schema auth to anon, authenticated;
       grant execute on function auth.uid() to anon, authenticated;
     `);
-    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0016_proactive_messages.sql"]) await client.exec(await migration(name));
+    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0016_proactive_messages.sql", "0017_sudden_betty_brant.sql", "0018_dusty_sue_storm.sql", "0040_happy_wolverine.sql"]) await client.exec(await migration(name));
     database = drizzle(client, { schema });
     await client.exec(`insert into auth.users (id, email) values ('${userId}', 'conversation@example.test');`);
     await database.insert(schema.characters).values({ id: characterId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "published" });
+    await database.insert(schema.characters).values({ id: draftCharacterId, stableKey: "mateo", displayName: "Mateo", homeLocation: "Valencia", profile: {}, characterVersion: 1, status: "draft" });
   });
 
   afterEach(async () => { await client.close(); });
@@ -69,5 +71,13 @@ describe("conversation persistence", () => {
     const messages = await repository.listMessages(userId, "lucia");
     expect(messages.map((message) => message.role)).toEqual(["user", "character"]);
     expect(messages[1]?.status).toBe("completed");
+  });
+
+  it("rejects draft characters for new conversations and excludes them from discovery", async () => {
+    const repository = createDrizzleConversationRepository(database);
+    await expect(repository.getOrCreateConversation(userId, "mateo", 1)).rejects.toThrow("CHARACTER_UNAVAILABLE");
+    await database.insert(schema.conversations).values({ userId, characterId: draftCharacterId });
+    expect(await repository.listConversations(userId)).toHaveLength(0);
+    expect(await repository.searchMessages(userId, "Mateo")).toHaveLength(0);
   });
 });

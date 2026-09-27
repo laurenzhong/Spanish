@@ -5,13 +5,14 @@ import { z } from "zod";
 import { createMiniMaxTranslationProvider } from "@/src/modules/providers/translation/server";
 import { TranslationError } from "@/src/modules/providers/translation";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 
 const inputSchema = z.object({ text: z.string().trim().min(1).max(4_000), sourceLocale: z.string().trim().min(1).max(32).default("es-ES"), targetLocale: z.string().trim().min(1).max(32).default("zh-CN") }).strict();
 
 export async function POST(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = (await verifyRequestUser(request)) ?? (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
   let body: unknown;
   try { body = await request.json(); } catch { return errorResponse(requestId, "VALIDATION_FAILED", 400, "翻译请求格式无效。"); }

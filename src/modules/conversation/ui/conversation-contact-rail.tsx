@@ -5,28 +5,38 @@ import { useEffect, useRef, useState } from "react";
 import { ConversationSearch } from "./conversation-search";
 import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
 import { prefetchConversationHistory } from "./conversation-history-cache";
+import { getConversationCacheScope } from "./conversation-cache-scope";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
 import type { ConversationPreview } from "../application/list-previews";
 
 type ConversationContactRailProps = Readonly<{
   activeCharacterKey?: string;
   initialConversations?: readonly ConversationPreview[];
+  cacheScope?: string;
 }>;
 
 let cachedConversations: readonly ConversationPreview[] | null = null;
 let cachedStatus: "loading" | "available" | "unavailable" = "loading";
-let listRequest: Promise<void> | null = null;
+type PendingContactRequest = Readonly<{
+  promise: Promise<void>;
+  controller: AbortController;
+  generation: number;
+  scope: string;
+}>;
+
+let listRequest: PendingContactRequest | null = null;
 let cachedLuciaContact: LuciaContactPreview | null = null;
-let luciaContactRequest: Promise<void> | null = null;
+let luciaContactRequest: PendingContactRequest | null = null;
 let cachedIntroductionOfferCount: number | null = null;
-let introductionOfferRequest: Promise<void> | null = null;
+let introductionOfferRequest: PendingContactRequest | null = null;
+let cachedScope: string | null = null;
+let contactCacheGeneration = 0;
 
 const CONTACT_SEARCH_THRESHOLD = 8;
 const CONTACT_REQUEST_TIMEOUT_MS = 8_000;
 export const CONVERSATION_LIST_UPDATED_EVENT = "conversation-list-updated";
 
-async function fetchContactJson<T>(url: string): Promise<T> {
-  const controller = new AbortController();
+async function fetchContactJson<T>(url: string, controller: AbortController): Promise<T> {
   const timeout = window.setTimeout(() => controller.abort(), CONTACT_REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(url, { cache: "no-store", signal: controller.signal });
@@ -38,6 +48,10 @@ async function fetchContactJson<T>(url: string): Promise<T> {
 }
 
 export function clearConversationContactCache(): void {
+  contactCacheGeneration += 1;
+  listRequest?.controller.abort();
+  luciaContactRequest?.controller.abort();
+  introductionOfferRequest?.controller.abort();
   cachedConversations = null;
   cachedStatus = "loading";
   listRequest = null;
@@ -45,6 +59,41 @@ export function clearConversationContactCache(): void {
   luciaContactRequest = null;
   cachedIntroductionOfferCount = null;
   introductionOfferRequest = null;
+  cachedScope = null;
+}
+
+function ensureCacheScope(scope = getConversationCacheScope()): string {
+  // Client-only caches must never be shared by accounts. When the server
+  // shell reports a different opaque scope, discard all prior contact state
+  // before any render or request can consume it.
+  if (typeof window === "undefined") return scope;
+  if (cachedScope === scope) return scope;
+  contactCacheGeneration += 1;
+  listRequest?.controller.abort();
+  luciaContactRequest?.controller.abort();
+  introductionOfferRequest?.controller.abort();
+  cachedConversations = null;
+  cachedStatus = "loading";
+  listRequest = null;
+  cachedLuciaContact = null;
+  luciaContactRequest = null;
+  cachedIntroductionOfferCount = null;
+  introductionOfferRequest = null;
+  cachedScope = scope;
+  return scope;
+}
+
+function isCurrentContactRequest(
+  request: PendingContactRequest | null,
+  generation: number,
+  scope: string,
+  promise: Promise<void>,
+): boolean {
+  return request?.promise === promise
+    && request.generation === generation
+    && request.scope === scope
+    && contactCacheGeneration === generation
+    && cachedScope === scope;
 }
 
 type ConversationPreference = Readonly<{
@@ -67,43 +116,82 @@ type DragState = Readonly<{
   active: boolean;
 }>;
 
-function loadConversationList(force = false): Promise<void> {
-  if (listRequest) return listRequest;
+function loadConversationList(force = false, scope = getConversationCacheScope()): Promise<void> {
+  ensureCacheScope(scope);
+  if (listRequest) return listRequest.promise;
   if (!force && (cachedConversations !== null || cachedStatus === "unavailable")) return Promise.resolve();
   cachedStatus = "loading";
-  listRequest = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations")
+  const generation = contactCacheGeneration;
+  const controller = new AbortController();
+  let request: Promise<void>;
+  request = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations", controller)
     .then((payload) => {
+      if (!isCurrentContactRequest(listRequest, generation, scope, request)) return;
       cachedConversations = payload.data?.conversations ?? [];
       cachedStatus = "available";
     })
     .catch(() => {
+      if (!isCurrentContactRequest(listRequest, generation, scope, request)) return;
       cachedStatus = "unavailable";
     })
-    .finally(() => { listRequest = null; });
-  return listRequest;
+    .finally(() => {
+      if (listRequest?.promise === request) listRequest = null;
+    });
+  listRequest = { promise: request, controller, generation, scope };
+  return request;
 }
 
-function loadLuciaContact(): Promise<void> {
-  if (luciaContactRequest) return luciaContactRequest;
+function loadLuciaContact(scope = getConversationCacheScope()): Promise<void> {
+  ensureCacheScope(scope);
+  if (luciaContactRequest) return luciaContactRequest.promise;
   if (cachedLuciaContact !== null) return Promise.resolve();
-  luciaContactRequest = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact")
-    .then((payload) => { cachedLuciaContact = payload.data ?? null; })
-    .catch(() => { cachedLuciaContact = null; })
-    .finally(() => { luciaContactRequest = null; });
-  return luciaContactRequest;
+  const generation = contactCacheGeneration;
+  const controller = new AbortController();
+  let request: Promise<void>;
+  request = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact", controller)
+    .then((payload) => {
+      if (!isCurrentContactRequest(luciaContactRequest, generation, scope, request)) return;
+      cachedLuciaContact = payload.data ?? null;
+    })
+    .catch(() => {
+      if (!isCurrentContactRequest(luciaContactRequest, generation, scope, request)) return;
+      cachedLuciaContact = null;
+    })
+    .finally(() => {
+      if (luciaContactRequest?.promise === request) luciaContactRequest = null;
+    });
+  luciaContactRequest = { promise: request, controller, generation, scope };
+  return request;
 }
 
-function loadIntroductionOfferCount(force = false): Promise<void> {
-  if (introductionOfferRequest) return introductionOfferRequest;
+function loadIntroductionOfferCount(force = false, scope = getConversationCacheScope()): Promise<void> {
+  ensureCacheScope(scope);
+  if (introductionOfferRequest) return introductionOfferRequest.promise;
   if (!force && cachedIntroductionOfferCount !== null) return Promise.resolve();
-  introductionOfferRequest = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions")
-    .then((payload) => { cachedIntroductionOfferCount = payload.data?.offers?.length ?? 0; })
-    .catch(() => { cachedIntroductionOfferCount = null; })
-    .finally(() => { introductionOfferRequest = null; });
-  return introductionOfferRequest;
+  const generation = contactCacheGeneration;
+  const controller = new AbortController();
+  let request: Promise<void>;
+  request = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions", controller)
+    .then((payload) => {
+      if (!isCurrentContactRequest(introductionOfferRequest, generation, scope, request)) return;
+      cachedIntroductionOfferCount = payload.data?.offers?.length ?? 0;
+    })
+    .catch(() => {
+      if (!isCurrentContactRequest(introductionOfferRequest, generation, scope, request)) return;
+      cachedIntroductionOfferCount = null;
+    })
+    .finally(() => {
+      if (introductionOfferRequest?.promise === request) introductionOfferRequest = null;
+    });
+  introductionOfferRequest = { promise: request, controller, generation, scope };
+  return request;
 }
 
-function syncCachedConversationPreferences(updates: Readonly<Record<string, Partial<ConversationPreference>>>): void {
+function syncCachedConversationPreferences(
+  updates: Readonly<Record<string, Partial<ConversationPreference>>>,
+  scope = getConversationCacheScope(),
+): void {
+  ensureCacheScope(scope);
   if (!cachedConversations) return;
   cachedConversations = cachedConversations.map((conversation) => {
     const update = updates[conversation.characterKey];
@@ -111,7 +199,8 @@ function syncCachedConversationPreferences(updates: Readonly<Record<string, Part
   });
 }
 
-export function ConversationContactRail({ activeCharacterKey, initialConversations }: ConversationContactRailProps) {
+export function ConversationContactRail({ activeCharacterKey, initialConversations, cacheScope }: ConversationContactRailProps) {
+  const resolvedCacheScope = ensureCacheScope(cacheScope ?? getConversationCacheScope());
   const [conversations, setConversations] = useState<readonly ConversationPreview[]>(initialConversations ?? cachedConversations ?? []);
   const [status, setStatus] = useState(initialConversations ? "available" : cachedStatus);
   const [showIntroductions, setShowIntroductions] = useState(false);
@@ -138,23 +227,23 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
       cachedConversations = initialConversations;
       cachedStatus = "available";
     }
-    void loadConversationList().then(() => {
+    void loadConversationList(false, resolvedCacheScope).then(() => {
       if (!active) return;
       const nextConversations = cachedConversations ?? [];
       setConversations(nextConversations);
       setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }])))
       setStatus(cachedStatus);
     });
-    void Promise.all([loadLuciaContact(), loadIntroductionOfferCount()]).then(() => {
+    void Promise.all([loadLuciaContact(resolvedCacheScope), loadIntroductionOfferCount(false, resolvedCacheScope)]).then(() => {
       if (!active) return;
       setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0));
     });
     return () => { active = false; };
-  }, [initialConversations]);
+  }, [initialConversations, resolvedCacheScope]);
 
   useEffect(() => {
     const refresh = () => {
-      void loadConversationList(true).then(() => {
+      void loadConversationList(true, resolvedCacheScope).then(() => {
         const nextConversations = cachedConversations ?? [];
         setConversations(nextConversations);
         setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }])));
@@ -163,7 +252,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
     };
     window.addEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
     return () => window.removeEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
-  }, []);
+  }, [resolvedCacheScope]);
 
   useEffect(() => {
     const conversation = conversations.find((item) => item.characterKey === activeCharacterKey);
@@ -190,7 +279,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
   function closeIntroductions() {
     setShowIntroductions(false);
     introductionsTriggerRef.current?.focus();
-    void loadIntroductionOfferCount(true).then(() => {
+    void loadIntroductionOfferCount(true, resolvedCacheScope).then(() => {
       setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0));
     });
   }
@@ -264,7 +353,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
         body: JSON.stringify({ characterKey, ...patch }),
       });
       if (!response.ok) throw new Error("PREFERENCE_SAVE_FAILED");
-      syncCachedConversationPreferences({ [characterKey]: next });
+      syncCachedConversationPreferences({ [characterKey]: next }, resolvedCacheScope);
       setPreferenceNotice(patch.isPinned !== undefined ? (patch.isPinned ? "已置顶好友" : "已取消置顶") : patch.isMuted !== undefined ? (patch.isMuted ? "已静音通知" : "已开启通知") : "好友设置已保存");
     } catch {
       setPreferences((current) => ({ ...current, [characterKey]: previous }));
@@ -291,7 +380,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
   function refreshAfterLuciaContactAccepted(contact: LuciaContactPreview): void {
     cachedLuciaContact = contact;
     setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (contact.status === "pending" ? 1 : 0));
-    void loadConversationList(true).then(() => {
+    void loadConversationList(true, resolvedCacheScope).then(() => {
       const nextConversations = cachedConversations ?? [];
       setConversations(nextConversations);
       setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, {
@@ -334,7 +423,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
       }
       const response = await fetch("/api/v1/conversations/preferences", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderedCharacterKeys: order }) });
       if (!response.ok) throw new Error("ORDER_SAVE_FAILED");
-      syncCachedConversationPreferences(Object.fromEntries(order.map((characterKey, sortRank) => [characterKey, { ...(preferenceOverrides[characterKey] ?? {}), sortRank }])))
+      syncCachedConversationPreferences(Object.fromEntries(order.map((characterKey, sortRank) => [characterKey, { ...(preferenceOverrides[characterKey] ?? {}), sortRank }])), resolvedCacheScope)
       setPreferenceError(false);
       setPreferenceNotice(Object.values(preferenceOverrides).some((patch) => patch.isPinned !== undefined) ? "好友已移动，置顶状态已同步调整" : "好友顺序已保存");
     } catch {
@@ -410,7 +499,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
       {preferenceError ? <p className="conversation-contact-rail__preference-error" role="status">好友设置暂未保存，请稍后重试。</p> : preferenceNotice ? <p className="conversation-contact-rail__preference-notice" role="status">{preferenceNotice}</p> : null}
       <nav className="conversation-contact-rail__list" aria-label="好友列表">
         {status === "loading" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">正在加载会话……</p> : null}
-        {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表。</p><button type="button" onClick={() => { setStatus("loading"); void loadConversationList(true).then(() => { const nextConversations = cachedConversations ?? []; setConversations(nextConversations); setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }]))); setStatus(cachedStatus); }); }}>重试</button></div> : null}
+         {status === "unavailable" ? <div className="conversation-contact-rail__state" role="alert"><p>暂时无法加载会话列表。</p><button type="button" onClick={() => { setStatus("loading"); void loadConversationList(true, resolvedCacheScope).then(() => { const nextConversations = cachedConversations ?? []; setConversations(nextConversations); setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }]))); setStatus(cachedStatus); }); }}>重试</button></div> : null}
         {status === "available" && visibleConversations.length === 0 ? <p className="conversation-contact-rail__state">还没有联系人。你可以先查看新的好友申请。</p> : null}
         {visibleConversations.map((conversation) => {
           const preference = preferenceFor(conversation);
@@ -455,8 +544,8 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                   setMarkedUnread((current) => { const next = new Set(current); next.delete(conversation.characterKey); return next; });
                   if (unreadCount > 0) void fetch("/api/v1/conversations/preferences", { method: "PATCH", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }) }).then(() => window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT))).catch(() => undefined);
                 }}
-                onMouseEnter={() => prefetchConversationHistory(conversation.characterKey)}
-                onFocus={() => prefetchConversationHistory(conversation.characterKey)}
+                onMouseEnter={() => prefetchConversationHistory(conversation.characterKey, resolvedCacheScope)}
+                onFocus={() => prefetchConversationHistory(conversation.characterKey, resolvedCacheScope)}
                 aria-current={activeCharacterKey === conversation.characterKey ? "page" : undefined}
                 aria-label={`${conversation.characterName} ${isTyping ? "正在输入" : conversation.roleLabel}${isUnread ? "，未读" : ""}${preference.isMuted ? "，已静音" : ""}`}
               >

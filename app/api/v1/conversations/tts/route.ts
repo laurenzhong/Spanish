@@ -4,12 +4,14 @@ import { z } from "zod";
 
 import { createMiniMaxTextToSpeech, MiniMaxTtsError } from "@/src/modules/providers/tts/minimax-tts";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
+import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 
 const inputSchema = z.object({ text: z.string().trim().min(1).max(4_000), languageTag: z.literal("es-ES").default("es-ES") }).strict();
 
 export async function POST(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = (await verifyRequestUser(request)) ?? (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return errorResponse(requestId, 401, "AUTH_REQUIRED", "A valid user session is required.");
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return errorResponse(requestId, 400, "VALIDATION_FAILED", "朗读请求格式无效。");
@@ -25,6 +27,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function errorResponse(requestId: string, status: number, code: string, message: string) {
-  return NextResponse.json({ error: { code, message, requestId, retryable: status >= 500 || status === 429 } }, { status, headers: { "cache-control": "no-store", "x-request-id": requestId } });
+function errorResponse(requestId: string, status: number, code: ApiErrorCode, message: string) {
+  return NextResponse.json({ apiVersion: API_VERSION, error: { code, message, requestId, retryable: status >= 500 || status === 429 } }, { status, headers: { "cache-control": "no-store", "x-request-id": requestId } });
 }

@@ -3,6 +3,11 @@ import { and, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
+import {
+  findCharacterRuntimeDefinition,
+  isCharacterConversationEnabled,
+  isPublishedCharacterStatus,
+} from "@/src/modules/characters";
 import type {
   LuciaContactRecord,
   LuciaContactRepository,
@@ -25,11 +30,14 @@ const authoredOpening = {
 
 async function findLucia<TResult extends PgQueryResultHKT>(database: NetworkDatabase<TResult>) {
   const [character] = await database
-    .select({ id: schema.characters.id })
+    .select({ id: schema.characters.id, status: schema.characters.status })
     .from(schema.characters)
     .where(and(eq(schema.characters.stableKey, "lucia"), eq(schema.characters.characterVersion, 1)))
     .limit(1);
-  if (!character) throw new Error("CHARACTER_UNAVAILABLE");
+  const definition = findCharacterRuntimeDefinition("lucia", 1);
+  if (!character || !isPublishedCharacterStatus(character.status) || !isCharacterConversationEnabled(definition)) {
+    throw new Error("CHARACTER_UNAVAILABLE");
+  }
   return character;
 }
 

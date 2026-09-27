@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
     },
     verifyRequestUser: vi.fn().mockResolvedValue(null),
     getCurrentUser: vi.fn().mockResolvedValue({ id: "40000000-0000-4000-8000-000000000044", email: "test@example.test" }),
+    getLuciaContact: vi.fn().mockResolvedValue({ status: "active", relationshipStage: "familiar", relationshipSummary: "Hablamos de fotografía." }),
     memoryRepository: {},
     memoryCandidate: {
       candidateId: "memory-candidate-1",
@@ -78,7 +79,7 @@ vi.mock("@/src/modules/character-network", async () => {
   const actual = await vi.importActual<typeof import("@/src/modules/character-network")>("@/src/modules/character-network");
   return {
     ...actual,
-    createDrizzleLuciaContactRepository: vi.fn(() => ({ get: vi.fn().mockResolvedValue({ status: "active", relationshipStage: "familiar", relationshipSummary: "Hablamos de fotografía." }) })),
+    createDrizzleLuciaContactRepository: vi.fn(() => ({ get: mocks.getLuciaContact })),
   };
 });
 
@@ -155,8 +156,28 @@ describe("conversation stream persistence", () => {
     mocks.repository.listMessages.mockResolvedValue([]);
     const response = await GET(new NextRequest("http://localhost/api/v1/conversations/lucia"), { params: Promise.resolve({ characterId: "lucia" }) });
     expect(response.status).toBe(200);
+    expect(await response.clone().json()).toMatchObject({
+      apiVersion: "v1",
+      data: {
+        readOnly: false,
+        canSend: true,
+        contactStatus: "active",
+      },
+    });
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("server-timing")).toMatch(/^auth;dur=\d+, database;dur=\d+, total;dur=\d+$/);
     expect(response.headers.get("server-timing")).not.toContain("Hola");
+  });
+
+  it("returns a read-only history projection while a Lucía contact is pending", async () => {
+    process.env.DATABASE_URL = "postgresql://test.invalid/db";
+    mocks.repository.listMessages.mockResolvedValue([]);
+    mocks.getLuciaContact.mockResolvedValue({ status: "pending", relationshipStage: "new_contact", relationshipSummary: null });
+    const response = await GET(new NextRequest("http://localhost/api/v1/conversations/lucia"), { params: Promise.resolve({ characterId: "lucia" }) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: { readOnly: true, canSend: false, contactStatus: "pending" },
+    });
+    mocks.getLuciaContact.mockResolvedValue({ status: "active", relationshipStage: "familiar", relationshipSummary: "Hablamos de fotografía." });
   });
 });

@@ -28,12 +28,12 @@ function state(overrides: Partial<Parameters<typeof evaluateProactiveEligibility
 }
 
 describe("proactive message policy", () => {
-  it("enforces relationship, cooldown, frequency and unanswered-message limits", () => {
+  it("enforces relationship, cooldown and frequency limits", () => {
     expect(evaluateProactiveEligibility(state({ relationshipStatus: "inactive" }), now)).toMatchObject({ allowed: false, reason: "relationship-inactive" });
-    expect(evaluateProactiveEligibility(state({ proactiveCount24h: 1 }), now)).toMatchObject({ allowed: false, reason: "daily-limit" });
-    expect(evaluateProactiveEligibility(state({ proactiveCount7d: 4 }), now)).toMatchObject({ allowed: false, reason: "weekly-limit" });
+    expect(evaluateProactiveEligibility(state({ proactiveCount24h: 3 }), now)).toMatchObject({ allowed: false, reason: "daily-limit" });
+    expect(evaluateProactiveEligibility(state({ proactiveCount7d: 12 }), now)).toMatchObject({ allowed: false, reason: "weekly-limit" });
     expect(evaluateProactiveEligibility(state({ lastProactiveMessageAt: new Date("2026-08-29T09:00:00.000Z") }), now)).toMatchObject({ allowed: false, reason: "cooldown" });
-    expect(evaluateProactiveEligibility(state({ hasUnansweredProactive: true }), now)).toMatchObject({ allowed: false, reason: "unanswered-message" });
+    expect(evaluateProactiveEligibility(state({ hasUnansweredProactive: true }), now)).toEqual({ allowed: true, reason: "eligible" });
     expect(evaluateProactiveEligibility(state(), now)).toEqual({ allowed: true, reason: "eligible" });
   });
 
@@ -49,6 +49,8 @@ describe("proactive message policy", () => {
     expect(isProactiveMessageSafe("Te echo de menos.", morningPlan)).toBe(true);
     expect(isProactiveMessageSafe("Te echo de menos. Ojalá tengas un día tranquilo y bonito.", morningPlan)).toBe(true);
     expect(isProactiveMessageSafe("Te echo de menos. ¿Cómo has dormido?", morningPlan)).toBe(false);
+    expect(isProactiveMessageSafe("Hoy he salido a caminar un rato. ¿Cómo va tu día?", proactiveReplyPlan("daily_share", "familiar"))).toBe(true);
+    expect(isProactiveMessageSafe("¿Cómo va tu día? ¿Y el trabajo?", proactiveReplyPlan("daily_share", "familiar"))).toBe(false);
   });
 });
 
@@ -110,14 +112,14 @@ describe("generateLuciaProactiveMessage", () => {
   it("does not call a provider when policy suppresses the message", async () => {
     const repository: ProactiveMessageRepository = {
       getConversationId: vi.fn(),
-      getEligibilityState: vi.fn().mockResolvedValue(state({ hasUnansweredProactive: true })),
+      getEligibilityState: vi.fn().mockResolvedValue(state({ proactiveCount24h: 3 })),
       createCandidate: vi.fn(),
       completeCandidate: vi.fn(),
       failCandidate: vi.fn(),
     };
     const provider = { generate: vi.fn() };
     const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "quiet_presence", now, repository, provider });
-    expect(result).toMatchObject({ status: "suppressed", reason: "unanswered-message" });
+    expect(result).toMatchObject({ status: "suppressed", reason: "daily-limit" });
     expect(repository.createCandidate).not.toHaveBeenCalled();
     expect(provider.generate).not.toHaveBeenCalled();
   });

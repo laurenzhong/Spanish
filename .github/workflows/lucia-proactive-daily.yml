@@ -1,9 +1,9 @@
-name: Lucía proactive daily message
+name: Lucía proactive messages
 
 on:
   schedule:
-    # 09:15 Asia/Shanghai; GitHub Actions schedules use UTC.
-    - cron: "15 1 * * *"
+    # Poll every 15 minutes; each user's stable daily slots decide whether to send.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 concurrency:

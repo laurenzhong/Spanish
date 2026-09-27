@@ -33,7 +33,11 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const [character] = await database
         .select({ id: schema.characters.id })
         .from(schema.characters)
-        .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.characterVersion, characterVersion)))
+        .where(and(
+          eq(schema.characters.stableKey, characterKey),
+          eq(schema.characters.characterVersion, characterVersion),
+          eq(schema.characters.status, "published"),
+        ))
         .limit(1);
       if (!character) throw new Error("CHARACTER_UNAVAILABLE");
 
@@ -61,8 +65,14 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
 
       const [character] = await database
         .select({ id: schema.characters.id })
-        .from(schema.characters)
-        .where(and(eq(schema.characters.stableKey, input.characterKey), eq(schema.characters.characterVersion, 1)))
+        .from(schema.conversations)
+        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .where(and(
+          eq(schema.conversations.id, input.conversationId),
+          eq(schema.conversations.userId, input.userId),
+          eq(schema.characters.stableKey, input.characterKey),
+          eq(schema.characters.status, "published"),
+        ))
         .limit(1);
       if (!character) throw new Error("CHARACTER_UNAVAILABLE");
       const [message] = await database
@@ -98,7 +108,17 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         eq(schema.messages.role, "character"),
       )).limit(1);
       if (existing) return toMessage(existing);
-      const [character] = await database.select({ id: schema.characters.id }).from(schema.characters).where(and(eq(schema.characters.stableKey, input.characterKey), eq(schema.characters.characterVersion, 1))).limit(1);
+      const [character] = await database
+        .select({ id: schema.characters.id })
+        .from(schema.conversations)
+        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .where(and(
+          eq(schema.conversations.id, input.conversationId),
+          eq(schema.conversations.userId, input.userId),
+          eq(schema.characters.stableKey, input.characterKey),
+          eq(schema.characters.status, "published"),
+        ))
+        .limit(1);
       if (!character) throw new Error("CHARACTER_UNAVAILABLE");
       const [message] = await database.insert(schema.messages).values({
         id: input.messageId,
@@ -162,7 +182,10 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           eq(schema.conversationPreferences.userId, userId),
           eq(schema.conversationPreferences.characterId, schema.characters.id),
         ))
-        .where(eq(schema.conversations.userId, userId))
+        .where(and(
+          eq(schema.conversations.userId, userId),
+          eq(schema.characters.status, "published"),
+        ))
         .orderBy(desc(schema.conversations.lastMessageAt), desc(schema.conversations.updatedAt));
 
       const conversationIds = rows.map(({ conversation }) => conversation.id);
@@ -314,6 +337,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         .where(and(
           eq(schema.messages.userId, userId),
           eq(schema.messages.status, "completed"),
+          eq(schema.characters.status, "published"),
           ilike(schema.messages.content, `%${escapedQuery}%`),
         ))
         .orderBy(desc(schema.messages.createdAt))
@@ -334,6 +358,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           eq(schema.messages.id, messageId),
           eq(schema.messages.userId, userId),
           eq(schema.characters.stableKey, characterKey),
+          eq(schema.characters.status, "published"),
           eq(schema.messages.role, "user"),
         )).limit(1);
       if (!message) return false;
@@ -353,6 +378,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           eq(schema.messages.id, messageId),
           eq(schema.messages.userId, userId),
           eq(schema.characters.stableKey, characterKey),
+          eq(schema.characters.status, "published"),
           eq(schema.messages.role, "user"),
           eq(schema.messages.status, "completed"),
           gte(schema.messages.createdAt, cutoff),

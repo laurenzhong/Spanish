@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/conversation-search-response.schema.json",
+  "title": "Conversation search response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query", "results"],
+      "properties": {
+        "query": { "type": "string", "maxLength": 120 },
+        "results": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["messageId", "characterKey", "characterName", "role", "snippet", "createdAt"],
+            "properties": {
+              "messageId": { "type": "string", "format": "uuid" },
+              "characterKey": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "characterName": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "role": { "enum": ["user", "character"] },
+              "snippet": { "type": "string" },
+              "createdAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

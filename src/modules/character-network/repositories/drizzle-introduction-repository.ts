@@ -2,6 +2,11 @@ import { aliasedTable, and, asc, eq, inArray, or } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
+import {
+  findCharacterRuntimeDefinition,
+  isCharacterConversationEnabled,
+  isPublishedCharacterStatus,
+} from "@/src/modules/characters";
 import type { IntroductionOffer } from "../domain";
 import type {
   CharacterRelationshipRecord,
@@ -16,11 +21,41 @@ async function characterId<TResult extends PgQueryResultHKT>(
   database: NetworkDatabase<TResult>,
   characterKey: string,
   version: number,
+  capability: "conversation" | "introductions" = "conversation",
+): Promise<string> {
+  const [character] = await database
+    .select({ id: schema.characters.id, status: schema.characters.status })
+    .from(schema.characters)
+    .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.characterVersion, version)))
+    .limit(1);
+  const definition = findCharacterRuntimeDefinition(characterKey, version);
+  const manifestReady = definition && (definition.lifecycle === "published" || process.env.NODE_ENV === "test");
+  if (!character || !isPublishedCharacterStatus(character.status) || !manifestReady || definition?.policy.conversation === "disabled") {
+    throw new Error("CHARACTER_UNAVAILABLE");
+  }
+  if (capability === "introductions" && !definition?.policy.introductions) {
+    throw new Error("CHARACTER_UNAVAILABLE");
+  }
+  return character.id;
+}
+
+/**
+ * Revocation is an owner-controlled privacy operation. It must remain
+ * available even after a target character is retired or moved back to draft;
+ * only creation/sharing is gated by the published runtime policy.
+ */
+async function permissionTargetCharacterId<TResult extends PgQueryResultHKT>(
+  database: NetworkDatabase<TResult>,
+  characterKey: string,
+  version: number,
 ): Promise<string> {
   const [character] = await database
     .select({ id: schema.characters.id })
     .from(schema.characters)
-    .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.characterVersion, version)))
+    .where(and(
+      eq(schema.characters.stableKey, characterKey),
+      eq(schema.characters.characterVersion, version),
+    ))
     .limit(1);
   if (!character) throw new Error("CHARACTER_UNAVAILABLE");
   return character.id;
@@ -53,7 +88,7 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
     },
 
     async createOrGetPending(offer) {
-      const sourceCharacterId = await characterId(database, offer.sourceCharacterKey, offer.sourceCharacterVersion);
+      const sourceCharacterId = await characterId(database, offer.sourceCharacterKey, offer.sourceCharacterVersion, "introductions");
       const targetCharacterId = await characterId(database, offer.targetCharacterKey, offer.targetCharacterVersion);
       await database.insert(schema.characterIntroductionOffers).values({
         userId: offer.userId,
@@ -102,7 +137,8 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
           eq(schema.characters.stableKey, characterKey),
           eq(schema.characters.characterVersion, characterVersion),
         )).limit(1);
-      if (!character || character.status !== "published") return null;
+      const definition = findCharacterRuntimeDefinition(characterKey, characterVersion);
+      if (!character || !isPublishedCharacterStatus(character.status) || !isCharacterConversationEnabled(definition)) return null;
       const [row] = await database.select({ status: schema.characterRelationships.status })
         .from(schema.characterRelationships)
         .where(and(
@@ -159,9 +195,9 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
       return conversation.id;
     },
 
-    async validateShareableMemories(userId, memoryIds, sourceCharacterKey) {
+    async validateShareableMemories(userId, memoryIds, sourceCharacterKey, sourceCharacterVersion = 1) {
+      const sourceId = await characterId(database, sourceCharacterKey, sourceCharacterVersion);
       if (memoryIds.length === 0) return [];
-      const sourceId = await characterId(database, sourceCharacterKey, 1);
       const rows = await database.select({ id: schema.relationshipMemories.id }).from(schema.relationshipMemories).where(and(
         eq(schema.relationshipMemories.userId, userId),
         inArray(schema.relationshipMemories.id, memoryIds),
@@ -172,9 +208,9 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
       return rows.map((row) => row.id);
     },
 
-    async grantMemoryPermissions(userId, memoryIds, targetCharacterKey) {
+    async grantMemoryPermissions(userId, memoryIds, targetCharacterKey, targetCharacterVersion = 1) {
       if (memoryIds.length === 0) return;
-      const targetId = await characterId(database, targetCharacterKey, 1);
+      const targetId = await characterId(database, targetCharacterKey, targetCharacterVersion);
       for (const memoryId of memoryIds) {
         await database.insert(schema.memorySharingPermissions).values({
           userId,
@@ -192,9 +228,9 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
       }
     },
 
-    async listShareableMemoryPreviews(userId, sourceCharacterKey, targetCharacterKey): Promise<readonly ShareableMemoryPreview[]> {
-      const sourceId = await characterId(database, sourceCharacterKey, 1);
-      const targetId = await characterId(database, targetCharacterKey, 1);
+    async listShareableMemoryPreviews(userId, sourceCharacterKey, targetCharacterKey, sourceCharacterVersion = 1, targetCharacterVersion = 1): Promise<readonly ShareableMemoryPreview[]> {
+      const sourceId = await characterId(database, sourceCharacterKey, sourceCharacterVersion);
+      const targetId = await characterId(database, targetCharacterKey, targetCharacterVersion);
       const rows = await database
         .select({
           id: schema.relationshipMemories.id,
@@ -266,8 +302,8 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
       }));
     },
 
-    async revokeMemoryPermission(userId, memoryId, targetCharacterKey) {
-      const targetId = await characterId(database, targetCharacterKey, 1);
+    async revokeMemoryPermission(userId, memoryId, targetCharacterKey, targetCharacterVersion = 1) {
+      const targetId = await permissionTargetCharacterId(database, targetCharacterKey, targetCharacterVersion);
       await database.update(schema.memorySharingPermissions).set({
         isAllowed: false,
         updatedAt: new Date(),

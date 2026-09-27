@@ -17,10 +17,13 @@ import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
 import { CONVERSATION_LIST_UPDATED_EVENT, ConversationContactRail } from "./conversation-contact-rail";
 import {
+  getCachedConversationAccess,
   getCachedConversationHistory,
   loadConversationHistory,
   setCachedConversationHistory,
+  type ConversationHistoryAccess,
 } from "./conversation-history-cache";
+import { getConversationCacheScope } from "./conversation-cache-scope";
 
 type ChatThreadProps = Readonly<{
   characterKey: "lucia" | "mateo" | "ines";
@@ -30,6 +33,7 @@ type ChatThreadProps = Readonly<{
   avatarClassName?: string;
   initialMessageId?: string;
   initialMessages?: readonly ConversationState["messages"][number][];
+  cacheScope?: string;
 }>;
 
 type UserAvatarProfile = Readonly<{
@@ -57,7 +61,7 @@ function createId(prefix: string): string {
   return `${prefix}-${uuid}`;
 }
 
-export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, avatarClassName = "avatar--lucia" }: ChatThreadProps) {
+export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, avatarClassName = "avatar--lucia", cacheScope = getConversationCacheScope() }: ChatThreadProps) {
   const targetMessageId = initialMessageId ?? (typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("message") ?? undefined
     : undefined);
@@ -65,6 +69,14 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     ? transitionConversationState(createConversationState(), { type: "hydrate", messages: initialMessages })
     : createConversationState());
   const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">(initialMessages ? "available" : "loading");
+  const [historyAccess, setHistoryAccess] = useState<ConversationHistoryAccess>(() => getCachedConversationAccess(characterKey, cacheScope) ?? {
+    // A server-rendered/fixture history is already an explicit view of the
+    // conversation. The authoritative route metadata will still replace this
+    // optimistic default as soon as the client revalidates.
+    readOnly: false,
+    canSend: Boolean(initialMessages),
+    contactStatus: null,
+  });
   const [draft, setDraft] = useState("");
   const [quotedMessage, setQuotedMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [contextMenu, setContextMenu] = useState<MessageMenuState | null>(null);
@@ -259,7 +271,13 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   useEffect(() => {
     abortRef.current?.abort();
     let cancelled = false;
-    const cached = getCachedConversationHistory(characterKey);
+    const cached = getCachedConversationHistory(characterKey, cacheScope);
+    const cachedAccess = getCachedConversationAccess(characterKey, cacheScope);
+    if (cachedAccess) {
+      queueMicrotask(() => {
+        if (!cancelled) setHistoryAccess(cachedAccess);
+      });
+    }
     knownMessageKeysRef.current = new Set((initialMessages ?? []).map((message) => message.clientMessageId ?? message.id));
     serverMessageKeysRef.current = new Set((initialMessages ?? []).map((message) => message.clientMessageId ?? message.id));
     if (cached && cached.length > 0) {
@@ -273,7 +291,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
     const refresh = async (initialLoad = false) => {
       try {
-        const result = await loadConversationHistory(characterKey);
+        const result = await loadConversationHistory(characterKey, cacheScope);
         if (cancelled) return;
         const knownKeys = knownMessageKeysRef.current;
         const newlyArrivedProactive = result.messages.some((message) => {
@@ -303,7 +321,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           apply({ type: "hydrate", messages: result.messages });
         }
         serverMessageKeysRef.current = new Set(result.messages.map((message) => message.clientMessageId ?? message.id));
-        setCachedConversationHistory(characterKey, result.messages);
+        setHistoryAccess(result.access);
+        setCachedConversationHistory(characterKey, result.messages, result.access, cacheScope);
         setPersistenceStatus("available");
         serverHistoryLoadedRef.current = true;
       } catch {
@@ -330,12 +349,21 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.clearInterval(interval);
     };
-  }, [characterKey, historyReloadToken, initialMessages]);
+  }, [cacheScope, characterKey, historyReloadToken, initialMessages]);
 
   useEffect(() => {
     if (state.messages.length === 0) return;
-    setCachedConversationHistory(characterKey, state.messages);
-  }, [characterKey, state.messages]);
+    setCachedConversationHistory(characterKey, state.messages, undefined, cacheScope);
+  }, [cacheScope, characterKey, state.messages]);
+
+  useEffect(() => {
+    if (historyAccess.canSend && !historyAccess.readOnly) return;
+    // A revalidation can revoke the contact while an older render still has
+    // an optimistic composer. Do not let queued work survive that revocation.
+    queuedMessagesRef.current = [];
+    abortRef.current?.abort();
+    pumpingQueueRef.current = false;
+  }, [historyAccess.canSend, historyAccess.readOnly]);
 
   function apply(action: Parameters<typeof transitionConversationState>[1]) {
     setState((current) => transitionConversationState(current, action));
@@ -425,7 +453,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function pumpQueue() {
-    if (pumpingQueueRef.current || abortRef.current || queuedMessagesRef.current.length === 0) return;
+    if (pumpingQueueRef.current || abortRef.current || queuedMessagesRef.current.length === 0 || !historyAccess.canSend || historyAccess.readOnly) return;
     const next = queuedMessagesRef.current.shift();
     if (!next) return;
     pumpingQueueRef.current = true;
@@ -434,6 +462,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function submit() {
+    if (!historyAccess.canSend || historyAccess.readOnly || persistenceStatus !== "available") {
+      if (persistenceStatus === "available") setNotice(historyAccess.contactStatus === "declined" ? "你已拒绝这个好友申请，无法发送新消息。" : "这段对话目前只能查看，无法发送新消息。");
+      return;
+    }
     const text = draft.trim();
     if (!text) return;
     const clientMessageId = createId("client");
@@ -451,7 +483,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function retry() {
-    if (!retryMessage || state.status === "streaming") return;
+    if (!retryMessage || state.status === "streaming" || !historyAccess.canSend || historyAccess.readOnly) return;
     const generationId = createId("generation");
     apply({ type: "retry", userMessageId: retryMessage.id, generationId });
     void consume(retryMessage.text, retryMessage.clientMessageId ?? retryMessage.id, generationId);
@@ -655,6 +687,16 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     }
   }
 
+  const historyLocked = persistenceStatus === "available"
+    && (historyAccess.readOnly || !historyAccess.canSend);
+  const historyLockMessage = historyAccess.contactStatus === "pending"
+    ? "接受好友申请后才能发送消息。"
+    : historyAccess.contactStatus === "declined"
+      ? "你已拒绝这个好友申请，无法发送新消息。"
+      : historyAccess.contactStatus === "unavailable"
+        ? "这段对话目前只能查看，联系人状态暂时不可用。"
+        : "这段历史记录只能查看，不能发送新消息。";
+
   return (
     <section className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
       <header className="conversation-thread__header">
@@ -663,7 +705,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           <div>
             <h1 id="conversation-title">{characterName}</h1>
             {state.status === "streaming" ? (
-              <ConversationTypingIndicator className="conversation-thread__typing" />
+              <>
+                <ConversationTypingIndicator className="conversation-thread__typing" />
+                <span className="sr-only" role="status" aria-live="polite">正在回复</span>
+              </>
             ) : <p>{roleLabel}</p>}
           </div>
         </div>
@@ -695,7 +740,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
       {showMobileConversations ? <div className="conversation-mobile-list" role="dialog" aria-modal="true" aria-label="会话列表">
         <div className="conversation-mobile-list__header"><strong>会话列表</strong><button type="button" aria-label="关闭会话列表" onClick={() => setShowMobileConversations(false)}>×</button></div>
-        <ConversationContactRail activeCharacterKey={characterKey} />
+        <ConversationContactRail activeCharacterKey={characterKey} cacheScope={cacheScope} />
       </div> : null}
 
       <div ref={messagesRef} className="conversation-thread__messages" onScroll={handleMessagesScroll}>
@@ -796,7 +841,15 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {retryMessage ? <button className="secondary-action" onClick={retry} type="button">重新发送</button> : null}
         </div>
       ) : null}
-      <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
+      {persistenceStatus === "loading" && state.messages.length === 0 ? (
+        <div className="conversation-thread__composer-loading" role="status" aria-live="polite">正在准备对话……</div>
+      ) : historyLocked ? (
+        <div className="conversation-thread__composer-locked" role="status" data-testid="conversation-composer-locked">
+          {historyLockMessage}
+        </div>
+      ) : (
+        <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
+      )}
     </section>
   );
 }

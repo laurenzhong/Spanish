@@ -1,8 +1,8 @@
 # CONV-ROLE-001：角色运行时与对话闭环实施计划
 
 - 日期：2026-09-26
-- 状态：计划已获产品本人确认；尚未领取实现分支
-- 建议分支：`codex/conv-role-001-character-runtime`
+- 状态：计划已获产品本人确认；阶段 0–1 代码切片已实现，待本分支提交与验收。阶段 2–4 尚未开始，阶段 5 默认不领取
+- 建议分支：`codex/conv-role-001-character-runtime`（本轮实际工作树为 `codex/disable-legacy-readlang`；混合工作树只提交本任务相关文件）
 - 设计依据：[角色运行时与对话闭环设计](../superpowers/specs/2026-09-26-character-runtime-and-conversation-closure-design.md)、[ADR-0009](../adr/0009-character-runtime-and-conversation-boundary.md)
 - 前置关系：不改变当前内容供应队列；建议在 `PODCAST-001`/发布候选门禁完成后排期，除非产品本人明确重新排序
 
@@ -38,14 +38,21 @@
 
 | 阶段 | 未来切片（不是本轮领取的任务 ID） | 主要修改面 | 必须先通过的验收 | 停点 |
 | --- | --- | --- | --- | --- |
-| 0 | Lucía v1 冻结 | 人物 JSON、版本/审核 fixture、冲突记录 | 姓名/身份、透露策略、能力开关和 replay manifest 唯一 | 产品本人确认后才能进入发布门禁 |
-| 1 | 发布与目录边界 | `characters`、目录 DTO、list/detail/create/history/search/stream/intro route | draft 角色不可发现、不可创建、不可发送；直接 URL/API 返回稳定错误；已有旧历史只读 | 数据库/RLS 与 API 契约测试通过 |
+| 0 | Lucía v1 冻结 | 人物 JSON、版本/审核 fixture、冲突记录 | 姓名/身份、透露策略、能力开关和 replay manifest 唯一 | **基础运行时 policy 已落地；canonical 姓名/审核/replay/数据库发布仍待产品确认** |
+| 1 | 发布与目录边界 | `characters`、目录 DTO、list/detail/create/history/search/stream/intro route | draft 角色不可发现、不可创建、不可发送；直接 URL/API 返回稳定错误；已有旧历史只读 | **服务端 published gate 与 draft 隔离已落地；完整 API/RLS/只读 UI 契约仍待验收** |
 | 2 | 运行时角色策略 | `CharacterRuntimePolicy`、通用关系读取、provider context | Lucía 真实 stage/summary 注入；角色 A 不读取角色 B；无 key 分支继承 | provider fake/replay 和关系隔离测试通过 |
 | 3 | 回合可靠性与隐私 | stream application/repository、retry、CAS、删除/撤回、auth/cache | stale generation、丢 done、重复 retry、取消、删除竞态不重复收费/消息/记忆；撤回内容不进入搜索/上下文 | 领域/集成/数据库测试通过 |
 | 4 | Web/PWA 闭环 | `/chat`、移动 rail/header、语音 composer、反馈抽屉 | 桌面/手机可进入 Lucía；录音→转写草稿→确认发送；错误可恢复；无数据时不伪造已保存 | 关键 Playwright 与人工移动验收通过 |
 | 5 | 基础朋友（可选） | Mateo/Inés 各自人物包和 replay | 产品明确批准后，每个角色独立通过 basic 角色包、介绍、关系上限和回放 | 单独停点，不自动连续开放 |
 
 本轮只记录 umbrella 任务 `CONV-ROLE-001`，未来每个实现切片领取时再由协调者分配唯一任务 ID。不得跨阶段顺手发布角色或新增未批准能力；阶段 5 默认不领取。
+
+### 3.1 本轮实际交付（阶段 0–1 基础切片）
+
+- 新增 `CharacterRuntimePolicy` 与 `resolveConversationCharacter`：真实运行时要求 `characters.status = published`；无数据库或真实 provider 时生产 fail-closed，deterministic fake 只保留给测试/E2E/显式开发注入。
+- 会话列表、搜索、详情、history、stream、消息操作、主动消息和介绍入口增加角色生命周期/能力门禁；Mateo/Inés 继续保持 `draft/coming-soon`，不创建新关系、会话或共享授权。
+- 已有旧角色历史的 API 投影支持 `readOnly` 标记；只读历史入口与客户端完整展示仍作为后续补强项，不将此切片宣称为完整 UX 闭环。
+- 本轮没有把 Lucía 人物 JSON 或数据库记录改成 `published`，也没有解决 `Lucía García` / `Lucía Martín` 的 canonical 选择。
 
 ## 4. 先写测试的要求
 
@@ -116,6 +123,14 @@ pnpm build
 ```
 
 涉及数据库/迁移时增加空库、RLS、幂等和回滚验证；涉及 iPhone Safari/PWA 的部分另行记录真机结果，不能用桌面 Chromium 代替。
+
+### 7.1 本轮验证记录
+
+- 角色/会话/网络/认证聚焦回归：21 files / 96 tests 通过（包含数据库持久化、偏好/TTS envelope、草稿门禁、无数据库 fail-closed、共享权限撤销和持久化事实隐私回归）。
+- `pnpm test:contracts`：23 files / 85 tests 通过；核心会话 history/list/message/search/stream JSON Schema、OpenAPI 路径和统一错误 envelope 已同步。
+- 受影响文件 ESLint 通过；`pnpm exec tsc --noEmit` 仍被并行媒体改动 `src/modules/media/ui/media-library.tsx:282` 的既有 props 类型错误阻断，未将其计入本任务失败。
+- 仍未完成全量 unit/E2E/build、introductions/proactive/preferences/translation/TTS 的逐路由 Schema 补齐、完整 RLS/只读历史 UI、真实 provider/远端数据库和 iPhone Safari/PWA 验收。
+- 角色数据库当前尚未保存人物事实的 `reveal/audience/trigger` policy；运行时对非 AI 身份事实保守按 `never` 处理。Lucía 发布前必须完成版本化 reveal 持久化与关系阶段过滤，不能把静态 fallback 当作生产事实。
 
 ## 8. 产品验收清单
 

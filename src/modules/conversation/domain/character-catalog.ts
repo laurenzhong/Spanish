@@ -1,4 +1,8 @@
 import type { ReplyCharacterSnapshot } from "../application/build-reply-context";
+import {
+  findCharacterRuntimeDefinition,
+  isCharacterConversationEnabled,
+} from "@/src/modules/characters";
 
 export type ConversationCharacterKey = "lucia" | "mateo" | "ines";
 
@@ -88,4 +92,22 @@ export function getConversationCharacter(key: string): ConversationCharacter {
   const character = findConversationCharacter(key);
   if (!character) throw new Error("CHARACTER_UNAVAILABLE");
   return character;
+}
+
+/**
+ * Production discovery is intentionally narrower than the compatibility
+ * catalog. Draft characters remain addressable for old fixtures and future
+ * read-only history, but are not valid new contact/composer entries.
+ */
+export function isConversationCharacterDiscoverable(
+  key: string,
+  version = 1,
+): boolean {
+  return isCharacterConversationEnabled(findCharacterRuntimeDefinition(key, version));
+}
+
+export function listDiscoverableConversationCharacters(): readonly ConversationCharacter[] {
+  return conversationCharacters.filter((character) =>
+    isConversationCharacterDiscoverable(character.key, character.version),
+  );
 }

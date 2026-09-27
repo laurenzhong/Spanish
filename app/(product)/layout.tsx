@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { createHash } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -9,6 +10,13 @@ import { AuthRecoveryActions } from "@/src/shared/auth/auth-recovery-actions";
 type ProductLayoutProps = Readonly<{
   children: ReactNode;
 }>;
+
+function conversationCacheScope(userId: string): string {
+  return createHash("sha256")
+    .update(`conversation-cache:${userId}`)
+    .digest("hex")
+    .slice(0, 24);
+}
 
 export default async function ProductLayout({ children }: ProductLayoutProps) {
   const user = await getCurrentUser();
@@ -43,5 +51,5 @@ export default async function ProductLayout({ children }: ProductLayoutProps) {
     redirect("/login");
   }
 
-  return <AppShell>{children}</AppShell>;
+  return <AppShell conversationCacheScope={conversationCacheScope(user.id)}>{children}</AppShell>;
 }
