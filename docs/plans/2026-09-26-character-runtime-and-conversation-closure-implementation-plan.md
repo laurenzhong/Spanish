@@ -141,7 +141,7 @@ pnpm build
 - 实现 Commit：`d5e3502`（`feat: enforce published character conversation runtime`）；隐私/身份后置修复：`9acb380`（`fix: close conversation privacy and identity leaks`）与 `d02253c`（`fix: remove memories before conversation deletion`）。
 - 此前依赖完整时角色/会话/网络/认证聚焦回归：21 files / 96 tests 通过（包含数据库持久化、偏好/TTS envelope、草稿门禁、无数据库 fail-closed、共享权限撤销和持久化事实隐私回归）；本提交另新增缓存竞态 2 条、空共享 source gate 1 条回归。
 - `pnpm test:contracts`：23 files / 85 tests 通过；核心会话 history/list/message/search/stream JSON Schema、OpenAPI 路径和统一错误 envelope 已同步。
-- 当前复核的 Node-only 聚焦测试 3 files / 13 tests 通过（直接调用工作树 Vitest CLI）；此前扩大聚焦运行在 worker OOM 后报告 14 files / 50 tests 通过。浏览器测试因工作树依赖缺少 `@asamuzakjp/css-color`/`picocolors` 未能启动，受影响 ESLint 因缺少 `@babel/core` 未能重跑；`pnpm exec tsc --noEmit` 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 阻断，筛选输出未发现本任务源文件错误。
+- 当前复核的 Node-only 对话/角色聚焦测试 9 files / 41 tests 通过，包含 PGlite 与 mutation envelope；契约测试 23 files / 85 tests 通过（均直接调用工作树 Vitest CLI）。此前扩大聚焦运行在 worker OOM 后报告 14 files / 50 tests 通过。浏览器测试因工作树依赖缺少 `@asamuzakjp/css-color`/`picocolors` 未能启动，受影响 ESLint 因缺少 `@babel/core` 未能重跑；`pnpm exec tsc --noEmit` 仍被并行媒体 `src/modules/media/ui/media-library.tsx:282` 阻断，筛选输出未发现本任务源文件错误。
 - 已用包含完整 `0013_smart_stick.sql` 的 PGlite 迁移集合验证 withdrawn assistant 的预览/未读/搜索过滤、删除事务同时删除用户消息和 assistant、来源关系记忆在删除前清理，以及 draft 角色历史消息仍可删除/撤回；路由单测还验证记忆清理失败时源消息保留并可重试。
 - 阶段 3 尚未完成：stream 当前仍可能在最终 `isMessageWithdrawn` 检查前写入 assistant，`completeAssistantMessage` 也尚未验证父消息仍存在且未撤回；撤回路径的记忆清理失败重试、删除/撤回与关系记忆的 CAS/事务设计仍待实现。
 - 仍未完成全量 unit/E2E/build、introductions/proactive/preferences/translation/TTS 的逐路由 Schema 补齐、完整 RLS/只读历史 UI、真实 provider/远端数据库和 iPhone Safari/PWA 验收。
