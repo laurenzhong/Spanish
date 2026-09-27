@@ -66,6 +66,14 @@ function persistedSnapshot(
         reveal: reveal as "never" | "contextual" | "gradual" | "direct",
       };
     });
+  // The persisted character version is authoritative. An empty (or fully
+  // inactive) fact set must not resurrect biography from the compatibility
+  // catalog; doing so would make an old static snapshot part of a published
+  // character's provider context. Keep only the invariant AI-identity
+  // boundary when the older row has not stored any canon facts yet.
+  const safeFacts = facts.length > 0
+    ? facts
+    : fallback.snapshot.facts.filter((fact) => fact.factKey === "boundary.ai-identity");
   return {
     characterKey: persisted.stableKey,
     characterVersion: persisted.version,
@@ -74,7 +82,7 @@ function persistedSnapshot(
     initiative,
     tone: personality.tone?.length ? personality.tone : fallback.snapshot.tone,
     topics: topics.length > 0 ? topics : fallback.snapshot.topics,
-    facts: facts.length > 0 ? facts : fallback.snapshot.facts,
+    facts: safeFacts,
   };
 }
 

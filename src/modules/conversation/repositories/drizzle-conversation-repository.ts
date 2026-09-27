@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, ilike, inArray, isNull, or } from "drizzle-orm";
+import { aliasedTable, and, asc, desc, eq, gt, gte, ilike, inArray, isNull, notExists, or } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -192,6 +192,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const latestMessageByConversation = new Map<string, { role: "user" | "character"; content: string; createdAt: Date }>();
       const unreadCountByConversation = new Map<string, number>();
       if (conversationIds.length > 0) {
+        const withdrawnLatestParents = aliasedTable(schema.messages, "withdrawn_latest_parents");
         const messages = await database
           .selectDistinctOn([schema.messages.conversationId], {
             conversationId: schema.messages.conversationId,
@@ -200,7 +201,20 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
             createdAt: schema.messages.createdAt,
           })
           .from(schema.messages)
-          .where(and(inArray(schema.messages.conversationId, conversationIds), eq(schema.messages.status, "completed")))
+          .where(and(
+            inArray(schema.messages.conversationId, conversationIds),
+            eq(schema.messages.status, "completed"),
+            notExists(
+              database.select({ id: withdrawnLatestParents.id })
+                .from(withdrawnLatestParents)
+                .where(and(
+                  eq(withdrawnLatestParents.id, schema.messages.replyToMessageId),
+                  eq(withdrawnLatestParents.userId, userId),
+                  eq(withdrawnLatestParents.conversationId, schema.messages.conversationId),
+                  eq(withdrawnLatestParents.status, "withdrawn"),
+                )),
+            ),
+          ))
           .orderBy(asc(schema.messages.conversationId), desc(schema.messages.createdAt));
         for (const message of messages) {
           if (!latestMessageByConversation.has(message.conversationId)) {
@@ -211,6 +225,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
             });
           }
         }
+        const withdrawnUnreadParents = aliasedTable(schema.messages, "withdrawn_unread_parents");
         const unreadRows = await database
           .select({ conversationId: schema.messages.conversationId })
           .from(schema.messages)
@@ -222,6 +237,16 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
             inArray(schema.messages.conversationId, conversationIds),
             eq(schema.messages.role, "character"),
             eq(schema.messages.status, "completed"),
+            notExists(
+              database.select({ id: withdrawnUnreadParents.id })
+                .from(withdrawnUnreadParents)
+                .where(and(
+                  eq(withdrawnUnreadParents.id, schema.messages.replyToMessageId),
+                  eq(withdrawnUnreadParents.userId, userId),
+                  eq(withdrawnUnreadParents.conversationId, schema.messages.conversationId),
+                  eq(withdrawnUnreadParents.status, "withdrawn"),
+                )),
+            ),
             or(
               isNull(schema.conversationPreferences.lastReadAt),
               gt(schema.messages.createdAt, schema.conversationPreferences.lastReadAt),
@@ -329,6 +354,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const normalizedQuery = query.trim();
       if (!normalizedQuery) return [];
       const escapedQuery = normalizedQuery.replace(/[\\%_]/gu, (value) => `\\${value}`);
+      const withdrawnSearchParents = aliasedTable(schema.messages, "withdrawn_search_parents");
       const rows = await database
         .select({ message: schema.messages, character: schema.characters })
         .from(schema.messages)
@@ -338,6 +364,16 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           eq(schema.messages.userId, userId),
           eq(schema.messages.status, "completed"),
           eq(schema.characters.status, "published"),
+          notExists(
+            database.select({ id: withdrawnSearchParents.id })
+              .from(withdrawnSearchParents)
+              .where(and(
+                eq(withdrawnSearchParents.id, schema.messages.replyToMessageId),
+                eq(withdrawnSearchParents.userId, userId),
+                eq(withdrawnSearchParents.conversationId, schema.messages.conversationId),
+                eq(withdrawnSearchParents.status, "withdrawn"),
+              )),
+          ),
           ilike(schema.messages.content, `%${escapedQuery}%`),
         ))
         .orderBy(desc(schema.messages.createdAt))
@@ -350,22 +386,35 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
     },
 
     async deleteMessage(userId, characterKey, messageId) {
-      const [message] = await database.select({ id: schema.messages.id })
-        .from(schema.messages)
-        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
-        .where(and(
-          eq(schema.messages.id, messageId),
+      return database.transaction(async (transaction) => {
+        const [message] = await transaction.select({ id: schema.messages.id, conversationId: schema.messages.conversationId })
+          .from(schema.messages)
+          .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+          .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+          .where(and(
+            eq(schema.messages.id, messageId),
+            eq(schema.messages.userId, userId),
+            eq(schema.characters.stableKey, characterKey),
+            eq(schema.characters.status, "published"),
+            eq(schema.messages.role, "user"),
+          )).limit(1);
+        if (!message) return false;
+
+        // reply_to_message_id is intentionally not a database foreign key so
+        // failed/streaming rows can be retained. Delete dependent assistant
+        // content explicitly before removing the user turn, otherwise a
+        // deleted prompt could survive in history/search projections.
+        await transaction.delete(schema.messages).where(and(
           eq(schema.messages.userId, userId),
-          eq(schema.characters.stableKey, characterKey),
-          eq(schema.characters.status, "published"),
-          eq(schema.messages.role, "user"),
-        )).limit(1);
-      if (!message) return false;
-      const deleted = await database.delete(schema.messages)
-        .where(and(eq(schema.messages.id, message.id), eq(schema.messages.userId, userId)))
-        .returning({ id: schema.messages.id });
-      return deleted.length > 0;
+          eq(schema.messages.conversationId, message.conversationId),
+          eq(schema.messages.replyToMessageId, message.id),
+          eq(schema.messages.role, "character"),
+        ));
+        const deleted = await transaction.delete(schema.messages)
+          .where(and(eq(schema.messages.id, message.id), eq(schema.messages.userId, userId)))
+          .returning({ id: schema.messages.id });
+        return deleted.length > 0;
+      });
     },
 
     async withdrawMessage(userId, characterKey, messageId) {

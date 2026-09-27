@@ -64,9 +64,18 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if (!isUuid(messageId)) return errorResponse("MESSAGE_NOT_FOUND", 404);
   try {
     const deleted = await createDrizzleConversationRepository(getDatabase()).deleteMessage(auth.user.id, characterId, messageId);
-    return deleted
-      ? NextResponse.json({ apiVersion: API_VERSION, data: { deleted: true } })
-      : errorResponse("MESSAGE_NOT_FOUND", 404);
+    if (!deleted) return errorResponse("MESSAGE_NOT_FOUND", 404);
+    try {
+      await deleteMemoriesForSourceMessage(
+        createDrizzleMemoryRepository(getDatabase()),
+        auth.user.id,
+        messageId,
+      );
+    } catch {
+      // Message deletion is complete; memory cleanup remains retryable and
+      // must not turn the successful user action into a duplicate delete.
+    }
+    return NextResponse.json({ apiVersion: API_VERSION, data: { deleted: true } });
   } catch {
     return errorResponse("CONVERSATION_UNAVAILABLE", 503);
   }

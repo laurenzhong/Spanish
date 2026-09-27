@@ -25,7 +25,7 @@ const source = {
 const authoredOpening = {
   clientMessageId: "lucia-authored-opening-v1",
   generationId: "lucia-authored-opening-v1",
-  content: "Me acordé de aquella conversación del evento. Desde entonces me he quedado con curiosidad por algo que dijiste.",
+  content: "En la historia ficticia de Lucía, aquella conversación sobre fotografía urbana se quedó como un recuerdo bonito. Me dio curiosidad seguir hablando contigo por aquí.",
 };
 
 async function findLucia<TResult extends PgQueryResultHKT>(database: NetworkDatabase<TResult>) {

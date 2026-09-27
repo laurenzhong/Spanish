@@ -3,11 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createOpenAITranscriptionProvider } from "@/src/modules/providers/stt/server";
 import { isSpeechToTextError } from "@/src/modules/providers/stt";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return NextResponse.json({ error: { code: "AUTH_REQUIRED" } }, { status: 401 });
 
   let form: FormData;

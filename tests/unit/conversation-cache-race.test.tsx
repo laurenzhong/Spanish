@@ -10,6 +10,10 @@ import {
   clearConversationContactCache,
   ConversationContactRail,
 } from "@/src/modules/conversation/ui/conversation-contact-rail";
+import {
+  clearConversationUnreadCache,
+  ConversationUnreadBadge,
+} from "@/src/modules/conversation/ui/conversation-unread-badge";
 
 type Deferred<T> = Readonly<{
   promise: Promise<T>;
@@ -49,7 +53,9 @@ describe("conversation cache invalidation", () => {
     cleanup();
     clearConversationHistoryCache();
     clearConversationContactCache();
+    clearConversationUnreadCache();
     vi.unstubAllGlobals();
+    document.querySelector("[data-conversation-cache-scope]")?.remove();
   });
 
   it("does not repopulate history after an in-flight request is invalidated", async () => {
@@ -108,5 +114,35 @@ describe("conversation cache invalidation", () => {
 
     expect(screen.getByRole("link", { name: /Mateo Ruiz/ })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Lucía Martín/ })).not.toBeInTheDocument();
+  });
+
+  it("clears the unread badge on account scope changes and ignores the old response", async () => {
+    const scopeAUnread = deferred<Response>();
+    const scopeBUnread = deferred<Response>();
+    let requestCount = 0;
+    const scopeElement = document.createElement("div");
+    scopeElement.dataset.conversationCacheScope = "scope-a";
+    document.body.append(scopeElement);
+    vi.stubGlobal("fetch", vi.fn(() => {
+      requestCount += 1;
+      return requestCount === 1 ? scopeAUnread.promise : scopeBUnread.promise;
+    }));
+
+    const view = render(<ConversationUnreadBadge />);
+    await waitFor(() => expect(requestCount).toBe(1));
+
+    scopeElement.dataset.conversationCacheScope = "scope-b";
+    view.rerender(<ConversationUnreadBadge />);
+    expect(screen.queryByText("7")).toBeNull();
+    await waitFor(() => expect(requestCount).toBe(2));
+
+    scopeBUnread.resolve(jsonResponse({ data: { conversations: [{ unreadCount: 2 }] } }));
+    expect(await screen.findByText("2")).toBeTruthy();
+
+    scopeAUnread.resolve(jsonResponse({ data: { conversations: [{ unreadCount: 7 }] } }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText("7")).toBeNull();
+    expect(screen.getByText("2")).toBeTruthy();
   });
 });

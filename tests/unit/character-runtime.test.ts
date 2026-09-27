@@ -103,6 +103,21 @@ describe("character runtime release gate", () => {
     ]);
   });
 
+  it("does not resurrect static biography when a published row has no active facts", async () => {
+    const resolved = await resolveConversationCharacter({
+      characterKey: "lucia",
+      characterVersion: 1,
+      repository: repositoryReturning({
+        status: "published",
+        facts: [],
+      }),
+    });
+
+    expect(resolved.catalog.snapshot.facts).toEqual([
+      expect.objectContaining({ factKey: "boundary.ai-identity", reveal: "direct" }),
+    ]);
+  });
+
   it("rejects a repository result whose identity does not match the requested version", async () => {
     await expect(resolveConversationCharacter({
       characterKey: "lucia",
