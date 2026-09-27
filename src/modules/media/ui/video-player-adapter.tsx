@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 
 import {
+  disableNativeMediaControls,
+  markPlyrContainer,
   mountPlyrAutoPauseControl,
   videoPlyrOptions,
   type MountedAutoPauseControl,
@@ -165,8 +167,10 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
     };
     onError(null);
     onAutoPauseControlReady(false);
+    target.dataset.mediaPlayerState = "loading";
     if (factory) {
       try {
+        target.dataset.mediaPlayerState = "test-factory";
         port = factory(target, { videoId, lifecycle: {
           onReady: handleReady,
           onStateChange: (state) => {
@@ -180,6 +184,7 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
         } });
         onPortChange(port);
       } catch (error) {
+        target.dataset.mediaPlayerState = "error";
         if (current()) onError(error instanceof Error ? error.message : "播放器初始化失败。");
       }
     } else {
@@ -191,7 +196,8 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
           ...videoPlyrOptions,
           youtube: { noCookie: true, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 },
         });
-        const playerContainer = player.elements?.container ?? target;
+        const playerContainer = markPlyrContainer(player, target, "video");
+        playerContainer.dataset.mediaPlayerState = "ready";
         playerContainer.setAttribute("aria-label", `${title}`);
         playerContainer.dataset.plyrEmbedId = videoId;
         playerContainer.dataset.videoId = videoId;
@@ -223,6 +229,7 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, autoPause, hasSeg
         };
         onPortChange(port);
       }).catch(() => {
+        target.dataset.mediaPlayerState = "error";
         if (current()) onError("YouTube 播放器加载失败，请重试或在 YouTube 打开。");
       });
     }
@@ -326,12 +333,15 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, autoPause, 
       }
     };
 
+    disableNativeMediaControls(video);
+    video.dataset.mediaPlayerState = "loading";
     video.src = videoUrl;
     video.dataset.source = videoUrl;
     video.preload = "metadata";
     onAutoPauseControlReady(false);
     if (factory) {
       try {
+        video.dataset.mediaPlayerState = "test-factory";
         port = factory(video, {
           url: videoUrl,
           lifecycle: {
@@ -348,6 +358,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, autoPause, 
         });
         if (current()) onPortChange(port);
       } catch (caught) {
+        video.dataset.mediaPlayerState = "error";
         if (current()) onError(caught instanceof Error ? caught.message : "播放器初始化失败。");
       }
     } else {
@@ -366,8 +377,9 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, autoPause, 
         const candidate = module as unknown as { default?: PlyrConstructor };
         const Plyr = candidate.default ?? module as unknown as PlyrConstructor;
         player = new Plyr(video, videoPlyrOptions);
-        const playerContainer = player.elements?.container;
-        playerContainer?.setAttribute("aria-label", title);
+        const playerContainer = markPlyrContainer(player, video, "video");
+        playerContainer.dataset.mediaPlayerState = "ready";
+        playerContainer.setAttribute("aria-label", title);
         video.removeAttribute("aria-label");
         player.on("ready", ready);
         mountAutoPause();
@@ -391,7 +403,10 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, autoPause, 
         };
         onPortChange(port);
         if (video.readyState >= 1) ready();
-      }).catch(() => { if (current()) onError("统一视频播放器加载失败，请重试或检查媒体资源。"); });
+      }).catch(() => {
+        video.dataset.mediaPlayerState = "error";
+        if (current()) onError("统一视频播放器加载失败，请重试或检查媒体资源。");
+      });
     }
     return () => {
       cancelled = true;
@@ -433,6 +448,9 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, autoPause, 
 
 /** @deprecated This is retained as an explicit test seam. The default path is HostedVideoPlayerAdapter + Plyr. */
 export const nativeVideoPlayerFactory: NativeVideoPlayerFactory = (element, input) => {
+  // This factory is retained only as a deterministic test seam. Keep the
+  // same native-control invariant if a test installs it on a reused node.
+  disableNativeMediaControls(element);
   const onReady = () => input.lifecycle.onReady();
   const onPlay = () => input.lifecycle.onStateChange("playing");
   const onPause = () => { if (!element.ended) input.lifecycle.onStateChange("paused"); };

@@ -60,7 +60,11 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
 
   await expect(page.getByRole("heading", { name: "Una mañana en el mercado" })).toBeVisible();
   const audio = page.locator(".media-detail__player audio");
-  await expect(page.locator(".media-detail__player .plyr")).toBeVisible();
+  const player = page.locator(".media-detail__player .plyr");
+  await expect(player).toBeVisible();
+  await expect(player).toHaveAttribute("data-media-player", "plyr");
+  await expect(player).toHaveAttribute("data-media-player-version", "3.8.4");
+  await expect(audio).not.toHaveAttribute("controls");
   await expect(page.getByText("播放器已就绪")).toBeVisible();
 
   await page.getByRole("button", { name: "下一句" }).click();

@@ -11,10 +11,45 @@ export type PlyrInstance = {
 
 export type PlyrConstructor = new (target: HTMLElement, options: Readonly<Record<string, unknown>>) => PlyrInstance;
 
+/**
+ * Keep the player contract visible in the DOM as well as in package.json. The
+ * marker makes it possible to verify a deployed page without relying on a
+ * browser-specific control skin (and catches an old cached player immediately).
+ */
+export const PLYR_VERSION = "3.8.4" as const;
+export type PlyrMediaKind = "audio" | "video";
+
 export type MountedAutoPauseControl = Readonly<{
   destroy: () => void;
   setAutoPause: (enabled: boolean) => void;
 }>;
+
+/**
+ * The media detail route used to render native controls. A tab that was
+ * opened before the Plyr rollout can retain that attribute while React
+ * hydrates or navigates in place, so clear it before mounting the shared
+ * player as well as omitting it from JSX.
+ */
+export function disableNativeMediaControls(element: HTMLMediaElement): void {
+  element.controls = false;
+  element.removeAttribute("controls");
+}
+
+/**
+ * Mark the wrapper created by Plyr. The fallback is useful for controlled
+ * fakes in unit tests; the real Plyr instance always exposes `elements.container`.
+ */
+export function markPlyrContainer(
+  player: Readonly<PlyrInstance>,
+  fallback: HTMLElement,
+  kind: PlyrMediaKind,
+): HTMLElement {
+  const container = player.elements?.container ?? fallback;
+  container.dataset.mediaPlayer = "plyr";
+  container.dataset.mediaPlayerVersion = PLYR_VERSION;
+  container.dataset.mediaPlayerKind = kind;
+  return container;
+}
 
 export const audioPlyrOptions = {
   controls: ["play", "progress", "current-time", "duration", "mute", "volume", "settings"],
