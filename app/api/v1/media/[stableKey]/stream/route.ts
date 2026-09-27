@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMediaPlayback } from "@/src/modules/media/application";
 import { MediaUnavailableError } from "@/src/modules/media/domain";
 import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
+import { resolveOfficialPodcastSource } from "@/src/modules/media/storage/podcast-source-resolver";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
@@ -166,6 +167,20 @@ function refreshRtveCache(url: string): string {
   }
 }
 
+async function resolveOfficialFallback(input: Readonly<{
+  sourceName: string;
+  title: string;
+  currentUrl: string;
+}>): Promise<URL | null> {
+  try {
+    const resolved = await resolveOfficialPodcastSource(input, { isAllowedSourceHost: isAllowedAudioHost });
+    if (!resolved || resolved.protocol !== "https:" || !isAllowedAudioHost(resolved.hostname)) return null;
+    return resolved;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest, { params }: Context) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
   const user = await requestUser(request);
@@ -194,9 +209,17 @@ export async function GET(request: NextRequest, { params }: Context) {
       if (refreshedUrl) requestUrl = new URL(refreshRtveCache(String(refreshedUrl)));
     }
     let fetched = await fetchAudioStream(requestUrl, range);
-    if ((!fetched || !fetched.response.ok) && isLanguageReactor) {
-      const refreshedUrl = await refreshLanguageReactorAudio(playback.media.stableKey)
-        ?? fallbackRtveAudioUrl(upstreamUrl, playback.media.stableKey);
+    if (!fetched || !fetched.response.ok) {
+      await fetched?.response.body?.cancel();
+      const refreshedUrl = (isLanguageReactor
+        ? await refreshLanguageReactorAudio(playback.media.stableKey)
+          ?? fallbackRtveAudioUrl(upstreamUrl, playback.media.stableKey)
+        : null)
+        ?? await resolveOfficialFallback({
+          sourceName: playback.media.sourceName,
+          title: playback.media.title,
+          currentUrl: upstreamUrl.toString(),
+        });
       if (refreshedUrl && refreshedUrl.toString() !== requestUrl.toString()) {
         fetched = await fetchAudioStream(new URL(refreshRtveCache(String(refreshedUrl))), range);
       }
