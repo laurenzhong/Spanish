@@ -73,7 +73,7 @@ export function estimateWordTimings(segment: Readonly<{ sourceText: string; star
   });
 }
 
-/** Use only provider timings that can be tied to the exact source text. */
+/** Use only provider timings that include an exact lexical match in sourceText. */
 export function wordTimingsForPlayback(segment: Readonly<{
   sourceText: string;
   startMs: number;
@@ -81,6 +81,10 @@ export function wordTimingsForPlayback(segment: Readonly<{
   words?: readonly MediaWordTiming[] | null;
 }>): readonly MediaWordTiming[] {
   const verified = validWordTimings(segment);
+  // Older published rows intentionally store only offsets.  The offsets have
+  // already been checked against the immutable sourceText above, so the
+  // source slice is the authoritative lexical label for playback.  When a
+  // provider supplies `text`, validWordTimings still rejects any mismatch.
   if (verified.length > 0) return verified;
   // Never replace a non-empty provider timeline with guessed positions. A
   // malformed timeline must fail closed; estimating it would highlight words
