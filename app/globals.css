@@ -11210,6 +11210,21 @@ body {
   overflow: hidden;
 }
 
+/* The native media node is only the source for Plyr. Keep the browser's
+   legacy controls hidden while the client bundle mounts and reveal the node
+   again only after Plyr has moved it under its wrapper. */
+.audio-player-adapter > audio,
+.video-player-adapter > video {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.audio-player-adapter > .plyr audio,
+.video-player-adapter > .plyr video {
+  visibility: visible;
+  pointer-events: auto;
+}
+
 .media-detail__player .plyr {
   width: 100%;
   --plyr-color-main: var(--accent);
