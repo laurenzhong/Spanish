@@ -16,6 +16,7 @@ permissions:
 jobs:
   proactive:
     runs-on: ubuntu-latest
+    continue-on-error: false
     environment: content-production
     timeout-minutes: 10
     steps:
@@ -36,4 +37,5 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT }}
           OPENAI_CONVERSATION_MODEL: ${{ vars.OPENAI_CONVERSATION_MODEL }}
+        continue-on-error: false
         run: pnpm conversation:proactive
