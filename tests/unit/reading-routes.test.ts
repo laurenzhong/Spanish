@@ -102,6 +102,20 @@ describe("reading API routes", () => {
     expect(mocks.getCurrentUser).toHaveBeenCalledOnce();
   });
 
+  it("does not let an invalid bearer token fall through to the cookie session", async () => {
+    mocks.verifyRequestUser.mockResolvedValue(null);
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const response = await getState(
+      request("http://localhost/api/v1/read/articles/article@1/state", {
+        headers: { authorization: "Bearer invalid", cookie: "sb-session=present" },
+      }),
+      { params: Promise.resolve({ articleId: "article@1" }) },
+    );
+    expect(response.status).toBe(401);
+    expect(mocks.getCurrentUser).not.toHaveBeenCalled();
+    expect(mocks.repository.getState).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed state and save payloads before repository access", async () => {
     const malformedState = await patchState(
       request("http://localhost/api/v1/read/articles/article@1/state", {

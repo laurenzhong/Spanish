@@ -55,34 +55,21 @@ describe("read page data loading", () => {
     expect(mocks.listReadingProgress).not.toHaveBeenCalled();
   });
 
-  it("starts saved-page reads in parallel without blocking on progress", async () => {
+  it("never loads personal content even when a saved=1 link is opened", async () => {
     process.env.DATABASE_URL = "postgres://test";
     mocks.getCurrentUser.mockResolvedValue({ id: "user-1" });
     mocks.getDatabase.mockReturnValue({});
     mocks.createDrizzleReadingRepository.mockReturnValue("reading-repository");
-    mocks.createDrizzleGeneratedArticleRepository.mockReturnValue("generated-repository");
     mocks.getArticles.mockResolvedValue(listResult);
+    mocks.listReadingProgress.mockResolvedValue([]);
 
-    const started: string[] = [];
-    const resolvers = new Map<string, (value: never) => void>();
-    const pending = (name: string, value: never) => {
-      started.push(name);
-      return new Promise<never>((resolve) => resolvers.set(name, () => resolve(value)));
-    };
-    mocks.listSavedArticles.mockImplementation(() => pending("saved", ["article@1"] as never));
-    mocks.listPrivateStories.mockImplementation(() => pending("generated", { articles: [] } as never));
+    // `?saved=1` was the removed 我的文章 shelf. It must be ignored rather than
+    // resurrecting saved-article or private-story reads on the public library.
+    await ReadPage({ searchParams: Promise.resolve({ saved: "1" }) });
 
-    const page = ReadPage({ searchParams: Promise.resolve({ saved: "1" }) });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(started).toEqual(expect.arrayContaining(["saved", "generated"]));
-    expect(started).not.toContain("progress");
-    expect(started).toHaveLength(2);
-
-    for (const name of started) resolvers.get(name)?.(undefined as never);
-    await page;
-    expect(mocks.getDatabase).toHaveBeenCalledTimes(1);
-    expect(mocks.createDrizzleReadingRepository).toHaveBeenCalledWith({});
-    expect(mocks.createDrizzleGeneratedArticleRepository).toHaveBeenCalledWith({});
+    expect(mocks.listReadingProgress).toHaveBeenCalledTimes(1);
+    expect(mocks.listSavedArticles).not.toHaveBeenCalled();
+    expect(mocks.listPrivateStories).not.toHaveBeenCalled();
   });
 
   it("loads only progress for the public shelf", async () => {

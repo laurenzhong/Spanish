@@ -15,6 +15,26 @@ export type VocabularyItem = Readonly<{
   revision: number;
 }>;
 
+export type FrequencyWordItem = Readonly<{
+  id: string;
+  word: string;
+  normalizedWord: string;
+  occurrenceCount: number;
+  context: string | null;
+  sourceTitle: string | null;
+}>;
+
+export type CorpusExample = Readonly<{
+  word: string;
+  sentence: string;
+  translation: string | null;
+  sourceTitle: string;
+  documentKind: "article" | "media";
+  documentStableKey: string;
+  documentVersion: number;
+  position: number;
+}>;
+
 export type PhraseItem = Readonly<{
   id: string;
   expression: string;
@@ -93,6 +113,8 @@ export type PhraseIndexInput = Readonly<{
 }>;
 
 export interface LexiconCorpusRepository {
+  listFrequencyWords(query: Readonly<{ search?: string; page: number; pageSize: number }>): Promise<PagedResult<FrequencyWordItem>>;
+  findCorpusExample(word: string): Promise<CorpusExample | null>;
   listVocabulary(userId: string | undefined, query: VocabularyQuery): Promise<PagedResult<VocabularyItem>>;
   listPhrases(userId: string | undefined, query: PhraseQuery): Promise<PagedResult<PhraseItem>>;
   setIntent(userId: string, entryKind: LexiconEntryKind, entryId: string, intent: LexicalIntent, expectedRevision?: number): Promise<Readonly<{ entryKind: LexiconEntryKind; entryId: string; intent: LexicalIntent; revision: number }>>;

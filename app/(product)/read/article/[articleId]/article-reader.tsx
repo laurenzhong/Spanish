@@ -317,7 +317,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       const raw = window.localStorage.getItem(storageKey(article));
       if (raw) {
         const saved: unknown = JSON.parse(raw);
-        if (isReaderState(saved) && saved.stableKey === article.stableKey && saved.contentHash === article.contentHash) queueMicrotask(() => setState(normalizeReaderState({ ...saved, position: Math.min(saved.position, Math.max(article.segments.length - 1, 0)) })));
+        if (isReaderState(saved) && saved.stableKey === article.stableKey && saved.version === article.version && saved.contentHash === article.contentHash) queueMicrotask(() => setState(normalizeReaderState({ ...saved, position: Math.min(saved.position, Math.max(article.segments.length - 1, 0)) })));
         else if (isReaderState(saved) && saved.version !== article.version) queueMicrotask(() => setStatus("文章版本已更新，旧标注仍保留在原版本；请从第一段或你熟悉的位置重新开始。"));
       }
     } catch { queueMicrotask(() => setStatus("暂时无法读取上次的阅读位置，本次阅读仍可继续。")); }
@@ -337,6 +337,35 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     return () => { cancelled = true; };
   }, [article, online, serverSync]);
   useEffect(() => { if (!hydrated) return; try { window.localStorage.setItem(storageKey(article), JSON.stringify({ ...state, status: state.position >= article.segments.length - 1 ? "completed" : "in_progress", lastOpenedAt: new Date().toISOString() })); } catch { /* local state remains usable */ } }, [article, hydrated, state]);
+  useEffect(() => {
+    const key = storageKey(article);
+    const applySavedItems = (raw: string | null) => {
+      if (!raw) return;
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (!isReaderState(parsed) || parsed.stableKey !== article.stableKey || parsed.version !== article.version || parsed.contentHash !== article.contentHash) return;
+        setState((previous) => ({ ...previous, savedPhrases: parsed.savedPhrases, highlights: parsed.highlights }));
+      } catch {
+        // A malformed cross-tab update must not interrupt the active reader.
+      }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === key) applySavedItems(event.newValue);
+    };
+    const onSavedItemRemoved = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== "object") return;
+      const item = detail as { stableKey?: unknown; version?: unknown };
+      if (item.stableKey !== article.stableKey || item.version !== article.version) return;
+      applySavedItems(window.localStorage.getItem(key));
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("sueno:reading-saved-item-removed", onSavedItemRemoved);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("sueno:reading-saved-item-removed", onSavedItemRemoved);
+    };
+  }, [article]);
   useEffect(() => {
     if (!hydrated || !online || serverSync !== "available") return;
     const controller = new AbortController();
@@ -448,6 +477,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const readerClass = "article-reader article-reader--" + settings.fontSize + " article-reader--" + settings.lineHeight + " article-reader--" + settings.width + " article-reader--" + settings.theme + (toolsOpen ? " article-reader--tools-open" : "") + (toolsPinned ? " article-reader--tools-pinned" : "");
   const requestWordExplanation = useCallback((token: SelectedToken) => {
     explanationRequestRef.current?.controller.abort();
+    cancelStreamPreview();
     const selectedText = token.selectionType === "sentence" ? token.text.trim() : normalizeToken(token.text);
     if (!selectedText) {
       setWordExplanation(null);
@@ -477,7 +507,6 @@ export function ArticleReader({ article }: ArticleReaderProps) {
         const payload = (await response.json()) as { data?: WordExplanation; error?: { message?: string } };
         if (!payload.data) throw new Error(payload.error?.message || "解释暂时无法生成，请稍后重试。");
         if (explanationRequestRef.current?.generation !== generation) return;
-    cancelStreamPreview();
         setWordExplanation(payload.data);
         setWordExplanationStatus("success");
         return;
@@ -546,6 +575,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setActiveTool("explain");
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : trigger;
     setToolsOpenState(true);
+    cancelStreamPreview();
     setStreamPreview({});
     if (entry) {
       setWordExplanationStatus("success");
@@ -581,7 +611,6 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setWordExplanation(null);
     setStreamPreview({});
     setWordExplanationError("");
-    cancelStreamPreview();
     setWordExplanationStatus("idle");
     setActiveTool("explain");
     previouslyFocusedRef.current = paragraph;
@@ -653,7 +682,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     }
     if (activeTool === "saved") {
       const items = [...state.savedPhrases, ...state.highlights.map((item) => ({ ...item, id: "highlight-" + item.id, text: item.text + "（高亮）" }))];
-      return <><button className="article-reader__save-article" type="button" aria-pressed={state.saved} onClick={() => { setState((previous) => ({ ...previous, saved: !previous.saved })); setStatus(state.saved ? "已取消收藏本文。" : "已收藏本文。"); }}>{state.saved ? "已收藏本文" : "收藏本文"}</button>{items.length ? <ul className="article-reader__saved-list">{items.map((item) => <li key={item.id}><span>{item.text}</span><button type="button" onClick={() => document.querySelector<HTMLElement>("[data-reader-position=\"" + item.position + "\"]")?.scrollIntoView({ block: "center" })}>跳转</button></li>)}</ul> : <p className="article-reader__tool-note">尚未保存词语或高亮。</p>}<label className="article-reader__note-field"><span>个人笔记</span><textarea value={state.note} onChange={(event) => setState((previous) => ({ ...previous, note: event.target.value.slice(0, 2_000) }))} placeholder="可以写中文或西语……" aria-label="文章个人笔记" /></label><button className="secondary-action" type="button" onClick={() => setStatus("笔记已保存在阅读状态中。")}>保存笔记</button></>;
+      return <><button className="article-reader__save-article" type="button" aria-pressed={state.saved} onClick={() => { setState((previous) => ({ ...previous, saved: !previous.saved })); setStatus(state.saved ? "已取消收藏本文。" : "已收藏本文。"); }}>{state.saved ? "已收藏本文" : "收藏本文"}</button>{items.length ? <ul className="article-reader__saved-list">{items.map((item) => <li key={item.id}><span>{item.text}</span><button type="button" onClick={() => document.querySelector<HTMLElement>("[data-reader-position=\"" + item.position + "\"]")?.scrollIntoView({ block: "center" })}>跳转</button></li>)}</ul> : <p className="article-reader__tool-note">尚未保存词语或高亮。</p>}<Link className="text-link article-reader__saved-library-link" href="/read/saved-items">打开已保存词句书架 <span aria-hidden="true">→</span></Link><label className="article-reader__note-field"><span>个人笔记</span><textarea value={state.note} onChange={(event) => setState((previous) => ({ ...previous, note: event.target.value.slice(0, 2_000) }))} placeholder="可以写中文或西语……" aria-label="文章个人笔记" /></label><button className="secondary-action" type="button" onClick={() => setStatus("笔记已保存在阅读状态中。")}>保存笔记</button></>;
     }
     return <><section className="article-reader__voice-settings" aria-labelledby="spanish-voices-title"><div className="article-reader__voice-settings-heading"><div><p className="article-reader__tool-kicker">语音</p><h3 id="spanish-voices-title">Spanish voices</h3></div><span className="article-reader__voice-settings-current">{selectedSpanishVoice?.name ?? "未选择"}</span></div>{!tts.isSupported ? <p className="article-reader__tool-error" role="status">当前浏览器不支持语音合成。</p> : spanishVoices.length === 0 ? <p className="article-reader__tool-note" role="status">正在加载浏览器语音……</p> : <ul className="article-reader__voice-list" aria-label="Spanish voices">{spanishVoices.map((voice) => { const selected = selectedSpanishVoice?.voiceURI === voice.voiceURI || selectedSpanishVoice?.name === voice.name; return <li className={selected ? "is-selected" : undefined} key={voice.voiceURI || voice.name}><button type="button" className="article-reader__voice-option" aria-pressed={selected} onClick={() => selectSpanishVoice(voice)}><span>{voice.name}</span><small>{voice.lang}</small></button><button type="button" className="article-reader__voice-preview" aria-label={`试听 ${voice.name}`} disabled={speakingPosition !== null} onClick={() => void previewSpanishVoice(voice)}>试听</button></li>; })}</ul>}</section><label className="article-reader__setting"><span>字号</span><select aria-label="字号" value={settings.fontSize} onChange={(event) => updateSetting("fontSize", event.target.value as ReaderSettings["fontSize"])}><option value="default">标准</option><option value="large">大字</option></select></label><label className="article-reader__setting"><span>行距</span><select aria-label="行距" value={settings.lineHeight} onChange={(event) => updateSetting("lineHeight", event.target.value as ReaderSettings["lineHeight"])}><option value="default">舒适</option><option value="relaxed">宽松</option></select></label><label className="article-reader__setting"><span>正文宽度</span><select aria-label="正文宽度" value={settings.width} onChange={(event) => updateSetting("width", event.target.value as ReaderSettings["width"])}><option value="narrow">专注</option><option value="wide">宽屏</option></select></label><label className="article-reader__setting"><span>背景</span><select aria-label="阅读背景" value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as ReaderSettings["theme"])}><option value="light">浅色</option><option value="dim">柔和</option></select></label><label className="article-reader__setting"><span>朗读速度</span><select aria-label="TTS 速度" value={settings.ttsRate} onChange={(event) => updateSetting("ttsRate", Number(event.target.value))}><option value="0.7">慢速</option><option value="0.88">标准</option><option value="1.05">稍快</option></select></label></>;
   };

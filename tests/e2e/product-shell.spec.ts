@@ -434,10 +434,70 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("link", { name: "回到今天" })).toHaveCount(0);
   await expect(page.getByText("安静输入", { exact: true })).toHaveCount(0);
   await expect(page.getByText("读一篇真实的西语文章", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "公共文章" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "我的文章" })).toHaveAttribute("href", "/read?saved=1");
+  const readingNavigation = page.getByRole("navigation", { name: "阅读内容类型" });
+  await expect(readingNavigation).toBeVisible();
+  await expect(readingNavigation.getByRole("link")).toHaveText(["文章", "词汇", "短语", "语料", "已保存"]);
+  await expect(readingNavigation.getByRole("link", { name: "文章" })).toHaveAttribute("aria-current", "page");
+  // Regression guard: the sliding underline marks the current page, so the
+  // search box must neither sit flush against it nor be reintroduced behind a
+  // section rule.
+  const underlinedTab = page.locator('.read-section-navigation a[aria-current="page"]');
+  const searchFieldBox = await page.locator(".read-search__field").boundingBox();
+  const underlinedTabBox = await underlinedTab.boundingBox();
+  expect(searchFieldBox).not.toBeNull();
+  expect(underlinedTabBox).not.toBeNull();
+  expect((searchFieldBox?.y ?? 0) - ((underlinedTabBox?.y ?? 0) + (underlinedTabBox?.height ?? 0))).toBeGreaterThanOrEqual(9);
+  // No section rule may be reintroduced above the search field.
+  const sectionRuleBorders = await page.evaluate(() =>
+    [".read-section-navigation", ".read-library__toolbar"].map((selector) => {
+      const element = document.querySelector(selector);
+      return element ? getComputedStyle(element).borderBottomWidth : "missing";
+    }),
+  );
+  expect(sectionRuleBorders).toEqual(["0px", "0px"]);
+  // The single accent underline is a transform-driven element: it settles on the
+  // current page, follows the pointer while it is inside the navigation, and
+  // returns to the current page when the pointer leaves.
+  const navigationIndicator = page.locator(".read-section-navigation__indicator");
+  const vocabularyTab = readingNavigation.getByRole("link", { name: "词汇" });
+  await expect(readingNavigation).toHaveAttribute("data-indicator", "ready");
+  await expect(navigationIndicator).toHaveCSS("opacity", "1");
+  const indicatorBox = await navigationIndicator.boundingBox();
+  const indicatorViewport = page.viewportSize() ?? { width: 0, height: 0 };
+  expect(indicatorBox).not.toBeNull();
+  expect(indicatorBox?.width ?? 0).toBeGreaterThan(0);
+  expect(indicatorBox?.width ?? 0).toBeLessThan(indicatorViewport.width);
+  // The indicator is measured against the navigation's own left edge, so compare
+  // the rendered translate with the tab's offset inside the navigation.
+  const vocabularyTabOffset = await vocabularyTab.evaluate((element) => {
+    const link = element.getBoundingClientRect();
+    const navigation = element.closest(".read-section-navigation");
+    if (!navigation) return null;
+    return link.left - navigation.getBoundingClientRect().left + navigation.scrollLeft;
+  });
+  const activeTabOffset = await underlinedTab.evaluate((element) => {
+    const link = element.getBoundingClientRect();
+    const navigation = element.closest(".read-section-navigation");
+    if (!navigation) return null;
+    return link.left - navigation.getBoundingClientRect().left + navigation.scrollLeft;
+  });
+  expect(vocabularyTabOffset).not.toBeNull();
+  const translateX = async () => Number(/matrix\(1, 0, 0, 1, (-?[\d.]+), 0\)/u.exec(await navigationIndicator.evaluate((element) => getComputedStyle(element).transform))?.[1] ?? Number.NaN);
+
+  await vocabularyTab.hover();
+  await expect.poll(translateX).toBeCloseTo(vocabularyTabOffset ?? 0, 1);
+  const navigationBox = await readingNavigation.boundingBox();
+  expect(navigationBox).not.toBeNull();
+  await page.mouse.move(4, (navigationBox?.y ?? 0) + (navigationBox?.height ?? 0) + 40);
+  await expect.poll(translateX).toBeCloseTo(activeTabOffset ?? 0, 1);
+  // The public shelf already is `文章` in the navigation above, so the personal
+  // entry must stay the only secondary tab.
+  await expect(page.getByRole("link", { name: "公共文章" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "我的文章" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Web Sites" })).toHaveCount(0);
-  await expect(page.getByText("105 篇", { exact: true })).toBeVisible();
+  // The shelf dropped its "N 篇" counter when it became the public-only list;
+  // the first page of the paginated article list is the honest equivalent.
+  await expect(page.locator("article.read-article-row")).toHaveCount(12);
   await expect(page.getByRole("navigation", { name: "文章分页" })).toBeVisible();
   await expect(page.getByLabel("第 1 页，当前页")).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("link", { name: "下一页" })).toHaveAttribute("href", "/read?page=2");
@@ -484,12 +544,19 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toHaveCount(0);
   await page.getByText("读完后练口语", { exact: true }).click();
   await expect(page.getByTestId("article-transfer")).toBeVisible();
+  // The public shelf keeps the save star; unsaving must be reflected there.
   await page.goto("/read");
-  await page.getByRole("link", { name: "我的文章" }).click();
-  await expect(page).toHaveURL(/\/read\?saved=1$/);
-  await expect(page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /取消收藏：Una conversación que empieza con un café/ }).click();
-  await expect(page.getByRole("heading", { name: "还没有收藏文章" })).toBeVisible();
+  await page.getByRole("button", { name: /取消收藏：Una conversación que empieza con un café/u }).click();
+  await expect(page.getByRole("status")).toContainText("已取消收藏。");
+  await expect(page.getByRole("button", { name: /收藏文章：Una conversación que empieza con un café/u })).toBeVisible();
+  // The personal shelf is the only entry point for saved articles now. The e2e
+  // server has no DATABASE_URL, so the shelf must report itself rather than
+  // render rows it cannot read.
+  await page.goto("/read/saved-items?itemType=article");
+  const shelfNavigation = page.getByRole("navigation", { name: "已保存内容类型" });
+  await expect(shelfNavigation.getByRole("link", { name: "文章" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".saved-item-card")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "已保存内容暂时不可用" })).toBeVisible();
 });
 
 test("redirects readers to login when their save session expires", async ({ page }) => {

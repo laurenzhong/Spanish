@@ -485,4 +485,53 @@ describe("normalized article reader", () => {
     expect(token).toHaveFocus();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("removes a deleted saved phrase from an open reader", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const key = `reading-reader:v1:${result.article.stableKey}`;
+    const initial = {
+      stableKey: result.article.stableKey,
+      version: result.article.version,
+      contentHash: result.article.contentHash,
+      position: 0,
+      savedPhrases: [{ id: "0:cafetería", text: "cafetería", position: 0 }],
+      highlights: [],
+      note: "",
+      saved: false,
+    };
+    window.localStorage.setItem(key, JSON.stringify(initial));
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+    await user.click(screen.getByRole("button", { name: "收藏" }));
+    await waitFor(() => expect(screen.getByText("cafetería", { selector: ".article-reader__saved-list span" })).toBeInTheDocument());
+
+    window.localStorage.setItem(key, JSON.stringify({ ...initial, savedPhrases: [] }));
+    window.dispatchEvent(new CustomEvent("sueno:reading-saved-item-removed", {
+      detail: { stableKey: result.article.stableKey, version: result.article.version },
+    }));
+
+    await waitFor(() => expect(screen.queryByText("cafetería", { selector: ".article-reader__saved-list span" })).not.toBeInTheDocument());
+    expect(screen.getByText("尚未保存词语或高亮。")).toBeInTheDocument();
+  });
+
+  it("does not restore annotations from another article version with the same hash", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    window.localStorage.setItem(`reading-reader:v1:${result.article.stableKey}`, JSON.stringify({
+      stableKey: result.article.stableKey,
+      version: result.article.version - 1,
+      contentHash: result.article.contentHash,
+      position: 0,
+      savedPhrases: [{ id: "0:old phrase", text: "old phrase", position: 0 }],
+      highlights: [],
+      note: "",
+      saved: false,
+    }));
+    const user = userEvent.setup();
+    render(<ArticleReader article={result.article} />);
+    await user.click(screen.getByRole("button", { name: "收藏" }));
+    expect(screen.queryByText("old phrase", { selector: ".article-reader__saved-list span" })).not.toBeInTheDocument();
+    expect(screen.getByText("尚未保存词语或高亮。")).toBeInTheDocument();
+  });
 });

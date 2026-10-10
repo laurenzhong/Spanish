@@ -10,13 +10,24 @@ const intentOptions = [
   ["unmarked", "未分类"],
 ] as const;
 
-export function VocabularyShelfControls({ query, total }: Readonly<{ query: VocabularyQuery; total: number }>) {
+export function VocabularyShelfControls({ query, total, view = "lexicon" }: Readonly<{ query: VocabularyQuery; total: number; view?: "frequency" | "lexicon" }>) {
+  if (view === "frequency") {
+    return <div className="lexicon-shelf-controls">
+      <form action="/read/vocabulary" className="lexicon-filter-form" method="get" role="search">
+        <input type="hidden" name="view" value="frequency" />
+        <label className="lexicon-filter-form__search"><span>搜索语料词形</span><input defaultValue={query.search ?? ""} maxLength={80} name="search" placeholder="例如：casa" /></label>
+        <button type="submit">搜索词频</button><Link href="/read/vocabulary?view=frequency">重置</Link>
+      </form>
+      <p className="lexicon-result-count" aria-live="polite">显示出现次数最高的 {total} 个词形（来自已发布文章与已审核媒体字幕）</p>
+    </div>;
+  }
   return <div className="lexicon-shelf-controls">
     <form action="/read/vocabulary" className="lexicon-filter-form" method="get" role="search">
+      <input type="hidden" name="view" value="lexicon" />
       <label className="lexicon-filter-form__search"><span>搜索词汇或词形</span><input defaultValue={query.search ?? ""} maxLength={80} name="search" placeholder="例如：comer / comiendo" /></label>
       <label><span>学习状态</span><select defaultValue={query.intent ?? ""} name="intent">{intentOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
       <label><span>词元状态</span><select defaultValue={query.lemmaStatus ?? ""} name="lemmaStatus"><option value="">全部词元</option><option value="verified">已确认词元</option><option value="pending">待确认词形</option></select></label>
-      <button type="submit">应用筛选</button><Link href="/read/vocabulary">重置</Link>
+      <button type="submit">应用筛选</button><Link href="/read/vocabulary?view=lexicon">重置</Link>
     </form>
     <p className="lexicon-result-count" aria-live="polite">共 {total} 个词汇</p>
   </div>;
