@@ -30,6 +30,53 @@ const provider = createMiniMaxLexiconExtractionProvider({
 });
 
 console.log("api key present:", Boolean(process.env.MINIMAX_API_KEY?.trim()));
+console.log("MINIMAX_BASE_URL:", process.env.MINIMAX_BASE_URL ?? "(unset)");
+
+/**
+ * When the adapter rejects a response, the interesting artefact is the raw text
+ * the model produced — not just the coded error. This wrapper makes one extra
+ * call with the same wire shape so a schema mismatch can be diagnosed rather
+ * than guessed at.
+ */
+async function dumpRawResponse(): Promise<void> {
+  const endpoint =
+    process.env.MINIMAX_ANTHROPIC_ENDPOINT ?? "https://api.minimaxi.com/anthropic/v1/messages";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "anthropic-version": "2023-06-01",
+      "x-api-key": process.env.MINIMAX_API_KEY ?? "",
+    },
+    body: JSON.stringify({
+      model: "MiniMax-M3",
+      max_tokens: 2_000,
+      thinking: { type: "disabled" },
+      system:
+        'You propose vocabulary candidates for a Spanish learning corpus. Return JSON only, shaped as {"proposals":[...]} where each item has kind, surfaceText, lemma, partOfSpeech, meaningZh, segmentIndex, confidence.',
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                task: "propose_lexicon_candidates",
+                language: "es",
+                segments: [{ segmentIndex: 0, sourceText: segment.sourceText, translation: segment.translation }],
+              }),
+            },
+          ],
+        },
+      ],
+    }),
+  });
+  console.log("raw probe status:", response.status);
+  const payload = (await response.json()) as { content?: { type: string; text?: string }[] };
+  const text = payload.content?.map((block) => block.text ?? "").join("\n") ?? "";
+  console.log("raw text (first 1200 chars):");
+  console.log(text.slice(0, 1_200));
+}
 
 try {
   const started = Date.now();
@@ -65,6 +112,10 @@ try {
 } catch (error) {
   if (error instanceof LexiconExtractionError) {
     console.log("LexiconExtractionError:", error.code, "| retryable:", error.retryable, "|", error.message);
+    if (error.code === "provider-response-invalid") {
+      console.log("\n--- diagnosing the rejected response ---");
+      await dumpRawResponse().catch((cause) => console.log("raw probe failed:", String(cause).slice(0, 200)));
+    }
   } else {
     console.log("unexpected error:", error);
   }

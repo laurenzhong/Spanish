@@ -24,7 +24,12 @@ import {
  * of speech outside the controlled set is discarded rather than stored.
  */
 
-const defaultEndpoint = "https://api.minimax.io/anthropic/v1/messages";
+// `api.minimaxi.com` is the endpoint this project's MiniMax key is issued for:
+// the same key returns 401 from `api.minimax.io`. Every current MiniMax adapter
+// here uses this host (conversation, scenario-*, story-generation, translation,
+// word-explanation); `annotation/minimax-annotation.ts` still carries the older
+// `.io` host and is the one place that disagrees.
+const defaultEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
 const defaultModelVersion = "MiniMax-M3";
 const defaultTimeoutMs = 60_000;
 
@@ -177,15 +182,28 @@ export function createMiniMaxLexiconExtractionProvider(
   });
 }
 
+/**
+ * The prompt states the exact wire shape, not just the field semantics.
+ *
+ * This matters: an earlier version described what each field meant but never
+ * showed the JSON, and the model answered with `pos` instead of
+ * `partOfSpeech`, omitted `kind` and `segmentIndex`, and added an `example`
+ * key. The strict schema then rejected the whole payload. Naming the fields in
+ * a concrete example is what makes the contract land.
+ */
 const systemPrompt = [
   "You propose vocabulary candidates for a Spanish learning corpus, for a human owner to approve.",
   "Use only the supplied segment text. Never invent words, translations or meanings that are not supported by it.",
-  "For a lexeme, set lemma to the dictionary form of the surface form, and meaningZh to null.",
+  "For a lexeme, set lemma to the dictionary form of the surface form, and set meaningZh to null.",
   "For a phrase, copy the whole sentence as surfaceText, set meaningZh to its Chinese translation from the segment, and set lemma to null.",
   "Use only these part-of-speech tags, or null when unsure: ADJ ADP ADV AUX CCONJ DET INTJ NOUN NUM PART PRON PROPN SCONJ VERB.",
   "Prefer content words a learner would study; skip pure function words and numbers.",
   "Every proposal is a suggestion pending owner approval, so set confidence honestly.",
-  "Return JSON only, shaped as {\"proposals\":[...]}.",
+  "Return JSON only, with no markdown fence and no commentary.",
+  "Every proposal object must carry exactly these seven keys and no others: " +
+    'kind, surfaceText, lemma, partOfSpeech, meaningZh, segmentIndex, confidence.',
+  "kind is either the string \"lexeme\" or the string \"phrase\". segmentIndex is the integer index of the segment the proposal came from.",
+  'The exact shape is: {"proposals":[{"kind":"lexeme","surfaceText":"terremoto","lemma":"terremoto","partOfSpeech":"NOUN","meaningZh":null,"segmentIndex":0,"confidence":0.97}]}',
 ].join(" ");
 
 function buildPrompt(input: LexiconExtractionInput): string {
