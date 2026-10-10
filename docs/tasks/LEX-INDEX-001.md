@@ -88,6 +88,31 @@ server-only 适配器从**新增的 `server.ts`** 导出而非 capability index 
 - **候选表 schema 与持久化**（原切片 1 的另一半）：新增迁移会向真实数据库追加记录，必须先确认 `drizzle-kit generate` 的 diff 归属与基线、在空库/一次性副本验证、经迁移评审。**产品本人已定：只生成迁移、贴出 diff 供审查，不应用到数据库。**
 - MiniMax 凭据已核实存在（`.env` 的 `MINIMAX_API_KEY`），但切片 4 之前需确认是否允许真实调用（会产生费用）。
 
+### 候选表 schema（已完成，迁移未应用）
+
+Commit `fc4c599`（2 文件）：`src/shared/db/schema/lexicon-corpus.ts` 加入 `lexiconCandidates`；审查包 `docs/migrations/0041-lexicon-candidates-review.md` 含**完整生成的 SQL**。
+
+**S 已生成、未应用**（产品本人已定：只生成并贴 diff 供审查）：
+
+- `drizzle-kit 0.31.10` 在**临时目录**中基于 `drizzle/meta/` 的原始快照生成，两次运行**逐字节一致**（2568 字节）；
+- 产物**只新增一张表** + 3 索引 + 8 check 约束，正则核对**无任何 `ALTER TABLE`**，不触碰既有表；
+- SQL 与 snapshot **刻意不放进 `drizzle/`**，因此没有任何自动迁移路径会应用它；
+- 因此**schema 源码与数据库暂时不一致**，直到有人显式应用迁移。后续任何 `drizzle-kit generate` 都会再次产出这张表 —— 这是刻意的提醒。
+
+`status = 'approved'` 时数据库层强制要求 `approved_by` 与 `approved_at` 非空 —— 让「未批准不进 corpus」成为**结构性事实**而非代码自觉。
+
+**修正我自己的一处错误**：本页早前称「`drizzle/meta/` 只有 `_journal.json`、没有 SQL 快照，diff 基线无法离线复现」。**这是错的** —— 实际有 **37 个 `NNNN_snapshot.json`**（最新 `0040` 含 80 张表），`generate` 基于快照 diff、可离线复现。已在审查包中留档更正。
+
+**验证**：`tsc --noEmit` exit 0、ESLint exit 0、`tests/database/schema.test.ts` 5/5（新增表未破坏既有 schema 断言）。
+
+**应用前仍需**：空库/一次性副本验证；若将来允许用户提交候选则须补 RLS；迁移评审签字。
+
+### 关于既有数据库测试失败（已实证，与本任务无关）
+
+跑全量 `tests/database` 时 11 个失败（`media-persistence` 5、`article-acquisition-publish` 2、`video-acquisition-publish` 2、`podcast-acquisition-publish` 2），报错为**缺列**（`media_versions.artwork_*` 等），根因是这些套件自行拼接迁移（如 `0000` + `0024`/`0025`/`0026`），基线里没有 artwork 相关迁移。
+
+**已做实证对照**：把 `src/shared/db/schema/lexicon-corpus.ts` 临时还原到父提交 `fc4c599^`（不含 `lexiconCandidates`）后重跑 `media-persistence`，结果**同为 5/5 失败**。因此这些失败是**既有基线缺失**，与本次 schema 改动无关。对照后已把文件逐字节还原（12769 字节，`git diff` 为空）。
+
 ### 切分决定：schema + 持久化单独立片
 
 原计划的切片 1 把「状态机」与「候选表迁移」放在一起。实施时拆开，因为二者风险等级不同：
