@@ -42,6 +42,34 @@
 
 **语义风险最高的是 4 个 add/add 源码/工作流文件**：两边各自新增了同名文件，git 无法判断谁权威，必须由对应功能的作者决定（`main` 侧是 PR `#73`–`#75` 的 Lucía 主动消息链路）。
 
+## 2.1 逐文件三方分析结果（本次已核实）
+
+方法：对每个 add/add 文件运行 `git diff origin/main:<file> HEAD:<file>` 并读取差异；两侧版本都用 `git cat-file -e` 确认过确实不存在于共同祖先（是真 add/add，不是误报）。
+
+### 可以明确判定的（7 个 add/add 文件全部）
+
+| 文件 | 差异 | 判定 | 依据 |
+|---|---|---|---|
+| `src/modules/conversation/application/proactive-runner-utils.ts` | `+43` 行、**无删除** | **取本分支** | 本分支版本是 main 版本的严格超集：保留原有 `formatNaturalDate`/`parseLuciaProactiveUserIds`，新增 `LuciaProactiveSlot`、`getLuciaProactiveSlots`、`getDueLuciaProactiveSlots`（三段稳定时间窗 + 按用户/日期的稳定散列） |
+| `scripts/run-lucia-proactive.ts` | `+29/-20` | **取本分支** | 同一功能的演进版：单条 `daily_share` 改为按 `getDueLuciaProactiveSlots` 逐槽生成；结果形状随之简化（去掉 `detail`） |
+| `.github/workflows/lucia-proactive-daily.yml` | `+7/-5` | **取本分支** | 调度由每天一次 `15 1 * * *` 改为每 15 分钟轮询、由用户槽位决定是否发送；端点变量不再写默认值（改为必须显式配置） |
+| `tests/unit/lucia-proactive-runner.test.ts` | `+9/-1` | **取本分支** | main 的 3 个用例在本分支版本中原样保留，仅新增「stable multiple daily slots」用例 |
+| `app/api/v1/media/[stableKey]/stream/route.ts` | `+26/-3` | **取本分支** | main 版本保留，本分支新增 `resolveOfficialPodcastSource` 官方 RSS 回退分支 |
+| `tests/unit/media-stream-route.test.ts` | `+33` 行、**无删除** | **取本分支** | main 的用例全部保留，新增「stored URL 失效时回退到发布方 RSS enclosure」用例 |
+| `tests/unit/media-word-timeline.test.ts` | `+38/-30` | **取本分支** | 同一测试的重写版（改用 `@/src/modules/media/domain` 入口加 `@vitest-environment node`），main 侧断言集合被覆盖而非丢失 |
+
+> 结论：这 7 个文件**不需要真正的人工合并**，直接取本分支版本即可；风险点只有一个——main 的 Lucía 主动消息链路是「每天一条」，本分支是「每天多槽轮询」，取本分支意味着**行为升级**，需要产品本人确认这个升级是有意为之（本分支状态页已记录多槽设计与实现）。
+
+### `app/globals.css`（冲突但可安全解决）
+
+main 侧对该文件只有 **+22/-1**：`@import "plyr/dist/plyr.css";` 一行，加 `.audio-player-adapter > audio` / `.video-player-adapter > video` 与 `.media-detail__player .plyr` 等播放器可见性规则。实测本分支当前文件**已包含这些内容**（第 2 行 import、第 11629 行起的播放器规则），main 的补丁对该文件既不能正向也不能反向套用（因为本分支已把同一改动吸收进去，且上下文行号已大幅位移）。
+
+判定：**直接采用本分支版本**即可，不需要手工拼接；合并后用一次播放器页面冒烟确认 `.plyr` 可见性规则仍在。
+
+### `PROJECT_STATUS.md`（冲突但可安全解决）
+
+两边都只做「在顶部追加条目」。判定：**两边条目全部保留**，按时间倒序排列，不改写任何一方的历史记录文字。
+
 ## 3. 合并前必须完成的检查（建议顺序）
 
 1. 在**干净检出**上复现试合并：`git worktree add ../merge-check -b merge-check HEAD` → 在该 worktree 内 `git merge origin/main`。
@@ -60,7 +88,14 @@
 ```powershell
 git fetch origin main
 git merge-tree --write-tree HEAD origin/main   # 只看冲突，不落地
+git diff origin/main:<file> HEAD:<file>        # 逐文件判定用（两侧版本差异）
 git worktree add ../merge-check -b merge-check HEAD   # 真正试合并时才需要
 ```
 
 > 注意：`git merge-tree --write-tree` 会在仓库对象库里写入合并结果对象，但**不改工作树、不改当前分支、不生成提交**；本机多会话共享工作树时，这是安全的预检方式。
+
+## 6. 本次预检的边界
+
+- 只做了「读」：`git fetch`、`git merge-tree`、`git diff`、`git cat-file`。**未合并、未解冲突、未改动工作树、未改 `main`。**
+- 第 2.1 节的判定基于两侧文件内容比较，**未在本机跑合并后的测试**（需要干净 worktree + `pnpm install`，本机共享工作树不适合直接做）。因此这些判定是「建议」，合并后仍需按第 3 节跑门禁。
+- `docs/architecture.md`、`package.json`、`docs/superpowers/specs/2026-08-28-lucia-relationship-growth-and-proactive-messaging-design.md`、`contracts/openapi/v1/openapi.json` 等 content 冲突本次未逐行展开，需要对应作者在合并时处理。
