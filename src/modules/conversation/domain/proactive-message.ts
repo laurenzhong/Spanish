@@ -1,4 +1,5 @@
 import type { RelationshipStage, QuestionPolicy } from "./reply-plan";
+import { containsUnsupportedScript } from "./language-purity";
 
 export const proactiveMessageSources = [
   "spontaneous_affection",
@@ -128,6 +129,10 @@ export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): 
     .trim();
   if (!normalized || normalized.length > 480) return false;
   if (/[*_`#<>]/u.test(text)) return false;
+  // An unsolicited message has no user turn that could justify another
+  // language, so it must be pure Spanish. A Spanish sentence carrying a stray
+  // "随机" is the reported defect; the provider prompt alone did not prevent it.
+  if (containsUnsupportedScript(text)) return false;
   if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return false;
   if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return false;
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;

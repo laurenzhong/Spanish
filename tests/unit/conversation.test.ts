@@ -394,6 +394,42 @@ describe("fake conversation reply", () => {
     ]);
   });
 
+  it("rejects a reply with Chinese mixed into Spanish and never streams it", async () => {
+    const mixed = "Oye, me crucé con una fachada increíble随机 en Malasaña.";
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: mixed, provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "mixed-1", latencyMs: 10, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Me encanta fijarme en los detalles de la ciudad; esos azulejos suenan preciosos.", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "mixed-2", latencyMs: 12, estimatedCostMicros: null }),
+    };
+    const observations: StreamReplyProviderObservation[] = [];
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Sueles parar a fotografiar cosas de la calle?", clientMessageId: "client-mixed", generationId: "generation-mixed", messageId: "message-mixed",
+      replyProvider: provider, onProviderResult: (observation) => { observations.push(observation); }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(observations[0]).toMatchObject({ status: "failed", errorType: "safety-gate", providerRequestId: "mixed-1" });
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).not.toContain("随机");
+    expect(/\p{Script=Han}/u.test(streamed)).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("honours an explicit user request for another language", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "好的，我用中文回答你。", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "zh-1", latencyMs: 10, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "用中文回复我", clientMessageId: "client-zh", generationId: "generation-zh", messageId: "message-zh",
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).toContain("好的");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
   it("retries a highly repetitive answer for a same-day topic", async () => {
     const provider = {
       generate: vi.fn()
