@@ -177,7 +177,7 @@ Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生�
 
 候选状态、权利状态、审核状态和发布状态分开保存。只有候选处理完成、权利已验证、`es-ES` 内容审核与 `zh-CN` 教学审核均通过、结构校验成功且所有者显式执行发布时，才能创建不可变正式版本。
 
-候选审核记录绑定具体 candidate revision。请求修改、拒绝和后续批准必须保留已有备注；重新处理产生新 generation/revision，旧版本批准不能沿用。候选生成者信息、Provider 输出或客户端提交的角色字段都不能自动生成批准。当前个人 Alpha 的工作台明确显示审核身份为 Codex AI（所有者授权），记录使用 `codex-ai-owner-authorized-review`；批准后仍需单独点击发布，且缺少类型专用正式 publisher 时保持草稿并明确报告不可发布原因。
+候选审核记录绑定具体 candidate revision。请求修改、拒绝和后续批准必须保留已有备注；重新处理产生新 generation/revision，旧版本批准不能沿用。候选生成者信息、Provider 输出或客户端提交的角色字段都不能自动生成批准。当前个人 Alpha 的工作台明确显示审核身份为 DSH AI（所有者授权），新记录使用 `dsh-ai-owner-authorized-review`，历史 `codex-ai-owner-authorized-review` 记录保持不变；批准后仍需单独点击发布，且缺少类型专用正式 publisher 时保持草稿并明确报告不可发布原因。
 
 文章 RSS 来源只有在 `rights_status=verified` 且 `rights_policy.contentMode=full_text` 时才允许抓取正文。策略还必须记录许可类型、署名、可核验的 HTTPS 许可证据、feed/文章主机 allowlist、CEFR、主题、地区、语域、格式和口语迁移默认值。文章 feed 与正文页的 HTTPS 请求不得跟随到 allowlist 之外的主机，也不得绕过 Content-Type、响应体积或字符编码限制；付费墙、登录墙、正文缺失和许可字段不完整的条目不能进入可审核草稿。
 
@@ -290,17 +290,17 @@ draft → review → approved → published → archived
 
 要求：
 
-- 当前仅供项目所有者本人使用的产品阶段，核心表达和语用说明由 Codex 完成 `es-ES` 语言审核，中文解释由 Codex 完成 `zh-CN` 教学审核。
-- 已发布 expression 和 scenario 必须同时具有上述两个 locale 的 approved review；统一使用 `codex-ai-owner-authorized-review`，备注明确 AI 身份、所有者授权、范围、修改和结论。
+- 当前仅供项目所有者本人使用的产品阶段，核心表达和语用说明由代理平台 DSH 完成 `es-ES` 语言审核，中文解释由 DSH 完成 `zh-CN` 教学审核。
+- 已发布 expression 和 scenario 必须同时具有上述两个 locale 的 approved review；新记录统一使用 `dsh-ai-owner-authorized-review`（可带 `:actor[:runId]` 溯源段），备注明确 AI 身份、所有者授权、范围、修改和结论。
 - domain、learning goal 和 content pack 至少具有一条 approved owner-authorized review；其中的西语和教学内容仍需纳入审核报告。
 - 版权字段未完成不能进入 `published`。
 - Explore 场景与表达库在生产环境只投影 `published` 的正式公共内容；开发或测试中的草稿预览必须有明确标识，不能改变内容审核状态或被描述为已发布。
-- AI 生成变式必须先作为草稿，通过 Schema、重复和禁用词检查，再由 Codex 作为独立审核步骤逐项复核；生成不能自动等于审核通过。
+- AI 生成变式必须先作为草稿，通过 Schema、重复和禁用词检查，再由 DSH 作为独立审核步骤逐项复核；生成不能自动等于审核通过。
 - 修改已发布内容必须增加版本并记录变更原因。
-- 自动采集、ASR、翻译或词句抽取的生成步骤与两个审核步骤必须是独立记录；不得因均由 Codex 执行而省略独立复核。
+- 自动采集、ASR、翻译或词句抽取的生成步骤与两个审核步骤必须是独立记录；不得因均由同一代理平台执行而省略独立复核。
 - 所有者的“批准审核”和“发布”是两个显式动作；publisher 必须在发布事务中再次校验权利、审核、结构、内容哈希和 revision。
 
-项目所有者已于 2026-09-12 授权上述个人产品阶段的正式 AI 审核。原有 `codex-ai-temporary-review` 只保留为历史记录，不能改写为真人审核；新的正式记录使用 `codex-ai-owner-authorized-review`。产品开始邀请、允许或面向其他真实用户使用前，必须新增 ADR 重新决定是否恢复外部母语与教学复核，不能自动沿用本授权。
+项目所有者已于 2026-09-12 授权上述个人产品阶段的正式 AI 审核。代理平台于 2026-10-10 从 Codex 迁移到 DSH：历史 `codex-ai-temporary-review` 和 `codex-ai-owner-authorized-review` 记录是追加式审计证据，禁止改写、迁移或回填，已发布 bundle、数据库记录和 `docs/reviews/` 报告保持原值；发布门禁同时接受历史身份与当前身份，权威定义在 `src/modules/content-acquisition/domain/review-identity.ts`。新的正式记录使用 `dsh-ai-owner-authorized-review`。产品开始邀请、允许或面向其他真实用户使用前，必须新增 ADR 重新决定是否恢复外部母语与教学复核，不能自动沿用本授权。
 
 ## 11. 自动校验
 

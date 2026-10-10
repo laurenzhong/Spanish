@@ -1,4 +1,5 @@
 import type { ContentCandidateType } from "../schemas";
+import { isOwnerAuthorizedReviewerReference } from "./review-identity";
 
 export const candidateReviewDimensions = [
   "rights",
@@ -80,7 +81,7 @@ export function assertCandidatePublishable(
       review.dimension === dimension
       && review.status === "approved"
       && review.candidateRevision === candidate.revision
-      && review.reviewerReference === "codex-ai-owner-authorized-review"
+      && isOwnerAuthorizedReviewerReference(review.reviewerReference)
     );
     if (!approved) throw new ContentReviewIncompleteError(`Missing ${dimension} approval for the current revision.`);
   }

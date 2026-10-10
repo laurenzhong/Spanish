@@ -178,9 +178,11 @@ const reviews = articles.map((article) => ({
   version: 1,
   locale: "es-ES",
   status: "approved" as const,
-  reviewerReference: "codex-ai-temporary-review",
+  // Owner-authorized AI review identity for records written after the 2026-10-10
+  // Codex -> DSH platform migration. Historical bundles keep their `codex-*` value.
+  reviewerReference: "dsh-ai-owner-authorized-review",
   notes:
-    "个人 Alpha 临时 AI 审核：正文为用户确认已获授权的导入内容；结构、来源和版权字段完整。不等同母语者或教学专家签字。",
+    "个人 Alpha 所有者授权 AI 审核：正文为用户确认已获授权的导入内容；结构、来源和版权字段完整。不等同母语者或教学专家签字。",
   reviewedAt: importedAt,
 }));
 

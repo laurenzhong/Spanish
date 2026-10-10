@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { assertContentWorkflowOwner } from "@/src/shared/auth/content-workflow-owner";
 
-import { ContentPublicationConflictError, assertCandidatePublishable } from "../domain";
+import { ContentPublicationConflictError, assertCandidatePublishable, ownerAuthorizedReviewerReference } from "../domain";
 import type { CandidatePublisherRegistry } from "../publishers";
 import type { ContentWorkflowRepository } from "../repositories";
 import { publishCandidateSchema } from "../schemas";
@@ -38,7 +38,7 @@ export async function publishCandidate(
       expectedRevision: expected.expectedRevision,
       expectedContentHash: expected.expectedContentHash,
       publicationRef,
-      reviewerReference: "codex-ai-owner-authorized-review",
+      reviewerReference: ownerAuthorizedReviewerReference(),
       publishedAt: (options.now ?? (() => new Date()))(),
     });
   } catch (error) {

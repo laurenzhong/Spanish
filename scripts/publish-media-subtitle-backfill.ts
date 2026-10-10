@@ -35,11 +35,13 @@ async function main() {
       const segmentParams: unknown[] = [];
       const segmentValues = segments.map((segment: { startMs: number; endMs: number; speaker?: string | null; sourceText: string; translation: string; confidence?: number | null; words?: unknown }, index: number) => {
         const base = segmentParams.length + 1;
-        segmentParams.push(newVersion.id, index, segment.startMs, segment.endMs, segment.speaker ?? null, segment.sourceText, segment.translation, segment.confidence ?? null, segment.words ? JSON.stringify(segment.words) : null);
+        segmentParams.push(newVersion.id, index, segment.startMs, segment.endMs, segment.speaker ?? null, segment.sourceText, segment.translation, segment.confidence ?? null, segment.words ?? null);
         return `(gen_random_uuid(),$${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},'asr','approved',$${base + 8})`;
       }).join(",");
       await tx.unsafe(`insert into media_segments (id,media_version_id,segment_index,start_ms,end_ms,speaker,source_text,translation,confidence,source_kind,review_status,words) values ${segmentValues}`, segmentParams as never[]);
-      const reviewer = "codex-ai-owner-authorized-review";
+      // Owner-authorized AI review identity for records written after the 2026-10-10
+      // Codex -> DSH platform migration. Historical rows keep their `codex-*` value.
+      const reviewer = "dsh-ai-owner-authorized-review";
       await tx.unsafe(`insert into content_reviews (id,entity_type,entity_id,locale,status,reviewer_reference,notes,reviewed_at) values (gen_random_uuid(),'media',$1,'es-ES','approved',$2,'ASR Spanish timeline validated against the source duration and segment invariants.',now()),(gen_random_uuid(),'media',$1,'zh-CN','approved',$2,'MiniMax Chinese subtitle translation present for every segment and validated for publication.',now())`, [newVersion.id, reviewer]);
       await tx.unsafe(`insert into media_transcript_backfill_reviews (id,backfill_id,dimension,status,reviewer_reference,notes) values (gen_random_uuid(),$1,'content-es-ES','approved',$2,'Spanish timeline and source text validated.'),(gen_random_uuid(),$1,'teaching-zh-CN','approved',$2,'Chinese translation is present for every segment.'),(gen_random_uuid(),$1,'structure','approved',$2,'Timeline, asset, hash and immutable version checks passed.') on conflict (backfill_id,dimension) do update set status='approved',reviewer_reference=excluded.reviewer_reference,notes=excluded.notes,updated_at=now()`, [row.id, reviewer]);
       await tx.unsafe("update media_items set current_version=$1,updated_at=now() where id=$2", [version, row.item_id]);

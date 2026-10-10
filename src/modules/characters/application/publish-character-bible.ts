@@ -11,6 +11,10 @@ import {
   type PersistedCharacter,
 } from "../repositories";
 
+// Historical temporary review identity. Character publication records written by
+// the previous agent platform are immutable audit evidence, so this value stays.
+// New expression, article, and media reviews use the current owner-authorized
+// reference from `content-acquisition/domain/review-identity`.
 export const TEMPORARY_AI_REVIEWER_REFERENCE = "codex-ai-temporary-review";
 
 export class CharacterPublishError extends Error {

@@ -80,8 +80,10 @@ async function main() {
         and (select count(distinct r.dimension) from candidate_reviews r
              where r.candidate_id=content_candidates.id
                and r.candidate_revision=content_candidates.revision
-               and r.reviewer_reference='codex-ai-owner-authorized-review'
                and r.status='approved'
+               -- Accept both the historical codex-* identity and the current
+               -- dsh-ai-owner-authorized-review[:actor[:runId]] identity.
+               and (r.reviewer_reference='codex-ai-owner-authorized-review' or r.reviewer_reference like 'dsh-ai-owner-authorized-review%')
                and r.dimension in ('content-es-ES','teaching-zh-CN','structure')) = 3
       order by last_activity_at asc
       limit ${canaryOnly ? canaryCandidateLimit : remaining}

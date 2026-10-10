@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { articleCandidateDraftSchema } from "../normalizers";
+import { OWNER_AUTHORIZED_REVIEWER_REFERENCE } from "../domain";
 import type { ContentCandidateRecord, ContentWorkflowRepository } from "../repositories";
 import {
   articleReviewInputHash,
@@ -9,7 +10,7 @@ import {
   type ArticleReviewResult,
 } from "../providers/article-review";
 
-const REVIEWER_REFERENCE = "codex-ai-owner-authorized-review";
+const REVIEWER_REFERENCE = OWNER_AUTHORIZED_REVIEWER_REFERENCE;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export type ArticleReviewRunResult = Readonly<{

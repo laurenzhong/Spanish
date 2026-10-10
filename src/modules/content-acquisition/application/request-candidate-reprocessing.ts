@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { assertContentWorkflowOwner } from "@/src/shared/auth/content-workflow-owner";
 
+import { OWNER_AUTHORIZED_REVIEWER_REFERENCE } from "../domain";
 import type { ContentWorkflowRepository } from "../repositories";
 import { reprocessCandidateSchema } from "../schemas";
 
@@ -19,7 +20,7 @@ export async function requestCandidateReprocessing(
     expectedRevision: parsed.expectedRevision,
     dimension: "structure",
     status: "changes_requested",
-    reviewerReference: "codex-ai-owner-authorized-review",
+    reviewerReference: OWNER_AUTHORIZED_REVIEWER_REFERENCE,
     notes: parsed.notes,
     updatedAt: now,
   });

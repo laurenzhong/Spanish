@@ -2,6 +2,7 @@
 
 日期：2026-09-12  
 状态：Accepted
+平台迁移修订：2026-10-10（见文末「平台迁移修订」；决定本身未改变）
 
 ## 背景
 
@@ -59,4 +60,13 @@ draft → review → approved → published → archived
 - 内容版本、来源、版权、署名和事务导入要求。
 - 用户隐私、角色安全和现实资源真实性边界。
 - 打字、低置信度转写和技术失败不得污染口语能力证据。
+
+## 平台迁移修订（2026-10-10）
+
+审核主体所在的代理平台从 Codex 迁移到 DSH。本 ADR 的治理决定不变：在项目仅供所有者本人使用期间，仍由该平台独立完成西班牙语语言与中文教学两个审核维度，仍不得描述为真人、母语者或教学专家签字。
+
+- 新写入的审核记录使用 `dsh-ai-owner-authorized-review`，可带 `:actor[:runId]` 溯源段。
+- 历史 `codex-ai-owner-authorized-review` 与 `codex-ai-temporary-review` 是追加式审计证据：已发布内容 bundle、数据库审核记录、`docs/reviews/` 审核报告和 `characters` 发布审核保持原值，不做改写、迁移或回填。
+- 发布门禁同时接受历史身份与当前身份，因此既有版本重试发布仍然幂等；权威定义集中在 `src/modules/content-acquisition/domain/review-identity.ts`，publisher 原样回显已通过门禁的审核身份，不按当前平台名重写。
+- 两个审核维度、生成与审核分离、版本化修订、完整校验和事务导入要求全部不变；本次迁移不放宽任何发布门槛。
 
