@@ -117,6 +117,19 @@ describe("OpenAIConversationProvider", () => {
     vi.unstubAllEnvs();
   });
 
+  it("keeps the default endpoint when the configured value is blank", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "env-key");
+    vi.stubEnv("OPENAI_API_ENDPOINT", "");
+    const fetchImplementation = vi.fn(async (url: RequestInfo | URL) => {
+      void url;
+      return response({ output_text: "Hola." });
+    });
+    const provider = createOpenAIConversationProvider({ fetchImplementation });
+    await provider.generate(input);
+    expect(fetchImplementation.mock.calls[0]?.[0]).toBe("https://api.openai.com/v1/responses");
+    vi.unstubAllEnvs();
+  });
+
   it("exposes stable typed errors", () => {
     const error = new ConversationProviderError("provider-unavailable", "temporary", true);
     expect(error).toMatchObject({ code: "provider-unavailable", retryable: true });

@@ -126,7 +126,12 @@ export function proactiveReplyPlan(
     relationshipSignal: source === "daily_share" ? "none" : "warmth",
     interactionMode: "everyday",
     affectionIntensityCeiling: mature ? 2 : 1,
-    questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
+    // A daily check-in may end with one low-pressure question: the spec's own
+    // proactive example does. Other unsolicited sources stay question-free, and
+    // the hard gate still rejects more than two question marks.
+    questionPolicy: source === "daily_share"
+      ? { maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" }
+      : { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
     preferredLength: "short",
   };
 }
@@ -143,7 +148,8 @@ export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): 
   if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return false;
   if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return false;
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
-  if ((text.match(/¿/gu) ?? []).length > 0 || (text.match(/\?/gu) ?? []).length > 0) return false;
+  const questionCount = (text.match(/[¿?]/gu) ?? []).length;
+  if (questionCount > 2 || (questionCount > 0 && !plan.questionPolicy.allowReciprocalQuestion)) return false;
   if (plan.interactionMode === "quiet" && normalized.length > 240) return false;
   if (plan.preferredLength === "one-line" && (text.includes("\n") || text.length > 96)) return false;
   return true;

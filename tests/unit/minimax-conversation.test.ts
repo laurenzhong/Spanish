@@ -137,6 +137,19 @@ describe("MiniMaxConversationProvider", () => {
     vi.unstubAllEnvs();
   });
 
+  it("keeps the default endpoint when the configured value is blank", async () => {
+    vi.stubEnv("MINIMAX_API_KEY", "env-key");
+    vi.stubEnv("MINIMAX_API_ENDPOINT", "");
+    const fetchImplementation = vi.fn(async (url: RequestInfo | URL) => {
+      void url;
+      return response({ content: [{ type: "text", text: "Hola." }] });
+    });
+    const provider = createMiniMaxConversationProvider({ fetchImplementation });
+    await provider.generate(input);
+    expect(fetchImplementation.mock.calls[0]?.[0]).toBe("https://api.minimaxi.com/anthropic/v1/messages");
+    vi.unstubAllEnvs();
+  });
+
   it("exposes stable typed errors", () => {
     const error = new ConversationProviderError("provider-unavailable", "temporary", true);
     expect(error).toMatchObject({ code: "provider-unavailable", retryable: true });

@@ -16,6 +16,16 @@ const defaultModelVersion = "gpt-5.6-sol";
 const defaultTimeoutMs = 30_000;
 const maxReplyLength = 4_000;
 
+/**
+ * Environment configuration can reach the provider as an empty string (for
+ * example an unset GitHub Actions variable). A blank value must fall back to
+ * the default endpoint instead of being used as the request URL.
+ */
+function normalizeEndpoint(candidate: string | undefined, fallback: string): string {
+  const trimmed = candidate?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
 type FetchImplementation = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -52,7 +62,7 @@ export class OpenAIConversationProvider implements CharacterReplyProvider {
   private readonly clock: Clock;
 
   constructor(private readonly options: OpenAIConversationProviderOptions) {
-    this.endpoint = options.endpoint ?? defaultEndpoint;
+    this.endpoint = normalizeEndpoint(options.endpoint, defaultEndpoint);
     this.modelVersion = options.modelVersion ?? defaultModelVersion;
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
@@ -133,7 +143,7 @@ export function createOpenAIConversationProvider(
   return new OpenAIConversationProvider({
     ...options,
     apiKey: options.apiKey ?? process.env.OPENAI_API_KEY ?? "",
-    endpoint: options.endpoint ?? process.env.OPENAI_API_ENDPOINT ?? defaultEndpoint,
+    endpoint: options.endpoint ?? process.env.OPENAI_API_ENDPOINT,
     modelVersion: options.modelVersion ?? process.env.OPENAI_CONVERSATION_MODEL ?? defaultModelVersion,
   });
 }
