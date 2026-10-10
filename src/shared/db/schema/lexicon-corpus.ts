@@ -229,9 +229,66 @@ export const lexiconCandidates = pgTable("lexicon_candidates", {
   ),
 ]);
 
+/**
+ * Append-only record of each owner approval, including batch context (ADR-0011 §5).
+ *
+ * This exists because `lexicon_candidates` cannot hold it: `mode`, `batch_id`,
+ * and the lexeme/phrase counts have no column there, and merging them in would
+ * force the writer to either throw or silently drop audit evidence. A batch
+ * approval must leave one row per candidate, so this is a child table keyed by
+ * `(candidate_id, revision)` — an approval of a given revision is recorded once.
+ *
+ * `reviews` snapshots the two review dimensions as they stood at approval time,
+ * so the audit stays readable even if the candidate row later advances or the
+ * review identities change.
+ *
+ * No RLS: approvals are made by the owner over content-side candidates and carry
+ * no end-user private data. If candidates ever accept user submissions, this
+ * table must gain RLS in the same change.
+ */
+export const lexiconCandidateApprovals = pgTable("lexicon_candidate_approvals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  candidateId: uuid("candidate_id").notNull().references(() => lexiconCandidates.id, { onDelete: "cascade" }),
+  /** Monotonic candidate revision that was approved. */
+  revision: integer("revision").notNull(),
+  /** `single` for one-off approval, `batch` when part of a bulk approval. */
+  mode: text("mode").notNull(),
+  /** Shared across every member of one bulk approval; null for single approvals. */
+  batchId: text("batch_id"),
+  approvedBy: text("approved_by").notNull(),
+  approvedAt: timestamp("approved_at", { withTimezone: true, mode: "date" }).notNull(),
+  documentKind: text("document_kind").notNull(),
+  documentStableKey: text("document_stable_key").notNull(),
+  documentVersion: integer("document_version").notNull(),
+  segmentIndex: integer("segment_index").notNull(),
+  /** Review records as they stood at approval: [{dimension, outcome, …}]. */
+  reviews: jsonb("reviews").$type<JsonObject[]>().default(sql`'[]'::jsonb`).notNull(),
+  lexemeCount: integer("lexeme_count").default(0).notNull(),
+  phraseCount: integer("phrase_count").default(0).notNull(),
+  createdAt: createdAt(),
+}, (table) => [
+  // One approval record per candidate revision.
+  uniqueIndex("lexicon_candidate_approvals_candidate_revision_uidx").on(table.candidateId, table.revision),
+  index("lexicon_candidate_approvals_batch_idx").on(table.batchId),
+  index("lexicon_candidate_approvals_approved_at_idx").on(table.approvedAt),
+  check("lexicon_candidate_approvals_mode_check", sql`${table.mode} in ('single', 'batch')`),
+  check("lexicon_candidate_approvals_revision_positive_check", sql`${table.revision} > 0`),
+  check(
+    "lexicon_candidate_approvals_document_kind_check",
+    sql`${table.documentKind} in ('article', 'media')`,
+  ),
+  // A batch member must name its batch; a single approval must not.
+  check(
+    "lexicon_candidate_approvals_batch_id_check",
+    sql`(${table.mode} = 'batch' and ${table.batchId} is not null) or (${table.mode} = 'single' and ${table.batchId} is null)`,
+  ),
+  check("lexicon_candidate_approvals_counts_check", sql`${table.lexemeCount} >= 0 and ${table.phraseCount} >= 0`),
+]);
+
 export type LexemeRow = typeof lexemes.$inferSelect;
 export type PhraseEntryRow = typeof phraseEntries.$inferSelect;
 export type CorpusOccurrenceRow = typeof corpusOccurrences.$inferSelect;
 export type LexicalAssessmentItemRow = typeof lexicalAssessmentItems.$inferSelect;
 export type LexicalAssessmentAttemptRow = typeof lexicalAssessmentAttempts.$inferSelect;
 export type LexiconCandidateRow = typeof lexiconCandidates.$inferSelect;
+export type LexiconCandidateApprovalRow = typeof lexiconCandidateApprovals.$inferSelect;
