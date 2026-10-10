@@ -122,7 +122,22 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
       const character = await findLucia(database);
       const [existing] = await database.select().from(schema.proactiveMessageCandidates)
         .where(and(eq(schema.proactiveMessageCandidates.userId, input.userId), eq(schema.proactiveMessageCandidates.dedupeKey, input.dedupeKey))).limit(1);
-      if (existing) return toCandidate(existing);
+      if (existing) {
+        if (existing.status !== "failed") return toCandidate(existing);
+        // A failed candidate must not block its dedupe key forever: retry the
+        // same key with the new generation instead of echoing a stale error.
+        const [retry] = await database.update(schema.proactiveMessageCandidates).set({
+          status: "generating",
+          generationId: input.generationId,
+          lastErrorCode: null,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(schema.proactiveMessageCandidates.id, existing.id),
+          eq(schema.proactiveMessageCandidates.userId, input.userId),
+          eq(schema.proactiveMessageCandidates.status, "failed"),
+        )).returning();
+        return toCandidate(retry ?? existing);
+      }
       const [candidate] = await database.insert(schema.proactiveMessageCandidates).values({
         userId: input.userId,
         characterId: character.id,

@@ -48,4 +48,21 @@ describe("proactive message persistence", () => {
     const rows = await database.select().from(schema.messages).where(and(eq(schema.messages.userId, userId), eq(schema.messages.sourceType, "proactive")));
     expect(rows).toHaveLength(1);
   });
+
+  it("lets a failed candidate be retried with a new generation", async () => {
+    const repository = createDrizzleProactiveMessageRepository(database);
+    const now = new Date("2026-08-29T10:00:00.000Z");
+    const dedupeKey = "lucia:daily_share:2026-08-29";
+    const first = await repository.createCandidate({ userId, conversationId, sourceType: "daily_share", dedupeKey, generationId: "generation-1", notBefore: now });
+    await repository.failCandidate({ userId, candidateId: first.id, errorCode: "provider-unavailable" });
+
+    const retry = await repository.createCandidate({ userId, conversationId, sourceType: "daily_share", dedupeKey, generationId: "generation-2", notBefore: now });
+    expect(retry.id).toBe(first.id);
+    expect(retry).toMatchObject({ status: "generating", generationId: "generation-2" });
+
+    const completed = await repository.completeCandidate({ userId, candidateId: retry.id, messageId: "30000000-0000-4000-8000-000000000092", generationId: "generation-2", content: "Hoy he salido a caminar un rato." });
+    expect(completed.candidate.status).toBe("generated");
+    const afterCompletion = await repository.createCandidate({ userId, conversationId, sourceType: "daily_share", dedupeKey, generationId: "generation-3", notBefore: now });
+    expect(afterCompletion).toMatchObject({ status: "generated", generationId: "generation-2" });
+  });
 });
