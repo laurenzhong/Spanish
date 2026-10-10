@@ -7,6 +7,11 @@ export const speechCapabilityErrorCodes = [
   "recording-failed",
   "tts-not-supported",
   "tts-failed",
+  // The engine accepted the utterance but never started it: the selected voice
+  // can be listed yet unusable, which is otherwise a silent no-op for the user.
+  "tts-no-audio",
+  // The engine started the utterance and then never reported its end.
+  "tts-stalled",
   "tts-cancelled",
 ] as const;
 

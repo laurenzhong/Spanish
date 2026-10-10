@@ -11,6 +11,7 @@ import {
   preferredSpanishVoice,
   readSpanishVoicePreference,
   subscribeToBrowserVoices,
+  textToSpeechErrorMessage,
   writeSpanishVoicePreference,
 } from "@/src/modules/providers/tts";
 import type { WordExplanation } from "@/src/modules/providers/word-explanation";
@@ -212,6 +213,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [spanishVoices, setSpanishVoices] = useState<readonly SpeechSynthesisVoice[]>([]);
   const [selectedSpanishVoiceURI, setSelectedSpanishVoiceURI] = useState<string | null>(() => readSpanishVoicePreference());
   const [ttsError, setTtsError] = useState(false);
+  const [ttsErrorMessage, setTtsErrorMessage] = useState("");
   const [online, setOnline] = useState(true);
   const [serverSync, setServerSync] = useState<"pending" | "available" | "unauthenticated" | "unavailable" | "conflict">("pending");
   const [status, setStatus] = useState("");
@@ -421,14 +423,17 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, []);
   useEffect(() => { let frame = 0; const onScroll = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(updatePosition); }; window.addEventListener("scroll", onScroll, { passive: true }); return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", onScroll); }; }, [updatePosition]);
   const selectedSpanishVoice = preferredSpanishVoice(spanishVoices, selectedSpanishVoiceURI);
-  const speak = useCallback(async (text: string, position: number | "full") => { if (!tts.isSupported) { setTtsError(true); return; } setSpeakingPosition(position); setTtsError(false); try { await tts.speak(text, { languageTag: article.locale, rate: settings.ttsRate, voiceName: selectedSpanishVoice?.name, voiceURI: selectedSpanishVoice?.voiceURI }); } catch { setTtsError(true); } finally { setSpeakingPosition(null); } }, [article.locale, selectedSpanishVoice, settings.ttsRate, tts]);
+  const speak = useCallback(async (text: string, position: number | "full") => { if (!tts.isSupported) { setTtsError(true); setTtsErrorMessage("当前浏览器不支持语音合成，正文阅读不受影响。"); return; } setSpeakingPosition(position); setTtsError(false); setTtsErrorMessage(""); try { await tts.speak(text, { languageTag: article.locale, rate: settings.ttsRate, voiceName: selectedSpanishVoice?.name, voiceURI: selectedSpanishVoice?.voiceURI }); } catch (error) { // A silent engine (listed voice that cannot synthesize) keeps the text
+      // otherwise unreadable with no feedback at all.
+      setTtsErrorMessage(textToSpeechErrorMessage(error, "浏览器暂时无法朗读，正文阅读不受影响。")); setTtsError(true); } finally { setSpeakingPosition(null); } }, [article.locale, selectedSpanishVoice, settings.ttsRate, tts]);
   const previewSpanishVoice = useCallback(async (voice: SpeechSynthesisVoice) => {
     if (!tts.isSupported || speakingPosition !== null) return;
     setSpeakingPosition("voice-preview");
     setTtsError(false);
+    setTtsErrorMessage("");
     try {
       await tts.speak("Hola, esta es una muestra de la voz seleccionada.", { languageTag: article.locale, rate: settings.ttsRate, voiceName: voice.name, voiceURI: voice.voiceURI });
-    } catch { setTtsError(true); }
+    } catch (error) { setTtsErrorMessage(textToSpeechErrorMessage(error, "浏览器暂时无法朗读，正文阅读不受影响。")); setTtsError(true); }
     finally { setSpeakingPosition(null); }
   }, [article.locale, settings.ttsRate, speakingPosition, tts]);
   const selectSpanishVoice = (voice: SpeechSynthesisVoice) => {
@@ -609,7 +614,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     if (activeTool === "listen") {
       const paragraphNumber = (currentSegment?.position ?? 0) + 1;
       const preview = currentSegment ? currentSegment.text.slice(0, 56) + (currentSegment.text.length > 56 ? "…" : "") : "";
-      return <><div className="article-reader__listen-target"><strong>当前：第 {paragraphNumber} 段</strong><p>{preview}</p></div><div className="article-reader__tool-actions"><button className="secondary-action" type="button" onClick={() => { if (currentSegment) void speak(currentSegment.text, currentSegment.position); }} disabled={speakingPosition !== null}>{speakingPosition === currentSegment?.position ? `正在朗读第 ${paragraphNumber} 段` : `朗读第 ${paragraphNumber} 段`}</button><button className="secondary-action" type="button" onClick={() => void speak(fullText, "full")} disabled={speakingPosition !== null}>{speakingPosition === "full" ? "正在朗读全文" : "朗读全文"}</button></div>{speakingPosition !== null ? <button className="text-link" type="button" onClick={() => { tts.stop(); setSpeakingPosition(null); }}>停止朗读</button> : null}{ttsError ? <p className="article-reader__tool-error" role="status">浏览器暂时无法朗读，正文阅读不受影响。</p> : null}</>;
+      return <><div className="article-reader__listen-target"><strong>当前：第 {paragraphNumber} 段</strong><p>{preview}</p></div><div className="article-reader__tool-actions"><button className="secondary-action" type="button" onClick={() => { if (currentSegment) void speak(currentSegment.text, currentSegment.position); }} disabled={speakingPosition !== null}>{speakingPosition === currentSegment?.position ? `正在朗读第 ${paragraphNumber} 段` : `朗读第 ${paragraphNumber} 段`}</button><button className="secondary-action" type="button" onClick={() => void speak(fullText, "full")} disabled={speakingPosition !== null}>{speakingPosition === "full" ? "正在朗读全文" : "朗读全文"}</button></div>{speakingPosition !== null ? <button className="text-link" type="button" onClick={() => { tts.stop(); setSpeakingPosition(null); }}>停止朗读</button> : null}{ttsError ? <p className="article-reader__tool-error" role="status">{ttsErrorMessage || "浏览器暂时无法朗读，正文阅读不受影响。"}</p> : null}</>;
     }
     if (activeTool === "explain") {
       if (!selectedToken) return <div className="article-reader__tool-empty"><p>点击正文中的词语查看语境解释。</p><p>拖选两个以上词语可以解析整句。</p></div>;
@@ -626,6 +631,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       const contextualMeaning = wordExplanation?.contextualMeaning ?? streamPreview.contextualMeaning ?? (isSentence ? undefined : localUsage);
       return <>
         <div className="article-reader__selected-word"><span>{selectedToken.text}</span><button type="button" aria-label={"朗读 " + selectedToken.text} onClick={() => void speak(selectedToken.text, selectedToken.position)}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6l-5 4H5zm12-1.5a5 5 0 0 1 0 7" /></svg></button></div>
+        {ttsError ? <p className="article-reader__tool-error" role="status">{ttsErrorMessage || "浏览器暂时无法朗读，正文阅读不受影响。"}</p> : null}
         <div className="article-reader__explanation-fields">
           {isSentence ? <>
             <div><p className="article-reader__tool-kicker">中文翻译</p><p>{meaning ?? (wordExplanationStatus === "loading" ? "正在生成翻译……" : "点击下方按钮解析")}</p></div>
