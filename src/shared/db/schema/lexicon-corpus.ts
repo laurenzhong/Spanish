@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
-import { createdAt, reviewStatusEnum, updatedAt } from "./common";
+import { createdAt, reviewStatusEnum, updatedAt, type JsonObject } from "./common";
 import { profiles } from "./users";
 
 export const lexemes = pgTable("lexemes", {
@@ -159,8 +159,79 @@ export const lexicalAssessmentAttempts = pgTable("lexical_assessment_attempts", 
   check("lexical_assessment_attempts_content_version_check", sql`${table.contentVersion} > 0`),
 ]);
 
+/**
+ * Extraction candidates awaiting review and owner approval (ADR-0011).
+ *
+ * A row here is a *proposal* that a surface form in published content should
+ * become a `lexeme` or a `phrase_entry`. These rows are deliberately separate
+ * from the corpus tables: nothing in this table creates a lexeme, a phrase
+ * entry or a corpus occurrence, and only an `approved` row may be handed to
+ * `indexContentVersion()`. That is why `lemma_status` is derived from `status`
+ * rather than stored — the corpus can never receive `verified` by accident.
+ *
+ * `document_version` is part of the identity, so a later content edit cannot
+ * silently move an approved candidate onto different text.
+ */
+export const lexiconCandidates = pgTable("lexicon_candidates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  candidateKind: text("candidate_kind").notNull(),
+  documentKind: text("document_kind").notNull(),
+  documentStableKey: text("document_stable_key").notNull(),
+  documentVersion: integer("document_version").notNull(),
+  segmentIndex: integer("segment_index").notNull(),
+  sourceText: text("source_text").notNull(),
+  normalizedText: text("normalized_text").notNull(),
+  lemma: text("lemma"),
+  partOfSpeech: text("part_of_speech"),
+  meaningZh: text("meaning_zh"),
+  contextBefore: text("context_before").default("").notNull(),
+  contextAfter: text("context_after").default("").notNull(),
+  sourceTitle: text("source_title").notNull(),
+  sourceKind: text("source_kind").notNull(),
+  provider: text("provider").notNull(),
+  modelVersion: text("model_version"),
+  confidence: integer("confidence"),
+  status: text("status").default("discovered").notNull(),
+  revision: integer("revision").default(1).notNull(),
+  /** Review records: [{dimension, outcome, reviewerReference, reviewedAt}]. */
+  reviews: jsonb("reviews").$type<JsonObject[]>().default(sql`'[]'::jsonb`).notNull(),
+  approvedBy: text("approved_by"),
+  approvedAt: timestamp("approved_at", { withTimezone: true, mode: "date" }),
+  rejectedReason: text("rejected_reason"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  // Re-extraction must not collide with an existing candidate for the same span.
+  uniqueIndex("lexicon_candidates_identity_uidx").on(
+    table.candidateKind,
+    table.documentKind,
+    table.documentStableKey,
+    table.documentVersion,
+    table.segmentIndex,
+    table.normalizedText,
+  ),
+  index("lexicon_candidates_status_idx").on(table.status, table.createdAt),
+  index("lexicon_candidates_document_idx").on(table.documentKind, table.documentStableKey, table.documentVersion),
+  check("lexicon_candidates_kind_check", sql`${table.candidateKind} in ('lexeme', 'phrase')`),
+  check(
+    "lexicon_candidates_status_check",
+    sql`${table.status} in ('discovered', 'review_submitted', 'review_ready', 'approved', 'rejected')`,
+  ),
+  check("lexicon_candidates_document_kind_check", sql`${table.documentKind} in ('article', 'media')`),
+  check("lexicon_candidates_version_positive_check", sql`${table.documentVersion} > 0`),
+  check("lexicon_candidates_segment_index_check", sql`${table.segmentIndex} >= 0`),
+  check("lexicon_candidates_revision_positive_check", sql`${table.revision} > 0`),
+  check("lexicon_candidates_confidence_check", sql`${table.confidence} is null or ${table.confidence} between 0 and 100`),
+  // An approved row must record who approved it and when.
+  check(
+    "lexicon_candidates_approved_audit_check",
+    sql`${table.status} <> 'approved' or (${table.approvedBy} is not null and ${table.approvedAt} is not null)`,
+  ),
+]);
+
 export type LexemeRow = typeof lexemes.$inferSelect;
 export type PhraseEntryRow = typeof phraseEntries.$inferSelect;
 export type CorpusOccurrenceRow = typeof corpusOccurrences.$inferSelect;
 export type LexicalAssessmentItemRow = typeof lexicalAssessmentItems.$inferSelect;
 export type LexicalAssessmentAttemptRow = typeof lexicalAssessmentAttempts.$inferSelect;
+export type LexiconCandidateRow = typeof lexiconCandidates.$inferSelect;
