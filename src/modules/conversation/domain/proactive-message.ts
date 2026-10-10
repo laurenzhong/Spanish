@@ -35,7 +35,8 @@ export type ProactiveEligibilityDecision = Readonly<{
     | "proactive-paused"
     | "daily-limit"
     | "weekly-limit"
-    | "cooldown";
+    | "cooldown"
+    | "unanswered-message";
 }>;
 
 export const proactiveLimits = {
