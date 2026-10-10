@@ -1,7 +1,19 @@
 # 滑动下划线真机验收清单（iPhone Safari）
 
 任务：`NAV-UNDERLINE-001`（`6618274`）、`-002`（`b20bf94`）、`-003`（`8f3777c`）。
-本机预览服务：`npm`/`pnpm exec next dev --hostname 0.0.0.0 --port 3120`，局域网地址 `http://192.168.8.210:3120`（IP 由 DHCP 分配，换网络后需重新查询 `Get-NetIPAddress`）。该服务带 `AUTH_E2E_ENABLED=1`，iPhone Safari 首次访问时按下面第 0 步写入测试会话 cookie，即可直接看到登录后的页面。
+本机预览服务：`pnpm exec next dev --hostname 0.0.0.0 --port 3120`，局域网地址 `http://192.168.8.210:3120`（IP 由 DHCP 分配，换网络后需重新查询 `Get-NetIPAddress`）。该服务带 `AUTH_E2E_ENABLED=1`，iPhone Safari 首次访问时按下面第 0 步写入测试会话 cookie，即可直接看到登录后的页面。
+
+## 自动化预检结果（2026-10-10，设备档案模拟）
+
+产品本人当时无法上手真机，因此先用 Playwright 的 iPhone 12 Pro 档案（Safari UA、DPR 3、`isMobile`、触摸、390×664 视口）跑了一遍等价检查：
+
+- 五处导航的指示器与当前项**逐像素对齐**（`/read` 0/59.5、`/read/saved-items` 0/53.6、`/learn` 0/26、`/me` 0/81.6、`/` 0/21.1，均为 `left/width`）。
+- 触摸点击另一项后指示器落到新项（`/read` 语料 178.6、`/learn` 视频 48、`/me` 关系隐私 81.6），`/me` 的 hash 变为 `#profile-relationships`。
+- 竖屏 ↔ 横屏切换后指示器重新测量且仍与当前项对齐；五处页面均无横向溢出（`scrollWidth - clientWidth = 0`）。
+- 可点区域高度：`/read`、`/read/saved-items` 44px，`/learn` 36px，`/me` 38px，均 ≥ 24px；**首页页头的「产品方式 / 阅读 / 登录」只有 16px 高**（`进入学习` 胶囊为 44px）——这是既有问题，与本任务无关，建议单独立项。
+- 截图：`docs/evidence/2026-10-10-read-nav-underline/14-phone-*.png`。
+
+**这项预检不能替代真机**：WebKit 二进制在本机未安装（`playwright install webkit` 需要下载），因此 iOS Safari 的渲染与触摸行为只在 Chromium 模拟下验证过。下面的清单仍需在真机上过一遍，重点看引擎相关的部分。
 
 ## 0. 准备（仅一次）
 
@@ -56,5 +68,6 @@
 
 ## 已知环境限制
 
-- 本清单只在 iPhone Safari 真机上有效；桌面自动化（Playwright `product-shell`、`lexicon-library`、`learn-page` 与真实 Chrome 探针）已在实现提交中记录结果，不能替代本清单。
+- 本清单只在 iPhone Safari 真机上有效；桌面自动化（Playwright `product-shell`、`lexicon-library`、`learn-page` 与真实 Chrome 探针）与上面的设备档案模拟已在实现提交中记录结果，不能替代本清单。
 - `/learn` 与 `/read` 的内容来自本机 `.env` 指向的数据库；没有真实数据时只验证下划线行为与空状态，不把空状态当成缺陷。
+- 引擎差异：预检使用 Chromium 的 iPhone 档案，不是 WebKit；真机上请重点确认下划线的动画流畅度、点击命中范围与地址栏收起/展开时的重排。
