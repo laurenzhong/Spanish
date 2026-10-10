@@ -46,6 +46,17 @@ describe("proactive message policy", () => {
     expect(evaluateProactiveEligibility(staleUnanswered, now)).toEqual({ allowed: true, reason: "eligible" });
   });
 
+  it("allows one low-pressure question only in the daily check-in plan", () => {
+    const dailyShare = proactiveReplyPlan("daily_share", "familiar");
+    expect(dailyShare.questionPolicy).toEqual({ maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" });
+    expect(isProactiveMessageSafe("Hola, ¿qué tal el día por ahí?", dailyShare)).toBe(true);
+    expect(isProactiveMessageSafe("¿Qué tal? ¿Y tú? ¿Has comido bien?", dailyShare)).toBe(false);
+
+    const quietPresence = proactiveReplyPlan("quiet_presence", "familiar");
+    expect(quietPresence.questionPolicy).toEqual({ maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" });
+    expect(isProactiveMessageSafe("Hola, ¿qué tal el día?", quietPresence)).toBe(false);
+  });
+
   it("keeps unsolicited text low-pressure and rejects product meta or questions", () => {
     const plan = proactiveReplyPlan("spontaneous_affection", "familiar");
     expect(isProactiveMessageSafe("Me has venido a la cabeza de repente. Solo quería saludarte.", plan)).toBe(false);
