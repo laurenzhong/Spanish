@@ -1,0 +1,424 @@
+/**
+ * Postgres lexicon candidate repository (LEX-INDEX-001 slice 6 prerequisite).
+ *
+ * ## Status: **code only — not wired, not verified against a database**
+ *
+ * The `lexicon_candidates` migration is generated but deliberately **not
+ * applied** (see `docs/migrations/0041-lexicon-candidates-review.md`), and no
+ * migration, DDL or `drizzle-kit push`/`migrate` may be run for this slice.
+ * Consequences, stated plainly so nobody reads this file as tested code:
+ *
+ * - nothing imports this module yet; the application layer still uses
+ *   {@link createInMemoryLexiconCandidateRepository} and the slice-5 gate;
+ * - the queries below have never executed against a real PostgreSQL, so `.set()`
+ *   shapes, the `onConflictDoNothing` target and the JSONB round-trip are
+ *   unproven;
+ * - `tsc --noEmit` and ESLint are the only checks that ran on it.
+ *
+ * ## What the committed table can and cannot store
+ *
+ * `lexicon_candidates` has 26 columns. It can store a candidate, its frozen
+ * source snapshot, the review records and the approval audit pair
+ * (`approved_by` / `approved_at` / `revision`, guarded by
+ * `lexicon_candidates_approved_audit_check`).
+ *
+ * It has **no column** for the approval audit's `mode`, `batchId`, `lexemes` or
+ * `phrases`. `LexiconCandidateApprovalAuditStore` is therefore *not* implemented
+ * here: silently dropping the batch correlation would destroy the only record
+ * that ADR-0011 §5 requires for a bulk approval. Completing it needs its own
+ * migration (an append-only `lexicon_candidate_approvals` table) **before** this
+ * path can be wired; that is a schema change and out of scope for this slice.
+ *
+ * ## Identity
+ *
+ * The domain id returned by `makeCandidateId()` is not a uuid, so it cannot be
+ * the primary key. Every read and write below goes through the six columns of
+ * `lexicon_candidates_identity_uidx` and reproduces the domain id from them with
+ * `makeCandidateId()`. `parseDerivedCandidateId()` therefore also refuses an id
+ * whose stable key contains `|` instead of guessing (stable keys are slugs in
+ * this codebase; `makeCandidateId()` itself already assumes that).
+ *
+ * ## Compare-and-swap
+ *
+ * `save()` locks the row (`for update`), compares the stored revision to
+ * `expectedRevision` inside the transaction and only then issues
+ * `update ... where revision = expectedRevision returning *`. A stale caller
+ * gets `conflict` plus the stored state and no `set()` ever runs. A write that
+ * arrives after the row moved cannot overwrite it: the revision predicate is
+ * part of the `update` itself, so the loser of a race writes zero rows.
+ */
+
+import { and, asc, eq, isNotNull } from "drizzle-orm";
+
+import * as schema from "@/src/shared/db/schema";
+import type { Database } from "@/src/shared/db/client";
+import { makeCandidateId } from "../domain/lexicon-candidate";
+import {
+  LexiconCandidateIdentityAmbiguousError,
+  candidateStorageIdentity,
+  validateCandidateIdentity,
+  validateCandidateRevision,
+  validateCandidateWriteShape,
+  type LexiconCandidateRecord,
+  type LexiconCandidateRepository,
+  type LexiconCandidateSaveOutcome,
+  type LexiconCandidateSourceKey,
+} from "./lexicon-candidate-repository";
+
+type CandidateRow = typeof schema.lexiconCandidates.$inferSelect;
+
+/** Raised when a stored row cannot be decoded without reinterpreting evidence. */
+export class LexiconCandidateRowDecodeError extends Error {
+  readonly code = "CANDIDATE_ROW_DECODE_FAILED" as const;
+
+  constructor(candidateId: string, detail: string) {
+    super(`Stored lexicon candidate "${candidateId}" could not be decoded: ${detail}`);
+    this.name = "LexiconCandidateRowDecodeError";
+  }
+}
+
+const derivedIdPattern = /^(lexeme|phrase)\|([^|]+)\|(\d+)\|(\d+)\|([\s\S]*)$/u;
+
+/**
+ * Split a derived candidate id back into the identity columns it was built from.
+ *
+ * Returns `null` for anything that is not exactly
+ * `kind|stableKey|version|segmentIndex|normalizedText`, including a stable key
+ * that contains `|` — the join in `makeCandidateId()` is not escapable, so such
+ * an id is ambiguous and must not be guessed at.
+ */
+export function parseDerivedCandidateId(id: string): Readonly<{
+  kind: "lexeme" | "phrase";
+  documentStableKey: string;
+  documentVersion: number;
+  segmentIndex: number;
+  normalizedText: string;
+}> | null {
+  const match = derivedIdPattern.exec(id);
+  if (!match) return null;
+  const [, kind, documentStableKey, documentVersion, segmentIndex, normalizedText] = match;
+  return {
+    kind: kind as "lexeme" | "phrase",
+    documentStableKey: documentStableKey!,
+    documentVersion: Number(documentVersion),
+    segmentIndex: Number(segmentIndex),
+    normalizedText: normalizedText!,
+  };
+}
+
+/**
+ * The identity predicate. `documentKind` is included whenever the caller has it
+ * (every write does); an id-only lookup cannot know it, and a lookup that then
+ * matches more than one document kind is refused rather than answered.
+ */
+function identityWhere(
+  identity: ReturnType<typeof candidateStorageIdentity> | ReturnType<typeof parseDerivedCandidateId>,
+): ReturnType<typeof and> {
+  if (!identity) throw new Error("LEXICON_CANDIDATE_IDENTITY_MISSING");
+  return and(
+    eq(schema.lexiconCandidates.candidateKind, identity.kind),
+    "documentKind" in identity ? eq(schema.lexiconCandidates.documentKind, identity.documentKind) : undefined,
+    eq(schema.lexiconCandidates.documentStableKey, identity.documentStableKey),
+    eq(schema.lexiconCandidates.documentVersion, identity.documentVersion),
+    eq(schema.lexiconCandidates.segmentIndex, identity.segmentIndex),
+    eq(schema.lexiconCandidates.normalizedText, identity.normalizedText),
+  );
+}
+
+/**
+ * Decode one review record.
+ *
+ * A malformed entry is an error, not something to skip: these rows are what
+ * proves dual review before approval, and silently dropping one would reinterpret
+ * evidence that a human decision was based on.
+ */
+function decodeReviews(row: CandidateRow): LexiconCandidateRecord["candidate"]["reviews"] {
+  const candidateId = toCandidateId(row);
+  return row.reviews.map((entry, index) => {
+    const dimension = entry.dimension;
+    const outcome = entry.outcome;
+    const reviewerReference = entry.reviewerReference;
+    const reviewedAt = entry.reviewedAt;
+    if (dimension !== "content-es-ES" && dimension !== "teaching-zh-CN") {
+      throw new LexiconCandidateRowDecodeError(candidateId, `review ${index} has an unknown dimension`);
+    }
+    if (outcome !== "pass" && outcome !== "fail") {
+      throw new LexiconCandidateRowDecodeError(candidateId, `review ${index} has an unknown outcome`);
+    }
+    if (typeof reviewerReference !== "string" || reviewerReference.length === 0) {
+      throw new LexiconCandidateRowDecodeError(candidateId, `review ${index} has no reviewer reference`);
+    }
+    const reviewedAtDate = typeof reviewedAt === "string" || reviewedAt instanceof Date ? new Date(reviewedAt) : null;
+    if (!reviewedAtDate || Number.isNaN(reviewedAtDate.getTime())) {
+      throw new LexiconCandidateRowDecodeError(candidateId, `review ${index} has no usable reviewedAt`);
+    }
+    return { dimension, outcome, reviewerReference, reviewedAt: reviewedAtDate };
+  });
+}
+
+function toCandidateId(row: CandidateRow): string {
+  return makeCandidateId({
+    kind: row.candidateKind as "lexeme" | "phrase",
+    stableKey: row.documentStableKey,
+    version: row.documentVersion,
+    segmentIndex: row.segmentIndex,
+    normalizedText: row.normalizedText,
+  });
+}
+
+/** Row -> contract record. `source_text` is the stored surface form. */
+function toRecord(row: CandidateRow): LexiconCandidateRecord {
+  return {
+    candidate: {
+      id: toCandidateId(row),
+      kind: row.candidateKind as "lexeme" | "phrase",
+      surfaceText: row.sourceText,
+      normalizedText: row.normalizedText,
+      lemma: row.lemma,
+      partOfSpeech: row.partOfSpeech,
+      meaningZh: row.meaningZh,
+      status: row.status as LexiconCandidateRecord["candidate"]["status"],
+      revision: row.revision,
+      source: {
+        documentKind: row.documentKind as "article" | "media",
+        documentStableKey: row.documentStableKey,
+        documentVersion: row.documentVersion,
+        segmentIndex: row.segmentIndex,
+        contextBefore: row.contextBefore,
+        contextAfter: row.contextAfter,
+        sourceTitle: row.sourceTitle,
+        sourceKind: row.sourceKind,
+      },
+      reviews: decodeReviews(row),
+      approvedBy: row.approvedBy,
+      approvedAt: row.approvedAt,
+      rejectedReason: row.rejectedReason,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    },
+    provenance: {
+      provider: row.provider,
+      modelVersion: row.modelVersion,
+      confidence: row.confidence,
+    },
+  };
+}
+
+function toValues(record: LexiconCandidateRecord) {
+  const { candidate, provenance } = record;
+  return {
+    candidateKind: candidate.kind,
+    documentKind: candidate.source.documentKind,
+    documentStableKey: candidate.source.documentStableKey,
+    documentVersion: candidate.source.documentVersion,
+    segmentIndex: candidate.source.segmentIndex,
+    sourceText: candidate.surfaceText,
+    normalizedText: candidate.normalizedText,
+    lemma: candidate.lemma,
+    partOfSpeech: candidate.partOfSpeech,
+    meaningZh: candidate.meaningZh,
+    contextBefore: candidate.source.contextBefore,
+    contextAfter: candidate.source.contextAfter,
+    sourceTitle: candidate.source.sourceTitle,
+    sourceKind: candidate.source.sourceKind,
+    provider: provenance.provider,
+    modelVersion: provenance.modelVersion,
+    confidence: provenance.confidence,
+    status: candidate.status,
+    revision: candidate.revision,
+    // Dates travel as ISO strings inside jsonb; `decodeReviews` reads them back.
+    reviews: candidate.reviews.map((review) => ({
+      dimension: review.dimension,
+      outcome: review.outcome,
+      reviewerReference: review.reviewerReference,
+      reviewedAt: review.reviewedAt.toISOString(),
+    })),
+    approvedBy: candidate.approvedBy,
+    approvedAt: candidate.approvedAt,
+    rejectedReason: candidate.rejectedReason,
+    updatedAt: candidate.updatedAt,
+  };
+}
+
+/**
+ * Postgres candidate store.
+ *
+ * Implements {@link LexiconCandidateRepository} only. The approval audit store is
+ * intentionally absent: the committed table has nowhere to put `mode`, `batchId`,
+ * `lexemes` or `phrases`, and an audit record that loses the batch correlation is
+ * not an audit record (see the file header).
+ */
+export function createDrizzleLexiconCandidateRepository(database: Database): LexiconCandidateRepository {
+  function conflictFrom(
+    row: CandidateRow,
+    candidateId: string,
+    expectedRevision: number,
+  ): LexiconCandidateSaveOutcome {
+    return {
+      status: "conflict",
+      candidateId,
+      expectedRevision,
+      actualRevision: row.revision,
+      current: toRecord(row),
+    };
+  }
+
+  return {
+    async create(record) {
+      const failure = validateCandidateWriteShape(record) ?? validateCandidateRevision(record.candidate, null);
+      if (failure) return failure;
+
+      const identity = candidateStorageIdentity(record.candidate);
+      const inserted = await database
+        .insert(schema.lexiconCandidates)
+        .values({
+          ...toValues(record),
+          // `updatedAt` above is the caller's clock; `createdAt` is written once
+          // here and never touched again by `save()`.
+          createdAt: record.candidate.createdAt,
+        })
+        // The identity unique index makes a repeated extraction a no-op, so an
+        // already reviewed or approved candidate is never reset to `discovered`.
+        .onConflictDoNothing({
+          target: [
+            schema.lexiconCandidates.candidateKind,
+            schema.lexiconCandidates.documentKind,
+            schema.lexiconCandidates.documentStableKey,
+            schema.lexiconCandidates.documentVersion,
+            schema.lexiconCandidates.segmentIndex,
+            schema.lexiconCandidates.normalizedText,
+          ],
+        })
+        .returning();
+      const created = inserted[0];
+      if (created) return { status: "created", record: toRecord(created) };
+
+      // The insert lost to the identity unique index: read back the row that is
+      // already there instead of overwriting it.
+      const existing = await database
+        .select()
+        .from(schema.lexiconCandidates)
+        .where(identityWhere(identity))
+        .limit(2);
+      if (existing.length > 1) throw new LexiconCandidateIdentityAmbiguousError(record.candidate.id);
+      const row = existing[0];
+      if (!row) throw new Error("LEXICON_CANDIDATE_CREATE_FAILED");
+      return { status: "exists", record: toRecord(row) };
+    },
+
+    async findById(id) {
+      const identity = parseDerivedCandidateId(id);
+      // An id `makeCandidateId()` could not have produced cannot be stored.
+      if (!identity) return null;
+      const rows = await database
+        .select()
+        .from(schema.lexiconCandidates)
+        .where(identityWhere(identity))
+        .limit(2);
+      if (rows.length > 1) throw new LexiconCandidateIdentityAmbiguousError(id);
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
+    async save(input): Promise<LexiconCandidateSaveOutcome> {
+      // Identity is a caller bug that no stored state can make valid, so it is
+      // answered first; everything else is decided against real stored state.
+      const identityFailure = validateCandidateIdentity(input.candidate);
+      if (identityFailure) return identityFailure;
+
+      const identity = candidateStorageIdentity(input.candidate);
+      return database.transaction(async (transaction) => {
+        const rows = await transaction
+          .select()
+          .from(schema.lexiconCandidates)
+          .where(identityWhere(identity))
+          .limit(2)
+          .for("update");
+        if (rows.length > 1) throw new LexiconCandidateIdentityAmbiguousError(input.candidate.id);
+        const stored = rows[0];
+        if (!stored) return { status: "not_found", candidateId: input.candidate.id };
+
+        // State first, exactly like the in-memory store: a stale caller must
+        // learn that newer state exists, not that its snapshot is malformed.
+        if (stored.revision !== input.expectedRevision) {
+          return conflictFrom(stored, input.candidate.id, input.expectedRevision);
+        }
+
+        const provenance = input.provenance ?? {
+          provider: stored.provider,
+          modelVersion: stored.modelVersion,
+          confidence: stored.confidence,
+        };
+        const failure =
+          validateCandidateWriteShape({ candidate: input.candidate, provenance })
+          ?? validateCandidateRevision(input.candidate, input.expectedRevision);
+        if (failure) return failure;
+
+        const updated = await transaction
+          .update(schema.lexiconCandidates)
+          .set({ ...toValues({ candidate: input.candidate, provenance }) })
+          .where(and(
+            identityWhere(identity),
+            // The CAS lives in the predicate, so a write that lost the race
+            // updates zero rows instead of overwriting newer state.
+            eq(schema.lexiconCandidates.revision, input.expectedRevision),
+          ))
+          .returning();
+        const row = updated[0];
+        if (row) return { status: "saved", record: toRecord(row) };
+
+        // Unreachable while the row is locked above; kept so a future refactor
+        // cannot turn a lost update into a silent success.
+        const [current] = await transaction
+          .select()
+          .from(schema.lexiconCandidates)
+          .where(identityWhere(identity))
+          .limit(1);
+        if (!current) return { status: "not_found", candidateId: input.candidate.id };
+        return conflictFrom(current, input.candidate.id, input.expectedRevision);
+      });
+    },
+
+    async listBySource(source) {
+      return selectBySource(database, source, false);
+    },
+
+    async listIndexable(source) {
+      return selectBySource(database, source, true);
+    },
+  };
+}
+
+/**
+ * Candidates of one document version.
+ *
+ * `onlyIndexable` adds the approved status *and* the approval audit pair, so a
+ * row that somehow claims `approved` without a recorded approver is never handed
+ * to the corpus gate — the same defence the in-memory store applies.
+ *
+ * Ordering matches the in-memory store (`segmentIndex`, then kind, then
+ * normalized text) so a batch approval sees the same sequence in both.
+ */
+async function selectBySource(
+  database: Database,
+  source: LexiconCandidateSourceKey,
+  onlyIndexable: boolean,
+): Promise<readonly LexiconCandidateRecord[]> {
+  const rows = await database
+    .select()
+    .from(schema.lexiconCandidates)
+    .where(and(
+      eq(schema.lexiconCandidates.documentKind, source.documentKind),
+      eq(schema.lexiconCandidates.documentStableKey, source.documentStableKey),
+      eq(schema.lexiconCandidates.documentVersion, source.documentVersion),
+      onlyIndexable ? eq(schema.lexiconCandidates.status, "approved") : undefined,
+      onlyIndexable ? isNotNull(schema.lexiconCandidates.approvedBy) : undefined,
+      onlyIndexable ? isNotNull(schema.lexiconCandidates.approvedAt) : undefined,
+    ))
+    .orderBy(
+      asc(schema.lexiconCandidates.segmentIndex),
+      asc(schema.lexiconCandidates.candidateKind),
+      asc(schema.lexiconCandidates.normalizedText),
+    );
+  return rows.map(toRecord);
+}
