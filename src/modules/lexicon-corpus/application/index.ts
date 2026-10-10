@@ -1,4 +1,6 @@
 export * from "./index-content-version";
+export * from "./lexicon-candidate-review";
+export * from "./approve-candidate-indexing";
 export * from "./list-phrases";
 export * from "./list-vocabulary";
 export * from "./list-frequency-words";
