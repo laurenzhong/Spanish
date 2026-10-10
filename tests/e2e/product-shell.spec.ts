@@ -603,6 +603,27 @@ test("keeps the profile empty state focused before evidence exists", async ({
   await expect(heatmap).toBeVisible();
   await expect(heatmap.getByTestId("learning-heatmap-empty")).toBeVisible();
   await expect(heatmap.locator("[data-date]")).toHaveCount(0);
+
+  // The section navigation shares the one sliding underline: it rests on the
+  // active section and moves with the pointer without leaving a static
+  // underline behind on the first item.
+  const sectionNavigation = page.getByRole("navigation", { name: "我的页面分区" });
+  const sectionIndicator = page.locator(".profile-page__section-nav-indicator");
+  await expect(sectionNavigation).toHaveAttribute("data-indicator", "ready");
+  await expect(sectionIndicator).toHaveCSS("opacity", "1");
+  const sectionIndicatorBox = await sectionIndicator.boundingBox();
+  const activeSectionBox = await sectionNavigation.getByRole("link", { name: "能力与活动" }).boundingBox();
+  expect(sectionIndicatorBox).not.toBeNull();
+  expect(activeSectionBox).not.toBeNull();
+  expect(Math.abs((sectionIndicatorBox?.x ?? 0) - (activeSectionBox?.x ?? 0))).toBeLessThan(1);
+  expect(Math.abs((sectionIndicatorBox?.width ?? 0) - (activeSectionBox?.width ?? 0))).toBeLessThan(1);
+  const relationshipsTab = sectionNavigation.getByRole("link", { name: "关系隐私" });
+  await relationshipsTab.hover();
+  await expect.poll(async () => (await sectionIndicator.boundingBox())?.x ?? 0).toBeGreaterThan((sectionIndicatorBox?.x ?? 0) + 10);
+  await relationshipsTab.click();
+  await expect(page).toHaveURL(/#profile-relationships$/);
+  await expect(relationshipsTab).toHaveAttribute("aria-current", "page");
+  await expect(sectionNavigation.getByRole("link", { name: "能力与活动" })).not.toHaveAttribute("aria-current");
 });
 
 test("shows provider settings and keeps them usable across the release viewport matrix", async ({ page }) => {

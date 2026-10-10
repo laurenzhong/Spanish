@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Tabs, TabsList, TabsTrigger } from "@/src/shared/ui/primitives";
+import { SlideableNavigation } from "@/src/shared/ui/slideable-navigation";
 
 import { SharedMemoryPermissions } from "@/src/modules/character-network/ui/shared-memory-permissions";
 import { ProviderSettingsPanel } from "@/src/modules/providers/ui/provider-settings-panel";
@@ -62,24 +62,23 @@ export function ProfileSections() {
   ) : null;
 
   return (
-    <Tabs
-      className="profile-sections-tabs"
-      defaultValue="progress"
-      value={activeSection}
-      onValueChange={(value) => {
-        const section = sections.find((candidate) => candidate.key === value);
-        if (section) selectSection(section);
-      }}
-    >
-      <nav className="profile-page__section-nav" aria-label="我的页面分区">
-        <TabsList>
-          {sections.map((section) => (
-            <TabsTrigger asChild aria-controls={section.id} aria-current={activeSection === section.key ? "page" : undefined} key={section.key} role="link" value={section.key}>
-              <a href={`#${section.id}`}>{section.label}</a>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </nav>
+    <div className="sueno-tabs profile-sections">
+      <SlideableNavigation
+        className="profile-page__section-nav"
+        label="我的页面分区"
+        activeKey={activeSection}
+        items={sections.map((section) => ({
+          key: section.key,
+          label: section.label,
+          href: `#${section.id}`,
+          current: activeSection === section.key,
+        }))}
+        indicatorClassName="profile-page__section-nav-indicator"
+        onSelect={(item) => {
+          const section = sections.find((candidate) => candidate.key === item.key);
+          if (section) selectSection(section);
+        }}
+      />
 
       <section id="profile-progress" className="profile-page__group" aria-labelledby="profile-progress-title" hidden={activeSection !== "progress"}>
         <h2 id="profile-progress-title" className="sr-only">能力与活动</h2>
@@ -116,6 +115,6 @@ export function ProfileSections() {
           <ProviderSettingsPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
-    </Tabs>
+    </div>
   );
 }

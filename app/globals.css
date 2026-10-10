@@ -1974,7 +1974,8 @@ body { background: var(--background); }
 .read-section-navigation__indicator,
 .landing-nav__indicator,
 .saved-items-library__indicator,
-.media-library__topnav-indicator {
+.media-library__topnav-indicator,
+.profile-page__section-nav-indicator {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -1991,7 +1992,8 @@ body { background: var(--background); }
   .read-section-navigation__indicator,
   .landing-nav__indicator,
   .saved-items-library__indicator,
-  .media-library__topnav-indicator { transition: none; }
+  .media-library__topnav-indicator,
+  .profile-page__section-nav-indicator { transition: none; }
 }
 .read-section-navigation {
   position: relative;
@@ -7907,7 +7909,6 @@ body {
   font-size: 0.78rem;
 }
 
-.profile-page__section-nav a:first-child,
 .profile-page__section-nav a.is-active,
 .profile-page__section-nav a:hover,
 .profile-page__section-nav a:focus-visible {
@@ -7916,28 +7917,12 @@ body {
   background: transparent;
 }
 
-.profile-sections-tabs .profile-page__section-nav .sueno-tabs-list {
-  gap: 0;
-  border-bottom: 0;
-}
-
-.profile-sections-tabs .profile-page__section-nav .sueno-tabs-trigger {
-  min-height: 42px;
-  padding: 8px 14px;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  color: var(--profile-muted);
-  background: transparent;
-  font-size: .78rem;
-}
-
-.profile-sections-tabs .profile-page__section-nav .sueno-tabs-trigger.is-active,
-.profile-sections-tabs .profile-page__section-nav .sueno-tabs-trigger:hover,
-.profile-sections-tabs .profile-page__section-nav .sueno-tabs-trigger:focus-visible {
-  border-bottom-color: var(--profile-terra);
-  color: var(--profile-terra);
-  background: transparent;
-}
+/* The section underline is the shared indicator element now. It keeps the
+   terracotta mark and sits on the navigation's own rule. */
+.profile-page__section-nav { position: relative; }
+.profile-page__section-nav-indicator { background: var(--profile-terra); }
+.profile-page__section-nav[data-indicator="ready"] a:hover,
+.profile-page__section-nav[data-indicator="ready"] a[aria-current="page"] { border-bottom-color: transparent; }
 
 .profile-page__group { gap: 16px; }
 
