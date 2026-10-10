@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
 
+import { ARTICLE_PAGE_SIZE } from "./shelf-constants";
+
 type ReadSort = "hot" | "newest" | "shortest";
 type ReadSource = "public" | "web";
 
@@ -19,7 +21,6 @@ type ReadShelfProps = Readonly<{
   minutes: string;
   source: ReadSource;
   sort: ReadSort;
-  initialReaderProgress?: Readonly<Record<string, ReaderProgressSummary>>;
 }>;
 
 type ReaderProgressSummary = Readonly<{
@@ -27,6 +28,8 @@ type ReaderProgressSummary = Readonly<{
   status: "in_progress" | "completed";
   lastOpenedAt: string;
 }>;
+
+type ReaderProgressMap = Readonly<Record<string, ReaderProgressSummary>>;
 
 type StoredReaderState = Readonly<{
   stableKey: string;
@@ -54,6 +57,37 @@ async function fetchSavedArticleIds(): SavedArticleIdsRequest {
   const ids = payload.data?.articleIds;
   if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) throw new Error("saved-invalid");
   return new Set(ids);
+}
+
+function isReaderProgressSummary(value: unknown): value is ReaderProgressSummary {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ReaderProgressSummary>;
+  return typeof candidate.position === "number"
+    && typeof candidate.lastOpenedAt === "string"
+    && (candidate.status === "in_progress" || candidate.status === "completed");
+}
+
+/**
+ * The reader's own progress, keyed by article id.
+ *
+ * This is a separate request on purpose: it is per-user decoration for the
+ * cards, and reading it during the server render added a second remote database
+ * round trip (~800 ms measured) before the public library could paint. The
+ * shelf renders first and applies these labels when they arrive; a failure only
+ * costs the cross-device state, because `readStoredState` still supplies this
+ * device's state.
+ */
+async function fetchReaderProgress(): Promise<ReaderProgressMap> {
+  const response = await fetch("/api/v1/read/progress", { credentials: "same-origin" });
+  if (!response.ok) throw new Error("progress-unavailable");
+  const payload = (await response.json()) as { data?: { progress?: unknown } };
+  const rows = payload.data?.progress;
+  if (!Array.isArray(rows)) throw new Error("progress-invalid");
+  return Object.fromEntries(rows.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const { articleId } = row as { articleId?: unknown };
+    return typeof articleId === "string" && isReaderProgressSummary(row) ? [[articleId, row] as const] : [];
+  }));
 }
 
 function topicLabel(topic: string): string {
@@ -144,13 +178,13 @@ function getMobilePageNumbers(page: number, totalPages: number): ReadonlySet<num
  * live on `/read/saved-items`, reached from `已保存` in the reading
  * navigation. `?source=web` keeps its honest empty state for older links.
  */
-export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, initialReaderProgress }: ReadShelfProps) {
+export function ReadShelf({ result, page = 1, pageSize = ARTICLE_PAGE_SIZE, search, topic, cefr, minutes, source, sort }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
   const savedContextKey = source;
   const [savedArticleState, setSavedArticleState] = useState<SavedArticleState>(() => ({ contextKey: savedContextKey, ids: null }));
   const [savingArticleIds, setSavingArticleIds] = useState<ReadonlySet<string>>(new Set());
   const [readerStates, setReaderStates] = useState<Readonly<Record<string, StoredReaderState>>>({});
-  const [readerProgress] = useState<Readonly<Record<string, ReaderProgressSummary>>>(initialReaderProgress ?? {});
+  const [readerProgress, setReaderProgress] = useState<ReaderProgressMap>({});
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<"filter" | "add" | null>(null);
@@ -159,10 +193,10 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
   const router = useRouter();
 
   const savedArticleIds = savedArticleState.contextKey === savedContextKey ? savedArticleState.ids : null;
-  const shouldRefreshSavedIds = source !== "web";
+  const readsPrivateState = source !== "web";
 
   useEffect(() => {
-    if (!shouldRefreshSavedIds) return;
+    if (!readsPrivateState) return;
     let cancelled = false;
     void fetchSavedArticleIds()
       .then((ids) => {
@@ -172,7 +206,17 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
       })
       .catch(() => { if (!cancelled) setSavedLoadFailed(true); });
     return () => { cancelled = true; };
-  }, [savedContextKey, shouldRefreshSavedIds]);
+  }, [savedContextKey, readsPrivateState]);
+
+  useEffect(() => {
+    // The Web Sites tab renders no articles, so it needs no reader state.
+    if (!readsPrivateState) return;
+    let cancelled = false;
+    void fetchReaderProgress()
+      .then((progress) => { if (!cancelled) setReaderProgress(progress); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [readsPrivateState]);
 
   const visibleArticles = useMemo(() => source === "web" ? [] : result.articles, [result.articles, source]);
 

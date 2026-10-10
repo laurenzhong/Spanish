@@ -50,6 +50,7 @@ describe("article library shelf", () => {
     cleanup();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    window.localStorage.clear();
   });
 
   it("keeps the public shelf to one compact tool row with no personal tabs", () => {
@@ -161,5 +162,54 @@ describe("article library shelf", () => {
     expect(filtered.articles.map((item) => item.id)).toEqual([article.id]);
     expect(filtered.totalCount).toBe(1);
     expect(filtered.savedFilterAvailable).toBe(true);
+  });
+
+  it("labels a card from the reader's progress fetched after the shelf paints", async () => {
+    const fetchMock = vi.fn((url: string) => Promise.resolve({
+      ok: true,
+      json: async () => url === "/api/v1/read/progress"
+        ? {
+          apiVersion: "v1",
+          data: {
+            progress: [{ articleId: article.id, lastOpenedAt: "2026-10-10T10:00:00.000Z", position: 4, status: "completed" }],
+          },
+        }
+        : { data: { articleIds: [] } },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />);
+
+    // Reading progress is decoration: the shelf renders first and the label
+    // arrives with the response, so per-user reads never hold the list open.
+    expect(screen.getByText("未开始")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("已读")).toBeInTheDocument());
+    expect(await screen.findByText("已读")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/read/progress", expect.objectContaining({ credentials: "same-origin" }));
+  });
+
+  it("keeps the device's own state when the progress response is unusable", async () => {
+    const fetchMock = vi.fn((url: string) => Promise.resolve({
+      ok: url !== "/api/v1/read/progress",
+      json: async () => (url === "/api/v1/read/progress" ? { apiVersion: "v1", data: { progress: "not-an-array" } } : { data: { articleIds: [] } }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/read/progress", expect.anything()));
+    // A failed fetch leaves the honest local default instead of breaking the shelf.
+    expect(screen.getByText("未开始")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: article.title })).toBeInTheDocument();
+  });
+
+  it("reads no private state on the Web Sites tab", async () => {
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: async () => ({ data: { articleIds: [] } }) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="web" sort="hot" />);
+
+    expect(await screen.findByRole("heading", { name: "外部网站暂未开放" })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

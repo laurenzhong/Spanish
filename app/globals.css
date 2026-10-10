@@ -2118,6 +2118,10 @@ body { background: var(--background); }
 :root[data-theme="dark"] .saved-item-card__context mark { color: #25251d; background: #f0d77f; }
 :root[data-theme="dark"] .saved-item-card__actions button.is-danger { color: #ffb0a5; background: #3b211e; }
 
+/* The route fallback of `/read/saved-items` still draws this placeholder shape
+   (`read/saved-items/loading.tsx` renders these classes); the article shelf has
+   its own faithful skeleton below (search for `read-shelf-skeleton`). The pulse
+   is shared by both. */
 .read-page-loading { min-height: 32rem; }
 .read-page-loading__heading,
 .read-page-loading__tabs i,
@@ -10500,6 +10504,56 @@ body {
 .read-article-row__save:disabled { cursor: wait; opacity: .55; }
 .read-article-row__delete { margin: 0; padding: 0; font-size: inherit; }
 .read-article-row__delete:hover, .read-article-row__delete:focus-visible { color: var(--terracotta); }
+/* The shelf's loading state. Every box that has geometry comes from the shelf's
+   own classes above (`.read-library`, `.read-library__toolbar`,
+   `.read-search__field`, `.read-article-list`, `.read-article-row` and its
+   cells), so this block only paints the pulsing fills. It lives after the shelf
+   rules on purpose: the fills must win the cascade over the real surfaces, and
+   the skeleton has to follow every geometry change, including the 520px
+   breakpoint that hides the article type. */
+.read-shelf-skeleton__field,
+.read-shelf-skeleton__control,
+.read-shelf-skeleton__line,
+.read-shelf-skeleton__dot,
+.read-shelf-skeleton .read-article-row__type { background: var(--surface-muted, #eef0ec); }
+.read-shelf-skeleton__control,
+.read-shelf-skeleton__line,
+.read-shelf-skeleton__dot { border-radius: .35rem; }
+/* The search box keeps `.read-search__field`'s own `var(--radius-control)`: this
+   block only paints fills, it must not redraw a real surface. */
+/* The control widths mirror what the rendered sort / filter / add controls
+   measure, so the search field ends where the real one ends. */
+.read-shelf-skeleton__control { min-height: 42px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); }
+.read-shelf-skeleton__control--sort { width: 115px; }
+.read-shelf-skeleton__control--filter { width: 67px; }
+.read-shelf-skeleton__control--add { width: 97px; }
+.read-shelf-skeleton .read-article-row { pointer-events: none; }
+.read-shelf-skeleton .read-article-row__type::before { display: none; }
+.read-shelf-skeleton .read-article-row__type i { background: color-mix(in srgb, var(--border-strong) 55%, transparent); }
+.read-shelf-skeleton__line { display: block; height: .55rem; }
+.read-shelf-skeleton__line--meta { width: 42%; height: .5rem; }
+.read-shelf-skeleton__line--state { width: 2.75rem; }
+.read-shelf-skeleton__line--title { width: 62%; height: .95rem; }
+.read-shelf-skeleton__line--topic { width: 4.5rem; height: .8rem; border-radius: 999px; }
+.read-shelf-skeleton__dot { width: 18px; height: 18px; border-radius: var(--radius-control); }
+.read-shelf-skeleton__field,
+.read-shelf-skeleton__control,
+.read-shelf-skeleton__line,
+.read-shelf-skeleton__dot,
+.read-shelf-skeleton .read-article-row__type { animation: read-loading-pulse 1.5s ease-in-out infinite; }
+@media (max-width: 799px) {
+  .read-shelf-skeleton__control { width: 100%; }
+}
+@media (max-width: 520px) {
+  .read-shelf-skeleton__control--add { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .read-shelf-skeleton__field,
+  .read-shelf-skeleton__control,
+  .read-shelf-skeleton__line,
+  .read-shelf-skeleton__dot,
+  .read-shelf-skeleton .read-article-row__type { animation: none; }
+}
 .read-pagination { display: flex; gap: 10px; align-items: center; justify-content: center; padding: 10px 0 2px; }
 .read-pagination__pages { display: flex; gap: 3px; align-items: center; justify-content: center; padding: 4px; border: 1px solid var(--border); border-radius: 999px; background: color-mix(in srgb, var(--surface-soft) 88%, var(--surface)); }
 .read-pagination__page, .read-pagination__arrow { display: inline-flex; min-width: 38px; min-height: 38px; align-items: center; justify-content: center; border-radius: 999px; color: var(--muted); font-size: .78rem; font-weight: 720; line-height: 1; text-decoration: none; }
