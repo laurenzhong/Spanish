@@ -5442,6 +5442,10 @@ button {
 @media (max-width: 959px) {
   .conversation-workspace { display: block; min-height: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; }
   .conversation-contact-rail { display: none; }
+  /* The contact index keeps the rail visible on narrow viewports: there the
+     rail is the conversation entry, and the right pane stays intentionally
+     empty until a contact is chosen. */
+  .conversation-page--workspace .conversation-workspace > .conversation-contact-rail { display: flex; border-right: 0; }
   .conversation-page--detail,
   .conversation-page--workspace { margin-inline: -20px; }
   .conversation-page--detail .conversation-thread,

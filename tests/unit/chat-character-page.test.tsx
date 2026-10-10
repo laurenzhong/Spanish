@@ -1,134 +1,162 @@
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { chatThread, resolveCharacter, getCurrentUser, listHistory, resolveAccess } = vi.hoisted(() => ({
-  chatThread: vi.fn((props: { characterKey: string; initialMessages?: unknown }) => (
-    <div data-testid="chat-thread" data-character={props.characterKey} data-hydrated={props.initialMessages ? "true" : "false"} />
+const {
+  chatThread,
+  contactRail,
+  resolveCharacter,
+  listHistory,
+  resolveAccess,
+  getDatabase,
+  getCurrentUser,
+  notFound,
+} = vi.hoisted(() => ({
+  chatThread: vi.fn((props: { characterKey: string; characterName: string; initialMessages?: unknown; initialMessageId?: string }) => (
+    <div
+      data-testid="chat-thread"
+      data-character={props.characterKey}
+      data-name={props.characterName}
+      data-hydrated={props.initialMessages ? "true" : "false"}
+      data-message-id={props.initialMessageId ?? ""}
+    />
+  )),
+  contactRail: vi.fn((props: { activeCharacterKey?: string }) => (
+    <nav data-testid="contact-rail" data-active={props.activeCharacterKey ?? ""} />
   )),
   resolveCharacter: vi.fn(),
-  getCurrentUser: vi.fn(),
   listHistory: vi.fn(),
   resolveAccess: vi.fn(),
+  getDatabase: vi.fn(),
+  getCurrentUser: vi.fn(),
+  notFound: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  }),
 }));
 
 vi.mock("@/src/modules/conversation/ui/chat-thread", () => ({ ChatThread: chatThread }));
 vi.mock("@/src/modules/conversation/ui/conversation-contact-rail", () => ({
-  ConversationContactRail: (props: { activeCharacterKey: string }) => <nav data-testid="contact-rail" data-active={props.activeCharacterKey} />,
+  ConversationContactRail: contactRail,
 }));
-vi.mock("@/src/modules/conversation", () => ({
-  CharacterRuntimeError: class CharacterRuntimeError extends Error {
-    code = "CHARACTER_UNAVAILABLE";
-  },
-  findConversationCharacter: (key: string) => ({
-    key,
-    displayName: key === "mateo" ? "Mateo Ruiz" : "Lucía Martín",
-    roleLabel: "好友",
-    version: 1,
-    avatarClass: "avatar--lucia",
-  }),
-  isConversationCharacterDiscoverable: (key: string) => key === "lucia",
-  isConversationStaticFallbackAllowed: () => true,
-  resolveConversationCharacter: resolveCharacter,
-  createDrizzleConversationRepository: () => ({}),
-  listConversationHistory: listHistory,
-  resolveHistoryAccess: resolveAccess,
-}));
+// The catalog and the publication policy stay real: this suite asserts the
+// production gate, not a fixture. The read functions are spies so the suite can
+// prove the page never touches the database, the auth service or the history
+// while it renders a contact switch.
+vi.mock("@/src/modules/conversation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/modules/conversation")>();
+  return {
+    findConversationCharacter: actual.findConversationCharacter,
+    isConversationCharacterDiscoverable: actual.isConversationCharacterDiscoverable,
+    resolveConversationCharacter: resolveCharacter,
+    listConversationHistory: listHistory,
+    resolveHistoryAccess: resolveAccess,
+  };
+});
+vi.mock("@/src/shared/db/client", () => ({ getDatabase }));
 vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser }));
-vi.mock("@/src/shared/db/client", () => ({ getDatabase: vi.fn(() => ({})) }));
-vi.mock("@/src/modules/characters", () => ({ createDrizzleCharacterRepository: vi.fn(() => ({})) }));
-vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
+vi.mock("next/navigation", () => ({ notFound }));
 
 import CharacterChatPage from "@/app/(product)/chat/[characterId]/page";
 
+function expectNoRemoteRead() {
+  expect(resolveCharacter).not.toHaveBeenCalled();
+  expect(listHistory).not.toHaveBeenCalled();
+  expect(resolveAccess).not.toHaveBeenCalled();
+  expect(getDatabase).not.toHaveBeenCalled();
+  expect(getCurrentUser).not.toHaveBeenCalled();
+}
+
+function threadProps(): Record<string, unknown> {
+  const call = chatThread.mock.calls.at(-1);
+  expect(call).toBeDefined();
+  return (call?.[0] ?? {}) as Record<string, unknown>;
+}
+
 describe("dynamic character chat page", () => {
-  it("shows a coming-soon state for a draft character without a composer", async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllEnvs();
+  });
+
+  it("renders the chosen conversation without any database or auth read", async () => {
+    // Switching contacts used to await the character runtime and the whole
+    // history wave before the thread could mount, which is what put a page-level
+    // loading placeholder in front of every switch. The thread now owns that
+    // read, so the page must render with zero remote work.
+    vi.stubEnv("DATABASE_URL", "postgres://test.invalid/db");
+    const view = await CharacterChatPage({
+      params: Promise.resolve({ characterId: "lucia" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(view);
+
+    expect(screen.getByTestId("chat-thread")).toHaveAttribute("data-character", "lucia");
+    expect(screen.getByTestId("chat-thread")).toHaveAttribute("data-name", "Lucía Martín");
+    expect(screen.getByTestId("contact-rail")).toHaveAttribute("data-active", "lucia");
+    // No server view is handed down: the client paints the cached conversation
+    // and revalidates, so a switch never waits for the remote read.
+    expect(threadProps()).not.toHaveProperty("initialMessages");
+    expect(threadProps()).not.toHaveProperty("initialAccess");
+    expectNoRemoteRead();
+  });
+
+  it("keeps draft characters on the synchronous coming-soon gate", async () => {
+    vi.stubEnv("DATABASE_URL", "postgres://test.invalid/db");
     const view = await CharacterChatPage({
       params: Promise.resolve({ characterId: "mateo" }),
       searchParams: Promise.resolve({}),
     });
+    render(view);
 
-    expect(view).toBeTruthy();
-    const serialized = JSON.stringify(view);
-    expect(serialized).toContain("角色尚未开放");
+    expect(screen.getByRole("heading", { name: "角色尚未开放" })).toBeInTheDocument();
+    expect(screen.getByText(/Mateo Ruiz/)).toBeInTheDocument();
+    expect(screen.queryByTestId("chat-thread")).not.toBeInTheDocument();
     expect(chatThread).not.toHaveBeenCalled();
+    expectNoRemoteRead();
   });
 
-  it("does not trust a published-looking static catalog when the persisted character is draft", async () => {
-    vi.stubEnv("DATABASE_URL", "postgres://test.invalid/db");
-    resolveCharacter.mockRejectedValueOnce({ code: "CHARACTER_UNAVAILABLE" });
-    try {
-      const view = await CharacterChatPage({
-        params: Promise.resolve({ characterId: "lucia" }),
-        searchParams: Promise.resolve({}),
-      });
-      expect(JSON.stringify(view)).toContain("角色尚未开放");
-      expect(chatThread).not.toHaveBeenCalled();
-    } finally {
-      vi.unstubAllEnvs();
-    }
+  it("keeps the contact rail visible while a conversation is unavailable", async () => {
+    const view = await CharacterChatPage({
+      params: Promise.resolve({ characterId: "ines" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(view);
+
+    expect(screen.getByTestId("contact-rail")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "角色尚未开放" })).toBeInTheDocument();
+    expect(chatThread).not.toHaveBeenCalled();
+    expectNoRemoteRead();
   });
 
-  it("shows an unavailable state when the persisted runtime cannot be read", async () => {
-    vi.stubEnv("DATABASE_URL", "postgres://test.invalid/db");
-    resolveCharacter.mockRejectedValueOnce({ code: "CHARACTER_RUNTIME_UNAVAILABLE" });
-    try {
-      const view = await CharacterChatPage({
-        params: Promise.resolve({ characterId: "lucia" }),
-        searchParams: Promise.resolve({}),
-      });
-      expect(JSON.stringify(view)).toContain("对话暂时不可用");
-      expect(chatThread).not.toHaveBeenCalled();
-    } finally {
-      vi.unstubAllEnvs();
-    }
+  it("forwards a message deep link to the thread", async () => {
+    const view = await CharacterChatPage({
+      params: Promise.resolve({ characterId: "lucia" }),
+      searchParams: Promise.resolve({ message: "00000000-0000-4000-8000-000000000123" }),
+    });
+    render(view);
+
+    expect(screen.getByTestId("chat-thread")).toHaveAttribute(
+      "data-message-id",
+      "00000000-0000-4000-8000-000000000123",
+    );
+    expect(threadProps()).toMatchObject({
+      initialMessageId: "00000000-0000-4000-8000-000000000123",
+      characterVersion: 1,
+    });
+    expectNoRemoteRead();
   });
 
-  it("renders the conversation on the server so the first paint carries real messages", async () => {
-    // The thread used to fetch history after hydration: a whole extra round
-    // trip before any message appeared, and a "cannot open this conversation"
-    // notice whenever that read was slow. The page now ships the view itself.
-    vi.stubEnv("DATABASE_URL", "postgres://test.invalid/db");
-    resolveCharacter.mockResolvedValueOnce({ catalog: { displayName: "Lucía Martín" } });
-    getCurrentUser.mockResolvedValueOnce({ id: "user-1", email: null });
-    listHistory.mockResolvedValueOnce([{ id: "server-1", role: "character", text: "Hola", complete: true }]);
-    resolveAccess.mockResolvedValueOnce({ readOnly: false, canSend: true, contactStatus: "active" });
-    try {
-      const view = await CharacterChatPage({
-        params: Promise.resolve({ characterId: "lucia" }),
-        searchParams: Promise.resolve({}),
-      });
+  it("reports an unknown character as not found", async () => {
+    await expect(CharacterChatPage({
+      params: Promise.resolve({ characterId: "unknown" }),
+      searchParams: Promise.resolve({}),
+    })).rejects.toThrow("NEXT_NOT_FOUND");
 
-      const serialized = JSON.stringify(view);
-
-      // The thread element already carries the server view, so the first paint
-      // renders real messages instead of a skeleton.
-      expect(serialized).toContain('"initialMessages":[{"id":"server-1"');
-      expect(serialized).toContain('"initialAccess":{"readOnly":false,"canSend":true,"contactStatus":"active"}');
-      expect(listHistory).toHaveBeenCalledWith(expect.anything(), "user-1", "lucia");
-      expect(resolveAccess).toHaveBeenCalledWith(expect.anything(), "user-1", "lucia");
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
-  it("falls back to the client history request when the server read fails", async () => {
-    vi.stubEnv("DATABASE_URL", "postgres://test.invalid/db");
-    resolveCharacter.mockResolvedValueOnce({ catalog: { displayName: "Lucía Martín" } });
-    getCurrentUser.mockResolvedValueOnce({ id: "user-1", email: null });
-    listHistory.mockRejectedValueOnce(new Error("database unavailable"));
-    resolveAccess.mockResolvedValueOnce({ readOnly: true, canSend: false, contactStatus: "unavailable" });
-    try {
-      const view = await CharacterChatPage({
-        params: Promise.resolve({ characterId: "lucia" }),
-        searchParams: Promise.resolve({}),
-      });
-
-      // No server view is handed down, so the thread keeps its own loading,
-      // retry and error path instead of failing the whole page render.
-      const serialized = JSON.stringify(view);
-      expect(serialized).not.toContain('"initialMessages"');
-      expect(serialized).toContain('"characterKey":"lucia"');
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    expect(notFound).toHaveBeenCalledTimes(1);
+    expect(chatThread).not.toHaveBeenCalled();
+    expectNoRemoteRead();
   });
 });

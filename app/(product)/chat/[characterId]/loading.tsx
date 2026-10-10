@@ -1,5 +1,5 @@
-import { SurfaceState } from "@/src/shared/ui/surface-state";
+import { ConversationWorkspaceSkeleton } from "@/src/modules/conversation/ui/conversation-workspace-skeleton";
 
 export default function CharacterChatLoading() {
-  return <SurfaceState state="loading" />;
+  return <ConversationWorkspaceSkeleton variant="detail" />;
 }
