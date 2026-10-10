@@ -56,10 +56,37 @@ Commit `fcaa4ff`（4 文件）：新增 `src/modules/providers/lexicon-extractio
 
 **合并验证**（切片 1+2 及相邻既有套件）：5 文件 / **35 测试**通过（`lexicon-candidate` 13、provider 契约 11、`lexicon-persistence` 6、`frequency-word-context` 4、`corpus-indexing` 1）。
 
-### 切片 3 起的先决条件
+### 切片 3（已完成）：MiniMax 抽取适配器
 
-- **MiniMax 适配器**需要 provider 凭据；`.env` 中是否已配 MiniMax 需在开工时核实；缺少凭据时必须 fail-closed。
-- **候选表 schema 与持久化**（原切片 1 的另一半）需要先完成迁移评审，见下「切分决定」。
+Commit `43bff2a`（3 文件 580 行）：新增 `src/modules/providers/lexicon-extraction/minimax-lexicon-extraction.ts`、`server.ts`、`tests/unit/minimax-lexicon-extraction.test.ts`（14 例）。
+
+与既有 MiniMax provider（annotation 适配器）同构：`server-only`、可注入 fetch 与 clock、区分超时与调用方取消的 request signal、响应经 Zod 校验、带 `code`/`retryable` 的错误类。
+
+只发分段**文本**（不发音频、不发用户数据），且输出仍**无法**到达 corpus：候选必须先过双维度审核再由 owner 批准。
+
+**把模型输出当作不可信输入**，关键守卫：
+
+- 引用的 surface form **必须真的出现在它声称的段里**，否则丢弃 —— 否则会造出指向「不含该词文本」的 corpus occurrence；
+- 引用请求外段落的丢弃；
+- 受控集合之外的词性**丢弃而非存为事实**；`lexeme` 带译文、`phrase` 带 lemma 的畸形组合丢弃；
+- 即使模型超量产出，也强制调用方的每段上限；
+- 畸形响应**整批失败**，不产生部分可信候选。
+
+server-only 适配器从**新增的 `server.ts`** 导出而非 capability index —— 遵循 annotation 模块的既有约定，避免导入契约或 fake 时被 `server-only` 拖累。
+
+验证：vitest `14/14`、`tsc --noEmit` exit 0、ESLint exit 0。测试全程 stub fetch，**不调用真实 provider**。
+
+**验证中发现并修掉的两个问题（值得留档）**：
+
+1. 超时测试第一版的 stub 忽略 `abort` signal，导致适配器的超时路径**从未被执行**、测试空挂 5 秒；改为像真实 `fetch` 一样在 abort 时 reject。
+2. `tsc` 抓到 3 个**运行时测试已放过**的类型错误（未标注的 mock 调用元组、无法接受 fetch seam 的 helper 签名），因此 helper 现在显式按 seam 标注类型。
+
+**最终合并验证**（切片 1+2+3 + READ-SHELF-001 修复 + 既有相邻套件）：8 文件 / **58 测试**通过。
+
+### 切片 4 起的先决条件
+
+- **候选表 schema 与持久化**（原切片 1 的另一半）：新增迁移会向真实数据库追加记录，必须先确认 `drizzle-kit generate` 的 diff 归属与基线、在空库/一次性副本验证、经迁移评审。**产品本人已定：只生成迁移、贴出 diff 供审查，不应用到数据库。**
+- MiniMax 凭据已核实存在（`.env` 的 `MINIMAX_API_KEY`），但切片 4 之前需确认是否允许真实调用（会产生费用）。
 
 ### 切分决定：schema + 持久化单独立片
 
