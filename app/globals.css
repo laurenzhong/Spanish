@@ -12408,6 +12408,11 @@ body {
    and leaves the CTA pill alone. The offset keeps it on the header rule at
    every header height. */
 .landing-nav__links { position: relative; --slideable-navigation-offset-y: 4px; }
+/* The text is small, so the links carry an invisible 44px tap area: the box is
+   centred on the text and widened by 6px on each side, which stays inside the
+   navigation gap (>=12px) and does not touch the underline element below. */
+.landing-nav__links a { position: relative; }
+.landing-nav__links a::before { position: absolute; top: 50%; right: -6px; left: -6px; height: 44px; content: ""; transform: translateY(-50%); }
 .landing-nav__indicator { background: var(--landing-coral, #ff6b57); }
 .landing-nav__cta { padding: 9px 15px; border: 1px solid rgb(255 255 255 / 25%); border-radius: 999px; color: #fff !important; background: rgb(255 255 255 / 9%); transition: background 180ms ease, transform 180ms ease; }
 .landing-nav__cta:hover { background: var(--landing-coral); transform: translateY(-1px); }
