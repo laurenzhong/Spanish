@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { CharacterReplyProvider } from "@/src/modules/providers/conversation";
+import { ConversationProviderError } from "@/src/modules/providers/conversation";
 import { getConversationCharacter } from "../domain/character-catalog";
 import {
   evaluateProactiveEligibility,
@@ -156,9 +157,13 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
     });
     return { status: "generated", candidate: completed.candidate, message: completed.message };
   } catch (error) {
-    const errorCode = error instanceof Error && /^[A-Za-z0-9._-]{1,96}$/u.test(error.message)
-      ? error.message
-      : "provider-unavailable";
+    // Provider failures carry a stable code; surfacing it keeps scheduled runs
+    // diagnosable instead of collapsing every failure into "provider-unavailable".
+    const errorCode = error instanceof ConversationProviderError
+      ? error.code
+      : error instanceof Error && /^[A-Za-z0-9._-]{1,96}$/u.test(error.message)
+        ? error.message
+        : "provider-unavailable";
     await input.repository.failCandidate({ userId: input.userId, candidateId: candidate.id, errorCode });
     return { status: "failed", reason: errorCode, candidate, message: null };
   }

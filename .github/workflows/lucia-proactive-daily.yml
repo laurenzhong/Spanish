@@ -32,8 +32,8 @@ jobs:
           LUCIA_PROACTIVE_USER_IDS: ${{ vars.LUCIA_PROACTIVE_USER_IDS }}
           CONVERSATION_PROVIDER: ${{ vars.CONVERSATION_PROVIDER || 'minimax' }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-          MINIMAX_API_ENDPOINT: ${{ vars.MINIMAX_API_ENDPOINT }}
+          MINIMAX_API_ENDPOINT: ${{ vars.MINIMAX_API_ENDPOINT || 'https://api.minimaxi.com/anthropic/v1/messages' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT }}
+          OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT || 'https://api.openai.com/v1/responses' }}
           OPENAI_CONVERSATION_MODEL: ${{ vars.OPENAI_CONVERSATION_MODEL }}
         run: pnpm conversation:proactive

@@ -16,6 +16,16 @@ const defaultModelVersion = "MiniMax-M3";
 const defaultTimeoutMs = 30_000;
 const maxReplyLength = 4_000;
 
+/**
+ * Environment configuration can reach the provider as an empty string (for
+ * example an unset GitHub Actions variable). A blank value must fall back to
+ * the default endpoint instead of being used as the request URL.
+ */
+function normalizeEndpoint(candidate: string | undefined, fallback: string): string {
+  const trimmed = candidate?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
 type FetchImplementation = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -49,7 +59,7 @@ export class MiniMaxConversationProvider implements CharacterReplyProvider {
   private readonly clock: Clock;
 
   constructor(private readonly options: MiniMaxConversationProviderOptions) {
-    this.endpoint = options.endpoint ?? defaultEndpoint;
+    this.endpoint = normalizeEndpoint(options.endpoint, defaultEndpoint);
     this.modelVersion = options.modelVersion ?? defaultModelVersion;
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
@@ -138,7 +148,7 @@ export function createMiniMaxConversationProvider(
   return new MiniMaxConversationProvider({
     ...options,
     apiKey: options.apiKey ?? process.env.MINIMAX_API_KEY ?? "",
-    endpoint: options.endpoint ?? process.env.MINIMAX_API_ENDPOINT ?? defaultEndpoint,
+    endpoint: options.endpoint ?? process.env.MINIMAX_API_ENDPOINT,
   });
 }
 
