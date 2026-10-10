@@ -1,12 +1,12 @@
 # Handoff: fold saved articles + private stories into 已保存
 
-Status: **Phase 1 done and verified. Phase 2 not started.**
+Status: **Phase 1 and Phase 2 both done and verified (committed in `ee66f9a`).**
 
 Context: the reading area was restructured this session. `/read?saved=1` ("我的文章")
-was removed entirely, and `已保存` (`/read/saved-items`) becomes the single personal
-shelf. Phase 1 removed the old state; Phase 2 must add saved articles and private AI
-stories to `/read/saved-items`. **Until Phase 2 lands, saved articles have no UI
-entry point** (the bookmark star still persists them, but nothing lists them).
+was removed entirely, and `已保存` (`/read/saved-items`) is the single personal shelf.
+Phase 1 removed the old state; Phase 2 folded saved articles **and** the owner's
+private AI stories into `/read/saved-items`, so the bookmark star and story
+generation both have a visible destination again.
 
 ## Phase 1 — DONE (verified)
 
@@ -22,7 +22,24 @@ entry point** (the bookmark star still persists them, but nothing lists them).
 Verified: `pnpm typecheck` 0 errors; `vitest` article-library 6/6, read-page 4/4,
 lexicon-pages 5/5; `lexicon-library` e2e 6/6.
 
-## Phase 2 — decisions already made by the product owner
+## Phase 2 — DONE (verified)
+
+The shelf lists saved articles together with the owner's private AI stories; an
+earlier revision of this note claimed the article kind had no UI entry point,
+which no longer matched the code.
+
+| Piece | Where |
+|---|---|
+| `article` is a first-class shelf kind (`全部 ｜ 文章 ｜ 保存词语 / 短语 ｜ 高亮`) | `savedShelfItemTypeSchema`, `SavedItemsLibrary` tabs |
+| One query serves saved articles and private stories (published + `copyright_status='cleared'` + owner guard, `coalesce(save.createdAt, generated.createdAt)` timeline) | `listSavedArticleShelf` |
+| 全部 merges the article source with the annotation source by `createdAt` DESC; type tabs paginate their own source exactly | `listSavedShelfItems` |
+| CSV export and cards distinguish 已收藏文章 vs 私人 AI 故事 | `SavedItemsLibrary` |
+| Guards | another user's private story never appears even with a stale save row |
+
+Verified: `saved-shelf-items` 3/3, `saved-items-page` 4/4, `saved-items-routes` 10/10,
+`saved-items-library` 9/9, plus the reading-area set 14 files / 67 tests green.
+
+## Phase 2 — original decisions and locked interfaces (historical)
 
 Tabs on `/read/saved-items`: **全部 ｜ 文章 ｜ 保存词语 / 短语 ｜ 高亮**.
 Private AI stories are folded in as part of the article kind (not a separate tab).
