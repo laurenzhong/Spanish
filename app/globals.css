@@ -1973,7 +1973,8 @@ body { background: var(--background); }
 .slideable-navigation__indicator,
 .read-section-navigation__indicator,
 .landing-nav__indicator,
-.saved-items-library__indicator {
+.saved-items-library__indicator,
+.media-library__topnav-indicator {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -1989,7 +1990,8 @@ body { background: var(--background); }
   .slideable-navigation__indicator,
   .read-section-navigation__indicator,
   .landing-nav__indicator,
-  .saved-items-library__indicator { transition: none; }
+  .saved-items-library__indicator,
+  .media-library__topnav-indicator { transition: none; }
 }
 .read-section-navigation {
   position: relative;
@@ -12246,17 +12248,17 @@ body {
 .media-library__topnav a:hover,
 .media-library__topnav a[aria-current="page"] { color: var(--foreground); }
 
-.media-library__topnav a[aria-current="page"]::after {
-  position: absolute;
-  right: 0;
-  bottom: -15px;
-  left: 0;
+/* The channel underline is the shared indicator element: it sits on the header
+   rule like the static underline did, so the offset clears the 38px item. */
+.media-library__topnav { position: relative; }
+.media-library__topnav-indicator {
+  bottom: 0;
   height: 3px;
   border-radius: 3px;
   background: var(--terracotta);
-  content: "";
+  --slideable-navigation-offset-y: 13px;
 }
-.media-library__topnav a.is-pending { opacity: .55; }
+.media-library__topnav a[data-pending="true"] { opacity: .55; }
 .media-library--loading { min-height: 60vh; }
 .media-library--loading .media-library__topnav { color: var(--learn-muted); }
 .media-library__search--loading { width: min(420px, 100%); }

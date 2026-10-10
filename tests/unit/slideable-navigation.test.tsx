@@ -54,4 +54,23 @@ describe("slideable navigation", () => {
     // not park itself off-screen on the hidden first item.
     expect(indicator).toHaveStyle({ transform: "translateX(120px) translateY(0px)", width: "60px" });
   });
+
+  it("hands a click to the caller that loads the destination itself", () => {
+    mockGeometry();
+    const onSelect = vi.fn();
+    render(<SlideableNavigation className="test-navigation" label="测试导航" items={items} activeKey="one" onSelect={onSelect} />);
+    const links = within(screen.getByRole("navigation", { name: "测试导航" })).getAllByRole("link");
+
+    // The caller takes the click over, so the browser must not also follow the href.
+    const handled = new MouseEvent("click", { bubbles: true, cancelable: true });
+    links[2].dispatchEvent(handled);
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ key: "three" }));
+    expect(handled.defaultPrevented).toBe(true);
+
+    // A caller that declines the click leaves the href alone.
+    onSelect.mockReturnValueOnce(false);
+    const unhandled = new MouseEvent("click", { bubbles: true, cancelable: true });
+    links[1].dispatchEvent(unhandled);
+    expect(unhandled.defaultPrevented).toBe(false);
+  });
 });

@@ -13,17 +13,18 @@ test("opens directly on video and podcast content discovery", async ({ page }) =
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/learn");
 
-  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "全部", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("link", { name: "视频" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "播客" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "学习主题" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "全部主题" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("link", { name: "日常生活" })).toBeVisible();
+  await expect(page.getByTestId("media-library")).toBeVisible();
+  // The channel destinations are now scoped to their navigation: the public
+  // library also contains media cards whose titles include 视频 or 播客, so a
+  // page-wide role lookup is no longer unique.
+  const channelNavigation = page.getByRole("navigation", { name: "学习频道" });
+  await expect(channelNavigation.getByRole("link", { name: "全部", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(channelNavigation.getByRole("link", { name: "视频", exact: true })).toBeVisible();
+  await expect(channelNavigation.getByRole("link", { name: "播客", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "学习主题" })).toHaveCount(0);
   await expect(page.getByRole("searchbox", { name: "搜索视频和播客" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "地区" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "难度" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "时长" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "筛选" })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "排序" })).toHaveCount(0);
   await expect(page.getByText(/开始第一次练习|继续学习|当前沟通目标/)).toHaveCount(0);
   await expect(page.getByTestId("learn-timeline")).toHaveCount(0);
 });
@@ -32,13 +33,12 @@ test("keeps topics and filters in the URL and offers a clear empty-result recove
   await authenticate(page);
   await page.goto("/learn?kind=podcast&topic=current-events&cefr=B1&duration=short&region=es-ES");
 
-  await expect(page.getByRole("link", { name: "播客" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("link", { name: "时事新闻" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("combobox", { name: "难度" })).toHaveValue("B1");
-  await expect(page.getByRole("combobox", { name: "时长" })).toHaveValue("short");
-  await expect(page.getByRole("combobox", { name: "地区" })).toHaveValue("es-ES");
+  await expect(page.getByRole("navigation", { name: "学习频道" }).getByRole("link", { name: "播客", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("navigation", { name: "学习主题" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "筛选" })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "排序" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "换个筛选条件看看" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "清除筛选" })).toHaveAttribute("href", "/learn");
+  await expect(page.getByRole("link", { name: "清除筛选" })).toHaveCount(0);
 });
 
 test("keeps the media library usable across the release viewport matrix", async ({ page }) => {
@@ -50,7 +50,7 @@ test("keeps the media library usable across the release viewport matrix", async 
 
     await expect(page.locator(".media-library")).toBeVisible();
     await expect(page.getByRole("searchbox", { name: "搜索视频和播客" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "应用筛选" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "筛选" })).toHaveCount(0);
     const dimensions = await page.evaluate(() => ({
       client: document.documentElement.clientWidth,
       scroll: document.documentElement.scrollWidth,

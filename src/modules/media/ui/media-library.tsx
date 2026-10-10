@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MediaCard } from "../domain";
-import { mediaTopicFilters } from "../domain";
 import type { MediaListQuery } from "../schemas";
+import { SlideableNavigation } from "@/src/shared/ui/slideable-navigation";
 import { MediaCardView } from "./media-card";
 import { MediaLibraryToolbar } from "./media-library-toolbar";
 
@@ -267,28 +267,32 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
       <div className="page-stack media-library" data-testid="media-library" aria-busy={isSwitchingKind}>
         <header className="media-library__topbar">
           <Link className="media-library__wordmark" href="/learn" aria-label="Sueño 学习首页">Sue<span>ñ</span>o</Link>
-          <nav className="media-library__topnav" aria-label="学习频道">
-            {tabs.map(([kind, label]) => {
-              const href = queryHref(activeQuery, { cursor: undefined, kind });
-              const active = activeQuery.kind === kind || (!activeQuery.kind && !kind);
-              return <Link aria-current={active ? "page" : undefined} href={href} onClick={(event) => { event.preventDefault(); if (!active) void loadKind(kind, href); }} key={label}>{label}</Link>;
-            })}
-          </nav>
+          <SlideableNavigation
+            className="media-library__topnav"
+            label="学习频道"
+            activeKey={activeQuery.kind ?? "all"}
+            items={tabs.map(([kind, label]) => ({
+              key: kind ?? "all",
+              label,
+              href: queryHref(activeQuery, { cursor: undefined, kind }),
+              current: activeQuery.kind === kind || (!activeQuery.kind && !kind),
+              pending: isSwitchingKind && activeQuery.kind !== kind,
+            }))}
+            indicatorClassName="media-library__topnav-indicator"
+            onSelect={(item) => {
+              const kind = item.key === "all" ? undefined : item.key as "video" | "podcast";
+              // An already-current channel keeps the plain link behaviour.
+              if (kind === activeQuery.kind) return false;
+              void loadKind(kind, item.href);
+            }}
+          />
           <form action="/learn" className="media-library__search" role="search">
             {activeQuery.kind ? <input name="kind" type="hidden" value={activeQuery.kind} /> : null}
             <label htmlFor="media-search">搜索视频和播客</label>
             <div><input defaultValue={activeQuery.search ?? ""} id="media-search" maxLength={120} name="search" placeholder="搜索西语内容" type="search" /><button aria-label="提交搜索" type="submit"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.6" /><path d="m16 16 5 5" /></svg></button></div>
           </form>
         </header>
-        <h1 className="media-library__heading">看点、听点真实西语</h1>
-        <nav className="media-library__topics" aria-label="学习主题">
-          <Link aria-current={!activeQuery.topic ? "page" : undefined} href={queryHref(activeQuery, { cursor: undefined, topic: undefined })}>全部主题</Link>
-          {mediaTopicFilters.map((topic) => {
-            const href = queryHref(activeQuery, { cursor: undefined, topic: topic.value });
-            return <Link aria-current={activeQuery.topic === topic.value ? "page" : undefined} href={href} key={topic.value}>{topic.label}</Link>;
-          })}
-        </nav>
-        <MediaLibraryToolbar query={activeQuery} />
+        <MediaLibraryToolbar />
         {unavailable || kindLoadError ? <p className="media-library__notice" role="alert">媒体资料库暂时无法读取，请稍后重试。</p> : null}
         {isSwitchingKind ? <p className="media-library__load-more-state" role="status">正在切换内容…</p> : null}
         {items.length > 0 ? (
@@ -307,7 +311,6 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
             <p className="eyebrow">{hasFilters ? "没有匹配内容" : "内容准备中"}</p>
             <h2>{hasFilters ? "换个筛选条件看看" : "媒体资料库正在准备中"}</h2>
             <p>{hasFilters ? "当前条件下没有可播放的已发布内容。" : "通过审核的视频和播客会直接出现在这里，不会用示例卡片冒充真实内容。"}</p>
-            {hasFilters ? <Link href="/learn">清除筛选</Link> : null}
           </section>
         )}
         {hasMore && nextCursor ? (

@@ -11,6 +11,8 @@ export type SlideableNavigationItem = Readonly<{
   /** Marks the item as the one the indicator settles on. */
   current?: boolean;
   className?: string;
+  /** A client-loaded destination in flight; callers style it themselves. */
+  pending?: boolean;
 }>;
 
 type SlideableNavigationProps = Readonly<{
@@ -21,6 +23,12 @@ type SlideableNavigationProps = Readonly<{
   /** Key of the resting item. Without one the indicator rests on the first visible item. */
   activeKey?: string;
   indicatorClassName?: string;
+  /**
+   * Intercepts a click so a caller can load the destination itself (the media
+   * library switches kind without a server round trip). A false return lets the
+   * browser follow the link, so history and middle-click keep working.
+   */
+  onSelect?: (item: SlideableNavigationItem) => boolean | void | Promise<boolean | void>;
 }>;
 
 /**
@@ -41,6 +49,7 @@ export function SlideableNavigation({
   items,
   activeKey,
   indicatorClassName = "slideable-navigation__indicator",
+  onSelect,
 }: SlideableNavigationProps) {
   const navigationRef = useRef<HTMLElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);
@@ -128,7 +137,27 @@ export function SlideableNavigation({
   return (
     <nav className={className} aria-label={label} ref={navigationRef}>
       {items.map((item) => (
-        <Link key={item.key} className={item.className} href={item.href} aria-current={item.current ? "page" : undefined}>{item.label}</Link>
+        <Link
+          key={item.key}
+          className={item.className}
+          href={item.href}
+          aria-current={item.current ? "page" : undefined}
+          data-pending={item.pending ? "true" : undefined}
+          onClick={onSelect
+            ? (event) => {
+                if (event.defaultPrevented) return;
+                const handled = onSelect(item);
+                if (handled instanceof Promise) {
+                  event.preventDefault();
+                  void handled.catch(() => undefined);
+                  return;
+                }
+                if (handled !== false) event.preventDefault();
+              }
+            : undefined}
+        >
+          {item.label}
+        </Link>
       ))}
       <span className={indicatorClassName} aria-hidden="true" ref={indicatorRef} />
     </nav>
