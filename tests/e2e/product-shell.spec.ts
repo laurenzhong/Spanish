@@ -24,7 +24,17 @@ test("shows the public introduction without requiring a session", async ({
       name: "把认识的西语，变成真正说得出口的话。",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /开始第一次练习/ }).first()).toBeVisible();
+  // The landing refresh replaced the removed learning hero, so the real entry
+  // points are the header destinations plus the two 进入学习 calls to action.
+  // Phone widths intentionally hide the first two destinations, and a hidden
+  // link has no accessible role, so only the shared CTA is asserted there.
+  if ((page.viewportSize()?.width ?? 0) > 620) {
+    const publicNavigation = page.getByRole("navigation", { name: "公开页面导航" });
+    await expect(publicNavigation.getByRole("link", { name: "产品方式" })).toHaveAttribute("href", "#how-it-works");
+    await expect(publicNavigation.getByRole("link", { name: "阅读" })).toHaveAttribute("href", "/login?next=%2Fread");
+    await expect(publicNavigation.getByRole("link", { name: "登录" })).toHaveAttribute("href", "/login");
+  }
+  await expect(page.getByRole("link", { name: /进入学习/ }).first()).toHaveAttribute("href", "/login?next=%2Flearn");
 });
 
 test("redirects anonymous product traffic to email OTP login", async ({
