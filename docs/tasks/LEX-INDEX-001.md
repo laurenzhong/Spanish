@@ -1,6 +1,6 @@
 # LEX-INDEX-001: 词句索引管道（自动抽取 → 双审 → owner 批准 → 索引）
 
-Status: **进行中**（切片 1 domain 部分已完成并提交）
+Status: **进行中**（切片 1 与切片 2 已完成并提交；切片 3 起需 provider 凭据与迁移评审）
 
 分支：沿用 `codex/disable-legacy-readlang`（当前工作分支）
 
@@ -36,6 +36,30 @@ Commit `33e39ec`（3 文件，509 行）：新增 `src/modules/lexicon-corpus/do
 验证：vitest `13/13`、`tsc --noEmit` exit 0、改动文件 ESLint exit 0。
 
 **尚未做**：候选表 schema 与持久化。切分理由见下。
+
+### 切片 2（已完成）：抽取 provider 契约 + fake
+
+Commit `fcaa4ff`（4 文件）：新增 `src/modules/providers/lexicon-extraction/`（`lexicon-extraction.ts` 契约、`fake-lexicon-extraction.ts`、`index.ts`）+ `tests/contracts/lexicon-extraction-provider-contract.test.ts`（11 例）。
+
+遵循仓库既有 provider 约定（`src/modules/providers/<capability>/` 自带 index）：错误码联合类型、`Readonly` 输入输出、`AbortSignal`、带 `code`/`retryable` 的错误类、显式安全声明、provider/model/延迟/成本可观测字段。
+
+关键设计点：
+
+- provider **只收文本** —— 不收音频、不碰用户私密数据；
+- 组装 `LexiconCandidate`（id/revision/status/reviews）留在 application 层，provider 对状态机没有意见；
+- `needsOwnerApproval` 恒为 `true`，安全块显式声明不写证据、不影响 `mastery`/`confidence`；
+- 词性按受控集合校验，且 fake **一个都不声明** —— 凭空给词性等于编造语言事实；
+- 畸形响应**整批失败**，不产生「部分可信」的候选集；
+- 取消可传播且不产出候选。
+
+验证：vitest `11/11`、`tsc --noEmit` exit 0、改动文件 ESLint exit 0；并检查了 `lexicon-corpus` domain **不 import** providers、provider 模块自包含，未引入分层反向依赖。
+
+**合并验证**（切片 1+2 及相邻既有套件）：5 文件 / **35 测试**通过（`lexicon-candidate` 13、provider 契约 11、`lexicon-persistence` 6、`frequency-word-context` 4、`corpus-indexing` 1）。
+
+### 切片 3 起的先决条件
+
+- **MiniMax 适配器**需要 provider 凭据；`.env` 中是否已配 MiniMax 需在开工时核实；缺少凭据时必须 fail-closed。
+- **候选表 schema 与持久化**（原切片 1 的另一半）需要先完成迁移评审，见下「切分决定」。
 
 ### 切分决定：schema + 持久化单独立片
 
