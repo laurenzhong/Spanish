@@ -1,4 +1,5 @@
-import { containsForeignScript, type RelationshipStage, type QuestionPolicy } from "./reply-plan";
+import type { RelationshipStage, QuestionPolicy } from "./reply-plan";
+import { containsUnsupportedScript } from "./language-purity";
 
 export const proactiveMessageSources = [
   "spontaneous_affection",
@@ -34,14 +35,15 @@ export type ProactiveEligibilityDecision = Readonly<{
     | "proactive-paused"
     | "daily-limit"
     | "weekly-limit"
-    | "cooldown"
-    | "unanswered-message";
+    | "cooldown";
 }>;
 
 export const proactiveLimits = {
-  maxPer24Hours: 1,
-  maxPer7Days: 4,
-  minIntervalMs: 12 * 60 * 60 * 1_000,
+  // Product decision (2026-10-10): several proactive moments a day are intended,
+  // so the earlier one-message-a-day ceiling was raised here.
+  maxPer24Hours: 3,
+  maxPer7Days: 12,
+  minIntervalMs: 4 * 60 * 60 * 1_000,
   /**
    * An unanswered proactive message only suppresses sending while it is still
    * recent. A permanent block would silently stop the character from ever
@@ -126,9 +128,6 @@ export function proactiveReplyPlan(
     relationshipSignal: source === "daily_share" ? "none" : "warmth",
     interactionMode: "everyday",
     affectionIntensityCeiling: mature ? 2 : 1,
-    // A daily check-in may end with one low-pressure question: the spec's own
-    // proactive example does. Other unsolicited sources stay question-free, and
-    // the hard gate still rejects more than two question marks.
     questionPolicy: source === "daily_share"
       ? { maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" }
       : { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
@@ -145,7 +144,11 @@ export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): 
     .trim();
   if (!normalized || normalized.length > 480) return false;
   if (/[*_`#<>]/u.test(text)) return false;
-  if (containsForeignScript(text)) return false;
+  // An unsolicited message has no user turn that could justify another
+  // language, so it must be pure Spanish. A Spanish sentence carrying a stray
+  // Han character is the reported defect; the provider prompt alone did not
+  // prevent it. (This replaces main's `containsForeignScript` gate.)
+  if (containsUnsupportedScript(text)) return false;
   if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return false;
   if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return false;
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;

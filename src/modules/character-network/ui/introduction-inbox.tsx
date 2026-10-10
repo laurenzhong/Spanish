@@ -155,8 +155,8 @@ export function IntroductionInbox({ alwaysVisible = false, onLuciaContactAccepte
         <article className="introduction-card" data-testid="lucia-contact-request">
           <div>
             <h3>Lucía Martín</h3>
-            <p>你们在一场马德里的文化活动中聊到了城市摄影。活动结束后，她记住了你提到的一句话，后来想继续和你聊天，所以向你发来了好友申请。</p>
-            <p className="introduction-card__hint">来源：Madrid · 城市摄影</p>
+            <p>在 Lucía 的虚构故事设定里，你们曾在马德里的一场文化活动中聊到城市摄影。她记住了你提到的一句话，想在这里继续和你聊天。</p>
+            <p className="introduction-card__hint">虚构背景：Madrid · 城市摄影（不代表真实活动或线下见面）</p>
           </div>
           <div className="introduction-card__actions">
             <button type="button" onClick={() => void respondToLucia("accept")} disabled={busy !== null}>通过申请</button>

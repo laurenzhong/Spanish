@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+
+import { SlideableNavigation } from "@/src/shared/ui/slideable-navigation";
 
 import { SharedMemoryPermissions } from "@/src/modules/character-network/ui/shared-memory-permissions";
 import { ProviderSettingsPanel } from "@/src/modules/providers/ui/provider-settings-panel";
@@ -29,7 +31,6 @@ export function ProfileSections() {
   const [activeSection, setActiveSection] = useState<ProfileSectionKey>("progress");
   const [sectionError, setSectionError] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
-  const handleSectionError = useCallback(() => setSectionError(true), []);
 
   useEffect(() => {
     const syncFromLocation = () => setActiveSection(sectionFromHash(window.location.hash));
@@ -61,32 +62,30 @@ export function ProfileSections() {
   ) : null;
 
   return (
-    <>
-      <nav className="profile-page__section-nav" aria-label="我的页面分区">
-        {sections.map((section) => (
-          <a
-            aria-current={activeSection === section.key ? "page" : undefined}
-            aria-controls={section.id}
-            className={activeSection === section.key ? "is-active" : undefined}
-            href={`#${section.id}`}
-            style={{ borderBottomColor: activeSection === section.key ? "var(--profile-terra)" : "transparent", color: activeSection === section.key ? "var(--profile-terra)" : "var(--profile-muted)" }}
-            key={section.key}
-            onClick={(event) => {
-              event.preventDefault();
-              selectSection(section);
-            }}
-          >
-            {section.label}
-          </a>
-        ))}
-      </nav>
+    <div className="sueno-tabs profile-sections">
+      <SlideableNavigation
+        className="profile-page__section-nav"
+        label="我的页面分区"
+        activeKey={activeSection}
+        items={sections.map((section) => ({
+          key: section.key,
+          label: section.label,
+          href: `#${section.id}`,
+          current: activeSection === section.key,
+        }))}
+        indicatorClassName="profile-page__section-nav-indicator"
+        onSelect={(item) => {
+          const section = sections.find((candidate) => candidate.key === item.key);
+          if (section) selectSection(section);
+        }}
+      />
 
       <section id="profile-progress" className="profile-page__group" aria-labelledby="profile-progress-title" hidden={activeSection !== "progress"}>
         <h2 id="profile-progress-title" className="sr-only">能力与活动</h2>
         {activeSection === "progress" ? <>
           {errorNotice}
-          <ProfileOverviewPanel onError={handleSectionError} retryToken={retryToken} showError={false} />
-          <LearningHeatmap onError={handleSectionError} retryToken={retryToken} showError={false} />
+          <ProfileOverviewPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <LearningHeatmap onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
 
@@ -94,8 +93,8 @@ export function ProfileSections() {
         <h2 id="profile-relationships-title" className="sr-only">关系隐私</h2>
         {activeSection === "relationships" ? <>
           {errorNotice}
-          <SharedMemoryPermissions onError={handleSectionError} retryToken={retryToken} showError={false} />
-          <MemoryDataControls onError={handleSectionError} retryToken={retryToken} showError={false} />
+          <SharedMemoryPermissions onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <MemoryDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
 
@@ -103,8 +102,8 @@ export function ProfileSections() {
         <h2 id="profile-data-title" className="sr-only">数据与隐私</h2>
         {activeSection === "data" ? <>
           {errorNotice}
-          <VoiceDataControls onError={handleSectionError} retryToken={retryToken} showError={false} />
-          <AccountDataControls onError={handleSectionError} retryToken={retryToken} showError={false} />
+          <VoiceDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <AccountDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
 
@@ -113,9 +112,9 @@ export function ProfileSections() {
         {activeSection === "preferences" ? <>
           {errorNotice}
           <PreferencesPanel />
-          <ProviderSettingsPanel onError={handleSectionError} retryToken={retryToken} showError={false} />
+          <ProviderSettingsPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
-    </>
+    </div>
   );
 }

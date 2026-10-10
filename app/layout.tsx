@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
-import { ThemeInitializer } from "@/src/shared/ui/theme-initializer";
-
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -33,8 +31,15 @@ type RootLayoutProps = Readonly<{
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script
+          id="theme-initializer"
+          dangerouslySetInnerHTML={{
+            __html: `(() => { try { const storedTheme = window.localStorage.getItem("spanish-theme"); document.documentElement.dataset.theme = storedTheme === "dark" || storedTheme === "light" ? storedTheme : "light"; } catch { document.documentElement.dataset.theme = "light"; } })();`,
+          }}
+        />
+      </head>
       <body>
-        <ThemeInitializer />
         {children}
       </body>
     </html>

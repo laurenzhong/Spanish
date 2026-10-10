@@ -2,7 +2,8 @@ import type { ArticleFormat, ArticleOralTransferType } from "../domain/article";
 
 export type AcquiredArticleReview = Readonly<{
   locale: "es-ES" | "zh-CN";
-  reviewerReference: "codex-ai-owner-authorized-review";
+  /** Owner-authorized AI review identity; historical `codex-*` records stay valid. */
+  reviewerReference: string;
   notes: string | null;
   reviewedAt: Date;
 }>;

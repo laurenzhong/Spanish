@@ -43,13 +43,13 @@ describe("Lucía conversation gate", () => {
     expect(await response.json()).toMatchObject({ error: { code: "CONTACT_REQUIRED" } });
   });
 
-  it("rejects an unaccepted Mateo introduction before creating a message", async () => {
+  it("rejects a draft Mateo character before checking relationship state", async () => {
     const response = await POST(new NextRequest("http://localhost/api/v1/conversations/mateo/stream", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ characterVersion: 1, text: "hola", clientMessageId: "c2", generationId: "g2" }),
     }), { params: Promise.resolve({ characterId: "mateo" }) });
-    expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ error: { code: "CONTACT_REQUIRED" } });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: { code: "CHARACTER_UNAVAILABLE" } });
   });
 });

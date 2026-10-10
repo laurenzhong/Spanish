@@ -55,6 +55,7 @@ export async function respondToIntroduction(input: Readonly<{
       input.userId,
       requestedMemoryIds,
       existing.sourceCharacterKey,
+      existing.sourceCharacterVersion,
     );
     if (sharedMemoryIds.length !== requestedMemoryIds.length) {
       throw new IntroductionError("INTRODUCTION_MEMORY_NOT_SHAREABLE");
@@ -69,7 +70,7 @@ export async function respondToIntroduction(input: Readonly<{
       existing.targetCharacterKey,
       existing.targetCharacterVersion,
     );
-    await repository.grantMemoryPermissions(input.userId, sharedMemoryIds, existing.targetCharacterKey);
+    await repository.grantMemoryPermissions(input.userId, sharedMemoryIds, existing.targetCharacterKey, existing.targetCharacterVersion);
     const offer = await repository.resolve(
       input.userId,
       input.offerKey,

@@ -200,3 +200,93 @@ test("explains a selected sentence", async ({ page }) => {
   await expect(paragraph.locator(".reader-token.is-translation-selection")).toHaveCount(3);
   await expect(page.getByRole("dialog", { name: "解释" })).toContainText("这句话交代了人物进入咖啡馆的时间、地点和原因。");
 });
+
+test("translates a sentence dragged backwards from a word boundary", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/read/word-explanation", async (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({ selectionType: "sentence" });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiVersion: "v1", data: {
+        partOfSpeech: "句子",
+        meaning: "从词边界开始的真实鼠标拖拽也必须解析整句。",
+        contextualMeaning: "按下点落在单词左边界时不能丢失选择。",
+        example: "Después de clase, voy a una cafetería.",
+        provider: "minimax",
+        modelVersion: "MiniMax-M3",
+        providerRequestId: "e2e-mouse-drag",
+        latencyMs: 1,
+        estimatedCostMicros: null,
+      } }),
+    });
+  });
+  await page.goto("/read/article/article.sueno-first-cafe@1");
+  const paragraph = page.locator('[data-reader-position="0"]');
+  const tokens = paragraph.locator(".reader-token");
+  await expect(tokens.first()).toBeVisible();
+  await page.waitForTimeout(200);
+  const press = await tokens.nth(4).boundingBox();
+  const release = await tokens.nth(1).boundingBox();
+  if (!press || !release) throw new Error("sentence tokens missing");
+  const y = press.y + press.height / 2;
+  // Pressing on the left edge of a word is the case Chrome used to cancel when
+  // every word token was a tab stop.
+  await page.mouse.move(press.x + 1, y);
+  await page.mouse.down();
+  const steps = 8;
+  for (let step = 1; step <= steps; step += 1) {
+    await page.mouse.move(press.x + 1 + ((release.x - press.x) * step) / steps, y);
+    await page.waitForTimeout(10);
+  }
+  await page.mouse.up();
+
+  await expect(page.getByRole("dialog", { name: "解释" })).toContainText("从词边界开始的真实鼠标拖拽也必须解析整句。");
+  const selected = paragraph.locator(".reader-token.is-translation-selection");
+  expect(await selected.count()).toBeGreaterThan(1);
+  await expect(selected.first()).toBeVisible();
+});
+
+test("explains a dragged sentence whose selection stops between words", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/read/word-explanation", async (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({ selectionType: "sentence" });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiVersion: "v1", data: {
+        partOfSpeech: "句子",
+        meaning: "下课后，玛尔塔走进校园里的咖啡馆。",
+        contextualMeaning: "拖选停在词间空白时也必须解析整句。",
+        example: "Después de clase, voy a una cafetería.",
+        provider: "minimax",
+        modelVersion: "MiniMax-M3",
+        providerRequestId: "e2e-whitespace-boundary",
+        latencyMs: 1,
+        estimatedCostMicros: null,
+      } }),
+    });
+  });
+  await page.goto("/read/article/article.sueno-first-cafe@1");
+  const paragraph = page.locator('[data-reader-position="0"]');
+  // A real drag commonly releases the pointer on the space after a word, which
+  // must not cancel the sentence translation.
+  const selectedText = await paragraph.evaluate((node) => {
+    const tokens = node.querySelectorAll<HTMLElement>(".reader-token");
+    const start = tokens[1]?.nextSibling;
+    const end = tokens[4]?.nextSibling;
+    if (!start || !end) throw new Error("whitespace boundaries missing");
+    const range = document.createRange();
+    range.setStart(start, 0);
+    range.setEnd(end, end.textContent?.length ?? 0);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const value = range.toString();
+    node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    return value;
+  });
+  expect(selectedText.trim()).toBe("clase, Marta entra");
+  await expect(paragraph.locator(".reader-token.is-translation-selection")).toHaveCount(3);
+  await expect(page.getByRole("dialog", { name: "解释" })).toContainText("拖选停在词间空白时也必须解析整句。");
+});

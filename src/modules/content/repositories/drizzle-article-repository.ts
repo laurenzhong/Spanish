@@ -24,9 +24,24 @@ export class AcquiredArticlePersistenceConflictError extends Error {
 }
 
 type ArticleJoinRow = Readonly<{
-  article: typeof schema.articles.$inferSelect;
-  version: typeof schema.articleVersions.$inferSelect;
-  source: typeof schema.articleSources.$inferSelect;
+  article: Pick<typeof schema.articles.$inferSelect, "stableKey">;
+  version: Pick<
+    typeof schema.articleVersions.$inferSelect,
+    | "version"
+    | "locale"
+    | "title"
+    | "summary"
+    | "cefrLevel"
+    | "topics"
+    | "region"
+    | "register"
+    | "format"
+    | "estimatedReadingMinutes"
+    | "oralTransferType"
+    | "status"
+  > & Partial<Pick<typeof schema.articleVersions.$inferSelect, "contentHash">>;
+  source: Pick<typeof schema.articleSources.$inferSelect, "sourceName" | "author" | "publicationDate" | "copyrightStatus">
+    & Partial<Pick<typeof schema.articleSources.$inferSelect, "sourceUrl" | "attribution">>;
 }>;
 
 function rawArticle(
@@ -204,7 +219,29 @@ export function createDrizzleArticleRepository(database: Database): DrizzleArtic
 
     async list(query: ArticleListQuery = {}) {
       const rows = await database
-        .select({ article: schema.articles, version: schema.articleVersions, source: schema.articleSources })
+        .select({
+          article: { stableKey: schema.articles.stableKey },
+          version: {
+            version: schema.articleVersions.version,
+            locale: schema.articleVersions.locale,
+            title: schema.articleVersions.title,
+            summary: schema.articleVersions.summary,
+            cefrLevel: schema.articleVersions.cefrLevel,
+            topics: schema.articleVersions.topics,
+            region: schema.articleVersions.region,
+            register: schema.articleVersions.register,
+            format: schema.articleVersions.format,
+            estimatedReadingMinutes: schema.articleVersions.estimatedReadingMinutes,
+            oralTransferType: schema.articleVersions.oralTransferType,
+            status: schema.articleVersions.status,
+          },
+          source: {
+            sourceName: schema.articleSources.sourceName,
+            author: schema.articleSources.author,
+            publicationDate: schema.articleSources.publicationDate,
+            copyrightStatus: schema.articleSources.copyrightStatus,
+          },
+        })
         .from(schema.articleVersions)
         .innerJoin(schema.articles, eq(schema.articles.id, schema.articleVersions.articleId))
         .innerJoin(schema.articleSources, eq(schema.articleSources.id, schema.articleVersions.sourceId))

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
-import { clearConversationHistoryCache, getCachedConversationHistory } from "@/src/modules/conversation/ui/conversation-history-cache";
+import { clearConversationHistoryCache, getCachedConversationHistory, setCachedConversationHistory } from "@/src/modules/conversation/ui/conversation-history-cache";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
@@ -30,6 +30,21 @@ describe("ChatThread persistence status", () => {
     expect(screen.getByRole("textbox")).toBeDisabled();
     expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
     expect(screen.queryByText(/DATABASE_URL/)).not.toBeInTheDocument();
+  });
+
+  it("keeps pending contact history read-only and never renders a composer", async () => {
+    setCachedConversationHistory("lucia", [{ id: "pending-history-1", role: "character", text: "Te escribiré cuando aceptes.", complete: true }], {
+      readOnly: true,
+      canSend: false,
+      contactStatus: "pending",
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+
+    expect(await screen.findByText("Te escribiré cuando aceptes.")).toBeInTheDocument();
+    expect(screen.getByTestId("conversation-composer-locked")).toHaveTextContent("接受好友申请后才能发送消息");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "发送消息" })).not.toBeInTheDocument();
   });
 
   it("keeps the header to identity, relationship state, and one contextual menu", async () => {
@@ -137,7 +152,7 @@ describe("ChatThread persistence status", () => {
 
     const message = await screen.findByText("Hola desde el chat");
     expect(screen.queryByRole("button", { name: "消息操作" })).not.toBeInTheDocument();
-    fireEvent.click(message.closest("article")!);
+    fireEvent.contextMenu(message.closest("article")!);
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "引用回复", "撤回", "删除"]);
     expect(screen.queryByRole("menuitem", { name: "转发" })).not.toBeInTheDocument();
@@ -205,9 +220,38 @@ describe("ChatThread persistence status", () => {
     expect(screen.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "复制" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "翻译" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "朗读" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "引用回复" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "撤回" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "删除" })).not.toBeInTheDocument();
+  });
+
+  it("reads a friend message from the message menu and can stop it", async () => {
+    const speak = vi.fn((utterance: SpeechSynthesisUtterance) => {
+      window.setTimeout(() => utterance.onend?.(new Event("end") as SpeechSynthesisEvent), 0);
+    });
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: { speak, cancel: vi.fn(), getVoices: () => [] },
+    });
+    class TestUtterance {
+      text: string;
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      voice = null;
+      onend: ((event: SpeechSynthesisEvent) => void) | null = null;
+      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
+      constructor(text: string) { this.text = text; }
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", TestUtterance);
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[{ id: "speak-1", role: "character", text: "¿Quieres tomar un café?", complete: true }]} />);
+    const message = screen.getByText("¿Quieres tomar un café?");
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "朗读" }));
+    await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
+    expect(speak.mock.calls[0]?.[0].text).toBe("¿Quieres tomar un café?");
   });
 
   it("translates a friend message inline and opens the same menu on double click", async () => {
@@ -407,5 +451,120 @@ describe("ChatThread persistence status", () => {
     expect(await screen.findByText("Suena muy bien, ¿lo comes a menudo?")).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("没有完整送达");
     expect(screen.queryByText("…")).not.toBeInTheDocument();
+  });
+
+  it("keeps the open conversation usable when only the send fails", async () => {
+    // A rejected send (validation, contact gate, provider outage) answers with
+    // an error status and no persistence header. That is a send failure, not a
+    // history failure: reporting it as an unopenable conversation also locked
+    // the composer and hid a conversation that had loaded correctly.
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "open-1", role: "character", text: "¿Qué tal tu día?", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (init?.method === "POST") return { ok: false, status: 403, headers: new Headers() } as Response;
+      return historyResponse;
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    expect(await screen.findByText("¿Qué tal tu día?")).toBeInTheDocument();
+
+    const composer = screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+    fireEvent.change(composer, { target: { value: "Todo bien, gracias." } });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+
+    expect(await screen.findByText("这次回复没有完整送达，未产生任何学习评分。")).toBeInTheDocument();
+    expect(screen.queryByTestId("conversation-persistence-status")).not.toBeInTheDocument();
+    expect(screen.getByText("¿Qué tal tu día?")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeEnabled();
+  });
+
+  it("keeps waiting for a slow history read instead of reporting an unavailable database", async () => {
+    // Reading an established conversation is several sequential round trips to
+    // a remote database and has been measured well past 8s. Crossing a client
+    // bound must not be mistaken for an outage, because that state locks the
+    // composer even though the server still answers with the full history.
+    vi.useFakeTimers();
+    try {
+      let releaseServer: (() => void) | undefined;
+      const serverResponds = new Promise<void>((resolve) => { releaseServer = resolve; });
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+        // Stay in flight until the server answers, but honour the request
+        // signal so a client-side timeout really does reject the read.
+        const signal = (init as RequestInit | undefined)?.signal ?? undefined;
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => reject(Object.assign(new Error("The operation was aborted."), { name: "AbortError" }));
+          if (signal?.aborted) { abort(); return; }
+          signal?.addEventListener("abort", abort, { once: true });
+          void serverResponds.then(() => resolve());
+        });
+        return {
+          ok: true,
+          headers: new Headers([["x-conversation-persistence", "available"]]),
+          json: async () => ({ data: { messages: [{ id: "slow-1", role: "character", text: "Siento la tardanza.", complete: true }] } }),
+        } as Response;
+      });
+
+      render(<ChatThread characterKey="mateo" characterName="Mateo Ruiz" characterVersion={1} />);
+      expect(screen.getByText("正在加载聊天记录……")).toBeInTheDocument();
+
+      await vi.advanceTimersByTimeAsync(12_000);
+      expect(screen.queryByTestId("conversation-persistence-status")).not.toBeInTheDocument();
+      expect(screen.getByText("正在加载聊天记录……")).toBeInTheDocument();
+
+      releaseServer?.();
+      // The slow read is still a success: hand back to real timers and let the
+      // hydrated history render instead of a database-unavailable notice.
+      vi.useRealTimers();
+      expect(await screen.findByText("Siento la tardanza.")).toBeInTheDocument();
+      expect(screen.queryByTestId("conversation-persistence-status")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a server-rendered history when the background revalidation fails", async () => {
+    // The page now ships the conversation with the HTML. A failed revalidation
+    // must not overwrite that view with "cannot open this conversation", which
+    // is what happened when only a client-side cache counted as a fallback.
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 503 } as Response);
+
+    render(
+      <ChatThread
+        characterKey="mateo"
+        characterName="Mateo Ruiz"
+        characterVersion={1}
+        initialMessages={[{ id: "server-1", role: "character", text: "Ya te escribí.", complete: true }]}
+        initialAccess={{ readOnly: false, canSend: true, contactStatus: "active" }}
+      />,
+    );
+
+    expect(screen.getByText("Ya te escribí.")).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
+    expect(screen.queryByTestId("conversation-persistence-status")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "写下你想对 Mateo Ruiz 说的话" })).toBeEnabled();
+  });
+
+  it("honours the server-rendered contact gate instead of optimistically allowing a send", async () => {
+    // A pending contact must never render a composer, even for one paint.
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 503 } as Response);
+
+    render(
+      <ChatThread
+        characterKey="mateo"
+        characterName="Mateo Ruiz"
+        characterVersion={1}
+        initialMessages={[{ id: "server-pending", role: "character", text: "Te escribiré cuando aceptes.", complete: true }]}
+        initialAccess={{ readOnly: true, canSend: false, contactStatus: "pending" }}
+      />,
+    );
+
+    expect(screen.getByText("Te escribiré cuando aceptes.")).toBeInTheDocument();
+    expect(screen.getByTestId("conversation-composer-locked")).toHaveTextContent("接受好友申请后才能发送消息");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

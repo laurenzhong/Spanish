@@ -26,6 +26,22 @@ test("uses one responsive workbench for the three starter scenarios", async ({ p
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
+test("keeps the scenario detail hierarchy and primary action usable across viewports", async ({ page }) => {
+  await authenticate(page);
+  for (const width of viewportWidths) {
+    await page.setViewportSize({ width, height: width < 600 ? 760 : 900 });
+    await page.goto("/explore/scenarios/scenario.campus-administration");
+    await expect(page.getByRole("heading", { name: "校园办事：注册与材料" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "场景导航" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /开始实战/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "沟通目标" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "可用表达" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /朗读表达：/ })).toHaveCount(5);
+    await expect(page.getByText(/目标 1 · 说明你要完成注册手续/)).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px overflow`).toBeLessThanOrEqual(width);
+  }
+});
+
 test("keeps the practice composer usable without horizontal overflow across the release matrix", async ({ page }) => {
   await authenticate(page);
   for (const width of viewportWidths) {

@@ -2,6 +2,7 @@ import { archiveAcquiredArticle, publishAcquiredArticle } from "@/src/modules/co
 import type { AcquiredArticleRepository, AcquiredArticleReview } from "@/src/modules/content/repositories/acquired-article-repository";
 
 import { articleCandidateDraftSchema } from "../normalizers";
+import { isOwnerAuthorizedReviewerReference } from "../domain";
 import type { CandidatePublisher, CandidatePublisherInput } from "./candidate-publisher";
 
 export class ArticlePublicationConflictError extends Error {
@@ -23,10 +24,11 @@ function requiredReview(
     candidate.dimension === dimension
     && candidate.status === "approved"
     && candidate.candidateRevision === input.candidateRevision
-    && candidate.reviewerReference === "codex-ai-owner-authorized-review",
+    && isOwnerAuthorizedReviewerReference(candidate.reviewerReference),
   );
   if (!review) throw new ArticlePublicationConflictError(`The ${dimension} review is missing or stale.`);
-  return { locale, reviewerReference: "codex-ai-owner-authorized-review", notes: review.notes, reviewedAt };
+  // Echo the stored audit identity instead of the platform that is running now.
+  return { locale, reviewerReference: review.reviewerReference as string, notes: review.notes, reviewedAt };
 }
 
 export class AcquiredArticlePublisher implements CandidatePublisher {

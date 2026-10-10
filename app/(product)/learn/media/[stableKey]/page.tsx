@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import {
-  createDrizzleMediaRepository,
-  getMediaPlayback,
-  MediaLearningWorkbench,
-  mediaStableKeySchema,
-  type MediaPlayback,
-} from "@/src/modules/media";
+import { getMediaPlayback } from "@/src/modules/media/application";
+import type { MediaPlayback } from "@/src/modules/media/domain";
+import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
+import { mediaStableKeySchema } from "@/src/modules/media/schemas";
+import { MediaLearningWorkbench } from "@/src/modules/media/ui/media-learning-workbench";
 import { getVideoLearningE2eFixture } from "@/src/modules/media/testing/video-learning-e2e-fixture";
 import { getPodcastLearningE2eFixture } from "@/src/modules/media/testing/podcast-learning-e2e-fixture";
 import { getCurrentUser } from "@/src/shared/auth/server";
@@ -15,10 +13,7 @@ import { getDatabase } from "@/src/shared/db/client";
 
 export const metadata: Metadata = { title: "媒体学习" };
 
-type Context = Readonly<{
-  params: Promise<{ stableKey: string }>;
-  searchParams: Promise<{ t?: string | string[]; segment?: string | string[] }>;
-}>;
+type Context = Readonly<{ params: Promise<{ stableKey: string }> }>;
 
 function UnavailableDetail() {
   return (
@@ -31,11 +26,12 @@ function UnavailableDetail() {
   );
 }
 
-function boundedInteger(value: string | string[] | undefined): number | null {
-  const raw = Array.isArray(value) ? value[0] : value;
-  if (!raw || !/^\d+$/.test(raw)) return null;
-  const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+function formatDuration(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1_000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds} 秒`;
+  return seconds === 0 ? `${minutes} 分钟` : `${minutes} 分 ${String(seconds).padStart(2, "0")} 秒`;
 }
 
 function clientPlayback(stableKey: string, playback: MediaPlayback): MediaPlayback {
@@ -78,16 +74,13 @@ function clientPlayback(stableKey: string, playback: MediaPlayback): MediaPlayba
   return { ...playback, asset: { ...playback.asset, url: `/api/v1/media/${encodeURIComponent(stableKey)}/stream` } };
 }
 
-export default async function MediaDetailPage({ params, searchParams }: Context) {
+export default async function MediaDetailPage({ params }: Context) {
   let stableKey: string;
   try {
     stableKey = mediaStableKeySchema.parse(decodeURIComponent((await params).stableKey));
   } catch {
     return <UnavailableDetail />;
   }
-  const location = await searchParams;
-  const requestedPositionMs = boundedInteger(location.t);
-  const requestedSegmentIndex = boundedInteger(location.segment);
   const user = await getCurrentUser();
   if (!user) return <UnavailableDetail />;
 
@@ -109,15 +102,18 @@ export default async function MediaDetailPage({ params, searchParams }: Context)
     || (browserPlayback.media.kind === "video" && browserPlayback.asset.kind !== "video" && browserPlayback.asset.kind !== "official_embed")) return <UnavailableDetail />;
   return (
     <article className="media-detail">
-      <Link className="media-detail__back" href="/learn">← 返回学习资料库</Link>
-      <header>
-        <p className="eyebrow eyebrow--accent">{playback.media.kind === "video" ? "视频" : "播客"} · {playback.media.cefr ?? "未分级"}</p>
+      <div className="media-detail__topbar"><Link className="media-detail__back" href="/learn">← 返回学习资料库</Link><span>{playback.media.kind === "video" ? "视频" : "播客"} · {playback.media.cefr ?? "未分级"}</span></div>
+      <header className="media-detail__header">
         <h1>{playback.media.title}</h1>
-        <p>{playback.media.summary}</p>
-        <span>{playback.media.sourceName} · {playback.media.region ?? "地区未知"}</span>
+        <div aria-label="媒体信息" className="media-detail__meta">
+          <span>{playback.media.sourceName}</span>
+          <span>{playback.media.region ?? "地区未知"}</span>
+          <span>{formatDuration(playback.media.durationMs)}</span>
+          <span>{playback.segments.length > 0 ? "有逐句文本" : "无逐句文本"}</span>
+          <details className="media-detail__summary"><summary>内容简介</summary><p>{playback.media.summary}</p></details>
+        </div>
       </header>
-      <MediaLearningWorkbench initialPositionMs={requestedPositionMs ?? undefined} initialSegmentIndex={requestedSegmentIndex ?? undefined} playback={browserPlayback} />
+      <MediaLearningWorkbench playback={browserPlayback} />
     </article>
   );
 }
-

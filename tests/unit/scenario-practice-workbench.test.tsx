@@ -31,7 +31,20 @@ describe("scenario practice shared UI", () => {
     expect(screen.getByRole("link", { name: /开始实战/ })).toHaveAttribute("href", `/explore/scenarios/${key}/practice`);
     expect(screen.getAllByText(/自然替代表达/).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /^收藏表达：/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^朗读表达：/ })).toHaveLength(scenario.expressions.length);
+    expect(screen.getAllByText(/对应目标/)).toHaveLength(scenario.expressions.length);
     expect(document.querySelector(".scenario-detail__action")).not.toBeInTheDocument();
+  });
+
+  it("keeps expression listening local and explains the matching communication goal", async () => {
+    const scenario = getScenarioPracticeDetail("scenario.campus-administration")!;
+    render(<ScenarioDetail scenario={scenario} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `朗读表达：${scenario.expressions[0]!.text}` }));
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("浏览器暂时无法朗读"));
+    expect(screen.getByText(/目标 1 · 说明你要完成注册手续/)).toBeInTheDocument();
+    expect(screen.queryByText(/能力证据|评分/)).not.toBeInTheDocument();
   });
 
   it("saves a formal expression by versioned server reference", async () => {
@@ -102,6 +115,44 @@ describe("scenario practice shared UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
     await waitFor(() => expect(screen.getAllByText("Vale.")).toHaveLength(2));
     expect(screen.getByRole("button", { name: "完成练习" })).toBeInTheDocument();
+  });
+
+  it("exposes the practice hierarchy and keeps secondary expression actions reversible", async () => {
+    const scenario = getScenarioPracticeDetail("scenario.restaurant-ordering")!;
+    render(<ScenarioPracticeWorkbench scenario={scenario} />);
+
+    expect(await screen.findByRole("heading", { name: scenario.title })).toBeInTheDocument();
+    expect(screen.getByText("场景实战")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "练习目标进度" })).toHaveAttribute("aria-valuenow", "0");
+    expect(screen.getByRole("button", { name: "提示" })).toBeEnabled();
+
+    const input = screen.getByLabelText("用西班牙语完成你的表达");
+    const send = screen.getByRole("button", { name: "发送" });
+    expect(input).toHaveAttribute("aria-describedby", "scenario-composer-title");
+    expect(send).toBeDisabled();
+    fireEvent.change(input, { target: { value: "Quiero reservar una mesa." } });
+    expect(send).toBeEnabled();
+
+    const expressions = screen.getByRole("button", { name: "常用表达" });
+    fireEvent.click(expressions);
+    expect(screen.getByRole("region", { name: "常用表达" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭常用表达" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "常用表达" })).not.toBeInTheDocument());
+    expect(expressions).toHaveFocus();
+  });
+
+  it("uses Enter as the typing submit action while keeping Shift+Enter available for a new line", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/respond")) return new Response("{\"type\":\"delta\",\"text\":\"Perfecto.\"}\n{\"type\":\"done\"}\n", { status: 200 });
+      return new Response(null, { status: 503 });
+    });
+    render(<ScenarioPracticeWorkbench scenario={getScenarioPracticeDetail("scenario.restaurant-ordering")!} />);
+    const input = await screen.findByLabelText("用西班牙语完成你的表达");
+    fireEvent.change(input, { target: { value: "Quería pedir una mesa." } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(input).toHaveValue("Quería pedir una mesa.");
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+    await waitFor(() => expect(screen.getByText("Perfecto.")).toBeInTheDocument());
   });
 
   it("returns to the detail route through the router", async () => {

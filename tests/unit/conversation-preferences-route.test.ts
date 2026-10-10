@@ -29,7 +29,7 @@ describe("conversation preferences route", () => {
     }));
     expect(response.status).toBe(200);
     expect(mocks.updateConversationPreference).toHaveBeenCalledWith("user-1", "lucia", { isPinned: false, isMuted: true });
-    expect(await response.json()).toEqual({ data: { preference: { characterKey: "lucia", isPinned: false, isMuted: true } } });
+    expect(await response.json()).toEqual({ apiVersion: "v1", data: { preference: { characterKey: "lucia", isPinned: false, isMuted: true } } });
   });
 
   it("accepts an idempotent ordered list", async () => {
@@ -40,6 +40,7 @@ describe("conversation preferences route", () => {
     }));
     expect(response.status).toBe(200);
     expect(mocks.reorderConversationPreferences).toHaveBeenCalledWith("user-1", ["lucia", "mateo"]);
+    expect((await response.json()).apiVersion).toBe("v1");
   });
 
   it("rejects an empty patch", async () => {
@@ -50,5 +51,6 @@ describe("conversation preferences route", () => {
     }));
     expect(response.status).toBe(400);
     expect(mocks.updateConversationPreference).not.toHaveBeenCalled();
+    expect((await response.json()).error).toMatchObject({ code: "INPUT_INVALID", retryable: false });
   });
 });

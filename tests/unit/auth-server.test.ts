@@ -7,6 +7,7 @@ import {
   isRetryableAuthError,
   verifyRequestUser,
 } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
 
 function request(authorization?: string) {
   return new NextRequest("http://localhost/api/v1/auth/session", {
@@ -41,6 +42,34 @@ describe("verifyRequestUser", () => {
     await expect(
       verifyRequestUser(request("Bearer signed-token"), { verify }),
     ).resolves.toEqual(user);
+  });
+
+  it("does not let an explicit invalid bearer fall back to a cookie identity", async () => {
+    const verifyRequest = vi.fn().mockResolvedValue(null);
+    const getCookieUser = vi.fn().mockResolvedValue({ id: "cookie-user", email: null });
+    const requestWithInvalidBearer = request("Bearer invalid");
+
+    await expect(
+      getRequestUser(requestWithInvalidBearer, {
+        verifyRequestUser: verifyRequest,
+        getCurrentUser: getCookieUser,
+      }),
+    ).resolves.toBeNull();
+    expect(verifyRequest).toHaveBeenCalledTimes(1);
+    expect(getCookieUser).not.toHaveBeenCalled();
+  });
+
+  it("uses the cookie identity only when Authorization is absent", async () => {
+    const verifyRequest = vi.fn().mockResolvedValue(null);
+    const getCookieUser = vi.fn().mockResolvedValue({ id: "cookie-user", email: null });
+
+    await expect(
+      getRequestUser(request(), {
+        verifyRequestUser: verifyRequest,
+        getCurrentUser: getCookieUser,
+      }),
+    ).resolves.toEqual({ id: "cookie-user", email: null });
+    expect(getCookieUser).toHaveBeenCalledTimes(1);
   });
 });
 

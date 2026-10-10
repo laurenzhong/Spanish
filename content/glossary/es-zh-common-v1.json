@@ -1,7 +1,16 @@
 {
-  "version": 1,
+  "version": 2,
   "locale": "es-ES",
   "status": "published",
+  "review": {
+    "es-ES": "dsh-ai-owner-authorized-review:vocabulary-study-list",
+    "zh-CN": "dsh-ai-owner-authorized-review:vocabulary-study-list",
+    "reviewer": "DSH (AI)",
+    "authorizedBy": "project owner",
+    "authorizedAt": "2026-09-12",
+    "reviewedAt": "2026-10-10",
+    "note": "由所有者授权的 AI 审核平台（DSH）完成西语词条与中文教学说明审核；不代表真人、母语者或教学专家签署。"
+  },
   "entries": [
     {
       "headword": "café",
@@ -12,6 +21,7 @@
       ],
       "collocations": ["tomar un café", "ir al café", "café con leche"],
       "examples": ["Tomamos un café después de clase.", "Nos vemos en el café de la esquina."],
+      "forms": ["cafes"],
       "cefr": "A1",
       "reviewStatus": "reviewed"
     },
@@ -24,6 +34,7 @@
       ],
       "collocations": ["hasta mañana", "mañana por la mañana", "por la mañana"],
       "examples": ["Mañana tengo tiempo.", "Trabajo por la mañana."],
+      "forms": ["mananas"],
       "cefr": "A1",
       "reviewStatus": "reviewed"
     },
@@ -35,6 +46,7 @@
       ],
       "collocations": ["aprender español", "aprender a cocinar", "aprender de memoria"],
       "examples": ["Quiero aprender algo nuevo.", "Estoy aprendiendo a cocinar."],
+      "forms": ["aprendo", "aprendes", "aprende", "aprendemos", "aprenden", "aprendia", "aprendi", "aprendido", "aprendiendo"],
       "cefr": "A1",
       "reviewStatus": "reviewed"
     },
@@ -47,6 +59,7 @@
       ],
       "collocations": ["una palabra nueva", "dar la palabra", "en una palabra"],
       "examples": ["Esta palabra aparece varias veces.", "Te doy mi palabra."],
+      "forms": ["palabras"],
       "cefr": "A1",
       "reviewStatus": "reviewed"
     },
@@ -58,7 +71,918 @@
       ],
       "collocations": ["tener una conversación", "una conversación natural", "seguir la conversación"],
       "examples": ["La conversación fue muy natural.", "Tuvimos una conversación breve."],
+      "forms": ["conversaciones"],
       "cefr": "A2",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "ser",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "是（说明身份、来源或本质）", "usage": "描述不随时间变化的特征，如 Soy profesor、Es de México。" }
+      ],
+      "collocations": ["ser de", "es que", "ser así"],
+      "examples": ["Soy de China.", "Ella es muy amable."],
+      "forms": ["soy", "eres", "es", "somos", "sois", "son", "era", "eran", "fue", "fueron", "sea", "sido"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "estar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "处于（某种状态或地点）", "usage": "强调当前状态或位置，如 Estoy cansado、Está en casa。" }
+      ],
+      "collocations": ["estar bien", "estar en", "estar cansado"],
+      "examples": ["Estoy muy bien, gracias.", "¿Dónde está el baño?"],
+      "forms": ["estoy", "estamos", "estan", "estaba", "estabas", "estabamos", "estuve", "estuvo", "estado", "estando"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "tener",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "有、拥有", "usage": "表示所属或年龄，如 Tengo dos hermanos、Tengo veinte años。" },
+        { "meaning": "（与名词搭配表示状态）", "usage": "如 tener hambre 饿、tener razón 有道理。" }
+      ],
+      "collocations": ["tener que", "tener razón", "tener ganas de"],
+      "examples": ["Tengo una pregunta.", "Tenemos que hablar."],
+      "forms": ["tengo", "tienes", "tiene", "tenemos", "tienen", "tenia", "tenian", "tuve", "tenido"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "hacer",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "做、干", "usage": "泛指进行某项活动，如 hacer la comida。" },
+        { "meaning": "（天气、时间）是", "usage": "如 Hace frío、Hace dos años。" }
+      ],
+      "collocations": ["hacer falta", "hacer un favor", "hacer caso"],
+      "examples": ["¿Qué haces ahora?", "Hace mucho calor."],
+      "forms": ["hago", "haces", "hace", "hacemos", "hacen", "hizo", "hecho", "haciendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "ir",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "去、走", "usage": "常与 a 连用表示目的地，如 Voy a casa。" },
+        { "meaning": "（ir a + 不定式）将要", "usage": "表示近期计划，如 Voy a estudiar。" }
+      ],
+      "collocations": ["ir a", "vamos", "ir bien"],
+      "examples": ["Voy al mercado.", "¿Cómo te va?"],
+      "forms": ["voy", "vas", "vamos", "van", "iba", "ibamos", "fui", "ido", "yendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "venir",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "来", "usage": "表示朝说话人方向移动，如 Ven aquí。" }
+      ],
+      "collocations": ["venir bien", "venir de", "venir a"],
+      "examples": ["¿Puedes venir mañana?", "Vengo de trabajar."],
+      "forms": ["vengo", "vienes", "viene", "venimos", "vienen", "venia", "vine", "venido", "viniendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "querer",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "想要、希望", "usage": "后接名词或不定式，如 Quiero agua、Quiero hablar。" },
+        { "meaning": "喜欢、爱", "usage": "对人或事物表达感情，如 Te quiero。" }
+      ],
+      "collocations": ["querer decir", "querer a", "sin querer"],
+      "examples": ["Quiero aprender español.", "¿Qué quieres tomar?"],
+      "forms": ["quiero", "quieres", "quiere", "queremos", "quieren", "queria", "quise", "querido", "queriendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "poder",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "能、可以", "usage": "表示能力或许可，如 Puedo ayudar。" },
+        { "meaning": "（puede que）也许", "usage": "后接虚拟式表示推测。" }
+      ],
+      "collocations": ["poder con", "puede ser", "no poder más"],
+      "examples": ["¿Puedes repetir, por favor?", "No puedo ir hoy."],
+      "forms": ["puedo", "puedes", "puede", "podemos", "pueden", "podia", "pude", "podido", "pudiendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "saber",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "知道、会", "usage": "表示掌握信息或技能，如 No sé、Sé nadar。" }
+      ],
+      "collocations": ["saber si", "saber que", "a saber"],
+      "examples": ["No sé dónde está.", "¿Sabes cocinar?"],
+      "forms": ["sabes", "sabe", "sabemos", "saben", "sabia", "supe", "sabido"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "hablar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "说、讲", "usage": "可接语言或话题，如 Hablo español、Hablamos del trabajo。" }
+      ],
+      "collocations": ["hablar con", "hablar de", "hablar español"],
+      "examples": ["¿Hablas español?", "Necesito hablar contigo."],
+      "forms": ["hablo", "hablas", "habla", "hablamos", "hablan", "hablaba", "hablado", "hablando"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "decir",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "说、告诉", "usage": "引出说的内容，如 Me dijo la verdad。" }
+      ],
+      "collocations": ["querer decir", "decir que", "es decir"],
+      "examples": ["¿Qué dices?", "Me dijo que vendrá."],
+      "forms": ["digo", "dices", "dice", "decimos", "dicen", "decia", "dijo", "dicho", "diciendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "ver",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "看见、看", "usage": "表示视觉或理解，如 No veo nada。" },
+        { "meaning": "（nos vemos）见面", "usage": "告别时约下次见。" }
+      ],
+      "collocations": ["a ver", "ver la televisión", "nos vemos"],
+      "examples": ["No veo bien sin gafas.", "Vamos a ver una película."],
+      "forms": ["veo", "ves", "ve", "vemos", "ven", "veia", "vi", "visto", "viendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "comer",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "吃", "usage": "指吃饭或吃东西，如 Como a las dos。" }
+      ],
+      "collocations": ["comer fuera", "comer bien", "hora de comer"],
+      "examples": ["Vamos a comer juntos.", "No como carne."],
+      "forms": ["como", "comes", "come", "comemos", "comen", "comia", "comi", "comido", "comiendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "beber",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "喝", "usage": "后接饮品，如 Bebo mucha agua。" }
+      ],
+      "collocations": ["beber agua", "beber algo", "dar de beber"],
+      "examples": ["Hay que beber agua todos los días.", "¿Quieres beber algo?"],
+      "forms": ["bebo", "bebes", "bebe", "bebemos", "beben", "bebia", "bebi", "bebido", "bebiendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "vivir",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "住、生活", "usage": "表示居住地点或生活方式，如 Vivo en Madrid。" }
+      ],
+      "collocations": ["vivir en", "vivir con", "vivir bien"],
+      "examples": ["Vivo cerca del centro.", "¿Con quién vives?"],
+      "forms": ["vivo", "vives", "vive", "vivimos", "viven", "vivia", "vivi", "vivido", "viviendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "trabajar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "工作", "usage": "可接地点、行业或时间，如 Trabajo en casa。" }
+      ],
+      "collocations": ["trabajar en", "trabajar de", "trabajar mucho"],
+      "examples": ["Trabajo de lunes a viernes.", "Mi hermana trabaja en un hospital."],
+      "forms": ["trabajas", "trabaja", "trabajamos", "trabajan", "trabajaba", "trabajado", "trabajando"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "estudiar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "学习、读书", "usage": "可接学科或学校，如 Estudio español。" }
+      ],
+      "collocations": ["estudiar español", "estudiar en", "estudiar para"],
+      "examples": ["Estudio español todos los días.", "¿Dónde estudias?"],
+      "forms": ["estudio", "estudias", "estudia", "estudiamos", "estudian", "estudiaba", "estudiado", "estudiando"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "entender",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "理解、听懂", "usage": "表示明白意思或体谅，如 No entiendo." }
+      ],
+      "collocations": ["entender bien", "hacerse entender", "dar a entender"],
+      "examples": ["Entiendo un poco de español.", "No entiendo esta palabra."],
+      "forms": ["entiendo", "entiendes", "entiende", "entendemos", "entienden", "entendia", "entendi", "entendido", "entendiendo"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "gustar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "喜欢", "usage": "主语是被喜欢的事物，如 Me gusta el café、Me gustan los libros。" }
+      ],
+      "collocations": ["me gusta", "me gustaria", "gustar mucho"],
+      "examples": ["Me gusta mucho esta ciudad.", "¿Te gusta bailar?"],
+      "forms": ["gusta", "gustan", "gustaba", "gustaria", "gustado"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "necesitar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "需要", "usage": "后接名词或不定式，如 Necesito ayuda。" }
+      ],
+      "collocations": ["necesitar ayuda", "necesitar tiempo", "si necesitas"],
+      "examples": ["Necesito practicar más.", "¿Necesitas algo?"],
+      "forms": ["necesito", "necesitas", "necesita", "necesitamos", "necesitan", "necesitaba", "necesitado", "necesitando"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "esperar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "等、等待", "usage": "如 Espero el autobús." },
+        { "meaning": "希望、期待", "usage": "后接 que 引导的从句，如 Espero que vengas。" }
+      ],
+      "collocations": ["esperar a", "esperar que", "hacerse esperar"],
+      "examples": ["Espera un momento, por favor.", "Espero que todo salga bien."],
+      "forms": ["espero", "esperas", "espera", "esperamos", "esperan", "esperaba", "esperado", "esperando"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "buscar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "找、寻找", "usage": "如 Busco trabajo、Busco mis llaves。" }
+      ],
+      "collocations": ["buscar trabajo", "buscar a", "buscar en"],
+      "examples": ["Estoy buscando un piso.", "¿Qué buscas?"],
+      "forms": ["busco", "buscas", "busca", "buscamos", "buscan", "buscaba", "busque", "buscado", "buscando"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "comprar",
+      "partOfSpeech": "动词",
+      "meanings": [
+        { "meaning": "买", "usage": "如 Compro pan todos los días。" }
+      ],
+      "collocations": ["comprar algo", "ir a comprar", "comprar en"],
+      "examples": ["Voy a comprar fruta.", "Compré este libro ayer."],
+      "forms": ["compro", "compras", "compra", "compramos", "compran", "compraba", "compre", "comprado", "comprando"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "casa",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "房子、家", "usage": "en casa 表示在家；a casa 表示回家。" }
+      ],
+      "collocations": ["en casa", "a casa", "casa de"],
+      "examples": ["Hoy me quedo en casa.", "Vamos a casa de Ana."],
+      "forms": ["casas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "agua",
+      "partOfSpeech": "名词（阴性）",
+      "meanings": [
+        { "meaning": "水", "usage": "单数用 el agua，复数用 las aguas。" }
+      ],
+      "collocations": ["agua fría", "un vaso de agua", "tomar agua"],
+      "examples": ["¿Me trae un vaso de agua?", "No hay agua caliente."],
+      "forms": ["aguas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "comida",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "食物、饭菜", "usage": "也指午饭，如 La comida es a las dos。" }
+      ],
+      "collocations": ["hacer la comida", "comida casera", "comida española"],
+      "examples": ["La comida está lista.", "Me gusta la comida española."],
+      "forms": ["comidas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "tiempo",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "时间", "usage": "如 No tengo tiempo。" },
+        { "meaning": "天气", "usage": "如 ¿Qué tiempo hace?" }
+      ],
+      "collocations": ["a tiempo", "tener tiempo", "con el tiempo"],
+      "examples": ["No tengo tiempo hoy.", "Hace buen tiempo."],
+      "forms": ["tiempos"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "día",
+      "partOfSpeech": "名词（阳性）",
+      "meanings": [
+        { "meaning": "天、日子", "usage": "todo el día 表示一整天。" }
+      ],
+      "collocations": ["todos los días", "buenos días", "todo el día"],
+      "examples": ["Hoy es un día tranquilo.", "Trabajo ocho horas al día."],
+      "forms": ["dias"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "noche",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "夜晚、晚上", "usage": "por la noche 表示在晚上。" }
+      ],
+      "collocations": ["por la noche", "buenas noches", "esta noche"],
+      "examples": ["Esta noche ceno en casa.", "Buenas noches, hasta mañana."],
+      "forms": ["noches"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "semana",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "星期、周", "usage": "常与 esta、la próxima 连用。" }
+      ],
+      "collocations": ["esta semana", "la semana que viene", "fin de semana"],
+      "examples": ["La semana que viene viajo.", "Nos vemos el fin de semana."],
+      "forms": ["semanas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "año",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "年", "usage": "表示年龄时常说 tener ... años。" }
+      ],
+      "collocations": ["el año pasado", "todos los años", "cumplir años"],
+      "examples": ["Este año aprendo español.", "Tengo treinta años."],
+      "forms": ["anos"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "trabajo",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "工作、活儿", "usage": "可指职业或具体任务。" }
+      ],
+      "collocations": ["ir al trabajo", "buscar trabajo", "tener trabajo"],
+      "examples": ["Mi trabajo empieza a las nueve.", "Tengo mucho trabajo hoy."],
+      "forms": ["trabajos"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "dinero",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "钱", "usage": "不可数，表示多少时用 mucho/poco。" }
+      ],
+      "collocations": ["ganar dinero", "gastar dinero", "no tener dinero"],
+      "examples": ["No llevo dinero encima.", "Ahorro dinero cada mes."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "familia",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "家庭、家人", "usage": "指家人群体时用单数。" }
+      ],
+      "collocations": ["mi familia", "en familia", "toda la familia"],
+      "examples": ["Los domingos como con mi familia.", "Es una familia grande."],
+      "forms": ["familias"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "madre",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "母亲、妈妈", "usage": "口语中常用 mamá。" }
+      ],
+      "collocations": ["mi madre", "ser madre", "madre de"],
+      "examples": ["Mi madre vive cerca.", "Hablo con mi madre cada día."],
+      "forms": ["madres"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "padre",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "父亲、爸爸", "usage": "复数 padres 常指父母。" }
+      ],
+      "collocations": ["mi padre", "mis padres", "padre de"],
+      "examples": ["Mi padre trabaja en el campo.", "Mis padres son de Sevilla."],
+      "forms": ["padres"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "hermano",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "兄弟；复数可指兄弟姐妹", "usage": "阴性形式为 hermana。" }
+      ],
+      "collocations": ["mi hermano", "hermano mayor", "tres hermanos"],
+      "examples": ["Mi hermano estudia medicina.", "Somos tres hermanos."],
+      "forms": ["hermanos", "hermana", "hermanas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "amigo",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "朋友", "usage": "阴性形式为 amiga。" }
+      ],
+      "collocations": ["un amigo mío", "hacer amigos", "mejor amigo"],
+      "examples": ["Es un amigo de la universidad.", "Hice muchos amigos allí."],
+      "forms": ["amigos", "amiga", "amigas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "gente",
+      "partOfSpeech": "名词（阴性单数）",
+      "meanings": [
+        { "meaning": "人们", "usage": "不可数，谓语用第三人称复数，如 La gente dice..." }
+      ],
+      "collocations": ["mucha gente", "la gente joven", "hablar con la gente"],
+      "examples": ["Hay mucha gente en la calle.", "A la gente le gusta el sol."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "persona",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "人、个人", "usage": "可数名词，复数 personas。" }
+      ],
+      "collocations": ["una persona", "por persona", "persona mayor"],
+      "examples": ["Es una persona muy amable.", "Somos cuatro personas."],
+      "forms": ["personas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "ciudad",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "城市", "usage": "如 Vivo en una ciudad pequeña。" }
+      ],
+      "collocations": ["en la ciudad", "ciudad grande", "centro de la ciudad"],
+      "examples": ["Madrid es una ciudad muy viva.", "Me gusta caminar por la ciudad."],
+      "forms": ["ciudades"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "calle",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "街道", "usage": "en la calle 表示在街上。" }
+      ],
+      "collocations": ["en la calle", "cruzar la calle", "calle mayor"],
+      "examples": ["Vivo en esta calle.", "Hay un mercado en la calle."],
+      "forms": ["calles"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "mundo",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "世界", "usage": "todo el mundo 表示所有人。" }
+      ],
+      "collocations": ["todo el mundo", "en el mundo", "el mundo entero"],
+      "examples": ["Quiero viajar por el mundo.", "Todo el mundo lo sabe."],
+      "forms": ["mundos"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "vida",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "生命、生活", "usage": "可指一生或日常生活。" }
+      ],
+      "collocations": ["la vida", "toda la vida", "ganarse la vida"],
+      "examples": ["Así es la vida.", "Llevo una vida tranquila."],
+      "forms": ["vidas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "lugar",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "地方、位置", "usage": "en lugar de 表示而不是。" }
+      ],
+      "collocations": ["en primer lugar", "en lugar de", "tener lugar"],
+      "examples": ["Es un lugar muy tranquilo.", "En lugar de ir, me quedé."],
+      "forms": ["lugares"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "libro",
+      "partOfSpeech": "名词",
+      "meanings": [
+        { "meaning": "书", "usage": "如 Leo un libro en español。" }
+      ],
+      "collocations": ["leer un libro", "libro de texto", "un libro nuevo"],
+      "examples": ["Este libro es muy interesante.", "Compré un libro en español."],
+      "forms": ["libros"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "mano",
+      "partOfSpeech": "名词（阴性）",
+      "meanings": [
+        { "meaning": "手", "usage": "阴性名词但用 el 单数冠词：la mano、las manos。" }
+      ],
+      "collocations": ["a mano", "dar la mano", "lavarse las manos"],
+      "examples": ["Dame la mano, por favor.", "Escribo a mano."],
+      "forms": ["manos"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "bueno",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "好的", "usage": "名词前用 buen，如 buen día；副词形式为 bien。" }
+      ],
+      "collocations": ["buen día", "estar bueno", "de buena gana"],
+      "examples": ["Es un buen momento para empezar.", "La sopa está muy buena."],
+      "forms": ["buena", "buenos", "buenas", "buen"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "malo",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "坏的、不好的", "usage": "名词前用 mal，如 mal tiempo。" }
+      ],
+      "collocations": ["mal tiempo", "estar malo", "no ser malo"],
+      "examples": ["Hoy hace mal tiempo.", "No es mala idea."],
+      "forms": ["mala", "malos", "malas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "grande",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "大的", "usage": "指尺寸、程度或年龄，如 una ciudad grande。" }
+      ],
+      "collocations": ["ciudad grande", "muy grande", "de mayor"],
+      "examples": ["Viven en una casa grande.", "Es un problema grande."],
+      "forms": ["grandes"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "pequeño",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "小的", "usage": "指尺寸、规模或年幼，如 un pueblo pequeño。" }
+      ],
+      "collocations": ["un poco pequeño", "pueblo pequeño", "desde pequeño"],
+      "examples": ["Es un piso pequeño pero cómodo.", "De pequeño vivía aquí."],
+      "forms": ["pequena", "pequenos", "pequenas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "nuevo",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "新的", "usage": "de nuevo 表示再一次。" }
+      ],
+      "collocations": ["de nuevo", "nuevo trabajo", "como nuevo"],
+      "examples": ["Tengo un trabajo nuevo.", "Lo intento de nuevo."],
+      "forms": ["nueva", "nuevos", "nuevas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "viejo",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "旧的；年老的", "usage": "形容物品时表示久用，形容人时表示年长。" }
+      ],
+      "collocations": ["más viejo", "viejo amigo", "coche viejo"],
+      "examples": ["Mi coche es viejo pero funciona.", "Es un viejo amigo mío."],
+      "forms": ["vieja", "viejos", "viejas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "joven",
+      "partOfSpeech": "形容词 / 名词",
+      "meanings": [
+        { "meaning": "年轻的；年轻人", "usage": "单复数同形：un joven、los jóvenes。" }
+      ],
+      "collocations": ["gente joven", "más joven", "de joven"],
+      "examples": ["Es muy joven todavía.", "De joven estudié música."],
+      "forms": ["jovenes"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "feliz",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "高兴的、幸福的", "usage": "单复数同形：feliz、felices。" }
+      ],
+      "collocations": ["ser feliz", "feliz cumpleaños", "muy feliz"],
+      "examples": ["Estoy feliz con este trabajo.", "¡Feliz cumpleaños!"],
+      "forms": ["felices"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "cansado",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "累的、疲倦的", "usage": "常与 estar 连用，如 Estoy cansado。" }
+      ],
+      "collocations": ["estar cansado", "muy cansado", "cansado de"],
+      "examples": ["Estoy cansado después del trabajo.", "Hoy me siento cansada."],
+      "forms": ["cansada", "cansados", "cansadas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "importante",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "重要的", "usage": "单复数同形，如 un asunto importante。" }
+      ],
+      "collocations": ["lo importante", "muy importante", "es importante"],
+      "examples": ["Es importante practicar cada día.", "Lo importante es intentarlo."],
+      "forms": ["importantes"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "difícil",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "难的、困难的", "usage": "单复数同形：difícil、difíciles。" }
+      ],
+      "collocations": ["muy difícil", "difícil de", "resultar difícil"],
+      "examples": ["Es difícil pero no imposible.", "Al principio es difícil hablar."],
+      "forms": ["dificiles"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "caro",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "贵的", "usage": "常与 ser/estar 连用，如 Es muy caro。" }
+      ],
+      "collocations": ["muy caro", "resultar caro", "más caro"],
+      "examples": ["Este piso es muy caro.", "Me parece caro para lo que es."],
+      "forms": ["cara", "caros", "caras"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "barato",
+      "partOfSpeech": "形容词",
+      "meanings": [
+        { "meaning": "便宜的", "usage": "与 caro 相对，如 un menú barato。" }
+      ],
+      "collocations": ["más barato", "salir barato", "muy barato"],
+      "examples": ["El menú del día es barato.", "Compré el billete más barato."],
+      "forms": ["barata", "baratos", "baratas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "siempre",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "总是、一直", "usage": "常放在动词前或句首。" }
+      ],
+      "collocations": ["siempre que", "para siempre", "como siempre"],
+      "examples": ["Siempre desayuno café.", "Como siempre, llegó tarde."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "nunca",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "从不、永不", "usage": "双重否定仍然否定：No voy nunca。" }
+      ],
+      "collocations": ["nunca más", "casi nunca", "nunca jamás"],
+      "examples": ["Nunca he estado en México.", "Casi nunca veo la televisión."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "ahora",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "现在", "usage": "ahora mismo 表示立刻。" }
+      ],
+      "collocations": ["ahora mismo", "por ahora", "hasta ahora"],
+      "examples": ["Ahora estoy ocupado.", "Por ahora vivo aquí."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "hoy",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "今天", "usage": "指说话当天，如 Hoy es lunes。" }
+      ],
+      "collocations": ["hoy en día", "desde hoy", "hoy mismo"],
+      "examples": ["Hoy tengo clase de español.", "Hoy en día trabajo desde casa."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "ayer",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "昨天", "usage": "常与过去时连用，如 Ayer fui al cine。" }
+      ],
+      "collocations": ["ayer por la tarde", "desde ayer", "anteayer"],
+      "examples": ["Ayer vi una película.", "Llegó ayer por la noche."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "después",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "之后、后来", "usage": "después de 后接名词或不定式。" }
+      ],
+      "collocations": ["después de", "poco después", "días después"],
+      "examples": ["Después hablamos, ¿vale?", "Después de comer salimos."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "antes",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "以前、之前", "usage": "antes de 后接名词或不定式。" }
+      ],
+      "collocations": ["antes de", "antes de ayer", "cuanto antes"],
+      "examples": ["Antes vivía en otra ciudad.", "Llámame antes de salir."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "también",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "也、还", "usage": "肯定句中使用，否定句用 tampoco。" }
+      ],
+      "collocations": ["yo también", "también hay", "pero también"],
+      "examples": ["Yo también quiero practicar.", "Habla español y también inglés."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "mucho",
+      "partOfSpeech": "形容词 / 副词",
+      "meanings": [
+        { "meaning": "很多", "usage": "修饰名词时有性数变化：mucho tiempo、muchas cosas。" },
+        { "meaning": "很、非常", "usage": "修饰动词或比较级：Trabajo mucho。" }
+      ],
+      "collocations": ["mucho tiempo", "muchas gracias", "mucho más"],
+      "examples": ["Tengo mucho trabajo hoy.", "Muchas gracias por tu ayuda."],
+      "forms": ["mucha", "muchos", "muchas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "poco",
+      "partOfSpeech": "形容词 / 副词",
+      "meanings": [
+        { "meaning": "少、不多", "usage": "修饰名词时有性数变化：poco dinero、pocas veces。" },
+        { "meaning": "a poco / un poco", "usage": "un poco 表示一点儿。" }
+      ],
+      "collocations": ["un poco", "poco a poco", "hace poco"],
+      "examples": ["Hablo un poco de español.", "Poco a poco vas a mejorar."],
+      "forms": ["poca", "pocos", "pocas"],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "bien",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "好、很好", "usage": "修饰动词或表示状态，如 Estoy bien。" }
+      ],
+      "collocations": ["estar bien", "muy bien", "más bien"],
+      "examples": ["¿Estás bien?", "Hoy dormí muy bien."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "mal",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "不好、糟糕", "usage": "修饰动词或表示状态，如 Me siento mal。" }
+      ],
+      "collocations": ["sentirse mal", "estar mal", "menos mal"],
+      "examples": ["Hoy me siento mal.", "Menos mal que llegaste."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "porque",
+      "partOfSpeech": "连词",
+      "meanings": [
+        { "meaning": "因为", "usage": "引出原因，回答 ¿Por qué...?" }
+      ],
+      "collocations": ["porque sí", "es porque", "¿por qué?"],
+      "examples": ["No fui porque estaba cansado.", "¿Por qué estudias español?"],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "aunque",
+      "partOfSpeech": "连词",
+      "meanings": [
+        { "meaning": "虽然、尽管", "usage": "后接陈述式表示事实，接虚拟式表示假设。" }
+      ],
+      "collocations": ["aunque no", "aunque sea", "aunque parezca"],
+      "examples": ["Aunque es tarde, voy a estudiar.", "Iremos aunque llueva."],
+      "forms": [],
+      "cefr": "A1",
+      "reviewStatus": "reviewed"
+    },
+    {
+      "headword": "entonces",
+      "partOfSpeech": "副词",
+      "meanings": [
+        { "meaning": "那么、当时", "usage": "可表示推论，也可指过去的那个时候。" }
+      ],
+      "collocations": ["pues entonces", "desde entonces", "y entonces"],
+      "examples": ["Entonces, ¿qué hacemos?", "Desde entonces no lo he visto."],
+      "forms": [],
+      "cefr": "A1",
       "reviewStatus": "reviewed"
     }
   ]

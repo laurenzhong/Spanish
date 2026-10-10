@@ -1,4 +1,5 @@
 import type { ContentSourceAdapter } from "../adapters";
+import { isOwnerAuthorizedReviewerReference } from "../domain";
 import type { ContentAcquisitionRepository, ContentCandidateRecord, ContentSourceRecord, ContentWorkflowRepository } from "../repositories";
 import { preparePodcastCandidateForReview } from "./prepare-podcast-candidate-for-review";
 import { prepareVideoCandidateForReview } from "./prepare-video-candidate-for-review";
@@ -27,7 +28,7 @@ function hasCurrentMediaApprovals(candidate: Readonly<{ revision: number }>, rev
     review.dimension === dimension
     && review.status === "approved"
     && review.candidateRevision === candidate.revision
-    && review.reviewerReference === "codex-ai-owner-authorized-review"));
+    && isOwnerAuthorizedReviewerReference(review.reviewerReference)));
 }
 
 export type DailyMediaPipelineFailure = Readonly<{

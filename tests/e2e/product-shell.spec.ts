@@ -24,7 +24,17 @@ test("shows the public introduction without requiring a session", async ({
       name: "把认识的西语，变成真正说得出口的话。",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /开始第一次练习/ }).first()).toBeVisible();
+  // The landing refresh replaced the removed learning hero, so the real entry
+  // points are the header destinations plus the two 进入学习 calls to action.
+  // Phone widths intentionally hide the first two destinations, and a hidden
+  // link has no accessible role, so only the shared CTA is asserted there.
+  if ((page.viewportSize()?.width ?? 0) > 620) {
+    const publicNavigation = page.getByRole("navigation", { name: "公开页面导航" });
+    await expect(publicNavigation.getByRole("link", { name: "产品方式" })).toHaveAttribute("href", "#how-it-works");
+    await expect(publicNavigation.getByRole("link", { name: "阅读" })).toHaveAttribute("href", "/login?next=%2Fread");
+    await expect(publicNavigation.getByRole("link", { name: "登录" })).toHaveAttribute("href", "/login");
+  }
+  await expect(page.getByRole("link", { name: /进入学习/ }).first()).toHaveAttribute("href", "/login?next=%2Flearn");
 });
 
 test("redirects anonymous product traffic to email OTP login", async ({
@@ -61,13 +71,15 @@ test("navigates between all four product areas", async ({ page }) => {
     { name: "探索", path: "/explore", heading: "校园办事：注册与材料" },
     { name: "对话", path: "/chat", heading: "Lucía Martín" },
     { name: "我的", path: "/me", heading: "我的进步" },
-    { name: "学习", path: "/learn", heading: "看点、听点真实西语" },
+    { name: "学习", path: "/learn", testId: "media-library" },
   ]) {
     await navigation.getByRole("link", { name: destination.name }).click();
     await expect(page).toHaveURL(new RegExp(`${destination.path}$`));
-    await expect(
-      page.getByRole("heading", { name: destination.heading }),
-    ).toBeVisible();
+    if ("testId" in destination) {
+      await expect(page.getByTestId(destination.testId!)).toBeVisible();
+    } else {
+      await expect(page.getByRole("heading", { name: destination.heading! })).toBeVisible();
+    }
     await expect(
       navigation.getByRole("link", { name: destination.name }),
     ).toHaveAttribute("aria-current", "page");
@@ -411,7 +423,7 @@ test("keeps legacy learning query state from restoring the former task card", as
 
   await page.goto("/learn?focus=needs");
   await expect(page).toHaveURL(/\/learn\?focus=needs$/);
-  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
+  await expect(page.getByTestId("media-library")).toBeVisible();
   await expect(page.locator(".focus-card")).toHaveCount(0);
 });
 
@@ -434,10 +446,70 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("link", { name: "回到今天" })).toHaveCount(0);
   await expect(page.getByText("安静输入", { exact: true })).toHaveCount(0);
   await expect(page.getByText("读一篇真实的西语文章", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "公共文章" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "我的文章" })).toHaveAttribute("href", "/read?saved=1");
+  const readingNavigation = page.getByRole("navigation", { name: "阅读内容类型" });
+  await expect(readingNavigation).toBeVisible();
+  await expect(readingNavigation.getByRole("link")).toHaveText(["文章", "词汇", "短语", "语料", "已保存"]);
+  await expect(readingNavigation.getByRole("link", { name: "文章" })).toHaveAttribute("aria-current", "page");
+  // Regression guard: the sliding underline marks the current page, so the
+  // search box must neither sit flush against it nor be reintroduced behind a
+  // section rule.
+  const underlinedTab = page.locator('.read-section-navigation a[aria-current="page"]');
+  const searchFieldBox = await page.locator(".read-search__field").boundingBox();
+  const underlinedTabBox = await underlinedTab.boundingBox();
+  expect(searchFieldBox).not.toBeNull();
+  expect(underlinedTabBox).not.toBeNull();
+  expect((searchFieldBox?.y ?? 0) - ((underlinedTabBox?.y ?? 0) + (underlinedTabBox?.height ?? 0))).toBeGreaterThanOrEqual(9);
+  // No section rule may be reintroduced above the search field.
+  const sectionRuleBorders = await page.evaluate(() =>
+    [".read-section-navigation", ".read-library__toolbar"].map((selector) => {
+      const element = document.querySelector(selector);
+      return element ? getComputedStyle(element).borderBottomWidth : "missing";
+    }),
+  );
+  expect(sectionRuleBorders).toEqual(["0px", "0px"]);
+  // The single accent underline is a transform-driven element: it settles on the
+  // current page, follows the pointer while it is inside the navigation, and
+  // returns to the current page when the pointer leaves.
+  const navigationIndicator = page.locator(".read-section-navigation__indicator");
+  const vocabularyTab = readingNavigation.getByRole("link", { name: "词汇" });
+  await expect(readingNavigation).toHaveAttribute("data-indicator", "ready");
+  await expect(navigationIndicator).toHaveCSS("opacity", "1");
+  const indicatorBox = await navigationIndicator.boundingBox();
+  const indicatorViewport = page.viewportSize() ?? { width: 0, height: 0 };
+  expect(indicatorBox).not.toBeNull();
+  expect(indicatorBox?.width ?? 0).toBeGreaterThan(0);
+  expect(indicatorBox?.width ?? 0).toBeLessThan(indicatorViewport.width);
+  // The indicator is measured against the navigation's own left edge, so compare
+  // the rendered translate with the tab's offset inside the navigation.
+  const vocabularyTabOffset = await vocabularyTab.evaluate((element) => {
+    const link = element.getBoundingClientRect();
+    const navigation = element.closest(".read-section-navigation");
+    if (!navigation) return null;
+    return link.left - navigation.getBoundingClientRect().left + navigation.scrollLeft;
+  });
+  const activeTabOffset = await underlinedTab.evaluate((element) => {
+    const link = element.getBoundingClientRect();
+    const navigation = element.closest(".read-section-navigation");
+    if (!navigation) return null;
+    return link.left - navigation.getBoundingClientRect().left + navigation.scrollLeft;
+  });
+  expect(vocabularyTabOffset).not.toBeNull();
+  const translateX = async () => Number(/matrix\(1, 0, 0, 1, (-?[\d.]+), 0\)/u.exec(await navigationIndicator.evaluate((element) => getComputedStyle(element).transform))?.[1] ?? Number.NaN);
+
+  await vocabularyTab.hover();
+  await expect.poll(translateX).toBeCloseTo(vocabularyTabOffset ?? 0, 1);
+  const navigationBox = await readingNavigation.boundingBox();
+  expect(navigationBox).not.toBeNull();
+  await page.mouse.move(4, (navigationBox?.y ?? 0) + (navigationBox?.height ?? 0) + 40);
+  await expect.poll(translateX).toBeCloseTo(activeTabOffset ?? 0, 1);
+  // The public shelf already is `文章` in the navigation above, so the personal
+  // entry must stay the only secondary tab.
+  await expect(page.getByRole("link", { name: "公共文章" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "我的文章" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Web Sites" })).toHaveCount(0);
-  await expect(page.getByText("105 篇", { exact: true })).toBeVisible();
+  // The shelf dropped its "N 篇" counter when it became the public-only list;
+  // the first page of the paginated article list is the honest equivalent.
+  await expect(page.locator("article.read-article-row")).toHaveCount(12);
   await expect(page.getByRole("navigation", { name: "文章分页" })).toBeVisible();
   await expect(page.getByLabel("第 1 页，当前页")).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("link", { name: "下一页" })).toHaveAttribute("href", "/read?page=2");
@@ -484,12 +556,19 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   await expect(page.getByRole("textbox", { name: "文章个人笔记" })).toHaveCount(0);
   await page.getByText("读完后练口语", { exact: true }).click();
   await expect(page.getByTestId("article-transfer")).toBeVisible();
+  // The public shelf keeps the save star; unsaving must be reflected there.
   await page.goto("/read");
-  await page.getByRole("link", { name: "我的文章" }).click();
-  await expect(page).toHaveURL(/\/read\?saved=1$/);
-  await expect(page.getByRole("link", { name: "Una conversación que empieza con un café", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /取消收藏：Una conversación que empieza con un café/ }).click();
-  await expect(page.getByRole("heading", { name: "还没有收藏文章" })).toBeVisible();
+  await page.getByRole("button", { name: /取消收藏：Una conversación que empieza con un café/u }).click();
+  await expect(page.getByRole("status")).toContainText("已取消收藏。");
+  await expect(page.getByRole("button", { name: /收藏文章：Una conversación que empieza con un café/u })).toBeVisible();
+  // The personal shelf is the only entry point for saved articles now. The e2e
+  // server has no DATABASE_URL, so the shelf must report itself rather than
+  // render rows it cannot read.
+  await page.goto("/read/saved-items?itemType=article");
+  const shelfNavigation = page.getByRole("navigation", { name: "已保存内容类型" });
+  await expect(shelfNavigation.getByRole("link", { name: "文章" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".saved-item-card")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "已保存内容暂时不可用" })).toBeVisible();
 });
 
 test("redirects readers to login when their save session expires", async ({ page }) => {
@@ -524,6 +603,27 @@ test("keeps the profile empty state focused before evidence exists", async ({
   await expect(heatmap).toBeVisible();
   await expect(heatmap.getByTestId("learning-heatmap-empty")).toBeVisible();
   await expect(heatmap.locator("[data-date]")).toHaveCount(0);
+
+  // The section navigation shares the one sliding underline: it rests on the
+  // active section and moves with the pointer without leaving a static
+  // underline behind on the first item.
+  const sectionNavigation = page.getByRole("navigation", { name: "我的页面分区" });
+  const sectionIndicator = page.locator(".profile-page__section-nav-indicator");
+  await expect(sectionNavigation).toHaveAttribute("data-indicator", "ready");
+  await expect(sectionIndicator).toHaveCSS("opacity", "1");
+  const sectionIndicatorBox = await sectionIndicator.boundingBox();
+  const activeSectionBox = await sectionNavigation.getByRole("link", { name: "能力与活动" }).boundingBox();
+  expect(sectionIndicatorBox).not.toBeNull();
+  expect(activeSectionBox).not.toBeNull();
+  expect(Math.abs((sectionIndicatorBox?.x ?? 0) - (activeSectionBox?.x ?? 0))).toBeLessThan(1);
+  expect(Math.abs((sectionIndicatorBox?.width ?? 0) - (activeSectionBox?.width ?? 0))).toBeLessThan(1);
+  const relationshipsTab = sectionNavigation.getByRole("link", { name: "关系隐私" });
+  await relationshipsTab.hover();
+  await expect.poll(async () => (await sectionIndicator.boundingBox())?.x ?? 0).toBeGreaterThan((sectionIndicatorBox?.x ?? 0) + 10);
+  await relationshipsTab.click();
+  await expect(page).toHaveURL(/#profile-relationships$/);
+  await expect(relationshipsTab).toHaveAttribute("aria-current", "page");
+  await expect(sectionNavigation.getByRole("link", { name: "能力与活动" })).not.toHaveAttribute("aria-current");
 });
 
 test("shows provider settings and keeps them usable across the release viewport matrix", async ({ page }) => {

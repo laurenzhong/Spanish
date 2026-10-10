@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { assertContentWorkflowOwner } from "@/src/shared/auth/content-workflow-owner";
 
+import { OWNER_AUTHORIZED_REVIEWER_REFERENCE } from "../domain";
 import type { ContentWorkflowRepository } from "../repositories";
 import { submitCandidateReviewSchema, type SubmitCandidateReviewInput } from "../schemas";
 
-const REVIEWER_REFERENCE = "codex-ai-owner-authorized-review";
+const REVIEWER_REFERENCE = OWNER_AUTHORIZED_REVIEWER_REFERENCE;
 
 export async function submitCandidateReview(
   repository: ContentWorkflowRepository,

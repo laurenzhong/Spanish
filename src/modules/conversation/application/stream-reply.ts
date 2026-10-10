@@ -11,7 +11,8 @@ import {
   generateCharacterReply,
 } from "./generate-character-reply";
 import { deriveReplyOpenTopics, type ReplyContext } from "./build-reply-context";
-import { containsForeignScript, planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
+import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
+import { containsUnsupportedScript, requestedNonSpanishLanguage } from "../domain/language-purity";
 import { getConversationCharacter } from "../domain/character-catalog";
 
 export type StreamReplyProviderObservation = Readonly<{
@@ -285,7 +286,9 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   if (!normalized.trim() || /\b(?:system prompt|memory permissions|provider details|mastery|confidence|evidence_events)\b/iu.test(normalized)) {
     return false;
   }
-  if (containsForeignScript(text)) return false;
+  // Spanish is the default; a stray Chinese fragment is the reported defect and
+  // must not reach the user. Only an explicit in-conversation request unlocks it.
+  if (containsUnsupportedScript(text) && !requestedNonSpanishLanguage(context.userMessage)) return false;
   const plan = planReply({
     userMessage: context.userMessage,
     relationshipStage: context.relationshipStage,

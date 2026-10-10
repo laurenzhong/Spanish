@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import { createDrizzleMediaRepository, listMedia, mediaListQuerySchema } from "@/src/modules/media";
+import { listMedia } from "@/src/modules/media/application";
+import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
+import { mediaListQuerySchema } from "@/src/modules/media/schemas";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -21,15 +23,14 @@ export default async function LearnPage({ searchParams }: Readonly<{ searchParam
   const parsed = mediaListQuerySchema.safeParse({
     search: first(raw.search),
     kind: first(raw.kind),
-    topic: first(raw.topic),
     region: first(raw.region),
     cefr: first(raw.cefr),
     duration: first(raw.duration),
     sort: first(raw.sort),
     cursor: first(raw.cursor),
-    pageSize: 18,
+    pageSize: 24,
   });
-  const query = parsed.success ? parsed.data : mediaListQuerySchema.parse({ pageSize: 18 });
+  const query = parsed.success ? parsed.data : mediaListQuerySchema.parse({ pageSize: 24 });
   if (!process.env.DATABASE_URL) {
     return <LearnPageContent query={query} result={{ items: [], nextCursor: null, hasMore: false }} unavailable />;
   }
@@ -38,6 +39,9 @@ export default async function LearnPage({ searchParams }: Readonly<{ searchParam
   let result;
   let unavailable = false;
   try {
+    // Let the database query finish. A cold serverless connection can take
+    // longer than two seconds; treating that as an empty library hides real
+    // published media and makes the page disagree with the media API.
     result = await listMedia(createDrizzleMediaRepository(getDatabase()), query, user?.id);
   } catch {
     result = { items: [], nextCursor: null, hasMore: false };

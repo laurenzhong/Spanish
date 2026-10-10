@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   commitMemories,
   createDrizzleMemoryRepository,
+  deleteMemoriesForSourceMessage,
   type MemoryCandidate,
 } from "@/src/modules/memory";
 import * as schema from "@/src/shared/db/schema";
@@ -112,5 +113,34 @@ describe("memory persistence and sharing", () => {
     expect(await repository.deleteMemory(userA, memoryId!)).toBe(true);
     expect(await database.select().from(schema.memorySharingPermissions).where(eq(schema.memorySharingPermissions.memoryId, memoryId!))).toHaveLength(0);
     expect(await repository.listMemories(userA, "lucia")).toHaveLength(0);
+  });
+
+  it("deletes a memory by source message before the source message is removed", async () => {
+    const sourceMessageId = "20000000-0000-4000-8000-000000000053";
+    // This fixture intentionally uses the legacy migration set below, which
+    // predates the later `messages.source_type` column. Insert only columns
+    // present in that schema so the regression remains focused on the memory
+    // foreign-key lifecycle rather than migration drift.
+    await client.exec(`insert into messages (id, user_id, conversation_id, character_id, client_message_id, role, status, content, completed_at)
+      values ('${sourceMessageId}', '${userA}', '20000000-0000-4000-8000-000000000051', '${luciaId}', 'memory-source-message', 'user', 'completed', '这是产生关系记忆的消息', now())`);
+
+    const repository = createDrizzleMemoryRepository(database);
+    const [inserted] = await commitMemories({
+      repository,
+      completed: true,
+      candidates: [candidate({
+        candidateId: "candidate-db-source-message",
+        sourceMessageId,
+      })],
+    });
+    expect(inserted?.memory?.sourceMessageId).toBe(sourceMessageId);
+
+    await expect(deleteMemoriesForSourceMessage(repository, userA, sourceMessageId)).resolves.toBe(1);
+    expect(await database
+      .select()
+      .from(schema.relationshipMemories)
+      .where(eq(schema.relationshipMemories.sourceMessageId, sourceMessageId))).toHaveLength(0);
+
+    await database.delete(schema.messages).where(eq(schema.messages.id, sourceMessageId));
   });
 });

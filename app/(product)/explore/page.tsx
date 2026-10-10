@@ -29,31 +29,29 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
     // the complete interaction flow without publishing unreviewed material.
     allowDraft: process.env.NODE_ENV !== "production",
   } as const;
-  let dashboard;
-  try {
-    dashboard = await getExploreDashboardForUser(
+  const dashboardPromise = getExploreDashboardForUser(
       new BundleExploreRepository(),
       userStateRepository,
       user.id,
       dashboardOptions,
-    );
-  } catch {
+    ).catch(() =>
     // User state is auxiliary to the content index. If the database is
     // temporarily unreachable, keep the explore goals and packs usable while
     // clearly marking persistence as unavailable in the DTO.
-    dashboard = await getExploreDashboardForUser(
+      getExploreDashboardForUser(
       new BundleExploreRepository(),
       emptyExploreUserStateRepository,
       user.id,
       dashboardOptions,
+      ),
     );
-  }
   const params = await searchParams;
-  const library = await getExploreLibraryForUser(
+  const libraryPromise = getExploreLibraryForUser(
     new CatalogExploreLibraryRepository(database ? createDrizzleScenarioLibraryRepository(database) : undefined),
     user.id,
     dashboardOptions,
   );
+  const [dashboard, library] = await Promise.all([dashboardPromise, libraryPromise]);
   const filter = first(params.filter);
   const view = first(params.view);
   const initialView: ExploreView | undefined = view === "scenarios" || view === "expressions" || view === "packs" ? view : undefined;

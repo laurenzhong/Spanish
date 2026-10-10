@@ -93,7 +93,7 @@ export function CandidateReviewWorkbench({ initialData }: Readonly<{ initialData
 
         <aside className="candidate-review__controls" aria-labelledby="candidate-review-title">
           <h2 id="candidate-review-title">审核门禁</h2>
-          <p>审核身份：Codex AI（所有者授权），不是人工母语者或教学专家签字。</p>
+          <p>审核身份：DSH AI（所有者授权），不是人工母语者或教学专家签字。历史 `codex-ai-owner-authorized-review` 记录保持不变，新记录写入 `dsh-ai-owner-authorized-review`。</p>
           <label htmlFor="review-notes">审核备注</label>
           <textarea id="review-notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={4000} placeholder="记录判断依据或需要修改的内容" />
           {dimensions.map(([dimension, label]) => {

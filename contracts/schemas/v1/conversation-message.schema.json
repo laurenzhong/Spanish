@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/conversation-message.schema.json",
+  "title": "Conversation history message v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "role", "text", "complete", "status", "withdrawn", "createdAt"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "clientMessageId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "generationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "role": { "enum": ["user", "character"] },
+    "text": { "type": "string" },
+    "complete": { "type": "boolean" },
+    "status": { "enum": ["completed", "withdrawn"] },
+    "withdrawn": { "type": "boolean" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourceType": { "type": "string", "minLength": 1, "maxLength": 80 }
+  }
+}

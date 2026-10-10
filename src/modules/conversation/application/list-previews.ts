@@ -13,6 +13,7 @@ export type ConversationPreview = Readonly<{
   isPinned: boolean;
   isMuted: boolean;
   sortRank: number | null;
+  unreadCount?: number;
 }>;
 
 export function toConversationPreview(record: ConversationListRecord): ConversationPreview {
@@ -28,6 +29,7 @@ export function toConversationPreview(record: ConversationListRecord): Conversat
     isPinned: record.isPinned,
     isMuted: record.isMuted,
     sortRank: record.sortRank,
+    unreadCount: record.unreadCount ?? 0,
     lastMessage: record.lastMessage
       ? { role: record.lastMessage.role, snippet: record.lastMessage.content.slice(0, 160), createdAt: record.lastMessage.createdAt.toISOString() }
       : null,

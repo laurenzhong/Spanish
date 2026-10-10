@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 
-import { and, desc, eq, gt, inArray, isNull, max, or } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lt, lte, max, or } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -112,16 +112,22 @@ function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date):
   }, now);
 }
 
+type MediaCursor = Readonly<{ id: string; curatedAt?: string; stableKey?: string }>;
+
 function encodeCursor(item: MediaCard): string {
-  return Buffer.from(JSON.stringify({ id: item.id }), "utf8").toString("base64url");
+  return Buffer.from(JSON.stringify({ id: item.id, curatedAt: item.curatedAt, stableKey: item.stableKey }), "utf8").toString("base64url");
 }
 
-function decodeCursor(value: string | undefined): string | null {
+function decodeCursor(value: string | undefined): MediaCursor | null {
   if (!value) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as { id?: unknown };
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as { id?: unknown; curatedAt?: unknown; stableKey?: unknown };
     if (typeof parsed.id !== "string") throw new Error();
-    return parsed.id;
+    return {
+      id: parsed.id,
+      curatedAt: typeof parsed.curatedAt === "string" ? parsed.curatedAt : undefined,
+      stableKey: typeof parsed.stableKey === "string" ? parsed.stableKey : undefined,
+    };
   } catch {
     throw new Error("MEDIA_CURSOR_INVALID");
   }
@@ -156,7 +162,7 @@ export function createDrizzleMediaRepository(
 ): DrizzleMediaRepository {
   const now = dependencies.now ?? (() => new Date());
 
-  async function joinedRows(stableKey?: string): Promise<JoinedRow[]> {
+  async function joinedRows(stableKey?: string, query?: ParsedMediaListQuery): Promise<JoinedRow[]> {
     const published = and(
       eq(schema.mediaVersions.status, "published"),
       eq(schema.mediaVersions.copyrightStatus, "cleared"),
@@ -166,6 +172,28 @@ export function createDrizzleMediaRepository(
         and(eq(schema.mediaItems.kind, "video"), eq(schema.mediaAssets.kind, "video"), eq(schema.mediaAssets.providerKey, "bunny-storage")),
       ),
     );
+    const filters = [published];
+    if (stableKey) filters.push(eq(schema.mediaItems.stableKey, stableKey));
+    if (query?.kind) filters.push(eq(schema.mediaItems.kind, query.kind));
+    if (query?.cefr) filters.push(eq(schema.mediaVersions.cefr, query.cefr));
+    if (query?.region === "unknown") filters.push(isNull(schema.mediaVersions.region));
+    if (query?.region && query.region !== "unknown" && query.region !== "latin-amer") {
+      filters.push(eq(schema.mediaVersions.region, query.region));
+    }
+    if (query?.duration === "short") filters.push(lte(schema.mediaVersions.durationMs, 5 * 60_000 - 1));
+    if (query?.duration === "medium") filters.push(and(gte(schema.mediaVersions.durationMs, 5 * 60_000), lte(schema.mediaVersions.durationMs, 20 * 60_000)));
+    if (query?.duration === "long") filters.push(gt(schema.mediaVersions.durationMs, 20 * 60_000));
+    const cursor = query?.cursor ? decodeCursor(query.cursor) : null;
+    const canUseDatabaseCursor = Boolean(cursor?.curatedAt && cursor.stableKey && !query?.search && !query?.topic && query?.sort === "recently_added");
+    if (canUseDatabaseCursor && cursor?.curatedAt && cursor.stableKey) {
+      const curatedAt = new Date(cursor.curatedAt);
+      if (Number.isNaN(curatedAt.getTime())) throw new Error("MEDIA_CURSOR_INVALID");
+      filters.push(or(
+        lt(schema.mediaVersions.curatedAt, curatedAt),
+        and(eq(schema.mediaVersions.curatedAt, curatedAt), gt(schema.mediaItems.stableKey, cursor.stableKey)),
+      ));
+    }
+    const canLimitToPage = Boolean(query && query.sort === "recently_added" && !query.search && !query.topic && (!query.cursor || canUseDatabaseCursor));
     return database
       .select({ item: schema.mediaItems, version: schema.mediaVersions, asset: schema.mediaAssets })
       .from(schema.mediaItems)
@@ -177,9 +205,9 @@ export function createDrizzleMediaRepository(
         ),
       )
       .innerJoin(schema.mediaAssets, eq(schema.mediaAssets.mediaVersionId, schema.mediaVersions.id))
-      .where(stableKey ? and(published, eq(schema.mediaItems.stableKey, stableKey)) : published)
+      .where(and(...filters))
       .orderBy(desc(schema.mediaVersions.curatedAt), schema.mediaItems.stableKey)
-      .limit(500);
+      .limit(canLimitToPage ? (query?.pageSize ?? 18) + 1 : 500);
   }
 
   async function progressByVersion(userId: string | undefined, versionIds: readonly string[]) {
@@ -566,7 +594,7 @@ export function createDrizzleMediaRepository(
     },
 
     async list(query, userId) {
-      const rows = await joinedRows();
+      const rows = await joinedRows(undefined, query);
       const selected = new Map<string, JoinedRow>();
       for (const row of rows) {
         if (!selected.has(row.item.stableKey) && isPlayable(row, now())) selected.set(row.item.stableKey, row);
@@ -584,11 +612,13 @@ export function createDrizzleMediaRepository(
         itemsWithActivity.sort((left, right) => (right.lastOpenedAt?.getTime() ?? 0) - (left.lastOpenedAt?.getTime() ?? 0));
       }
       let items = itemsWithActivity.map(({ item }) => item);
-      const cursorId = decodeCursor(query.cursor);
-      if (cursorId) {
-        const index = items.findIndex((item) => item.id === cursorId);
-        if (index < 0) throw new Error("MEDIA_CURSOR_INVALID");
-        items = items.slice(index + 1);
+      const cursor = decodeCursor(query.cursor);
+      if (cursor) {
+        if (!cursor.curatedAt || !cursor.stableKey) {
+          const index = items.findIndex((item) => item.id === cursor.id);
+          if (index < 0) throw new Error("MEDIA_CURSOR_INVALID");
+          items = items.slice(index + 1);
+        }
       }
       const hasMore = items.length > query.pageSize;
       const page = items.slice(0, query.pageSize);

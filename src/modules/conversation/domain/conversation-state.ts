@@ -30,6 +30,7 @@ export type ConversationAction =
   | Readonly<{ type: "hydrate"; messages: readonly ConversationMessage[] }>
   | Readonly<{ type: "replace-hydrate"; messages: readonly ConversationMessage[]; staleMessageKeys: readonly string[] }>
   | Readonly<{ type: "submit"; text: string; clientMessageId: string; generationId: string; createdAt?: string }>
+  | Readonly<{ type: "queue"; text: string; clientMessageId: string; createdAt?: string }>
   | Readonly<{ type: "retry"; userMessageId: string; generationId: string }>
   | Readonly<{ type: "stream-event"; event: ConversationStreamEvent }>
   | Readonly<{ type: "cancel"; generationId: string }>
@@ -134,6 +135,21 @@ export function transitionConversationState(
       activeGenerationId: action.generationId,
       activeMessageId: null,
       error: null,
+    };
+  }
+
+  if (action.type === "queue") {
+    if (state.messages.some((message) => message.clientMessageId === action.clientMessageId)) return state;
+    return {
+      ...state,
+      messages: [...state.messages, {
+        id: action.clientMessageId,
+        clientMessageId: action.clientMessageId,
+        role: "user",
+        text: action.text,
+        complete: true,
+        createdAt: action.createdAt,
+      }],
     };
   }
 

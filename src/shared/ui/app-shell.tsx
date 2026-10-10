@@ -7,11 +7,16 @@ import { DesktopNavigation } from "@/src/shared/ui/desktop-navigation";
 
 type AppShellProps = Readonly<{
   children: ReactNode;
+  conversationCacheScope?: string;
 }>;
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, conversationCacheScope }: AppShellProps) {
   return (
-    <div className="product-shell" data-testid="product-shell">
+    <div
+      className="product-shell"
+      data-testid="product-shell"
+      data-conversation-cache-scope={conversationCacheScope}
+    >
       <a className="skip-link" href="#main-content">
         跳到主要内容
       </a>

@@ -38,17 +38,22 @@ export function createDrizzleCharacterRepository<TResult extends PgQueryResultHK
 ): CharacterRepository {
   return {
     async findByStableVersion(stableKey, version) {
-      const [character] = await database
-        .select()
+      // The character row and its canon facts are read in one statement. This
+      // lookup gates every conversation open as well as publish/import, and a
+      // remote database bills the request in round trips rather than query
+      // cost. The left join preserves a character that has no facts yet.
+      const rows = await database
+        .select({ character: schema.characters, fact: schema.characterCanonFacts })
         .from(schema.characters)
+        .leftJoin(
+          schema.characterCanonFacts,
+          eq(schema.characterCanonFacts.characterId, schema.characters.id),
+        )
         .where(and(eq(schema.characters.stableKey, stableKey), eq(schema.characters.characterVersion, version)))
-        .limit(1);
-      if (!character) return null;
-      const facts = await database
-        .select()
-        .from(schema.characterCanonFacts)
-        .where(eq(schema.characterCanonFacts.characterId, character.id))
         .orderBy(asc(schema.characterCanonFacts.factKey), asc(schema.characterCanonFacts.canonVersion));
+      const character = rows[0]?.character;
+      if (!character) return null;
+      const facts = rows.flatMap((row) => (row.fact ? [row.fact] : []));
       return toPersistedCharacter(character, facts);
     },
 

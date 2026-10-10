@@ -9,6 +9,7 @@ import { publicUidColorIndex } from "@/src/modules/account/domain/public-uid";
 import { createDrizzleAccountRepository } from "@/src/modules/account/repositories";
 import { createSupabaseAvatarStorage } from "@/src/modules/account/storage";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
 import { API_VERSION } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -17,7 +18,7 @@ function errorResponse(requestId: string, code: string, message: string, status:
 }
 
 async function authenticatedUser(request: NextRequest) {
-  return (await verifyRequestUser(request)) ?? (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
+  return getRequestUser(request, { verifyRequestUser, getCurrentUser });
 }
 
 async function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>>>) {

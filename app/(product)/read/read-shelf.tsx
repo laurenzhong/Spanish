@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
-import type { GeneratedStoryCard } from "@/src/modules/reading/domain/generated-story";
 
 type ReadSort = "hot" | "newest" | "shortest";
 type ReadSource = "public" | "web";
@@ -20,9 +19,7 @@ type ReadShelfProps = Readonly<{
   minutes: string;
   source: ReadSource;
   sort: ReadSort;
-  savedOnly: boolean;
   initialReaderProgress?: Readonly<Record<string, ReaderProgressSummary>>;
-  generatedArticles?: readonly GeneratedStoryCard[];
 }>;
 
 type ReaderProgressSummary = Readonly<{
@@ -41,7 +38,23 @@ type StoredReaderState = Readonly<{
   lastOpenedAt?: string;
 }>;
 
+type SavedArticleState = Readonly<{
+  contextKey: string;
+  ids: ReadonlySet<string> | null;
+}>;
+
+type SavedArticleIdsRequest = Promise<ReadonlySet<string>>;
+
 const readerStoragePrefix = "reading-reader:v1:";
+
+async function fetchSavedArticleIds(): SavedArticleIdsRequest {
+  const response = await fetch("/api/v1/read/saved", { credentials: "same-origin" });
+  if (!response.ok) throw new Error("saved-unavailable");
+  const payload = (await response.json()) as { data?: { articleIds?: unknown } };
+  const ids = payload.data?.articleIds;
+  if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) throw new Error("saved-invalid");
+  return new Set(ids);
+}
 
 function topicLabel(topic: string): string {
   return topic.replace(/^topic\./u, "").replaceAll("-", " ");
@@ -92,10 +105,6 @@ function BookmarkIcon({ filled }: Readonly<{ filled: boolean }>) {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6.5 4.5h11v15l-5.5-3.2-5.5 3.2z" fill={filled ? "currentColor" : "none"} /></svg>;
 }
 
-function TrashIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4.5h6V7m-8 0 1 12h8l1-12M10 10v6m4-6v6" /></svg>;
-}
-
 function PaginationArrowIcon({ direction }: Readonly<{ direction: "previous" | "next" }>) {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d={direction === "previous" ? "m14.5 7-5 5 5 5" : "m9.5 7 5 5-5 5"} /></svg>;
 }
@@ -129,52 +138,43 @@ function getMobilePageNumbers(page: number, totalPages: number): ReadonlySet<num
   return new Set([1, page, totalPages]);
 }
 
-export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, savedOnly, initialReaderProgress, generatedArticles = [] }: ReadShelfProps) {
+/**
+ * The public article library. Personal content is deliberately absent here:
+ * saved articles, saved words/phrases, highlights and private AI stories all
+ * live on `/read/saved-items`, reached from `已保存` in the reading
+ * navigation. `?source=web` keeps its honest empty state for older links.
+ */
+export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr, minutes, source, sort, initialReaderProgress }: ReadShelfProps) {
   const [query, setQuery] = useState(search);
-  const [savedArticleIds, setSavedArticleIds] = useState<ReadonlySet<string> | null>(() => savedOnly
-    ? result.savedFilterAvailable ? new Set(result.articles.map((article) => article.id)) : null
-    : new Set());
+  const savedContextKey = source;
+  const [savedArticleState, setSavedArticleState] = useState<SavedArticleState>(() => ({ contextKey: savedContextKey, ids: null }));
   const [savingArticleIds, setSavingArticleIds] = useState<ReadonlySet<string>>(new Set());
   const [readerStates, setReaderStates] = useState<Readonly<Record<string, StoredReaderState>>>({});
   const [readerProgress] = useState<Readonly<Record<string, ReaderProgressSummary>>>(initialReaderProgress ?? {});
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
-  const [privateArticles, setPrivateArticles] = useState<readonly GeneratedStoryCard[]>(generatedArticles);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<"filter" | "add" | null>(null);
   const toolbarActionsRef = useRef<HTMLDivElement>(null);
   const hasFilters = Boolean(search || topic || cefr || minutes);
   const router = useRouter();
 
-  useEffect(() => {
-    if (source === "web") return;
-    let cancelled = false;
-    void fetch("/api/v1/read/saved", { credentials: "same-origin" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("saved-unavailable");
-        const payload = (await response.json()) as { data?: { articleIds?: unknown } };
-        const ids = payload.data?.articleIds;
-        if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) throw new Error("saved-invalid");
-        if (!cancelled) setSavedArticleIds(new Set(ids));
-      })
-      .catch(() => {
-        if (!cancelled) setSavedLoadFailed(true);
-      });
-    return () => { cancelled = true; };
-  }, [savedOnly, source]);
+  const savedArticleIds = savedArticleState.contextKey === savedContextKey ? savedArticleState.ids : null;
+  const shouldRefreshSavedIds = source !== "web";
 
-  const visibleArticles = useMemo(() => {
-    if (source === "web") return [];
-    const publicArticles = savedOnly ? result.articles.filter((article) => savedArticleIds?.has(article.id)) : result.articles;
-    return savedOnly ? [...publicArticles, ...privateArticles] : publicArticles;
-  }, [privateArticles, result.articles, savedArticleIds, savedOnly, source]);
-  const removedServerArticleCount = savedOnly && result.savedFilterAvailable && savedArticleIds !== null
-    ? result.articles.filter((article) => !savedArticleIds.has(article.id)).length
-    : 0;
-  const displayedArticleCount = source === "web" || savedArticleIds === null
-    ? null
-    : savedOnly
-      ? result.savedFilterAvailable ? Math.max(0, result.totalCount - removedServerArticleCount) + privateArticles.length : visibleArticles.length
-      : result.totalCount;
+  useEffect(() => {
+    if (!shouldRefreshSavedIds) return;
+    let cancelled = false;
+    void fetchSavedArticleIds()
+      .then((ids) => {
+        if (cancelled) return;
+        setSavedLoadFailed(false);
+        setSavedArticleState({ contextKey: savedContextKey, ids });
+      })
+      .catch(() => { if (!cancelled) setSavedLoadFailed(true); });
+    return () => { cancelled = true; };
+  }, [savedContextKey, shouldRefreshSavedIds]);
+
+  const visibleArticles = useMemo(() => source === "web" ? [] : result.articles, [result.articles, source]);
 
   useEffect(() => {
     const nextStates = Object.fromEntries(
@@ -217,24 +217,25 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
 
   const emptyHeading = source === "web"
     ? "外部网站暂未开放"
-    : savedOnly
-      ? savedLoadFailed ? "我的文章暂时无法读取" : "还没有收藏文章"
+    : savedLoadFailed && !visibleArticles.length
+      ? "文章暂时无法读取"
       : hasFilters ? "没有找到匹配的文章" : "可公开阅读的文章正在准备中";
   const emptyDescription = source === "web"
     ? "网站保存和正文解析需要来源许可，当前暂不提供。"
-    : savedOnly
-      ? savedLoadFailed ? "网络恢复或重新登录后再试。" : "收藏的文章和私人故事会显示在这里。"
+    : savedLoadFailed && !visibleArticles.length
+      ? "网络恢复或重新登录后再试。"
       : hasFilters ? "调整搜索或筛选条件后再试。" : "审核通过后，文章会显示在这里。";
 
   const toggleSaved = useCallback(async (articleId: string, currentlySaved: boolean) => {
     if (savingArticleIds.has(articleId)) return;
     const nextSaved = !currentlySaved;
     setSavingArticleIds((previous) => new Set(previous).add(articleId));
-    setSavedArticleIds((previous) => {
-      const next = new Set(previous ?? []);
+    // Optimistic flip; the server response below is authoritative.
+    setSavedArticleState((previous) => {
+      const next = new Set(previous.contextKey === savedContextKey ? previous.ids ?? [] : []);
       if (nextSaved) next.add(articleId);
       else next.delete(articleId);
-      return next;
+      return { contextKey: savedContextKey, ids: next };
     });
     try {
       const response = await fetch("/api/v1/read/saved", {
@@ -252,19 +253,20 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
       const payload = (await response.json()) as { data?: { saved?: unknown } };
       const saved = payload.data?.saved;
       if (typeof saved !== "boolean") throw new Error("save-invalid");
-      setSavedArticleIds((previous) => {
-        const next = new Set(previous ?? []);
+      setSavedArticleState((previous) => {
+        const next = new Set(previous.contextKey === savedContextKey ? previous.ids ?? [] : []);
         if (saved) next.add(articleId);
         else next.delete(articleId);
-        return next;
+        return { contextKey: savedContextKey, ids: next };
       });
       setToolNotice(saved ? "已收藏。" : "已取消收藏。");
     } catch {
-      setSavedArticleIds((previous) => {
-        const next = new Set(previous ?? []);
+      // Roll the optimistic flip back to the state before this attempt.
+      setSavedArticleState((previous) => {
+        const next = new Set(previous.contextKey === savedContextKey ? previous.ids ?? [] : []);
         if (currentlySaved) next.add(articleId);
         else next.delete(articleId);
-        return next;
+        return { contextKey: savedContextKey, ids: next };
       });
       setToolNotice("保存状态暂时无法更新，请稍后重试。");
     } finally {
@@ -274,37 +276,16 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
         return next;
       });
     }
-  }, [router, savingArticleIds]);
-
-  const deleteGenerated = useCallback(async (articleId: string) => {
-    if (!window.confirm("删除这篇私人故事？删除后无法恢复。")) return;
-    try {
-      const response = await fetch(`/api/v1/read/generated-stories/${encodeURIComponent(articleId)}`, { method: "DELETE", credentials: "same-origin" });
-      if (!response.ok) throw new Error("delete-unavailable");
-      const stableKey = articleId.slice(0, articleId.lastIndexOf("@"));
-      if (stableKey) window.localStorage.removeItem(`${readerStoragePrefix}${stableKey}`);
-      setPrivateArticles((previous) => previous.filter((item) => item.id !== articleId));
-      setToolNotice("私人故事已删除。");
-    } catch {
-      setToolNotice("文章暂时无法删除，请稍后重试。");
-    }
-  }, []);
+  }, [router, savedContextKey, savingArticleIds]);
 
   return (
     <div className="read-library">
-      <nav className="read-library__source-tabs" aria-label="文章来源">
-        <Link className={source === "public" && !savedOnly ? "is-selected" : ""} href={withParams({ search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>公共文章</Link>
-        <Link className={savedOnly ? "is-selected" : ""} href={withParams({ saved: "1", search, sort: sort !== "hot" ? sort : undefined, topic, cefr, minutes })}>我的文章</Link>
-        <span className="read-library__source-count">{displayedArticleCount === null ? "— 篇" : `${displayedArticleCount} 篇`}</span>
-      </nav>
-
       <section className="read-library__toolbar" aria-label="文章工具">
         <form className="read-search" method="get" role="search">
           <label htmlFor="read-search-input">搜索文章</label>
           <div className="read-search__field">
             <input id="read-search-input" name="search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、作者或主题" />
             {source === "web" ? <input type="hidden" name="source" value="web" /> : null}
-            {savedOnly ? <input type="hidden" name="saved" value="1" /> : null}
             {topic ? <input type="hidden" name="topic" value={topic} /> : null}
             {cefr ? <input type="hidden" name="cefr" value={cefr} /> : null}
             {minutes ? <input type="hidden" name="minutes" value={minutes} /> : null}
@@ -315,7 +296,7 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
         <div className="read-library__toolbar-actions" ref={toolbarActionsRef}>
           <label className="read-sort">
             <span>排序</span>
-            <select aria-label="排序" value={sort} onChange={(event) => router.push(withParams({ source: source === "web" ? "web" : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: event.target.value }))}>
+            <select aria-label="排序" value={sort} onChange={(event) => router.push(withParams({ source: source === "web" ? "web" : undefined, search, topic, cefr, minutes, sort: event.target.value }))}>
               <option value="hot">默认排序</option>
               <option value="newest">最新发布</option>
               <option value="shortest">用时最短</option>
@@ -325,7 +306,6 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
             <summary onClick={(event) => { event.preventDefault(); setOpenMenu((current) => current === "filter" ? null : "filter"); }}>筛选 <ChevronIcon /></summary>
             <form method="get" className="read-filter-menu__panel">
               {source === "web" ? <input type="hidden" name="source" value="web" /> : null}
-              {savedOnly ? <input type="hidden" name="saved" value="1" /> : null}
               {search ? <input type="hidden" name="search" value={search} /> : null}
               {sort !== "hot" ? <input type="hidden" name="sort" value={sort} /> : null}
               <label><span>主题</span><select name="topic" defaultValue={topic}><option value="">全部主题</option>{result.topics.map((value) => <option value={value} key={value}>{topicLabel(value)}</option>)}</select></label>
@@ -338,6 +318,7 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
             <summary onClick={(event) => { event.preventDefault(); setOpenMenu((current) => current === "add" ? null : "add"); }}>添加内容 <ChevronIcon /></summary>
             <div className="read-add-menu__panel">
               <Link href="/read/generate">生成私人故事</Link>
+              <Link href="/read/saved-items">查看已保存</Link>
             </div>
           </details>
         </div>
@@ -348,7 +329,7 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
       <section className="read-results" aria-label="文章列表">
         {visibleArticles.length > 0 ? (
           <div className="read-article-list">
-            {visibleArticles.map((article) => <ArticleListItem article={article} isSaved={article.origin === "generated" || savedArticleIds?.has(article.id) === true} isSaving={savingArticleIds.has(article.id)} onToggleSaved={toggleSaved} onDeleteGenerated={article.origin === "generated" ? deleteGenerated : undefined} readerState={readerStates[article.stableKey]} key={article.id} />)}
+            {visibleArticles.map((article) => <ArticleListItem article={article} isSaved={savedArticleIds?.has(article.id) === true} isSaving={savingArticleIds.has(article.id)} onToggleSaved={toggleSaved} readerState={readerStates[article.stableKey]} key={article.id} />)}
           </div>
         ) : (
           <div className="surface-state read-empty" role="status">
@@ -358,17 +339,17 @@ export function ReadShelf({ result, page = 1, pageSize = 12, search, topic, cefr
             {hasFilters && source !== "web" ? <Link className="text-link" href="/read">清除筛选 <span aria-hidden="true">→</span></Link> : null}
           </div>
         )}
-        {source === "public" && result.totalCount > pageSize && (!savedOnly || result.savedFilterAvailable) ? <ArticlePagination page={page} pageSize={pageSize} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} savedOnly={savedOnly} /> : null}
+        {source === "public" && result.totalCount > pageSize ? <ArticlePagination page={page} pageSize={pageSize} totalCount={result.totalCount} search={search} topic={topic} cefr={cefr} minutes={minutes} sort={sort} /> : null}
       </section>
     </div>
   );
 }
 
-function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, minutes, sort, savedOnly }: Readonly<{ page: number; pageSize: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort; savedOnly: boolean }>) {
+function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, minutes, sort }: Readonly<{ page: number; pageSize: number; totalCount: number; search: string; topic: string; cefr: string; minutes: string; sort: ReadSort }>) {
   const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
   const pageItems = getPaginationItems(page, totalPages);
   const mobilePageNumbers = getMobilePageNumbers(page, totalPages);
-  const hrefFor = (targetPage: number) => withParams({ page: targetPage > 1 ? String(targetPage) : undefined, saved: savedOnly ? "1" : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
+  const hrefFor = (targetPage: number) => withParams({ page: targetPage > 1 ? String(targetPage) : undefined, search, topic, cefr, minutes, sort: sort !== "hot" ? sort : undefined });
   return (
     <nav className="read-pagination" aria-label="文章分页">
       {page > 1
@@ -388,7 +369,7 @@ function ArticlePagination({ page, pageSize, totalCount, search, topic, cefr, mi
   );
 }
 
-function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, onDeleteGenerated, readerState }: Readonly<{ article: ArticleCardProjection; isSaved: boolean; isSaving: boolean; onToggleSaved: (articleId: string, currentlySaved: boolean) => void; onDeleteGenerated?: (articleId: string) => void; readerState?: StoredReaderState }>) {
+function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, readerState }: Readonly<{ article: ArticleCardProjection; isSaved: boolean; isSaving: boolean; onToggleSaved: (articleId: string, currentlySaved: boolean) => void; readerState?: StoredReaderState }>) {
   return (
     <article className={`read-article-row read-article-row--${article.format}`}>
       <div className="read-article-row__type" aria-hidden="true"><span>{formatLabel(article.format)}</span><i /></div>
@@ -401,9 +382,7 @@ function ArticleListItem({ article, isSaved, isSaving, onToggleSaved, onDeleteGe
         <div className="read-article-row__rule" aria-hidden="true"><span /></div>
         <div className="read-article-row__footer"><div className="read-article-row__topics">{article.topics.map((value) => <span key={value}>{topicLabel(value)}</span>)}</div></div>
       </div>
-      {article.origin === "generated" && onDeleteGenerated
-        ? <button className="read-article-row__save read-article-row__delete" type="button" aria-label={`删除私人故事：${article.title}`} onClick={() => onDeleteGenerated(article.id)}><TrashIcon /></button>
-        : <button className={`read-article-row__save${isSaved ? " is-saved" : ""}`} type="button" aria-label={isSaved ? `取消收藏：${article.title}` : `收藏文章：${article.title}`} title={isSaved ? "取消收藏" : "收藏文章"} aria-pressed={isSaved} aria-busy={isSaving} disabled={isSaving} onClick={() => onToggleSaved(article.id, isSaved)}><BookmarkIcon filled={isSaved} /></button>}
+      <button className={`read-article-row__save${isSaved ? " is-saved" : ""}`} type="button" aria-label={isSaved ? `取消收藏：${article.title}` : `收藏文章：${article.title}`} title={isSaved ? "取消收藏" : "收藏文章"} aria-pressed={isSaved} aria-busy={isSaving} disabled={isSaving} onClick={() => onToggleSaved(article.id, isSaved)}><BookmarkIcon filled={isSaved} /></button>
     </article>
   );
 }

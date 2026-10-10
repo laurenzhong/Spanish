@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/conversation-stream-request.schema.json",
+  "title": "Conversation stream request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text", "clientMessageId", "generationId"],
+  "properties": {
+    "characterVersion": { "const": 1 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "clientMessageId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "generationId": { "type": "string", "minLength": 1, "maxLength": 128 }
+  }
+}

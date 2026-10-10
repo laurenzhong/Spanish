@@ -14,6 +14,7 @@ const SOURCE_ID = "8df4da5f-1a83-489d-8d82-7f3d6a2e2d4e";
 // Reuse the original exact Readlang source identity so existing candidates remain
 // attached while the rights policy advances to the complete owner snapshot.
 const STABLE_KEY = "readlang.links.es";
+const LEGACY_STABLE_KEYS = ["readlang.links.es.v3", "readlang.links.es.v4"] as const;
 
 export function createReadlangLinksSourceInput() {
   const policy = readlangLinksPolicySchema.parse(policyJson);
@@ -49,7 +50,15 @@ async function main(): Promise<void> {
       // daily run; an explicit policy revision can still reset it deliberately.
       cursor: existing?.cursor ?? null,
     });
-    process.stdout.write(`${JSON.stringify({ stableKey: source.stableKey, policyVersion: source.rightsPolicy?.policyVersion, enabled: source.enabled, rightsStatus: source.rightsStatus })}\n`);
+    const disabledLegacy = await connection.client.unsafe(
+      `update acquisition_sources
+       set enabled = false, revision = revision + 1, updated_at = now()
+       where stable_key in (${LEGACY_STABLE_KEYS.map((_, index) => `$${index + 1}`).join(", ")})
+         and enabled = true
+       returning stable_key`,
+      [...LEGACY_STABLE_KEYS],
+    ) as Array<{ stable_key: string }>;
+    process.stdout.write(`${JSON.stringify({ stableKey: source.stableKey, policyVersion: source.rightsPolicy?.policyVersion, enabled: source.enabled, rightsStatus: source.rightsStatus, disabledLegacySources: disabledLegacy.map((row) => row.stable_key) })}\n`);
   } finally {
     await connection.client.end();
   }

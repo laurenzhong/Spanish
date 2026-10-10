@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { ArticleReaderProjection, ArticleTransferType } from "@/src/modules/content/domain";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import type { ArticleReaderProjection, ArticleReaderSegment, ArticleTransferType } from "@/src/modules/content/domain";
 import { articleTransferTask, articleTransferTypes, recommendedArticleTransferType } from "@/src/modules/content/domain";
 import { readingStatePatchSchema } from "@/src/modules/reading/domain/reading-state";
 import {
@@ -11,6 +11,7 @@ import {
   preferredSpanishVoice,
   readSpanishVoicePreference,
   subscribeToBrowserVoices,
+  textToSpeechErrorMessage,
   writeSpanishVoicePreference,
 } from "@/src/modules/providers/tts";
 import type { WordExplanation } from "@/src/modules/providers/word-explanation";
@@ -21,6 +22,7 @@ type Highlight = Readonly<{ id: string; text: string; position: number }>;
 type ReaderSettings = Readonly<{ fontSize: "default" | "large"; lineHeight: "default" | "relaxed"; width: "narrow" | "wide"; theme: "light" | "dim"; ttsRate: number }>;
 type ReaderState = Readonly<{ stableKey: string; version: number; contentHash: string; position: number; savedPhrases: readonly SavedPhrase[]; highlights: readonly Highlight[]; note: string; saved: boolean; settings?: ReaderSettings; transferDraft?: string; transferType?: ArticleTransferType | null; status?: "in_progress" | "completed"; lastOpenedAt?: string }>;
 type SelectedToken = Readonly<{ text: string; position: number; context: string; selectionType: "word" | "sentence"; tokenStart: number; tokenEnd: number }>;
+type StreamPreview = Partial<Pick<WordExplanation, "partOfSpeech" | "meaning" | "contextualMeaning" | "example">>;
 type TranslatorPosition = Readonly<{ left: number; top: number }>;
 type WordExplanationStatus = "idle" | "loading" | "success" | "error";
 type ReaderTool = "listen" | "explain" | "saved" | "settings";
@@ -55,6 +57,126 @@ function clampTranslatorPosition(left: number, top: number, width: number, heigh
   };
 }
 
+function tokenIndexOf(element: Element | null): number | null {
+  if (!element) return null;
+  const index = Number((element as HTMLElement).dataset.readerTokenIndex);
+  return Number.isFinite(index) ? index : null;
+}
+
+function tokenWithin(element: Element, direction: "forward" | "backward"): Element | null {
+  const direct = tokenIndexOf(element);
+  if (direct !== null) return element;
+  const tokens = element.querySelectorAll("[data-reader-token-index]");
+  if (!tokens.length) return null;
+  return direction === "forward" ? tokens[0] : tokens[tokens.length - 1];
+}
+
+function tokenWithinNode(node: Node, direction: "forward" | "backward"): Element | null {
+  return node.nodeType === Node.ELEMENT_NODE ? tokenWithin(node as Element, direction) : null;
+}
+
+function paragraphForNode(node: Node | null | undefined): HTMLElement | null {
+  if (!node) return null;
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  return element?.closest<HTMLElement>("[data-reader-position]") ?? null;
+}
+
+type SelectionBoundaries = Readonly<{ startNode: Node; startOffset: number; endNode: Node; endOffset: number; anchorNode: Node | null }>;
+
+function selectionBoundaries(selection: Selection): SelectionBoundaries | null {
+  const range = selection.rangeCount > 0 && typeof selection.getRangeAt === "function" ? selection.getRangeAt(0) : null;
+  if (range) return { startNode: range.startContainer, startOffset: range.startOffset, endNode: range.endContainer, endOffset: range.endOffset, anchorNode: selection.anchorNode ?? null };
+  if (!selection.anchorNode || !selection.focusNode) return null;
+  return { startNode: selection.anchorNode, startOffset: selection.anchorOffset ?? 0, endNode: selection.focusNode, endOffset: selection.focusOffset ?? 0, anchorNode: selection.anchorNode };
+}
+
+/**
+ * Reads the token index a selection boundary covers. Dragged selections often
+ * end on the whitespace between two words, on the paragraph itself, or outside
+ * the paragraph entirely (the pointer overshoots into the margins or the gap
+ * between paragraphs), so the boundary resolves to the nearest token in the
+ * direction the selection grows instead of dropping the whole gesture.
+ */
+function boundaryTokenIndex(paragraph: HTMLElement, node: Node, offset: number, direction: "forward" | "backward"): number | null {
+  if (!paragraph.contains(node)) {
+    const relation = paragraph.compareDocumentPosition(node);
+    if (relation & Node.DOCUMENT_POSITION_PRECEDING) return tokenIndexOf(tokenWithin(paragraph, "forward"));
+    if (relation & Node.DOCUMENT_POSITION_FOLLOWING) return tokenIndexOf(tokenWithin(paragraph, "backward"));
+    return null;
+  }
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  if (!element) return null;
+  const direct = tokenIndexOf(element.closest("[data-reader-token-index]"));
+  if (direct !== null) return direct;
+  let cursor: Node | null = node;
+  if (node === paragraph) {
+    const child = direction === "forward" ? offset : offset - 1;
+    cursor = paragraph.childNodes[Math.min(Math.max(child, 0), Math.max(paragraph.childNodes.length - 1, 0))] ?? null;
+  }
+  while (cursor && cursor !== paragraph) {
+    const index = tokenIndexOf(tokenWithinNode(cursor, direction));
+    if (index !== null) return index;
+    const sibling: Node | null = direction === "forward" ? cursor.nextSibling : cursor.previousSibling;
+    if (sibling) { cursor = sibling; continue; }
+    cursor = cursor.parentNode;
+  }
+  // The boundary sits at the edge of the paragraph: fall back to the nearest token.
+  return tokenIndexOf(tokenWithin(paragraph, direction === "forward" ? "backward" : "forward"));
+}
+
+/** Range boundaries keep the drag direction irrelevant: a range start always precedes its end. */
+function selectedTokenRange(paragraph: HTMLElement, selection: Selection): Readonly<{ start: number; end: number }> | null {
+  const boundaries = selectionBoundaries(selection);
+  if (!boundaries) return null;
+  const start = boundaryTokenIndex(paragraph, boundaries.startNode, boundaries.startOffset, "forward");
+  const end = boundaryTokenIndex(paragraph, boundaries.endNode, boundaries.endOffset, "backward");
+  if (start === null || end === null) return null;
+  return { start: Math.min(start, end), end: Math.max(start, end) };
+}
+
+type ReaderParagraphProps = Readonly<{
+  segment: ArticleReaderSegment;
+  highlighted: boolean;
+  listenTarget: boolean;
+  selectionStart: number;
+  selectionEnd: number;
+  tabbable: boolean;
+  onSelectToken: (text: string, position: number, context: string, tokenIndex: number, trigger: HTMLElement) => void;
+}>;
+
+/**
+ * One article paragraph. Rendering is memoized per paragraph so that selecting a
+ * sentence, streaming a translation or moving the reading position never rebuilds
+ * every word token in a 1,000+ word article.
+ *
+ * Word tokens stay out of the tab order while the reader is used with a pointer:
+ * Chrome focuses a focusable token on mousedown, and that focus cancels the
+ * browser's drag selection whenever the press lands on a word boundary, so
+ * sentences could not be dragged from the gap between words.
+ */
+const ReaderParagraph = memo(function ReaderParagraph({ segment, highlighted, listenTarget, selectionStart, selectionEnd, tabbable, onSelectToken }: ReaderParagraphProps) {
+  const words = useMemo(() => segment.text.split(/(\s+)/u), [segment.text]);
+  const className = [highlighted ? "is-highlighted" : "", listenTarget ? "is-listen-target" : ""].filter(Boolean).join(" ");
+  return <p
+    id={"segment-" + segment.position}
+    className={className}
+    aria-current={listenTarget ? "true" : undefined}
+    data-reader-position={segment.position}
+  >
+    {words.map((word, index) => /\s+/u.test(word)
+      ? word
+      : <span
+        key={segment.position + "-word-" + index}
+        className={["reader-token", selectionStart < 0 ? "" : index >= selectionStart && index <= selectionEnd ? "is-translation-selection" : ""].filter(Boolean).join(" ")}
+        data-reader-token-index={index}
+        role="button"
+        tabIndex={tabbable ? 0 : undefined}
+        onClick={(event) => onSelectToken(word, segment.position, segment.text, index, event.currentTarget)}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelectToken(word, segment.position, segment.text, index, event.currentTarget); } }}
+      >{word}</span>)}
+  </p>;
+});
+
 function ListenIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6l-5 4H5zm12-1.5a5 5 0 0 1 0 7" /></svg>;
 }
@@ -77,7 +199,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [activePosition, setActivePosition] = useState(0);
   const [selectedToken, setSelectedToken] = useState<SelectedToken | null>(null);
   const [wordExplanation, setWordExplanation] = useState<WordExplanation | null>(null);
-  const [streamPreview, setStreamPreview] = useState<Partial<Pick<WordExplanation, "partOfSpeech" | "meaning" | "contextualMeaning" | "example">>>({});
+  const [streamPreview, setStreamPreview] = useState<StreamPreview>({});
   const [commonEntry, setCommonEntry] = useState<CommonGlossaryEntry | null>(null);
   const [wordExplanationStatus, setWordExplanationStatus] = useState<WordExplanationStatus>("idle");
   const [wordExplanationError, setWordExplanationError] = useState("");
@@ -86,10 +208,12 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [toolsPinned, setToolsPinned] = useState(false);
   const [translatorPosition, setTranslatorPosition] = useState<TranslatorPosition | null>(null);
   const [draggingTranslator, setDraggingTranslator] = useState(false);
+  const [keyboardNavigation, setKeyboardNavigation] = useState(false);
   const [speakingPosition, setSpeakingPosition] = useState<number | "full" | "voice-preview" | null>(null);
   const [spanishVoices, setSpanishVoices] = useState<readonly SpeechSynthesisVoice[]>([]);
   const [selectedSpanishVoiceURI, setSelectedSpanishVoiceURI] = useState<string | null>(() => readSpanishVoicePreference());
   const [ttsError, setTtsError] = useState(false);
+  const [ttsErrorMessage, setTtsErrorMessage] = useState("");
   const [online, setOnline] = useState(true);
   const [serverSync, setServerSync] = useState<"pending" | "available" | "unauthenticated" | "unavailable" | "conflict">("pending");
   const [status, setStatus] = useState("");
@@ -106,6 +230,32 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const translatorDragRef = useRef<Readonly<{ pointerId: number; startX: number; startY: number; originLeft: number; originTop: number; width: number; height: number }> | null>(null);
   const explanationRequestRef = useRef<{ generation: number; controller: AbortController } | null>(null);
   const explanationGenerationRef = useRef(0);
+  const pendingPreviewRef = useRef<StreamPreview | null>(null);
+  const previewFrameRef = useRef(0);
+  const cancelStreamPreview = useCallback(() => {
+    if (previewFrameRef.current) cancelAnimationFrame(previewFrameRef.current);
+    previewFrameRef.current = 0;
+    pendingPreviewRef.current = null;
+  }, []);
+  // Streamed deltas arrive faster than the display refreshes; publishing at most
+  // one preview per animation frame keeps the translation panel responsive.
+  const scheduleStreamPreview = useCallback((next: StreamPreview) => {
+    pendingPreviewRef.current = { ...pendingPreviewRef.current, ...next };
+    if (previewFrameRef.current) return;
+    previewFrameRef.current = requestAnimationFrame(() => {
+      previewFrameRef.current = 0;
+      const pending = pendingPreviewRef.current;
+      pendingPreviewRef.current = null;
+      if (pending) setStreamPreview((previous) => ({ ...previous, ...pending }));
+    });
+  }, []);
+  const flushStreamPreview = useCallback(() => {
+    if (previewFrameRef.current) cancelAnimationFrame(previewFrameRef.current);
+    previewFrameRef.current = 0;
+    const pending = pendingPreviewRef.current;
+    pendingPreviewRef.current = null;
+    if (pending) setStreamPreview((previous) => ({ ...previous, ...pending }));
+  }, []);
   const tts = useMemo(() => createBrowserTextToSpeech(), []);
   const settings = state.settings ?? defaultSettings;
   useEffect(() => {
@@ -119,6 +269,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, [article.locale]);
   const closeTools = useCallback(() => {
     explanationRequestRef.current?.controller.abort();
+    cancelStreamPreview();
     setWordExplanationStatus("idle");
     setSelectedToken(null);
     setCommonEntry(null);
@@ -129,7 +280,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setDraggingTranslator(false);
     translatorDragRef.current = null;
     setToolsOpenState(false);
-  }, []);
+  }, [cancelStreamPreview]);
   const toggleTool = useCallback((tool: ReaderTool, trigger: HTMLButtonElement) => {
     if (toolsOpen && activeTool === tool) {
       closeTools();
@@ -144,6 +295,18 @@ export function ArticleReader({ article }: ArticleReaderProps) {
 
   useEffect(() => () => tts.stop(), [tts]);
   useEffect(() => () => explanationRequestRef.current?.controller.abort(), []);
+  useEffect(() => () => cancelStreamPreview(), [cancelStreamPreview]);
+  useEffect(() => {
+    // Word tokens only become tab stops once the reader is driven from the keyboard.
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Tab") setKeyboardNavigation(true); };
+    const onPointerUp = () => setKeyboardNavigation((current) => current ? false : current);
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerup", onPointerUp);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerup", onPointerUp);
+    };
+  }, []);
   useEffect(() => {
     const recoveredFromOffline = !previousOnlineRef.current && online;
     previousOnlineRef.current = online;
@@ -154,7 +317,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       const raw = window.localStorage.getItem(storageKey(article));
       if (raw) {
         const saved: unknown = JSON.parse(raw);
-        if (isReaderState(saved) && saved.stableKey === article.stableKey && saved.contentHash === article.contentHash) queueMicrotask(() => setState(normalizeReaderState({ ...saved, position: Math.min(saved.position, Math.max(article.segments.length - 1, 0)) })));
+        if (isReaderState(saved) && saved.stableKey === article.stableKey && saved.version === article.version && saved.contentHash === article.contentHash) queueMicrotask(() => setState(normalizeReaderState({ ...saved, position: Math.min(saved.position, Math.max(article.segments.length - 1, 0)) })));
         else if (isReaderState(saved) && saved.version !== article.version) queueMicrotask(() => setStatus("文章版本已更新，旧标注仍保留在原版本；请从第一段或你熟悉的位置重新开始。"));
       }
     } catch { queueMicrotask(() => setStatus("暂时无法读取上次的阅读位置，本次阅读仍可继续。")); }
@@ -175,6 +338,35 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, [article, online, serverSync]);
   useEffect(() => { if (!hydrated) return; try { window.localStorage.setItem(storageKey(article), JSON.stringify({ ...state, status: state.position >= article.segments.length - 1 ? "completed" : "in_progress", lastOpenedAt: new Date().toISOString() })); } catch { /* local state remains usable */ } }, [article, hydrated, state]);
   useEffect(() => {
+    const key = storageKey(article);
+    const applySavedItems = (raw: string | null) => {
+      if (!raw) return;
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (!isReaderState(parsed) || parsed.stableKey !== article.stableKey || parsed.version !== article.version || parsed.contentHash !== article.contentHash) return;
+        setState((previous) => ({ ...previous, savedPhrases: parsed.savedPhrases, highlights: parsed.highlights }));
+      } catch {
+        // A malformed cross-tab update must not interrupt the active reader.
+      }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === key) applySavedItems(event.newValue);
+    };
+    const onSavedItemRemoved = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== "object") return;
+      const item = detail as { stableKey?: unknown; version?: unknown };
+      if (item.stableKey !== article.stableKey || item.version !== article.version) return;
+      applySavedItems(window.localStorage.getItem(key));
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("sueno:reading-saved-item-removed", onSavedItemRemoved);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("sueno:reading-saved-item-removed", onSavedItemRemoved);
+    };
+  }, [article]);
+  useEffect(() => {
     if (!hydrated || !online || serverSync !== "available") return;
     const controller = new AbortController();
     const payload = readingStatePatchSchema.safeParse({ contentHash: article.contentHash, highlights: state.highlights, note: state.note, position: state.position, saved: state.saved, savedPhrases: state.savedPhrases, status: state.position >= article.segments.length - 1 ? "completed" : "in_progress" });
@@ -183,7 +375,13 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     return () => controller.abort();
   }, [article, hydrated, online, serverSync, state]);
   useEffect(() => { const onOnline = () => setOnline(true); const onOffline = () => setOnline(false); window.addEventListener("online", onOnline); window.addEventListener("offline", onOffline); return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); }; }, []);
-  useLayoutEffect(() => { if (!toolsOpen) { explanationRequestRef.current?.controller.abort(); previouslyFocusedRef.current?.focus(); previouslyFocusedRef.current = null; return; } const pin = toolsPinRef.current; if (activeTool === "explain" && pin && window.getComputedStyle(pin).display !== "none") pin.focus(); else toolsRef.current?.focus(); }, [activeTool, toolsOpen]);
+  const restoreFocus = useCallback(() => {
+    const target = previouslyFocusedRef.current;
+    previouslyFocusedRef.current = null;
+    // Word tokens are only focusable while the reader is driven from the keyboard.
+    target?.focus({ preventScroll: true });
+  }, []);
+  useLayoutEffect(() => { if (!toolsOpen) { explanationRequestRef.current?.controller.abort(); restoreFocus(); return; } const pin = toolsPinRef.current; if (activeTool === "explain" && pin && window.getComputedStyle(pin).display !== "none") pin.focus(); else toolsRef.current?.focus(); }, [activeTool, restoreFocus, toolsOpen]);
   useEffect(() => {
     if (!toolsOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -241,17 +439,30 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, [draggingTranslator]);
   useEffect(() => { restoredPositionRef.current = null; }, [article]);
   useEffect(() => { if (!hydrated || state.position <= 0 || restoredPositionRef.current !== null) return; restoredPositionRef.current = state.position; requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-reader-position=\"" + state.position + "\"]")?.scrollIntoView({ block: "center" })); }, [hydrated, state.position]);
-  const updatePosition = useCallback(() => { const nodes = [...document.querySelectorAll<HTMLElement>("[data-reader-position]")]; const anchor = window.scrollY + window.innerHeight * 0.32; const current = nodes.reduce((candidate, node) => node.offsetTop <= anchor ? Number(node.dataset.readerPosition) : candidate, 0); if (current !== activePosition) setActivePosition(current); setState((previous) => previous.position === current ? previous : { ...previous, position: current }); }, [activePosition]);
+  const selectionVisible = toolsOpen && activeTool === "explain";
+  const activePositionRef = useRef(0);
+  const updatePosition = useCallback(() => {
+    const nodes = [...document.querySelectorAll<HTMLElement>("[data-reader-position]")];
+    const anchor = window.scrollY + window.innerHeight * 0.32;
+    const current = nodes.reduce((candidate, node) => node.offsetTop <= anchor ? Number(node.dataset.readerPosition) : candidate, 0);
+    if (activePositionRef.current === current) return;
+    activePositionRef.current = current;
+    setActivePosition(current);
+    setState((previous) => previous.position === current ? previous : { ...previous, position: current });
+  }, []);
   useEffect(() => { let frame = 0; const onScroll = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(updatePosition); }; window.addEventListener("scroll", onScroll, { passive: true }); return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", onScroll); }; }, [updatePosition]);
   const selectedSpanishVoice = preferredSpanishVoice(spanishVoices, selectedSpanishVoiceURI);
-  const speak = useCallback(async (text: string, position: number | "full") => { if (!tts.isSupported) { setTtsError(true); return; } setSpeakingPosition(position); setTtsError(false); try { await tts.speak(text, { languageTag: article.locale, rate: settings.ttsRate, voiceName: selectedSpanishVoice?.name, voiceURI: selectedSpanishVoice?.voiceURI }); } catch { setTtsError(true); } finally { setSpeakingPosition(null); } }, [article.locale, selectedSpanishVoice, settings.ttsRate, tts]);
+  const speak = useCallback(async (text: string, position: number | "full") => { if (!tts.isSupported) { setTtsError(true); setTtsErrorMessage("当前浏览器不支持语音合成，正文阅读不受影响。"); return; } setSpeakingPosition(position); setTtsError(false); setTtsErrorMessage(""); try { await tts.speak(text, { languageTag: article.locale, rate: settings.ttsRate, voiceName: selectedSpanishVoice?.name, voiceURI: selectedSpanishVoice?.voiceURI }); } catch (error) { // A silent engine (listed voice that cannot synthesize) keeps the text
+      // otherwise unreadable with no feedback at all.
+      setTtsErrorMessage(textToSpeechErrorMessage(error, "浏览器暂时无法朗读，正文阅读不受影响。")); setTtsError(true); } finally { setSpeakingPosition(null); } }, [article.locale, selectedSpanishVoice, settings.ttsRate, tts]);
   const previewSpanishVoice = useCallback(async (voice: SpeechSynthesisVoice) => {
     if (!tts.isSupported || speakingPosition !== null) return;
     setSpeakingPosition("voice-preview");
     setTtsError(false);
+    setTtsErrorMessage("");
     try {
       await tts.speak("Hola, esta es una muestra de la voz seleccionada.", { languageTag: article.locale, rate: settings.ttsRate, voiceName: voice.name, voiceURI: voice.voiceURI });
-    } catch { setTtsError(true); }
+    } catch (error) { setTtsErrorMessage(textToSpeechErrorMessage(error, "浏览器暂时无法朗读，正文阅读不受影响。")); setTtsError(true); }
     finally { setSpeakingPosition(null); }
   }, [article.locale, settings.ttsRate, speakingPosition, tts]);
   const selectSpanishVoice = (voice: SpeechSynthesisVoice) => {
@@ -260,12 +471,13 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   };
   const transferTask = activeTransfer ? articleTransferTask(article, activeTransfer) : null;
   const recommendedTransfer = recommendedArticleTransferType(article.oralTransferType);
-  const fullText = article.segments.map((segment) => segment.text).join(" ");
+  const fullText = useMemo(() => article.segments.map((segment) => segment.text).join(" "), [article.segments]);
   const currentSegment = article.segments[activePosition] ?? article.segments[state.position];
   const progressPercent = article.segments.length <= 1 ? 100 : Math.round((state.position / (article.segments.length - 1)) * 100);
   const readerClass = "article-reader article-reader--" + settings.fontSize + " article-reader--" + settings.lineHeight + " article-reader--" + settings.width + " article-reader--" + settings.theme + (toolsOpen ? " article-reader--tools-open" : "") + (toolsPinned ? " article-reader--tools-pinned" : "");
   const requestWordExplanation = useCallback((token: SelectedToken) => {
     explanationRequestRef.current?.controller.abort();
+    cancelStreamPreview();
     const selectedText = token.selectionType === "sentence" ? token.text.trim() : normalizeToken(token.text);
     if (!selectedText) {
       setWordExplanation(null);
@@ -329,13 +541,13 @@ export function ArticleReader({ article }: ArticleReaderProps) {
           const value = decodePartialJsonString(text.slice(valueStart + 1, valueEnd));
           if (value) next[field] = value;
         }
-        if (Object.keys(next).length) setStreamPreview((previous) => ({ ...previous, ...next }));
+        if (Object.keys(next).length) scheduleStreamPreview(next);
       };
       const consume = (line: string) => {
         if (!line.trim()) return;
         const event = JSON.parse(line) as { type?: string; text?: string; explanation?: WordExplanation; error?: { message?: string } };
         if (event.type === "delta" && event.text) { generated += event.text; updatePreview(generated); }
-        if (event.type === "done" && event.explanation) { setWordExplanation(event.explanation); setWordExplanationStatus("success"); }
+        if (event.type === "done" && event.explanation) { flushStreamPreview(); setWordExplanation(event.explanation); setWordExplanationStatus("success"); }
         if (event.error?.message) throw new Error(event.error.message);
       };
       while (true) {
@@ -353,40 +565,47 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       setWordExplanationStatus("error");
       setWordExplanationError(error instanceof Error ? error.message : "解释暂时无法生成，请稍后重试。");
     });
-  }, [article.locale]);
-  const selectToken = useCallback((text: string, position: number, context: string, tokenIndex: number) => {
+  }, [article.locale, cancelStreamPreview, flushStreamPreview, scheduleStreamPreview]);
+  const selectToken = useCallback((text: string, position: number, context: string, tokenIndex: number, trigger: HTMLElement) => {
     if (selectionHandledRef.current) return;
     const token = { text, position, context, selectionType: "word" as const, tokenStart: tokenIndex, tokenEnd: tokenIndex };
     const entry = getCommonGlossaryEntry(normalizeToken(text));
     setCommonEntry(entry);
     setSelectedToken(token);
     setActiveTool("explain");
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : contentRef.current;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : trigger;
     setToolsOpenState(true);
+    cancelStreamPreview();
     setStreamPreview({});
     if (entry) {
       setWordExplanationStatus("success");
     } else {
       requestWordExplanation(token);
     }
-  }, [requestWordExplanation]);
-  const handleTextSelection = useCallback((segment: ArticleReaderProjection["segments"][number], event: MouseEvent<HTMLParagraphElement>) => {
+  }, [cancelStreamPreview, requestWordExplanation]);
+  const handleTextSelection = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    // Selecting text inside the translator panel must not start a new sentence lookup.
+    if (event.target instanceof Node && toolsRef.current?.contains(event.target)) return;
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim() ?? "";
-    if (selectedText.split(/\s+/u).filter(Boolean).length < 2) return;
-    if (!selection?.anchorNode || !selection.focusNode || !event.currentTarget.contains(selection.anchorNode) || !event.currentTarget.contains(selection.focusNode)) return;
+    if (!selection || selectedText.split(/\s+/u).filter(Boolean).length < 2) return;
+    const boundaries = selectionBoundaries(selection);
+    if (!boundaries) return;
+    // The dragged paragraph is the one the gesture started in; releases that land
+    // in the margin or between paragraphs still belong to it.
+    const paragraph = paragraphForNode(boundaries.anchorNode) ?? paragraphForNode(boundaries.startNode) ?? paragraphForNode(boundaries.endNode);
+    if (!paragraph) return;
+    const position = Number(paragraph.dataset.readerPosition);
+    if (!Number.isFinite(position)) return;
+    const range = selectedTokenRange(paragraph, selection);
+    if (!range) return;
     selectionHandledRef.current = true;
     window.setTimeout(() => { selectionHandledRef.current = false; }, 0);
-    const tokenElementForNode = (node: Node) => (node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement)?.closest<HTMLElement>("[data-reader-token-index]");
-    const anchorToken = tokenElementForNode(selection.anchorNode);
-    const focusToken = tokenElementForNode(selection.focusNode);
-    if (!anchorToken || !focusToken || !event.currentTarget.contains(anchorToken) || !event.currentTarget.contains(focusToken)) return;
-    const anchorIndex = Number(anchorToken.dataset.readerTokenIndex);
-    const focusIndex = Number(focusToken.dataset.readerTokenIndex);
-    if (!Number.isFinite(anchorIndex) || !Number.isFinite(focusIndex)) return;
     selection.removeAllRanges();
     explanationRequestRef.current?.controller.abort();
-    const token = { text: selectedText, position: segment.position, context: segment.text, selectionType: "sentence" as const, tokenStart: Math.min(anchorIndex, focusIndex), tokenEnd: Math.max(anchorIndex, focusIndex) };
+    cancelStreamPreview();
+    const context = article.segments.find((segment) => segment.position === position)?.text ?? paragraph.textContent ?? "";
+    const token = { text: selectedText, position, context, selectionType: "sentence" as const, tokenStart: range.start, tokenEnd: range.end };
     setCommonEntry(null);
     setSelectedToken(token);
     setWordExplanation(null);
@@ -394,10 +613,10 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setWordExplanationError("");
     setWordExplanationStatus("idle");
     setActiveTool("explain");
-    previouslyFocusedRef.current = event.currentTarget;
+    previouslyFocusedRef.current = paragraph;
     setToolsOpenState(true);
     requestWordExplanation(token);
-  }, [requestWordExplanation]);
+  }, [article.segments, cancelStreamPreview, requestWordExplanation]);
   const startTranslatorDrag = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (event.button !== 0 || toolsPinned || activeTool !== "explain" || window.innerWidth < 1200) return;
     if (event.target instanceof Element && event.target.closest("button")) return;
@@ -424,7 +643,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     if (activeTool === "listen") {
       const paragraphNumber = (currentSegment?.position ?? 0) + 1;
       const preview = currentSegment ? currentSegment.text.slice(0, 56) + (currentSegment.text.length > 56 ? "…" : "") : "";
-      return <><div className="article-reader__listen-target"><strong>当前：第 {paragraphNumber} 段</strong><p>{preview}</p></div><div className="article-reader__tool-actions"><button className="secondary-action" type="button" onClick={() => { if (currentSegment) void speak(currentSegment.text, currentSegment.position); }} disabled={speakingPosition !== null}>{speakingPosition === currentSegment?.position ? `正在朗读第 ${paragraphNumber} 段` : `朗读第 ${paragraphNumber} 段`}</button><button className="secondary-action" type="button" onClick={() => void speak(fullText, "full")} disabled={speakingPosition !== null}>{speakingPosition === "full" ? "正在朗读全文" : "朗读全文"}</button></div>{speakingPosition !== null ? <button className="text-link" type="button" onClick={() => { tts.stop(); setSpeakingPosition(null); }}>停止朗读</button> : null}{ttsError ? <p className="article-reader__tool-error" role="status">浏览器暂时无法朗读，正文阅读不受影响。</p> : null}</>;
+      return <><div className="article-reader__listen-target"><strong>当前：第 {paragraphNumber} 段</strong><p>{preview}</p></div><div className="article-reader__tool-actions"><button className="secondary-action" type="button" onClick={() => { if (currentSegment) void speak(currentSegment.text, currentSegment.position); }} disabled={speakingPosition !== null}>{speakingPosition === currentSegment?.position ? `正在朗读第 ${paragraphNumber} 段` : `朗读第 ${paragraphNumber} 段`}</button><button className="secondary-action" type="button" onClick={() => void speak(fullText, "full")} disabled={speakingPosition !== null}>{speakingPosition === "full" ? "正在朗读全文" : "朗读全文"}</button></div>{speakingPosition !== null ? <button className="text-link" type="button" onClick={() => { tts.stop(); setSpeakingPosition(null); }}>停止朗读</button> : null}{ttsError ? <p className="article-reader__tool-error" role="status">{ttsErrorMessage || "浏览器暂时无法朗读，正文阅读不受影响。"}</p> : null}</>;
     }
     if (activeTool === "explain") {
       if (!selectedToken) return <div className="article-reader__tool-empty"><p>点击正文中的词语查看语境解释。</p><p>拖选两个以上词语可以解析整句。</p></div>;
@@ -441,6 +660,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       const contextualMeaning = wordExplanation?.contextualMeaning ?? streamPreview.contextualMeaning ?? (isSentence ? undefined : localUsage);
       return <>
         <div className="article-reader__selected-word"><span>{selectedToken.text}</span><button type="button" aria-label={"朗读 " + selectedToken.text} onClick={() => void speak(selectedToken.text, selectedToken.position)}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6l-5 4H5zm12-1.5a5 5 0 0 1 0 7" /></svg></button></div>
+        {ttsError ? <p className="article-reader__tool-error" role="status">{ttsErrorMessage || "浏览器暂时无法朗读，正文阅读不受影响。"}</p> : null}
         <div className="article-reader__explanation-fields">
           {isSentence ? <>
             <div><p className="article-reader__tool-kicker">中文翻译</p><p>{meaning ?? (wordExplanationStatus === "loading" ? "正在生成翻译……" : "点击下方按钮解析")}</p></div>
@@ -462,7 +682,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     }
     if (activeTool === "saved") {
       const items = [...state.savedPhrases, ...state.highlights.map((item) => ({ ...item, id: "highlight-" + item.id, text: item.text + "（高亮）" }))];
-      return <><button className="article-reader__save-article" type="button" aria-pressed={state.saved} onClick={() => { setState((previous) => ({ ...previous, saved: !previous.saved })); setStatus(state.saved ? "已取消收藏本文。" : "已收藏本文。"); }}>{state.saved ? "已收藏本文" : "收藏本文"}</button>{items.length ? <ul className="article-reader__saved-list">{items.map((item) => <li key={item.id}><span>{item.text}</span><button type="button" onClick={() => document.querySelector<HTMLElement>("[data-reader-position=\"" + item.position + "\"]")?.scrollIntoView({ block: "center" })}>跳转</button></li>)}</ul> : <p className="article-reader__tool-note">尚未保存词语或高亮。</p>}<label className="article-reader__note-field"><span>个人笔记</span><textarea value={state.note} onChange={(event) => setState((previous) => ({ ...previous, note: event.target.value.slice(0, 2_000) }))} placeholder="可以写中文或西语……" aria-label="文章个人笔记" /></label><button className="secondary-action" type="button" onClick={() => setStatus("笔记已保存在阅读状态中。")}>保存笔记</button></>;
+      return <><button className="article-reader__save-article" type="button" aria-pressed={state.saved} onClick={() => { setState((previous) => ({ ...previous, saved: !previous.saved })); setStatus(state.saved ? "已取消收藏本文。" : "已收藏本文。"); }}>{state.saved ? "已收藏本文" : "收藏本文"}</button>{items.length ? <ul className="article-reader__saved-list">{items.map((item) => <li key={item.id}><span>{item.text}</span><button type="button" onClick={() => document.querySelector<HTMLElement>("[data-reader-position=\"" + item.position + "\"]")?.scrollIntoView({ block: "center" })}>跳转</button></li>)}</ul> : <p className="article-reader__tool-note">尚未保存词语或高亮。</p>}<Link className="text-link article-reader__saved-library-link" href="/read/saved-items">打开已保存词句书架 <span aria-hidden="true">→</span></Link><label className="article-reader__note-field"><span>个人笔记</span><textarea value={state.note} onChange={(event) => setState((previous) => ({ ...previous, note: event.target.value.slice(0, 2_000) }))} placeholder="可以写中文或西语……" aria-label="文章个人笔记" /></label><button className="secondary-action" type="button" onClick={() => setStatus("笔记已保存在阅读状态中。")}>保存笔记</button></>;
     }
     return <><section className="article-reader__voice-settings" aria-labelledby="spanish-voices-title"><div className="article-reader__voice-settings-heading"><div><p className="article-reader__tool-kicker">语音</p><h3 id="spanish-voices-title">Spanish voices</h3></div><span className="article-reader__voice-settings-current">{selectedSpanishVoice?.name ?? "未选择"}</span></div>{!tts.isSupported ? <p className="article-reader__tool-error" role="status">当前浏览器不支持语音合成。</p> : spanishVoices.length === 0 ? <p className="article-reader__tool-note" role="status">正在加载浏览器语音……</p> : <ul className="article-reader__voice-list" aria-label="Spanish voices">{spanishVoices.map((voice) => { const selected = selectedSpanishVoice?.voiceURI === voice.voiceURI || selectedSpanishVoice?.name === voice.name; return <li className={selected ? "is-selected" : undefined} key={voice.voiceURI || voice.name}><button type="button" className="article-reader__voice-option" aria-pressed={selected} onClick={() => selectSpanishVoice(voice)}><span>{voice.name}</span><small>{voice.lang}</small></button><button type="button" className="article-reader__voice-preview" aria-label={`试听 ${voice.name}`} disabled={speakingPosition !== null} onClick={() => void previewSpanishVoice(voice)}>试听</button></li>; })}</ul>}</section><label className="article-reader__setting"><span>字号</span><select aria-label="字号" value={settings.fontSize} onChange={(event) => updateSetting("fontSize", event.target.value as ReaderSettings["fontSize"])}><option value="default">标准</option><option value="large">大字</option></select></label><label className="article-reader__setting"><span>行距</span><select aria-label="行距" value={settings.lineHeight} onChange={(event) => updateSetting("lineHeight", event.target.value as ReaderSettings["lineHeight"])}><option value="default">舒适</option><option value="relaxed">宽松</option></select></label><label className="article-reader__setting"><span>正文宽度</span><select aria-label="正文宽度" value={settings.width} onChange={(event) => updateSetting("width", event.target.value as ReaderSettings["width"])}><option value="narrow">专注</option><option value="wide">宽屏</option></select></label><label className="article-reader__setting"><span>背景</span><select aria-label="阅读背景" value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as ReaderSettings["theme"])}><option value="light">浅色</option><option value="dim">柔和</option></select></label><label className="article-reader__setting"><span>朗读速度</span><select aria-label="TTS 速度" value={settings.ttsRate} onChange={(event) => updateSetting("ttsRate", Number(event.target.value))}><option value="0.7">慢速</option><option value="0.88">标准</option><option value="1.05">稍快</option></select></label></>;
   };
@@ -473,7 +693,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     saved: <BookmarkIcon filled={state.saved} />,
     settings: <SettingsIcon />,
   };
-  return <div className={readerClass} data-online={online}>
+  return <div className={readerClass} data-online={online} onMouseUp={handleTextSelection}>
     <header className="article-reader__topbar">
       <div className="article-reader__topbar-left"><Link className="text-link article-reader__back" href="/read"><span aria-hidden="true">←</span> 返回</Link></div>
       <h1 className="article-reader__topbar-title" title={article.title}>{article.title}</h1>
@@ -484,7 +704,16 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     {status ? <aside className="article-reader__notice" role="status">{status}</aside> : null}
     <div className="article-reader__layout">
       <main className="article-reader__content" ref={contentRef} aria-label="西语文章正文">
-        <div className="article-reader__body">{article.segments.map((segment) => { const highlighted = state.highlights.some((item) => item.position === segment.position); const listenTarget = toolsOpen && activeTool === "listen" && activePosition === segment.position; const words = segment.text.split(/(\s+)/u); return <p id={`segment-${segment.position}`} className={[highlighted ? "is-highlighted" : "", listenTarget ? "is-listen-target" : ""].filter(Boolean).join(" ")} aria-current={listenTarget ? "true" : undefined} data-reader-position={segment.position} key={segment.position} onMouseUp={(event) => handleTextSelection(segment, event)}>{words.map((word, index) => /\s+/u.test(word) ? <span key={segment.position + "-space-" + index}>{word}</span> : <span data-reader-token-index={index} className={["reader-token", toolsOpen && activeTool === "explain" && selectedToken?.position === segment.position && index >= selectedToken.tokenStart && index <= selectedToken.tokenEnd ? "is-translation-selection" : ""].filter(Boolean).join(" ")} role="button" tabIndex={0} key={segment.position + "-word-" + index} onClick={() => selectToken(word, segment.position, segment.text, index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectToken(word, segment.position, segment.text, index); } }}>{word}</span>)}</p>; })}</div>
+        <div className="article-reader__body">{article.segments.map((segment) => <ReaderParagraph
+          key={segment.position}
+          segment={segment}
+          highlighted={state.highlights.some((item) => item.position === segment.position)}
+          listenTarget={toolsOpen && activeTool === "listen" && activePosition === segment.position}
+          selectionStart={selectionVisible && selectedToken?.position === segment.position ? selectedToken.tokenStart : -1}
+          selectionEnd={selectionVisible && selectedToken?.position === segment.position ? selectedToken.tokenEnd : -1}
+          tabbable={keyboardNavigation}
+          onSelectToken={selectToken}
+        />)}</div>
         <div className="article-reader__complete"><strong>已读完</strong><span>本次只记录阅读活动，不会增加口语能力。</span>{article.attribution ? <span>{article.attribution}</span> : null}</div>
         <details className="article-reader__transfer-disclosure" open={transferOpen}><summary onClick={(event) => { event.preventDefault(); setTransferOpen((current) => !current); }}>读完后练口语</summary>{transferOpen ? renderTransferPanel() : null}</details>
       </main>

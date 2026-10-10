@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/conversation-history-response.schema.json",
+  "title": "Conversation history response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["characterKey", "messages"],
+      "properties": {
+        "characterKey": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "messages": {
+          "type": "array",
+          "items": { "$ref": "https://spanish.local/contracts/v1/conversation-message.schema.json" }
+        },
+        "readOnly": { "type": "boolean" },
+        "canSend": { "type": "boolean" },
+        "contactStatus": { "enum": ["pending", "active", "declined", "unavailable", null] }
+      }
+    }
+  }
+}

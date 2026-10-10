@@ -1,9 +1,16 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { MouseEventHandler, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({ children, onClick, prefetch, ...props }: { children: ReactNode; onClick?: MouseEventHandler<HTMLAnchorElement>; prefetch?: boolean | null } & Record<string, unknown>) => (
+    <a {...props} onClick={(event) => { event.preventDefault(); onClick?.(event); }} data-prefetch={prefetch === true ? "full" : prefetch === false ? "disabled" : "auto"}>{children}</a>
+  ),
 }));
 
 import { ReadShelf } from "@/app/(product)/read/read-shelf";
@@ -45,19 +52,23 @@ describe("article library shelf", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps the shelf header to two sources, a passive count, and one compact tool row", () => {
-    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+  it("keeps the public shelf to one compact tool row with no personal tabs", () => {
+    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />);
 
     expect(screen.getByRole("heading", { name: "可公开阅读的文章正在准备中" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "公共文章" })).toHaveAttribute("href", "/read");
-    expect(screen.getByText("0 篇")).not.toHaveAttribute("role", "button");
-    expect(screen.getByRole("link", { name: "我的文章" })).toHaveAttribute("href", "/read?saved=1");
+    // Personal content lives on /read/saved-items now, so the shelf must not
+    // carry any tab of its own.
+    expect(screen.queryByRole("link", { name: "公共文章" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "我的文章" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "我的文章书架" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ 篇$/u)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Web Sites" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "找到你现在关心的方向" })).not.toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "搜索文章" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "排序" })).toBeInTheDocument();
     expect(screen.getByText("添加内容", { selector: "summary" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "生成私人故事" })).toHaveAttribute("href", "/read/generate");
+    expect(screen.getByRole("link", { name: "查看已保存" })).toHaveAttribute("href", "/read/saved-items");
     expect(screen.queryByText(/Upload Text or Audio/u)).not.toBeInTheDocument();
   });
 
@@ -75,7 +86,7 @@ describe("article library shelf", () => {
       },
     }));
     vi.stubGlobal("fetch", fetchMock);
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />);
 
     const saveButton = await screen.findByRole("button", { name: `收藏文章：${article.title}` });
     await user.click(saveButton);
@@ -86,7 +97,7 @@ describe("article library shelf", () => {
   });
 
   it("uses compact numbered pagination and preserves reading filters", () => {
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 105, hasMore: true }} page={5} pageSize={12} search="vida" topic="topic.daily-life" cefr="A2" minutes="short" source="public" sort="newest" savedOnly={false} />);
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 105, hasMore: true }} page={5} pageSize={12} search="vida" topic="topic.daily-life" cefr="A2" minutes="short" source="public" sort="newest" />);
 
     const pagination = screen.getByRole("navigation", { name: "文章分页" });
     expect(pagination).toBeInTheDocument();
@@ -100,58 +111,16 @@ describe("article library shelf", () => {
     expect(pagination.querySelectorAll(".read-pagination__ellipsis")).toHaveLength(2);
   });
 
-  it("keeps server-filtered My Texts on the numbered pagination path", () => {
-    const generatedArticle = { ...article, id: "generated.private@1", stableKey: "generated.private", title: "Mi cuento", origin: "generated" as const, generatedAt: new Date("2026-09-12T00:00:00.000Z") };
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 25, hasMore: true, savedFilterAvailable: true }} page={2} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly initialReaderProgress={{}} generatedArticles={[generatedArticle]} />);
 
-    expect(screen.getByRole("link", { name: "上一页" })).toHaveAttribute("href", "/read?saved=1");
-    expect(screen.getByRole("link", { name: "下一页" })).toHaveAttribute("href", "/read?page=3&saved=1");
-    expect(screen.getByText("26 篇")).toBeInTheDocument();
-  });
 
-  it("requires confirmation before deleting a private story", async () => {
-    const user = userEvent.setup();
-    const generatedArticle = { ...article, id: "generated.private@1", stableKey: "generated.private", title: "Mi cuento", origin: "generated" as const, generatedAt: new Date("2026-09-12T00:00:00.000Z") };
-    const confirmMock = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
-    const fetchMock = vi.fn((url: string, init?: RequestInit) => Promise.resolve({
-      ok: true,
-      json: async () => url === "/api/v1/read/saved" ? { data: { articleIds: [] } } : { data: {} },
-      status: 200,
-      init,
-    }));
-    vi.stubGlobal("confirm", confirmMock);
-    vi.stubGlobal("fetch", fetchMock);
-    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly generatedArticles={[generatedArticle]} />);
 
-    const deleteButton = screen.getByRole("button", { name: `删除私人故事：${generatedArticle.title}` });
-    await user.click(deleteButton);
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("generated-stories"), expect.anything());
-    expect(deleteButton).toBeInTheDocument();
 
-    await user.click(deleteButton);
-    await waitFor(() => expect(screen.queryByRole("button", { name: `删除私人故事：${generatedArticle.title}` })).not.toBeInTheDocument());
-    expect(fetchMock).toHaveBeenCalledWith(`/api/v1/read/generated-stories/${encodeURIComponent(generatedArticle.id)}`, expect.objectContaining({ method: "DELETE" }));
-  });
 
-  it("removes a server-filtered saved article immediately after unsaving it", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.fn((_: string, init?: RequestInit) => Promise.resolve({
-      ok: true,
-      json: async () => init?.method === "POST"
-        ? { data: { articleId: article.id, saved: false } }
-        : { data: { articleIds: [article.id] } },
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1, savedFilterAvailable: true }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly />);
 
-    await user.click(await screen.findByRole("button", { name: `取消收藏：${article.title}` }));
 
-    await waitFor(() => expect(screen.getByRole("heading", { name: "还没有收藏文章" })).toBeInTheDocument());
-    expect(screen.getByText("0 篇")).toBeInTheDocument();
-  });
 
   it("makes the article title region the only reading link", () => {
-    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />);
 
     expect(screen.getByRole("link", { name: article.title })).toHaveAttribute("href", `/read/article/${encodeURIComponent(article.id)}`);
     expect(screen.getByRole("link", { name: article.title })).toHaveAttribute("title", article.title);
@@ -161,7 +130,7 @@ describe("article library shelf", () => {
 
   it("dismisses shelf menus on outside click or Escape and keeps them mutually exclusive", async () => {
     const user = userEvent.setup();
-    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" savedOnly={false} />);
+    render(<ReadShelf result={result} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />);
 
     const filter = screen.getByText("筛选", { selector: "summary" }).closest("details");
     const add = screen.getByText("添加内容", { selector: "summary" }).closest("details");

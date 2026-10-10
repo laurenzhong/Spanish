@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/conversation-stream-frame.schema.json",
+  "title": "Conversation NDJSON stream frame v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "protocolVersion", "characterKey", "characterVersion", "generationId", "messageId"],
+      "properties": {
+        "type": { "const": "meta" },
+        "protocolVersion": { "const": "v1" },
+        "characterKey": { "enum": ["lucia", "mateo", "ines"] },
+        "characterVersion": { "const": 1 },
+        "generationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "messageId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "generationId", "messageId", "text"],
+      "properties": {
+        "type": { "const": "delta" },
+        "generationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "messageId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "generationId", "messageId"],
+      "properties": {
+        "type": { "const": "done" },
+        "generationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "messageId": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "generationId", "messageId", "code", "retryable"],
+      "properties": {
+        "type": { "const": "error" },
+        "generationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "messageId": { "type": ["string", "null"], "maxLength": 200 },
+        "code": { "enum": ["stream-aborted", "stream-failed", "character-unavailable", "input-invalid"] },
+        "retryable": { "type": "boolean" }
+      }
+    }
+  ]
+}

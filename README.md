@@ -34,7 +34,7 @@ Alpha 当前计划包含：
 - 听说核心训练、静默读写替代和抽样口语复核。
 - Web 浏览器 TTS、录音、转写和基础评估。
 - 四板块学习画像和有效学习热力图。
-- Lucía、一个兴趣好友和一个生活关系角色。
+- 计划中的 Lucía 及未来角色；当前 Alpha 只正式开放 Lucía，其他角色在独立人物包和发布审核完成前保持 coming-soon。
 - 长期关系记忆、好友介绍和隐私控制。
 - Next.js PWA 在桌面浏览器与 iPhone Safari 上的核心学习闭环。
 
@@ -80,6 +80,9 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [历史 ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
 - [内容制作与审核规范](docs/content-authoring.md)
 - [测试与质量策略](docs/testing-strategy.md)
+- [角色运行时与对话闭环设计](docs/superpowers/specs/2026-09-26-character-runtime-and-conversation-closure-design.md)
+- [CONV-ROLE-001 角色运行时与对话闭环实施计划](docs/plans/2026-09-26-character-runtime-and-conversation-closure-implementation-plan.md)
+- [ADR-0009：版本化角色运行时与对话闭环边界](docs/adr/0009-character-runtime-and-conversation-boundary.md)
 - [Echo-Loop 参考评审](docs/references/echo-loop-review.md)
 - [编码代理工作规范](AGENTS.md)
 

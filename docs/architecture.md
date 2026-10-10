@@ -161,15 +161,15 @@ UI / Route Handler → Application → Domain
 
 文章 RSS 使用 `saxes` 解析 XML，文章页使用 `parse5` 生成不执行脚本的语法树。两层请求都只允许 HTTPS，并在每次重定向重新校验显式主机 allowlist、Content-Type、Content-Length、流式读取上限和字符编码；默认测试通过 fixture/fake fetch，不访问公网。文章来源的 `rights_policy` 必须明确 `contentMode=full_text`、许可、署名、许可证据、文章主机和教学默认字段。采集适配器把清洗后的纯文本段落和内容哈希写入候选 metadata，处理用例只把字段与哈希完全一致、权利已验证的文章推进到 `review_ready`。
 
-article publisher 不直接由 `content-acquisition` 写表，而是调用 `content` application/repository。事务内创建或复用稳定文章身份、追加不可变 `article_versions`、保存来源候选 revision、抓取时间和两份 `codex-ai-owner-authorized-review` 审核记录。公开查询只投影 `published` 且版权为 `cleared` 的版本；撤下只修改公开状态并保留来源、版本和审核审计。
+article publisher 不直接由 `content-acquisition` 写表，而是调用 `content` application/repository。事务内创建或复用稳定文章身份、追加不可变 `article_versions`、保存来源候选 revision、抓取时间和两份 owner-authorized AI 审核记录（原样回显门禁校验通过的 `reviewer_reference`，因此历史 `codex-ai-owner-authorized-review` 与当前 `dsh-ai-owner-authorized-review` 记录都不会被平台身份改名）。公开查询只投影 `published` 且版权为 `cleared` 的版本；撤下只修改公开状态并保留来源、版本和审核审计。
 
 YouTube 频道适配器只读取官方 Atom feed 和 Data API v3 元数据。频道来源必须为已启用、已验证的西语 `video-channel`，并在 `rights_policy` 中明确官方嵌入、许可/授权证据、地区、CEFR、主题和时长边界；API key 只从服务端 `YOUTUBE_DATA_API_KEY` 读取。适配器用 ETag/Last-Modified 和发布时间/视频 ID 游标增量发现，只接受频道一致、公开、可嵌入、目标地区可用且语言/时长合格的视频；Creative Commons 来源还要逐条验证平台许可。它不下载 YouTube 音视频，也不调用非公开字幕接口；没有合法字幕时只生成可播放候选。
 
-video publisher 调用 `media` application/repository，在单一事务内追加不可变 `media_versions`、官方 `youtube-nocookie.com` 播放资产、可选的已审核字幕时间轴、候选 provenance 和两份 `codex-ai-owner-authorized-review` 记录。同一 candidate revision/hash 幂等返回原版本，哈希不一致时冲突；撤下同时归档版本、撤下播放资产并清除当前公开版本。
+video publisher 调用 `media` application/repository，在单一事务内追加不可变 `media_versions`、官方 `youtube-nocookie.com` 播放资产、可选的已审核字幕时间轴、候选 provenance 和两份 owner-authorized AI 审核记录（原样回显已通过门禁的审核身份，不改写历史 `codex-*` 记录）。同一 candidate revision/hash 幂等返回原版本，哈希不一致时冲突；撤下同时归档版本、撤下播放资产并清除当前公开版本。
 
 播客 RSS 与文章 RSS 共享 `saxes` XML 解析和有界 HTTPS 获取边界。来源必须是已启用、权利已验证的西语 `podcast-feed`，并显式列出 feed、episode、音频和可选 transcript 主机，以及许可、署名、证据、时长、体积、CEFR、主题和播放校验有效期。适配器用 GUID、规范化 episode URL 与确定性内容哈希形成候选；enclosure 只发起逐跳 allowlist 校验的 `HEAD`，验证 Content-Type 和 Content-Length，不在发现阶段下载音频。只接受来源声明的西语 `text/vtt`，解析失败或没有合法 transcript 时形成无逐句文本的可播放候选，不调用 ASR。enclosure 或已声明 transcript 的网络、`429`、`5xx` 错误会中止本轮并保留游标以便重试；永久 4xx、格式或权利错误才跳过或降级。
 
-podcast publisher 在播放校验未过期时调用 `media` application/repository，原子保存 feed/GUID/enclosure URL 哈希、带有效期的音频播放资产、可选已审核 transcript 时间轴和两份授权 Codex AI 审核记录。原始 enclosure URL 只存在服务端候选和播放资产，不写普通日志；公开投影仍受发布、版权、资产可用性与有效期共同约束。撤下会归档版本、标记资产为 `withdrawn` 并移除当前公开版本，保留来源和审核审计。
+podcast publisher 在播放校验未过期时调用 `media` application/repository，原子保存 feed/GUID/enclosure URL 哈希、带有效期的音频播放资产、可选已审核 transcript 时间轴和两份授权 AI 审核记录（原样回显已通过门禁的审核身份）。原始 enclosure URL 只存在服务端候选和播放资产，不写普通日志；公开投影仍受发布、版权、资产可用性与有效期共同约束。撤下会归档版本、标记资产为 `withdrawn` 并移除当前公开版本，保留来源和审核审计。
 
 文章继续由现有 article 表族拥有；视频和播客由 `media` 共享稳定身份、版本、资产和定时片段；旧 `content_packs` 冻结为历史兼容载体，不为新媒体增加字段。`lexicon-corpus` 通过只读投影索引已发布 article/media 版本，不修改来源内容。
 
@@ -215,13 +215,13 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 
 词语解释通过 `WordExplanationProvider` 走服务端 provider 边界。`POST /api/v1/read/word-explanation` 接受选中的词语或句子、当前段落上下文、文章语言和 `selectionType`（`word`/`sentence`）；服务端优先从 `content/glossary/es-zh-common-v1.json` 命中已审核的常用词条，未命中时使用 `MINIMAX_API_KEY` 调用 MiniMax M3。MiniMax 请求使用 `stream: true`，Route 以 `application/x-ndjson` 发送 `delta`、最终经完整 Schema 校验的 `done`，浏览器可逐步显示字段；不支持流式 provider 时保留一次性 JSON fallback。浏览器不会接触供应商密钥，阅读器只渲染固定解释字段；句子选择通过拖选正文后立即触发，不在 Explain 面板重复展示上下文。解释结果是临时阅读辅助，不写入 `evidence_events`、`mastery`、`confidence` 或角色记忆；超时、限流、取消、断流和供应商失败只返回稳定错误，正文阅读与本地 glossary fallback 不受影响。
 
-角色对话通过 `CharacterReplyProvider` 走同一服务端 provider 边界。`POST /api/v1/conversations/:characterId/stream` 只把服务端隐私过滤后的角色事实、关系摘要、可读记忆、最近消息和当前用户消息交给所选 provider；内部输入 DTO、输出 DTO、错误码和观测字段不随供应商变化。默认仍使用已配置的 MiniMax adapter；只有显式设置 `CONVERSATION_PROVIDER=openai` 且存在服务端 `OPENAI_API_KEY` 时才启用 OpenAI Responses adapter，模型由 `OPENAI_CONVERSATION_MODEL` 指定。模型只返回自然语言消息，应用层继续负责 NDJSON `meta/delta/done`、generation 竞态、取消、完整消息持久化和记忆提取。超时、限流、鉴权、响应损坏或网络失败使用统一错误分类并写入脱敏观测，只发送失败事件，不生成 fallback 角色文本，也不提交完整助手消息或关系记忆；安全门禁拒绝时最多进行一次更严格的 provider 重生成，第二次仍越界则发送失败事件。只有完全没有配置真实 provider 的本地/测试环境才使用确定性回复。供应商不会写入证据、画像或关系记忆，日志不保存 prompt、原始响应或私密正文。
+角色对话通过 `CharacterReplyProvider` 走同一服务端 provider 边界。`POST /api/v1/conversations/:characterId/stream` 只把服务端隐私过滤后的角色事实、关系摘要、可读记忆、最近消息和当前用户消息交给所选 provider；内部输入 DTO、输出 DTO、错误码和观测字段不随供应商变化。默认仍使用已配置的 MiniMax adapter；只有显式设置 `CONVERSATION_PROVIDER=openai` 且存在服务端 `OPENAI_API_KEY` 时才启用 OpenAI Responses adapter，模型由 `OPENAI_CONVERSATION_MODEL` 指定。模型只返回自然语言消息，应用层继续负责 NDJSON `meta/delta/done`、generation 竞态、取消、完整消息持久化和记忆提取。超时、限流、鉴权、响应损坏或网络失败使用统一错误分类并写入脱敏观测，只发送失败事件，不生成 fallback 角色文本，也不提交完整助手消息或关系记忆；安全门禁拒绝时最多进行一次更严格的 provider 重生成，第二次仍越界则发送失败事件。语言纯度属于安全门禁：回复含汉字、假名或谚文时走同一条拒绝路径，只有用户本轮显式要求其他语言才放行；主动消息没有用户请求可以证明切换，因此由 `isProactiveMessageSafe` 强制纯西语，命中即整条候选失败并记录 `safety-gate`。只有完全没有配置真实 provider 的本地/测试环境才使用确定性回复。供应商不会写入证据、画像或关系记忆，日志不保存 prompt、原始响应或私密正文。角色是否可进入该流程由已发布人物版本和 `CharacterRuntimePolicy` 决定，不能由静态角色目录或客户端 `characterKey` 绕过。
 
 对话工作区通过 `GET /api/v1/conversations` 返回当前用户实际拥有的会话摘要（角色、最后一条已完成消息和时间），不再用角色目录冒充历史。无会话、数据库未配置和请求失败分别呈现为空状态或可重试状态；未读数没有可靠数据来源时不展示。语音消息使用 `POST /api/v1/transcriptions` 一次性转写为可编辑草稿，音频仅在 provider 请求生命周期内使用并以 `ephemeral` 策略处理，确认发送后仍复用文字对话流，不产生学习证据。
 
-Lucía 的好友申请通过 `GET/POST /api/v1/character-network/lucia-contact` 管理，不新增关系表：没有当前用户关系记录时返回 `pending` 及固定的初识来源（马德里文化活动、城市摄影）；接受在同一事务内将 `character_relationships.status` 设为 `active`、幂等创建会话并写入唯一的 authored opening message，拒绝记录为 `declined` 且不创建新会话。好友侧栏只显示真实存在的会话，并以申请状态显示红点/入口。`POST /api/v1/conversations/lucia/stream` 在读取历史、写入用户消息或调用 provider 前再次检查该关系必须为 `active`，否则返回稳定错误 `CONTACT_REQUIRED`；其他角色维持现有流程。
+Lucía 的好友申请通过 `GET/POST /api/v1/character-network/lucia-contact` 管理，不新增关系表：没有当前用户关系记录时返回 `pending` 及固定的虚构初识来源（Lucía 故事里的马德里文化活动、城市摄影；不代表真实活动或线下见面）；接受在同一事务内将 `character_relationships.status` 设为 `active`、幂等创建会话并写入唯一的 authored opening message，拒绝记录为 `declined` 且不创建新会话。好友侧栏只显示真实存在的会话，并以申请状态显示红点/入口。`POST /api/v1/conversations/lucia/stream` 在读取历史、写入用户消息或调用 provider 前再次检查该关系必须为 `active`，否则返回稳定错误 `CONTACT_REQUIRED`；其他角色同样走通用 published/capability 门禁，当前 draft 不可生产聊天。
 
-Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/proactive` 供受控手动触发，`.github/workflows/lucia-proactive-daily.yml` 每日按 `Asia/Shanghai` 09:15 UTC 调用 `scripts/run-lucia-proactive.ts`，只处理显式配置在 `LUCIA_PROACTIVE_USER_IDS` 中的用户。服务端先按关系 active 状态、暂停开关、每日/每周上限、12 小时冷却和未回应消息判断资格，再以 `(user_id, dedupe_key)` 创建候选；provider 只收到 `inputKind=proactive`、主动消息来源、关系摘要、情绪上限、日常状态和零问题预算，不能决定发送资格或关系升级。报备型日常分享是默认形式；关系达到 `familiar` 且日常状态为 `waking` 时，允许单句 `Te echo de menos.` 这类低压力想念表达。通过 `isProactiveMessageSafe` 后，候选与 `messages.source_type=proactive` 在同一事务内完成；provider 失败、取消或门禁失败只标记候选失败，不写入半条用户可见消息，也不使用真实运行时 fallback。候选和消息都按用户所有权隔离；当前仍不接 Web Push/APNs/FCM，用户打开聊天页后由现有历史刷新机制看到已生成消息。
+Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/proactive` 供受控手动触发，`.github/workflows/lucia-proactive-daily.yml` 每 15 分钟调用 `scripts/run-lucia-proactive.ts`；脚本按 Lucía 的 `Europe/Madrid` 时区为每个白名单用户计算每日三个稳定但错开的随机时间槽（上午、下午和晚间），只在到达时间槽后尝试生成。服务端先按关系 active 状态、暂停开关、每日 3 条上限、每周 12 条上限和 4 小时冷却判断资格；用户未回应不再阻止后续自然分享或轻量追问。每个时间槽使用独立 `(user_id, dedupe_key)`，重复调度仍幂等；provider 只收到 `inputKind=proactive`、主动消息来源、关系摘要、情绪上限、日常状态和零问题预算，不能决定发送资格或关系升级。报备型日常分享是默认形式；关系达到 `familiar` 且日常状态为 `waking` 时，允许单句 `Te echo de menos.` 这类低压力想念表达。通过 `isProactiveMessageSafe` 后，候选与 `messages.source_type=proactive` 在同一事务内完成；provider 失败、取消或门禁失败只标记候选失败，不写入半条用户可见消息，也不使用真实运行时 fallback。候选和消息都按用户所有权隔离；当前仍不接 Web Push/APNs/FCM，用户打开聊天页后由现有历史刷新机制看到已生成消息。
 开发环境可传 `preview: true` 进行不落库的声音检查；预览仍调用真实 provider 并执行同一安全门禁，但不创建候选、不消耗每日额度，生产环境忽略该字段。
 
 已发送用户消息的上下文操作通过 `DELETE/PATCH /api/v1/conversations/:characterId/messages/:messageId` 进入 conversation repository，并再次执行用户所有权、角色和消息状态校验。删除只移除用户历史；撤回将消息置为 `withdrawn`，历史正文不再进入搜索或角色回复上下文，并删除其来源关系记忆。流式回复完成时还会重新检查用户消息状态，防止回复期间撤回的消息产生介绍候选或记忆；撤回不会生成学习证据。
@@ -229,6 +229,11 @@ Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/p
 - `user_reading_progress` 保存版本化断点、完成状态和个人笔记；`user_article_saves` 保存文章收藏；`user_article_highlights` 保存短语/高亮文本及段落位置。
 - `/api/v1/read/articles/:articleId/state` 使用内容哈希做乐观版本检查。哈希过期返回 `409 CONFLICT`，客户端保留本地状态并提示重新定位，不静默覆盖标注。
 - `/api/v1/read/saved` 和 `/api/v1/read/sources` 只返回当前用户的明确 DTO。外部来源接口目前只保存规范化 URL、标题、作者、许可和版权状态等元数据，绝不抓取 URL 或保存未经验证的全文。
+- `/api/v1/read/saved-items` 将当前用户在已发布、版权清晰文章版本中的 `phrase`/`highlight` 标注聚合为带稳定 `stableKey@version`、段落位置、上下文和来源的私有 DTO；阅读状态同步按条目标识差异更新，未变化标注保留 UUID 与 `createdAt`，避免进度同步改变书架排序。`/api/v1/read/saved-items/:itemId` 只按当前用户所有权幂等移除一条标注。撤下版本、未清权来源和其他用户的私人生成文章不会进入投影。
+- `/read/saved-items` 是阅读器标注书架，提供类型页签、搜索、分页、原文段落锚点、来源链接、浏览器 TTS、当前页 CSV 导出和显式移除。它与正式词汇/短语 corpus 页面分开，不能把用户点选的 surface text 伪称为已确认 lemma。
+- `/read/vocabulary` 默认视图是可直接学习的词表：条目来自 `content/glossary/es-zh-common-v1.json` 中 `reviewStatus: reviewed` 的已审核常用词条（词目、词性、CEFR、中文释义、用法、搭配、例句和用于语料匹配的词形），因此不依赖数据库是否已索引 lexeme，也不受用户是否收藏过词语影响。其余视图分别是：`?view=frequency` 的语料高频词（在 PostgreSQL 内一次性聚合已发布文章段落与已审核媒体字幕的词形频次，只返回频次最高的 600 个词形并在进程内缓存 10 分钟，不在请求里把全部段落读进 Node）、`?view=saved` 的阅读收藏和 `?view=lexicon` 的正式词元词库。高频词表只声明它展示的是频次头部，不把它当作全部词形清单。
+- 学习卡片按需调用 `GET /api/v1/read/vocabulary-example?word=<词目>`，服务端只在已发布、版权清晰且字幕审核通过的媒体段落中按词边界匹配，命中不到时回退到已发布版权清晰的文章段落，返回一条真实例句、可用的中文翻译和 `stableKey@version` 来源；结果按词形缓存一小时。查询词形只允许字母、重音符号和撇号，不进入正则以外语义。列表与卡片都不把自动统计的 surface text 伪称为 verified lemma。
+- 词表的“已掌握 / 学习中 / 不学习”标记保存在浏览器本地（按用户 scope 隔离），不写入 `evidence_events`、`user_skill_states`、`mastery`、`confidence` 或角色记忆；向量表写入需要新的 schema 决策。
 - 阅读、TTS、词语查询、笔记和保存操作不会写入 `evidence_events`、`mastery` 或 `confidence`；只有显式口语迁移才进入 training/evidence 链路。
 
 Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。`POST /api/v1/read/generated-stories` 要求当前会话和 `Idempotency-Key`，输入经 Zod 校验后生成私有 AI draft；文章正文写入内部 `article_*` 版本载体，并由 `user_generated_articles` 按用户所有权关联。`GET/DELETE /api/v1/read/generated-stories/:articleId` 只返回或删除当前用户的记录，公共内容列表与公开内容 API 永不包含这些文章。生成文章可以复用阅读器的版本哈希、断点、标注和 TTS，但这些操作仍不会写入口语证据、画像或角色记忆。供应商请求只记录模型、延迟、请求 ID 等脱敏元数据，不保存 prompt 或原始响应。
@@ -282,7 +287,7 @@ Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。
 - Content Bundle 在写库前完成结构与跨引用校验，随后在单个数据库事务中导入。
 - bundle 稳定 ID＋版本＋规范化哈希决定幂等性；同版本不同哈希必须报告冲突。
 - 导入器不会自动审批或发布。后继 bundle 只有在内容字段及子项完全一致时才能单向推进既有实体状态；状态降级、归档后恢复和同版本内容改写均拒绝，状态更新与 bundle claim 在同一事务中回滚。
-- 个人产品阶段的正式 expression/scenario 必须同时具有 `es-ES` 与 `zh-CN` approved review；审核者身份来自 `content_reviews.reviewer_reference`，当前使用 `codex-ai-owner-authorized-review`，不得解释为真人签字。生产投影仍只读取 `published`。
+- 个人产品阶段的正式 expression/scenario 必须同时具有 `es-ES` 与 `zh-CN` approved review；审核者身份来自 `content_reviews.reviewer_reference`。历史记录使用 `codex-ai-owner-authorized-review`，2026-10-10 平台迁移后的新记录使用 `dsh-ai-owner-authorized-review`（可带 `:actor[:runId]`），两者都不得解释为真人签字；门禁同时接受两种身份，权威定义在 `src/modules/content-acquisition/domain/review-identity.ts`。生产投影仍只读取 `published`。
 
 ### 6.9 人物固定事实与关系记忆
 
@@ -295,6 +300,16 @@ Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。
 - 用户告诉当前角色的信息。
 - 用户允许分享给其他角色的信息。
 - 只供教学推荐使用的画像。
+
+### 6.10 角色运行时、发布门禁与长期对话
+
+长期角色是版本化的发布单元，而不是一个可调用模型的显示名称。`characters` 模块拥有角色人物版本、固定事实、透露策略和生命周期；`memory` 模块拥有当前用户与当前角色的关系记忆、共享许可和冲突状态；`conversation` application 通过内部端口读取两者并组装 provider-neutral runtime context。角色目录只能投影已经发布且具备相应 capability 的版本，不能成为第二套人物事实来源。
+
+生命周期与能力独立建模：`draft`、`published`、`retired` 只回答“是否可以进入生产”；`conversation`（`disabled`/`basic`/`full`）、`proactiveMessages`、`romanticSubtext`、`persistentMemory`、`introductions`、`voiceInput` 和 `maxRelationshipStage` 决定“可以做什么”。所有角色列表、详情、联系人接受、会话创建、历史、搜索、stream、主动消息和记忆写入都必须在服务端重检生命周期、版本、所有权和 capability。当前个人 Alpha 只正式开放 Lucía；Mateo/Inés 在各自人物包、审核和 replay 门禁完成前保持 draft/coming-soon；场景临时人物不创建长期角色、会话或关系记忆。
+
+`buildReplyContext` 只消费当前发布版本、`CharacterRuntimePolicy`、`getCharacterRelationship(userId, characterKey, characterVersion)` 返回的关系快照、当前用户可读记忆和已完成消息。不得为非 Lucía 复用 Lucía 的时区、恋爱、主动消息或 claims/commitments 分支。provider 只能生成候选表面文本，不能直接写人物事实、关系阶段、记忆共享权限或主动消息资格。
+
+只有带有明确 `done`、通过 Schema/安全门禁且幂等落库的完整回合，才能触发关系事件候选、开放话题、摘要和长期记忆。旧 generation、取消、断流、删除/撤回和低置信度/技术失败不得更新这些派生状态。场景练习的人物快照继续由 `scenario-practice` 独立拥有，不能进入长期联系人或角色关系。
 
 ## 7. 训练状态机
 

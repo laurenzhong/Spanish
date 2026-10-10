@@ -78,10 +78,14 @@ function axisPoints(
 type ProfileApiOverview = ProfileOverview & Readonly<{ capabilityGroups?: FourCapabilityOverview["capabilityGroups"]; capabilitySummary?: FourCapabilityOverview["summary"] }>;
 
 async function fetchProfileOverview(): Promise<ProfileApiOverview> {
-  const response = await fetch("/api/v1/profile", {
-    cache: "no-store",
-    credentials: "same-origin",
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 6_000);
+  let response: Response;
+  try {
+    response = await fetch("/api/v1/profile", { cache: "no-store", credentials: "same-origin", signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
   if (!response.ok) throw new Error("profile-request-failed");
   const payload: unknown = await response.json();
   if (!payload || typeof payload !== "object" || !("data" in payload)) {

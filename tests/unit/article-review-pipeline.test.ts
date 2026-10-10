@@ -97,7 +97,7 @@ describe("runArticleReview", () => {
     expect(teaching.review).toHaveBeenCalledOnce();
     expect(content.review.mock.calls[0]?.[0]).toEqual(teaching.review.mock.calls[0]?.[0]);
     expect(saved.map((review) => review.dimension)).toEqual(["content-es-ES", "teaching-zh-CN", "structure"]);
-    expect(saved.every((review) => review.reviewerReference === "codex-ai-owner-authorized-review")).toBe(true);
+    expect(saved.every((review) => review.reviewerReference === "dsh-ai-owner-authorized-review")).toBe(true);
   });
 
   it("fails closed when a provider returns a different frozen input hash", async () => {

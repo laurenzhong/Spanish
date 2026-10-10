@@ -1,9 +1,11 @@
 import { publishAcquiredVideo, archiveAcquiredVideo } from "@/src/modules/media/application";
 import { validateSegmentTimeline } from "@/src/modules/media/domain";
 import type { AcquiredMediaReview, AcquiredVideoRepository, HostedVideoAsset } from "@/src/modules/media/repositories";
+import type { MediaArtworkStorage } from "@/src/modules/media/storage/artwork-storage";
 import { z } from "zod";
 
 import { calculateLegacyVideoCandidateContentHash, calculateVideoCandidateContentHash, videoCandidateDraftSchema } from "../normalizers";
+import { isOwnerAuthorizedReviewerReference } from "../domain";
 import type { CandidatePublisher, CandidatePublisherInput } from "./candidate-publisher";
 
 export class VideoPublicationConflictError extends Error {
@@ -25,10 +27,11 @@ function requiredReview(
     candidate.dimension === dimension
     && candidate.status === "approved"
     && candidate.candidateRevision === input.candidateRevision
-    && candidate.reviewerReference === "codex-ai-owner-authorized-review",
+    && isOwnerAuthorizedReviewerReference(candidate.reviewerReference),
   );
   if (!review) throw new VideoPublicationConflictError(`The ${dimension} review is missing or stale.`);
-  return { locale, reviewerReference: "codex-ai-owner-authorized-review", notes: review.notes, reviewedAt };
+  // Echo the stored audit identity instead of the platform that is running now.
+  return { locale, reviewerReference: review.reviewerReference as string, notes: review.notes, reviewedAt };
 }
 
 const hostedVideoAssetSchema = z.strictObject({
@@ -56,7 +59,7 @@ export class AcquiredVideoPublisher implements CandidatePublisher {
 
   constructor(
     private readonly repository: AcquiredVideoRepository,
-    private readonly dependencies: Readonly<{ now?: () => Date }> = {},
+    private readonly dependencies: Readonly<{ now?: () => Date; artworkStorage?: MediaArtworkStorage }> = {},
   ) {}
 
   async publish(input: CandidatePublisherInput) {
@@ -99,11 +102,16 @@ export class AcquiredVideoPublisher implements CandidatePublisher {
       requiredReview(input, "content-es-ES", "es-ES", reviewedAt),
       requiredReview(input, "teaching-zh-CN", "zh-CN", reviewedAt),
     ] as const;
+    if (draft.artwork && !this.dependencies.artworkStorage) throw new VideoPublicationConflictError("Durable artwork storage is not configured.");
+    const artworkOverride = draft.artwork && this.dependencies.artworkStorage
+      ? await this.dependencies.artworkStorage.snapshot({ stableKey: draft.stableKey, revision: input.candidateRevision, artwork: draft.artwork })
+      : draft.artwork;
     return publishAcquiredVideo(this.repository, {
       candidateId: input.candidateId,
       candidateRevision: input.candidateRevision,
       contentHash: input.contentHash,
       draft,
+      artworkOverride,
       hostedAsset,
       reviews,
       publishedAt: reviewedAt,

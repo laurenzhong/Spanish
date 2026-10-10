@@ -129,6 +129,23 @@ export async function verifyRequestUser(
   request: NextRequest,
   verifier: AccessTokenVerifier | null = createSupabaseAccessTokenVerifier(),
 ): Promise<AuthenticatedUser | null> {
+  const authorization = request.headers.get("authorization");
+  // An explicit Authorization header is authoritative, including malformed
+  // or invalid values.  Never let a test/session cookie mask a bad bearer
+  // token (the same rule applies in production, where the E2E cookie is off).
+  if (authorization !== null) {
+    if (!authorization.startsWith("Bearer ") || !verifier) {
+      return null;
+    }
+
+    const accessToken = authorization.slice("Bearer ".length).trim();
+    if (!accessToken) {
+      return null;
+    }
+
+    return verifier.verify(accessToken);
+  }
+
   const testUser = testUserFromCookie(
     request.cookies.get("spanish-e2e-user")?.value,
   );
@@ -136,15 +153,5 @@ export async function verifyRequestUser(
     return testUser;
   }
 
-  const authorization = request.headers.get("authorization");
-  if (!authorization?.startsWith("Bearer ") || !verifier) {
-    return null;
-  }
-
-  const accessToken = authorization.slice("Bearer ".length).trim();
-  if (!accessToken) {
-    return null;
-  }
-
-  return verifier.verify(accessToken);
+  return null;
 }

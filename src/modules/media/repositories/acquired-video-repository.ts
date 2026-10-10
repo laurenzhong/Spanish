@@ -2,7 +2,8 @@ import type { DraftMediaSegment, MediaArtwork } from "../domain";
 
 export type AcquiredMediaReview = Readonly<{
   locale: "es-ES" | "zh-CN";
-  reviewerReference: "codex-ai-owner-authorized-review";
+  /** Owner-authorized AI review identity; historical `codex-*` records stay valid. */
+  reviewerReference: string;
   notes: string | null;
   reviewedAt: Date;
 }>;
@@ -56,6 +57,7 @@ export interface AcquiredVideoRepository {
     contentHash: string;
     draft: AcquiredVideoDraft;
     hostedAsset: HostedVideoAsset;
+    artworkOverride?: MediaArtwork | null;
     reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
     publishedAt: Date;
   }>): Promise<AcquiredMediaPublication>;

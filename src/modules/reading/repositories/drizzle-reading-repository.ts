@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql, type SQLWrapper } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -7,27 +7,35 @@ import {
   articleId,
   articleReference,
   normalizeSourceUrl,
-  type ReadingItem,
   type ReadingState,
   type SavedArticleSource,
 } from "../domain/reading-state";
-import type { ReadingRepository } from "./reading-repository";
+import type {
+  SavedArticleItem,
+  SavedArticleItemsResult,
+  SavedReadingItem,
+  SavedReadingItemsQuery,
+  SavedReadingItemsResult,
+} from "../domain/saved-items";
+import type { ReadingRepository, SavedArticleShelfQuery } from "./reading-repository";
 
 type ReadingDatabase<TResult extends PgQueryResultHKT> = PgDatabase<TResult, typeof schema>;
 
-function itemRows(
-  userId: string,
-  articleVersionId: string,
-  itemType: "phrase" | "highlight",
-  items: readonly ReadingItem[],
-) {
-  return items.map((item) => ({
-    articleVersionId,
-    itemType,
-    segmentPosition: item.position,
-    text: item.text,
-    userId,
-  }));
+function readingItemKey(itemType: "phrase" | "highlight", position: number, text: string): string {
+  return `${itemType}\u0000${position}\u0000${text}`;
+}
+
+function escapedIlike(column: SQLWrapper, pattern: string) {
+  // PostgreSQL's default LIKE escape is not guaranteed by the connection
+  // settings. Bind it explicitly so '%' and '_' in a private search remain
+  // literal characters rather than widening the result set.
+  return sql`${column} ILIKE ${pattern} ESCAPE ${"\\"}`;
+}
+
+function likePattern(term: string | undefined): string | undefined {
+  const trimmed = term?.trim();
+  if (!trimmed) return undefined;
+  return `%${trimmed.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
 }
 
 export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>(
@@ -163,17 +171,44 @@ export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>
               updatedAt: now,
             },
           });
-        await transaction
-          .delete(schema.userArticleHighlights)
+        const existingItems = await transaction
+          .select({
+            id: schema.userArticleHighlights.id,
+            itemType: schema.userArticleHighlights.itemType,
+            position: schema.userArticleHighlights.segmentPosition,
+            text: schema.userArticleHighlights.text,
+          })
+          .from(schema.userArticleHighlights)
           .where(
             and(
               eq(schema.userArticleHighlights.userId, userId),
               eq(schema.userArticleHighlights.articleVersionId, version.articleVersionId),
             ),
           );
-        const rows = [...itemRows(userId, version.articleVersionId, "phrase", patch.savedPhrases), ...itemRows(userId, version.articleVersionId, "highlight", patch.highlights)];
-        if (rows.length > 0) {
-          await transaction.insert(schema.userArticleHighlights).values(rows).onConflictDoNothing();
+        const desiredItems = [
+          ...patch.savedPhrases.map((item) => ({ itemType: "phrase" as const, position: item.position, text: item.text })),
+          ...patch.highlights.map((item) => ({ itemType: "highlight" as const, position: item.position, text: item.text })),
+        ];
+        const desiredKeys = new Set<string>();
+        const existingKeys = new Set(existingItems.map((item) => readingItemKey(item.itemType, item.position, item.text)));
+        const rowsToInsert = desiredItems.flatMap((item) => {
+          const key = readingItemKey(item.itemType, item.position, item.text);
+          if (desiredKeys.has(key)) return [];
+          desiredKeys.add(key);
+          return existingKeys.has(key)
+            ? []
+            : [{ articleVersionId: version.articleVersionId, itemType: item.itemType, segmentPosition: item.position, text: item.text, userId }];
+        });
+        const staleIds = existingItems
+          .filter((item) => !desiredKeys.has(readingItemKey(item.itemType, item.position, item.text)))
+          .map((item) => item.id);
+        if (staleIds.length > 0) {
+          await transaction
+            .delete(schema.userArticleHighlights)
+            .where(and(eq(schema.userArticleHighlights.userId, userId), inArray(schema.userArticleHighlights.id, staleIds)));
+        }
+        if (rowsToInsert.length > 0) {
+          await transaction.insert(schema.userArticleHighlights).values(rowsToInsert).onConflictDoNothing();
         }
         if (patch.saved) {
           await transaction
@@ -228,6 +263,183 @@ export function createDrizzleReadingRepository<TResult extends PgQueryResultHKT>
         .where(eq(schema.userArticleSaves.userId, userId))
         .orderBy(desc(schema.userArticleSaves.createdAt));
       return rows.map((row) => articleId(row.stableKey, row.version));
+    },
+
+    async listSavedArticleShelf(userId, query: SavedArticleShelfQuery): Promise<SavedArticleItemsResult> {
+      // One query serves both article kinds. Starting from `article_versions`
+      // and left-joining the user's save row and the generation row keeps a
+      // saved private story as a single row instead of a duplicate, so
+      // LIMIT/OFFSET and `total` stay exact for the shelf page.
+      const pattern = likePattern(query.search);
+      const visibility = and(
+        eq(schema.articleVersions.status, "published"),
+        eq(schema.articleSources.copyrightStatus, "cleared"),
+        // Another user's private story is never part of this shelf, even if a
+        // stale save row pointed at it.
+        or(isNull(schema.userGeneratedArticles.id), eq(schema.userGeneratedArticles.userId, userId)),
+        // Keep the row when the user saved it or generated it.
+        or(isNotNull(schema.userArticleSaves.id), eq(schema.userGeneratedArticles.userId, userId)),
+        pattern
+          ? or(
+            escapedIlike(schema.articleVersions.title, pattern),
+            escapedIlike(schema.articleVersions.summary, pattern),
+            escapedIlike(schema.articleSources.sourceName, pattern),
+          )
+          : undefined,
+      );
+      // `createdAt` is the save time when the article is saved and the story
+      // creation time otherwise, so both kinds sort on one timeline.
+      const shelfTimestamp = sql`coalesce(${schema.userArticleSaves.createdAt}, ${schema.userGeneratedArticles.createdAt})`;
+      const [rows, countRows] = await Promise.all([
+        database
+          .select({
+            stableKey: schema.articles.stableKey,
+            version: schema.articleVersions.version,
+            title: schema.articleVersions.title,
+            sourceName: schema.articleSources.sourceName,
+            sourceUrl: schema.articleSources.sourceUrl,
+            savedAt: schema.userArticleSaves.createdAt,
+            generatedAt: schema.userGeneratedArticles.createdAt,
+            generatedId: schema.userGeneratedArticles.id,
+          })
+          .from(schema.articleVersions)
+          .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
+          .innerJoin(schema.articleSources, eq(schema.articleVersions.sourceId, schema.articleSources.id))
+          .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
+          .leftJoin(schema.userArticleSaves, and(
+            eq(schema.userArticleSaves.articleVersionId, schema.articleVersions.id),
+            eq(schema.userArticleSaves.userId, userId),
+          ))
+          .where(visibility)
+          .orderBy(desc(shelfTimestamp), desc(schema.articleVersions.id))
+          .limit(query.pageSize)
+          .offset((query.page - 1) * query.pageSize),
+        database
+          .select({ count: sql<number>`count(*)` })
+          .from(schema.articleVersions)
+          .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
+          .innerJoin(schema.articleSources, eq(schema.articleVersions.sourceId, schema.articleSources.id))
+          .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
+          .leftJoin(schema.userArticleSaves, and(
+            eq(schema.userArticleSaves.articleVersionId, schema.articleVersions.id),
+            eq(schema.userArticleSaves.userId, userId),
+          ))
+          .where(visibility),
+      ]);
+      const items: readonly SavedArticleItem[] = rows.map((row) => ({
+        articleId: articleId(row.stableKey, row.version),
+        stableKey: row.stableKey,
+        version: row.version,
+        title: row.title,
+        sourceName: row.sourceName,
+        sourceUrl: row.sourceUrl ?? null,
+        itemType: "article",
+        origin: row.generatedId ? "generated" : "public",
+        saved: row.savedAt !== null,
+        // Visibility guarantees at least one timestamp; the epoch date is a
+        // defensive fallback so the projection can never emit an invalid date.
+        createdAt: row.savedAt ?? row.generatedAt ?? new Date(0),
+      }));
+      return {
+        items,
+        page: query.page,
+        pageSize: query.pageSize,
+        total: Number(countRows[0]?.count ?? 0),
+      };
+    },
+
+    async deleteSavedItem(userId, itemId) {
+      const rows = await database
+        .delete(schema.userArticleHighlights)
+        .where(and(eq(schema.userArticleHighlights.id, itemId), eq(schema.userArticleHighlights.userId, userId)))
+        .returning({ id: schema.userArticleHighlights.id });
+      return rows.length > 0;
+    },
+
+    async listSavedItems(userId, query: SavedReadingItemsQuery): Promise<SavedReadingItemsResult> {
+      // The LIKE pattern escapes metacharacters so a user search for "%" or "_"
+      // remains a literal search.
+      const pattern = likePattern(query.search);
+      const searchPredicate = pattern
+        ? or(
+          escapedIlike(schema.userArticleHighlights.text, pattern),
+          escapedIlike(schema.articleVersions.title, pattern),
+          escapedIlike(schema.articleSources.sourceName, pattern),
+          escapedIlike(schema.articleSegments.sourceText, pattern),
+        )
+        : undefined;
+      const visibility = and(
+        eq(schema.userArticleHighlights.userId, userId),
+        eq(schema.articleVersions.status, "published"),
+        eq(schema.articleSources.copyrightStatus, "cleared"),
+        // Generated stories are private article versions. Public rows cannot
+        // point at another user's generated version, but keep the ownership
+        // check here as a second server-side boundary for service-role reads.
+        or(isNull(schema.userGeneratedArticles.id), eq(schema.userGeneratedArticles.userId, userId)),
+        query.itemType ? eq(schema.userArticleHighlights.itemType, query.itemType) : undefined,
+        searchPredicate,
+      );
+      const [rows, countRows] = await Promise.all([
+        database
+          .select({
+            id: schema.userArticleHighlights.id,
+            itemType: schema.userArticleHighlights.itemType,
+            text: schema.userArticleHighlights.text,
+            position: schema.userArticleHighlights.segmentPosition,
+            createdAt: schema.userArticleHighlights.createdAt,
+            stableKey: schema.articles.stableKey,
+            version: schema.articleVersions.version,
+            title: schema.articleVersions.title,
+            sourceName: schema.articleSources.sourceName,
+            sourceUrl: schema.articleSources.sourceUrl,
+            context: schema.articleSegments.sourceText,
+          })
+          .from(schema.userArticleHighlights)
+          .innerJoin(schema.articleVersions, eq(schema.userArticleHighlights.articleVersionId, schema.articleVersions.id))
+          .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
+          .innerJoin(schema.articleSources, eq(schema.articleVersions.sourceId, schema.articleSources.id))
+          .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
+          .leftJoin(schema.articleSegments, and(
+            eq(schema.articleSegments.articleVersionId, schema.articleVersions.id),
+            eq(schema.articleSegments.position, schema.userArticleHighlights.segmentPosition),
+          ))
+          .where(visibility)
+          .orderBy(desc(schema.userArticleHighlights.createdAt), desc(schema.userArticleHighlights.id))
+          .limit(query.pageSize)
+          .offset((query.page - 1) * query.pageSize),
+        database
+          .select({ count: sql<number>`count(*)` })
+          .from(schema.userArticleHighlights)
+          .innerJoin(schema.articleVersions, eq(schema.userArticleHighlights.articleVersionId, schema.articleVersions.id))
+          .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
+          .innerJoin(schema.articleSources, eq(schema.articleVersions.sourceId, schema.articleSources.id))
+          .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
+          .leftJoin(schema.articleSegments, and(
+            eq(schema.articleSegments.articleVersionId, schema.articleVersions.id),
+            eq(schema.articleSegments.position, schema.userArticleHighlights.segmentPosition),
+          ))
+          .where(visibility),
+      ]);
+      const items: readonly SavedReadingItem[] = rows.map((row) => ({
+        id: row.id,
+        articleId: articleId(row.stableKey, row.version),
+        stableKey: row.stableKey,
+        version: row.version,
+        title: row.title,
+        sourceName: row.sourceName,
+        sourceUrl: row.sourceUrl ?? null,
+        itemType: row.itemType as SavedReadingItem["itemType"],
+        text: row.text,
+        position: row.position,
+        context: row.context ?? null,
+        createdAt: row.createdAt,
+      }));
+      return {
+        items,
+        page: query.page,
+        pageSize: query.pageSize,
+        total: Number(countRows[0]?.count ?? 0),
+      };
     },
 
     async saveSource(userId, input) {

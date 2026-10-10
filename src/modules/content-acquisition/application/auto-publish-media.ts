@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { assertCandidatePublishable, ContentPublicationConflictError } from "../domain";
+import { assertCandidatePublishable, ContentPublicationConflictError, ownerAuthorizedReviewerReference } from "../domain";
 import type { ContentWorkflowRepository } from "../repositories";
 import type { CandidatePublisherRegistry } from "../publishers";
 
@@ -59,7 +59,7 @@ export async function autoPublishMediaCandidate(
       expectedRevision: candidate.revision,
       expectedContentHash: candidate.contentHash,
       publicationRef: mediaPublicationRef,
-      reviewerReference: `codex-ai-owner-authorized-review:${input.actor}${input.runId ? `:${input.runId}` : ""}`,
+      reviewerReference: ownerAuthorizedReviewerReference({ actor: input.actor, runId: input.runId }),
       publishedAt: (input.now ?? (() => new Date()))(),
     });
   } catch (error) {

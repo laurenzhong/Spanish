@@ -50,5 +50,76 @@ describe("conversation stream route authentication", () => {
     const request = new NextRequest("http://localhost/api/v1/conversations/lucia");
     const response = await GET(request, { params: Promise.resolve({ characterId: "lucia" }) });
     expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      apiVersion: "v1",
+      error: {
+        code: "AUTH_REQUIRED",
+        message: "A valid user session is required.",
+        retryable: false,
+      },
+    });
+  });
+
+  it("returns a complete v1 envelope for invalid stream input", async () => {
+    mockedVerifyRequestUser.mockResolvedValue({ id: "web-user", email: "web@example.test" });
+    mockedGetCurrentUser.mockResolvedValue({ id: "web-user", email: "web@example.test" });
+    const request = new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "", clientMessageId: "client-1", generationId: "generation-1" }),
+    });
+    const response = await POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      apiVersion: "v1",
+      error: {
+        code: "INPUT_INVALID",
+        message: "This conversation request cannot be started.",
+        retryable: false,
+      },
+    });
+  });
+
+  it("does not fall back to the Web cookie when a bearer token is invalid", async () => {
+    mockedVerifyRequestUser.mockResolvedValue(null);
+    mockedGetCurrentUser.mockResolvedValue({ id: "cookie-user", email: "cookie@example.test" });
+    const request = new NextRequest("http://localhost/api/v1/conversations/lucia", {
+      headers: { authorization: "Bearer invalid" },
+    });
+
+    const response = await GET(request, { params: Promise.resolve({ characterId: "lucia" }) });
+    expect(response.status).toBe(401);
+    expect(mockedGetCurrentUser).not.toHaveBeenCalled();
+  });
+
+  it("fails closed in production when persistence and a real provider are absent", async () => {
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    const previousFake = process.env.CONVERSATION_ALLOW_FAKE;
+    try {
+      vi.stubEnv("NODE_ENV", "production");
+      delete process.env.DATABASE_URL;
+      delete process.env.CONVERSATION_ALLOW_FAKE;
+      mockedVerifyRequestUser.mockResolvedValue({ id: "production-user", email: null });
+      mockedGetCurrentUser.mockResolvedValue({ id: "production-user", email: null });
+      const request = new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ characterVersion: 1, text: "hola", clientMessageId: "client-production", generationId: "generation-production" }),
+      });
+      const response = await POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        apiVersion: "v1",
+        error: {
+          code: "CONVERSATION_UNAVAILABLE",
+          message: "Conversation runtime is unavailable.",
+          retryable: true,
+        },
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previousDatabaseUrl;
+      if (previousFake === undefined) delete process.env.CONVERSATION_ALLOW_FAKE; else process.env.CONVERSATION_ALLOW_FAKE = previousFake;
+    }
   });
 });

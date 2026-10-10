@@ -4,6 +4,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
+import { createBrowserTextToSpeech, preferredSpanishVoice, readSpanishVoicePreference } from "@/src/modules/providers/tts";
 
 import {
   ConversationNdjsonParser,
@@ -14,12 +15,15 @@ import {
 } from "@/src/modules/conversation";
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
-import { ConversationContactRail } from "./conversation-contact-rail";
+import { CONVERSATION_LIST_UPDATED_EVENT, ConversationContactRail } from "./conversation-contact-rail";
 import {
+  getCachedConversationAccess,
   getCachedConversationHistory,
   loadConversationHistory,
   setCachedConversationHistory,
+  type ConversationHistoryAccess,
 } from "./conversation-history-cache";
+import { getConversationCacheScope } from "./conversation-cache-scope";
 
 type ChatThreadProps = Readonly<{
   characterKey: "lucia" | "mateo" | "ines";
@@ -29,6 +33,8 @@ type ChatThreadProps = Readonly<{
   avatarClassName?: string;
   initialMessageId?: string;
   initialMessages?: readonly ConversationState["messages"][number][];
+  initialAccess?: ConversationHistoryAccess;
+  cacheScope?: string;
 }>;
 
 type UserAvatarProfile = Readonly<{
@@ -56,7 +62,7 @@ function createId(prefix: string): string {
   return `${prefix}-${uuid}`;
 }
 
-export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, avatarClassName = "avatar--lucia" }: ChatThreadProps) {
+export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, initialAccess, avatarClassName = "avatar--lucia", cacheScope = getConversationCacheScope() }: ChatThreadProps) {
   const targetMessageId = initialMessageId ?? (typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("message") ?? undefined
     : undefined);
@@ -64,10 +70,19 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     ? transitionConversationState(createConversationState(), { type: "hydrate", messages: initialMessages })
     : createConversationState());
   const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">(initialMessages ? "available" : "loading");
+  const [historyAccess, setHistoryAccess] = useState<ConversationHistoryAccess>(() => getCachedConversationAccess(characterKey, cacheScope) ?? initialAccess ?? {
+    // A server-rendered/fixture history is already an explicit view of the
+    // conversation. The authoritative route metadata will still replace this
+    // optimistic default as soon as the client revalidates.
+    readOnly: false,
+    canSend: Boolean(initialMessages),
+    contactStatus: null,
+  });
   const [draft, setDraft] = useState("");
   const [quotedMessage, setQuotedMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [contextMenu, setContextMenu] = useState<MessageMenuState | null>(null);
   const [translations, setTranslations] = useState<Record<string, MessageTranslation>>({});
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -78,6 +93,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const queuedMessagesRef = useRef<Array<{ text: string; clientMessageId: string; generationId: string }>>([]);
+  const pumpingQueueRef = useRef(false);
   const translationAbortRef = useRef<AbortController | null>(null);
   const translationRequestIdRef = useRef(0);
   const translationCharacterKeyRef = useRef(characterKey);
@@ -97,6 +114,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   ));
   const serverHistoryLoadedRef = useRef(Boolean(initialMessages));
   const retryMessage = useMemo(() => findRetryableUserMessage(state), [state]);
+  const textToSpeech = useMemo(() => createBrowserTextToSpeech(), []);
   const contextMenuMessageId = contextMenu?.messageId;
 
   useEffect(() => {
@@ -127,7 +145,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     return () => window.removeEventListener("account-profile-updated", load);
   }, []);
 
-  useEffect(() => {
+  // Apply the initial bottom anchor before the hydrated history is painted.
+  // Using a passive effect leaves one visible frame at scrollTop=0, which
+  // looks like the conversation is pushed down and then snaps into place.
+  useLayoutEffect(() => {
     const container = messagesRef.current;
     if (!container) return;
     if (shouldFollowRef.current) container.scrollTop = container.scrollHeight;
@@ -182,7 +203,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   useEffect(() => () => {
     abortRef.current?.abort();
     translationAbortRef.current?.abort();
-  }, []);
+    textToSpeech.stop();
+  }, [textToSpeech]);
 
   useEffect(() => {
     translationAbortRef.current?.abort();
@@ -250,7 +272,13 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   useEffect(() => {
     abortRef.current?.abort();
     let cancelled = false;
-    const cached = getCachedConversationHistory(characterKey);
+    const cached = getCachedConversationHistory(characterKey, cacheScope);
+    const cachedAccess = getCachedConversationAccess(characterKey, cacheScope);
+    if (cachedAccess) {
+      queueMicrotask(() => {
+        if (!cancelled) setHistoryAccess(cachedAccess);
+      });
+    }
     knownMessageKeysRef.current = new Set((initialMessages ?? []).map((message) => message.clientMessageId ?? message.id));
     serverMessageKeysRef.current = new Set((initialMessages ?? []).map((message) => message.clientMessageId ?? message.id));
     if (cached && cached.length > 0) {
@@ -264,7 +292,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
     const refresh = async (initialLoad = false) => {
       try {
-        const result = await loadConversationHistory(characterKey);
+        const result = await loadConversationHistory(characterKey, cacheScope);
         if (cancelled) return;
         const knownKeys = knownMessageKeysRef.current;
         const newlyArrivedProactive = result.messages.some((message) => {
@@ -294,14 +322,17 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           apply({ type: "hydrate", messages: result.messages });
         }
         serverMessageKeysRef.current = new Set(result.messages.map((message) => message.clientMessageId ?? message.id));
-        setCachedConversationHistory(characterKey, result.messages);
+        setHistoryAccess(result.access);
+        setCachedConversationHistory(characterKey, result.messages, result.access, cacheScope);
         setPersistenceStatus("available");
         serverHistoryLoadedRef.current = true;
       } catch {
-        // A cached snapshot is still usable while the server is temporarily
-        // unreachable; only show the unavailable state when there is no view
-        // to fall back to.
-        if (!cancelled && initialLoad && !cached?.length) setPersistenceStatus("unavailable");
+        // A cached snapshot or a server-rendered view is still usable while the
+        // server is temporarily unreachable; only show the unavailable state
+        // when there is no view to fall back to. An empty server-rendered
+        // history is still an open conversation, so test for the presence of
+        // the view rather than for its length.
+        if (!cancelled && initialLoad && !cached?.length && initialMessages === undefined) setPersistenceStatus("unavailable");
       }
     };
 
@@ -321,12 +352,21 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.clearInterval(interval);
     };
-  }, [characterKey, historyReloadToken, initialMessages]);
+  }, [cacheScope, characterKey, historyReloadToken, initialMessages]);
 
   useEffect(() => {
     if (state.messages.length === 0) return;
-    setCachedConversationHistory(characterKey, state.messages);
-  }, [characterKey, state.messages]);
+    setCachedConversationHistory(characterKey, state.messages, undefined, cacheScope);
+  }, [cacheScope, characterKey, state.messages]);
+
+  useEffect(() => {
+    if (historyAccess.canSend && !historyAccess.readOnly) return;
+    // A revalidation can revoke the contact while an older render still has
+    // an optimistic composer. Do not let queued work survive that revocation.
+    queuedMessagesRef.current = [];
+    abortRef.current?.abort();
+    pumpingQueueRef.current = false;
+  }, [historyAccess.canSend, historyAccess.readOnly]);
 
   function apply(action: Parameters<typeof transitionConversationState>[1]) {
     setState((current) => transitionConversationState(current, action));
@@ -342,7 +382,13 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         body: JSON.stringify({ characterVersion, text, clientMessageId, generationId }),
         signal: controller.signal,
       });
-      setPersistenceStatus(response.headers.get("x-conversation-persistence") === "available" ? "available" : "unavailable");
+      // Only an explicit persistence report may change this state. Error
+      // responses (validation, contact gate, provider outage) omit the header
+      // because they describe a failed send, not a failed history read.
+      // Treating a missing header as "unavailable" rendered "cannot open this
+      // conversation" for an open conversation and locked the composer.
+      const persistence = response.headers.get("x-conversation-persistence");
+      if (persistence) setPersistenceStatus(persistence === "available" ? "available" : "unavailable");
       if (!response.ok || !response.body) {
         apply({
           type: "stream-event",
@@ -368,7 +414,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           const timestamped = normalized.type === "meta" && !normalized.createdAt
             ? { ...normalized, createdAt: new Date().toISOString() }
             : normalized;
-          if (timestamped.type === "done") receivedDone = true;
+          if (timestamped.type === "done") {
+            receivedDone = true;
+            window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
+          }
           apply({ type: "stream-event", event: timestamped });
         }
       }
@@ -377,7 +426,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         const timestamped = normalized.type === "meta" && !normalized.createdAt
           ? { ...normalized, createdAt: new Date().toISOString() }
           : normalized;
-        if (timestamped.type === "done") receivedDone = true;
+        if (timestamped.type === "done") {
+          receivedDone = true;
+          window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
+        }
         apply({ type: "stream-event", event: timestamped });
       }
       for (const event of parser.finish()) {
@@ -404,22 +456,43 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
+      pumpingQueueRef.current = false;
+      pumpQueue();
     }
   }
 
+  function pumpQueue() {
+    if (pumpingQueueRef.current || abortRef.current || queuedMessagesRef.current.length === 0 || !historyAccess.canSend || historyAccess.readOnly) return;
+    const next = queuedMessagesRef.current.shift();
+    if (!next) return;
+    pumpingQueueRef.current = true;
+    apply({ type: "submit", ...next, createdAt: undefined });
+    void consume(next.text, next.clientMessageId, next.generationId);
+  }
+
   function submit() {
+    if (!historyAccess.canSend || historyAccess.readOnly || persistenceStatus !== "available") {
+      if (persistenceStatus === "available") setNotice(historyAccess.contactStatus === "declined" ? "你已拒绝这个好友申请，无法发送新消息。" : "这段对话目前只能查看，无法发送新消息。");
+      return;
+    }
     const text = draft.trim();
-    if (!text || state.status === "streaming") return;
+    if (!text) return;
     const clientMessageId = createId("client");
     const generationId = createId("generation");
     setDraft("");
     setQuotedMessage(null);
-    apply({ type: "submit", text, clientMessageId, generationId, createdAt: new Date().toISOString() });
+    const createdAt = new Date().toISOString();
+    if (state.status === "streaming" || abortRef.current || pumpingQueueRef.current) {
+      queuedMessagesRef.current.push({ text, clientMessageId, generationId });
+      apply({ type: "queue", text, clientMessageId, createdAt });
+      return;
+    }
+    apply({ type: "submit", text, clientMessageId, generationId, createdAt });
     void consume(text, clientMessageId, generationId);
   }
 
   function retry() {
-    if (!retryMessage || state.status === "streaming") return;
+    if (!retryMessage || state.status === "streaming" || !historyAccess.canSend || historyAccess.readOnly) return;
     const generationId = createId("generation");
     apply({ type: "retry", userMessageId: retryMessage.id, generationId });
     void consume(retryMessage.text, retryMessage.clientMessageId ?? retryMessage.id, generationId);
@@ -430,6 +503,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     if (!generationId) return;
     abortRef.current?.abort();
     apply({ type: "cancel", generationId });
+    pumpingQueueRef.current = false;
+    pumpQueue();
   }
 
   function retryHistory() {
@@ -438,7 +513,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function openMessageMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (message.withdrawn || !message.text || !message.complete) return;
+    // A streamed reply may still be marked incomplete while its first text
+    // has already arrived. Its actions are still safe to expose immediately.
+    if (message.withdrawn || !message.text) return;
     event.preventDefault();
     event.stopPropagation();
     messageMenuTriggerRef.current = event.currentTarget;
@@ -474,12 +551,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
   function handleMessageClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     if (window.getSelection()?.toString()) return;
-    if (message.text && message.complete && !message.withdrawn) openMessageMenu(event, message);
     if (message.createdAt) setExpandedTimestampId(message.id);
   }
 
   function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (message.text && message.complete && !message.withdrawn) openMessageMenu(event, message);
+    if (message.text && !message.withdrawn) openMessageMenu(event, message);
     else if (message.createdAt) {
       event.preventDefault();
       toggleMessageTimestamp(message.id);
@@ -487,13 +563,13 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function handleMessageDoubleClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (!message.text || !message.complete || message.withdrawn) return;
+    if (!message.text || message.withdrawn) return;
     openMessageMenu(event, message);
   }
 
   function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
     openMessageMenuFromKeyboard(event, message);
-    if ((event.key === "Enter" || event.key === " ") && message.text && message.complete && !message.withdrawn) {
+    if ((event.key === "Enter" || event.key === " ") && message.text && !message.withdrawn) {
       event.preventDefault();
       messageMenuTriggerRef.current = event.currentTarget;
       const rect = event.currentTarget.getBoundingClientRect();
@@ -568,6 +644,29 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     setContextMenu(null);
   }
 
+  async function speakMessage(message: ConversationState["messages"][number]) {
+    setContextMenu(null);
+    if (speakingMessageId === message.id) {
+      textToSpeech.stop();
+      setSpeakingMessageId(null);
+      return;
+    }
+    if (!textToSpeech.isSupported) {
+      setNotice("当前浏览器不支持朗读，请直接阅读这条消息");
+      return;
+    }
+    setSpeakingMessageId(message.id);
+    try {
+      const voicePreference = readSpanishVoicePreference();
+      const voice = preferredSpanishVoice(textToSpeech.voices(), voicePreference);
+      await textToSpeech.speak(message.text, { languageTag: "es-ES", rate: 0.88, voiceName: voice?.name, voiceURI: voice?.voiceURI });
+    } catch {
+      setNotice("浏览器暂时无法朗读，请稍后重试");
+    } finally {
+      setSpeakingMessageId((current) => current === message.id ? null : current);
+    }
+  }
+
   async function deleteMessage(message: ConversationState["messages"][number]) {
     if (!window.confirm("删除后将从你的聊天记录中移除，是否继续？")) return;
     setContextMenu(null);
@@ -597,6 +696,16 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     }
   }
 
+  const historyLocked = persistenceStatus === "available"
+    && (historyAccess.readOnly || !historyAccess.canSend);
+  const historyLockMessage = historyAccess.contactStatus === "pending"
+    ? "接受好友申请后才能发送消息。"
+    : historyAccess.contactStatus === "declined"
+      ? "你已拒绝这个好友申请，无法发送新消息。"
+      : historyAccess.contactStatus === "unavailable"
+        ? "这段对话目前只能查看，联系人状态暂时不可用。"
+        : "这段历史记录只能查看，不能发送新消息。";
+
   return (
     <section className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
       <header className="conversation-thread__header">
@@ -605,7 +714,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           <div>
             <h1 id="conversation-title">{characterName}</h1>
             {state.status === "streaming" ? (
-              <ConversationTypingIndicator className="conversation-thread__typing" />
+              <>
+                <ConversationTypingIndicator className="conversation-thread__typing" />
+                <span className="sr-only" role="status" aria-live="polite">正在回复</span>
+              </>
             ) : <p>{roleLabel}</p>}
           </div>
         </div>
@@ -637,7 +749,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
       {showMobileConversations ? <div className="conversation-mobile-list" role="dialog" aria-modal="true" aria-label="会话列表">
         <div className="conversation-mobile-list__header"><strong>会话列表</strong><button type="button" aria-label="关闭会话列表" onClick={() => setShowMobileConversations(false)}>×</button></div>
-        <ConversationContactRail activeCharacterKey={characterKey} />
+        <ConversationContactRail activeCharacterKey={characterKey} cacheScope={cacheScope} />
       </div> : null}
 
       <div ref={messagesRef} className="conversation-thread__messages" onScroll={handleMessagesScroll}>
@@ -656,7 +768,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         ) : null}
         {state.messages.map((message, index) => {
-          if (message.role === "character" && !message.complete && !message.text && state.status !== "streaming") return null;
+          // The header already exposes the typing state while a reply is being
+          // generated. Do not create an empty assistant bubble for the meta
+          // event; the bubble should appear with the first actual delta.
+          if (message.role === "character" && !message.text && !message.withdrawn) return null;
           const previous = state.messages[index - 1];
           const messageDate = message.createdAt ? new Date(message.createdAt) : null;
           const previousDate = previous?.createdAt ? new Date(previous.createdAt) : null;
@@ -668,7 +783,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           const timestampExpanded = expandedTimestampId === message.id;
           const timestampValue = message.createdAt;
           const translation = message.role === "character" && translationCharacterKeyRef.current === characterKey ? translations[message.id] : undefined;
-          const bubbleText = message.withdrawn ? "你撤回了一条消息" : message.text || "…";
+          const bubbleText = message.withdrawn ? "你撤回了一条消息" : message.text;
           return <Fragment key={message.id}>
           {(showTimestamp || timestampExpanded) && timestampValue ? <time className={`conversation-thread__timestamp${timestampExpanded ? " conversation-thread__timestamp--exact" : ""}`} dateTime={timestampValue}>
             {timestampExpanded ? formatFullTimestamp(timestampValue) : formatConversationTimestamp(timestampValue, dayChanged)}
@@ -712,6 +827,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {contextMenu && selectedMessage() && typeof document !== "undefined" ? createPortal(
         <div ref={messageMenuRef} className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x ?? contextMenu.anchorX, top: contextMenu.y ?? contextMenu.anchorBottom, visibility: contextMenu.x === undefined ? "hidden" : undefined }} onClick={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
+          {selectedMessage()?.role === "character" ? <button type="button" role="menuitem" onClick={() => void speakMessage(selectedMessage()!)}>{speakingMessageId === selectedMessage()?.id ? "停止朗读" : "朗读"}</button> : null}
           {selectedMessage()?.role === "character" ? (() => {
             const selected = selectedMessage()!;
             const translation = translations[selected.id];
@@ -734,7 +850,15 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {retryMessage ? <button className="secondary-action" onClick={retry} type="button">重新发送</button> : null}
         </div>
       ) : null}
-      <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
+      {persistenceStatus === "loading" && state.messages.length === 0 ? (
+        <div className="conversation-thread__composer-loading" role="status" aria-live="polite">正在准备对话……</div>
+      ) : historyLocked ? (
+        <div className="conversation-thread__composer-locked" role="status" data-testid="conversation-composer-locked">
+          {historyLockMessage}
+        </div>
+      ) : (
+        <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft} />
+      )}
     </section>
   );
 }

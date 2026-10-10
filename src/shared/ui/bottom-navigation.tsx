@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { NavigationLink } from "./navigation-link";
+import { ConversationUnreadBadge } from "@/src/modules/conversation/ui/conversation-unread-badge";
 
 export const navigationGroups = [
   {
@@ -74,6 +77,7 @@ export function NavigationIcon({ name }: Readonly<{ name: NavigationIconName }>)
 
 export function BottomNavigation() {
   const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   return (
     <nav className="primary-navigation" aria-label="主要导航">
@@ -84,24 +88,26 @@ export function BottomNavigation() {
       <div className="navigation-groups">
         {navigationGroups.map((group) => (
           <div className="navigation-group" key={group.label}>
-            <span className="navigation-group__label">{group.label}</span>
             <div className="navigation-items">
               {group.items.map((item) => {
                 const isCurrent =
                   pathname === item.href || pathname.startsWith(`${item.href}/`);
 
                 return (
-                  <Link
+                  <NavigationLink
                     aria-current={isCurrent ? "page" : undefined}
                     className="navigation-link"
                     href={item.href}
                     key={item.href}
+                    onClick={() => setPendingHref(item.href)}
+                    data-pending={pendingHref === item.href && pathname !== item.href ? "true" : undefined}
                   >
                     <span className="navigation-icon">
                       <NavigationIcon name={item.icon} />
                     </span>
-                    <span>{item.label}</span>
-                  </Link>
+                    <span className="navigation-link__label">{item.label}</span>
+                    {item.icon === "chat" ? <ConversationUnreadBadge /> : null}
+                  </NavigationLink>
                 );
               })}
             </div>

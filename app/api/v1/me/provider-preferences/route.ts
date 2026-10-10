@@ -15,6 +15,7 @@ import {
   ProviderRegistryError,
 } from "@/src/modules/providers/routing/provider-registry";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
 import { getDatabase } from "@/src/shared/db/client";
 import { scenarioData, scenarioError } from "@/app/api/v1/scenario-practice/http";
 
@@ -37,7 +38,7 @@ export async function handleGetProviderPreferences(
   request: NextRequest,
   dependencies?: ReadDependencies,
 ) {
-  const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return scenarioError(request, "AUTH_REQUIRED", "Authentication is required.", 401);
   if (!dependencies && !process.env.DATABASE_URL) {
     return scenarioData({ preferences: [] }, { headers: { "cache-control": "private, no-store" } });
@@ -54,7 +55,7 @@ export async function handlePatchProviderPreference(
   request: NextRequest,
   dependencies?: WriteDependencies,
 ) {
-  const user = (await verifyRequestUser(request)) ?? (await getCurrentUser());
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return scenarioError(request, "AUTH_REQUIRED", "Authentication is required.", 401);
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return scenarioError(request, "VALIDATION_FAILED", "The provider preference is invalid.", 400);

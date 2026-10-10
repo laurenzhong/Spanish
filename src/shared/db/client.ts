@@ -15,7 +15,17 @@ const globalDatabase = globalThis as typeof globalThis & {
 };
 
 function readDatabaseUrl(): string {
-  const connectionString = process.env.DATABASE_URL;
+  // Prefer the configured application connection, but reject malformed dotenv
+  // values and fall back to a valid direct endpoint when one is available.
+  const normalizeUrl = (value: string | undefined): string | undefined => value?.replace(/\s+/gu, "");
+  const isPostgresUrl = (value: string | undefined): value is string => Boolean(value && /^postgres(?:ql)?:\/\/[^\s]+$/u.test(value));
+  const databaseUrl = normalizeUrl(process.env.DATABASE_URL);
+  const directDatabaseUrl = normalizeUrl(process.env.DIRECT_DATABASE_URL);
+  const connectionString = isPostgresUrl(databaseUrl)
+    ? databaseUrl
+    : isPostgresUrl(directDatabaseUrl)
+      ? directDatabaseUrl
+      : databaseUrl;
 
   if (!connectionString) {
     throw new Error(
@@ -35,7 +45,7 @@ export function createDatabaseConnection(
 ): DatabaseConnection {
   const client = postgres(connectionString, {
     prepare: false,
-    max: process.env.NODE_ENV === "development" ? 5 : 10,
+    max: 10,
     idle_timeout: 20,
     connect_timeout: 10,
   });

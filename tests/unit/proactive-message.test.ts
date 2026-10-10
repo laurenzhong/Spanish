@@ -29,11 +29,14 @@ function state(overrides: Partial<Parameters<typeof evaluateProactiveEligibility
 }
 
 describe("proactive message policy", () => {
-  it("enforces relationship, cooldown, frequency and unanswered-message limits", () => {
+  it("enforces relationship, cooldown and frequency limits", () => {
     expect(evaluateProactiveEligibility(state({ relationshipStatus: "inactive" }), now)).toMatchObject({ allowed: false, reason: "relationship-inactive" });
-    expect(evaluateProactiveEligibility(state({ proactiveCount24h: 1 }), now)).toMatchObject({ allowed: false, reason: "daily-limit" });
-    expect(evaluateProactiveEligibility(state({ proactiveCount7d: 4 }), now)).toMatchObject({ allowed: false, reason: "weekly-limit" });
+    expect(evaluateProactiveEligibility(state({ proactiveCount24h: 3 }), now)).toMatchObject({ allowed: false, reason: "daily-limit" });
+    expect(evaluateProactiveEligibility(state({ proactiveCount7d: 12 }), now)).toMatchObject({ allowed: false, reason: "weekly-limit" });
     expect(evaluateProactiveEligibility(state({ lastProactiveMessageAt: new Date("2026-08-29T09:00:00.000Z") }), now)).toMatchObject({ allowed: false, reason: "cooldown" });
+    // main's production fix (`ab2b820`): a recent unanswered message still
+    // suppresses sending, but only inside the bounded window (see the next case
+    // for the stale-message regression).
     expect(evaluateProactiveEligibility(state({ hasUnansweredProactive: true, lastProactiveMessageAt: new Date("2026-08-29T08:00:00.000Z") }), now)).toMatchObject({ allowed: false, reason: "unanswered-message" });
     expect(evaluateProactiveEligibility(state(), now)).toEqual({ allowed: true, reason: "eligible" });
   });
@@ -73,6 +76,17 @@ describe("proactive message policy", () => {
     expect(isProactiveMessageSafe("Te echo de menos.", morningPlan)).toBe(true);
     expect(isProactiveMessageSafe("Te echo de menos. Ojalá tengas un día tranquilo y bonito.", morningPlan)).toBe(true);
     expect(isProactiveMessageSafe("Te echo de menos. ¿Cómo has dormido?", morningPlan)).toBe(false);
+    expect(isProactiveMessageSafe("Hoy he salido a caminar un rato. ¿Cómo va tu día?", proactiveReplyPlan("daily_share", "familiar"))).toBe(true);
+    expect(isProactiveMessageSafe("¿Cómo va tu día? ¿Y el trabajo?", proactiveReplyPlan("daily_share", "familiar"))).toBe(false);
+  });
+
+  it("requires unsolicited text to be pure Spanish", () => {
+    const plan = proactiveReplyPlan("daily_share", "familiar");
+    // Regression: the reported live message, including the Chinese word.
+    expect(isProactiveMessageSafe("Oye, me crucé con una fachada con azulejos increíbles en Malasaña, casi me quedo ahí plantada con el móvil. ¿Tú sueles parar a fotografiar cosas随机 de la calle?", plan)).toBe(false);
+    expect(isProactiveMessageSafe("Hoy he salido a caminar un rato随机.", plan)).toBe(false);
+    expect(isProactiveMessageSafe("随机", plan)).toBe(false);
+    expect(isProactiveMessageSafe("Hoy he salido a caminar un rato. ¿Cómo va tu día?", plan)).toBe(true);
   });
 });
 
@@ -131,17 +145,41 @@ describe("generateLuciaProactiveMessage", () => {
     expect(repository.completeCandidate).toHaveBeenCalledTimes(1);
   });
 
+  it("fails a candidate whose provider text mixes in Chinese", async () => {
+    const repository: ProactiveMessageRepository = {
+      getConversationId: vi.fn().mockResolvedValue("conversation-1"),
+      getEligibilityState: vi.fn().mockResolvedValue(state()),
+      createCandidate: vi.fn().mockImplementation(async (input) => ({
+        id: "candidate-1", userId: "user-1", characterKey: "lucia", conversationId: "conversation-1",
+        sourceType: input.sourceType, dedupeKey: input.dedupeKey, generationId: input.generationId,
+        notBefore: input.notBefore, expiresAt: input.expiresAt, status: "generating", messageId: null,
+        notificationStatus: "not_requested", lastErrorCode: null, createdAt: now, updatedAt: now,
+      })),
+      completeCandidate: vi.fn(),
+      failCandidate: vi.fn(),
+    };
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "Me apetecía saludarte随机.", provider: "minimax", modelVersion: "MiniMax-M3", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }),
+    };
+    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", now, repository, provider });
+    expect(result).toMatchObject({ status: "failed", reason: "safety-gate", message: null });
+    expect(repository.completeCandidate).not.toHaveBeenCalled();
+    expect(repository.failCandidate).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "safety-gate" }));
+  });
+
   it("does not call a provider when policy suppresses the message", async () => {
     const repository: ProactiveMessageRepository = {
       getConversationId: vi.fn(),
-      getEligibilityState: vi.fn().mockResolvedValue(state({ hasUnansweredProactive: true, lastProactiveMessageAt: new Date("2026-08-29T08:00:00.000Z") })),
+      // Keep the suppression reason unambiguous: this case asserts the daily
+      // cap, so the state must not also carry a recent unanswered message.
+      getEligibilityState: vi.fn().mockResolvedValue(state({ proactiveCount24h: 3 })),
       createCandidate: vi.fn(),
       completeCandidate: vi.fn(),
       failCandidate: vi.fn(),
     };
     const provider = { generate: vi.fn() };
     const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "quiet_presence", now, repository, provider });
-    expect(result).toMatchObject({ status: "suppressed", reason: "unanswered-message" });
+    expect(result).toMatchObject({ status: "suppressed", reason: "daily-limit" });
     expect(repository.createCandidate).not.toHaveBeenCalled();
     expect(provider.generate).not.toHaveBeenCalled();
   });

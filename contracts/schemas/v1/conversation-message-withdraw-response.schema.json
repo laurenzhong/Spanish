@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/conversation-message-withdraw-response.schema.json",
+  "title": "Conversation message withdrawal response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "data"],
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["withdrawn"],
+      "properties": { "withdrawn": { "const": true } }
+    }
+  }
+}

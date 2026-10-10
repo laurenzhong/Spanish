@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto";
 import { validateSegmentTimeline } from "@/src/modules/media/domain";
 
 import { calculatePodcastCandidateContentHash, calculateVideoCandidateContentHash, podcastCandidateDraftSchema, videoCandidateDraftSchema } from "../normalizers";
+import { OWNER_AUTHORIZED_REVIEWER_REFERENCE } from "../domain";
 import type { ContentCandidateRecord, ContentWorkflowRepository } from "../repositories";
 import { mediaReviewInputHash, mediaReviewResultSchema, type MediaReviewProvider, type MediaReviewResult } from "../providers/media-review";
 
-const REVIEWER_REFERENCE = "codex-ai-owner-authorized-review";
+const REVIEWER_REFERENCE = OWNER_AUTHORIZED_REVIEWER_REFERENCE;
 
 export type MediaReviewRunResult = Readonly<{
   status: "approved" | "changes_requested" | "rejected" | "failed";

@@ -26,6 +26,16 @@ describe("character network introduction route authentication", () => {
     expect(response.status).toBe(401);
   });
 
+  it("fails closed when persistence is unavailable", async () => {
+    mockedVerifyRequestUser.mockResolvedValue({ id: "user-a", email: null });
+    const response = await GET(new NextRequest("http://localhost/api/v1/character-network/introductions"));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      apiVersion: "v1",
+      error: { code: "INTRODUCTION_UNAVAILABLE", retryable: true },
+    });
+  });
+
   it("rejects malformed proposals before touching the database", async () => {
     mockedVerifyRequestUser.mockResolvedValue({ id: "user-a", email: null });
     const response = await POST(new NextRequest("http://localhost/api/v1/character-network/introductions", {
@@ -42,5 +52,15 @@ describe("character network introduction route authentication", () => {
     mockedGetCurrentUser.mockResolvedValue(null);
     const response = await GET_PERMISSIONS(new NextRequest("http://localhost/api/v1/character-network/permissions"));
     expect(response.status).toBe(401);
+  });
+
+  it("fails closed when shared-memory persistence is unavailable", async () => {
+    mockedVerifyRequestUser.mockResolvedValue({ id: "user-a", email: null });
+    const response = await GET_PERMISSIONS(new NextRequest("http://localhost/api/v1/character-network/permissions"));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      apiVersion: "v1",
+      error: { code: "PERMISSIONS_UNAVAILABLE", retryable: true },
+    });
   });
 });

@@ -9,6 +9,7 @@ import {
   LUCIA_DATA_RESET_CONFIRMATION,
 } from "@/src/modules/privacy";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { getRequestUser } from "@/src/shared/auth/request-user";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -34,9 +35,7 @@ function errorResponse(
 
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user =
-    (await verifyRequestUser(request)) ??
-    (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) {
     return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
   }

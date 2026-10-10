@@ -10,6 +10,7 @@ import {
   savedArticleSourceInputSchema,
 } from "@/src/modules/reading";
 import { createDrizzleReadingRepository } from "@/src/modules/reading/repositories";
+import { getRequestUser } from "@/src/shared/auth/request-user";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
 import { getDatabase } from "@/src/shared/db/client";
@@ -40,7 +41,7 @@ function serializeSource(source: Awaited<ReturnType<typeof listExternalSources>>
 
 export async function GET(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = (await verifyRequestUser(request)) ?? (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
   if (!process.env.DATABASE_URL) return errorResponse(requestId, "INTERNAL_ERROR", 503, "个人来源暂时无法读取。");
   try {
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = (await verifyRequestUser(request)) ?? (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
   if (!process.env.DATABASE_URL) return errorResponse(requestId, "INTERNAL_ERROR", 503, "个人来源暂时无法保存。");
   let body: unknown;
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = (await verifyRequestUser(request)) ?? (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
+  const user = await getRequestUser(request, { verifyRequestUser, getCurrentUser });
   if (!user) return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
   if (!process.env.DATABASE_URL) return errorResponse(requestId, "INTERNAL_ERROR", 503, "个人来源暂时无法删除。");
   const parsed = sourceIdSchema.safeParse(request.nextUrl.searchParams.get("sourceId"));

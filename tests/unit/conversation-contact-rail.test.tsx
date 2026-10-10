@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -154,6 +154,31 @@ describe("ConversationContactRail", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "管理好友顺序" })).not.toBeInTheDocument();
     expect(screen.queryByText("拖动好友行调整顺序")).not.toBeInTheDocument();
+  });
+
+  it("shows persisted unread counts and marks the conversation read after opening it", async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ data: { conversations: [{ conversationId: "c1", characterKey: "lucia", characterName: "Lucía Martín", avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null, unreadCount: 4 }] } }) } as Response);
+    const user = userEvent.setup();
+    render(<ConversationContactRail activeCharacterKey="mateo" />);
+    await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
+    expect(screen.getByLabelText("4 条未读消息")).toHaveTextContent("4");
+    await user.click(screen.getByRole("link", { name: /Lucía Martín/ }));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([, init]) => typeof init?.body === "string" && init.body.includes('"markRead":true'))).toBe(true));
+  });
+
+  it("cancels a pending mobile long press when the contact list starts scrolling", async () => {
+    render(<ConversationContactRail activeCharacterKey="lucia" />);
+    await waitFor(() => expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument());
+    vi.useFakeTimers();
+
+    const row = screen.getByRole("link", { name: /Lucía Martín/ }).closest(".conversation-contact-row-shell");
+    expect(row).not.toBeNull();
+    fireEvent.touchStart(row!, { touches: [{ clientX: 20, clientY: 20 }] });
+    fireEvent.touchMove(row!, { touches: [{ clientX: 20, clientY: 80 }] });
+    vi.advanceTimersByTime(500);
+
+    expect(screen.queryByRole("menu", { name: "Lucía Martín 的好友操作" })).not.toBeInTheDocument();
+    vi.useRealTimers();
   });
 
 });
