@@ -50,17 +50,38 @@ export function createDrizzleLuciaContactRepository<TResult extends PgQueryResul
     },
 
     async get(userId) {
-      const character = await findLucia(database);
-      const [relationship] = await database
-        .select({ id: schema.characterRelationships.id, status: schema.characterRelationships.status, relationshipStage: schema.characterRelationships.relationshipStage, relationshipSummary: schema.characterRelationships.relationshipSummary })
-        .from(schema.characterRelationships)
-        .where(and(eq(schema.characterRelationships.userId, userId), eq(schema.characterRelationships.characterId, character.id)))
+      // The guard, the relationship and the conversation are resolved in one
+      // statement. A remote database bills the request in round trips rather
+      // than query cost, and this branch runs on every conversation open and
+      // every send. Both joined tables are unique per (user, character)
+      // (conversations_user_character_uidx and the relationship unique index),
+      // so the left joins cannot multiply the character row.
+      const [row] = await database
+        .select({
+          relationshipId: schema.characterRelationships.id,
+          relationshipStatus: schema.characterRelationships.status,
+          relationshipStage: schema.characterRelationships.relationshipStage,
+          relationshipSummary: schema.characterRelationships.relationshipSummary,
+          conversationId: schema.conversations.id,
+          characterStatus: schema.characters.status,
+        })
+        .from(schema.characters)
+        .leftJoin(schema.characterRelationships, and(
+          eq(schema.characterRelationships.characterId, schema.characters.id),
+          eq(schema.characterRelationships.userId, userId),
+        ))
+        .leftJoin(schema.conversations, and(
+          eq(schema.conversations.characterId, schema.characters.id),
+          eq(schema.conversations.userId, userId),
+        ))
+        .where(and(eq(schema.characters.stableKey, "lucia"), eq(schema.characters.characterVersion, 1)))
         .limit(1);
-      const [conversation] = await database
-        .select({ id: schema.conversations.id })
-        .from(schema.conversations)
-        .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.characterId, character.id)))
-        .limit(1);
+      const definition = findCharacterRuntimeDefinition("lucia", 1);
+      if (!row || !isPublishedCharacterStatus(row.characterStatus) || !isCharacterConversationEnabled(definition)) {
+        throw new Error("CHARACTER_UNAVAILABLE");
+      }
+      const relationship = row.relationshipId === null ? null : row;
+      const conversation = row.conversationId === null ? null : { id: row.conversationId };
       // Preserve conversations created before the friend-request gate existed.
       // They are already an established contact and must not be hidden.
       if (!relationship) {
@@ -75,7 +96,7 @@ export function createDrizzleLuciaContactRepository<TResult extends PgQueryResul
       }
       return {
         characterKey: "lucia",
-        status: relationship.status as LuciaContactStatus,
+        status: relationship.relationshipStatus as LuciaContactStatus,
         relationshipStage: relationship.relationshipStage as LuciaContactRecord["relationshipStage"],
         relationshipSummary: relationship.relationshipSummary?.es ?? null,
         conversationId: conversation?.id ?? null,

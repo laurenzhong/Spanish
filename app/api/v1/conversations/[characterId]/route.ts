@@ -7,6 +7,7 @@ import {
   listConversationHistory,
   resolveConversationCharacter,
   findConversationCharacter,
+  type ConversationMessage,
 } from "@/src/modules/conversation";
 import { createDrizzleCharacterRepository } from "@/src/modules/characters";
 import {
@@ -60,6 +61,27 @@ async function resolveHistoryAccess(
   }
 }
 
+type Settled<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: unknown }>;
+
+/**
+ * Runs one branch of a parallel read without letting its rejection decide the
+ * outcome of the other branches. The branches below are independent, so each
+ * one reports its own result to the existing per-branch error handling.
+ */
+async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
+  try {
+    return { ok: true, value: await promise };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+const UNREADABLE_HISTORY_ACCESS: ConversationHistoryAccess = {
+  readOnly: true,
+  canSend: false,
+  contactStatus: "unavailable",
+};
+
 function serverTiming(entries: Readonly<Record<string, number>>): string {
   return Object.entries(entries)
     .map(([name, duration]) => `${name};dur=${Math.max(0, Math.round(duration))}`)
@@ -103,14 +125,29 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // runtime resolves lifecycle and version from the characters table first.
     const database = process.env.DATABASE_URL ? getDatabase() : null;
     const repository = database ? createDrizzleConversationRepository(database) : null;
-    try {
-      await resolveConversationCharacter({
+
+    // Opening a conversation needs three independent reads: the character
+    // runtime (character + canon facts), the message history, and the contact
+    // gate (character + relationship + conversation). Issued one after another
+    // they cost six round trips, and a remote database bills the request in
+    // round trips rather than query cost - the SQL itself executes in
+    // single-digit milliseconds. Issuing them together costs the longest
+    // branch instead of their sum.
+    const [character, history, access] = await Promise.all([
+      settle(resolveConversationCharacter({
         characterKey: characterId,
         characterVersion: 1,
         repository: database && process.env.NODE_ENV !== "test" ? createDrizzleCharacterRepository(database) : undefined,
         allowStaticFallback: isConversationStaticFallbackAllowed(),
-      });
-    } catch (error) {
+      })),
+      settle<readonly ConversationMessage[] | null>(
+        repository ? listConversationHistory(repository, user.id, characterId) : Promise.resolve(null),
+      ),
+      database ? resolveHistoryAccess(database, user.id, characterId) : Promise.resolve(UNREADABLE_HISTORY_ACCESS),
+    ]);
+
+    if (!character.ok) {
+      const error = character.error;
       // A user may still open an owned conversation created by an older
       // character version, but it is explicitly read-only. No new route can
       // create or send against that character.
@@ -158,8 +195,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
         { "cache-control": "no-store", "server-timing": serverTiming({ auth: authMs, database: Date.now() - databaseStartedAt, total: Date.now() - startedAt }), "x-conversation-persistence": "unavailable" },
       );
     }
-    const messages = await listConversationHistory(repository, user.id, characterId);
-    const access = await resolveHistoryAccess(database!, user.id, characterId);
+    // The history read already ran alongside the character gate above. A
+    // failure here is the same persistence failure as before: the outer catch
+    // reports it as CONVERSATION_UNAVAILABLE.
+    if (!history.ok) throw history.error;
+    const messages = history.value ?? [];
     return NextResponse.json({
       apiVersion: API_VERSION,
       data: {
