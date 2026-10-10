@@ -277,6 +277,122 @@ describe("normalized article reader", () => {
     expect(requestBody).toMatchObject({ word: "clase, Marta entra en", selectionType: "sentence" });
   });
 
+  it("keeps a sentence selection that ends on the whitespace between words", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).includes("word-explanation")) {
+        return new Response(JSON.stringify({ apiVersion: "v1", data: {
+          partOfSpeech: "句子",
+          meaning: "下课后，玛尔塔走进校园里的咖啡馆。",
+          contextualMeaning: "整句仍然可以被解析，即使拖选停在词间空白。",
+          example: "Después de clase, voy a una cafetería.",
+          provider: "minimax",
+          modelVersion: "MiniMax-M3",
+          providerRequestId: "request-whitespace-boundary",
+          latencyMs: 20,
+          estimatedCostMicros: null,
+        } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      void init;
+      return new Response(null, { status: 401 });
+    });
+    render(<ArticleReader article={result.article} />);
+    const paragraph = document.querySelector<HTMLElement>('[data-reader-position="0"]');
+    if (!paragraph) throw new Error("article paragraph missing");
+    const tokens = within(paragraph).getAllByRole("button");
+    const startWhitespace = tokens[1]?.nextSibling;
+    const endWhitespace = tokens[4]?.nextSibling;
+    if (!startWhitespace || !endWhitespace) throw new Error("whitespace boundaries missing");
+    const range = document.createRange();
+    range.setStart(startWhitespace, 0);
+    range.setEnd(endWhitespace, endWhitespace.textContent?.length ?? 0);
+    const selectedText = range.toString().trim();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.mouseUp(paragraph);
+
+    await waitFor(() => expect(screen.getByText("整句仍然可以被解析，即使拖选停在词间空白。")).toBeInTheDocument());
+    expect(tokens.slice(2, 5).every((token) => token.classList.contains("is-translation-selection"))).toBe(true);
+    expect(tokens[1]).not.toHaveClass("is-translation-selection");
+    const requestBody = JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input).includes("word-explanation"))?.[1]?.body)) as { word?: string; selectionType?: string };
+    expect(requestBody).toMatchObject({ word: selectedText, selectionType: "sentence" });
+  });
+
+  it("keeps a sentence drag that is released outside the paragraph", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("word-explanation")) {
+        return new Response(JSON.stringify({ apiVersion: "v1", data: {
+          partOfSpeech: "句子",
+          meaning: "松手落在段落外也必须解析整句。",
+          contextualMeaning: "段落之间的空白与页边距同样属于拖选手势。",
+          example: "Después de clase, voy a una cafetería.",
+          provider: "minimax",
+          modelVersion: "MiniMax-M3",
+          providerRequestId: "request-outside-paragraph",
+          latencyMs: 20,
+          estimatedCostMicros: null,
+        } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(null, { status: 401 });
+    });
+    render(<ArticleReader article={result.article} />);
+    const paragraph = document.querySelector<HTMLElement>('[data-reader-position="0"]');
+    const body = document.querySelector<HTMLElement>(".article-reader__body");
+    if (!paragraph || !body) throw new Error("article paragraph missing");
+    const tokens = within(paragraph).getAllByRole("button");
+    const range = document.createRange();
+    range.setStart(tokens[1]?.firstChild ?? paragraph, 0);
+    range.setEnd(tokens[3]?.firstChild ?? paragraph, tokens[3]?.textContent?.length ?? 0);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.mouseUp(body);
+
+    await waitFor(() => expect(screen.getByText("段落之间的空白与页边距同样属于拖选手势。")).toBeInTheDocument());
+    expect(paragraph.querySelectorAll(".reader-token.is-translation-selection")).toHaveLength(3);
+  });
+
+  it("keeps a backward drag that starts in a later paragraph", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("word-explanation")) {
+        return new Response(JSON.stringify({ apiVersion: "v1", data: {
+          partOfSpeech: "句子",
+          meaning: "反向跨段拖选时解析起点段落。",
+          contextualMeaning: "鼠标按下的段落决定解析目标。",
+          example: "Después de clase, voy a una cafetería.",
+          provider: "minimax",
+          modelVersion: "MiniMax-M3",
+          providerRequestId: "request-cross-paragraph",
+          latencyMs: 20,
+          estimatedCostMicros: null,
+        } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(null, { status: 401 });
+    });
+    render(<ArticleReader article={result.article} />);
+    const first = document.querySelector<HTMLElement>('[data-reader-position="0"]');
+    const second = document.querySelector<HTMLElement>('[data-reader-position="1"]');
+    if (!first || !second) throw new Error("article paragraphs missing");
+    const firstTokens = within(first).getAllByRole("button");
+    const secondTokens = within(second).getAllByRole("button");
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    // Backward drag: the pointer goes down inside the second paragraph and is released in the first one.
+    selection?.setBaseAndExtent(secondTokens[2]?.firstChild ?? second, 0, firstTokens[1]?.firstChild ?? first, 0);
+    fireEvent.mouseUp(document.querySelector(".article-reader") ?? second);
+
+    await waitFor(() => expect(screen.getByText("鼠标按下的段落决定解析目标。")).toBeInTheDocument());
+    // Only the pressed paragraph is translated, and only up to the pressed word.
+    expect(second.querySelectorAll(".reader-token.is-translation-selection")).toHaveLength(3);
+    expect(first.querySelectorAll(".reader-token.is-translation-selection")).toHaveLength(0);
+  });
+
   it("dismisses a temporary explanation on outside click", async () => {
     const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
@@ -335,15 +451,34 @@ describe("normalized article reader", () => {
     expect(screen.queryByRole("dialog", { name: "解释" })).not.toBeInTheDocument();
   });
 
+  it("keeps word tokens out of the tab order until the keyboard is used", async () => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    render(<ArticleReader article={result.article} />);
+    const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
+    expect(token).toBeDefined();
+    if (!token) throw new Error("reader token missing");
+    // A focusable word token makes Chrome swallow drag selections that start on a
+    // word boundary, so tokens stay out of the tab order for pointer reading.
+    expect(token).not.toHaveAttribute("tabindex");
+    fireEvent.keyDown(document, { key: "Tab" });
+    await waitFor(() => expect(token).toHaveAttribute("tabindex", "0"));
+    fireEvent.pointerUp(document);
+    await waitFor(() => expect(token).not.toHaveAttribute("tabindex"));
+  });
+
   it("moves focus to the pin control and restores it on Escape", async () => {
     const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
+    await user.keyboard("{Tab}");
     const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
     expect(token).toBeDefined();
     if (!token) throw new Error("reader token missing");
-    await user.click(token);
+    expect(token).toHaveAttribute("tabindex", "0");
+    token.focus();
+    await user.keyboard("{Enter}");
     const pin = screen.getByRole("button", { name: "固定翻译器" });
     expect(pin).toHaveFocus();
     await user.keyboard("{Escape}");

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { ArticleReaderProjection, ArticleTransferType } from "@/src/modules/content/domain";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import type { ArticleReaderProjection, ArticleReaderSegment, ArticleTransferType } from "@/src/modules/content/domain";
 import { articleTransferTask, articleTransferTypes, recommendedArticleTransferType } from "@/src/modules/content/domain";
 import { readingStatePatchSchema } from "@/src/modules/reading/domain/reading-state";
 import {
@@ -21,6 +21,7 @@ type Highlight = Readonly<{ id: string; text: string; position: number }>;
 type ReaderSettings = Readonly<{ fontSize: "default" | "large"; lineHeight: "default" | "relaxed"; width: "narrow" | "wide"; theme: "light" | "dim"; ttsRate: number }>;
 type ReaderState = Readonly<{ stableKey: string; version: number; contentHash: string; position: number; savedPhrases: readonly SavedPhrase[]; highlights: readonly Highlight[]; note: string; saved: boolean; settings?: ReaderSettings; transferDraft?: string; transferType?: ArticleTransferType | null; status?: "in_progress" | "completed"; lastOpenedAt?: string }>;
 type SelectedToken = Readonly<{ text: string; position: number; context: string; selectionType: "word" | "sentence"; tokenStart: number; tokenEnd: number }>;
+type StreamPreview = Partial<Pick<WordExplanation, "partOfSpeech" | "meaning" | "contextualMeaning" | "example">>;
 type TranslatorPosition = Readonly<{ left: number; top: number }>;
 type WordExplanationStatus = "idle" | "loading" | "success" | "error";
 type ReaderTool = "listen" | "explain" | "saved" | "settings";
@@ -55,6 +56,126 @@ function clampTranslatorPosition(left: number, top: number, width: number, heigh
   };
 }
 
+function tokenIndexOf(element: Element | null): number | null {
+  if (!element) return null;
+  const index = Number((element as HTMLElement).dataset.readerTokenIndex);
+  return Number.isFinite(index) ? index : null;
+}
+
+function tokenWithin(element: Element, direction: "forward" | "backward"): Element | null {
+  const direct = tokenIndexOf(element);
+  if (direct !== null) return element;
+  const tokens = element.querySelectorAll("[data-reader-token-index]");
+  if (!tokens.length) return null;
+  return direction === "forward" ? tokens[0] : tokens[tokens.length - 1];
+}
+
+function tokenWithinNode(node: Node, direction: "forward" | "backward"): Element | null {
+  return node.nodeType === Node.ELEMENT_NODE ? tokenWithin(node as Element, direction) : null;
+}
+
+function paragraphForNode(node: Node | null | undefined): HTMLElement | null {
+  if (!node) return null;
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  return element?.closest<HTMLElement>("[data-reader-position]") ?? null;
+}
+
+type SelectionBoundaries = Readonly<{ startNode: Node; startOffset: number; endNode: Node; endOffset: number; anchorNode: Node | null }>;
+
+function selectionBoundaries(selection: Selection): SelectionBoundaries | null {
+  const range = selection.rangeCount > 0 && typeof selection.getRangeAt === "function" ? selection.getRangeAt(0) : null;
+  if (range) return { startNode: range.startContainer, startOffset: range.startOffset, endNode: range.endContainer, endOffset: range.endOffset, anchorNode: selection.anchorNode ?? null };
+  if (!selection.anchorNode || !selection.focusNode) return null;
+  return { startNode: selection.anchorNode, startOffset: selection.anchorOffset ?? 0, endNode: selection.focusNode, endOffset: selection.focusOffset ?? 0, anchorNode: selection.anchorNode };
+}
+
+/**
+ * Reads the token index a selection boundary covers. Dragged selections often
+ * end on the whitespace between two words, on the paragraph itself, or outside
+ * the paragraph entirely (the pointer overshoots into the margins or the gap
+ * between paragraphs), so the boundary resolves to the nearest token in the
+ * direction the selection grows instead of dropping the whole gesture.
+ */
+function boundaryTokenIndex(paragraph: HTMLElement, node: Node, offset: number, direction: "forward" | "backward"): number | null {
+  if (!paragraph.contains(node)) {
+    const relation = paragraph.compareDocumentPosition(node);
+    if (relation & Node.DOCUMENT_POSITION_PRECEDING) return tokenIndexOf(tokenWithin(paragraph, "forward"));
+    if (relation & Node.DOCUMENT_POSITION_FOLLOWING) return tokenIndexOf(tokenWithin(paragraph, "backward"));
+    return null;
+  }
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  if (!element) return null;
+  const direct = tokenIndexOf(element.closest("[data-reader-token-index]"));
+  if (direct !== null) return direct;
+  let cursor: Node | null = node;
+  if (node === paragraph) {
+    const child = direction === "forward" ? offset : offset - 1;
+    cursor = paragraph.childNodes[Math.min(Math.max(child, 0), Math.max(paragraph.childNodes.length - 1, 0))] ?? null;
+  }
+  while (cursor && cursor !== paragraph) {
+    const index = tokenIndexOf(tokenWithinNode(cursor, direction));
+    if (index !== null) return index;
+    const sibling: Node | null = direction === "forward" ? cursor.nextSibling : cursor.previousSibling;
+    if (sibling) { cursor = sibling; continue; }
+    cursor = cursor.parentNode;
+  }
+  // The boundary sits at the edge of the paragraph: fall back to the nearest token.
+  return tokenIndexOf(tokenWithin(paragraph, direction === "forward" ? "backward" : "forward"));
+}
+
+/** Range boundaries keep the drag direction irrelevant: a range start always precedes its end. */
+function selectedTokenRange(paragraph: HTMLElement, selection: Selection): Readonly<{ start: number; end: number }> | null {
+  const boundaries = selectionBoundaries(selection);
+  if (!boundaries) return null;
+  const start = boundaryTokenIndex(paragraph, boundaries.startNode, boundaries.startOffset, "forward");
+  const end = boundaryTokenIndex(paragraph, boundaries.endNode, boundaries.endOffset, "backward");
+  if (start === null || end === null) return null;
+  return { start: Math.min(start, end), end: Math.max(start, end) };
+}
+
+type ReaderParagraphProps = Readonly<{
+  segment: ArticleReaderSegment;
+  highlighted: boolean;
+  listenTarget: boolean;
+  selectionStart: number;
+  selectionEnd: number;
+  tabbable: boolean;
+  onSelectToken: (text: string, position: number, context: string, tokenIndex: number, trigger: HTMLElement) => void;
+}>;
+
+/**
+ * One article paragraph. Rendering is memoized per paragraph so that selecting a
+ * sentence, streaming a translation or moving the reading position never rebuilds
+ * every word token in a 1,000+ word article.
+ *
+ * Word tokens stay out of the tab order while the reader is used with a pointer:
+ * Chrome focuses a focusable token on mousedown, and that focus cancels the
+ * browser's drag selection whenever the press lands on a word boundary, so
+ * sentences could not be dragged from the gap between words.
+ */
+const ReaderParagraph = memo(function ReaderParagraph({ segment, highlighted, listenTarget, selectionStart, selectionEnd, tabbable, onSelectToken }: ReaderParagraphProps) {
+  const words = useMemo(() => segment.text.split(/(\s+)/u), [segment.text]);
+  const className = [highlighted ? "is-highlighted" : "", listenTarget ? "is-listen-target" : ""].filter(Boolean).join(" ");
+  return <p
+    id={"segment-" + segment.position}
+    className={className}
+    aria-current={listenTarget ? "true" : undefined}
+    data-reader-position={segment.position}
+  >
+    {words.map((word, index) => /\s+/u.test(word)
+      ? word
+      : <span
+        key={segment.position + "-word-" + index}
+        className={["reader-token", selectionStart < 0 ? "" : index >= selectionStart && index <= selectionEnd ? "is-translation-selection" : ""].filter(Boolean).join(" ")}
+        data-reader-token-index={index}
+        role="button"
+        tabIndex={tabbable ? 0 : undefined}
+        onClick={(event) => onSelectToken(word, segment.position, segment.text, index, event.currentTarget)}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelectToken(word, segment.position, segment.text, index, event.currentTarget); } }}
+      >{word}</span>)}
+  </p>;
+});
+
 function ListenIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6l-5 4H5zm12-1.5a5 5 0 0 1 0 7" /></svg>;
 }
@@ -77,7 +198,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [activePosition, setActivePosition] = useState(0);
   const [selectedToken, setSelectedToken] = useState<SelectedToken | null>(null);
   const [wordExplanation, setWordExplanation] = useState<WordExplanation | null>(null);
-  const [streamPreview, setStreamPreview] = useState<Partial<Pick<WordExplanation, "partOfSpeech" | "meaning" | "contextualMeaning" | "example">>>({});
+  const [streamPreview, setStreamPreview] = useState<StreamPreview>({});
   const [commonEntry, setCommonEntry] = useState<CommonGlossaryEntry | null>(null);
   const [wordExplanationStatus, setWordExplanationStatus] = useState<WordExplanationStatus>("idle");
   const [wordExplanationError, setWordExplanationError] = useState("");
@@ -86,6 +207,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [toolsPinned, setToolsPinned] = useState(false);
   const [translatorPosition, setTranslatorPosition] = useState<TranslatorPosition | null>(null);
   const [draggingTranslator, setDraggingTranslator] = useState(false);
+  const [keyboardNavigation, setKeyboardNavigation] = useState(false);
   const [speakingPosition, setSpeakingPosition] = useState<number | "full" | "voice-preview" | null>(null);
   const [spanishVoices, setSpanishVoices] = useState<readonly SpeechSynthesisVoice[]>([]);
   const [selectedSpanishVoiceURI, setSelectedSpanishVoiceURI] = useState<string | null>(() => readSpanishVoicePreference());
@@ -106,6 +228,32 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const translatorDragRef = useRef<Readonly<{ pointerId: number; startX: number; startY: number; originLeft: number; originTop: number; width: number; height: number }> | null>(null);
   const explanationRequestRef = useRef<{ generation: number; controller: AbortController } | null>(null);
   const explanationGenerationRef = useRef(0);
+  const pendingPreviewRef = useRef<StreamPreview | null>(null);
+  const previewFrameRef = useRef(0);
+  const cancelStreamPreview = useCallback(() => {
+    if (previewFrameRef.current) cancelAnimationFrame(previewFrameRef.current);
+    previewFrameRef.current = 0;
+    pendingPreviewRef.current = null;
+  }, []);
+  // Streamed deltas arrive faster than the display refreshes; publishing at most
+  // one preview per animation frame keeps the translation panel responsive.
+  const scheduleStreamPreview = useCallback((next: StreamPreview) => {
+    pendingPreviewRef.current = { ...pendingPreviewRef.current, ...next };
+    if (previewFrameRef.current) return;
+    previewFrameRef.current = requestAnimationFrame(() => {
+      previewFrameRef.current = 0;
+      const pending = pendingPreviewRef.current;
+      pendingPreviewRef.current = null;
+      if (pending) setStreamPreview((previous) => ({ ...previous, ...pending }));
+    });
+  }, []);
+  const flushStreamPreview = useCallback(() => {
+    if (previewFrameRef.current) cancelAnimationFrame(previewFrameRef.current);
+    previewFrameRef.current = 0;
+    const pending = pendingPreviewRef.current;
+    pendingPreviewRef.current = null;
+    if (pending) setStreamPreview((previous) => ({ ...previous, ...pending }));
+  }, []);
   const tts = useMemo(() => createBrowserTextToSpeech(), []);
   const settings = state.settings ?? defaultSettings;
   useEffect(() => {
@@ -119,6 +267,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, [article.locale]);
   const closeTools = useCallback(() => {
     explanationRequestRef.current?.controller.abort();
+    cancelStreamPreview();
     setWordExplanationStatus("idle");
     setSelectedToken(null);
     setCommonEntry(null);
@@ -129,7 +278,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setDraggingTranslator(false);
     translatorDragRef.current = null;
     setToolsOpenState(false);
-  }, []);
+  }, [cancelStreamPreview]);
   const toggleTool = useCallback((tool: ReaderTool, trigger: HTMLButtonElement) => {
     if (toolsOpen && activeTool === tool) {
       closeTools();
@@ -144,6 +293,18 @@ export function ArticleReader({ article }: ArticleReaderProps) {
 
   useEffect(() => () => tts.stop(), [tts]);
   useEffect(() => () => explanationRequestRef.current?.controller.abort(), []);
+  useEffect(() => () => cancelStreamPreview(), [cancelStreamPreview]);
+  useEffect(() => {
+    // Word tokens only become tab stops once the reader is driven from the keyboard.
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Tab") setKeyboardNavigation(true); };
+    const onPointerUp = () => setKeyboardNavigation((current) => current ? false : current);
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerup", onPointerUp);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerup", onPointerUp);
+    };
+  }, []);
   useEffect(() => {
     const recoveredFromOffline = !previousOnlineRef.current && online;
     previousOnlineRef.current = online;
@@ -183,7 +344,13 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     return () => controller.abort();
   }, [article, hydrated, online, serverSync, state]);
   useEffect(() => { const onOnline = () => setOnline(true); const onOffline = () => setOnline(false); window.addEventListener("online", onOnline); window.addEventListener("offline", onOffline); return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); }; }, []);
-  useLayoutEffect(() => { if (!toolsOpen) { explanationRequestRef.current?.controller.abort(); previouslyFocusedRef.current?.focus(); previouslyFocusedRef.current = null; return; } const pin = toolsPinRef.current; if (activeTool === "explain" && pin && window.getComputedStyle(pin).display !== "none") pin.focus(); else toolsRef.current?.focus(); }, [activeTool, toolsOpen]);
+  const restoreFocus = useCallback(() => {
+    const target = previouslyFocusedRef.current;
+    previouslyFocusedRef.current = null;
+    // Word tokens are only focusable while the reader is driven from the keyboard.
+    target?.focus({ preventScroll: true });
+  }, []);
+  useLayoutEffect(() => { if (!toolsOpen) { explanationRequestRef.current?.controller.abort(); restoreFocus(); return; } const pin = toolsPinRef.current; if (activeTool === "explain" && pin && window.getComputedStyle(pin).display !== "none") pin.focus(); else toolsRef.current?.focus(); }, [activeTool, restoreFocus, toolsOpen]);
   useEffect(() => {
     if (!toolsOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -241,7 +408,17 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   }, [draggingTranslator]);
   useEffect(() => { restoredPositionRef.current = null; }, [article]);
   useEffect(() => { if (!hydrated || state.position <= 0 || restoredPositionRef.current !== null) return; restoredPositionRef.current = state.position; requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-reader-position=\"" + state.position + "\"]")?.scrollIntoView({ block: "center" })); }, [hydrated, state.position]);
-  const updatePosition = useCallback(() => { const nodes = [...document.querySelectorAll<HTMLElement>("[data-reader-position]")]; const anchor = window.scrollY + window.innerHeight * 0.32; const current = nodes.reduce((candidate, node) => node.offsetTop <= anchor ? Number(node.dataset.readerPosition) : candidate, 0); if (current !== activePosition) setActivePosition(current); setState((previous) => previous.position === current ? previous : { ...previous, position: current }); }, [activePosition]);
+  const selectionVisible = toolsOpen && activeTool === "explain";
+  const activePositionRef = useRef(0);
+  const updatePosition = useCallback(() => {
+    const nodes = [...document.querySelectorAll<HTMLElement>("[data-reader-position]")];
+    const anchor = window.scrollY + window.innerHeight * 0.32;
+    const current = nodes.reduce((candidate, node) => node.offsetTop <= anchor ? Number(node.dataset.readerPosition) : candidate, 0);
+    if (activePositionRef.current === current) return;
+    activePositionRef.current = current;
+    setActivePosition(current);
+    setState((previous) => previous.position === current ? previous : { ...previous, position: current });
+  }, []);
   useEffect(() => { let frame = 0; const onScroll = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(updatePosition); }; window.addEventListener("scroll", onScroll, { passive: true }); return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", onScroll); }; }, [updatePosition]);
   const selectedSpanishVoice = preferredSpanishVoice(spanishVoices, selectedSpanishVoiceURI);
   const speak = useCallback(async (text: string, position: number | "full") => { if (!tts.isSupported) { setTtsError(true); return; } setSpeakingPosition(position); setTtsError(false); try { await tts.speak(text, { languageTag: article.locale, rate: settings.ttsRate, voiceName: selectedSpanishVoice?.name, voiceURI: selectedSpanishVoice?.voiceURI }); } catch { setTtsError(true); } finally { setSpeakingPosition(null); } }, [article.locale, selectedSpanishVoice, settings.ttsRate, tts]);
@@ -260,7 +437,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   };
   const transferTask = activeTransfer ? articleTransferTask(article, activeTransfer) : null;
   const recommendedTransfer = recommendedArticleTransferType(article.oralTransferType);
-  const fullText = article.segments.map((segment) => segment.text).join(" ");
+  const fullText = useMemo(() => article.segments.map((segment) => segment.text).join(" "), [article.segments]);
   const currentSegment = article.segments[activePosition] ?? article.segments[state.position];
   const progressPercent = article.segments.length <= 1 ? 100 : Math.round((state.position / (article.segments.length - 1)) * 100);
   const readerClass = "article-reader article-reader--" + settings.fontSize + " article-reader--" + settings.lineHeight + " article-reader--" + settings.width + " article-reader--" + settings.theme + (toolsOpen ? " article-reader--tools-open" : "") + (toolsPinned ? " article-reader--tools-pinned" : "");
@@ -295,6 +472,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
         const payload = (await response.json()) as { data?: WordExplanation; error?: { message?: string } };
         if (!payload.data) throw new Error(payload.error?.message || "解释暂时无法生成，请稍后重试。");
         if (explanationRequestRef.current?.generation !== generation) return;
+    cancelStreamPreview();
         setWordExplanation(payload.data);
         setWordExplanationStatus("success");
         return;
@@ -329,13 +507,13 @@ export function ArticleReader({ article }: ArticleReaderProps) {
           const value = decodePartialJsonString(text.slice(valueStart + 1, valueEnd));
           if (value) next[field] = value;
         }
-        if (Object.keys(next).length) setStreamPreview((previous) => ({ ...previous, ...next }));
+        if (Object.keys(next).length) scheduleStreamPreview(next);
       };
       const consume = (line: string) => {
         if (!line.trim()) return;
         const event = JSON.parse(line) as { type?: string; text?: string; explanation?: WordExplanation; error?: { message?: string } };
         if (event.type === "delta" && event.text) { generated += event.text; updatePreview(generated); }
-        if (event.type === "done" && event.explanation) { setWordExplanation(event.explanation); setWordExplanationStatus("success"); }
+        if (event.type === "done" && event.explanation) { flushStreamPreview(); setWordExplanation(event.explanation); setWordExplanationStatus("success"); }
         if (event.error?.message) throw new Error(event.error.message);
       };
       while (true) {
@@ -353,15 +531,15 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       setWordExplanationStatus("error");
       setWordExplanationError(error instanceof Error ? error.message : "解释暂时无法生成，请稍后重试。");
     });
-  }, [article.locale]);
-  const selectToken = useCallback((text: string, position: number, context: string, tokenIndex: number) => {
+  }, [article.locale, cancelStreamPreview, flushStreamPreview, scheduleStreamPreview]);
+  const selectToken = useCallback((text: string, position: number, context: string, tokenIndex: number, trigger: HTMLElement) => {
     if (selectionHandledRef.current) return;
     const token = { text, position, context, selectionType: "word" as const, tokenStart: tokenIndex, tokenEnd: tokenIndex };
     const entry = getCommonGlossaryEntry(normalizeToken(text));
     setCommonEntry(entry);
     setSelectedToken(token);
     setActiveTool("explain");
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : contentRef.current;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : trigger;
     setToolsOpenState(true);
     setStreamPreview({});
     if (entry) {
@@ -369,35 +547,42 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     } else {
       requestWordExplanation(token);
     }
-  }, [requestWordExplanation]);
-  const handleTextSelection = useCallback((segment: ArticleReaderProjection["segments"][number], event: MouseEvent<HTMLParagraphElement>) => {
+  }, [cancelStreamPreview, requestWordExplanation]);
+  const handleTextSelection = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    // Selecting text inside the translator panel must not start a new sentence lookup.
+    if (event.target instanceof Node && toolsRef.current?.contains(event.target)) return;
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim() ?? "";
-    if (selectedText.split(/\s+/u).filter(Boolean).length < 2) return;
-    if (!selection?.anchorNode || !selection.focusNode || !event.currentTarget.contains(selection.anchorNode) || !event.currentTarget.contains(selection.focusNode)) return;
+    if (!selection || selectedText.split(/\s+/u).filter(Boolean).length < 2) return;
+    const boundaries = selectionBoundaries(selection);
+    if (!boundaries) return;
+    // The dragged paragraph is the one the gesture started in; releases that land
+    // in the margin or between paragraphs still belong to it.
+    const paragraph = paragraphForNode(boundaries.anchorNode) ?? paragraphForNode(boundaries.startNode) ?? paragraphForNode(boundaries.endNode);
+    if (!paragraph) return;
+    const position = Number(paragraph.dataset.readerPosition);
+    if (!Number.isFinite(position)) return;
+    const range = selectedTokenRange(paragraph, selection);
+    if (!range) return;
     selectionHandledRef.current = true;
     window.setTimeout(() => { selectionHandledRef.current = false; }, 0);
-    const tokenElementForNode = (node: Node) => (node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement)?.closest<HTMLElement>("[data-reader-token-index]");
-    const anchorToken = tokenElementForNode(selection.anchorNode);
-    const focusToken = tokenElementForNode(selection.focusNode);
-    if (!anchorToken || !focusToken || !event.currentTarget.contains(anchorToken) || !event.currentTarget.contains(focusToken)) return;
-    const anchorIndex = Number(anchorToken.dataset.readerTokenIndex);
-    const focusIndex = Number(focusToken.dataset.readerTokenIndex);
-    if (!Number.isFinite(anchorIndex) || !Number.isFinite(focusIndex)) return;
     selection.removeAllRanges();
     explanationRequestRef.current?.controller.abort();
-    const token = { text: selectedText, position: segment.position, context: segment.text, selectionType: "sentence" as const, tokenStart: Math.min(anchorIndex, focusIndex), tokenEnd: Math.max(anchorIndex, focusIndex) };
+    cancelStreamPreview();
+    const context = article.segments.find((segment) => segment.position === position)?.text ?? paragraph.textContent ?? "";
+    const token = { text: selectedText, position, context, selectionType: "sentence" as const, tokenStart: range.start, tokenEnd: range.end };
     setCommonEntry(null);
     setSelectedToken(token);
     setWordExplanation(null);
     setStreamPreview({});
     setWordExplanationError("");
+    cancelStreamPreview();
     setWordExplanationStatus("idle");
     setActiveTool("explain");
-    previouslyFocusedRef.current = event.currentTarget;
+    previouslyFocusedRef.current = paragraph;
     setToolsOpenState(true);
     requestWordExplanation(token);
-  }, [requestWordExplanation]);
+  }, [article.segments, cancelStreamPreview, requestWordExplanation]);
   const startTranslatorDrag = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (event.button !== 0 || toolsPinned || activeTool !== "explain" || window.innerWidth < 1200) return;
     if (event.target instanceof Element && event.target.closest("button")) return;
@@ -473,7 +658,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     saved: <BookmarkIcon filled={state.saved} />,
     settings: <SettingsIcon />,
   };
-  return <div className={readerClass} data-online={online}>
+  return <div className={readerClass} data-online={online} onMouseUp={handleTextSelection}>
     <header className="article-reader__topbar">
       <div className="article-reader__topbar-left"><Link className="text-link article-reader__back" href="/read"><span aria-hidden="true">←</span> 返回</Link></div>
       <h1 className="article-reader__topbar-title" title={article.title}>{article.title}</h1>
@@ -484,7 +669,16 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     {status ? <aside className="article-reader__notice" role="status">{status}</aside> : null}
     <div className="article-reader__layout">
       <main className="article-reader__content" ref={contentRef} aria-label="西语文章正文">
-        <div className="article-reader__body">{article.segments.map((segment) => { const highlighted = state.highlights.some((item) => item.position === segment.position); const listenTarget = toolsOpen && activeTool === "listen" && activePosition === segment.position; const words = segment.text.split(/(\s+)/u); return <p id={`segment-${segment.position}`} className={[highlighted ? "is-highlighted" : "", listenTarget ? "is-listen-target" : ""].filter(Boolean).join(" ")} aria-current={listenTarget ? "true" : undefined} data-reader-position={segment.position} key={segment.position} onMouseUp={(event) => handleTextSelection(segment, event)}>{words.map((word, index) => /\s+/u.test(word) ? <span key={segment.position + "-space-" + index}>{word}</span> : <span data-reader-token-index={index} className={["reader-token", toolsOpen && activeTool === "explain" && selectedToken?.position === segment.position && index >= selectedToken.tokenStart && index <= selectedToken.tokenEnd ? "is-translation-selection" : ""].filter(Boolean).join(" ")} role="button" tabIndex={0} key={segment.position + "-word-" + index} onClick={() => selectToken(word, segment.position, segment.text, index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectToken(word, segment.position, segment.text, index); } }}>{word}</span>)}</p>; })}</div>
+        <div className="article-reader__body">{article.segments.map((segment) => <ReaderParagraph
+          key={segment.position}
+          segment={segment}
+          highlighted={state.highlights.some((item) => item.position === segment.position)}
+          listenTarget={toolsOpen && activeTool === "listen" && activePosition === segment.position}
+          selectionStart={selectionVisible && selectedToken?.position === segment.position ? selectedToken.tokenStart : -1}
+          selectionEnd={selectionVisible && selectedToken?.position === segment.position ? selectedToken.tokenEnd : -1}
+          tabbable={keyboardNavigation}
+          onSelectToken={selectToken}
+        />)}</div>
         <div className="article-reader__complete"><strong>已读完</strong><span>本次只记录阅读活动，不会增加口语能力。</span>{article.attribution ? <span>{article.attribution}</span> : null}</div>
         <details className="article-reader__transfer-disclosure" open={transferOpen}><summary onClick={(event) => { event.preventDefault(); setTransferOpen((current) => !current); }}>读完后练口语</summary>{transferOpen ? renderTransferPanel() : null}</details>
       </main>
