@@ -200,10 +200,63 @@ export function planReply(input: ReplyPlanningInput): ReplyPlan {
 
 /**
  * MiniMax sometimes leaks a word from another writing system into an otherwise
- * Spanish reply. The character must answer in Spanish, so any non-Latin script
- * block fails the language gate.
+ * Spanish reply. An unsolicited fragment like that must never reach the user,
+ * so any non-Latin script block fails the language gate.
+ *
+ * The gate is deliberately script-based rather than language-based: no keyword
+ * list catches an arbitrary leaked glyph, but presence of another script is
+ * decisive and cheap.
  */
 export function containsForeignScript(text: string): boolean {
   return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Devanagari}]/u.test(text);
+}
+
+const responseLanguages = [
+  "english", "chinese", "mandarin", "french", "german", "japanese", "korean", "italian", "portuguese",
+  "ingles", "chino", "frances", "aleman", "japones", "coreano", "italiano", "portugues",
+].join("|");
+
+const languageRequestPatterns: readonly RegExp[] = [
+  // An expression verb plus the target language: "responde en inglés".
+  new RegExp(
+    `\\b(?:translate|explain|answer|respond|reply|speak|write|say|tell|talk|traducir|traduce(?:me)?|explicar|explica(?:me)?|responder|responde(?:me)?|contestar|contesta(?:me)?|escribir|escribe(?:me)?|hablar|habla(?:me)?|decir|dime|dilo)(?:\\s+me)?(?:\\s+back)?\\s+(?:in|en)\\s+(?:${responseLanguages})\\b`,
+    "u",
+  ),
+  // An explicit switch: "cambia a inglés", "switch to English".
+  new RegExp(
+    `\\b(?:switch|change|cambia|cambiar|pasate|pasemos)\\s+(?:to|al?\\s+)?(?:${responseLanguages}|spanish|espanol)\\b`,
+    "u",
+  ),
+  // An explicit refusal of Spanish: "no me hables en español".
+  /\bno\s+(?:me\s+)?(?:hables|respondas|contestes|escribas)\s+en\s+espanol\b/u,
+  // Chinese request forms: "用中文回复我", "请用中文解释".
+  /(?:用|说|讲|写)\s*(?:中文|汉语|普通话|英文|英语)/u,
+];
+
+/**
+ * True only when the user explicitly asked to be answered in another language.
+ *
+ * The provider prompts have always promised "in Spanish unless the user asks for
+ * another language", and the Lucia messaging design says the character switches
+ * language only on request. Without this check the code-level gate silently
+ * broke that promise: a user asking for Chinese was answered with the generic
+ * "this reply did not arrive" error on every attempt.
+ *
+ * Only the current user turn counts. A stale preference is never carried
+ * forward, so an unrequested Chinese fragment is still rejected.
+ */
+export function requestedNonSpanishLanguage(userMessage: string): boolean {
+  if (!userMessage.trim()) return false;
+  const normalized = userMessage
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES")
+    .replace(/\s+/gu, " ")
+    .trim();
+  // Han characters survive normalization, so the Chinese patterns are matched
+  // against the original message while the Latin patterns use the normalized one.
+  return languageRequestPatterns.some(
+    (pattern) => pattern.test(normalized) || pattern.test(userMessage),
+  );
 }
 

@@ -414,6 +414,37 @@ describe("fake conversation reply", () => {
     ]);
   });
 
+  it("answers in Chinese when the user explicitly asks for it", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "好的，我用中文回答你。", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "zh-1", latencyMs: 10, estimatedCostMicros: null }),
+    };
+    const observations: StreamReplyProviderObservation[] = [];
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "用中文回复我", clientMessageId: "client-zh", generationId: "generation-zh", messageId: "message-zh",
+      replyProvider: provider, onProviderResult: (observation) => { observations.push(observation); }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("")).toContain("好的");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(observations).toEqual([expect.objectContaining({ status: "succeeded", providerRequestId: "zh-1" })]);
+  });
+
+  it("still rejects a leaked writing system when the user did not ask for it", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "请稍等，我用中文告诉你随机的结果。", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "leak-1", latencyMs: 10, estimatedCostMicros: null }),
+    };
+    const observations: StreamReplyProviderObservation[] = [];
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué te gusta de Madrid?", clientMessageId: "client-leak", generationId: "generation-leak", messageId: "message-leak",
+      replyProvider: provider, onProviderResult: (observation) => { observations.push(observation); }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });
+    expect(events.some((event) => event.type === "delta")).toBe(false);
+  });
+
   it("retries a highly repetitive answer for a same-day topic", async () => {
     const provider = {
       generate: vi.fn()

@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildReplyContext,
+  containsForeignScript,
   deriveReplyOpenTopics,
   generateCharacterReply,
   planReply,
+  requestedNonSpanishLanguage,
 } from "@/src/modules/conversation";
 import type { MemoryRecord } from "@/src/modules/memory";
 
@@ -285,5 +287,42 @@ describe("reply context and deterministic generation", () => {
       userMessage: "Hola",
     });
     expect(() => generateCharacterReply({ context, signal: controller.signal })).toThrow("REPLY_GENERATION_ABORTED");
+  });
+});
+
+describe("language gate", () => {
+  it("detects a leaked word from another writing system", () => {
+    expect(containsForeignScript("Me encanta pasear por Madrid随机 cuando hay luz bonita.")).toBe(true);
+    expect(containsForeignScript("随机")).toBe(true);
+    expect(containsForeignScript("これはテスト")).toBe(true);
+    expect(containsForeignScript("안녕하세요")).toBe(true);
+    expect(containsForeignScript("Привет")).toBe(true);
+    expect(containsForeignScript("مرحبا")).toBe(true);
+  });
+
+  it("keeps ordinary Spanish, emoji and punctuation out of the gate", () => {
+    expect(containsForeignScript("Oye, me crucé con una fachada con azulejos increíbles en Malasaña.")).toBe(false);
+    expect(containsForeignScript("Te echo de menos. 😊")).toBe(false);
+    expect(containsForeignScript("¡Hola! ¿Cómo va todo?")).toBe(false);
+    expect(containsForeignScript("")).toBe(false);
+  });
+
+  it("recognises an explicit request for another language", () => {
+    expect(requestedNonSpanishLanguage("用中文回复我")).toBe(true);
+    expect(requestedNonSpanishLanguage("请你用中文解释这句话")).toBe(true);
+    expect(requestedNonSpanishLanguage("¿Puedes responder en inglés, por favor?")).toBe(true);
+    expect(requestedNonSpanishLanguage("Please answer in English.")).toBe(true);
+    expect(requestedNonSpanishLanguage("Cambia a inglés.")).toBe(true);
+    expect(requestedNonSpanishLanguage("No me hables en español, por favor.")).toBe(true);
+  });
+
+  it("does not read an ordinary Spanish message as a language request", () => {
+    expect(requestedNonSpanishLanguage("¡Hola! ¿Cómo va todo?")).toBe(false);
+    expect(requestedNonSpanishLanguage("Me gusta leer en español por la noche.")).toBe(false);
+    expect(requestedNonSpanishLanguage("¿Estás en Madrid ahora?")).toBe(false);
+    // Asking how something is said in another language is a learning question,
+    // not a request to switch the reply language.
+    expect(requestedNonSpanishLanguage("¿Cómo se dice 'tiles' en inglés?")).toBe(false);
+    expect(requestedNonSpanishLanguage("")).toBe(false);
   });
 });
