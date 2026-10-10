@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { chatThread, resolveCharacter } = vi.hoisted(() => ({
+const { chatThread, resolveCharacter, getCurrentUser, listHistory, resolveAccess } = vi.hoisted(() => ({
   chatThread: vi.fn((props: { characterKey: string; initialMessages?: unknown }) => (
     <div data-testid="chat-thread" data-character={props.characterKey} data-hydrated={props.initialMessages ? "true" : "false"} />
   )),
   resolveCharacter: vi.fn(),
+  getCurrentUser: vi.fn(),
+  listHistory: vi.fn(),
+  resolveAccess: vi.fn(),
 }));
 
 vi.mock("@/src/modules/conversation/ui/chat-thread", () => ({ ChatThread: chatThread }));
@@ -25,7 +28,11 @@ vi.mock("@/src/modules/conversation", () => ({
   isConversationCharacterDiscoverable: (key: string) => key === "lucia",
   isConversationStaticFallbackAllowed: () => true,
   resolveConversationCharacter: resolveCharacter,
+  createDrizzleConversationRepository: () => ({}),
+  listConversationHistory: listHistory,
+  resolveHistoryAccess: resolveAccess,
 }));
+vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser }));
 vi.mock("@/src/shared/db/client", () => ({ getDatabase: vi.fn(() => ({})) }));
 vi.mock("@/src/modules/characters", () => ({ createDrizzleCharacterRepository: vi.fn(() => ({})) }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
@@ -70,6 +77,56 @@ describe("dynamic character chat page", () => {
       });
       expect(JSON.stringify(view)).toContain("对话暂时不可用");
       expect(chatThread).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("renders the conversation on the server so the first paint carries real messages", async () => {
+    // The thread used to fetch history after hydration: a whole extra round
+    // trip before any message appeared, and a "cannot open this conversation"
+    // notice whenever that read was slow. The page now ships the view itself.
+    vi.stubEnv("DATABASE_URL", "postgres://test.invalid/db");
+    resolveCharacter.mockResolvedValueOnce({ catalog: { displayName: "Lucía Martín" } });
+    getCurrentUser.mockResolvedValueOnce({ id: "user-1", email: null });
+    listHistory.mockResolvedValueOnce([{ id: "server-1", role: "character", text: "Hola", complete: true }]);
+    resolveAccess.mockResolvedValueOnce({ readOnly: false, canSend: true, contactStatus: "active" });
+    try {
+      const view = await CharacterChatPage({
+        params: Promise.resolve({ characterId: "lucia" }),
+        searchParams: Promise.resolve({}),
+      });
+
+      const serialized = JSON.stringify(view);
+
+      // The thread element already carries the server view, so the first paint
+      // renders real messages instead of a skeleton.
+      expect(serialized).toContain('"initialMessages":[{"id":"server-1"');
+      expect(serialized).toContain('"initialAccess":{"readOnly":false,"canSend":true,"contactStatus":"active"}');
+      expect(listHistory).toHaveBeenCalledWith(expect.anything(), "user-1", "lucia");
+      expect(resolveAccess).toHaveBeenCalledWith(expect.anything(), "user-1", "lucia");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("falls back to the client history request when the server read fails", async () => {
+    vi.stubEnv("DATABASE_URL", "postgres://test.invalid/db");
+    resolveCharacter.mockResolvedValueOnce({ catalog: { displayName: "Lucía Martín" } });
+    getCurrentUser.mockResolvedValueOnce({ id: "user-1", email: null });
+    listHistory.mockRejectedValueOnce(new Error("database unavailable"));
+    resolveAccess.mockResolvedValueOnce({ readOnly: true, canSend: false, contactStatus: "unavailable" });
+    try {
+      const view = await CharacterChatPage({
+        params: Promise.resolve({ characterId: "lucia" }),
+        searchParams: Promise.resolve({}),
+      });
+
+      // No server view is handed down, so the thread keeps its own loading,
+      // retry and error path instead of failing the whole page render.
+      const serialized = JSON.stringify(view);
+      expect(serialized).not.toContain('"initialMessages"');
+      expect(serialized).toContain('"characterKey":"lucia"');
     } finally {
       vi.unstubAllEnvs();
     }

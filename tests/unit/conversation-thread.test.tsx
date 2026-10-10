@@ -526,4 +526,45 @@ describe("ChatThread persistence status", () => {
       vi.useRealTimers();
     }
   });
+
+  it("keeps a server-rendered history when the background revalidation fails", async () => {
+    // The page now ships the conversation with the HTML. A failed revalidation
+    // must not overwrite that view with "cannot open this conversation", which
+    // is what happened when only a client-side cache counted as a fallback.
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 503 } as Response);
+
+    render(
+      <ChatThread
+        characterKey="mateo"
+        characterName="Mateo Ruiz"
+        characterVersion={1}
+        initialMessages={[{ id: "server-1", role: "character", text: "Ya te escribí.", complete: true }]}
+        initialAccess={{ readOnly: false, canSend: true, contactStatus: "active" }}
+      />,
+    );
+
+    expect(screen.getByText("Ya te escribí.")).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
+    expect(screen.queryByTestId("conversation-persistence-status")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "写下你想对 Mateo Ruiz 说的话" })).toBeEnabled();
+  });
+
+  it("honours the server-rendered contact gate instead of optimistically allowing a send", async () => {
+    // A pending contact must never render a composer, even for one paint.
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 503 } as Response);
+
+    render(
+      <ChatThread
+        characterKey="mateo"
+        characterName="Mateo Ruiz"
+        characterVersion={1}
+        initialMessages={[{ id: "server-pending", role: "character", text: "Te escribiré cuando aceptes.", complete: true }]}
+        initialAccess={{ readOnly: true, canSend: false, contactStatus: "pending" }}
+      />,
+    );
+
+    expect(screen.getByText("Te escribiré cuando aceptes.")).toBeInTheDocument();
+    expect(screen.getByTestId("conversation-composer-locked")).toHaveTextContent("接受好友申请后才能发送消息");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
 });

@@ -5,12 +5,18 @@ import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
 import { ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
 import {
   CharacterRuntimeError,
+  createDrizzleConversationRepository,
   findConversationCharacter,
   isConversationCharacterDiscoverable,
   isConversationStaticFallbackAllowed,
+  listConversationHistory,
   resolveConversationCharacter,
+  resolveHistoryAccess,
+  type ConversationHistoryAccess,
+  type ConversationMessage,
 } from "@/src/modules/conversation";
 import { createDrizzleCharacterRepository } from "@/src/modules/characters";
+import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
 type CharacterPageProps = Readonly<{
@@ -68,11 +74,47 @@ async function resolvePageCharacterState(
   }
 }
 
+type PageHistory = Readonly<{
+  messages: readonly ConversationMessage[];
+  access: ConversationHistoryAccess;
+}>;
+
+/**
+ * The server renders the conversation itself so the first paint already carries
+ * real messages. Previously the thread fetched them after hydration, which
+ * showed a loading skeleton for a whole round trip and rendered "cannot open
+ * this conversation" whenever that read was slow or failed.
+ *
+ * Returning null is not a failure state: without a server view the client
+ * falls back to its own history request and its own retry path, exactly as
+ * before.
+ */
+async function loadPageHistory(characterKey: string): Promise<PageHistory | null> {
+  if (!process.env.DATABASE_URL) return null;
+  try {
+    const user = await getCurrentUser();
+    if (!user) return null;
+    const database = getDatabase();
+    const [messages, access] = await Promise.all([
+      listConversationHistory(createDrizzleConversationRepository(database), user.id, characterKey),
+      resolveHistoryAccess(database, user.id, characterKey),
+    ]);
+    return { messages, access };
+  } catch {
+    return null;
+  }
+}
+
 export default async function CharacterChatPage({ params, searchParams }: CharacterPageProps) {
   const { characterId } = await params;
   const character = findConversationCharacter(characterId);
   if (!character) notFound();
-  const pageState = await resolvePageCharacterState(character.key, character.displayName);
+  // One wave: the character gate and the history read are independent, and the
+  // client no longer has to wait for a second round trip to show the thread.
+  const [pageState, history] = await Promise.all([
+    resolvePageCharacterState(character.key, character.displayName),
+    loadPageHistory(character.key),
+  ]);
   if (pageState.status === "coming-soon") {
     return (
       <div className="page-stack conversation-page conversation-page--detail">
@@ -113,6 +155,8 @@ export default async function CharacterChatPage({ params, searchParams }: Charac
           characterVersion={character.version}
           avatarClassName={character.avatarClass}
           initialMessageId={messageId}
+          initialMessages={history?.messages}
+          initialAccess={history?.access}
         />
       </div>
     </div>

@@ -33,6 +33,7 @@ type ChatThreadProps = Readonly<{
   avatarClassName?: string;
   initialMessageId?: string;
   initialMessages?: readonly ConversationState["messages"][number][];
+  initialAccess?: ConversationHistoryAccess;
   cacheScope?: string;
 }>;
 
@@ -61,7 +62,7 @@ function createId(prefix: string): string {
   return `${prefix}-${uuid}`;
 }
 
-export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, avatarClassName = "avatar--lucia", cacheScope = getConversationCacheScope() }: ChatThreadProps) {
+export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, initialAccess, avatarClassName = "avatar--lucia", cacheScope = getConversationCacheScope() }: ChatThreadProps) {
   const targetMessageId = initialMessageId ?? (typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("message") ?? undefined
     : undefined);
@@ -69,7 +70,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     ? transitionConversationState(createConversationState(), { type: "hydrate", messages: initialMessages })
     : createConversationState());
   const [persistenceStatus, setPersistenceStatus] = useState<"loading" | "available" | "unavailable">(initialMessages ? "available" : "loading");
-  const [historyAccess, setHistoryAccess] = useState<ConversationHistoryAccess>(() => getCachedConversationAccess(characterKey, cacheScope) ?? {
+  const [historyAccess, setHistoryAccess] = useState<ConversationHistoryAccess>(() => getCachedConversationAccess(characterKey, cacheScope) ?? initialAccess ?? {
     // A server-rendered/fixture history is already an explicit view of the
     // conversation. The authoritative route metadata will still replace this
     // optimistic default as soon as the client revalidates.
@@ -326,10 +327,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         setPersistenceStatus("available");
         serverHistoryLoadedRef.current = true;
       } catch {
-        // A cached snapshot is still usable while the server is temporarily
-        // unreachable; only show the unavailable state when there is no view
-        // to fall back to.
-        if (!cancelled && initialLoad && !cached?.length) setPersistenceStatus("unavailable");
+        // A cached snapshot or a server-rendered view is still usable while the
+        // server is temporarily unreachable; only show the unavailable state
+        // when there is no view to fall back to. An empty server-rendered
+        // history is still an open conversation, so test for the presence of
+        // the view rather than for its length.
+        if (!cancelled && initialLoad && !cached?.length && initialMessages === undefined) setPersistenceStatus("unavailable");
       }
     };
 

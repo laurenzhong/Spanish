@@ -9,6 +9,7 @@ export * from "./application/build-reply-context";
 export * from "./application/list-history";
 export * from "./application/list-previews";
 export * from "./application/resolve-character-runtime";
+export * from "./application/resolve-history-access";
 export * from "./application/generate-character-reply";
 export * from "./application/generate-proactive-message";
 export * from "./repositories";
