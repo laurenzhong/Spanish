@@ -23,6 +23,11 @@ async function setupDatabase() {
     "0024_media_library_foundation.sql",
     "0025_youtube_video_publication.sql",
     "0026_brief_toro.sql",
+    // 0027 adds the artwork columns, 0033 the hosted-audio/video expiry policy
+    // this publisher writes, and 0034 the segment word timings.
+    "0027_pale_colossus.sql",
+    "0033_bunny_storage_audio_expiry.sql",
+    "0034_media_word_timings.sql",
   ]) {
     const sql = (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
     await client.exec(sql);

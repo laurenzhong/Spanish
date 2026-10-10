@@ -21,6 +21,8 @@ describe("media RLS", () => {
     await database.exec(await migration("0024_media_library_foundation.sql"));
     await database.exec(await migration("0025_youtube_video_publication.sql"));
     await database.exec(await migration("0026_brief_toro.sql"));
+    // 0027 adds the artwork columns the media repository reads.
+    await database.exec(await migration("0027_pale_colossus.sql"));
     await database.exec("insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000f1', 'a@example.test'), ('00000000-0000-4000-8000-0000000000f2', 'b@example.test'); insert into profiles (id) values ('00000000-0000-4000-8000-0000000000f1'), ('00000000-0000-4000-8000-0000000000f2'); insert into media_items (id, stable_key, kind, current_version) values ('10000000-0000-4000-8000-0000000000f1', 'media.fixture.rls', 'video', 1); insert into media_versions (id, media_item_id, version, title, source_name, duration_ms, content_hash, status, license, attribution, license_evidence, copyright_status) values ('20000000-0000-4000-8000-0000000000f1', '10000000-0000-4000-8000-0000000000f1', 1, 'RLS', 'Fixture', 60000, repeat('a', 64), 'published', 'licensed', 'Fixture', 'https://example.test/license', 'cleared'); insert into user_media_progress (user_id, media_version_id, last_position_ms) values ('00000000-0000-4000-8000-0000000000f1', '20000000-0000-4000-8000-0000000000f1', 1000), ('00000000-0000-4000-8000-0000000000f2', '20000000-0000-4000-8000-0000000000f1', 2000); set role authenticated; select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000f1', false);");
   });
 

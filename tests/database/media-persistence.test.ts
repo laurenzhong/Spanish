@@ -40,6 +40,11 @@ describe("media persistence", () => {
     await client.exec(await migration("0024_media_library_foundation.sql"));
     await client.exec(await migration("0025_youtube_video_publication.sql"));
     await client.exec(await migration("0026_brief_toro.sql"));
+    // 0027 adds the artwork columns the media repository reads, and 0034 the
+    // segment word timings it selects.
+    await client.exec(await migration("0027_pale_colossus.sql"));
+    await client.exec(await migration("0033_bunny_storage_audio_expiry.sql"));
+    await client.exec(await migration("0034_media_word_timings.sql"));
     database = drizzle(client, { schema });
     await client.exec("insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000e1', 'a@example.test'), ('00000000-0000-4000-8000-0000000000e2', 'b@example.test'); insert into profiles (id) values ('00000000-0000-4000-8000-0000000000e1'), ('00000000-0000-4000-8000-0000000000e2')");
     await database.insert(schema.mediaItems).values({ id: itemId, stableKey: "media.fixture.cafe", kind: "podcast", currentVersion: 1 });
@@ -126,11 +131,17 @@ describe("media persistence", () => {
     await database.insert(schema.mediaVersions).values({
       id: secondVersionId, mediaItemId: secondItemId, version: 1, title: "Noticias", summary: "Resumen",
       sourceName: "Canal ejemplo", sourceUrl: "https://video.example.test/1", region: "es-MX", cefr: "A2",
-      topics: ["topic.news"], durationMs: 300_000, curatedAt: new Date("2026-09-13T09:00:00.000Z"),
+      topics: ["topic.news"], durationMs: 300_000,
+      // The public projection requires a publication date; without it the card
+      // is dropped and the ordering assertion would see a single item.
+      publicationDate: new Date("2026-09-13T09:30:00.000Z"),
+      curatedAt: new Date("2026-09-13T09:00:00.000Z"),
       contentHash: "b".repeat(64), status: "published", license: "licensed", attribution: "Canal ejemplo",
       licenseEvidence: "https://video.example.test/license", copyrightStatus: "cleared",
     });
-    await database.insert(schema.mediaAssets).values({ mediaVersionId: secondVersionId, kind: "official_embed", providerKey: "fixture", playbackUrl: "https://player.example.test/embed/2" });
+    // The public list projection only exposes videos hosted as validated Bunny
+    // MP4 assets, so the second fixture uses that shape.
+    await database.insert(schema.mediaAssets).values({ mediaVersionId: secondVersionId, kind: "video", providerKey: "bunny-storage", playbackUrl: "https://video.example.test/1.mp4", mimeType: "video/mp4" });
     await repository.saveProgress(userA, "media.fixture.cafe", 1, { expectedRevision: 0, lastPositionMs: 2_000, lastSegmentIndex: 0, status: "in_progress" }, new Date("2026-09-13T10:00:00.000Z"));
     await repository.saveProgress(userA, "media.fixture.news", 1, { expectedRevision: 0, lastPositionMs: 1_000, lastSegmentIndex: null, status: "in_progress" }, new Date("2026-09-13T11:00:00.000Z"));
 
