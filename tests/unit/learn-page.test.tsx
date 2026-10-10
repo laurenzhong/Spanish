@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { LearnPageContent } from "@/app/(product)/learn/learn-page-content";
@@ -29,24 +30,33 @@ describe("LearnPage", () => {
   it("opens directly on the honest media library without the former task UI", () => {
     render(<LearnPageContent query={{}} result={{ items: [], nextCursor: null, hasMore: false }} />);
 
-    expect(screen.getByRole("heading", { name: "看点、听点真实西语" })).toBeInTheDocument();
+    // The former marketing heading and the topic pills are gone; the shelf shows
+    // channels, search and an honest empty state instead.
+    expect(screen.queryByRole("heading", { name: "看点、听点真实西语" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "媒体资料库正在准备中" })).toBeInTheDocument();
     expect(screen.queryByText(/开始第一次练习|继续学习|当前沟通目标|练习任务时间线/)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /开始|继续/ })).not.toBeInTheDocument();
   });
 
-  it("exposes direct type navigation, search, and practical filters", () => {
-    render(<LearnPageContent query={{ kind: "podcast", topic: "current-events", cefr: "B1" }} result={{ items: [], nextCursor: null, hasMore: false }} />);
+  it("exposes direct type navigation, search, and practical filters", async () => {
+    const user = userEvent.setup();
+    render(<LearnPageContent query={{ kind: "podcast", cefr: "B1" }} result={{ items: [], nextCursor: null, hasMore: false }} />);
 
     expect(screen.getByRole("link", { name: "全部" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "视频" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "播客" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("navigation", { name: "学习主题" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "时事新闻" })).toHaveAttribute("aria-current", "page");
+    // The topic navigation was removed by product decision; the filters live in
+    // the popover behind 筛选.
+    expect(screen.queryByRole("navigation", { name: "学习主题" })).not.toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "难度" })).toHaveValue("B1");
-    expect(screen.getByRole("combobox", { name: "时长" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /筛选/ }));
+    // The panel and the toolbar's screen-reader copy both carry the fields, so
+    // the assertion targets the visible panel.
+    const panel = screen.getByRole("heading", { name: "筛选内容" }).closest("div")?.parentElement ?? document.body;
+    expect(within(panel).getByRole("combobox", { name: "地区" })).toBeInTheDocument();
+    expect(within(panel).getByRole("combobox", { name: "难度" })).toHaveValue("B1");
+    expect(within(panel).getByRole("combobox", { name: "时长" })).toBeInTheDocument();
   });
 
   it("renders every eligible item as an equal-weight direct content link", () => {

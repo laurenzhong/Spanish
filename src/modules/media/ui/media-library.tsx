@@ -292,7 +292,7 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
             <div><input defaultValue={activeQuery.search ?? ""} id="media-search" maxLength={120} name="search" placeholder="搜索西语内容" type="search" /><button aria-label="提交搜索" type="submit"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.6" /><path d="m16 16 5 5" /></svg></button></div>
           </form>
         </header>
-        <MediaLibraryToolbar />
+        <MediaLibraryToolbar query={activeQuery} />
         {unavailable || kindLoadError ? <p className="media-library__notice" role="alert">媒体资料库暂时无法读取，请稍后重试。</p> : null}
         {isSwitchingKind ? <p className="media-library__load-more-state" role="status">正在切换内容…</p> : null}
         {items.length > 0 ? (

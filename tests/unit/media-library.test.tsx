@@ -1,33 +1,43 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { MediaLibrary } from "@/src/modules/media";
 
 afterEach(cleanup);
 
+/**
+ * The media library is the `/learn` shelf: channel tabs, search and a filter
+ * popover. The former marketing heading and the topic pills are gone (the
+ * product removed the topic navigation), so the assertions pin what the library
+ * actually offers today.
+ */
 describe("media library", () => {
   it("shows an honest empty library without task-style learning actions", () => {
     render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{}} />);
-    expect(screen.getByRole("heading", { name: "看点、听点真实西语" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "看点、听点真实西语" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "全部" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "视频" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "播客" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "全部主题" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "日常生活" })).toHaveAttribute("href", "/learn?topic=daily-life");
-    expect(screen.getByRole("link", { name: "兴趣娱乐" })).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "难度" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "时长" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "学习主题" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "媒体资料库正在准备中" })).toBeInTheDocument();
     expect(screen.queryByText(/开始第一次练习|继续学习|学习任务时间线/)).not.toBeInTheDocument();
   });
 
-  it("preserves media type and search while switching topics", () => {
-    render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{ kind: "video", search: "Madrid", topic: "travel-city" }} />);
-    expect(screen.getByRole("link", { name: "旅行城市" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "时事新闻" })).toHaveAttribute("href", "/learn?kind=video&search=Madrid&topic=current-events");
-    expect(screen.getByRole("link", { name: "全部主题" })).toHaveAttribute("href", "/learn?kind=video&search=Madrid");
+  it("keeps the channel and search while the filter popover carries the range filters", async () => {
+    const user = userEvent.setup();
+    render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{ kind: "video", search: "Madrid", cefr: "B1" }} />);
+    expect(screen.getByRole("link", { name: "视频" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toHaveValue("Madrid");
+
+    await user.click(screen.getByRole("button", { name: /筛选/ }));
+    // The panel and the toolbar's screen-reader copy both carry the fields, so
+    // the assertion targets the visible panel.
+    const panel = screen.getByRole("heading", { name: "筛选内容" }).closest("div")?.parentElement ?? document.body;
+    expect(within(panel).getByRole("combobox", { name: "地区" })).toBeInTheDocument();
+    expect(within(panel).getByRole("combobox", { name: "难度" })).toHaveValue("B1");
+    expect(within(panel).getByRole("combobox", { name: "时长" })).toBeInTheDocument();
   });
 
   it("renders equal-weight direct content links and real resume state", () => {
