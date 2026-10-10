@@ -17,6 +17,8 @@ import type { ProactiveMessageCandidateRecord, ProactiveMessageRepository } from
 export type GenerateProactiveMessageResult = Readonly<{
   status: "generated" | "suppressed" | "in-progress" | "failed";
   reason?: string;
+  /** Bounded, non-sensitive diagnostic for the operator; never message content. */
+  detail?: string;
   candidate: ProactiveMessageCandidateRecord | null;
   message: ConversationMessageRecord | null;
 }>;
@@ -165,6 +167,11 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
         ? error.message
         : "provider-unavailable";
     await input.repository.failCandidate({ userId: input.userId, candidateId: candidate.id, errorCode });
-    return { status: "failed", reason: errorCode, candidate, message: null };
+    return { status: "failed", reason: errorCode, detail: describeProviderFailure(error), candidate, message: null };
   }
+}
+
+function describeProviderFailure(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`.slice(0, 200);
+  return "unknown-provider-failure";
 }

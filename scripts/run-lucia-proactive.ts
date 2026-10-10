@@ -15,7 +15,7 @@ export type LuciaProactiveRunResult = Readonly<{
   generated: number;
   suppressed: number;
   failed: number;
-  results: readonly Readonly<{ userId: string; status: string; reason: string | null; messageId: string | null }>[];
+  results: readonly Readonly<{ userId: string; status: string; reason: string | null; detail: string | null; messageId: string | null }>[];
 }>;
 
 export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaProactiveRunResult> {
@@ -48,9 +48,15 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
           provider,
           memories,
         });
-        results.push({ userId, status: result.status, reason: result.reason ?? null, messageId: result.message?.id ?? result.candidate?.messageId ?? null });
+        results.push({ userId, status: result.status, reason: result.reason ?? null, detail: result.detail ?? null, messageId: result.message?.id ?? result.candidate?.messageId ?? null });
       } catch (error) {
-        results.push({ userId, status: "failed", reason: error instanceof Error ? error.message : "PROACTIVE_FAILED", messageId: null });
+        results.push({
+          userId,
+          status: "failed",
+          reason: error instanceof Error ? error.message : "PROACTIVE_FAILED",
+          detail: error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 200) : null,
+          messageId: null,
+        });
       }
     }
     return {
