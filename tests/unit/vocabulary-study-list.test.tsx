@@ -76,11 +76,32 @@ describe("vocabulary study list", () => {
     expect(within(card).getByText("en casa 表示在家")).toBeInTheDocument();
 
     const marking = within(card).getByRole("group", { name: "标记 casa" });
-    await user.click(within(marking).getByRole("button", { name: "✓ 已掌握" }));
-    expect(within(marking).getByRole("button", { name: "✓ 已掌握" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(marking).getByRole("button", { name: "已熟悉" }));
+    expect(within(marking).getByRole("button", { name: "已熟悉" })).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => {
       expect(JSON.parse(window.localStorage.getItem("sueno:vocabulary-status:v1:user-1") ?? "{}")).toEqual({ casa: "familiar" });
     });
+  });
+
+  it("uses the shared lexicon wording for the three study states", async () => {
+    const user = userEvent.setup();
+    // A fresh scope: the component keeps one module-level storage snapshot, so
+    // reusing the previous scope would inherit its mark.
+    render(<VocabularyStudyList words={words} storageScope="user-2" />);
+
+    const filters = screen.getByRole("group", { name: "学习状态筛选" });
+    for (const label of ["已熟悉", "想复现", "暂不学习"]) {
+      expect(within(filters).getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    // The former browser-local wording must be gone, not shown next to it.
+    expect(within(filters).queryByRole("button", { name: /掌握|学习中/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /casa/ }));
+    const marking = within(screen.getByRole("complementary", { name: "casa 学习卡片" })).getByRole("group", { name: "标记 casa" });
+    expect(marking.querySelectorAll("button")).toHaveLength(3);
+    await user.click(within(marking).getByRole("button", { name: "想复现" }));
+    expect(within(marking).getByRole("button", { name: "想复现" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(marking).getByText("当前：想复现")).toBeInTheDocument();
   });
 
   it("shows a real corpus example with its Chinese translation", async () => {

@@ -13,6 +13,12 @@ const FREQUENCY_HEAD_LIMIT = 600;
 const FREQUENCY_AGGREGATE_ROWS = 1_500;
 const FREQUENCY_TTL_MS = 10 * 60 * 1_000;
 
+// The frequency shelf shows one usage line per word form. Contexts are clipped
+// around the form itself so a detail panel can never render an unbounded
+// sentence pair, while the form always stays whole enough to be recognisable.
+const FREQUENCY_CONTEXT_MAX_CHARS = 180;
+const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
+
 type FrequencyHead = readonly (readonly [string, Readonly<{ word: string; count: number }>])[];
 
 let frequencyCache: Readonly<{ loadedAt: number; head: FrequencyHead }> | null = null;
@@ -71,6 +77,36 @@ async function loadCorpusFrequency(database: Database): Promise<FrequencyHead> {
     });
   frequencyInFlight = pending;
   return pending;
+}
+
+/** One visible occurrence of a frequency form, reduced to what the detail panel needs. */
+type FrequencyOccurrence = Readonly<{
+  surfaceText: string;
+  contextBefore: string;
+  contextAfter: string;
+  sourceTitle: string;
+}>;
+
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/gu, " ").trim();
+}
+
+/**
+ * Bounded keyword-in-context string for the frequency shelf. The surface form
+ * is kept in the middle; only the surrounding segments are clipped, and the
+ * total length never exceeds {@link FREQUENCY_CONTEXT_MAX_CHARS}.
+ */
+function buildFrequencyContext(occurrence: FrequencyOccurrence): string {
+  const keyword = collapseWhitespace(occurrence.surfaceText);
+  const left = collapseWhitespace(occurrence.contextBefore);
+  const right = collapseWhitespace(occurrence.contextAfter);
+  const joined = [left, keyword, right].filter(Boolean).join(" ");
+  if (joined.length <= FREQUENCY_CONTEXT_MAX_CHARS) return joined;
+  const clippedLeft = left.length > FREQUENCY_CONTEXT_EDGE_CHARS ? `…${left.slice(-FREQUENCY_CONTEXT_EDGE_CHARS)}` : left;
+  const clippedRight = right.length > FREQUENCY_CONTEXT_EDGE_CHARS ? `${right.slice(0, FREQUENCY_CONTEXT_EDGE_CHARS)}…` : right;
+  const keywordBudget = Math.max(16, FREQUENCY_CONTEXT_MAX_CHARS - clippedLeft.length - clippedRight.length - 2);
+  const clippedKeyword = keyword.length > keywordBudget ? `${keyword.slice(0, keywordBudget - 1)}…` : keyword;
+  return [clippedLeft, clippedKeyword, clippedRight].filter(Boolean).join(" ");
 }
 
 /** Letters, marks and internal apostrophes only; safe to use inside a regex. */
@@ -229,6 +265,45 @@ function corpusVisibility(userId: string | undefined) {
     : and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia)));
 }
 
+/**
+ * One batched lookup per rendered frequency page (never one query per word) for
+ * a representative visible occurrence of each requested form. The visibility
+ * predicate is the same one the vocabulary and phrase shelves use, so a word
+ * whose only occurrences belong to a withdrawn, uncleared or private source
+ * simply has no context and no source title.
+ *
+ * The representative row is the occurrence with the richest surrounding
+ * context, then the most recent one, so the detail panel shows real usage
+ * instead of an empty line whenever a usable occurrence exists.
+ */
+async function loadFrequencyOccurrences(database: Database, normalizedWords: readonly string[]): Promise<Map<string, FrequencyOccurrence>> {
+  if (normalizedWords.length === 0) return new Map();
+  try {
+    const visibleOccurrence = corpusVisibility(undefined);
+    const rows = await database
+      .selectDistinctOn([schema.corpusOccurrences.normalizedText], {
+        normalizedText: schema.corpusOccurrences.normalizedText,
+        surfaceText: schema.corpusOccurrences.surfaceText,
+        contextBefore: schema.corpusOccurrences.contextBefore,
+        contextAfter: schema.corpusOccurrences.contextAfter,
+        sourceTitle: schema.corpusOccurrences.sourceTitle,
+      })
+      .from(schema.corpusOccurrences)
+      .where(and(inArray(schema.corpusOccurrences.normalizedText, [...normalizedWords]), visibleOccurrence))
+      .orderBy(
+        asc(schema.corpusOccurrences.normalizedText),
+        desc(sql`char_length(${schema.corpusOccurrences.contextBefore}) + char_length(${schema.corpusOccurrences.contextAfter})`),
+        desc(schema.corpusOccurrences.createdAt),
+        asc(schema.corpusOccurrences.id),
+      );
+    return new Map(rows.map((row) => [row.normalizedText, row]));
+  } catch {
+    // Context is an enhancement: if this lookup fails the shelf still lists the
+    // same words with `null` context instead of losing the whole frequency head.
+    return new Map();
+  }
+}
+
 export function createDrizzleLexiconCorpusRepository(database: Database): LexiconCorpusRepository {
   return {
     async listFrequencyWords(query) {
@@ -238,14 +313,21 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
       const all = await loadCorpusFrequency(database);
       const normalizedSearch = query.search ? normalizeSpanishSurface(query.search) : "";
       const filtered = normalizedSearch ? all.filter(([normalized]) => normalized.includes(normalizedSearch)) : all;
-      const pageItems = filtered.slice((query.page - 1) * query.pageSize, query.page * query.pageSize).map(([normalizedWord, item]) => ({
-        id: `word:${normalizedWord}`,
-        word: item.word,
-        normalizedWord,
-        occurrenceCount: item.count,
-        context: null,
-        sourceTitle: null,
-      }));
+      const pageSlice = filtered.slice((query.page - 1) * query.pageSize, query.page * query.pageSize);
+      // One batched query for the whole page; words without a visible
+      // occurrence keep `null` context and `null` source title.
+      const occurrences = await loadFrequencyOccurrences(database, pageSlice.map(([normalizedWord]) => normalizedWord));
+      const pageItems = pageSlice.map(([normalizedWord, item]) => {
+        const occurrence = occurrences.get(normalizedWord);
+        return {
+          id: `word:${normalizedWord}`,
+          word: item.word,
+          normalizedWord,
+          occurrenceCount: item.count,
+          context: occurrence ? buildFrequencyContext(occurrence) : null,
+          sourceTitle: occurrence?.sourceTitle ?? null,
+        };
+      });
       return { items: pageItems, page: query.page, pageSize: query.pageSize, total: filtered.length };
     },
 

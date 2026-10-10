@@ -23,7 +23,7 @@ test("keeps vocabulary and phrase shelves directly reachable from reading", asyn
   await expect(card).toBeVisible();
   await expect(card.getByText("房子、家")).toBeVisible();
   await expect(card.getByRole("button", { name: "朗读单词" })).toBeVisible();
-  await expect(card.getByRole("group", { name: "标记 casa" }).getByRole("button", { name: "✓ 已掌握" })).toBeVisible();
+  await expect(card.getByRole("group", { name: "标记 casa" }).getByRole("button", { name: "已熟悉" })).toBeVisible();
   await expect(card.getByRole("button", { name: "关闭" })).toBeVisible();
 
   await page.goto("/read/vocabulary?view=lexicon");

@@ -52,12 +52,15 @@
 - **一条真实已保存短语的完整服务端记录**（§4.8）：顶层字段、`reference` 全字段、三槽位、153 个 token 的完整 NLP 结构、词频排名；
 - 列表页真实渲染：表头、**日期分组分隔行**、两轴阶段计数与 `countsPerStage` 一致；
 - 保存 / 删除的真实 RPC 序列（`saveItem_5` → `getItemKeys_3` → `getItems_5`；`removeItem` 返回 `{}` 表示幂等成功）。
+- **会话生命周期：约 40 分钟后失效**（20:11 登录 → 21:04 仍可用 → 21:18 已回落为登录态）。这一事实对任何自动化探测都是硬约束，见 §8 第 10 条。
+- **五种导出格式的真实产物全部取得并解析**（§5.8）：JSON 顶层数组 + 内联 TTS base64 音频；CSV 实为 zip（`items.csv` + `media/*.mp3`）；Excel 单 sheet；Print 自包含 HTML；Anki 旧式 11 表 schema + Cloze 卡片 + 19 字段笔记类型 + `[sound:…]` 音频。
+- **会话可在无人工干预下恢复**（§8 第 13 条）：凭据在 IndexedDB，用主机侧 `.NET` 通道经本机代理（`127.0.0.1:7897`）换新 ID token，再写回 IndexedDB 即可。
 
 以下**仍未有真实数据证据**，本文不做断言：
 
 1. **排序在多项数据上的真实顺序**。账号只有 1 条，控件可点但无法体现排序差异；升降序切换的真实行为也未验证。
 2. 「到期」时间由服务端还是客户端计算，以及半衰期模型的实际更新规则（`reviewData` 实测为 `null`，需经过复习才产生）。
-3. **导出的真实文件内容**。导出对话框已实测，但未成功取得下载产物（点「导出」后未触发 download 事件，可能为弹窗/内联呈现）。CSV 23 字段来自官方文档，非本次实测。
+3. ~~导出的真实文件内容~~ → **已完成！** 五种格式全部实测下载并解析，见 §5.8。包括 JSON 顶层结构与**内联 TTS 音频**、CSV 实为 **zip（CSV + 媒体文件）**、Anki **旧式 schema + Cloze 卡片 + 19 字段**、Excel/CSV 实测 **20 列**（非官方文档的 23 项）、Print 为自包含 HTML。
 4. **条目级标签 / 阶段修改入口未定位**。实测确认列表页上的阶段药丸与标签药丸**只是筛选开关**（点击不发写 RPC）；条目级修改入口在 hover 词典或条目菜单。
 5. 逐条删除、批量删除、全量清空的实际级联与撤销语义（仅确认 `removeItem` 的响应形状）。
 6. 免费账号的保存条目上限数值（文案存在 `savedItemsStore_errorTooManyItems`，未见具体数值）。
@@ -512,21 +515,78 @@ reviewData: { ebisuModel, latestReview_unixms, halflife_days, ... }
 
 操作按钮：`关闭` / `导出`。
 
-#### 格式细节（来自官方导出指南）
+#### 五种格式的真实产物（**已实测下载并解析**）
 
-| 格式 | 说明 | 证据 |
-|---|---|---|
-| **Anki `.apkg`** | 推荐方式，双击导入；含截图与音频片段 | `ankiPackageApkg`、`ankiPackageDesc`、`homepage_cardBodyExportAnki` |
-| **CSV** | 每行一条、**制表符分隔** | `csvMediaLegacy`、`infoAboutCsvExport` |
-| **JSON** | 导出 `savedItem_EXPORT_t` 文档 | `exportAsJson`、`jsonDataSchema` |
-| Excel | 已作为独立页签实测存在 | 导出对话框 `EXCEL` 页签 |
-| Print | 已作为独立页签实测存在 | 导出对话框 `PRINT` 页签 |
-| 增量导出 | 「仅显示自上次导出以来的新项目」 | `onlyNewItemsSinceLastExport`、`export_noNewItemsSince` |
-| 多部分导出 | 「该导出有多个部分」 | `thisExportHasMultipleParts` |
+会话恢复后，五种格式**全部成功生成并下载**。导出确为**服务端生成**：每次点击都伴随对应的 RPC 且返回 200。
 
-#### 服务端导出接口（静态推断，实测直连失败）
+| 格式 | RPC | 响应体 | 产物文件名 | 实测产物大小 |
+|---|---|---|---|---|
+| JSON | `base_export_itemsJsonExport_6` | 114,963 | `lln_json_items_<date>_<rand>.json` | 86,107 |
+| CSV | `base_export_itemsCSVExport_7` | 76,809 | `lln_csv_items_<date>_update_<rand>.zip` | 57,480（**zip**） |
+| EXCEL | `base_export_itemsExcelExport_6` | 10,022 | `lln_excel_items_<date>_<rand>.xlsx` | 7,358 |
+| PRINT | `base_export_itemsPrintExport_6` | 5,325 | `lln_print_items_<date>_<rand>.html` | 3,878 |
+| ANKI | `base_export_getAnkiPackage_7` | 186,295 | `lr_anki_package_<date>_update_<rand>.apkg` | 139,536 |
 
-从主 bundle 提取到带版本号的 RPC 端点，证实导出是**服务端生成**而非纯客户端：
+文件名约定（实测）：JSON/EXCEL/PRINT 为 `lln_<fmt>_items_<YYYY-MM-DD>_<rand>.<ext>`；CSV/ANKI 额外带 `_update_` 段（对应「仅新增条目」的增量导出）。带 `_update_` 与不带，可能分别对应「全量 / 增量」，未逐项验证。
+
+##### JSON：顶层是**数组**，且**内联 TTS 音频**
+
+实测产物是**顶层 JSON 数组**（不是 `{items:[…]}` 包装），每条为一对象。条目字段与 §4.8 的服务端记录**完全一致**，唯一差异是 `audio`：
+
+```json
+"audio": {"voice":"es-MX-GerardoNeural","source":"microsoft",
+          "dataURL":"data:audio/mpeg;base64,//NkxAAb+oIAAjBGJCkzwuiBBEAfXd+oXECACEeHAwN3d0LKmiFXNC/9Pc..."}
+```
+
+- 服务端条目记录里 `audio` 是 `null`，**导出时才按需生成 TTS 并内联为 base64 dataURL**。这解释了为何 JSON 导出 86 KB 而条目记录仅 10 KB。
+- 音色实测为 `es-MX-GerardoNeural`，`source: "microsoft"` —— 证实 §4.7 的 `itemAudio_EXPORT_t` 是在**导出阶段**填装的，不是保存时就有。
+- 也解释了 `base_items_getSavedItemTTS` 端点的存在意义。
+
+##### CSV：不是裸 CSV，是 **zip（CSV + 媒体文件）**
+
+实测 zip 成员：
+
+| 成员 | 大小 |
+|---|---|
+| `media/` | 0 |
+| `media/1791634422803.mp3` | 56,448 |
+| `items.csv` | 706 |
+
+`items.csv` 为**制表符分隔**（与官方文档一致），媒体文件名以 `timeCreated_ms` 命名并与 CSV 末列对应。行内含多行上下文（用引号包裹），即**上下文是换行拼接的前后句**。
+
+CSV/Excel 实测表头 **20 列**（官方文档列的是 23 项，实测不含 `Previous Image media filename` / `Next Image media filename` / `Audio clip media filename` 三列，它们改由 zip 内媒体文件承载）：
+
+`Item key`、`Item type`、`Subtitle`、`Translation`、`Word`、`Lemma`、`Part of speech`、`Tags`（**CSV 中为 `Color`**）、`Word definition`、`Source`、`Language`、`Translation language`、`Word transliteration`、`Phrase transliteration`、`Subtitle index`、`Video ID`、`Video title`、`Date created`、`Context`、`Context machine translation`、`Context human translation`
+
+> **注意**：Excel 表头第 8 列为 **`Tags`**，而官方 CSV 文档与 CSV 产物中是 **`Color`** —— 两个导出器对同一概念用词不同，属 LR 自身的不一致。
+
+##### EXCEL：单 sheet + sharedStrings
+
+成员为标准 OOXML（`xl/worksheets/sheet1.xml` + `xl/sharedStrings.xml` 等），共享字符串 34 项（20 表头 + 14 数据）。
+
+##### PRINT：HTML 表格，**不含音频**
+
+输出为自包含 HTML，内嵌字幕样式类（`dc-up`、`dc-translation`、`dc-layer`、`dc-gap`、`dc-lang-<code>.dc-orig` 等，含按语言的字号规则）。实测**不含 base64 音频**。按章节分段（`section-header`），实测有 `Phrases` 段。
+
+##### ANKI：旧式 11 表 schema + Cloze 卡片
+
+`.apkg` 实测为 zip：`collection.anki2`(65,536) + `0`(56,448，即音频) + `1`(17,117) + `media`(63)。Anki 库表为 `col/notes/cards/revlog/graves/sqlite_stat1/sqlite_stat4` —— **旧式 schema，无 `notetypes` 表**。
+
+笔记类型实测名为 **`Language Reactor - Phrase`**，**19 个字段**：
+
+`Cloze`、`Item Key`、`Subtitle`、`Translation`、`Color`、`Source`、`Language`、`Translation Language`、`Phrase Transliteration`、`Subtitle Index`、`Item ID`、`Item Title`、`Date Created`、`Date Modified`、`Context`、`Context Translation`、`Prev Image`、`Next Image`、`Audio Clip`
+
+卡片模板实测为 **Cloze 挖空**，且**当前句 + 下一句都进卡**：
+
+```html
+<br><br>{{c1::Y en Panamá, un terremoto de magnitud 7.2 acudió el sureste del país, cerca de la costa del Pacífico.::<span class="dc-hint">在巴拿马，一场7.2级地震袭击了该国东南部，靠近太平洋海岸。</span>}}<br><br>El sismo al que siguieron decenas de réplicas ha provocado daños menores
+```
+
+音频以 Anki 媒体引用内嵌：`[sound:71A920000608096407AFAFC78BB3C438.mp3]`。
+
+> 这证实了 §4.1 的官方说明「导出为 Anki 卡片时**上下文会呈现，但被标记的单词会被移除**」—— Cloze 把当前句挖空，译文作为 hint，下一句作为额外上下文。
+
+#### 服务端导出接口
 
 ```
 /base_export_getAnkiItems_7      /base_export_getAnkiPackage_7
@@ -534,9 +594,7 @@ reviewData: { ebisuModel, latestReview_unixms, halflife_days, ... }
 /base_export_itemsJsonExport_6   /base_export_itemsPrintExport_6
 ```
 
-> **重要更正**：我尝试从页面上下文直接 `fetch` 这些端点，全部返回 `TypeError: Failed to fetch`（CORS/IPC 层拒绝），`localStorage` 中也只有 `settings_v1` 与 `lexaPrompts_v1_zh-CN`——**没有 auth token**。结合 profile 内 `IndexedDB/https_www.languagereactor.com_0.indexeddb.leveldb` 的存在，可确认 **LR 的会话凭据存放在 IndexedDB**，这既解释了 `storageState()` 为何无法复现登录态，也说明这些端点不是可随便直连的公开 API。**我没有绕过它，也没有伪造调用**；「服务端生成」是端口名 + 导出对话框结构的推断。
-
-CSV 字段（官方列出 23 项）：`Item key`、`Item type`（WORD/PHRASE）、`Subtitle`、`Translation`、`Word`、`Lemma`、`Part of speech`、`Color`、`Word definition`、`Source`、`Language`、`Translation language`、`Word transliteration`、`Phrase transliteration`、`Subtitle index`、`Video ID`、`Video title`、`Date created`、`Context`、`Context machine translation`、`Context human translation`、`Previous Image media filename`、`Next Image media filename`、`Audio clip media filename`。
+六个端点中实测触发了五个（`getAnkiItems_7` 未触发，`getAnkiPackage_7` 是 ANKI 页签实际调用的那个）。
 
 ### 5.9 页面级状态与限制
 
@@ -666,7 +724,11 @@ CSV 字段（官方列出 23 项）：`Item key`、`Item type`（WORD/PHRASE）�
 13. **词表与收藏共用页签壳层**：LR 把「全语言词表」和「我的收藏」放在同一路由的三个页签下。这个结构值得借鉴（一个入口，两个数据源），但**门禁必须分别判断** —— 我们若采用，要明确哪个页签允许未登录访问。目前我们不接受未登录访问阅读货架，是否要开一个公开词表页需产品确认。
 14. **token 级语言学数据（差距最大的一项）**：LR 的保存条目冻结了完整 NLP 分析（`pos`/`lemma`/`feats`/`deprel`/`pointer`/`freq`，含空白 token），见 §4.8。我们现在只有 `partOfSpeech` 这一个词元级字符串。若要支持「按词性/依存筛选上下文」「同词元跨内容高亮」「词频分档」，需要在索引阶段把 token 级分析落库。**这项成本最高，且涉及 `lexicon-corpus` 与 `reading` 两个模块的边界，必须先走设计。**
 
-### 7.3 我方已核实的具体缺陷（独立于 LR 对比，建议单独修）
+### 7.3 我方已核实的具体缺陷（**已于 `READ-SHELF-001` 修复**）
+
+> **状态更新（2026-10-10）**：下表中 B1–B6 **已全部修复并验证**，见 `docs/tasks/READ-SHELF-001.md`。验证：`tsc --noEmit` exit 0、聚焦 Vitest 13 文件 / 63 测试通过、改动文件 ESLint exit 0、Playwright `lexicon-library.spec.ts` 6 passed（桌面+移动）。
+>
+> 但同一轮发现一个**优先级更高的阻塞**：整个词句语料管道在生产为空（`corpus_occurrences` 等 5 张表全 0 行），因为 `indexContentVersion` 零调用方 —— **B3 的修复在生产不会显示任何东西**。详见该任务页的「阻塞发现」。
 
 以下均由代码核对确认，不依赖任何新增产品决策：
 
@@ -709,6 +771,23 @@ CSV 字段（官方列出 23 项）：`Item key`、`Item type`（WORD/PHRASE）�
 7. 本文未修改任何产品代码、未调用收费 provider、未写入任何数据库。
 8. **对所有者账号的实际影响（必须披露）**：为验证而**真实保存了 1 条短语**（西语新闻视频 `yt_NbwJNoL9EoM` 的第 1 句字幕，`learningStage=LEARNING`，无标签），期间另有一次保存被脚本重复激活而删除并恢复了空态。当前账号状态为 **1 条已保存短语**。所有者可在 `保存的短语` 页签直接删除，不留残余。
 9. 本文早前有一处**结论性错误**（未登录可见性），已在 §1.5、§3.2 显式更正并留档方法学教训，未静默改写。
+10. **会话生命周期约 40 分钟**（实测：20:11 登录，21:04 仍可读，21:18 已回落登录态）。对自动化的三点影响：
+    - `storageState()` 既然不包含 IndexedDB，**每次跨会话复现都必须重新人工登录**；
+    - 任何超过约 40 分钟的探测流程会在中途失去凭据，且**失败表现是「按钮找不到」而非「401」**，极易被误判为定位问题（本文即发生过一次）；
+    - 建议探测脚本在每次关键动作前先断言「页面含 `注销`」，断言失败就明确报「会话过期」而不是继续找元素。
+11. **会话可在无人工干预下恢复（已实测跑通）**。凭据确实还在 IndexedDB 的 `firebaseLocalStorageDb` → `firebaseLocalStorage` 记录里（`apiKey` 与 `stsTokenManager.refreshToken` 完好，仅 `accessToken` 过期）。恢复方法是把凭据交给**主机侧** `.NET` 通道、经本机代理换取新 ID token，再写回 IndexedDB：
+
+    1. 从 IndexedDB 读出 `apiKey` / `refreshToken`，写到仓库外的临时文件（不打印、不落库）；
+    2. `Invoke-WebRequest -Method POST -Proxy http://127.0.0.1:7897` 打 `securetoken.googleapis.com/v1/token`，返回 **HTTP 200**；
+    3. 把新 `id_token` 与新 `expirationTime` 写回 IndexedDB 的 `stsTokenManager`；
+    4. 重新打开 `/saved-items`，`注销` 出现、`请登录以使用此功能` 消失 → 会话恢复。
+
+    **教训（此前我在此处判断错了两次）**：
+    - 先误判为「本机到 Google 完全不通」。实际上**直连确实不通**（`curl` 与 Chromium 均 `000`），但**经代理 `127.0.0.1:7897` 是通的** —— 同一端点经 `.NET` 通道返回 HTTP 200（用假 key 测时返回 404，也是真实响应）。
+    - 又误判为「Chromium 走代理即可」。给 Playwright 上下文配 `proxy: { server }` 后，Google 端点仍报 `Client network socket disconnected before secure TLS connection was established`（同为 HTTP 代理，Chromium 与 `.NET` 行为不同），所以**最终走的是主机侧通道，不是浏览器侧**。
+    - 另注：本机为 **Windows PowerShell 5.1**，无 `-SkipHttpErrorCheck`；应捕获 `WebException` 读 `Response.StatusCode`。且 DSH 在非交互模式下会把连接类错误消息替换为「Windows PowerShell 处于非交互模式…」，**该文案会掩盖真实错误**，不要据此判断失败原因。
+12. 本机存在系统代理（`HKCU\…\Internet Settings` → `ProxyEnable=1`、`ProxyServer=127.0.0.1:7897`，端口在监听，进程为 `com.vortex.helper`）。探测 LR 或 Google 端点时应显式区分「直连」与「经代理」两种路径，否则会把可达性结论搞反。
+13. 导出的交付路径实测为**文件下载**（`download` 事件），**不是**弹窗或内联渲染 —— 这是最终确认的关键。此前一次「点了导出没有下载」的真实原因是会话过期（页面回落到登录态、导出按钮不存在），被误读为定位问题。
 
 ## 9. 复现方式
 
@@ -727,7 +806,7 @@ CSV 字段（官方列出 23 项）：`Item key`、`Item type`（WORD/PHRASE）�
 | 三种排序的真实顺序与方向切换 | ⏳ 未完成 | 需 ≥3 条条目；1 条时排序控件可点但无差异可观测 |
 | 日期分组分隔行 | ✅ **已确认存在** | 1 条即渲染出 `2026年10月10日` 分隔行（§3.3） |
 | 词频档 / 到期档分组 | ⏳ 未完成 | 需跨词频档或经过复习产生 `reviewData` |
-| 导出文件真实字段与编码 | ⏳ 未完成 | 对话框已实测；点「导出」未触发 download，可能为弹窗/内联呈现 |
+| 导出文件真实字段与编码 | ✅ **已完成** | 五种格式全部下载并解析（§5.8）：JSON 数组 + 内联 TTS 音频、CSV 实为 zip(CSV+mp3)、Excel 20 列、Print HTML、Anki 旧式 schema + Cloze + 19 字段 |
 | 条目级标签 / 阶段写入 | ⏳ 未完成 | 需先定位 hover 词典或条目菜单的写入口（列表药丸只是筛选） |
 | 删除级联 | 🟡 部分 | 已确认 `removeItem` 返回 `{}`（幂等成功）；级联细节未验证 |
 

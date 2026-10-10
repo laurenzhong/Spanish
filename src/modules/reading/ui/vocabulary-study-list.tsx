@@ -25,13 +25,17 @@ type VocabularyStudyListProps = Readonly<{
   storageScope: string;
 }>;
 
+// One wording for the familiar/revisit/ignore triad everywhere it is shown.
+// The server-backed lexicon shelves (`lexicon-shelf-controls.tsx`,
+// `vocabulary-library.tsx`, `phrase-library.tsx`) own it; the locally stored
+// study marks use the same words so the same state never reads differently.
 const statusOptions = [
-  ["familiar", "✓ 已掌握"],
-  ["revisit", "▣ 学习中"],
-  ["ignore", "⊘ 不学习"],
+  ["familiar", "已熟悉"],
+  ["revisit", "想复现"],
+  ["ignore", "暂不学习"],
 ] as const satisfies readonly (readonly [StudyVocabularyStatus, string])[];
 
-const statusLabels: Record<StudyVocabularyStatus, string> = { familiar: "已掌握", revisit: "学习中", ignore: "不学习" };
+const statusLabels: Record<StudyVocabularyStatus, string> = { familiar: "已熟悉", revisit: "想复现", ignore: "暂不学习" };
 const storagePrefix = "sueno:vocabulary-status:v1:";
 const statusEvent = "sueno:vocabulary-status-changed";
 const emptyStatuses: Record<string, StudyVocabularyStatus> = {};

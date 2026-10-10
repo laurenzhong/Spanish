@@ -90,7 +90,6 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
     meaning: null,
     context: item.context,
     source: item.sourceTitle,
-    saved: false,
   }));
   const studyWords = listStudyVocabularyWords();
 
