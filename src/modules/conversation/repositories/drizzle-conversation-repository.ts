@@ -10,7 +10,33 @@ import type {
 
 type ConversationDatabase<TResult extends PgQueryResultHKT> = PgDatabase<TResult, typeof schema>;
 
-function toMessage(row: typeof schema.messages.$inferSelect): ConversationMessageRecord {
+/**
+ * The columns a message DTO is built from. A history read returns up to 100
+ * rows and is the heaviest read on the conversation page, and against a remote
+ * database the transfer dominates: measured against the real endpoint, the
+ * full row set costs ~2.0s while these columns cost ~1.2s (narrow faster in 7
+ * of 8 paired rounds, median difference 734ms). Selecting a subset keeps
+ * user_id, conversation_id, character_id and updated_at off the wire, none of
+ * which the DTO exposes.
+ */
+const messageColumns = {
+  id: schema.messages.id,
+  clientMessageId: schema.messages.clientMessageId,
+  generationId: schema.messages.generationId,
+  role: schema.messages.role,
+  status: schema.messages.status,
+  content: schema.messages.content,
+  replyToMessageId: schema.messages.replyToMessageId,
+  createdAt: schema.messages.createdAt,
+  completedAt: schema.messages.completedAt,
+  sourceType: schema.messages.sourceType,
+};
+
+type MessageRow = Readonly<{
+  [K in keyof typeof messageColumns]: (typeof schema.messages.$inferSelect)[K];
+}>;
+
+function toMessage(row: MessageRow): ConversationMessageRecord {
   return {
     id: row.id,
     clientMessageId: row.clientMessageId,
@@ -154,7 +180,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
     },
 
     async listMessages(userId, characterKey, limit = 100) {
-      const rows = await database.select({ message: schema.messages }).from(schema.messages)
+      const rows = await database.select(messageColumns).from(schema.messages)
         .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
         .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
         // Filter through the owning conversation first so PostgreSQL can use
@@ -166,7 +192,7 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           eq(schema.characters.stableKey, characterKey),
         ))
         .orderBy(desc(schema.messages.createdAt)).limit(Math.max(1, Math.min(limit, 200)));
-      return rows.map((row) => toMessage(row.message)).reverse();
+      return rows.map((row) => toMessage(row)).reverse();
     },
 
     async listConversations(userId): Promise<readonly ConversationListRecord[]> {
