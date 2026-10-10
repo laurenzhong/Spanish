@@ -33,8 +33,17 @@ describe("proactive message policy", () => {
     expect(evaluateProactiveEligibility(state({ proactiveCount24h: 1 }), now)).toMatchObject({ allowed: false, reason: "daily-limit" });
     expect(evaluateProactiveEligibility(state({ proactiveCount7d: 4 }), now)).toMatchObject({ allowed: false, reason: "weekly-limit" });
     expect(evaluateProactiveEligibility(state({ lastProactiveMessageAt: new Date("2026-08-29T09:00:00.000Z") }), now)).toMatchObject({ allowed: false, reason: "cooldown" });
-    expect(evaluateProactiveEligibility(state({ hasUnansweredProactive: true }), now)).toMatchObject({ allowed: false, reason: "unanswered-message" });
+    expect(evaluateProactiveEligibility(state({ hasUnansweredProactive: true, lastProactiveMessageAt: new Date("2026-08-29T08:00:00.000Z") }), now)).toMatchObject({ allowed: false, reason: "unanswered-message" });
     expect(evaluateProactiveEligibility(state(), now)).toEqual({ allowed: true, reason: "eligible" });
+  });
+
+  it("does not let a single unanswered message silence the character forever", () => {
+    const staleUnanswered = state({
+      hasUnansweredProactive: true,
+      lastProactiveMessageAt: new Date("2026-08-27T10:00:00.000Z"),
+      proactiveCount7d: 1,
+    });
+    expect(evaluateProactiveEligibility(staleUnanswered, now)).toEqual({ allowed: true, reason: "eligible" });
   });
 
   it("keeps unsolicited text low-pressure and rejects product meta or questions", () => {
@@ -110,7 +119,7 @@ describe("generateLuciaProactiveMessage", () => {
   it("does not call a provider when policy suppresses the message", async () => {
     const repository: ProactiveMessageRepository = {
       getConversationId: vi.fn(),
-      getEligibilityState: vi.fn().mockResolvedValue(state({ hasUnansweredProactive: true })),
+      getEligibilityState: vi.fn().mockResolvedValue(state({ hasUnansweredProactive: true, lastProactiveMessageAt: new Date("2026-08-29T08:00:00.000Z") })),
       createCandidate: vi.fn(),
       completeCandidate: vi.fn(),
       failCandidate: vi.fn(),

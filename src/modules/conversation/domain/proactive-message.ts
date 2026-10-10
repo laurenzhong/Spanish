@@ -42,6 +42,12 @@ export const proactiveLimits = {
   maxPer24Hours: 1,
   maxPer7Days: 4,
   minIntervalMs: 12 * 60 * 60 * 1_000,
+  /**
+   * An unanswered proactive message only suppresses sending while it is still
+   * recent. A permanent block would silently stop the character from ever
+   * reaching out again once the user does not reply to a single message.
+   */
+  unansweredSuppressionMs: 12 * 60 * 60 * 1_000,
 } as const;
 
 /**
@@ -54,12 +60,18 @@ export function evaluateProactiveEligibility(
 ): ProactiveEligibilityDecision {
   if (state.relationshipStatus !== "active") return { allowed: false, reason: "relationship-inactive" };
   if (!state.proactiveEnabled) return { allowed: false, reason: "proactive-paused" };
+  if (
+    state.hasUnansweredProactive
+    && state.lastProactiveMessageAt
+    && now.getTime() - state.lastProactiveMessageAt.getTime() < proactiveLimits.unansweredSuppressionMs
+  ) {
+    return { allowed: false, reason: "unanswered-message" };
+  }
   if (state.proactiveCount24h >= proactiveLimits.maxPer24Hours) return { allowed: false, reason: "daily-limit" };
   if (state.proactiveCount7d >= proactiveLimits.maxPer7Days) return { allowed: false, reason: "weekly-limit" };
   if (state.lastProactiveMessageAt && now.getTime() - state.lastProactiveMessageAt.getTime() < proactiveLimits.minIntervalMs) {
     return { allowed: false, reason: "cooldown" };
   }
-  if (state.hasUnansweredProactive) return { allowed: false, reason: "unanswered-message" };
   return { allowed: true, reason: "eligible" };
 }
 
