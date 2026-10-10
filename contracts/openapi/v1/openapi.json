@@ -522,6 +522,50 @@
         }
       }
     },
+    "/read/progress": {
+      "get": {
+        "summary": "List the authenticated user's reading progress, most recently opened first",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Reading progress entries", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/reading-progress-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Reading progress unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/read/saved-items": {
+      "get": {
+        "summary": "List the authenticated user's saved articles, private AI stories, saved words/phrases and highlights",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 120 } },
+          { "name": "itemType", "in": "query", "description": "Omit for 全部 (both sources merged newest-first).", "schema": { "type": "string", "enum": ["article", "phrase", "highlight"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 } }
+        ],
+        "responses": {
+          "200": { "description": "Saved reading shelf items", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-reading-items-response.schema.json" } } } },
+          "400": { "description": "Invalid saved-item filters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Saved items unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/read/saved-items/{itemId}": {
+      "delete": {
+        "summary": "Remove one authenticated user's saved reading item",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Deletion result", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-reading-item-delete-response.schema.json" } } } },
+          "400": { "description": "Invalid saved-item ID", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Saved items unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/read/sources": {
       "get": {
         "summary": "List saved external source metadata",

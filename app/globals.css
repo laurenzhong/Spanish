@@ -1,22 +1,9 @@
 @import "tailwindcss";
 @import "plyr/dist/plyr.css";
 
-:root {
-  color-scheme: light;
-  --background: #f4f7fb;
-  --foreground: #172033;
-  --muted: #667085;
-  --surface: #ffffff;
-  --surface-soft: #f8fafc;
-  --border: #dfe6ef;
-  --accent: #1769e0;
-  --accent-strong: #0b57c9;
-  --accent-soft: #eaf2ff;
-  --success: #20875b;
-  --success-soft: #eaf7f0;
-  --warning-soft: #fff7e4;
-  --shadow: 0 18px 50px rgb(31 50 81 / 9%);
-}
+/* 全站语义令牌的唯一权威定义在下方 "Quiet Madrid theme" 的 :root 块，深色由
+   :root[data-theme="dark"] 覆盖。此处原有的早期蓝色主题令牌块已被前者完全
+   覆盖（同名、同特异性、后者生效），删除以免误读当前主题。 */
 
 * {
   box-sizing: border-box;
@@ -1548,23 +1535,6 @@ a {
   background: var(--surface-muted);
 }
 
-/* Quiet product refresh: stronger hierarchy, fewer decorative layers. */
-:root {
-  --background: #f4f6f5;
-  --foreground: #18231f;
-  --muted: #66736d;
-  --surface: #ffffff;
-  --surface-soft: #f7f9f8;
-  --border: #dce4df;
-  --accent: #2459d6;
-  --accent-strong: #1745b4;
-  --accent-soft: #edf2ff;
-  --success: #19704b;
-  --success-soft: #eaf6ef;
-  --warning-soft: #fff5df;
-  --shadow: 0 14px 36px rgb(25 42 34 / 7%);
-}
-
 body { background: var(--background); }
 .product-content { width: min(100%, 1180px); }
 .primary-navigation { border-color: var(--border); background: rgb(255 255 255 / 96%); box-shadow: 0 -8px 24px rgb(25 42 34 / 5%); }
@@ -2118,40 +2088,11 @@ body { background: var(--background); }
 :root[data-theme="dark"] .saved-item-card__context mark { color: #25251d; background: #f0d77f; }
 :root[data-theme="dark"] .saved-item-card__actions button.is-danger { color: #ffb0a5; background: #3b211e; }
 
-.read-page-loading { min-height: 32rem; }
-.read-page-loading__heading,
-.read-page-loading__tabs i,
-.read-page-loading__toolbar i,
-.read-page-loading__toolbar span,
-.read-page-loading__line { border-radius: .35rem; background: var(--surface-muted, #eef0ec); }
-.read-page-loading__heading { width: 7rem; height: 1.2rem; }
-.read-page-loading__tabs { display: flex; gap: 1.5rem; align-items: end; height: 2.5rem; }
-.read-page-loading__tabs i { display: block; width: 5.2rem; height: 1.9rem; }
-.read-page-loading__tabs i:first-child { width: 6rem; border-bottom: 2px solid var(--accent); }
-.read-page-loading__toolbar { display: flex; gap: .75rem; align-items: center; height: 3.5rem; padding-top: 10px; }
-.read-page-loading__toolbar i { display: block; flex: 1; height: 2.3rem; border: 1px solid var(--border); background: var(--surface); }
-.read-page-loading__toolbar span { width: 5rem; height: 2.3rem; }
-.read-page-loading__list { display: grid; gap: .75rem; }
-.read-page-loading__card { display: grid; min-height: 7.2rem; grid-template-columns: 78px minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-.read-page-loading__type { background: var(--accent-soft); }
-.read-page-loading__body { display: grid; gap: .55rem; align-content: center; padding: 1rem 1.1rem; }
-.read-page-loading__line { width: 82%; height: .65rem; }
-.read-page-loading__line--meta { width: 32%; height: .5rem; }
-.read-page-loading__line--title { width: 45%; height: 1.1rem; }
-.read-page-loading__line--short { width: 28%; }
-.read-page-loading__heading,
-.read-page-loading__tabs i,
-.read-page-loading__toolbar i,
-.read-page-loading__toolbar span,
-.read-page-loading__line { animation: read-loading-pulse 1.5s ease-in-out infinite; }
+/* The reading shelf's loading state is styled with the shelf itself (search for
+   `read-shelf-skeleton`): it reuses the shelf's own classes, so only its pulsing
+   fills are declared there. The pulse itself stays here, next to the other
+   shared keyframes. */
 @keyframes read-loading-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) {
-  .read-page-loading__heading,
-  .read-page-loading__tabs i,
-  .read-page-loading__toolbar i,
-  .read-page-loading__toolbar span,
-  .read-page-loading__line { animation: none; }
-}
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .read-page__utility { display: flex; min-height: 30px; align-items: center; justify-content: end; padding: 0 2px; }
 .read-page__utility .text-link { white-space: nowrap; }
@@ -10500,6 +10441,55 @@ body {
 .read-article-row__save:disabled { cursor: wait; opacity: .55; }
 .read-article-row__delete { margin: 0; padding: 0; font-size: inherit; }
 .read-article-row__delete:hover, .read-article-row__delete:focus-visible { color: var(--terracotta); }
+/* The shelf's loading state. Every box that has geometry comes from the shelf's
+   own classes above (`.read-library`, `.read-library__toolbar`,
+   `.read-search__field`, `.read-article-list`, `.read-article-row` and its
+   cells), so this block only paints the pulsing fills. It lives after the shelf
+   rules on purpose: the fills must win the cascade over the real surfaces, and
+   the skeleton has to follow every geometry change, including the 520px
+   breakpoint that hides the article type. */
+.read-shelf-skeleton__field,
+.read-shelf-skeleton__control,
+.read-shelf-skeleton__line,
+.read-shelf-skeleton__dot,
+.read-shelf-skeleton .read-article-row__type { background: var(--surface-muted, #eef0ec); }
+.read-shelf-skeleton__field,
+.read-shelf-skeleton__control,
+.read-shelf-skeleton__line,
+.read-shelf-skeleton__dot { border-radius: .35rem; }
+/* The control widths mirror what the rendered sort / filter / add controls
+   measure, so the search field ends where the real one ends. */
+.read-shelf-skeleton__control { min-height: 42px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); }
+.read-shelf-skeleton__control--sort { width: 115px; }
+.read-shelf-skeleton__control--filter { width: 67px; }
+.read-shelf-skeleton__control--add { width: 97px; }
+.read-shelf-skeleton .read-article-row { pointer-events: none; }
+.read-shelf-skeleton .read-article-row__type::before { display: none; }
+.read-shelf-skeleton .read-article-row__type i { background: color-mix(in srgb, var(--border-strong) 55%, transparent); }
+.read-shelf-skeleton__line { display: block; height: .55rem; }
+.read-shelf-skeleton__line--meta { width: 42%; height: .5rem; }
+.read-shelf-skeleton__line--state { width: 2.75rem; }
+.read-shelf-skeleton__line--title { width: 62%; height: .95rem; }
+.read-shelf-skeleton__line--topic { width: 4.5rem; height: .8rem; border-radius: 999px; }
+.read-shelf-skeleton__dot { width: 1.5rem; height: 1.5rem; border-radius: var(--radius-control); }
+.read-shelf-skeleton__field,
+.read-shelf-skeleton__control,
+.read-shelf-skeleton__line,
+.read-shelf-skeleton__dot,
+.read-shelf-skeleton .read-article-row__type { animation: read-loading-pulse 1.5s ease-in-out infinite; }
+@media (max-width: 799px) {
+  .read-shelf-skeleton__control { width: 100%; }
+}
+@media (max-width: 520px) {
+  .read-shelf-skeleton__control--add { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .read-shelf-skeleton__field,
+  .read-shelf-skeleton__control,
+  .read-shelf-skeleton__line,
+  .read-shelf-skeleton__dot,
+  .read-shelf-skeleton .read-article-row__type { animation: none; }
+}
 .read-pagination { display: flex; gap: 10px; align-items: center; justify-content: center; padding: 10px 0 2px; }
 .read-pagination__pages { display: flex; gap: 3px; align-items: center; justify-content: center; padding: 4px; border: 1px solid var(--border); border-radius: 999px; background: color-mix(in srgb, var(--surface-soft) 88%, var(--surface)); }
 .read-pagination__page, .read-pagination__arrow { display: inline-flex; min-width: 38px; min-height: 38px; align-items: center; justify-content: center; border-radius: 999px; color: var(--muted); font-size: .78rem; font-weight: 720; line-height: 1; text-decoration: none; }

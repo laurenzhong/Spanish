@@ -1,22 +1,20 @@
+import { StaticReadSectionNavigation } from "@/src/modules/lexicon-corpus";
+
+import { ReadShelfSkeleton } from "./read-shelf-skeleton";
+
+/**
+ * Route-level fallback for `/read`. It renders the page's static shell exactly
+ * — same wrapper, same reading navigation (without the measured underline; see
+ * `StaticReadSectionNavigation`) and the same shelf skeleton the page uses as
+ * its own Suspense fallback — so nothing is guessed and nothing moves when the
+ * real page replaces it.
+ */
 export default function ReadLoading() {
   return (
-    <div className="page-stack read-page read-page-loading" aria-busy="true" aria-label="正在载入阅读内容">
-      <div className="read-page-loading__heading" aria-hidden="true" />
-      <div className="read-page-loading__tabs" aria-hidden="true"><i /><i /></div>
-      <div className="read-page-loading__toolbar" aria-hidden="true"><i /><span /><span /></div>
-      <div className="read-page-loading__list">
-        {Array.from({ length: 4 }, (_, index) => (
-          <div className="read-page-loading__card" key={index}>
-            <div className="read-page-loading__type" />
-            <div className="read-page-loading__body">
-              <div className="read-page-loading__line read-page-loading__line--meta" />
-              <div className="read-page-loading__line read-page-loading__line--title" />
-              <div className="read-page-loading__line" />
-              <div className="read-page-loading__line read-page-loading__line--short" />
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="page-stack read-page">
+      <h1 className="sr-only">阅读</h1>
+      <StaticReadSectionNavigation active="articles" />
+      <ReadShelfSkeleton />
     </div>
   );
 }

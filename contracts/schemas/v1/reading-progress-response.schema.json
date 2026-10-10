@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/reading-progress-response.schema.json",
+  "title": "Reading progress response v1",
+  "type": "object",
+  "required": ["apiVersion", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "v1" },
+    "data": {
+      "type": "object",
+      "required": ["progress"],
+      "additionalProperties": false,
+      "properties": {
+        "progress": { "type": "array", "items": { "$ref": "#/$defs/progressEntry" } }
+      }
+    }
+  },
+  "$defs": {
+    "progressEntry": {
+      "type": "object",
+      "required": ["articleId", "lastOpenedAt", "position", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "articleId": { "type": "string", "minLength": 3, "maxLength": 240 },
+        "lastOpenedAt": { "type": "string", "format": "date-time" },
+        "position": { "type": "number", "minimum": 0, "description": "Reading position exactly as stored in user_reading_progress.position (a paragraph offset, not a 0..1 fraction)." },
+        "status": { "enum": ["in_progress", "completed"] }
+      }
+    }
+  }
+}
