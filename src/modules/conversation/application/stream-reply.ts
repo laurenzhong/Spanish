@@ -11,7 +11,7 @@ import {
   generateCharacterReply,
 } from "./generate-character-reply";
 import { deriveReplyOpenTopics, type ReplyContext } from "./build-reply-context";
-import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
+import { containsForeignScript, planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 import { getConversationCharacter } from "../domain/character-catalog";
 
 export type StreamReplyProviderObservation = Readonly<{
@@ -285,6 +285,7 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   if (!normalized.trim() || /\b(?:system prompt|memory permissions|provider details|mastery|confidence|evidence_events)\b/iu.test(normalized)) {
     return false;
   }
+  if (containsForeignScript(text)) return false;
   const plan = planReply({
     userMessage: context.userMessage,
     relationshipStage: context.relationshipStage,

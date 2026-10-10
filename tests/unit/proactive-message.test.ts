@@ -56,6 +56,9 @@ describe("proactive message policy", () => {
     const quietPresence = proactiveReplyPlan("quiet_presence", "familiar");
     expect(quietPresence.questionPolicy).toEqual({ maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" });
     expect(isProactiveMessageSafe("Hola, ¿qué tal el día?", quietPresence)).toBe(false);
+
+    // MiniMax-M3 sometimes leaks a word from another writing system.
+    expect(isProactiveMessageSafe("Hoy vi una fachada preciosa, casi me quedo ahí plantada con el móvil随机.", dailyShare)).toBe(false);
   });
 
   it("keeps unsolicited text low-pressure and rejects product meta or questions", () => {
