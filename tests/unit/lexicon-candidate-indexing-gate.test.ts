@@ -639,6 +639,7 @@ function candidateFromProposal(
   return {
     id: makeCandidateId({
       kind: proposal.kind,
+      documentKind: segment.documentKind,
       stableKey: segment.documentStableKey,
       version: segment.documentVersion,
       segmentIndex: segment.segmentIndex,

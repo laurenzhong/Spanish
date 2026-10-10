@@ -20,7 +20,6 @@ import {
 } from "@/src/modules/lexicon-corpus/domain/lexicon-candidate";
 import { createInMemoryLexiconCandidateRepository } from "@/src/modules/lexicon-corpus/repositories/in-memory-lexicon-candidate-repository";
 import {
-  LexiconCandidateIdentityAmbiguousError,
   type LexiconCandidateApprovalRecord,
   type LexiconCandidateCreateOutcome,
   type LexiconCandidateProvenance,
@@ -125,6 +124,7 @@ function candidate(overrides: Partial<LexiconCandidate> = {}): LexiconCandidate 
     ...merged,
     id: overrides.id ?? makeCandidateId({
       kind: merged.kind,
+      documentKind: merged.source.documentKind,
       stableKey: merged.source.documentStableKey,
       version: merged.source.documentVersion,
       segmentIndex: merged.source.segmentIndex,
@@ -457,17 +457,24 @@ describe("candidate persistence: compare-and-swap on revision", () => {
     expect(duplicate.record.candidate.status).toBe("review_submitted");
 
     // Same stable key and version, media instead of article: the unique index
-    // treats it as a different identity, so it is a separate row.
+    // treats it as a different identity, so it is a separate row with its own id.
     const media = await createStored(repository, { source: source({ documentKind: "media" }) });
-    expect(media.candidate.id).toBe(first.candidate.id);
+    expect(media.candidate.id).not.toBe(first.candidate.id);
     expect((await repository.listBySource({ ...SOURCE, documentKind: "media" }))).toHaveLength(1);
     expect(await repository.listBySource(SOURCE)).toHaveLength(1);
 
-    // `makeCandidateId()` does not encode documentKind, so an id-only lookup on
-    // that pair is genuinely ambiguous and must be refused, not guessed.
-    await expect(repository.findById(first.candidate.id)).rejects.toBeInstanceOf(
-      LexiconCandidateIdentityAmbiguousError,
-    );
+    // Because `makeCandidateId()` now encodes documentKind, the id and the unique
+    // index agree column for column and each id names exactly one row, so an
+    // id-only lookup resolves rather than being refused as ambiguous.
+    const viaId = await repository.findById(first.candidate.id);
+    expect(viaId).not.toBeNull();
+    expect(viaId?.candidate.id).toBe(first.candidate.id);
+    expect(viaId?.candidate.source.documentKind).toBe("article");
+
+    const mediaViaId = await repository.findById(media.candidate.id);
+    expect(mediaViaId).not.toBeNull();
+    expect(mediaViaId?.candidate.id).toBe(media.candidate.id);
+    expect(mediaViaId?.candidate.source.documentKind).toBe("media");
   });
 });
 

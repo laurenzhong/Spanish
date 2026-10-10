@@ -159,6 +159,7 @@ function decodeReviews(row: CandidateRow): LexiconCandidateRecord["candidate"]["
 function toCandidateId(row: CandidateRow): string {
   return makeCandidateId({
     kind: row.candidateKind as "lexeme" | "phrase",
+    documentKind: row.documentKind as "article" | "media",
     stableKey: row.documentStableKey,
     version: row.documentVersion,
     segmentIndex: row.segmentIndex,

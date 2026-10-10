@@ -181,6 +181,7 @@ export function candidateStorageIdentity(candidate: LexiconCandidate): Readonly<
 export function derivedCandidateId(candidate: LexiconCandidate): string {
   return makeCandidateId({
     kind: candidate.kind,
+    documentKind: candidate.source.documentKind,
     stableKey: candidate.source.documentStableKey,
     version: candidate.source.documentVersion,
     segmentIndex: candidate.source.segmentIndex,

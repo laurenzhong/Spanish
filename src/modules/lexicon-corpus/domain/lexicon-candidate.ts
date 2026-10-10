@@ -115,8 +115,32 @@ export function isIndexable(candidate: LexiconCandidate): boolean {
   return candidate.status === "approved";
 }
 
-export function makeCandidateId(input: Readonly<{ kind: LexiconCandidateKind; stableKey: string; version: number; segmentIndex: number; normalizedText: string }>): string {
-  return [input.kind, input.stableKey, String(input.version), String(input.segmentIndex), input.normalizedText].join("|");
+/**
+ * The candidate identity, and it must line up column-for-column with the
+ * `lexicon_candidates_identity_uidx` unique index: kind, document kind, stable
+ * key, version, segment index and normalized text.
+ *
+ * `documentKind` is part of it on purpose. Without it, the same stable key
+ * under two document kinds would fold into one id and an id-only lookup could
+ * not tell them apart — the repository would have to guess. Keeping the id and
+ * the index in step means one id names exactly one row.
+ */
+export function makeCandidateId(input: Readonly<{
+  kind: LexiconCandidateKind;
+  documentKind: "article" | "media";
+  stableKey: string;
+  version: number;
+  segmentIndex: number;
+  normalizedText: string;
+}>): string {
+  return [
+    input.kind,
+    input.documentKind,
+    input.stableKey,
+    String(input.version),
+    String(input.segmentIndex),
+    input.normalizedText,
+  ].join("|");
 }
 
 type TransitionResult =

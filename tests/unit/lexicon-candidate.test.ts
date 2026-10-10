@@ -217,11 +217,30 @@ describe("lexicon candidate state machine", () => {
   });
 
   it("stamps provenance into the id so a re-extraction cannot masquerade as the same candidate", () => {
-    const base = { kind: "lexeme" as const, stableKey: "article.a", version: 1, segmentIndex: 0, normalizedText: "terremoto" };
-    expect(makeCandidateId(base)).toBe("lexeme|article.a|1|0|terremoto");
+    const base = {
+      kind: "lexeme" as const,
+      documentKind: "article" as const,
+      stableKey: "article.a",
+      version: 1,
+      segmentIndex: 0,
+      normalizedText: "terremoto",
+    };
+    expect(makeCandidateId(base)).toBe("lexeme|article|article.a|1|0|terremoto");
     expect(makeCandidateId({ ...base, version: 2 })).not.toBe(makeCandidateId(base));
     expect(makeCandidateId({ ...base, segmentIndex: 1 })).not.toBe(makeCandidateId(base));
     expect(makeCandidateId({ ...base, normalizedText: "sismo" })).not.toBe(makeCandidateId(base));
+  });
+
+  it("keeps the id and the table's unique index in step by encoding documentKind", () => {
+    // The unique index includes document_kind, so the id must too; otherwise the
+    // same stable key under two kinds would fold into one id and an id-only
+    // lookup could not tell them apart.
+    const shared = { kind: "lexeme" as const, stableKey: "mix.es", version: 1, segmentIndex: 0, normalizedText: "casa" };
+    const asArticle = makeCandidateId({ ...shared, documentKind: "article" });
+    const asMedia = makeCandidateId({ ...shared, documentKind: "media" });
+    expect(asArticle).not.toBe(asMedia);
+    expect(asArticle).toContain("|article|");
+    expect(asMedia).toContain("|media|");
   });
 
   it("increments revision exactly once per accepted transition", () => {
