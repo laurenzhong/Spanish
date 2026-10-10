@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   chatThread,
-  contactRail,
   resolveCharacter,
   listHistory,
   resolveAccess,
@@ -20,9 +19,6 @@ const {
       data-message-id={props.initialMessageId ?? ""}
     />
   )),
-  contactRail: vi.fn((props: { activeCharacterKey?: string }) => (
-    <nav data-testid="contact-rail" data-active={props.activeCharacterKey ?? ""} />
-  )),
   resolveCharacter: vi.fn(),
   listHistory: vi.fn(),
   resolveAccess: vi.fn(),
@@ -34,9 +30,6 @@ const {
 }));
 
 vi.mock("@/src/modules/conversation/ui/chat-thread", () => ({ ChatThread: chatThread }));
-vi.mock("@/src/modules/conversation/ui/conversation-contact-rail", () => ({
-  ConversationContactRail: contactRail,
-}));
 // The catalog and the publication policy stay real: this suite asserts the
 // production gate, not a fixture. The read functions are spies so the suite can
 // prove the page never touches the database, the auth service or the history
@@ -95,12 +88,24 @@ describe("dynamic character chat page", () => {
 
     expect(screen.getByTestId("chat-thread")).toHaveAttribute("data-character", "lucia");
     expect(screen.getByTestId("chat-thread")).toHaveAttribute("data-name", "Lucía Martín");
-    expect(screen.getByTestId("contact-rail")).toHaveAttribute("data-active", "lucia");
     // No server view is handed down: the client paints the cached conversation
     // and revalidates, so a switch never waits for the remote read.
     expect(threadProps()).not.toHaveProperty("initialMessages");
     expect(threadProps()).not.toHaveProperty("initialAccess");
     expectNoRemoteRead();
+  });
+
+  it("renders the pane only, because the contact rail belongs to the layout", async () => {
+    const view = await CharacterChatPage({
+      params: Promise.resolve({ characterId: "lucia" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(view);
+
+    // A page that rendered its own rail would duplicate it inside the layout.
+    expect(container.querySelector(".conversation-contact-rail")).toBeNull();
+    expect(container.querySelector(".conversation-workspace")).toBeNull();
+    expect(container.querySelector(".conversation-page")).toBeNull();
   });
 
   it("keeps draft characters on the synchronous coming-soon gate", async () => {
@@ -109,24 +114,12 @@ describe("dynamic character chat page", () => {
       params: Promise.resolve({ characterId: "mateo" }),
       searchParams: Promise.resolve({}),
     });
-    render(view);
+    const { container } = render(view);
 
     expect(screen.getByRole("heading", { name: "角色尚未开放" })).toBeInTheDocument();
     expect(screen.getByText(/Mateo Ruiz/)).toBeInTheDocument();
+    expect(container.querySelector(".conversation-contact-rail")).toBeNull();
     expect(screen.queryByTestId("chat-thread")).not.toBeInTheDocument();
-    expect(chatThread).not.toHaveBeenCalled();
-    expectNoRemoteRead();
-  });
-
-  it("keeps the contact rail visible while a conversation is unavailable", async () => {
-    const view = await CharacterChatPage({
-      params: Promise.resolve({ characterId: "ines" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(view);
-
-    expect(screen.getByTestId("contact-rail")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "角色尚未开放" })).toBeInTheDocument();
     expect(chatThread).not.toHaveBeenCalled();
     expectNoRemoteRead();
   });

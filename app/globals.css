@@ -5412,19 +5412,16 @@ button {
     padding: 0;
   }
 
-  .conversation-page--workspace,
   .conversation-page--detail {
     min-height: 100svh;
   }
 
-  .conversation-page--workspace .conversation-workspace,
   .conversation-page--detail .conversation-workspace {
     min-height: 100svh;
     border: 0;
     border-radius: 0;
   }
 
-  .conversation-page--workspace .conversation-workspace,
   .conversation-page--detail .conversation-workspace { height: 100svh; }
   .conversation-page--detail { height: 100svh; overflow: hidden; }
 }
@@ -5442,14 +5439,12 @@ button {
 @media (max-width: 959px) {
   .conversation-workspace { display: block; min-height: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; }
   .conversation-contact-rail { display: none; }
-  /* The contact index keeps the rail visible on narrow viewports: there the
-     rail is the conversation entry, and the right pane stays intentionally
-     empty until a contact is chosen. */
-  .conversation-page--workspace .conversation-workspace > .conversation-contact-rail { display: flex; border-right: 0; }
-  .conversation-page--detail,
-  .conversation-page--workspace { margin-inline: -20px; }
-  .conversation-page--detail .conversation-thread,
-  .conversation-page--workspace .conversation-thread { height: calc(100svh - 154px); min-height: 0; }
+  /* The contact index keeps the rail visible on narrow viewports: no thread is
+     open yet, so the rail is the conversation entry there. Once a conversation
+     is open the thread takes the viewport instead. */
+  .conversation-page--detail .conversation-workspace:not(:has(.conversation-thread)) > .conversation-contact-rail { display: flex; border-right: 0; }
+  .conversation-page--detail { margin-inline: -20px; }
+  .conversation-page--detail .conversation-thread { height: calc(100svh - 154px); min-height: 0; }
   .conversation-thread__header { min-height: 64px; padding: 0 16px; }
   .conversation-thread__back { grid-column: 1; grid-row: 1; margin: 0; }
   .conversation-thread__back span { display: none; }
@@ -10708,14 +10703,12 @@ body {
 .conversation-introductions-dialog__heading button { color: var(--conversation-muted); }
 
 @media (max-width: 959px) {
-  .product-shell:has(.conversation-page--workspace),
   .product-shell:has(.conversation-page--detail) {
     height: 100svh;
     min-height: 0;
     overflow: hidden;
     padding-bottom: 0;
   }
-  .product-content:has(.conversation-page--workspace),
   .product-content:has(.conversation-page--detail) {
     min-height: 0;
     padding-bottom: 0;

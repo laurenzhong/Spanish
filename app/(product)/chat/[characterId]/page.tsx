@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ChatThread } from "@/src/modules/conversation/ui/chat-thread";
-import { ConversationContactRail } from "@/src/modules/conversation/ui/conversation-contact-rail";
 import {
   findConversationCharacter,
   isConversationCharacterDiscoverable,
@@ -22,11 +21,9 @@ export async function generateMetadata({ params }: CharacterPageProps): Promise<
 /**
  * Choosing a contact must never wait for the database.
  *
- * The page used to resolve the character runtime and the conversation history
- * before it rendered anything, so every contact switch paid that read wave
- * (`CONV-HISTORY-002`/`-003` measured 0.2-6 s for the remote round trips) while
- * `loading.tsx` covered the whole workspace. The conversation is now rendered
- * by the client thread instead:
+ * The page renders the pane only - the contact rail belongs to the chat layout,
+ * which is reused while the user switches contacts - and it renders it without
+ * any database or auth read:
  *
  * - `ChatThread` paints the cached snapshot of the conversation immediately
  *   (the contact rail prefetches it on hover/focus) and revalidates in the
@@ -47,33 +44,23 @@ export default async function CharacterChatPage({ params, searchParams }: Charac
   if (!character) notFound();
   if (!isConversationCharacterDiscoverable(character.key, character.version)) {
     return (
-      <div className="page-stack conversation-page conversation-page--detail">
-        <div className="conversation-workspace">
-          <ConversationContactRail />
-          <section className="conversation-empty-state" aria-labelledby="conversation-coming-soon-title">
-            <h1 id="conversation-coming-soon-title">角色尚未开放</h1>
-            <p>{character.displayName} 的人物包和发布审核还在准备中。当前只能查看已发布角色。</p>
-          </section>
-        </div>
-      </div>
+      <section className="conversation-empty-state" aria-labelledby="conversation-coming-soon-title">
+        <h1 id="conversation-coming-soon-title">角色尚未开放</h1>
+        <p>{character.displayName} 的人物包和发布审核还在准备中。当前只能查看已发布角色。</p>
+      </section>
     );
   }
   const paramsValue = await searchParams;
   const messageId = typeof paramsValue.message === "string" ? paramsValue.message : undefined;
   return (
-    <div className="page-stack conversation-page conversation-page--detail">
-      <div className="conversation-workspace">
-        <ConversationContactRail activeCharacterKey={character.key} />
-        <ChatThread
-          key={character.key}
-          characterKey={character.key}
-          characterName={character.displayName}
-          roleLabel={character.roleLabel}
-          characterVersion={character.version}
-          avatarClassName={character.avatarClass}
-          initialMessageId={messageId}
-        />
-      </div>
-    </div>
+    <ChatThread
+      key={character.key}
+      characterKey={character.key}
+      characterName={character.displayName}
+      roleLabel={character.roleLabel}
+      characterVersion={character.version}
+      avatarClassName={character.avatarClass}
+      initialMessageId={messageId}
+    />
   );
 }
