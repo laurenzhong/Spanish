@@ -9,6 +9,7 @@ import {
   type ProactiveMessageCandidateRecord,
   type ProactiveMessageRepository,
 } from "@/src/modules/conversation";
+import { ConversationProviderError } from "@/src/modules/providers/conversation";
 
 const now = new Date("2026-08-29T10:00:00.000Z");
 
@@ -140,6 +141,39 @@ describe("generateLuciaProactiveMessage", () => {
     expect(result).toMatchObject({ status: "suppressed", reason: "unanswered-message" });
     expect(repository.createCandidate).not.toHaveBeenCalled();
     expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  it("reports the provider error code and a bounded detail when generation fails", async () => {
+    const candidate: ProactiveMessageCandidateRecord = {
+      id: "candidate-1",
+      userId: "user-1",
+      characterKey: "lucia",
+      conversationId: "conversation-1",
+      sourceType: "daily_share",
+      dedupeKey: "lucia:daily_share:2026-08-29",
+      generationId: "generation-1",
+      notBefore: now,
+      expiresAt: null,
+      status: "generating",
+      messageId: null,
+      notificationStatus: "not_requested",
+      lastErrorCode: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const repository: ProactiveMessageRepository = {
+      getConversationId: vi.fn().mockResolvedValue("conversation-1"),
+      getEligibilityState: vi.fn().mockResolvedValue(state()),
+      createCandidate: vi.fn().mockImplementation(async (input) => ({ ...candidate, generationId: input.generationId })),
+      completeCandidate: vi.fn(),
+      failCandidate: vi.fn(),
+    };
+    const provider = {
+      generate: vi.fn().mockRejectedValue(new ConversationProviderError("provider-unavailable", "Conversation provider is temporarily unavailable (HTTP 503).", true)),
+    };
+    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", now, repository, provider });
+    expect(result).toMatchObject({ status: "failed", reason: "provider-unavailable", detail: "ConversationProviderError: Conversation provider is temporarily unavailable (HTTP 503)." });
+    expect(repository.failCandidate).toHaveBeenCalledWith({ userId: "user-1", candidateId: "candidate-1", errorCode: "provider-unavailable" });
   });
 });
 

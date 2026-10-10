@@ -213,8 +213,8 @@ function invalidResponse(): ConversationProviderError {
 function errorForResponseStatus(status: number): ConversationProviderError {
   if (status === 401 || status === 403) return new ConversationProviderError("provider-auth-failed", "Conversation provider authentication failed.", false);
   if (status === 429) return new ConversationProviderError("provider-rate-limited", "Conversation provider rate limit was reached.", true);
-  if (status >= 500) return new ConversationProviderError("provider-unavailable", "Conversation provider is temporarily unavailable.", true);
-  return invalidResponse();
+  if (status >= 500) return new ConversationProviderError("provider-unavailable", `Conversation provider is temporarily unavailable (HTTP ${status}).`, true);
+  return new ConversationProviderError("provider-response-invalid", `Conversation provider response did not match the expected format (HTTP ${status}).`, false);
 }
 
 function createRequestSignal(parentSignal: AbortSignal | undefined, timeoutMs: number): RequestSignal {
