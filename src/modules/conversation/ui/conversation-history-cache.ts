@@ -37,7 +37,20 @@ type PendingHistoryRequest = Readonly<{
 }>;
 
 const pendingRequests = new Map<string, PendingHistoryRequest>();
-const HISTORY_REQUEST_TIMEOUT_MS = 8_000;
+/**
+ * A history read is several sequential round trips to the remote database
+ * (character runtime, canon facts, messages, contact gate), so its wall-clock
+ * time is governed by round-trip latency rather than by query cost: with a
+ * remote pooler the request measures 4-8s even though the SQL itself executes
+ * in single-digit milliseconds.
+ *
+ * This bound must therefore stay comfortably above that latency. At 8s an
+ * ordinary slow read aborted client-side, and an aborted read is
+ * indistinguishable from an unavailable database: the page showed the
+ * "cannot open this conversation" notice and locked the composer even though
+ * the server still answered 200 with the full history.
+ */
+const HISTORY_REQUEST_TIMEOUT_MS = 20_000;
 let cacheGeneration = 0;
 let activeCacheScope: string | null = null;
 

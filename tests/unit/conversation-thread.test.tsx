@@ -452,4 +452,78 @@ describe("ChatThread persistence status", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("没有完整送达");
     expect(screen.queryByText("…")).not.toBeInTheDocument();
   });
+
+  it("keeps the open conversation usable when only the send fails", async () => {
+    // A rejected send (validation, contact gate, provider outage) answers with
+    // an error status and no persistence header. That is a send failure, not a
+    // history failure: reporting it as an unopenable conversation also locked
+    // the composer and hid a conversation that had loaded correctly.
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "open-1", role: "character", text: "¿Qué tal tu día?", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (init?.method === "POST") return { ok: false, status: 403, headers: new Headers() } as Response;
+      return historyResponse;
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    expect(await screen.findByText("¿Qué tal tu día?")).toBeInTheDocument();
+
+    const composer = screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+    fireEvent.change(composer, { target: { value: "Todo bien, gracias." } });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+
+    expect(await screen.findByText("这次回复没有完整送达，未产生任何学习评分。")).toBeInTheDocument();
+    expect(screen.queryByTestId("conversation-persistence-status")).not.toBeInTheDocument();
+    expect(screen.getByText("¿Qué tal tu día?")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeEnabled();
+  });
+
+  it("keeps waiting for a slow history read instead of reporting an unavailable database", async () => {
+    // Reading an established conversation is several sequential round trips to
+    // a remote database and has been measured well past 8s. Crossing a client
+    // bound must not be mistaken for an outage, because that state locks the
+    // composer even though the server still answers with the full history.
+    vi.useFakeTimers();
+    try {
+      let releaseServer: (() => void) | undefined;
+      const serverResponds = new Promise<void>((resolve) => { releaseServer = resolve; });
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        if (String(input) === "/api/v1/me") return { ok: false, status: 404 } as Response;
+        // Stay in flight until the server answers, but honour the request
+        // signal so a client-side timeout really does reject the read.
+        const signal = (init as RequestInit | undefined)?.signal ?? undefined;
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => reject(Object.assign(new Error("The operation was aborted."), { name: "AbortError" }));
+          if (signal?.aborted) { abort(); return; }
+          signal?.addEventListener("abort", abort, { once: true });
+          void serverResponds.then(() => resolve());
+        });
+        return {
+          ok: true,
+          headers: new Headers([["x-conversation-persistence", "available"]]),
+          json: async () => ({ data: { messages: [{ id: "slow-1", role: "character", text: "Siento la tardanza.", complete: true }] } }),
+        } as Response;
+      });
+
+      render(<ChatThread characterKey="mateo" characterName="Mateo Ruiz" characterVersion={1} />);
+      expect(screen.getByText("正在加载聊天记录……")).toBeInTheDocument();
+
+      await vi.advanceTimersByTimeAsync(12_000);
+      expect(screen.queryByTestId("conversation-persistence-status")).not.toBeInTheDocument();
+      expect(screen.getByText("正在加载聊天记录……")).toBeInTheDocument();
+
+      releaseServer?.();
+      // The slow read is still a success: hand back to real timers and let the
+      // hydrated history render instead of a database-unavailable notice.
+      vi.useRealTimers();
+      expect(await screen.findByText("Siento la tardanza.")).toBeInTheDocument();
+      expect(screen.queryByTestId("conversation-persistence-status")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

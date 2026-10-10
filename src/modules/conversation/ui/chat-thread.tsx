@@ -379,7 +379,13 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         body: JSON.stringify({ characterVersion, text, clientMessageId, generationId }),
         signal: controller.signal,
       });
-      setPersistenceStatus(response.headers.get("x-conversation-persistence") === "available" ? "available" : "unavailable");
+      // Only an explicit persistence report may change this state. Error
+      // responses (validation, contact gate, provider outage) omit the header
+      // because they describe a failed send, not a failed history read.
+      // Treating a missing header as "unavailable" rendered "cannot open this
+      // conversation" for an open conversation and locked the composer.
+      const persistence = response.headers.get("x-conversation-persistence");
+      if (persistence) setPersistenceStatus(persistence === "available" ? "available" : "unavailable");
       if (!response.ok || !response.body) {
         apply({
           type: "stream-event",
