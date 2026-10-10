@@ -394,6 +394,26 @@ describe("fake conversation reply", () => {
     ]);
   });
 
+  it("rejects a reply that leaks another writing system and retries once", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Me encanta pasear por Madrid随机 cuando hay luz bonita.", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "request-1", latencyMs: 10, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Me encanta pasear por Madrid cuando hay luz bonita.", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "request-2", latencyMs: 12, estimatedCostMicros: null }),
+    };
+    const observations: StreamReplyProviderObservation[] = [];
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué te gusta de Madrid?", clientMessageId: "client-1", generationId: "generation-1", messageId: "message-1",
+      replyProvider: provider, onProviderResult: (observation) => { observations.push(observation); }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    expect(observations).toEqual([
+      expect.objectContaining({ status: "failed", errorType: "safety-gate", providerRequestId: "request-1" }),
+      expect.objectContaining({ status: "succeeded", providerRequestId: "request-2" }),
+    ]);
+  });
+
   it("retries a highly repetitive answer for a same-day topic", async () => {
     const provider = {
       generate: vi.fn()

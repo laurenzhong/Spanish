@@ -197,3 +197,13 @@ export function planReply(input: ReplyPlanningInput): ReplyPlan {
     rationale: relevantTopic ? "continue-shared-topic" : "keep-the-door-open",
   };
 }
+
+/**
+ * MiniMax sometimes leaks a word from another writing system into an otherwise
+ * Spanish reply. The character must answer in Spanish, so any non-Latin script
+ * block fails the language gate.
+ */
+export function containsForeignScript(text: string): boolean {
+  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Devanagari}]/u.test(text);
+}
+

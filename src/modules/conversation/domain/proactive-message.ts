@@ -1,4 +1,4 @@
-import type { RelationshipStage, QuestionPolicy } from "./reply-plan";
+import { containsForeignScript, type RelationshipStage, type QuestionPolicy } from "./reply-plan";
 
 export const proactiveMessageSources = [
   "spontaneous_affection",
@@ -145,6 +145,7 @@ export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): 
     .trim();
   if (!normalized || normalized.length > 480) return false;
   if (/[*_`#<>]/u.test(text)) return false;
+  if (containsForeignScript(text)) return false;
   if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return false;
   if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return false;
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
