@@ -131,21 +131,32 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
     },
 
     async getRelationshipStatus(userId, characterKey, characterVersion) {
-      const [character] = await database.select({ id: schema.characters.id, status: schema.characters.status })
+      // The gate answers two questions - is this character published, and what
+      // is this user's relationship with it - and one statement answers both.
+      // They used to be two sequential round trips, which a remote database
+      // bills to every non-Lucía history read and send; this is the merged
+      // shape the Lucía contact gate already uses. The unique index
+      // character_relationships_user_character_uidx keeps the left join to at
+      // most one row, and an absent relationship row stays null, which both
+      // callers read as "no permission" rather than "no gate".
+      const [row] = await database
+        .select({
+          characterStatus: schema.characters.status,
+          relationshipStatus: schema.characterRelationships.status,
+        })
         .from(schema.characters)
+        .leftJoin(schema.characterRelationships, and(
+          eq(schema.characterRelationships.characterId, schema.characters.id),
+          eq(schema.characterRelationships.userId, userId),
+        ))
         .where(and(
           eq(schema.characters.stableKey, characterKey),
           eq(schema.characters.characterVersion, characterVersion),
-        )).limit(1);
+        ))
+        .limit(1);
       const definition = findCharacterRuntimeDefinition(characterKey, characterVersion);
-      if (!character || !isPublishedCharacterStatus(character.status) || !isCharacterConversationEnabled(definition)) return null;
-      const [row] = await database.select({ status: schema.characterRelationships.status })
-        .from(schema.characterRelationships)
-        .where(and(
-          eq(schema.characterRelationships.userId, userId),
-          eq(schema.characterRelationships.characterId, character.id),
-        )).limit(1);
-      return (row?.status as "active" | "declined" | "pending" | undefined) ?? null;
+      if (!row || !isPublishedCharacterStatus(row.characterStatus) || !isCharacterConversationEnabled(definition)) return null;
+      return (row.relationshipStatus as "active" | "declined" | "pending" | null) ?? null;
     },
 
     async resolve(userId, offerKey, status, acceptedMemoryIds = []) {

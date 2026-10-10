@@ -660,15 +660,20 @@ export function createDrizzleMediaRepository(
       const rows = await joinedRows(stableKey);
       const selected = rows.find((row) => isPlayable(row, requestedAt));
       if (!selected) throw new MediaUnavailableError();
-      const progress = await progressByVersion(userId, [selected.version.id]);
+      // Both reads depend only on the selected version, so the transcript no
+      // longer queues behind the progress lookup: one remote round trip saved on
+      // every media item open.
+      const [progress, segments] = await Promise.all([
+        progressByVersion(userId, [selected.version.id]),
+        database
+          .select()
+          .from(schema.mediaSegments)
+          .where(eq(schema.mediaSegments.mediaVersionId, selected.version.id))
+          .orderBy(schema.mediaSegments.segmentIndex)
+          .limit(500),
+      ]);
       const media = projectCard(selected, progress.get(selected.version.id)?.progress ?? null, requestedAt);
       if (!media) throw new MediaUnavailableError();
-      const segments = await database
-        .select()
-        .from(schema.mediaSegments)
-        .where(eq(schema.mediaSegments.mediaVersionId, selected.version.id))
-        .orderBy(schema.mediaSegments.segmentIndex)
-        .limit(500);
       return projectMediaPlayback({
         card: media,
         asset: {
