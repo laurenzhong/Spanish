@@ -219,29 +219,61 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const unreadCountByConversation = new Map<string, number>();
       if (conversationIds.length > 0) {
         const withdrawnLatestParents = aliasedTable(schema.messages, "withdrawn_latest_parents");
-        const messages = await database
-          .selectDistinctOn([schema.messages.conversationId], {
-            conversationId: schema.messages.conversationId,
-            role: schema.messages.role,
-            content: schema.messages.content,
-            createdAt: schema.messages.createdAt,
-          })
-          .from(schema.messages)
-          .where(and(
-            inArray(schema.messages.conversationId, conversationIds),
-            eq(schema.messages.status, "completed"),
-            notExists(
-              database.select({ id: withdrawnLatestParents.id })
-                .from(withdrawnLatestParents)
-                .where(and(
-                  eq(withdrawnLatestParents.id, schema.messages.replyToMessageId),
-                  eq(withdrawnLatestParents.userId, userId),
-                  eq(withdrawnLatestParents.conversationId, schema.messages.conversationId),
-                  eq(withdrawnLatestParents.status, "withdrawn"),
-                )),
-            ),
-          ))
-          .orderBy(asc(schema.messages.conversationId), desc(schema.messages.createdAt));
+        const withdrawnUnreadParents = aliasedTable(schema.messages, "withdrawn_unread_parents");
+        // Both aggregates need only the conversation ids read above, so they
+        // share one round trip instead of queueing the unread count behind the
+        // latest message. The rail is on screen for every chat route.
+        const [messages, unreadRows] = await Promise.all([
+          database
+            .selectDistinctOn([schema.messages.conversationId], {
+              conversationId: schema.messages.conversationId,
+              role: schema.messages.role,
+              content: schema.messages.content,
+              createdAt: schema.messages.createdAt,
+            })
+            .from(schema.messages)
+            .where(and(
+              inArray(schema.messages.conversationId, conversationIds),
+              eq(schema.messages.status, "completed"),
+              notExists(
+                database.select({ id: withdrawnLatestParents.id })
+                  .from(withdrawnLatestParents)
+                  .where(and(
+                    eq(withdrawnLatestParents.id, schema.messages.replyToMessageId),
+                    eq(withdrawnLatestParents.userId, userId),
+                    eq(withdrawnLatestParents.conversationId, schema.messages.conversationId),
+                    eq(withdrawnLatestParents.status, "withdrawn"),
+                  )),
+              ),
+            ))
+            .orderBy(asc(schema.messages.conversationId), desc(schema.messages.createdAt)),
+          database
+            .select({ conversationId: schema.messages.conversationId })
+            .from(schema.messages)
+            .leftJoin(schema.conversationPreferences, and(
+              eq(schema.conversationPreferences.userId, userId),
+              eq(schema.conversationPreferences.characterId, schema.messages.characterId),
+            ))
+            .where(and(
+              inArray(schema.messages.conversationId, conversationIds),
+              eq(schema.messages.role, "character"),
+              eq(schema.messages.status, "completed"),
+              notExists(
+                database.select({ id: withdrawnUnreadParents.id })
+                  .from(withdrawnUnreadParents)
+                  .where(and(
+                    eq(withdrawnUnreadParents.id, schema.messages.replyToMessageId),
+                    eq(withdrawnUnreadParents.userId, userId),
+                    eq(withdrawnUnreadParents.conversationId, schema.messages.conversationId),
+                    eq(withdrawnUnreadParents.status, "withdrawn"),
+                  )),
+              ),
+              or(
+                isNull(schema.conversationPreferences.lastReadAt),
+                gt(schema.messages.createdAt, schema.conversationPreferences.lastReadAt),
+              ),
+            )),
+        ]);
         for (const message of messages) {
           if (!latestMessageByConversation.has(message.conversationId)) {
             latestMessageByConversation.set(message.conversationId, {
@@ -251,33 +283,6 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
             });
           }
         }
-        const withdrawnUnreadParents = aliasedTable(schema.messages, "withdrawn_unread_parents");
-        const unreadRows = await database
-          .select({ conversationId: schema.messages.conversationId })
-          .from(schema.messages)
-          .leftJoin(schema.conversationPreferences, and(
-            eq(schema.conversationPreferences.userId, userId),
-            eq(schema.conversationPreferences.characterId, schema.messages.characterId),
-          ))
-          .where(and(
-            inArray(schema.messages.conversationId, conversationIds),
-            eq(schema.messages.role, "character"),
-            eq(schema.messages.status, "completed"),
-            notExists(
-              database.select({ id: withdrawnUnreadParents.id })
-                .from(withdrawnUnreadParents)
-                .where(and(
-                  eq(withdrawnUnreadParents.id, schema.messages.replyToMessageId),
-                  eq(withdrawnUnreadParents.userId, userId),
-                  eq(withdrawnUnreadParents.conversationId, schema.messages.conversationId),
-                  eq(withdrawnUnreadParents.status, "withdrawn"),
-                )),
-            ),
-            or(
-              isNull(schema.conversationPreferences.lastReadAt),
-              gt(schema.messages.createdAt, schema.conversationPreferences.lastReadAt),
-            ),
-          ));
         for (const row of unreadRows) unreadCountByConversation.set(row.conversationId, (unreadCountByConversation.get(row.conversationId) ?? 0) + 1);
       }
 

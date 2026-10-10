@@ -20,6 +20,7 @@ import type { ParsedMediaListQuery } from "../schemas";
 import type { MediaLookupResult, MediaRepository } from "./media-repository";
 import type { AcquiredPodcastRepository } from "./acquired-podcast-repository";
 import type { AcquiredVideoRepository, HostedVideoAsset } from "./acquired-video-repository";
+import { createCatalogueCache, type CatalogueCacheEntry } from "./media-catalogue-cache";
 
 export class AcquiredVideoPersistenceConflictError extends Error {
   readonly code = "CONTENT_PUBLICATION_CONFLICT" as const;
@@ -51,6 +52,25 @@ type StoredProgress = Readonly<{
   progress: MediaProgress;
   lastOpenedAt: Date;
 }>;
+
+/**
+ * The public catalogue rows, cached for ten minutes.
+ *
+ * The shelf renders this same wide query on every `/learn` visit and on every
+ * channel switch, and the rows only change when the daily publishing pipeline
+ * runs. Only the catalogue rows are cached - per-user progress is read per
+ * request further down, so a resume position is never stale beyond the request
+ * that reads it.
+ */
+const MEDIA_CATALOGUE_CACHE_TTL_MS = 10 * 60 * 1_000;
+
+const runtimeState = globalThis as typeof globalThis & {
+  spanishMediaCatalogueCache?: Map<string, CatalogueCacheEntry<unknown>>;
+  spanishMediaCatalogueInFlight?: Map<string, Promise<unknown>>;
+};
+
+runtimeState.spanishMediaCatalogueCache ??= new Map();
+runtimeState.spanishMediaCatalogueInFlight ??= new Map();
 
 function progressRecord(row: typeof schema.userMediaProgress.$inferSelect): MediaProgress {
   return {
@@ -161,6 +181,11 @@ export function createDrizzleMediaRepository(
   dependencies: Readonly<{ now?: () => Date }> = {},
 ): DrizzleMediaRepository {
   const now = dependencies.now ?? (() => new Date());
+  const catalogueCache = createCatalogueCache({
+    ttlMs: MEDIA_CATALOGUE_CACHE_TTL_MS,
+    entries: runtimeState.spanishMediaCatalogueCache,
+    inFlight: runtimeState.spanishMediaCatalogueInFlight,
+  });
 
   async function joinedRows(stableKey?: string, query?: ParsedMediaListQuery): Promise<JoinedRow[]> {
     const published = and(
@@ -592,7 +617,9 @@ export function createDrizzleMediaRepository(
     },
 
     async list(query, userId) {
-      const rows = await joinedRows(undefined, query);
+      // The catalogue rows are public and cached; the per-user progress below is
+      // always read fresh, so only the shelf's resume label depends on this read.
+      const rows = await catalogueCache.load(`list:${JSON.stringify(query)}`, () => joinedRows(undefined, query));
       const selected = new Map<string, JoinedRow>();
       for (const row of rows) {
         if (!selected.has(row.item.stableKey) && isPlayable(row, now())) selected.set(row.item.stableKey, row);
