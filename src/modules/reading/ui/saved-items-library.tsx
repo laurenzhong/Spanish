@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
 import { useBrowserSpeech } from "@/src/modules/providers/tts";
+import { SlideableNavigation } from "@/src/shared/ui/slideable-navigation";
 import type {
   SavedArticleItemResponse,
   SavedReadingItemResponse,
@@ -215,11 +216,11 @@ export function SavedItemsLibrary({ items, total, page, pageSize, search, itemTy
   const nextHref = hrefFor({ search: search || undefined, itemType, pageSize, page: page + 1 });
   const filtered = Boolean(search || itemType);
   const tabs = useMemo(() => [
-    ["全部", hrefFor({ search: search || undefined, pageSize }), !itemType],
-    ["文章", hrefFor({ search: search || undefined, itemType: "article", pageSize }), itemType === "article"],
-    ["保存词语 / 短语", hrefFor({ search: search || undefined, itemType: "phrase", pageSize }), itemType === "phrase"],
-    ["高亮", hrefFor({ search: search || undefined, itemType: "highlight", pageSize }), itemType === "highlight"],
-  ] as const, [itemType, pageSize, search]);
+    { key: "all", label: "全部", href: hrefFor({ search: search || undefined, pageSize }), current: !itemType },
+    { key: "article", label: "文章", href: hrefFor({ search: search || undefined, itemType: "article", pageSize }), current: itemType === "article" },
+    { key: "phrase", label: "保存词语 / 短语", href: hrefFor({ search: search || undefined, itemType: "phrase", pageSize }), current: itemType === "phrase" },
+    { key: "highlight", label: "高亮", href: hrefFor({ search: search || undefined, itemType: "highlight", pageSize }), current: itemType === "highlight" },
+  ], [itemType, pageSize, search]);
 
   const emptyCopy = itemType === "article"
     ? ["还没有已保存的文章", "在文章列表点击收藏，或生成一篇私人故事，它们会出现在这里。"]
@@ -242,9 +243,13 @@ export function SavedItemsLibrary({ items, total, page, pageSize, search, itemTy
       <p className="saved-items-library__boundary">这里是阅读整理，不会改变掌握度、可信度或口语能力。</p>
     </header>
 
-    <nav className="saved-items-library__tabs" aria-label="已保存内容类型">
-      {tabs.map(([label, href, selected]) => <Link key={label} href={href} aria-current={selected ? "page" : undefined}>{label}</Link>)}
-    </nav>
+    <SlideableNavigation
+      className="saved-items-library__tabs"
+      label="已保存内容类型"
+      activeKey={tabs.find((tab) => tab.current)?.key}
+      items={tabs}
+      indicatorClassName="saved-items-library__indicator"
+    />
 
     {unavailable ? <div className="saved-items-library--state" role="alert"><h2>已保存内容暂时不可用</h2><p>你的文章收藏和词句标注没有被删除。请稍后刷新，或先回到文章继续阅读。</p><button type="button" onClick={() => window.location.reload()}>重新载入</button></div> : <>
       <form className="saved-items-library__filters" action="/read/saved-items" method="get" role="search">

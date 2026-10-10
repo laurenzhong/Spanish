@@ -105,14 +105,14 @@ describe("lexicon pages and controls", () => {
     expect(indicator).not.toBeNull();
 
     expect(navigation).toHaveAttribute("data-indicator", "ready");
-    expect(indicator).toHaveStyle({ transform: "translateX(0px)", width: "60px", opacity: "1" });
+    expect(indicator).toHaveStyle({ transform: "translateX(0px) translateY(0px)", width: "60px", opacity: "1" });
 
     const links = within(navigation).getAllByRole("link");
     links[2].dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
-    expect(indicator).toHaveStyle({ transform: "translateX(120px)", width: "60px" });
+    expect(indicator).toHaveStyle({ transform: "translateX(120px) translateY(0px)", width: "60px" });
 
     // Leaving the navigation returns the underline to the current page.
     links[2].dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
-    expect(indicator).toHaveStyle({ transform: "translateX(0px)" });
+    expect(indicator).toHaveStyle({ transform: "translateX(0px) translateY(0px)" });
   });
 });

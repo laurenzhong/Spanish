@@ -61,13 +61,15 @@ test("navigates between all four product areas", async ({ page }) => {
     { name: "探索", path: "/explore", heading: "校园办事：注册与材料" },
     { name: "对话", path: "/chat", heading: "Lucía Martín" },
     { name: "我的", path: "/me", heading: "我的进步" },
-    { name: "学习", path: "/learn", heading: "看点、听点真实西语" },
+    { name: "学习", path: "/learn", testId: "media-library" },
   ]) {
     await navigation.getByRole("link", { name: destination.name }).click();
     await expect(page).toHaveURL(new RegExp(`${destination.path}$`));
-    await expect(
-      page.getByRole("heading", { name: destination.heading }),
-    ).toBeVisible();
+    if ("testId" in destination) {
+      await expect(page.getByTestId(destination.testId!)).toBeVisible();
+    } else {
+      await expect(page.getByRole("heading", { name: destination.heading! })).toBeVisible();
+    }
     await expect(
       navigation.getByRole("link", { name: destination.name }),
     ).toHaveAttribute("aria-current", "page");
@@ -411,7 +413,7 @@ test("keeps legacy learning query state from restoring the former task card", as
 
   await page.goto("/learn?focus=needs");
   await expect(page).toHaveURL(/\/learn\?focus=needs$/);
-  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
+  await expect(page.getByTestId("media-library")).toBeVisible();
   await expect(page.locator(".focus-card")).toHaveCount(0);
 });
 

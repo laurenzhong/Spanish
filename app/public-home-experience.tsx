@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import PublicHomeJourney from "./public-home-journey";
+import { PublicHomeNavigation } from "./public-home-navigation";
 
 export default function PublicHomeExperience() {
   return (
@@ -8,12 +9,8 @@ export default function PublicHomeExperience() {
       <section className="landing-hero" aria-labelledby="public-home-title">
         <header className="landing-nav">
           <Link className="landing-wordmark" href="/" aria-label="Sueño 首页">Sue<span>ñ</span>o</Link>
-          <nav aria-label="公开页面导航">
-            <a href="#how-it-works">产品方式</a>
-            <Link href="/login?next=%2Fread">阅读</Link>
-            <Link href="/login">登录</Link>
-            <Link className="landing-nav__cta" href="/login?next=%2Flearn">进入学习</Link>
-          </nav>
+          <PublicHomeNavigation />
+          <Link className="landing-nav__cta" href="/login?next=%2Flearn">进入学习</Link>
         </header>
 
         <div className="landing-hero__copy">
