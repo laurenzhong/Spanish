@@ -1,8 +1,50 @@
 # LEX-INDEX-001: 词句索引管道（自动抽取 → 双审 → owner 批准 → 索引）
 
-Status: **待放行**（决策与设计已完成，实施计划已出；尚未开始编码）
+Status: **进行中**（切片 1 domain 部分已完成并提交）
 
-分支：待定（建议新分支，避免与 `codex/disable-legacy-readlang` 的在途工作互相干扰）
+分支：沿用 `codex/disable-legacy-readlang`（当前工作分支）
+
+## 进展
+
+### 前置核实：`MIG-RECONCILE-001` 的阻塞条件已不成立（2026-10-10 实测）
+
+开工前对目标库只读核实，结论是**原任务页已过时**：
+
+| 检查 | 结果 |
+|---|---|
+| 词句 schema 是否存在 | ✅ 8 张表全部存在（`corpus_occurrences` 16 列、`lexemes` 11、`lexeme_forms` 7、`phrase_entries` 12、`phrase_variants` 7、`user_lexical_intents` 7、`lexical_assessment_items` 16、`lexical_assessment_attempts` 14） |
+| 由哪个迁移建立 | ✅ `0037_migration_reconcile.sql` |
+| RLS | ✅ 8 张表全部 `relrowsecurity = true` |
+| adapter 检查 | ✅ 已同时允许 `language-reactor` 与 `readlang-links` |
+| journal 是否可前向迁移 | ✅ journal 最新 `when` (1790272583887) == 目标库最大 `created_at`，且无「journal 有但库中无记录」的条目 |
+
+目标库有 43 条 recorded、仓库 journal 41 条，其中 2 条（id 41、44）时间戳早于当前最大值，属历史遗留，**不影响前向迁移**。因此 `MIG-RECONCILE-001` 的 7 项要求中 1–3 已完成，**实现可以继续**；其第 4 项（迁移评审）仍适用于本任务新增的迁移。
+
+### 切片 1（部分完成）：候选状态机
+
+Commit `33e39ec`（3 文件，509 行）：新增 `src/modules/lexicon-corpus/domain/lexicon-candidate.ts` + 导出 + `tests/unit/lexicon-candidate.test.ts`（13 例）。
+
+已锁定的不变量（均有测试）：
+
+- 自动抽取**无法**自行到达 `approved`：仅 `discovered → review_submitted → review_ready → approved` 合法，且 `review_ready` 必须双维度通过；
+- 任一维度失败**立即**settle 为 `rejected`，不等第二维度；
+- `approved` / `rejected` 为终态，`rejected` 不可复活（重新抽取必须产生新 revision）；
+- 每次接受的迁移 `revision` 恰好 +1；过期 `expectedRevision` 返回 `CANDIDATE_REVISION_CONFLICT` 而不改动较新状态（过期回调）；
+- 候选 id 内嵌 kind/文档/版本/段/归一文本，重新抽取不能冒充同一候选；
+- 只声明**可达**的冲突码（`CANDIDATE_REVISION_CONFLICT` / `CANDIDATE_INVALID_TRANSITION` / `CANDIDATE_REVIEW_ALREADY_RECORDED` / `CANDIDATE_REJECTED_IS_TERMINAL`），删掉了无法触发与属于持久层的码。
+
+验证：vitest `13/13`、`tsc --noEmit` exit 0、改动文件 ESLint exit 0。
+
+**尚未做**：候选表 schema 与持久化。切分理由见下。
+
+### 切分决定：schema + 持久化单独立片
+
+原计划的切片 1 把「状态机」与「候选表迁移」放在一起。实施时拆开，因为二者风险等级不同：
+
+- 状态机是纯逻辑，零风险、可完全测试（已完成）；
+- 新增迁移会**追加一条迁移记录到真实数据库**，且现有 `drizzle/meta/` 只有 `_journal.json`、**没有 SQL 快照**，因此 `drizzle-kit generate` 的 diff 基线无法离线复现 —— 在已有 41 条迁移的真实库上运行 generate 可能产出非预期的 schema 漂移。
+
+因此 schema 片必须先：①确认 generate 的 diff 归属与基线；②在**空库/一次性副本**上验证（`MIG-RECONCILE-001` 第 3 项要求）；③经迁移评审后才可对目标库应用（第 4 项要求）。这些动作应显式告知产品本人。
 
 ## 为什么有这个任务
 
@@ -39,9 +81,10 @@ Status: **待放行**（决策与设计已完成，实施计划已出；尚未�
 - 实施计划（8 个切片）：`docs/plans/2026-10-10-lexicon-indexing-pipeline-implementation-plan.md`
 - 发现过程：`docs/tasks/READ-SHELF-001.md`「阻塞发现」
 
-## 放行前必须解决
+## 注意事项
 
-- `docs/tasks/MIG-RECONCILE-001.md` 记录的 **drizzle journal 不一致**：新增迁移前必须先解决，否则迁移基线会冲突。
+- ~~`MIG-RECONCILE-001` 记录的 drizzle journal 不一致~~ → **已于 2026-10-10 核实为不再阻塞**（见上「前置核实」）。但其第 3、4 项（空库验证 + 迁移评审）仍适用于本任务新增的迁移。
+- `docs/tasks/MIG-RECONCILE-001.md` 任务页本身已过时，建议由合并者更新其状态，不要据它停工。
 - READ-SHELF-001 提交时 `docs/architecture.md` 的文案同步留在工作区（该文件同时含 `READ-SAVED-001` 未提交改动），需由该会话随其改动提交后再动该文件。
 
 ## 硬约束
