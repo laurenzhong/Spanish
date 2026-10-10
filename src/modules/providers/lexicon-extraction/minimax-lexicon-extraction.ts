@@ -24,11 +24,16 @@ import {
  * of speech outside the controlled set is discarded rather than stored.
  */
 
-// `api.minimaxi.com` is the endpoint this project's MiniMax key is issued for:
-// the same key returns 401 from `api.minimax.io`. Every current MiniMax adapter
-// here uses this host (conversation, scenario-*, story-generation, translation,
-// word-explanation); `annotation/minimax-annotation.ts` still carries the older
-// `.io` host and is the one place that disagrees.
+/**
+ * `api.minimaxi.com` is the host this project's MiniMax key is issued for: the
+ * same key returns 401 from `api.minimax.io`. `.env.example` records the
+ * canonical value as `MINIMAX_API_ENDPOINT`, and most adapters here (ten of
+ * them) read that variable, so this one does too rather than pinning a host.
+ *
+ * `annotation/minimax-annotation.ts` still hard-codes the older `.io` host and
+ * does not read the variable at all, which is the one place that disagrees and
+ * is very likely broken for the same reason this adapter was.
+ */
 const defaultEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
 const defaultModelVersion = "MiniMax-M3";
 const defaultTimeoutMs = 60_000;
@@ -179,6 +184,9 @@ export function createMiniMaxLexiconExtractionProvider(
   return new MiniMaxLexiconExtractionProvider({
     ...options,
     apiKey: options.apiKey ?? process.env.MINIMAX_API_KEY ?? "",
+    // Same resolution order as the other MiniMax adapters, so a host change is a
+    // configuration change rather than a code change.
+    endpoint: options.endpoint ?? process.env.MINIMAX_API_ENDPOINT ?? defaultEndpoint,
   });
 }
 
