@@ -763,8 +763,9 @@ const systemPrompt = [
   "This is review, not authorship: judge only the candidate and the frozen context you are given, and never invent facts that the given text does not support.",
   "You are an AI review step on the owner-authorised agent platform; you are not a human, a native speaker or a teaching expert, and you must not claim to be one.",
   "You answer exactly one dimension per call, named in the request payload as dimension.",
-  "Answering content-es-ES: use pass only when the surface form occurs in the frozen context, the part of speech fits the way the form is used there, a lexeme's lemma is its dictionary form for that use, and a phrase is a complete, learner-usable unit of the text provided.",
-  "Answering content-es-ES: use fail when any of that is wrong, when the form is not in the context, or when the context is not enough to judge.",
+  "Answering content-es-ES: use pass only when the surface form occurs in frozenContext.passage, the part of speech fits the way the form is used there, a lexeme's lemma is its dictionary form for that use, and a phrase is a complete, learner-usable unit of the text provided.",
+  "Answering content-es-ES: use fail when any of that is wrong, when the form does not occur in frozenContext.passage, or when the passage is not enough to judge.",
+  "How frozenContext is built: passage is contextBefore, then the candidate's surfaceText, then contextAfter, in that order. contextBefore and contextAfter are trimmed slices of the same frozen segment, and one space joins them to the surfaceText where two word characters meet; the form is therefore visible in the passage, at that join. Judge usage from the passage (or from the whole frozenContext), never from contextBefore or contextAfter alone.",
   "Answering teaching-zh-CN: use pass only when meaningZh is an accurate Chinese rendering of the Spanish, the wording is clear, and the register suits a learner without false claims.",
   "Answering teaching-zh-CN: use fail when meaningZh is missing, misleading, or wrong in register, or when you cannot verify it from the given text.",
   "Judge only the named dimension: a problem outside it does not change this outcome.",
@@ -779,10 +780,37 @@ const systemPrompt = [
   'issues is an array of strings, empty when there is nothing to flag: {"issues":[]}.',
   "Every key must be present on every response, including issues when it is empty.",
   "The exact shape, for dimension content-es-ES, is: " +
-    '{"outcome":"pass","dimension":"content-es-ES","languageVerdict":"The surface form occurs in the context and is used as a noun.","teachingVerdict":"The Chinese explanation matches the Spanish meaning.","reason":"The candidate form, part of speech and explanation are all supported by the frozen context.","evidence":["... un terremoto de magnitud 7.2 ..."],"issues":[]}',
+    '{"outcome":"pass","dimension":"content-es-ES","languageVerdict":"The surface form occurs in the passage and is used as a noun.","teachingVerdict":"The Chinese explanation matches the Spanish meaning.","reason":"The candidate form, part of speech and explanation are all supported by the frozen context.","evidence":["... un terremoto de magnitud 7.2 ..."],"issues":[]}',
   "The exact shape, for dimension teaching-zh-CN, is: " +
     '{"outcome":"fail","dimension":"teaching-zh-CN","languageVerdict":"The Spanish form is used correctly as a noun.","teachingVerdict":"The Chinese explanation omits part of the meaning.","reason":"The explanation is incomplete against the Spanish, so a learner would be misled.","evidence":["meaningZh: 地震"],"issues":["The explanation does not cover the magnitude phrase."]}',
 ].join(" ");
+
+/**
+ * Rebuild the frozen segment around the form.
+ *
+ * `contextBefore` and `contextAfter` are *trimmed* slices of the segment taken
+ * around the form, so the form itself is missing from both and a plain
+ * concatenation would run two words together (`un` + `terremoto`). Neither
+ * property is guessable by the model, which is what made "the form occurs in the
+ * frozen context" unanswerable before: the payload now carries the reassembled
+ * passage and the prompt states this rule.
+ *
+ * The join inserts one space only where a word character meets a word character,
+ * so punctuation keeps the spacing the segment had (`... un terremoto, dijo`).
+ */
+export function assembleFrozenPassage(
+  contextBefore: string,
+  surfaceText: string,
+  contextAfter: string,
+): string {
+  const before = /[\p{L}\p{N}]$/u.test(contextBefore) && /^[\p{L}\p{N}]/u.test(surfaceText)
+    ? `${contextBefore} `
+    : contextBefore;
+  const after = /[\p{L}\p{N}]$/u.test(surfaceText) && /^[\p{L}\p{N}]/u.test(contextAfter)
+    ? ` ${contextAfter}`
+    : contextAfter;
+  return `${before}${surfaceText}${after}`;
+}
 
 function buildPrompt(snapshot: LexiconReviewSnapshot): string {
   return JSON.stringify({
@@ -804,6 +832,12 @@ function buildPrompt(snapshot: LexiconReviewSnapshot): string {
       segmentIndex: snapshot.segmentIndex,
       contextBefore: snapshot.contextBefore,
       contextAfter: snapshot.contextAfter,
+      // The form is inside this field, at the join between the two slices, so
+      // "does the form occur in the text you were given" has an answer.
+      passage: assembleFrozenPassage(snapshot.contextBefore, snapshot.surfaceText, snapshot.contextAfter),
+      passageComposition:
+        "passage = contextBefore + candidate.surfaceText + contextAfter; the two sides are trimmed slices "
+        + "of the frozen segment and one space joins them to the form where two word characters meet",
     },
     constraints: {
       oneDimensionPerCall: true,

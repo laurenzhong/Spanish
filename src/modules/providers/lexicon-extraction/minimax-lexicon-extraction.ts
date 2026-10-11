@@ -2,6 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
+import { tokenizeSpanish } from "@/src/modules/lexicon-corpus/domain/spanish-token";
+
 import {
   LexiconExtractionError,
   isLexiconPartOfSpeech,
@@ -20,8 +22,9 @@ import {
  * them, cannot write evidence, and cannot reach the corpus (ADR-0011).
  *
  * The model's claims are treated as untrusted input: a proposal whose surface
- * form does not actually occur in the segment it cites is dropped, and a part
- * of speech outside the controlled set is discarded rather than stored.
+ * form does not actually occur in the segment it cites — as whole tokens, never
+ * as a substring of a longer word — is dropped, and a part of speech outside the
+ * controlled set is discarded rather than stored.
  */
 
 /**
@@ -270,6 +273,31 @@ type RawProposal = z.infer<typeof proposalSchema>;
  * word is not in the segment, the candidate would create a corpus occurrence
  * pointing at text that does not contain it.
  */
+/**
+ * Whether the cited form occurs in the segment as whole tokens.
+ *
+ * A substring test is not enough, and this is the same defect family as the
+ * reviewer payload: `droide` occurs inside `droides`, so a proposal that is not
+ * a token of the text passed as present and would have created a corpus
+ * occurrence for a form the segment never uses. Comparing token runs gives the
+ * boundary for free: a one-token form must equal a token, and a phrase must be a
+ * contiguous run of them (punctuation and spacing between tokens are ignored,
+ * which is what makes "un terremoto" and "¿Qué haces?" work).
+ *
+ * The comparison stays case-insensitive and accent-sensitive, exactly as the
+ * substring check was: folding accents would accept `cafe` for `café`, which is
+ * a different word from the one the text uses.
+ */
+function occursAsWholeTokens(segmentText: string, form: string): boolean {
+  const wanted = tokenizeSpanish(form).map((token) => token.surface.toLocaleLowerCase("es"));
+  if (wanted.length === 0) return false;
+  const tokens = tokenizeSpanish(segmentText).map((token) => token.surface.toLocaleLowerCase("es"));
+  for (let start = 0; start + wanted.length <= tokens.length; start += 1) {
+    if (wanted.every((token, offset) => tokens[start + offset] === token)) return true;
+  }
+  return false;
+}
+
 function sanitizeProposals(
   raw: readonly RawProposal[],
   input: LexiconExtractionInput,
@@ -282,8 +310,8 @@ function sanitizeProposals(
     const segment = byIndex.get(proposal.segmentIndex);
     if (!segment) continue;
 
-    // The cited surface form must occur in the cited segment.
-    if (!segment.sourceText.toLocaleLowerCase("es").includes(proposal.surfaceText.toLocaleLowerCase("es"))) continue;
+    // The cited surface form must occur in the cited segment, as whole tokens.
+    if (!occursAsWholeTokens(segment.sourceText, proposal.surfaceText)) continue;
 
     // Every candidate needs a Chinese gloss. For a phrase that gloss is its
     // translation; for a lexeme it is the meaning the teaching review judges and

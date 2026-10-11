@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import {
   MiniMaxCandidateReviewer,
+  assembleFrozenPassage,
   createMiniMaxCandidateReviewer,
   lexiconReviewDimensions,
   lexiconReviewIdentity,
@@ -14,6 +15,7 @@ import {
   type LexiconReviewObservation,
 } from "@/src/modules/providers/lexicon-review";
 import { fakeLexiconReviewCandidate } from "@/src/modules/providers/lexicon-review";
+import { tokenizeSpanish } from "@/src/modules/lexicon-corpus/domain/spanish-token";
 import type { CandidateReviewRequest } from "@/src/modules/lexicon-corpus/application/candidate-reviewer";
 
 /**
@@ -497,5 +499,104 @@ describe("MiniMaxCandidateReviewer", () => {
 
   it("exposes the two dimension values the seam defines", () => {
     expect(lexiconReviewDimensions).toEqual(["content-es-ES", "teaching-zh-CN"]);
+  });
+});
+
+/**
+ * The satisfiability of the presence instruction.
+ *
+ * `contextBefore` and `contextAfter` are trimmed slices taken *around* the form,
+ * so by construction they do not contain it. The prompt used to ask the reviewer
+ * to pass only when "the surface form occurs in the frozen context" while the
+ * payload sent exactly those two slices — an instruction the model could not
+ * satisfy, which read as mass rejection once combined with "when in doubt,
+ * answer fail".
+ *
+ * These cases fail if either half of the fix is reverted: dropping `passage`
+ * from the payload, or restoring the wording that points the check at text the
+ * form is not in.
+ */
+describe("reviewer payload satisfiability", () => {
+  /** The two halves of the request body, parsed. */
+  async function sentRequest(dimension: CandidateReviewRequest["dimension"] = "content-es-ES") {
+    const { reviewer, fetchImplementation } = reviewerWithResponse(envelope(validPayload({ dimension })));
+    await reviewer.review(request(dimension));
+    const body = JSON.parse(String(fetchImplementation.mock.calls[0][1]?.body)) as {
+      system: string;
+      messages: readonly { content: readonly { text: string }[] }[];
+    };
+    const payload = JSON.parse(body.messages[0]!.content[0]!.text) as {
+      frozenContext: Readonly<{
+        contextBefore: string;
+        contextAfter: string;
+        passage: string;
+        passageComposition: string;
+      }>;
+    };
+    return { system: body.system, frozenContext: payload.frozenContext };
+  }
+
+  it("sends the form itself, inside the reassembled passage", async () => {
+    const { frozenContext } = await sentRequest();
+
+    expect(frozenContext.passage).toBe(
+      "Y en Panamá, un terremoto de magnitud 7.2 sacudió el sureste del país.",
+    );
+    // The decisive property: the form is a real token *of what was sent*.
+    expect(tokenizeSpanish(frozenContext.passage).map((token) => token.normalized)).toContain("terremoto");
+    // The slices still travel, and they still exclude the form — which is
+    // exactly why the passage has to exist.
+    expect(frozenContext.contextBefore).toBe("Y en Panamá, un");
+    expect(frozenContext.contextAfter).toBe("de magnitud 7.2 sacudió el sureste del país.");
+    expect(frozenContext.contextBefore).not.toContain("terremoto");
+    expect(frozenContext.contextAfter).not.toContain("terremoto");
+  });
+
+  it("states the three-field relationship in the payload and in the prompt", async () => {
+    const { system, frozenContext } = await sentRequest();
+
+    for (const field of ["contextBefore", "surfaceText", "contextAfter"]) {
+      expect(frozenContext.passageComposition, `payload must name ${field}`).toContain(field);
+    }
+    for (const field of ["contextBefore", "surfaceText", "contextAfter"]) {
+      expect(system, `prompt must name ${field}`).toContain(field);
+    }
+    expect(system).toContain("frozenContext.passage");
+  });
+
+  it("never asks the reviewer to judge a form it cannot see", async () => {
+    const { system, frozenContext } = await sentRequest();
+
+    // Revert detector: without `passage` there is nothing in the request that
+    // contains the form, and the presence question is unanswerable again.
+    expect(typeof frozenContext.passage).toBe("string");
+    expect(frozenContext.passage).not.toBe("");
+
+    // Revert detector for the wording: the check must point at the passage, not
+    // at "the frozen context" (which is the two slices).
+    expect(system).toContain("occurs in frozenContext.passage");
+    expect(system).toContain("does not occur in frozenContext.passage");
+    expect(system).not.toMatch(/occurs in the frozen context\b/);
+    expect(system).not.toMatch(/the form is not in the context\b/);
+  });
+
+  it("keeps the teaching dimension on the same passage", async () => {
+    const { frozenContext } = await sentRequest("teaching-zh-CN");
+    // The Chinese gloss is judged against the Spanish; that Spanish must include
+    // the form, or the same defect returns one dimension over.
+    expect(tokenizeSpanish(frozenContext.passage).map((token) => token.normalized)).toContain("terremoto");
+  });
+
+  it("rebuilds the passage without running words together", () => {
+    // The slices are trimmed, so a naive concatenation would produce
+    // "unterremoto"; the join is what restores the segment's spacing.
+    expect(assembleFrozenPassage("Y en Panamá, un", "terremoto", "de magnitud 7.2")).toBe(
+      "Y en Panamá, un terremoto de magnitud 7.2",
+    );
+    // Punctuation keeps the spacing the segment had: no space after an opening
+    // mark, none before a closing one.
+    expect(assembleFrozenPassage("dice: «", "hola", "».")).toBe("dice: «hola».");
+    expect(assembleFrozenPassage("", "casa", " y tu casa")).toBe("casa y tu casa");
+    expect(assembleFrozenPassage("Mi", "casa", "")).toBe("Mi casa");
   });
 });

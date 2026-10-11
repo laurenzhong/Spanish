@@ -166,6 +166,52 @@ describe("MiniMax lexicon extraction adapter", () => {
     expect(result.proposals).toHaveLength(0);
   });
 
+  it("requires whole tokens, so a form inside a longer word is not 'present'", async () => {
+    // The segment says `droides`; `droide` is only a substring of it. A substring
+    // guard accepted this proposal, which would have created a corpus occurrence
+    // for a form the text never uses.
+    const pluralSegment = { ...segment, sourceText: "Los droides de batalla avanzan por el pasillo." };
+    const pluralInput: LexiconExtractionInput = {
+      language: "es",
+      segments: [pluralSegment],
+      maxCandidatesPerSegment: 50,
+    };
+
+    const { provider: partial } = providerWithResponse(
+      anthropicResponse([lexemeProposal({ surfaceText: "droide", lemma: "droide" })]),
+    );
+    expect((await partial.extractCandidates(pluralInput)).proposals).toHaveLength(0);
+
+    // The form the segment actually uses is kept, so the guard narrows the claim
+    // rather than rejecting the segment.
+    const { provider: exact } = providerWithResponse(
+      anthropicResponse([lexemeProposal({ surfaceText: "droides", lemma: "droide" })]),
+    );
+    const kept = await exact.extractCandidates(pluralInput);
+    expect(kept.proposals).toHaveLength(1);
+    expect(kept.proposals[0]?.surfaceText).toBe("droides");
+  });
+
+  it("keeps a phrase only when it is a contiguous run of the segment's tokens", async () => {
+    const phrase = (surfaceText: string) => ({
+      kind: "phrase",
+      surfaceText,
+      lemma: null,
+      partOfSpeech: null,
+      meaningZh: "一场地震",
+      segmentIndex: 0,
+      confidence: 0.8,
+    });
+
+    // "un terremoto" is two whole tokens of the fixture segment.
+    const { provider: whole } = providerWithResponse(anthropicResponse([phrase("un terremoto")]));
+    expect((await whole.extractCandidates(input)).proposals).toHaveLength(1);
+
+    // "un terremot" ends in the middle of a token: the text does not contain it.
+    const { provider: truncated } = providerWithResponse(anthropicResponse([phrase("un terremot")]));
+    expect((await truncated.extractCandidates(input)).proposals).toHaveLength(0);
+  });
+
   it("discards a part of speech outside the controlled set instead of storing it as fact", async () => {
     const { provider } = providerWithResponse(anthropicResponse([lexemeProposal({ partOfSpeech: "NOUNISH" })]));
     const result = await provider.extractCandidates(input);
