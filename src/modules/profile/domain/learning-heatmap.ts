@@ -41,7 +41,12 @@ export type LearningSession = Readonly<{
 }>;
 
 const MAX_SESSION_MINUTES = 45;
-const DAY_COUNT = 365;
+// The heatmap panel renders the last twelve weeks and says so in its heading
+// ("最近 12 周活动"), and it slices the payload to its final 84 days. Building a
+// full year meant every /me visit downloaded 281 days that were never drawn: the
+// real payload was 45,447 bytes, about 77% of it invisible. Keep the window at
+// exactly what the panel shows.
+const DAY_COUNT = 84;
 
 const axisLabels: readonly [prefix: string, label: string][] = [
   ["listening.", "听辨理解"],
