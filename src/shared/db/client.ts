@@ -46,7 +46,14 @@ export function createDatabaseConnection(
   const client = postgres(connectionString, {
     prepare: false,
     max: 10,
-    idle_timeout: 20,
+    // Measured against the hosted pooler from this project's usual location:
+    // a warm statement costs one network round trip (~75-92 ms), while
+    // re-establishing a closed connection costs ~430 ms extra before the query
+    // even runs (511 ms connect+query against 75 ms warm). With a 20 s idle
+    // timeout, sporadic use paid that handshake on almost every visit, so the
+    // pool now keeps one connection for a minute. Raising this holds a
+    // connection per instance; it is the intended trade for a personal alpha.
+    idle_timeout: 60,
     connect_timeout: 10,
   });
 
