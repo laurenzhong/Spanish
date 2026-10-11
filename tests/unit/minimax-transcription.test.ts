@@ -174,4 +174,45 @@ describe("MiniMaxTranscriptionProvider", () => {
     expect(chunkOffsetMs("chunk-000.mp3")).toBe(0);
     expect(chunkOffsetMs("chunk-002.mp3")).toBe(900_000);
   });
+
+  it("offsets a real chunked run from two separate provider responses", async () => {
+    const assetDirectory = await mkdtemp(path.join(tmpdir(), "sueno-minimax-word-"));
+    const assetPath = path.join(assetDirectory, "episode.mp3");
+    await writeFile(assetPath, new Uint8Array([1, 2, 3]));
+
+    try {
+      let outputPattern = "";
+      spawnMock.mockImplementation((_command: string, args: readonly string[]) => {
+        outputPattern = String(args.at(-1));
+        const child = new EventEmitter() as EventEmitter & { kill: () => void };
+        child.kill = vi.fn();
+        queueMicrotask(() => {
+          // Two parts, so the second must be shifted onto the asset clock.
+          writeFileSync(outputPattern.replace("%03d", "000"), new Uint8Array([4, 5, 6]));
+          writeFileSync(outputPattern.replace("%03d", "001"), new Uint8Array([7, 8, 9]));
+          child.emit("close", 0);
+        });
+        return child;
+      });
+
+      // Each request's units start near zero, exactly as a per-chunk provider
+      // response does; only the offset makes the second one absolute.
+      const fetchImplementation = vi.fn<typeof fetch>(async () => response({
+        text: "Hola",
+        segments: [{ start: 0.2, end: 0.6, text: "Hola" }],
+      }));
+      const provider = new MiniMaxTranscriptionProvider({ apiKey: "test-key", timestampLevel: "word", fetchImplementation });
+
+      const result = await provider.transcribe({ ...input, assetPath, durationMs: 900_001 });
+
+      expect(fetchImplementation).toHaveBeenCalledTimes(2);
+      expect(result.segments).toEqual([
+        { text: "Hola", startMs: 200, endMs: 600, speaker: null, confidence: null, words: [{ startMs: 200, endMs: 600, startOffset: 0, endOffset: 4 }] },
+        { text: "Hola", startMs: 450_200, endMs: 450_600, speaker: null, confidence: null, words: [{ startMs: 450_200, endMs: 450_600, startOffset: 0, endOffset: 4 }] },
+      ]);
+    } finally {
+      spawnMock.mockReset();
+      await rm(assetDirectory, { recursive: true, force: true });
+    }
+  });
 });
