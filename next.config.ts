@@ -25,6 +25,28 @@ const nextConfig: NextConfig = {
   // tmp-bisect-*.test.ts). Default off, so `pnpm build` and CI keep failing on
   // real type errors; never set this for a release gate.
   ...(process.env.NEXT_MEASUREMENT_BUILD === "1" ? { typescript: { ignoreBuildErrors: true } } : {}),
+  // `public/` is served with `max-age=0`, so every visit revalidated the public
+  // home's poster (32 KB) and its recording (990 KB) before reusing them, and
+  // `/icon` revalidated its generated PNG. These files only change together with
+  // the code that references them, so a day of freshness plus a week of
+  // stale-while-revalidate removes those round trips without pinning anything
+  // for a year.
+  async headers() {
+    return [
+      {
+        source: "/public-home/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
+      {
+        source: "/icon",
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" }],
+      },
+      {
+        source: "/apple-icon",
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

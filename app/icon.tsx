@@ -1,6 +1,9 @@
 import { ImageResponse } from "next/og";
 
-export const size = { width: 512, height: 512 };
+// 180 is what a tab, a bookmark tile and a home-screen shortcut can all use:
+// the previous 512x512 raster was 16.7 KB for an icon that is never drawn
+// larger than ~48 CSS px.
+export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
 export default function Icon() {
@@ -11,13 +14,13 @@ export default function Icon() {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      borderRadius: 112,
+      borderRadius: 39,
       color: "#fffaf4",
       background: "#17211d",
       fontFamily: "serif",
-      fontSize: 300,
+      fontSize: 108,
       fontWeight: 700,
-      letterSpacing: -24,
+      letterSpacing: -8,
     }}>S</div>,
     size,
   );
