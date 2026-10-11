@@ -78,9 +78,15 @@ export function createDrizzleScenarioLibraryRepository(database: Database): Scen
       const rows = await database.update(schema.userSavedExpressions).set({ archived: true, updatedAt: new Date() }).where(and(eq(schema.userSavedExpressions.userId, userId), eq(schema.userSavedExpressions.id, savedExpressionId), eq(schema.userSavedExpressions.archived, false))).returning({ id: schema.userSavedExpressions.id });
       return rows.length > 0;
     },
-    async listGenerationSources(userId) {
+    async listGenerationSources(userId, savedExpressionsInFlight) {
       const [saved, highlights, reviews] = await Promise.all([
-        database.select().from(schema.userSavedExpressions).where(and(eq(schema.userSavedExpressions.userId, userId), eq(schema.userSavedExpressions.archived, false))).orderBy(desc(schema.userSavedExpressions.createdAt)).limit(20),
+        // Reuse the read the caller already started instead of selecting the
+        // same newest 20 saved expressions again in the same wave. The list is
+        // ordered by createdAt desc in both shapes, so the slice is the same
+        // twenty rows.
+        savedExpressionsInFlight
+          ? savedExpressionsInFlight.then((rows) => rows.slice(0, 20))
+          : database.select().from(schema.userSavedExpressions).where(and(eq(schema.userSavedExpressions.userId, userId), eq(schema.userSavedExpressions.archived, false))).orderBy(desc(schema.userSavedExpressions.createdAt)).limit(20),
         database.select().from(schema.userArticleHighlights).where(eq(schema.userArticleHighlights.userId, userId)).orderBy(desc(schema.userArticleHighlights.createdAt)).limit(20),
         database.select({ review: schema.scenarioTurnReviews, turn: schema.scenarioTurns }).from(schema.scenarioTurnReviews).innerJoin(schema.scenarioTurns, and(eq(schema.scenarioTurns.id, schema.scenarioTurnReviews.turnId), eq(schema.scenarioTurns.userId, userId))).where(and(eq(schema.scenarioTurnReviews.userId, userId), eq(schema.scenarioTurnReviews.status, "ready"), eq(schema.scenarioTurnReviews.communicationSuccess, false), or(isNull(schema.scenarioTurnReviews.transcriptConfidence), gte(schema.scenarioTurnReviews.transcriptConfidence, 0.6)))).orderBy(desc(schema.scenarioTurnReviews.createdAt)).limit(20),
       ]);

@@ -37,6 +37,28 @@ const privateSource = {
 };
 
 describe("explore library projection", () => {
+  it("reads the user's saved expressions once and hands the in-flight read to the generation sources", async () => {
+    const seen: { savedExpressionsReads: number; generationSourcesPromise: unknown } = { savedExpressionsReads: 0, generationSourcesPromise: undefined };
+    const source = {
+      async listPersonalSuggestionCandidates() { return []; },
+      async listSavedExpressions() {
+        seen.savedExpressionsReads += 1;
+        return [];
+      },
+      async listGenerationSources(_userId: string, savedExpressionsInFlight?: unknown) {
+        seen.generationSourcesPromise = savedExpressionsInFlight;
+        return { savedExpressions: [], readingHighlights: [], recentErrors: [] };
+      },
+    };
+
+    await getExploreLibraryForUser(new CatalogExploreLibraryRepository(source), "user-1", { allowDraft: false });
+
+    expect(seen.savedExpressionsReads).toBe(1);
+    // The generation sources received the same in-flight read instead of
+    // selecting the same newest 20 saved expressions a second time.
+    expect(seen.generationSourcesPromise).toBeInstanceOf(Promise);
+  });
+
   it("combines previewable catalog content with owned private sources", async () => {
     const library = await getExploreLibraryForUser(
       new CatalogExploreLibraryRepository(privateSource),
@@ -65,11 +87,17 @@ describe("explore library projection", () => {
 
     expect(
       library.scenarios.filter((item) => item.sourceKind === "public"),
-    ).toHaveLength(3);
+    ).toHaveLength(9);
     expect(library.scenarios).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           stableKey: "scenario.restaurant-ordering",
+          sourceKind: "public",
+        }),
+        expect.objectContaining({
+          stableKey: "scenario.transport-ticket",
+          category: "travel",
+          categoryLabel: "出行与住宿",
           sourceKind: "public",
         }),
         expect.objectContaining({
@@ -104,7 +132,7 @@ describe("explore library projection", () => {
     );
 
     expect(library.privateState).toBe("unavailable");
-    expect(library.scenarios).toHaveLength(3);
+    expect(library.scenarios).toHaveLength(9);
     expect(library.expressions).toHaveLength(11);
   });
 

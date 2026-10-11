@@ -159,10 +159,14 @@ export class CatalogExploreLibraryRepository implements ExploreLibraryRepository
     }
 
     try {
+      // One wave, and the saved-expression read is issued once: the generation
+      // sources receive it in flight rather than selecting the same newest 20
+      // rows again.
+      const savedExpressionsInFlight = this.privateSource.listSavedExpressions(userId);
       const [personal, saved, sources] = await Promise.all([
         this.privateSource.listPersonalSuggestionCandidates(userId),
-        this.privateSource.listSavedExpressions(userId),
-        this.privateSource.listGenerationSources(userId),
+        savedExpressionsInFlight,
+        this.privateSource.listGenerationSources(userId, savedExpressionsInFlight),
       ]);
       const savedByFormalKey = new Map(saved.flatMap((item) => item.sourceType === "formal-expression" && item.sourceEntityId && item.sourceVersion
         ? [[`${item.sourceEntityId}@${item.sourceVersion}`, { id: item.id }]]
