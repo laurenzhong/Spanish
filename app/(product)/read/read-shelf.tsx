@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ArticleCardProjection, ArticleListResult } from "@/src/modules/content/domain";
+import { useToast } from "@/src/shared/ui/toast";
 
 import { ARTICLE_PAGE_SIZE } from "./shelf-constants";
 
@@ -47,6 +48,14 @@ type SavedArticleState = Readonly<{
 }>;
 
 type SavedArticleIdsRequest = Promise<ReadonlySet<string>>;
+
+/**
+ * `silent` keeps the reversal that the toast's own "撤销" performs from pushing
+ * another toast with another "撤销", which the reader could follow forever.
+ */
+type ToggleSavedOptions = Readonly<{ silent?: boolean }>;
+
+type ToggleSaved = (articleId: string, currentlySaved: boolean, options?: ToggleSavedOptions) => Promise<void>;
 
 const readerStoragePrefix = "reading-reader:v1:";
 
@@ -187,8 +196,12 @@ export function ReadShelf({ result, page = 1, pageSize = ARTICLE_PAGE_SIZE, sear
   const [readerProgress, setReaderProgress] = useState<ReaderProgressMap>({});
   const [savedLoadFailed, setSavedLoadFailed] = useState(false);
   const [toolNotice, setToolNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [openMenu, setOpenMenu] = useState<"filter" | "add" | null>(null);
   const toolbarActionsRef = useRef<HTMLDivElement>(null);
+  // The undo closure lives in a ref so the toggle callback can offer "undo"
+  // without referring to itself (which the hooks rules reject).
+  const toggleSavedRef = useRef<ToggleSaved | null>(null);
   const hasFilters = Boolean(search || topic || cefr || minutes);
   const router = useRouter();
 
@@ -270,7 +283,7 @@ export function ReadShelf({ result, page = 1, pageSize = ARTICLE_PAGE_SIZE, sear
       ? "网络恢复或重新登录后再试。"
       : hasFilters ? "调整搜索或筛选条件后再试。" : "审核通过后，文章会显示在这里。";
 
-  const toggleSaved = useCallback(async (articleId: string, currentlySaved: boolean) => {
+  const toggleSaved = useCallback<ToggleSaved>(async (articleId, currentlySaved, options) => {
     if (savingArticleIds.has(articleId)) return;
     const nextSaved = !currentlySaved;
     setSavingArticleIds((previous) => new Set(previous).add(articleId));
@@ -303,7 +316,20 @@ export function ReadShelf({ result, page = 1, pageSize = ARTICLE_PAGE_SIZE, sear
         else next.delete(articleId);
         return { contextKey: savedContextKey, ids: next };
       });
-      setToolNotice(saved ? "已收藏。" : "已取消收藏。");
+      // A reversible server action reports through the toast layer, which is the
+      // only place that can offer "undo" instead of a dead-end confirmation.
+      // The undo itself is silent: it must update state and the server without
+      // re-arming another undo, which is what allowed endless ping-pong.
+      if (!options?.silent) {
+        toast.push({
+          message: saved ? "已收藏。" : "已取消收藏。",
+          action: {
+            label: "撤销",
+            pendingLabel: "撤销中…",
+            onSelect: () => toggleSavedRef.current?.(articleId, saved, { silent: true }),
+          },
+        });
+      }
     } catch {
       // Roll the optimistic flip back to the state before this attempt.
       setSavedArticleState((previous) => {
@@ -320,7 +346,13 @@ export function ReadShelf({ result, page = 1, pageSize = ARTICLE_PAGE_SIZE, sear
         return next;
       });
     }
-  }, [router, savedContextKey, savingArticleIds]);
+  }, [router, savedContextKey, savingArticleIds, toast]);
+
+  useEffect(() => {
+    // The promise is handed back to the toast layer on purpose: the action stays
+    // pending (disabled, "撤销中…") until the reversal really settles.
+    toggleSavedRef.current = (articleId, currentlySaved, options) => toggleSaved(articleId, currentlySaved, options);
+  }, [toggleSaved]);
 
   return (
     <div className="read-library">

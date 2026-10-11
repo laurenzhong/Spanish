@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { MouseEventHandler, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +14,7 @@ vi.mock("next/link", () => ({
 }));
 
 import { ReadShelf } from "@/app/(product)/read/read-shelf";
+import { ToastProvider } from "@/src/shared/ui/toast";
 import { filterArticles, type ArticleCardProjection, type ArticleListResult } from "@/src/modules/content/domain";
 
 const result: ArticleListResult = {
@@ -201,6 +202,117 @@ describe("article library shelf", () => {
     // A failed fetch leaves the honest local default instead of breaking the shelf.
     expect(screen.getByText("未开始")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: article.title })).toBeInTheDocument();
+  });
+
+  it("offers undo for a reversible save toggle through the toast layer", async () => {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => Promise.resolve({
+      ok: true,
+      json: async () => url === "/api/v1/read/saved"
+        ? { apiVersion: "v1", data: { saved: JSON.parse(String(init?.body)).saved } }
+        : { data: { articleIds: [] } },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <ToastProvider>
+        <ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `收藏文章：${article.title}` }));
+    const toast = await screen.findByRole("status");
+    expect(toast).toHaveTextContent("已收藏。");
+
+    // Undo re-issues the same server action with the previous value instead of
+    // leaving the reader with a dead-end confirmation.
+    fireEvent.click(within(toast).getByRole("button", { name: "撤销" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/read/saved",
+      expect.objectContaining({ body: JSON.stringify({ articleId: article.id, saved: false }) }),
+    ));
+  });
+
+  it("reverts a save exactly once and never offers the reader a second undo", async () => {
+    const posts: string[] = [];
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/v1/read/saved" && init?.method === "POST") posts.push(String(init.body));
+      return Promise.resolve({
+        ok: true,
+        json: async () => (url === "/api/v1/read/saved"
+          ? { apiVersion: "v1", data: { articleId: article.id, saved: JSON.parse(String(init?.body)).saved } }
+          : { data: { articleIds: [] } }),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <ToastProvider>
+        <ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `收藏文章：${article.title}` }));
+    const toast = await screen.findByRole("status");
+    fireEvent.click(within(toast).getByRole("button", { name: "撤销" }));
+
+    await waitFor(() => expect(posts).toHaveLength(2));
+    // Exactly one reversal request, carrying the reverted value.
+    expect(posts[1]).toBe(JSON.stringify({ articleId: article.id, saved: false }));
+    expect(posts.filter((body) => body === JSON.stringify({ articleId: article.id, saved: false }))).toHaveLength(1);
+
+    // The undo must close the toast without pushing another one: a second toast
+    // carrying another "撤销" is what let the reader ping-pong forever.
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "撤销" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `收藏文章：${article.title}` })).toBeInTheDocument();
+  });
+
+  it("keeps the undo button pending until a slow reversal resolves", async () => {
+    const posts: string[] = [];
+    let resolveUndo: (() => void) | undefined;
+    const fetchMock = vi.fn((url: string, init?: RequestInit): Promise<{ ok: boolean; json: () => Promise<unknown> }> => {
+      if (url !== "/api/v1/read/saved" || init?.method !== "POST") {
+        return Promise.resolve({ ok: true, json: async () => ({ data: { articleIds: [] } }) });
+      }
+      const body = JSON.parse(String(init.body)) as { saved: boolean };
+      posts.push(String(init.body));
+      const response = {
+        ok: true,
+        json: async () => ({ apiVersion: "v1", data: { articleId: article.id, saved: body.saved } }),
+      };
+      // The reversal is deliberately slow, so the pending state stays visible.
+      return body.saved ? Promise.resolve(response) : new Promise((resolve) => { resolveUndo = () => resolve(response); });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <ToastProvider>
+        <ReadShelf result={{ ...result, articles: [article], totalCount: 1 }} page={1} pageSize={12} search="" topic="" cefr="" minutes="" source="public" sort="hot" />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `收藏文章：${article.title}` }));
+    const toast = await screen.findByRole("status");
+    fireEvent.click(within(toast).getByRole("button", { name: "撤销" }));
+
+    const pendingAction = await within(toast).findByRole("button", { name: "撤销中…" });
+    expect(pendingAction).toBeDisabled();
+    expect(posts).toEqual([
+      JSON.stringify({ articleId: article.id, saved: true }),
+      JSON.stringify({ articleId: article.id, saved: false }),
+    ]);
+
+    // Still in flight: a repeated click must not issue a second request, and the
+    // toast may not offer another undo either.
+    fireEvent.click(pendingAction);
+    expect(posts).toHaveLength(2);
+    expect(within(toast).queryByRole("button", { name: "撤销" })).not.toBeInTheDocument();
+
+    await act(async () => { resolveUndo?.(); });
+
+    // Only a settled reversal closes the toast.
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: `收藏文章：${article.title}` })).toBeInTheDocument();
   });
 
   it("reads no private state on the Web Sites tab", async () => {
