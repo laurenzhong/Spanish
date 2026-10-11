@@ -29,24 +29,25 @@ describe("LearnPage", () => {
   it("opens directly on the honest media library without the former task UI", () => {
     render(<LearnPageContent query={{}} result={{ items: [], nextCursor: null, hasMore: false }} />);
 
-    expect(screen.getByRole("heading", { name: "看点、听点真实西语" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "看点、听点真实西语" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "媒体资料库正在准备中" })).toBeInTheDocument();
     expect(screen.queryByText(/开始第一次练习|继续学习|当前沟通目标|练习任务时间线/)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /开始|继续/ })).not.toBeInTheDocument();
   });
 
-  it("exposes direct type navigation, search, and practical filters", () => {
+  it("exposes direct type navigation, search and the compact filter and sort controls", () => {
     render(<LearnPageContent query={{ kind: "podcast", topic: "current-events", cefr: "B1" }} result={{ items: [], nextCursor: null, hasMore: false }} />);
 
     expect(screen.getByRole("link", { name: "全部" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "视频" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "播客" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("navigation", { name: "学习主题" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "时事新闻" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("navigation", { name: "学习主题" })).not.toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "难度" })).toHaveValue("B1");
-    expect(screen.getByRole("combobox", { name: "时长" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^筛选/ })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "排序" })).toHaveValue("recently_added");
+    // The applied CEFR filter stays visible in the summary and can be cleared.
+    expect(screen.getByText("1 个条件已应用")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "清除筛选" })).toHaveAttribute("href", "/learn?kind=podcast");
   });
 
   it("renders every eligible item as an equal-weight direct content link", () => {

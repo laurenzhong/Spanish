@@ -14,7 +14,7 @@
     "sourceName": { "type": "string", "minLength": 1, "maxLength": 300 },
     "language": { "const": "es" },
     "region": { "type": ["string", "null"], "maxLength": 40 },
-    "cefr": { "type": ["string", "null"], "enum": ["A2", "B1", null] },
+    "cefr": { "type": ["string", "null"], "enum": ["A1", "A2", "B1", "B2", null] },
     "topics": { "type": "array", "maxItems": 50, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$" } },
     "durationMs": { "type": "integer", "minimum": 1 },
     "publishedAt": { "type": ["string", "null"], "format": "date-time" },

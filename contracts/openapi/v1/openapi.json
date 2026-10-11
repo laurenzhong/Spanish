@@ -19,7 +19,7 @@
           { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 120 } },
           { "name": "kind", "in": "query", "schema": { "enum": ["video", "podcast"] } },
           { "name": "region", "in": "query", "schema": { "type": "string", "maxLength": 40 } },
-          { "name": "cefr", "in": "query", "schema": { "enum": ["A2", "B1"] } },
+          { "name": "cefr", "in": "query", "schema": { "enum": ["A1", "A2", "B1", "B2"] } },
           { "name": "duration", "in": "query", "schema": { "enum": ["short", "medium", "long"] } },
           { "name": "sort", "in": "query", "schema": { "enum": ["newest", "recently_added", "recently_played"], "default": "recently_added" } },
           { "name": "cursor", "in": "query", "schema": { "type": "string", "maxLength": 500 } },

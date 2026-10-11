@@ -17,7 +17,7 @@ export const mediaListQuerySchema = z.strictObject({
     ...(typeof mediaTopicFilters)[number]["value"][],
   ]).optional(),
   region: z.string().trim().max(40).optional(),
-  cefr: z.enum(["A2", "B1"]).optional(),
+  cefr: z.enum(["A1", "A2", "B1", "B2"]).optional(),
   duration: z.enum(["short", "medium", "long"]).optional(),
   sort: z.enum(["newest", "recently_added", "recently_played"]).default("recently_added"),
   cursor: z.string().trim().max(500).optional(),
