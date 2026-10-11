@@ -172,7 +172,19 @@ export function VocabularyShelf({ items, storageScope }: VocabularyShelfProps) {
             onClick={() => setSelectedId(item.id)}
           >
             <span className="vocabulary-study__word-text">
-              {item.text}{item.count > 0 ? <small> {item.count}</small> : null}
+              {/*
+                The occurrence count used to sit here. It was the shelf's sort key
+                when the order was raw corpus frequency, and it lost that job when
+                the order became the reference frequency rank — the numbers are not
+                monotonic, so a count beside a sorted list reads as if it were the
+                sort key and makes the list look arbitrary. It is also a
+                surface-form count rather than a lemma count (`estar` does not
+                include `está`), so it understated the very quantity it named, and
+                nothing acted on it. The example sentence below is what carries the
+                one actionable fact: that this word really occurs in published
+                content.
+              */}
+              {item.text}
             </span>
             <span className="vocabulary-study__word-meaning">{item.glossary?.meanings[0]?.meaning ?? "释义待补充"}</span>
           </button>
@@ -184,7 +196,7 @@ export function VocabularyShelf({ items, storageScope }: VocabularyShelfProps) {
       <div className="vocabulary-study__card-head">
         <div>
           <p className="vocabulary-study__eyebrow">
-            {selected.glossary ? `已审核词表 · ${selected.glossary.cefr} · ${selected.glossary.partOfSpeech}` : "语料词汇"} · 已发布内容出现 {selected.count} 次
+            {selected.glossary ? `已审核词表 · ${selected.glossary.cefr} · ${selected.glossary.partOfSpeech}` : "参考词表"}
           </p>
           <h3 lang="es">{selected.text}</h3>
         </div>

@@ -62,8 +62,17 @@ describe("vocabulary shelf", () => {
     const words = within(screen.getByRole("list", { name: "词汇列表" })).getAllByRole("button");
     // `ser` ranks above `vez` in the reference list even though `vez` is not the
     // rarer word in this fixture; the order must stay the server's.
-    expect(words.map((word) => word.textContent?.split(/\s+/u)[0])).toEqual(["ser", "casa", "vez"]);
-    expect(words.map((word) => word.querySelector("small")?.textContent?.trim())).toEqual(["2659", "3", "1956"]);
+    expect(words.map((word) => word.querySelector(".vocabulary-study__word-text")?.textContent?.trim())).toEqual([
+      "ser",
+      "casa",
+      "vez",
+    ]);
+    // The tile deliberately carries no occurrence count. It used to be the sort
+    // key; the order is the reference rank now, and a count beside a sorted list
+    // reads as the sort key while being a surface-form count the corpus cannot
+    // compute per lemma yet. Asserting its absence stops it returning unnoticed,
+    // which simply deleting the old assertion would not.
+    expect(words.map((word) => word.querySelector("small"))).toEqual([null, null, null]);
   });
 
   it("shows the reviewed meaning and keeps the placeholder for words without one", () => {
@@ -130,7 +139,10 @@ describe("vocabulary shelf", () => {
     const card = screen.getByRole("complementary", { name: "vez 词汇卡片" });
     expect(within(card).getByText("已发布内容中暂时没有收录这个词的例句。")).toBeInTheDocument();
     expect(within(card).getByText("这个词还没有审核过的中文释义，先按下面的语境理解它。")).toBeInTheDocument();
-    expect(within(card).getByText(/已发布内容出现 1956 次/u)).toBeInTheDocument();
+    // The card used to state an occurrence count here. It no longer does, and the
+    // remaining honesty assertions above are untouched: what is asserted now is
+    // that the card does not narrate a number it cannot compute correctly.
+    expect(within(card).queryByText(/已发布内容出现/u)).toBeNull();
   });
 
   it("uses the shared lexicon wording for the three states and reads the word aloud", async () => {
