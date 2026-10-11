@@ -112,13 +112,15 @@ describe("conversation read acknowledgement", () => {
     expect(css).toContain(".desktop-navigation__icon {\n    position: relative;");
     expect(base).toContain("inset-block-start: -3px");
     expect(base).toContain("inset-inline-end: -9px");
-    // A 20px box with a 1.5px ring paints an 18px red disc for one digit, and a
+    // A 20px box with a 2px ring paints a 16px red disc for one digit, and a
     // "99+" label grows the same box into a pill. Note there is deliberately no
-    // `aspect-ratio` here: stacking it on the padded box also squashed the
+    // `aspect-ratio` here: stacked on the padded box it also squashed the
     // three-character label (the text escaped the circle), which is worse than
-    // the oval it was meant to fix.
+    // the oval it was meant to fix. 9px text keeps the digit optically centred
+    // inside the disc instead of looking lost in it.
     expect(base).toContain("min-width: 20px");
-    expect(base).toContain("border: 1.5px solid var(--surface, #fff)");
+    expect(base).toContain("border: 2px solid var(--surface, #fff)");
+    expect(base).toContain("font-size: 9px");
     expect(base).not.toContain("aspect-ratio");
     // Wide desktop rail: same visual relationship as the phone — the fill bites
     // into the icon's top-right corner by roughly the same share of the glyph
