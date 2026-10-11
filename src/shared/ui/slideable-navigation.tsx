@@ -24,6 +24,15 @@ type SlideableNavigationProps = Readonly<{
   activeKey?: string;
   indicatorClassName?: string;
   /**
+   * Where the underline sits while nothing is hovered or focused. `"first"`
+   * (the default) rests on the current or first visible item, which is what a
+   * tab strip wants. `"hidden"` keeps the resting state invisible: on a header
+   * whose destinations all point somewhere else, a resting underline reads as
+   * a current-page marker for a page nobody is on. It still travels while the
+   * pointer or keyboard is inside the navigation.
+   */
+  restingIndicator?: "first" | "hidden";
+  /**
    * Intercepts a click so a caller can load the destination itself (the media
    * library switches kind without a server round trip). A false return lets the
    * browser follow the link, so history and middle-click keep working.
@@ -36,7 +45,8 @@ type SlideableNavigationProps = Readonly<{
  * or keyboard is on and settles on the current item (or the first visible one)
  * otherwise. Callers own the markup contract, the active semantics
  * (`aria-current`) and every visual rule; this component only measures and
- * moves the indicator.
+ * moves the indicator. Callers with no current item at all can pass
+ * `restingIndicator="hidden"` and keep the underline for interaction only.
  *
  * The indicator is a transform-driven element, so it never widens the scroll
  * area of a horizontally scrollable container. Callers keep their own item
@@ -49,6 +59,7 @@ export function SlideableNavigation({
   items,
   activeKey,
   indicatorClassName = "slideable-navigation__indicator",
+  restingIndicator = "first",
   onSelect,
 }: SlideableNavigationProps) {
   const navigationRef = useRef<HTMLElement>(null);
@@ -87,9 +98,11 @@ export function SlideableNavigation({
     const offsetY = Number.parseFloat(getComputedStyle(navigation).getPropertyValue("--slideable-navigation-offset-y")) || 0;
     indicator.style.transform = `translateX(${linkRect.left - navigationRect.left + navigation.scrollLeft}px) translateY(${offsetY}px)`;
     indicator.style.width = `${linkRect.width}px`;
-    indicator.style.opacity = "1";
+    // The resting position is still measured above, so a hidden indicator is
+    // already in place the instant the pointer or keyboard reveals it.
+    indicator.style.opacity = restingIndicator === "hidden" && selectedIndexRef.current === null ? "0" : "1";
     navigation.dataset.indicator = "ready";
-  }, [activeKey, items, visibleLinks]);
+  }, [activeKey, items, restingIndicator, visibleLinks]);
 
   useEffect(() => {
     const navigation = navigationRef.current;
