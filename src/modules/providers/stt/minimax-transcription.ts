@@ -29,12 +29,14 @@ export type MiniMaxTranscriptionProviderOptions = Readonly<{
   model?: string;
   timeoutMs?: number;
   fetchImplementation?: FetchImplementation;
+  timestampLevel?: "sentence" | "word";
 }>;
 
 const responseSchema = z.object({
   text: z.string(),
   duration: z.number().nonnegative().optional(),
   trace_id: z.string().optional(),
+  segments: z.array(z.object({ start: z.number().nonnegative(), end: z.number().positive(), text: z.string().min(1) }).passthrough()).optional(),
 }).passthrough();
 
 export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
@@ -42,12 +44,14 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
   private readonly model: string;
   private readonly timeoutMs: number;
   private readonly fetchImplementation: FetchImplementation;
+  private readonly timestampLevel: "sentence" | "word";
 
   constructor(private readonly options: MiniMaxTranscriptionProviderOptions) {
     this.endpoint = options.endpoint ?? defaultEndpoint;
     this.model = options.model ?? defaultModel;
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
+    this.timestampLevel = options.timestampLevel ?? "sentence";
   }
 
   async transcribe(input: SpeechToTextInput, options: Readonly<{ signal?: AbortSignal }> = {}): Promise<TranscriptResult> {
@@ -68,6 +72,7 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
         ? await this.transcribeChunks(input, controller.signal)
         : [await this.transcribeBytes(input.audioBytes, input.mimeType, input.fileName, controller.signal)];
       const text = responses.map((result) => result.text.trim()).filter(Boolean).join(" ");
+      const segments = responses.flatMap((result) => result.segments ?? []);
       return {
         text,
         detectedLanguages: [input.languageTag ?? "es"],
@@ -79,6 +84,7 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
         latencyMs: Math.max(0, Date.now() - startedAt),
         estimatedCostMicros: null,
         retentionPolicy: "ephemeral",
+        segments: segments.length ? segments : undefined,
       };
     } catch (error) {
       if (error instanceof SpeechToTextError) throw error;
@@ -112,7 +118,12 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
       for (const name of names) {
         if (signal.aborted) throw new SpeechToTextError("provider-cancelled", "Speech transcription was cancelled.", false);
         const bytes = await readFile(path.join(directory, name));
-        results.push(await this.transcribeBytes(new Uint8Array(bytes), "audio/mpeg", name, signal));
+        const result = await this.transcribeBytes(new Uint8Array(bytes), "audio/mpeg", name, signal);
+        const offsetMs = results.length * chunkDurationSeconds * 1_000;
+        results.push({
+          ...result,
+          segments: result.segments?.map((segment) => ({ ...segment, startMs: segment.startMs + offsetMs, endMs: segment.endMs + offsetMs })),
+        });
       }
       return results;
     } finally {
@@ -127,7 +138,7 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
     form.append("model", this.model);
     form.append("file", new Blob([audioBuffer], { type: mimeType }), fileName);
     form.append("response_format", "verbose_json");
-    form.append("timestamp_level", "sentence");
+    form.append("timestamp_level", this.timestampLevel);
     form.append("stream", "false");
     const response = await this.fetchImplementation(this.endpoint, {
       method: "POST",
@@ -136,17 +147,32 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
       signal,
     });
     const requestId = response.headers.get("x-request-id");
-    if (!response.ok) throw errorForResponseStatus(response.status);
+    if (!response.ok) {
+      // MiniMax returns 422 for a chunk that contains only silence. A long
+      // recording can legitimately end with such a chunk; omit that chunk
+      // while keeping every other provider rejection fail-closed.
+      if (response.status === 422) {
+        const body = await response.text().catch(() => "");
+        if (/no clear speaker was detected/iu.test(body)) {
+          return { text: "", requestId, segments: [] };
+        }
+      }
+      throw errorForResponseStatus(response.status);
+    }
     let payload: unknown;
     try { payload = await response.json(); }
     catch { throw new SpeechToTextError("provider-response-invalid", "Speech provider returned invalid JSON.", false); }
     const parsed = responseSchema.safeParse(payload);
     if (!parsed.success) throw new SpeechToTextError("provider-response-invalid", "Speech provider response did not match the expected format.", false);
-    return { text: parsed.data.text, requestId: requestId ?? parsed.data.trace_id ?? null };
+    return {
+      text: parsed.data.text,
+      requestId: requestId ?? parsed.data.trace_id ?? null,
+      segments: parsed.data.segments?.map((segment) => ({ startMs: Math.round(segment.start * 1_000), endMs: Math.max(Math.round(segment.start * 1_000) + 1, Math.round(segment.end * 1_000)), text: segment.text.trim() })).filter((segment) => segment.text.length > 0),
+    };
   }
 }
 
-type MiniMaxResponse = Readonly<{ text: string; requestId: string | null }>;
+type MiniMaxResponse = Readonly<{ text: string; requestId: string | null; segments?: readonly { startMs: number; endMs: number; text: string }[] }>;
 
 function runCommand(command: string, args: readonly string[], signal: AbortSignal, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -174,6 +200,7 @@ export function createMiniMaxTranscriptionProvider(options: Partial<MiniMaxTrans
     apiKey: options.apiKey ?? process.env.MINIMAX_API_KEY ?? "",
     endpoint: options.endpoint ?? process.env.MINIMAX_TRANSCRIPTION_API_ENDPOINT ?? defaultEndpoint,
     model: options.model ?? process.env.MINIMAX_TRANSCRIPTION_MODEL ?? defaultModel,
+    timestampLevel: options.timestampLevel ?? (process.env.MINIMAX_TRANSCRIPTION_TIMESTAMP_LEVEL === "word" ? "word" : "sentence"),
   });
 }
 

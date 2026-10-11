@@ -1,7 +1,8 @@
 import type { MediaProgress } from "./media-progress";
+import type { MediaWordTiming } from "./word-timeline";
 
 export type MediaKind = "video" | "podcast";
-export type MediaCefr = "A2" | "B1" | null;
+export type MediaCefr = "A1" | "A2" | "B1" | "B2" | null;
 export type MediaContentStatus = "draft" | "review" | "approved" | "published" | "archived";
 export type MediaArtworkSource = "youtube" | "podcast-feed" | "fallback";
 
@@ -73,6 +74,7 @@ export type MediaSegment = Readonly<{
   sourceText: string;
   translation: string | null;
   speaker: string | null;
+  words?: readonly MediaWordTiming[] | null;
   reviewStatus: "pending" | "approved" | "changes_requested";
 }>;
 
@@ -196,6 +198,7 @@ export function projectMediaPlayback(
         sourceText: segment.sourceText,
         translation: segment.translation,
         speaker: segment.speaker,
+        words: segment.words ?? null,
       })),
   };
 }

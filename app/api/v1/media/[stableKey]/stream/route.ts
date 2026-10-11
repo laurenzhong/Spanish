@@ -12,7 +12,7 @@ import { getDatabase } from "@/src/shared/db/client";
 
 type Context = Readonly<{ params: Promise<{ stableKey: string }> }>;
 
-const AUDIO_STREAM_HOSTS = new Set([
+const MEDIA_STREAM_HOSTS = new Set([
   "sueno-media.b-cdn.net",
   "content.libsyn.com",
   "traffic.libsyn.com",
@@ -71,7 +71,7 @@ function hasExpiredProviderToken(value: string): boolean {
   }
 }
 
-function isAllowedAudioHost(hostname: string): boolean {
+function isAllowedMediaHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   const configuredHosts = [process.env.BUNNY_STORAGE_PULL_ZONE_HOSTNAME, process.env.BUNNY_STREAM_PULL_ZONE_HOSTNAME]
     .map((value) => value?.trim().toLowerCase())
@@ -81,10 +81,10 @@ function isAllowedAudioHost(hostname: string): boolean {
       if (!value?.trim()) return [];
       try { return [new URL(value).hostname.toLowerCase()]; } catch { return []; }
     });
-  return AUDIO_STREAM_HOSTS.has(host)
-    || (AUDIO_STREAM_HOSTS.has("simplecastaudio.com") && host.endsWith(".simplecastaudio.com"))
-    || (AUDIO_STREAM_HOSTS.has("pscrb.fm") && host.endsWith(".pscrb.fm"))
-    || (AUDIO_STREAM_HOSTS.has("anchor.fm") && host.endsWith(".anchor.fm"))
+  return MEDIA_STREAM_HOSTS.has(host)
+    || (MEDIA_STREAM_HOSTS.has("simplecastaudio.com") && host.endsWith(".simplecastaudio.com"))
+    || (MEDIA_STREAM_HOSTS.has("pscrb.fm") && host.endsWith(".pscrb.fm"))
+    || (MEDIA_STREAM_HOSTS.has("anchor.fm") && host.endsWith(".anchor.fm"))
     || configuredSupabaseHosts.includes(host)
     || configuredHosts.includes(host);
 }
@@ -92,7 +92,7 @@ function isAllowedAudioHost(hostname: string): boolean {
 async function fetchAudioStream(url: URL, range: string): Promise<Readonly<{ response: Response; finalUrl: URL }> | null> {
   let current = url;
   for (let hop = 0; hop <= MAX_AUDIO_REDIRECTS; hop += 1) {
-    if (current.protocol !== "https:" || !isAllowedAudioHost(current.hostname)) return null;
+    if (current.protocol !== "https:" || !isAllowedMediaHost(current.hostname)) return null;
     const response = await fetch(current, {
       headers: { range },
       redirect: "manual",
@@ -104,7 +104,7 @@ async function fetchAudioStream(url: URL, range: string): Promise<Readonly<{ res
     if (!location || hop === MAX_AUDIO_REDIRECTS) return null;
     try {
       const next = new URL(location, current);
-      if (next.protocol !== "https:" || !isAllowedAudioHost(next.hostname)) return null;
+      if (next.protocol !== "https:" || !isAllowedMediaHost(next.hostname)) return null;
       current = next;
     } catch {
       return null;
@@ -143,7 +143,7 @@ async function refreshLanguageReactorAudio(stableKey: string): Promise<string | 
     const document = parsed.data?.docs_metadata?.find((item) => item.diocoDocId?.toLowerCase() === docId);
     if (!document?.audioFileURL) return null;
     const url = new URL(document.audioFileURL);
-    return url.protocol === "https:" && isAllowedAudioHost(url.hostname) ? url.toString() : null;
+    return url.protocol === "https:" && isAllowedMediaHost(url.hostname) ? url.toString() : null;
   } catch {
     return null;
   }
@@ -173,8 +173,8 @@ async function resolveOfficialFallback(input: Readonly<{
   currentUrl: string;
 }>): Promise<URL | null> {
   try {
-    const resolved = await resolveOfficialPodcastSource(input, { isAllowedSourceHost: isAllowedAudioHost });
-    if (!resolved || resolved.protocol !== "https:" || !isAllowedAudioHost(resolved.hostname)) return null;
+    const resolved = await resolveOfficialPodcastSource(input, { isAllowedSourceHost: isAllowedMediaHost });
+    if (!resolved || resolved.protocol !== "https:" || !isAllowedMediaHost(resolved.hostname)) return null;
     return resolved;
   } catch {
     return null;
@@ -193,51 +193,77 @@ export async function GET(request: NextRequest, { params }: Context) {
       decodeURIComponent((await params).stableKey),
       user.id,
     );
-    if (playback.media.kind !== "podcast" || playback.asset.kind !== "audio") {
-      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 404, "这个媒体不支持音频流播放。");
+    const expectedAssetKind = playback.media.kind === "podcast" ? "audio" : "video";
+    if (playback.asset.kind !== expectedAssetKind) {
+      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 404, "这个媒体不支持流式播放。");
     }
     const upstreamUrl = new URL(playback.asset.url);
-    if (upstreamUrl.protocol !== "https:" || upstreamUrl.username || upstreamUrl.password || !isAllowedAudioHost(upstreamUrl.hostname)) {
-      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 404, "这个媒体不支持音频流播放。");
+    if (upstreamUrl.protocol !== "https:" || upstreamUrl.username || upstreamUrl.password || !isAllowedMediaHost(upstreamUrl.hostname)) {
+      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 404, "这个媒体不支持流式播放。");
     }
     const range = validRange(request.headers.get("range"));
-    const isLanguageReactor = playback.media.stableKey?.startsWith("podcast.language-reactor.") ?? false;
+    const isPodcast = playback.media.kind === "podcast";
+    const isLanguageReactor = isPodcast && (playback.media.stableKey?.startsWith("podcast.language-reactor.") ?? false);
     let requestUrl = upstreamUrl;
     if (isLanguageReactor && hasExpiredProviderToken(upstreamUrl.toString())) {
       const refreshedUrl = await refreshLanguageReactorAudio(playback.media.stableKey)
         ?? fallbackRtveAudioUrl(upstreamUrl, playback.media.stableKey);
       if (refreshedUrl) requestUrl = new URL(refreshRtveCache(String(refreshedUrl)));
     }
-    let fetched = await fetchAudioStream(requestUrl, range);
+    let fetched: Awaited<ReturnType<typeof fetchAudioStream>> = null;
+    try {
+      fetched = await fetchAudioStream(requestUrl, range);
+    } catch {
+      // A network failure from an expired or unreachable publisher host is
+      // equivalent to an unavailable HTTP response. Keep the official-feed
+      // fallback reachable for sources whose DNS/TLS connection fails outright.
+    }
     if (!fetched || !fetched.response.ok) {
       await fetched?.response.body?.cancel();
-      const refreshedUrl = (isLanguageReactor
-        ? await refreshLanguageReactorAudio(playback.media.stableKey)
-          ?? fallbackRtveAudioUrl(upstreamUrl, playback.media.stableKey)
-        : null)
-        ?? await resolveOfficialFallback({
+      const fallbackUrls: URL[] = [];
+      if (isPodcast) {
+        const officialUrl = await resolveOfficialFallback({
           sourceName: playback.media.sourceName,
           title: playback.media.title,
           currentUrl: upstreamUrl.toString(),
         });
-      if (refreshedUrl && refreshedUrl.toString() !== requestUrl.toString()) {
-        fetched = await fetchAudioStream(new URL(refreshRtveCache(String(refreshedUrl))), range);
+        if (officialUrl) fallbackUrls.push(officialUrl);
+      }
+      if (isLanguageReactor) {
+        const refreshedUrl = await refreshLanguageReactorAudio(playback.media.stableKey)
+          ?? fallbackRtveAudioUrl(upstreamUrl, playback.media.stableKey);
+        if (refreshedUrl) fallbackUrls.push(new URL(refreshRtveCache(String(refreshedUrl))));
+      }
+      fetched = null;
+      for (const fallbackUrl of fallbackUrls) {
+        if (fallbackUrl.toString() === requestUrl.toString()) continue;
+        try {
+          const attempt = await fetchAudioStream(fallbackUrl, range);
+          if (attempt?.response.ok) {
+            fetched = attempt;
+            break;
+          }
+          await attempt?.response.body?.cancel();
+        } catch {
+          // Continue to the next publisher-approved fallback after a
+          // connection failure, rather than abandoning the stream early.
+        }
       }
     }
-    if (!fetched) return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "播客音频暂时无法播放，请稍后重试。");
+    if (!fetched) return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "媒体暂时无法播放，请稍后重试。");
     const { response: upstream, finalUrl } = fetched;
-    if (finalUrl.protocol !== "https:" || finalUrl.username || finalUrl.password || !isAllowedAudioHost(finalUrl.hostname)) {
-      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "播客音频跳转到了不受支持的来源。");
+    if (finalUrl.protocol !== "https:" || finalUrl.username || finalUrl.password || !isAllowedMediaHost(finalUrl.hostname)) {
+      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "媒体跳转到了不受支持的来源。");
     }
     if (!upstream.ok || !upstream.body) {
-      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "播客音频暂时无法播放，请稍后重试。");
+      return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "媒体暂时无法播放，请稍后重试。");
     }
     const headers = new Headers({
-      "accept-ranges": "bytes",
       "cache-control": "private, no-store",
-      "content-type": upstream.headers.get("content-type")?.split(";", 1)[0] ?? "audio/mpeg",
+      "content-type": upstream.headers.get("content-type")?.split(";", 1)[0] ?? (expectedAssetKind === "video" ? "video/mp4" : "audio/mpeg"),
       "x-content-type-options": "nosniff",
     });
+    if (upstream.status === 206 && upstream.headers.has("content-range")) headers.set("accept-ranges", "bytes");
     for (const name of ["content-length", "content-range"]) {
       const value = upstream.headers.get(name);
       if (value) headers.set(name, value);
@@ -247,6 +273,6 @@ export async function GET(request: NextRequest, { params }: Context) {
     if (error instanceof MediaUnavailableError) {
       return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 404, "这个媒体内容不存在、已撤下或播放地址已失效。");
     }
-    return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "播客音频暂时无法播放，请稍后重试。");
+    return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 502, "媒体暂时无法播放，请稍后重试。");
   }
 }

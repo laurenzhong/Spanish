@@ -6,7 +6,11 @@ const digest = (data: Uint8Array | string) => createHash("sha256").update(data).
 
 function allowedHost(hostname: string, hosts: ReadonlySet<string>): boolean {
   const host = hostname.toLowerCase();
-  return hosts.has(host) || (hosts.has("mc.tritondigital.com") && host.endsWith(".mc.tritondigital.com"));
+  return hosts.has(host)
+    || (hosts.has("mc.tritondigital.com") && host.endsWith(".mc.tritondigital.com"))
+    || (hosts.has("simplecastaudio.com") && host.endsWith(".simplecastaudio.com"))
+    || (hosts.has("pscrb.fm") && host.endsWith(".pscrb.fm"))
+    || (hosts.has("anchor.fm") && host.endsWith(".anchor.fm"));
 }
 
 /** Persist only verified chunks; never persist source signatures or credentials. */
@@ -18,9 +22,11 @@ export async function downloadResumableAudio(options: {
   fetcher?: typeof fetch;
   chunkSize?: number;
   retryDelayMs?: number;
+  acceptedContentTypes?: ReadonlySet<string>;
   progress?: (bytes: number, total: number) => void;
 }) {
   const fetcher = options.fetcher ?? fetch;
+  const acceptedContentTypes = options.acceptedContentTypes ?? new Set(["audio/mpeg", "audio/mp3"]);
   async function request(start: number, end: number, validator?: string) {
     let url = await options.source();
     for (let hop = 0; hop < 5; hop++) {
@@ -79,7 +85,7 @@ export async function downloadResumableAudio(options: {
     if (!bytes) {
       bytes = await retry(async () => {
         const response = await request(start, end, validator);
-        if (response.headers.get("content-range") !== `bytes ${start}-${end}/${total}` || !["audio/mpeg", "audio/mp3"].includes(response.headers.get("content-type")?.split(";")[0].toLowerCase() ?? "")) {
+        if (response.headers.get("content-range") !== `bytes ${start}-${end}/${total}` || !acceptedContentTypes.has(response.headers.get("content-type")?.split(";")[0].toLowerCase() ?? "")) {
           await response.body?.cancel(); throw new Error("AUDIO_RANGE_INVALID");
         }
         if (validator && response.headers.get("etag") !== validator) {

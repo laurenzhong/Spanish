@@ -17,7 +17,7 @@ export type AcquiredPodcastDraft = Readonly<{
   sourceName: string;
   language: "es";
   region: string | null;
-  cefr: "A2" | "B1";
+  cefr: "A1" | "A2" | "B1" | "B2";
   topics: readonly string[];
   durationMs: number;
   publicationDate: string;
@@ -40,6 +40,7 @@ export interface AcquiredPodcastRepository {
     candidateRevision: number;
     contentHash: string;
     draft: AcquiredPodcastDraft;
+    artworkOverride?: MediaArtwork | null;
     reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
     publishedAt: Date;
   }>): Promise<AcquiredMediaPublication>;

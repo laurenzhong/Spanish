@@ -8,7 +8,10 @@ export type MediaWordTiming = Readonly<{
 }>;
 
 /** Spoken tokens include numbers and clock/date-like forms such as `24`, `3`, and `2:33`. */
-export const mediaWordTokenPatternSource = String.raw`[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}]+)?(?:[/:.-][\p{N}]+)*`;
+// Keep decimal comma tokens (for example `1,6`) intact because providers
+// report them as one spoken token and the immutable source text uses the same
+// spelling. Other date/time separators remain supported as before.
+export const mediaWordTokenPatternSource = String.raw`[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}]+)?(?:[/:.,-][\p{N}]+)*`;
 
 export function mediaWordMatches(text: string): readonly RegExpMatchArray[] {
   return Array.from(text.matchAll(new RegExp(mediaWordTokenPatternSource, "gu")));

@@ -33,6 +33,8 @@ export type TranscriptResult = Readonly<{
   latencyMs: number;
   estimatedCostMicros: number | null;
   retentionPolicy: "ephemeral";
+  /** Provider supplied timing segments, when the ASR response includes them. */
+  segments?: readonly { startMs: number; endMs: number; text: string }[];
 }>;
 
 export interface SpeechToTextProvider {
