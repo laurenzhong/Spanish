@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { ConfirmActionDialog } from "@/src/shared/ui/confirm-action-dialog";
+
 type SavedAudio = Readonly<{
   createdAt: string;
   durationMs: number | null;
@@ -77,9 +79,8 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
     return () => { active = false; };
   }, [onError, reloadToken, retryToken, showError]);
 
-  async function remove(kind: "audio" | "transcript", id: string) {
+  async function remove(kind: "audio" | "transcript", id: string): Promise<boolean> {
     const label = kind === "audio" ? "这段录音" : "这条转写";
-    if (!window.confirm(`删除后${label}无法恢复，确定删除吗？`)) return;
     const key = `${kind}:${id}`;
     setBusy(key);
     setMessage(null);
@@ -92,8 +93,10 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
         ? { ...current, audio: current.audio.filter((item) => item.id !== id) }
         : { ...current, transcripts: current.transcripts.filter((item) => item.attemptId !== id) });
       setMessage(`已删除${label}。`);
+      return true;
     } catch {
-      setMessage(`暂时无法删除${label}，请稍后再试。`);
+      // The dialog owns the failure copy; no partial success is shown on the page.
+      return false;
     } finally {
       setBusy(null);
     }
@@ -117,9 +120,14 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
             <h3>录音 · {formatDate(audio.createdAt)}</h3>
             <p>{audio.mimeType} · {formatDuration(audio.durationMs)} · {audio.retentionPolicy}</p>
           </div>
-          <button type="button" className="button--quiet" onClick={() => void remove("audio", audio.id)} disabled={busy !== null}>
-            {busy === `audio:${audio.id}` ? "删除中…" : "删除录音"}
-          </button>
+          <ConfirmActionDialog
+            confirmLabel="确认删除录音"
+            description="删除后这段录音无法恢复；能力证据不会被删除。"
+            failureMessage="暂时无法删除这段录音，请稍后再试。"
+            onConfirm={() => remove("audio", audio.id)}
+            title="删除这段录音？"
+            trigger={<button type="button" className="button--quiet" disabled={busy !== null}>删除录音</button>}
+          />
         </article>
       ))}
       {data.transcripts.map((transcript) => (
@@ -128,9 +136,14 @@ export function VoiceDataControls({ onError, retryToken = 0, showError = true }:
             <h3>{transcript.text}</h3>
             <p>语音转写 · {formatDate(transcript.createdAt)}</p>
           </div>
-          <button type="button" className="button--quiet" onClick={() => void remove("transcript", transcript.attemptId)} disabled={busy !== null}>
-            {busy === `transcript:${transcript.attemptId}` ? "删除中…" : "删除转写"}
-          </button>
+          <ConfirmActionDialog
+            confirmLabel="确认删除转写"
+            description="删除后这条转写无法恢复；能力证据不会被删除。"
+            failureMessage="暂时无法删除这条转写，请稍后再试。"
+            onConfirm={() => remove("transcript", transcript.attemptId)}
+            title="删除这条转写？"
+            trigger={<button type="button" className="button--quiet" disabled={busy !== null}>删除转写</button>}
+          />
         </article>
       ))}
       {message ? <p className="surface-state__message" role="status">{message}</p> : null}
