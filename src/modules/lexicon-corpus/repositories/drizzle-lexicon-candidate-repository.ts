@@ -77,18 +77,34 @@ export class LexiconCandidateRowDecodeError extends Error {
   }
 }
 
-const derivedIdPattern = /^(lexeme|phrase)\|([^|]+)\|(\d+)\|(\d+)\|([\s\S]*)$/u;
+/**
+ * The inverse of `makeCandidateId()`, and it must mirror it column for column.
+ *
+ * It previously parsed five fields while `makeCandidateId()` emitted six: when
+ * `documentKind` was added to the id (so the id would line up with the table's
+ * identity unique index), this parser was not updated. The pattern then read
+ * `documentKind` as the stable key and failed its next `(\d+)` against the real
+ * stable key, so it matched nothing and `findById` returned `null` for every id
+ * the current `makeCandidateId()` can produce.
+ *
+ * Type checking could not catch it — the returned shape is a subset of what the
+ * caller needs, and the caller handled `null` — and neither could any test,
+ * because the in-memory repository keys rows by the six columns directly and
+ * never parses an id. Only executing a real query surfaced it.
+ */
+const derivedIdPattern = /^(lexeme|phrase)\|(article|media)\|([^|]+)\|(\d+)\|(\d+)\|([\s\S]*)$/u;
 
 /**
  * Split a derived candidate id back into the identity columns it was built from.
  *
  * Returns `null` for anything that is not exactly
- * `kind|stableKey|version|segmentIndex|normalizedText`, including a stable key
- * that contains `|` — the join in `makeCandidateId()` is not escapable, so such
- * an id is ambiguous and must not be guessed at.
+ * `kind|documentKind|stableKey|version|segmentIndex|normalizedText`, including a
+ * stable key that contains `|` — the join in `makeCandidateId()` is not
+ * escapable, so such an id is ambiguous and must not be guessed at.
  */
 export function parseDerivedCandidateId(id: string): Readonly<{
   kind: "lexeme" | "phrase";
+  documentKind: "article" | "media";
   documentStableKey: string;
   documentVersion: number;
   segmentIndex: number;
@@ -96,9 +112,10 @@ export function parseDerivedCandidateId(id: string): Readonly<{
 }> | null {
   const match = derivedIdPattern.exec(id);
   if (!match) return null;
-  const [, kind, documentStableKey, documentVersion, segmentIndex, normalizedText] = match;
+  const [, kind, documentKind, documentStableKey, documentVersion, segmentIndex, normalizedText] = match;
   return {
     kind: kind as "lexeme" | "phrase",
+    documentKind: documentKind as "article" | "media",
     documentStableKey: documentStableKey!,
     documentVersion: Number(documentVersion),
     segmentIndex: Number(segmentIndex),
@@ -107,9 +124,14 @@ export function parseDerivedCandidateId(id: string): Readonly<{
 }
 
 /**
- * The identity predicate. `documentKind` is included whenever the caller has it
- * (every write does); an id-only lookup cannot know it, and a lookup that then
- * matches more than one document kind is refused rather than answered.
+ * The identity predicate, over the same six columns as the table's identity
+ * unique index.
+ *
+ * `documentKind` is included whenever the caller has it. Writes always have it,
+ * and since the id encodes it, an id-only lookup does too — an id names exactly
+ * one row. The membership test is kept because the two callers reach here with
+ * structurally different objects, and a future caller without the field should
+ * narrow rather than silently match across document kinds.
  */
 function identityWhere(
   identity: ReturnType<typeof candidateStorageIdentity> | ReturnType<typeof parseDerivedCandidateId>,

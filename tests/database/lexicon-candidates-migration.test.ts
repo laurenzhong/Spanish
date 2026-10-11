@@ -13,15 +13,17 @@ import { describe, expect, it } from "vitest";
  * that fails at parse or execution time. This suite closes that gap without
  * touching a real database.
  *
- * The generated SQL is deliberately not in `drizzle/` — keeping it out means no
- * automatic migration path can apply it before the owner approves it — so it is
- * read from the tracked review copy in `docs/migrations/`. That copy is the same
- * artifact the review package prints, kept byte-identical so this suite tests
- * exactly what would run.
+ * The generated SQL is read from `drizzle/`, the artifact that actually gets
+ * applied, and a companion case asserts the review copy in `docs/migrations/` is
+ * byte-identical to it — so the reviewed document cannot drift away from what
+ * runs. While the migration awaited approval the reverse arrangement was used:
+ * the SQL sat only in `docs/` precisely so that no automatic migration path
+ * could apply it.
  */
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
-const artifactPath = path.join(
+const artifactPath = path.join(drizzleDir, "0042_stale_starbolt.sql");
+const reviewCopyPath = path.join(
   process.cwd(),
   "docs/migrations/0042_lexicon_candidates_and_approvals.sql",
 );
@@ -52,6 +54,16 @@ async function applyArtifact(db: PGlite): Promise<void> {
 }
 
 describe("migration 0042 applies to a real Postgres", () => {
+  it("keeps the reviewed document byte-identical to the artifact that runs", async () => {
+    // A review package that drifts from the migration it describes is worse than
+    // no review package, because it invites approving something else.
+    const [applied, reviewed] = await Promise.all([
+      readFile(artifactPath, "utf8"),
+      readFile(reviewCopyPath, "utf8"),
+    ]);
+    expect(reviewed).toBe(applied);
+  });
+
   it("splits into executable statements and creates both tables", async () => {
     const db = await database();
     try {
@@ -251,9 +263,12 @@ describe("migration 0042 applies to a real Postgres", () => {
       const creators = creates
         .filter((file) => /CREATE TABLE "lexicon_candidates"/.test(file.body))
         .map((file) => file.name);
-      // Nothing in `drizzle/` creates it yet, which is the point: no automatic
-      // path can apply this migration before the owner approves it.
-      expect(creators).toEqual([]);
+      // Exactly one migration creates these tables, and it is the one the journal
+      // and the database both recorded. While the migration awaited approval this
+      // list was asserted empty, so that no automatic path could apply it; now
+      // that it has been reviewed and applied, the assertion is inverted to keep
+      // the same guarantee from the other side — no second file may create it.
+      expect(creators).toEqual(["0042_stale_starbolt.sql"]);
     } finally {
       await db.close();
     }
