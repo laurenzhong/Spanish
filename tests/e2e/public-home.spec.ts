@@ -107,3 +107,47 @@ test("plays the real product recording in the first viewport", async ({ page }) 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+test.describe("public home in a dark system", () => {
+  test.use({ colorScheme: "dark" });
+
+  test("follows the system colour scheme, unless the visitor chose light", async ({ page }) => {
+    const luminanceOf = `(value) => {
+      const parts = (value.match(/[\\d.]+/g) ?? []).map(Number);
+      const channel = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+      return 0.2126 * channel(parts[0]) + 0.7152 * channel(parts[1]) + 0.0722 * channel(parts[2]);
+    }`;
+    const read = async () =>
+      page.evaluate(
+        (source) => {
+          const luminance = eval(source) as (value: string) => number;
+          const main = document.querySelector(".landing-page") as HTMLElement;
+          const card = document.querySelector(".landing-card") as HTMLElement;
+          const mainStyle = getComputedStyle(main);
+          const cardStyle = getComputedStyle(card);
+          return {
+            colorScheme: mainStyle.colorScheme,
+            page: luminance(mainStyle.backgroundColor),
+            text: luminance(mainStyle.color),
+            card: luminance(cardStyle.backgroundColor),
+          };
+        },
+        luminanceOf,
+      );
+
+    await page.goto("/");
+    const dark = await read();
+    expect(dark.colorScheme).toBe("dark");
+    expect(dark.page).toBeLessThan(0.05);
+    expect(dark.text).toBeGreaterThan(0.75);
+    // Surfaces come forward as they lift off the page.
+    expect(dark.card).toBeGreaterThan(dark.page);
+
+    // An explicit light choice in the app outranks the system setting.
+    await page.addInitScript(() => window.localStorage.setItem("spanish-theme", "light"));
+    await page.goto("/");
+    const chosenLight = await read();
+    expect(chosenLight.colorScheme).toBe("light");
+    expect(chosenLight.page).toBeGreaterThan(0.75);
+  });
+});

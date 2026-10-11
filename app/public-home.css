@@ -19,6 +19,12 @@ main.landing-page {
   color: var(--landing-ink);
   background: var(--landing-paper);
   font-family: var(--font-ui);
+  color-scheme: light;
+  /* Two accent roles, because one value cannot carry both: accent text has to
+     stay bright on a dark surface, while a filled button needs to stay dark
+     enough for white text. The dark block at the end re-points both. */
+  --home-accent-ink: var(--landing-coral);
+  --home-accent-bg: var(--landing-coral);
 }
 .landing-page a { color: inherit; text-decoration: none; }
 .landing-shell { width: min(100%, 1120px); margin-inline: auto; padding-inline: clamp(16px, 4vw, 32px); }
@@ -37,7 +43,7 @@ main.landing-page {
   border-bottom: 1px solid rgb(255 255 255 / 14%);
 }
 .landing-page .landing-wordmark { display: inline-block; padding-block: 7px; color: #f7f3eb; font-family: Georgia, "Times New Roman", serif; font-size: 1.3rem; font-style: italic; font-weight: 800; letter-spacing: -.05em; }
-.landing-page .landing-wordmark span { color: var(--landing-coral); }
+.landing-page .landing-wordmark span { color: var(--home-accent-ink); }
 .landing-page .landing-nav nav { display: flex; align-items: center; gap: clamp(28px, 3vw, 34px); margin-left: auto; color: rgb(247 243 235 / 72%); font-size: .78rem; font-weight: 650; }
 .landing-page .landing-nav nav a:hover,
 .landing-page .landing-nav nav a:focus-visible { color: #fff; }
@@ -46,7 +52,7 @@ main.landing-page {
    nav gap leaves 8px between adjacent targets so they never overlap. */
 .landing-page .landing-nav__links a { position: relative; }
 .landing-page .landing-nav__links a::before { position: absolute; top: 50%; right: -10px; left: -10px; height: 44px; content: ""; transform: translateY(-50%); }
-.landing-page .landing-nav__indicator { background: var(--landing-coral, #ff6b57); }
+.landing-page .landing-nav__indicator { background: var(--home-accent-ink, #ff6b57); }
 .landing-page .landing-nav__cta {
   display: inline-flex;
   min-height: 44px;
@@ -60,7 +66,7 @@ main.landing-page {
   font-weight: 700;
   transition: background 160ms ease, border-color 160ms ease;
 }
-.landing-page .landing-nav__cta:hover { border-color: transparent; background: var(--landing-coral); }
+.landing-page .landing-nav__cta:hover { border-color: transparent; background: var(--home-accent-bg); }
 
 .landing-page .landing-hero {
   display: grid;
@@ -103,7 +109,7 @@ main.landing-page {
   transition: transform 160ms ease, background 160ms ease;
 }
 .landing-page .landing-button:hover { transform: translateY(-1px); }
-.landing-page .landing-button--accent { color: #fff !important; background: var(--landing-coral); box-shadow: 0 6px 20px rgb(0 0 0 / 22%); }
+.landing-page .landing-button--accent { color: #fff !important; background: var(--home-accent-bg); box-shadow: 0 6px 20px rgb(0 0 0 / 22%); }
 .landing-page .landing-button--accent:hover { background: #e57459; }
 .landing-page .landing-text-button { display: inline-flex; min-height: 44px; align-items: center; color: rgb(247 243 235 / 78%) !important; font-size: .8rem; font-weight: 650; }
 .landing-page .landing-text-button span { display: inline-block; margin-left: 4px; color: var(--landing-gold); transition: transform 160ms ease; }
@@ -209,7 +215,7 @@ main.landing-page {
 }
 .landing-page .landing-loop__step:hover { border-color: rgb(23 33 29 / 26%); }
 .landing-page .landing-loop__step.is-active { border-color: rgb(23 33 29 / 32%); background: var(--landing-surface); }
-.landing-loop__index { grid-row: span 2; color: var(--landing-coral); font-size: .72rem; font-weight: 800; letter-spacing: .06em; }
+.landing-loop__index { grid-row: span 2; color: var(--home-accent-ink); font-size: .72rem; font-weight: 800; letter-spacing: .06em; }
 .landing-loop__step strong { font-size: .88rem; font-weight: 620; }
 .landing-loop__step small { color: var(--landing-muted); font-size: .76rem; line-height: 1.55; }
 .landing-loop__step.is-active small { color: rgb(23 33 29 / 72%); }
@@ -231,7 +237,7 @@ main.landing-page {
 .landing-page .landing-chat__message { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--landing-line); }
 .landing-page .landing-chat__message:last-child { border-bottom: 0; padding-bottom: 0; }
 .landing-page .landing-chat__message > span { color: var(--landing-teal); font-size: .72rem; font-weight: 700; }
-.landing-page .landing-chat__message.is-user > span { color: var(--landing-coral); }
+.landing-page .landing-chat__message.is-user > span { color: var(--home-accent-ink); }
 .landing-page .landing-chat__message p { margin: 0; font-size: .88rem; line-height: 1.5; }
 .landing-page .landing-chat__message small { color: var(--landing-muted); font-size: .7rem; }
 .landing-trust__rules { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -243,11 +249,11 @@ main.landing-page {
 .landing-page .landing-closing { display: flex; min-height: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--landing-line); }
 .landing-page .landing-closing h2 { max-width: 26ch; }
 .landing-page .landing-closing p { margin: 8px 0 0; color: var(--landing-muted); font-size: .84rem; }
-.landing-page .landing-closing .landing-button--accent { color: #fff !important; background: var(--landing-coral); }
+.landing-page .landing-closing .landing-button--accent { color: #fff !important; background: var(--home-accent-bg); }
 .landing-page .landing-footer { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid var(--landing-line); color: var(--landing-muted); font-size: .74rem; }
 .landing-page .landing-footer a { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
 .landing-page .landing-footer .landing-wordmark { color: var(--landing-ink); font-size: 1.15rem; }
-.landing-page .landing-footer > a:last-child { color: var(--landing-coral); font-weight: 650; }
+.landing-page .landing-footer > a:last-child { color: var(--home-accent-ink); font-weight: 650; }
 
 /* --- Focus -------------------------------------------------------------- */
 .landing-page .landing-nav__cta:focus-visible,
@@ -256,7 +262,7 @@ main.landing-page {
 .landing-page .landing-loop__step:focus-visible,
 .landing-demo__video:focus-visible,
 .landing-page .landing-footer a:focus-visible {
-  outline: 2px solid var(--landing-coral);
+  outline: 2px solid var(--home-accent-ink);
   outline-offset: 3px;
   border-radius: 8px;
 }
@@ -285,4 +291,43 @@ main.landing-page {
   .landing-loop__sample { padding: 16px; }
   .landing-closing { display: grid; }
   .landing-page .landing-closing .landing-button--accent { justify-self: start; }
+}
+
+/* --- Dark ---------------------------------------------------------------
+   The app writes `data-theme` from the visitor's stored choice; a first-time
+   visitor has none, so the system preference decides. An explicit "light" wins
+   over a dark system setting, which is why the media query excludes it.
+   The palette is written twice because a media query cannot join a selector
+   list. `light-dark()` would be shorter, but a browser that does not support it
+   keeps the custom property as unparsed tokens and then drops the substituted
+   declaration, so the page would lose its background instead of falling back.
+   Surfaces get lighter as they come forward and the recessed night band stays
+   darker than the page. */
+:root[data-theme="dark"] main.landing-page {
+  color-scheme: dark;
+  --landing-paper: #151c1a;
+  --landing-surface: #1d2523;
+  --landing-ink: #f1eee7;
+  --landing-muted: #a2afa8;
+  --landing-line: rgb(241 238 231 / 14%);
+  --landing-night: #0f1614;
+  --landing-coral: #e8967c;
+  --landing-teal: #6cbdb0;
+  --home-accent-ink: #e8967c;
+  --home-accent-bg: #b8503a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) main.landing-page {
+    color-scheme: dark;
+    --landing-paper: #151c1a;
+    --landing-surface: #1d2523;
+    --landing-ink: #f1eee7;
+    --landing-muted: #a2afa8;
+    --landing-line: rgb(241 238 231 / 14%);
+    --landing-night: #0f1614;
+    --landing-coral: #e8967c;
+    --landing-teal: #6cbdb0;
+    --home-accent-ink: #e8967c;
+    --home-accent-bg: #b8503a;
+  }
 }
