@@ -41,14 +41,16 @@ type Capability = Readonly<{
 const capabilities: readonly Capability[] = [
   {
     title: "打开就是资料库",
-    detail: "白名单来源每天增量发现，审核通过才发布；“学习”打开直接是视频和播客。",
+    // "170+" rather than the 172 measured today: the library grows every day the
+    // pipeline publishes, and a floor stays true while an exact count goes stale.
+    detail: "白名单来源每天增量发现，审核通过才发布；已有 170+ 个视频与播客版本，“学习”打开直接就是它们。",
     icon: "library",
     shot: {
       src: "/public-home/capability-library.webp",
       width: 900,
       height: 586,
       alt: "媒体资料库桌面端截图：搜索框、全部/视频/播客分类，以及带时长与难度的内容卡片网格",
-      caption: "桌面端资料库：已发布内容按最近收录排列，卡片本身就是入口。",
+      caption: "桌面端资料库：170+ 个已发布版本按最近收录排列，卡片本身就是入口。",
     },
   },
   {
@@ -70,7 +72,7 @@ const capabilities: readonly Capability[] = [
   },
   {
     title: "说完再纠正",
-    detail: "完整表达之前不打断；低置信度转写不会算成退步。",
+    detail: "9 个可练场景里都是这个顺序：完整表达之前不打断，低置信度转写不会算成退步。",
     icon: "mic",
   },
   {

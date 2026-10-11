@@ -208,8 +208,12 @@ describe("public home", () => {
       expect(statSync(file).size, `${src} must be a real screenshot`).toBeGreaterThan(5_000);
     }
 
-    // The vocabulary card names the shelf size its screenshot shows.
-    expect(container.querySelector(".landing-cards")?.textContent).toMatch(/7,922/);
+    // The cards carry the numbers the product can actually back up: the shelf
+    // size, the published floor and the scenario count.
+    const grid = container.querySelector(".landing-cards")?.textContent ?? "";
+    expect(grid).toMatch(/7,922/);
+    expect(grid).toMatch(/170\+ 个视频与播客版本/);
+    expect(grid).toMatch(/9 个可练场景/);
   });
 
   it("lists the capabilities as small cards with icons", () => {
