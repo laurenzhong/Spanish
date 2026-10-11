@@ -150,8 +150,8 @@ describe("frequency word shelf", () => {
   it("bounds the queries per page instead of one query per word", async () => {
     const coldStart = logged.length;
     await shelf(1, 60);
-    // Cold count aggregate plus one batched context lookup; never 60 queries.
-    expect(logged.length - coldStart).toBeLessThanOrEqual(2);
+    // One statement builds counts and examples together; never 60 queries.
+    expect(logged.length - coldStart).toBe(1);
 
     const wideStart = logged.length;
     await shelf(1, 60);
@@ -159,9 +159,10 @@ describe("frequency word shelf", () => {
     const narrowStart = logged.length;
     await shelf(1, 5);
     const narrow = logged.length - narrowStart;
-    // Counts come from the cached aggregate, contexts from one batched query.
-    expect(wide).toBe(1);
-    expect(narrow).toBe(1);
+    // Both facts come from the same cached snapshot, so a warm page costs nothing
+    // at all — stronger than the one batched query this used to require.
+    expect(wide).toBe(0);
+    expect(narrow).toBe(0);
   });
 
   it("orders by reference rank, not by our own occurrence counts", async () => {
@@ -204,9 +205,11 @@ describe("frequency word shelf", () => {
 
   it("enriches the page with our counts and one visible example", async () => {
     const page = await shelf(1, 60);
+    // The text is the published subtitle exactly as written — capitalised — not
+    // the lower-cased surface a `corpus_occurrences` row used to carry.
     expect(page.items.find((item) => item.word === "ser")).toMatchObject({
       occurrenceCount: 1,
-      context: "ser uno mismo es difícil.",
+      context: "Ser uno mismo es difícil.",
       sourceTitle: publishedTitle,
     });
     expect(page.items.find((item) => item.word === "casa")).toMatchObject({
@@ -217,18 +220,22 @@ describe("frequency word shelf", () => {
     expect(page.items.map((item) => item.id)).toHaveLength(new Set(page.items.map((item) => item.id)).size);
   });
 
-  it("keeps context null when the only occurrence is not visible, without failing the page", async () => {
+  it("shows the published segment and never the withdrawn document's text", async () => {
     // `parque` sits deep in the reference list, so fetch the page that holds it.
     const parqueIndex = contentFrequencyWords().findIndex((entry) => entry.word === "parque");
     expect(parqueIndex).toBeGreaterThan(0);
     const pageSize = 50;
     const page = await shelf(Math.floor(parqueIndex / pageSize) + 1, pageSize);
-    // The word is counted from published segments, but its only occurrence row
-    // belongs to a withdrawn document: that text must not be exposed.
-    expect(page.items.find((item) => item.word === "parque")).toMatchObject({ occurrenceCount: 1, context: null, sourceTitle: null });
+    // `parque` has an occurrence row on a withdrawn document and a published
+    // segment: the example is the published segment, never the withdrawn text.
+    const parque = page.items.find((item) => item.word === "parque");
+    expect(parque).toMatchObject({ occurrenceCount: 1, context: "Aquí está el parque.", sourceTitle: publishedTitle });
+    expect(parque?.context).not.toContain("secreto");
 
     const lastPage = Math.ceil(page.total / pageSize);
     const last = await shelf(lastPage, pageSize);
+    // A reference word our published corpus never shows keeps `null` and still
+    // does not fail the page.
     expect(last.items.find((item) => item.word === "neurociencia")).toMatchObject({ occurrenceCount: 0, context: null, sourceTitle: null });
   });
 

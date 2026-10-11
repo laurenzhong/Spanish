@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 
-import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, type SourcePosition } from "../domain";
+import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type SourcePosition } from "../domain";
 import { searchContentFrequencyWords, contentFrequencyWords } from "../domain/frequency-word-list";
 import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
 import { createDrizzleEvidenceRepository } from "@/src/modules/evidence/repositories";
@@ -32,7 +32,7 @@ const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
  * | query                                              | cold            |
  * |----------------------------------------------------|-----------------|
  * | group every form, filter in Node (previous)        | 4548/4273/4052 ms |
- * | fold + filter in SQL, one fold per token (shipped) | 2844/2790/2866 ms |
+ * | fold + filter in SQL, one fold per token           | 2844/2790/2866 ms |
  *
  * Variants probed in a single process (relative to each other, not to the runs
  * above — the first query of a process also warms the buffer cache, so these
@@ -48,26 +48,50 @@ const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
  */
 type CorpusFormCounts = ReadonlyMap<string, number>;
 
-let formCountCache: Readonly<{ loadedAt: number; counts: CorpusFormCounts }> | null = null;
-let formCountInFlight: Promise<CorpusFormCounts> | null = null;
+/**
+ * One real, visible segment: the document title and the text the form occurs
+ * in. Picked with `min(...)` inside the same group-by as the counts, which is
+ * arbitrary but deterministic; the alternative — preferring the richest context
+ * — means carrying whole long segments (some are 7.8k characters) through the
+ * aggregate and measured 14 183 ms cold against 3 123 ms for this one.
+ */
+type FrequencyExample = Readonly<{ title: string; text: string }>;
 
-async function computeCorpusFormCounts(database: Database): Promise<CorpusFormCounts> {
+/**
+ * The two facts the shelf needs from the corpus, produced by one scan and cached
+ * together: how often each form occurs, and one example of it in the wild. The
+ * examples are rows of the same `source_texts` set the counts are counted from,
+ * so a source cannot be visible to one and hidden from the other.
+ */
+type CorpusFrequencySnapshot = Readonly<{
+  counts: CorpusFormCounts;
+  examples: ReadonlyMap<string, FrequencyExample>;
+}>;
+
+let frequencySnapshotCache: Readonly<{ loadedAt: number; snapshot: CorpusFrequencySnapshot }> | null = null;
+let frequencySnapshotInFlight: Promise<CorpusFrequencySnapshot> | null = null;
+
+async function computeCorpusFrequencySnapshot(database: Database): Promise<CorpusFrequencySnapshot> {
   // The filter travels as one space-joined parameter rather than a 7.9k-value
   // `IN (...)`: drizzle expands a JS array into one placeholder per element, and
   // the single parameter measured no slower while keeping the statement small.
   const wantedForms = [...new Set(contentFrequencyWords().map((entry) => normalizeSpanishSurface(entry.word)))].join(" ");
-  // Aggregating inside PostgreSQL keeps the whole corpus scan server-side, and
-  // only the shelf's own forms are grouped. Measured on the real database:
-  // grouping every one of the ~64k distinct forms and filtering in Node cost
-  // 4949 ms cold; folding and filtering in SQL costs 2332 ms in the same run.
-  const rows = await database.execute(sql`
+  // One scan produces both facts the shelf needs. `with ordinality` is not used
+  // and no offsets are computed here: `regexp_split_to_table` loses positions,
+  // so the sample travels as the whole segment text plus its title and the
+  // position is recovered in JS with `tokenizeSpanish`, which already yields
+  // exact token offsets.
+  const perfStarted = Date.now();
+  let rows: readonly { word: string; n: number; example: readonly string[] }[];
+  try {
+    rows = await database.execute(sql`
     with source_texts as (
-      select ms.source_text as text
+      select ms.source_text as text, mv.title as title
       from ${schema.mediaSegments} ms
       inner join ${schema.mediaVersions} mv on mv.id = ms.media_version_id
       where ms.review_status = 'approved' and mv.status = 'published' and mv.copyright_status = 'cleared'
       union all
-      select seg.source_text
+      select seg.source_text, av.title
       from ${schema.articleSegments} seg
       inner join ${schema.articleVersions} av on av.id = seg.article_version_id
       inner join ${schema.articleSources} src on src.id = av.source_id
@@ -77,45 +101,60 @@ async function computeCorpusFormCounts(database: Database): Promise<CorpusFormCo
       -- Splitting straight on the separator class is one regex pass instead of
       -- replace-then-split; the empty pieces it can produce are dropped by the
       -- membership test below, so the token set is unchanged.
-      select regexp_split_to_table(lower(text), '[^a-záéíóúüñ]+') as word
+      select regexp_split_to_table(lower(text), '[^a-záéíóúüñ]+') as word, text, title
       from source_texts
     ), folded as (
       -- Fold once per token (not once in WHERE and again in SELECT). The fold
       -- must stay equivalent to normalizeSpanishSurface in JS: the tokenizer
       -- only ever emits [a-záéíóúüñ], and NFKD + strip-combining-marks maps
       -- exactly áéíóúü to aeiou and ñ to n.
-      select translate(word, 'áéíóúüñ', 'aeiouun') as word
+      select translate(word, 'áéíóúüñ', 'aeiouun') as word, text, title
       from tokens
     )
-    select word, count(*)::int as n
+    select word, count(*)::int as n, min(array[text, title]) as example
     from folded
     where word = any(string_to_array(${wantedForms}, ' '))
     group by word
-  `) as unknown as readonly { word: string; n: number }[];
+  `) as unknown as readonly { word: string; n: number; example: readonly string[] }[];
+  } catch (error) {
+    // Both facts come from the one scan, so a failure here must keep the page's
+    // "unavailable" state rather than render every badge as a fabricated zero.
+    const cause = (error as { cause?: unknown }).cause;
+    console.log(`[frequency] corpus snapshot failed after ${Date.now() - perfStarted} ms: ${String(cause ?? error).slice(0, 300)}`);
+    throw error;
+  }
   const counts = new Map<string, number>();
+  const examples = new Map<string, FrequencyExample>();
   for (const row of rows) {
     // Folding again in JS is a no-op for these rows and keeps the SQL fold and
     // `normalizeSpanishSurface` from drifting apart unnoticed.
     const normalized = normalizeSpanishSurface(row.word);
     if (normalized.length < 2) continue;
     counts.set(normalized, (counts.get(normalized) ?? 0) + Number(row.n ?? 0));
+    // `min(array[text, title])` compares the text first, so the aggregate settles
+    // early instead of carrying whichever long segment happens to win, and the two
+    // fields stay one value with no separator the text could itself contain. It is
+    // loaded with the counts, so the example is a row of the same visible set.
+    const text = row.example?.[0];
+    const title = row.example?.[1];
+    if (typeof text === "string" && typeof title === "string") examples.set(normalized, { title, text });
   }
-  return counts;
+  return { counts, examples };
 }
 
-async function loadCorpusFormCounts(database: Database): Promise<CorpusFormCounts> {
+async function loadCorpusFrequencySnapshot(database: Database): Promise<CorpusFrequencySnapshot> {
   const now = Date.now();
-  if (formCountCache && now - formCountCache.loadedAt < FREQUENCY_TTL_MS) return formCountCache.counts;
-  if (formCountInFlight) return formCountInFlight;
-  const pending = computeCorpusFormCounts(database)
-    .then((counts) => {
-      formCountCache = { loadedAt: Date.now(), counts };
-      return counts;
+  if (frequencySnapshotCache && now - frequencySnapshotCache.loadedAt < FREQUENCY_TTL_MS) return frequencySnapshotCache.snapshot;
+  if (frequencySnapshotInFlight) return frequencySnapshotInFlight;
+  const pending = computeCorpusFrequencySnapshot(database)
+    .then((snapshot) => {
+      frequencySnapshotCache = { loadedAt: Date.now(), snapshot };
+      return snapshot;
     })
     .finally(() => {
-      formCountInFlight = null;
+      frequencySnapshotInFlight = null;
     });
-  formCountInFlight = pending;
+  frequencySnapshotInFlight = pending;
   return pending;
 }
 
@@ -131,6 +170,24 @@ function collapseWhitespace(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
 }
 
+/** Collapse runs of whitespace but keep the boundary spaces the source had. */
+function normalizeContextText(value: string): string {
+  return value.replace(/\s+/gu, " ");
+}
+
+/**
+ * The three parts come from one real sentence, so a space is only inserted where
+ * the sentence must have had a word boundary: a side that begins or ends with a
+ * word character was separated from the keyword by something, while punctuation
+ * and the boundary spaces of a slice must stay attached (`decir.`, not
+ * `decir .`). Occurrence rows written without boundary spaces still get them.
+ */
+function joinContext(left: string, keyword: string, right: string): string {
+  const withLeft = /[\p{L}\p{N}]$/u.test(left) ? `${left} ` : left;
+  const withRight = /^[\p{L}\p{N}]/u.test(right) ? ` ${right}` : right;
+  return `${withLeft}${keyword}${withRight}`;
+}
+
 /**
  * Bounded keyword-in-context string for the frequency shelf. The surface form
  * is kept in the middle; only the surrounding segments are clipped, and the
@@ -138,15 +195,33 @@ function collapseWhitespace(value: string): string {
  */
 function buildFrequencyContext(occurrence: FrequencyOccurrence): string {
   const keyword = collapseWhitespace(occurrence.surfaceText);
-  const left = collapseWhitespace(occurrence.contextBefore);
-  const right = collapseWhitespace(occurrence.contextAfter);
-  const joined = [left, keyword, right].filter(Boolean).join(" ");
+  const left = normalizeContextText(occurrence.contextBefore);
+  const right = normalizeContextText(occurrence.contextAfter);
+  const joined = joinContext(left, keyword, right).trim();
   if (joined.length <= FREQUENCY_CONTEXT_MAX_CHARS) return joined;
   const clippedLeft = left.length > FREQUENCY_CONTEXT_EDGE_CHARS ? `…${left.slice(-FREQUENCY_CONTEXT_EDGE_CHARS)}` : left;
   const clippedRight = right.length > FREQUENCY_CONTEXT_EDGE_CHARS ? `${right.slice(0, FREQUENCY_CONTEXT_EDGE_CHARS)}…` : right;
   const keywordBudget = Math.max(16, FREQUENCY_CONTEXT_MAX_CHARS - clippedLeft.length - clippedRight.length - 2);
   const clippedKeyword = keyword.length > keywordBudget ? `${keyword.slice(0, keywordBudget - 1)}…` : keyword;
-  return [clippedLeft, clippedKeyword, clippedRight].filter(Boolean).join(" ");
+  return joinContext(clippedLeft, clippedKeyword, clippedRight).trim();
+}
+
+/**
+ * Recover the occurrence the SQL sample was picked for. The aggregate carries
+ * the whole segment text and its title because `regexp_split_to_table` cannot
+ * report offsets; `tokenizeSpanish` already knows them, so the position is found
+ * here instead of being recomputed in SQL. Returns `null` — never a guess — when
+ * the text holds no token folding to the requested form.
+ */
+function locateFrequencyExample(example: FrequencyExample, normalizedWord: string): FrequencyOccurrence | null {
+  const token = tokenizeSpanish(example.text).find((candidate) => candidate.normalized === normalizedWord);
+  if (!token) return null;
+  return {
+    surfaceText: token.surface,
+    contextBefore: example.text.slice(0, token.start),
+    contextAfter: example.text.slice(token.end),
+    sourceTitle: example.title,
+  };
 }
 
 /** Letters, marks and internal apostrophes only; safe to use inside a regex. */
@@ -305,45 +380,6 @@ function corpusVisibility(userId: string | undefined) {
     : and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia)));
 }
 
-/**
- * One batched lookup per rendered frequency page (never one query per word) for
- * a representative visible occurrence of each requested form. The visibility
- * predicate is the same one the vocabulary and phrase shelves use, so a word
- * whose only occurrences belong to a withdrawn, uncleared or private source
- * simply has no context and no source title.
- *
- * The representative row is the occurrence with the richest surrounding
- * context, then the most recent one, so the detail panel shows real usage
- * instead of an empty line whenever a usable occurrence exists.
- */
-async function loadFrequencyOccurrences(database: Database, normalizedWords: readonly string[]): Promise<Map<string, FrequencyOccurrence>> {
-  if (normalizedWords.length === 0) return new Map();
-  try {
-    const visibleOccurrence = corpusVisibility(undefined);
-    const rows = await database
-      .selectDistinctOn([schema.corpusOccurrences.normalizedText], {
-        normalizedText: schema.corpusOccurrences.normalizedText,
-        surfaceText: schema.corpusOccurrences.surfaceText,
-        contextBefore: schema.corpusOccurrences.contextBefore,
-        contextAfter: schema.corpusOccurrences.contextAfter,
-        sourceTitle: schema.corpusOccurrences.sourceTitle,
-      })
-      .from(schema.corpusOccurrences)
-      .where(and(inArray(schema.corpusOccurrences.normalizedText, [...normalizedWords]), visibleOccurrence))
-      .orderBy(
-        asc(schema.corpusOccurrences.normalizedText),
-        desc(sql`char_length(${schema.corpusOccurrences.contextBefore}) + char_length(${schema.corpusOccurrences.contextAfter})`),
-        desc(schema.corpusOccurrences.createdAt),
-        asc(schema.corpusOccurrences.id),
-      );
-    return new Map(rows.map((row) => [row.normalizedText, row]));
-  } catch {
-    // Context is an enhancement: if this lookup fails the shelf still lists the
-    // same words with `null` context instead of losing the whole frequency head.
-    return new Map();
-  }
-}
-
 export function createDrizzleLexiconCorpusRepository(database: Database): LexiconCorpusRepository {
   return {
     async listFrequencyWords(query) {
@@ -353,21 +389,19 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
       // from our own counts — that is what put `que`/`los`/`por` at the top.
       const matched = searchContentFrequencyWords(query.search ?? "");
       const pageSlice = matched.slice((query.page - 1) * query.pageSize, query.page * query.pageSize);
-      const normalizedPage = pageSlice.map((entry) => normalizeSpanishSurface(entry.word));
-      // Two batched lookups for the whole page (one query at most for contexts,
-      // none for counts once the aggregate cache is warm) — never one per word.
-      const [counts, occurrences] = await Promise.all([
-        loadCorpusFormCounts(database),
-        loadFrequencyOccurrences(database, normalizedPage),
-      ]);
+      // One cached read for the whole page: counts and examples are both facts
+      // of the same snapshot, so a warm page costs no query at all and never one
+      // query per word.
+      const snapshot = await loadCorpusFrequencySnapshot(database);
       const pageItems = pageSlice.map((entry) => {
         const normalizedWord = normalizeSpanishSurface(entry.word);
-        const occurrence = occurrences.get(normalizedWord);
+        const example = snapshot.examples.get(normalizedWord);
+        const occurrence = example ? locateFrequencyExample(example, normalizedWord) : null;
         return {
           id: `word:${normalizedWord}`,
           word: entry.word,
           normalizedWord,
-          occurrenceCount: counts.get(normalizedWord) ?? 0,
+          occurrenceCount: snapshot.counts.get(normalizedWord) ?? 0,
           context: occurrence ? buildFrequencyContext(occurrence) : null,
           sourceTitle: occurrence?.sourceTitle ?? null,
         };
