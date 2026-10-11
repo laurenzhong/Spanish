@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DELETE } from "@/app/api/v1/me/characters/lucia/data/route";
+
+// The handler resolves the session through `cookies()` from next/headers, which
+// throws outside a request scope; these cases assert the anonymous path, so the
+// store is mocked empty.
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ get: () => undefined, getAll: () => [] })),
+}));
 
 describe("/api/v1/me/characters/lucia/data", () => {
   const previousE2e = process.env.AUTH_E2E_ENABLED;

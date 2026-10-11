@@ -153,6 +153,39 @@ describe("podcast media stream route", () => {
     expect(fetcher.mock.calls[1]?.[0]).toEqual(new URL("https://content.libsyn.com/fresh.mp3"));
   });
 
+  it("falls back to the publisher RSS enclosure when the stored URL is unavailable", async () => {
+    const stableKey = "podcast.learncraft.episode148";
+    mocks.getMediaPlayback.mockResolvedValue({
+      ...playback("https://content.libsyn.com/stale.mp3", stableKey),
+      media: {
+        ...playback("https://content.libsyn.com/stale.mp3", stableKey).media,
+        title: "148: Right in Spanish: Correcto, derecha, derecho",
+        sourceName: "LearnCraft Spanish",
+      },
+    });
+    const feed = new Response(`<rss><channel><item>
+      <title>148: Right in Spanish: Correcto, derecha, derecho</title>
+      <enclosure url="https://content.libsyn.com/fresh.mp3?dest-id=3943362" />
+    </item></channel></rss>`, { status: 200, headers: { "content-type": "application/rss+xml" } });
+    const audio = new Response("fresh", { status: 206, headers: { "content-type": "audio/mpeg", "content-range": "bytes 0-4/5" } });
+    Object.defineProperty(audio, "url", { value: "https://content.libsyn.com/fresh.mp3?dest-id=3943362" });
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response("stale", { status: 403 }))
+      .mockResolvedValueOnce(feed)
+      .mockResolvedValueOnce(audio);
+    vi.stubGlobal("fetch", fetcher);
+
+    const response = await GET(request(stableKey, { headers: { range: "bytes=0-4" } }), {
+      params: Promise.resolve({ stableKey }),
+    });
+
+    expect(response.status).toBe(206);
+    expect(await response.text()).toBe("fresh");
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher.mock.calls[1]?.[0]).toEqual(new URL("https://rss.libsyn.com/shows/466488/destinations/3943362.xml"));
+    expect(fetcher.mock.calls[2]?.[0]).toEqual(new URL("https://content.libsyn.com/fresh.mp3?dest-id=3943362"));
+  });
+
   it("fails closed when the upstream follows a redirect to an untrusted host", async () => {
     mocks.getMediaPlayback.mockResolvedValue(playback());
     const upstream = new Response(null, { status: 302, headers: { location: "https://evil.example/audio.mp3" } });

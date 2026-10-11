@@ -1,9 +1,9 @@
-name: Lucía proactive daily message
+name: Lucía proactive messages
 
 on:
   schedule:
-    # 09:15 Asia/Shanghai; GitHub Actions schedules use UTC.
-    - cron: "15 1 * * *"
+    # Poll every 15 minutes; each user's stable daily slots decide whether to send.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -16,6 +16,7 @@ permissions:
 jobs:
   proactive:
     runs-on: ubuntu-latest
+    continue-on-error: false
     environment: content-production
     timeout-minutes: 10
     steps:
@@ -32,8 +33,9 @@ jobs:
           LUCIA_PROACTIVE_USER_IDS: ${{ vars.LUCIA_PROACTIVE_USER_IDS }}
           CONVERSATION_PROVIDER: ${{ vars.CONVERSATION_PROVIDER || 'minimax' }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-          MINIMAX_API_ENDPOINT: ${{ vars.MINIMAX_API_ENDPOINT || 'https://api.minimaxi.com/anthropic/v1/messages' }}
+          MINIMAX_API_ENDPOINT: ${{ vars.MINIMAX_API_ENDPOINT }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT || 'https://api.openai.com/v1/responses' }}
+          OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT }}
           OPENAI_CONVERSATION_MODEL: ${{ vars.OPENAI_CONVERSATION_MODEL }}
+        continue-on-error: false
         run: pnpm conversation:proactive

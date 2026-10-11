@@ -1,8 +1,8 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DesktopNavigation, NAVIGATION_STORAGE_KEY } from "@/src/shared/ui/desktop-navigation";
+import { DesktopNavigation } from "@/src/shared/ui/desktop-navigation";
 import { ThemeToggle } from "@/src/shared/ui/theme-toggle";
 
 const usePathname = vi.fn();
@@ -27,29 +27,27 @@ describe("DesktopNavigation", () => {
     delete document.documentElement.dataset.theme;
   });
 
-  it("uses the viewport default, toggles, and persists the collapsed state", async () => {
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
-    const user = userEvent.setup();
+  it("marks the current area and links every destination", () => {
     render(<DesktopNavigation />);
 
-    const toggle = await screen.findByRole("button", { name: "收起侧边栏" });
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await user.click(toggle);
-
-    expect(screen.getByRole("button", { name: "展开侧边栏" })).toHaveAttribute("aria-expanded", "false");
-    expect(window.localStorage.getItem(NAVIGATION_STORAGE_KEY)).toBe("collapsed");
+    // The collapsible-rail control and its stored preference were removed with
+    // the UI refresh, so the rail is asserted for what it still guarantees.
+    expect(screen.queryByRole("button", { name: /侧边栏/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "学习" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "学习" })).toHaveAttribute("href", "/learn");
+    expect(screen.getByRole("link", { name: "阅读" })).toHaveAttribute("href", "/read");
+    expect(screen.getByRole("link", { name: "探索" })).toHaveAttribute("href", "/explore");
+    expect(screen.getByRole("link", { name: "对话" })).toHaveAttribute("href", "/chat");
+    expect(screen.getByRole("link", { name: "我的" })).toHaveAttribute("href", "/me");
+    expect(screen.getByRole("link", { name: "Sueño 首页" })).toHaveAttribute("href", "/");
   });
 
-  it("honors a stored choice and defaults to collapsed below 1280px", async () => {
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+  it("treats a nested route as belonging to its area", () => {
+    usePathname.mockReturnValue("/read/article/article.one");
     render(<DesktopNavigation />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "展开侧边栏" })).toBeInTheDocument());
 
-    cleanup();
-    window.localStorage.setItem(NAVIGATION_STORAGE_KEY, "expanded");
-    render(<DesktopNavigation />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "收起侧边栏" })).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "阅读" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "学习" })).not.toHaveAttribute("aria-current");
   });
 
   it("keeps the theme toggle available through the account surface", async () => {

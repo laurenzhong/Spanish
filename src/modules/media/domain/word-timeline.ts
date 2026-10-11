@@ -81,7 +81,11 @@ export function wordTimingsForPlayback(segment: Readonly<{
   words?: readonly MediaWordTiming[] | null;
 }>): readonly MediaWordTiming[] {
   const verified = validWordTimings(segment);
-  if (verified.length > 0 && hasExactWordLexemes(segment)) return verified;
+  // Older published rows intentionally store only offsets.  The offsets have
+  // already been checked against the immutable sourceText above, so the
+  // source slice is the authoritative lexical label for playback.  When a
+  // provider supplies `text`, validWordTimings still rejects any mismatch.
+  if (verified.length > 0) return verified;
   // Never replace a non-empty provider timeline with guessed positions. A
   // malformed timeline must fail closed; estimating it would highlight words
   // that may not be spoken at that time. Cues with no provider word data also
