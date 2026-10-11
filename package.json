@@ -23,6 +23,7 @@
     "audio:calibration:manual-annotate": "node --import tsx/esm scripts/create-manual-annotation-drafts.ts",
     "contracts:generate-content": "tsx scripts/generate-content-contract.ts",
     "content:validate": "tsx scripts/validate-content.ts",
+    "media:verify-word-timings": "tsx scripts/verify-podcast-word-timings.ts",
     "content:import": "tsx scripts/import-content.ts",
     "content:acquire": "node --conditions=react-server --import tsx/esm scripts/acquire-content.ts",
     "content:pipeline": "node --conditions=react-server --import tsx/esm scripts/acquire-content.ts",
