@@ -1,10 +1,26 @@
 # 迁移审查包：0042 词句候选表 + 审批审计表
 
-- 日期：2026-10-10（0042 于 2026-10-11 生成并核实）
+- 日期：2026-10-10（0042 生成并核实于 2026-10-11；**同日已应用**）
 - 任务：`LEX-INDEX-001`（切片：候选表 schema 与持久化）
-- 状态：**已生成，未应用**（产品本人已定：只生成并贴出 diff 供审查；迁移应用需单独批准）
+- 状态：**已应用**（2026-10-11，`drizzle-kit migrate` 成功）
 - 生成器：`drizzle-kit 0.31.10`，`drizzle.config.ts`（`strict: true`）
+- 迁移文件：`drizzle/0042_stale_starbolt.sql`（本文件 SQL 与它**逐字节一致**，由测试断言）
 - **本文件取代早前的 `0041` 审查包**（原因见下「编号变更」）
+
+## 应用结果（2026-10-11 实测）
+
+| 项 | 结果 |
+|---|---|
+| `drizzle-kit migrate` | **成功**（`migrations applied successfully!`） |
+| 目标库已记录迁移 | 43 → **45** 条 |
+| 0042 的记录 hash | `87f605031606…` —— 与本文件 SQL 的 SHA256 **一致** |
+| `lexicon_candidates` / `lexicon_candidate_approvals` | **均已建立** |
+| `articles` / `media_versions` 行数 | 204 / 540 —— **未受影响** |
+| `drizzle-kit check` | `Everything's fine` |
+
+应用过程中 Postgres 给出一条 NOTICE：外键名 `lexicon_candidate_approvals_candidate_id_lexicon_candidates_id_fk` 共 68 字符，超过标识符 63 字符上限，被截断为 `..._id_`。**这是无害的**：已实测该外键存在且定义正确（`FOREIGN KEY (candidate_id) REFERENCES lexicon_candidates(id) ON DELETE CASCADE`）。
+
+**应用后立刻做的验证**：`scripts/verify-drizzle-candidate-repository.ts` 在真实库上跑通 create / 幂等 create / `findById` / jsonb 与时间戳往返 / CAS 两种结局 / 只读索引查询 / 数据库层审计约束，**14/14 通过且回滚干净（0 行残留）**。**该验证当场抓出一个真 bug**：Drizzle 仓储的 `findById` 对当前 `makeCandidateId()` 产出的每个 id 都返回 null（逆解析函数仍按旧的 5 字段格式，而 id 已含 `documentKind` 共 6 字段）。已修复并补回归测试，见 Commit `dee8bc7`。**这个 bug 类型检查与全部既有测试都抓不到** —— 内存实现按六列直接做键、从不解析 id；只有真实查询能暴露它。
 
 ## 结论摘要
 
@@ -133,17 +149,17 @@ CREATE INDEX "lexicon_candidates_document_idx" ON "lexicon_candidates" USING btr
 | `ON DELETE cascade` | 候选被删则审计随之清理（审计属于该候选，不是独立事实） |
 | **不启用 RLS** | 批准由所有者对**内容侧**候选做出，不含终端用户私有数据，与公开语料表属性一致。**若将来允许用户提交候选，本表必须同一变更内加 RLS** |
 
-## 应用前必须完成的检查（尚未做）
+## 应用前的检查（均已完成）
 
-1. **在空库或一次性副本上应用并回滚验证** —— `MIG-RECONCILE-001` 第 3 项要求。**未执行**（未获授权操作数据库）。
-2. **RLS 决策复核**：见上表最后一行。
-3. **迁移评审签字** —— `MIG-RECONCILE-001` 第 4 项要求。
-4. **编号再确认**：`0041` 是另一会话的**未提交在途工作**。若其最终合并的编号变化，本迁移号需重新生成。
-5. 应用后核对 `__drizzle_migrations` 与 journal 一致性。
+1. **在一次性 Postgres 上应用并验证** —— **已完成**。`tests/database/lexicon-candidates-migration.test.ts`（7 例）在一台真实 Postgres（PGlite）上**真正执行**该迁移并断言产物：两张表、8 个索引、13 个 check 全部存在，且 `approved_audit_check`、`batch_id_check`、身份唯一索引**确实拒绝**违规行。
+2. **只读预检真实库** —— **已完成**（`scripts/preflight-migration-0042.ts`）：43 条迁移已记录、`cefr` 数据无越界值、两张词句表均不存在。
+3. **`0041` 依赖已解决** —— **已完成**。`0041_media_cefr_four_levels` 原为另一会话**未提交**的在途文件却已占用 journal idx 41，导致前向链不可应用（Drizzle 按序应用、不能跳过）。已按最小完整集落地（SQL + 快照 + journal + schema 的 CEFR 一行 + 它自带的测试），**不含**该会话其余在途工作，见 Commit `c4be780`。
+4. **RLS 决策复核** —— 维持**不加 RLS**：批准由所有者对**内容侧**候选做出，不含终端用户私有数据。**若将来允许用户提交候选，本表必须同一变更内加 RLS。**
+5. **编号再确认** —— `0041` 已落地，`0042` 编号稳定。
+6. **应用后 journal 一致性** —— **已核对**：目标库 45 条记录，最新一条 hash 与本文件 SQL 一致。
 
 ## 当前仓库状态
 
-- `src/shared/db/schema/lexicon-corpus.ts` **已含** `lexiconCandidates` 与 `lexiconCandidateApprovals` 两个定义。
-- `drizzle/` **未加入本迁移**：SQL 与快照都在 gitignored 的 `.tmp-drizzle-gen/keep-0042/`。
-- 因此 **schema 源码与数据库暂时不一致**，直到显式应用。后续任何 `drizzle-kit generate` 都会再次产出这两张表 —— 刻意的提醒。
-- 需要应用时：把本文件 SQL 存为 `drizzle/0042_<name>.sql`，并把 `keep-0042/0042_snapshot.json` 与更新后的 `_journal.json` 放进 `drizzle/meta/`，然后走既有迁移流程。
+- `src/shared/db/schema/lexicon-corpus.ts` 含 `lexiconCandidates` 与 `lexiconCandidateApprovals` 两个定义。
+- `drizzle/0042_stale_starbolt.sql` + `drizzle/meta/0042_snapshot.json` + journal 条目**均已提交**，且**已应用到真实库** —— schema 源码、迁移历史与数据库三者一致。
+- `docs/migrations/0042_lexicon_candidates_and_approvals.sql` 是审查副本，与 `drizzle/` 里实际应用的产物**逐字节一致**（由测试断言，防止审查文档漂移）。
