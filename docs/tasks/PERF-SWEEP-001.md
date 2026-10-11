@@ -60,7 +60,9 @@
 - 风险：`pack.saved`/`pack.route` 参与筛选，「我的收藏」会短暂误筛；`privateState` 需区分 loading 与 unavailable，否则文案会说谎；相关单测与 Playwright explore 路径要同步更新。
 - **阻塞**：`catalog-explore-library-repository.ts`、`catalog-scenario-suggestion-repository.ts`、`drizzle-scenario-suggestion-context-repository.ts` 仍被其他会话编辑中，动它们会把别人的在途改动一起提交。
 
-其他未做：建议 POST 的两波（`suggest-scenario.ts:33-36`，candidates→context 可合并）；`/explore` 之外未再发现串行链。
+其他未做：~~建议 POST 的两波（`suggest-scenario.ts:33-36`，candidates→context 可合并）~~ **已完成**；`/explore` 之外未再发现串行链。
+
+> 2026-10-11 更新（Commit `c2871de`）：P3 中**不触碰脏文件**的两项已完成——④ 场景卡片已由原生 `<a>` 改为 `next/link`（预取 + 客户端跳转），以及上面那条「建议 POST 两波」合并为一波（两者都只以 `userId` 为键，上下文保留自身兜底）。因此 §5 剩余的唯一实质项是 ②③：公开视图先进首个 flush、6 条私有读移进自己的 Suspense 或客户端；①（`server-timing`）对页面行不通（App Router 的页面不能设置响应头，那只在 Route Handler 里成立），需要改用应用层计时脚本。
 
 ## 6. 复现方法
 
