@@ -2034,7 +2034,7 @@ UI-011 后置修复（七）：按交互要求保持 Explain、Dictionary、Guid
 
 | 日期 | 结果 | Commit | 下一步影响 |
 |---|---|---|---|
-| 2026-10-11 | 对话未读红点位置与已读时机修复（产品本人逐轮确认位置） | `9102914` | 红点改为锚定图标容器并加 `--notification*` 语义令牌（含深色配对）；线程加载/轮询/聚焦刷新即确认已读，rail 未读 effect 加签名守卫。聚焦 Vitest `59/59`、真实 Chrome 实测三视图几何与生命周期通过。限制：全量 `pnpm test --run`/`build`/`test:e2e` 未跑，`pnpm typecheck` 被在途 `drizzle-lexicon-corpus-repository.ts` 语法错误阻塞，未做真实登录/真机；该提交只含本次改动，另一会话在 `chat-thread.tsx`/`conversation-contact-rail.tsx`/`globals.css` 的未提交改动已原样保留在工作树 |
+| 2026-10-11 | 对话未读红点位置与已读时机修复（产品本人逐轮确认位置，含桌面版对齐手机的压角观感） | `62c561b` + `c43339d` | 红点改为锚定图标容器并加 `--notification*` 语义令牌（含深色配对）；线程加载/轮询/聚焦刷新即确认已读，rail 未读 effect 加签名守卫。聚焦 Vitest `59/59`、真实 Chrome 实测手机 390/320 与桌面 1440/1024 均压角 7.4px（字形宽度 35.3%），生命周期验证通过。限制：全量 `pnpm test --run`/`build`/`test:e2e` 未跑，`pnpm typecheck` 被在途 `drizzle-lexicon-corpus-repository.ts` 语法错误阻塞，未做真实登录/真机；`62c561b` 还带另一会话在 `globals.css` 公共首页 landing 段的 3 个 hunk（其他文件已分离），其未提交改动已原样保留在工作树 |
 | 2026-09-27 | CONV-ROLE-001 删除前关系记忆清理与历史隐私 mutation 修复 | `d02253c` | 对话/角色聚焦 `9 files / 41 tests`、契约 `23 files / 85 tests` 通过；撤回失败重试、stream/父消息 CAS 和跨模块原子事务仍待阶段 3 |
 | 2026-09-27 | CONV-ROLE-001 阶段 0–1 后置隐私/身份修复：撤回投影过滤、assistant 子消息事务删除、request-bound auth、账号缓存竞态与虚构故事边界 | `9acb380` | PGlite 手工回归通过；关系记忆删除顺序、stream/父消息 CAS、旧角色隐私 mutation 仍待阶段 3，标准 Vitest 受 `picocolors` 缺失阻塞 |
 | 2026-09-27 | CONV-ROLE-001 阶段 0–1 角色运行时边界 | `d5e3502` | Lucía published gate 与 Mateo/Inés draft 隔离待产品复核；阶段 2–4 不得跳过 CAS/隐私事务门禁 |
