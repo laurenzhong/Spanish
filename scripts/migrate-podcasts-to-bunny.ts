@@ -8,6 +8,11 @@ import { chromium } from "@playwright/test";
 import { z } from "zod";
 import { createBunnyStorageMediaAssetStorage } from "../src/modules/media/storage/bunny-storage";
 import { verifiedDecodedAudioDuration } from "../src/modules/media/storage/audio-integrity";
+import {
+  acceptsPodcastAudioContentType,
+  isOfficialPodcastProxyHost,
+  resolveOfficialPodcastSource,
+} from "../src/modules/media/storage/podcast-source-resolver";
 import { downloadResumableAudio } from "../src/modules/media/storage/resumable-audio-download";
 
 const root = resolve(".tmp-runtime/bunny-podcast-migration");
@@ -16,8 +21,9 @@ const hash = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).
 const allowed = new Set([
   "content.libsyn.com", "traffic.libsyn.com", "traffic.megaphone.fm", "dcs-spotify.megaphone.fm", "dcs-cached.megaphone.fm",
   "ztnr.rtve.es", "rtve-mediavod-lote3.rtve.es", "prisa-es.mc.tritondigital.com", "content.blubrry.com", "episodes.castos.com",
-  "injector.simplecastaudio.com", "sonoro.simplecastaudio.com", "mc.tritondigital.com",
-  "www.podtrac.com", "dts.podtrac.com",
+  "injector.simplecastaudio.com", "sonoro.simplecastaudio.com", "mc.tritondigital.com", "media.blubrry.com",
+  "www.podtrac.com", "dts.podtrac.com", "pdst.fm", "chrt.fm", "api.rtve.es", "feeds.simplecast.com",
+  "charlashispanas.com", "www.hoyhablamos.com",
 ]);
 
 function allowedHost(hostname: string): boolean {
@@ -51,7 +57,7 @@ async function download(source: string) {
     }
     const length = Number(response.headers.get("content-length"));
     const type = response.headers.get("content-type")?.split(";")[0].toLowerCase();
-    if (response.status !== 200 || !response.body || !["audio/mpeg", "audio/mp3"].includes(type ?? "") || !Number.isSafeInteger(length) || length < 1 || length > maxBytes) {
+    if (response.status !== 200 || !response.body || !acceptsPodcastAudioContentType(url.hostname, type) || !Number.isSafeInteger(length) || length < 1 || length > maxBytes) {
       await response.body?.cancel(); throw new Error("AUDIO_RESPONSE_INVALID");
     }
     const chunks: Uint8Array[] = []; let size = 0;
@@ -94,8 +100,11 @@ async function downloadWithCurl(source: string, directory: string) {
     for (let hop = 0; hop < 5; hop++) {
       if (url.protocol !== "https:" || url.username || url.password || !allowedHost(url.hostname)) throw new Error("AUDIO_SOURCE_NOT_ALLOWED");
       await new Promise<void>((done, reject) => {
-        const child = spawn("curl.exe", ["-4", "--silent", "--show-error", "--connect-timeout", "15", "--max-time", "180", "--retry", "1", "--max-filesize", String(maxBytes), "--dump-header", headerFile, "--output", bodyFile, url.toString()], { windowsHide: true, stdio: "ignore" });
-        const timer = setTimeout(() => child.kill(), 390_000);
+        const child = spawn("curl.exe", ["-4", "--silent", "--show-error", "--retry", "3", "--retry-delay", "2", "--retry-all-errors", "--connect-timeout", "30", "--max-time", "900", "--max-filesize", String(maxBytes), "--dump-header", headerFile, "--output", bodyFile, url.toString()], { windowsHide: true, stdio: "ignore" });
+        // The public podcast proxies can stream several megabytes slowly. Keep
+        // the process alive for the same 15-minute budget as --max-time, with
+        // a small grace period for curl to flush headers and close the file.
+        const timer = setTimeout(() => child.kill(), 930_000);
         child.once("error", () => { clearTimeout(timer); reject(new Error("AUDIO_CURL_UNAVAILABLE")); });
         child.once("close", (code) => { clearTimeout(timer); if (code === 0) done(); else reject(new Error("AUDIO_CURL_FAILED")); });
       });
@@ -106,7 +115,7 @@ async function downloadWithCurl(source: string, directory: string) {
         url = new URL(location, url); continue;
       }
       const length = Number(headers.get("content-length"));
-      if (status !== 200 || !["audio/mpeg", "audio/mp3"].includes(headers.get("content-type")?.split(";")[0].toLowerCase() ?? "") || !Number.isSafeInteger(length) || length < 1 || length > maxBytes) throw new Error("AUDIO_RESPONSE_INVALID");
+      if (status !== 200 || !acceptsPodcastAudioContentType(url.hostname, headers.get("content-type")) || !Number.isSafeInteger(length) || length < 1 || length > maxBytes) throw new Error("AUDIO_RESPONSE_INVALID");
       const data = await readFile(bodyFile);
       if (data.length !== length) throw new Error("AUDIO_DOWNLOAD_INCOMPLETE");
       return data;
@@ -115,6 +124,67 @@ async function downloadWithCurl(source: string, directory: string) {
   } finally {
     await rm(headerFile, { force: true }); await rm(bodyFile, { force: true });
   }
+}
+
+/**
+ * The publisher-side WordPress proxies (Hoy Hablamos / Charlas Hispanas) serve
+ * the complete MP3 but advertise an overstated Content-Length and refuse byte
+ * ranges, so the range path and the exact-length path both reject audio that
+ * decodes from start to end. Accept that body here and let the mandatory
+ * `decode()` gate below prove completeness from the decoded duration, which is
+ * the authoritative check for a truncated tail.
+ */
+async function downloadProxyCompleteBody(source: string, directory: string) {
+  const url = new URL(source);
+  if (url.protocol !== "https:" || !allowedHost(url.hostname) || !isOfficialPodcastProxyHost(url.hostname)) throw new Error("AUDIO_SOURCE_NOT_ALLOWED");
+  const headerFile = resolve(directory, "download.proxy.headers");
+  const bodyFile = resolve(directory, "download.proxy.part");
+  try {
+    await new Promise<void>((done, reject) => {
+      const child = spawn("curl.exe", [
+        "-4", "--silent", "--show-error", "--location", "--proto", "=https", "--proto-redir", "=https",
+        "--retry", "2", "--retry-delay", "2", "--retry-all-errors", "--connect-timeout", "30", "--max-time", "1200",
+        "--max-filesize", String(maxBytes), "--dump-header", headerFile, "--output", bodyFile, url.toString(),
+      ], { windowsHide: true, stdio: "ignore" });
+      // The proxy closes the connection once it has sent the whole body, which
+      // curl reports as an error even though the audio is complete; keep the
+      // process bounded and inspect the bytes instead of the exit code.
+      const timer = setTimeout(() => child.kill(), 1_230_000);
+      child.once("error", () => { clearTimeout(timer); reject(new Error("AUDIO_CURL_UNAVAILABLE")); });
+      child.once("close", () => { clearTimeout(timer); done(); });
+    });
+    const data = await readFile(bodyFile);
+    const { finalMediaHeaders } = await import("../src/modules/media/storage/hosted-video-integrity");
+    const { status, headers } = finalMediaHeaders(await readFile(headerFile, "utf8"));
+    if (status !== 200) throw new Error("AUDIO_RESPONSE_INVALID");
+    const advertised = Number(headers.get("content-length"));
+    if (data.length < 1024 || data.length > maxBytes) throw new Error("AUDIO_DOWNLOAD_INCOMPLETE");
+    if (Number.isSafeInteger(advertised) && advertised > 0 && data.length < advertised * 0.5) throw new Error("AUDIO_DOWNLOAD_INCOMPLETE");
+    return data;
+  } finally {
+    await rm(headerFile, { force: true });
+    await rm(bodyFile, { force: true });
+  }
+}
+
+/**
+ * Some publishers only expose the episode through their blubrry enclosure, and
+ * `media.blubrry.com` is unreachable from this runner while `content.blubrry.com`
+ * answers 403. The publisher's own WordPress player proxy can still serve the
+ * complete file, which is the same route the caption backfill already uses, so
+ * add it as another interchangeable source before giving up on the episode.
+ */
+function publisherPlayerProxy(sourceName: string, source: URL): URL | null {
+  const host = /charlas\s*hispanas/iu.test(sourceName)
+    ? "https://charlashispanas.com"
+    : /hoy\s*hablamos/iu.test(sourceName)
+      ? "https://www.hoyhablamos.com"
+      : null;
+  if (!host) return null;
+  if (source.hostname !== "media.blubrry.com" && source.hostname !== "content.blubrry.com") return null;
+  const proxy = new URL(`${host}/wp-content/plugins/simple-podcast-press/responsive_audio_player/downloadaudio.php`);
+  proxy.searchParams.set("file", source.toString());
+  return proxy;
 }
 
 async function main() {
@@ -134,7 +204,7 @@ async function main() {
   try {
     browser = await chromium.launch({ channel: "chrome", headless: true });
     const stableKeyFilter = process.env.MEDIA_AUDIO_STABLE_KEY?.trim() || null;
-    const rows = await client`select a.id,a.playback_url,a.provider_key,i.stable_key,v.version,v.duration_ms from media_assets a join media_versions v on v.id=a.media_version_id join media_items i on i.id=v.media_item_id and i.current_version=v.version where i.kind='podcast' and i.stable_key like 'podcast.language-reactor.%' and a.kind='audio' and a.provider_key in ('language-reactor','podcast-rss','supabase-storage:media-audio') and a.availability='available' and v.status='published' and v.copyright_status='cleared' and ( ${stableKeyFilter}::text is null or i.stable_key=${stableKeyFilter} ) order by i.stable_key`;
+    const rows = await client`select a.id,a.playback_url,a.provider_key,i.stable_key,v.version,v.title,v.source_name,v.duration_ms from media_assets a join media_versions v on v.id=a.media_version_id join media_items i on i.id=v.media_item_id and i.current_version=v.version where i.kind='podcast' and i.stable_key like 'podcast.language-reactor.%' and a.kind='audio' and a.provider_key in ('language-reactor','podcast-rss','supabase-storage:media-audio') and a.availability='available' and v.status='published' and v.copyright_status='cleared' and ( ${stableKeyFilter}::text is null or i.stable_key=${stableKeyFilter} ) order by i.stable_key`;
     for (const row of rows) {
       if (!/^[a-f0-9-]{36}$/u.test(row.id) || !/^podcast\.language-reactor\.[a-z0-9._-]+$/u.test(row.stable_key)) throw new Error("AUDIO_ID_INVALID");
       const directory = resolve(root, row.id); await mkdir(directory, { recursive: true });
@@ -159,20 +229,66 @@ async function main() {
         } catch { /* no reusable exact source */ }
         await record("downloading");
         if (!data) {
-          let source = new URL(row.playback_url);
+          const storedSource = new URL(row.playback_url);
+          const sources: URL[] = [];
           if (row.provider_key === "language-reactor" || row.provider_key === "podcast-rss") {
-            try { source = await refreshPodcastSource(entry.stableKey); } catch { /* Use the still-authorized stored enclosure once. */ }
+            const official = await resolveOfficialPodcastSource({
+              sourceName: String(row.source_name),
+              title: String(row.title),
+              currentUrl: String(row.playback_url),
+            }, { isAllowedSourceHost: allowedHost });
+            if (official) {
+              sources.push(official);
+              console.log(JSON.stringify({ stableKey: entry.stableKey, stage: "source-official-feed", host: official.hostname }));
+            }
+            try {
+              const refreshed = await refreshPodcastSource(entry.stableKey);
+              if (!sources.some((candidate) => candidate.toString() === refreshed.toString())) sources.push(refreshed);
+            } catch { /* Fall back to the still-authorized stored enclosure. */ }
           }
-          if (row.provider_key === "language-reactor" || row.provider_key === "podcast-rss") {
-            data = await downloadResumableAudio({
-              source: async () => source, directory, allowedHosts: allowed, maxBytes,
-              chunkSize: 8 * 1024 * 1024,
-              progress: (bytes, total) => console.log(JSON.stringify({ stage: "audio-range-downloaded", bytes, total })),
-            });
-          } else {
-            try { data = await download(source.toString()); }
-            catch { data = await downloadWithCurl(source.toString(), directory); }
+          sources.push(storedSource);
+          // The publisher's own player proxy can serve a complete file even when
+          // the official feed lookup fails and only a blubrry enclosure is known.
+          for (const candidate of [...sources]) {
+            const proxied = publisherPlayerProxy(String(row.source_name), candidate);
+            if (proxied && allowedHost(proxied.hostname) && !sources.some((existing) => existing.toString() === proxied.toString())) {
+              sources.push(proxied);
+              console.log(JSON.stringify({ stableKey: entry.stableKey, stage: "source-publisher-proxy", host: proxied.hostname }));
+            }
           }
+          let lastError: unknown = null;
+          for (const source of sources) {
+            try {
+              if (row.provider_key === "language-reactor" || row.provider_key === "podcast-rss") {
+                try {
+                  data = await downloadResumableAudio({
+                    source: async () => source, directory, allowedHosts: allowed, maxBytes,
+                    chunkSize: 8 * 1024 * 1024,
+                    acceptedContentTypes: isOfficialPodcastProxyHost(source.hostname)
+                      ? new Set(["audio/mpeg", "audio/mp3", "application/octet-stream"])
+                      : undefined,
+                    progress: (bytes, total) => console.log(JSON.stringify({ stage: "audio-range-downloaded", bytes, total })),
+                  });
+                } catch {
+                  try {
+                    data = await downloadWithCurl(source.toString(), directory);
+                  } catch (error) {
+                    if (!isOfficialPodcastProxyHost(source.hostname)) throw error;
+                    console.log(JSON.stringify({ stableKey: entry.stableKey, stage: "source-proxy-complete-body", host: source.hostname }));
+                    data = await downloadProxyCompleteBody(source.toString(), directory);
+                  }
+                }
+              } else {
+                try { data = await download(source.toString()); }
+                catch { data = await downloadWithCurl(source.toString(), directory); }
+              }
+              break;
+            } catch (error) {
+              lastError = error;
+              console.log(JSON.stringify({ stableKey: entry.stableKey, stage: "source-fallback", host: source.hostname, error: error instanceof Error ? error.message : "AUDIO_SOURCE_FAILED" }));
+            }
+          }
+          if (!data) throw lastError instanceof Error ? lastError : new Error("AUDIO_SOURCE_UNAVAILABLE");
           await writeFile(local, data);
         }
         entry.sha256 = hash(data); entry.bytes = data.length;
