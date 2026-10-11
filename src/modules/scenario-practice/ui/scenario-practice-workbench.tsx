@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserAudioRecorder, type BrowserAudioRecorder } from "@/src/modules/providers/speech";
 
 import type { ScenarioPracticeDetail } from "../content";
+import { scenarioPracticeHeartbeatSessionId, useScenarioPracticeActivityHeartbeat } from "../activity";
 
 type Turn = { id: string; speaker: "user" | "temporary-character" | "condition"; text: string; modality: "speech" | "typing" | "system" };
 type TurnReview = { contextualSuccess: boolean; errors: Array<{ start: number; end: number; explanation: string; affectsUnderstanding: boolean; naturalAlternative: string | null }> };
@@ -91,6 +92,12 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [expressionsOpen]);
+
+  // Learning activity only for an account-persisted, unfinished session: a
+  // device-only practice has no practice_sessions row to attach events to.
+  useScenarioPracticeActivityHeartbeat(
+    scenarioPracticeHeartbeatSessionId(saved, { hydrated }),
+  );
 
   const userTurnCount = saved.turns.filter((turn) => turn.speaker === "user").length;
   const currentTask = scenario.tasks[Math.min(userTurnCount, scenario.tasks.length - 1)]!;
