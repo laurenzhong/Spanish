@@ -215,12 +215,17 @@ export function VoiceComposer({
           <button aria-label="取消语音整理" className="conversation-composer__control conversation-composer__control--trailing conversation-composer__control--stop" onClick={() => void toggleRecording()} title="取消语音整理" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17" /></svg>
           </button>
+        ) : disabled ? (
+          // While a reply streams the trailing slot stops it instead of sending:
+          // both controls must never be on screen at once.
+          <button aria-label="停止回复" className="conversation-composer__control conversation-composer__control--trailing conversation-composer__control--stop" onClick={onCancel} title="停止回复" type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8" rx="1" /></svg>
+          </button>
         ) : (
           <button aria-label="发送消息" className="conversation-composer__control conversation-composer__control--trailing" disabled={unavailable || !value.trim()} title="发送消息" type="submit">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
           </button>
         )}
-        {disabled && !recording && !transcribing ? <button aria-label="停止回复" className="conversation-composer__control conversation-composer__control--stop" onClick={onCancel} title="停止回复" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8" rx="1" /></svg></button> : null}
       </div>
       {notice ? <div className="conversation-composer__meta">
         <span className="conversation-composer__notice" role="status" aria-live="polite">{notice}</span>
