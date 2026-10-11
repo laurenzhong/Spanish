@@ -15,10 +15,10 @@ export function VocabularyShelfControls({ query, total, view = "lexicon" }: Read
     return <div className="lexicon-shelf-controls">
       <form action="/read/vocabulary" className="lexicon-filter-form" method="get" role="search">
         <input type="hidden" name="view" value="frequency" />
-        <label className="lexicon-filter-form__search"><span>搜索语料词形</span><input defaultValue={query.search ?? ""} maxLength={80} name="search" placeholder="例如：casa" /></label>
-        <button type="submit">搜索词频</button><Link href="/read/vocabulary?view=frequency">重置</Link>
+        <label className="lexicon-filter-form__search"><span>搜索词表</span><input defaultValue={query.search ?? ""} maxLength={80} name="search" placeholder="例如：casa" /></label>
+        <button type="submit">搜索</button><Link href="/read/vocabulary?view=frequency">重置</Link>
       </form>
-      <p className="lexicon-result-count" aria-live="polite">显示出现次数最高的 {total} 个词形（来自已发布文章与已审核媒体字幕）</p>
+      <p className="lexicon-result-count" aria-live="polite">按参考词频排序的 {total} 个内容词（已过滤功能词；出现次数与例句来自已发布文章与已审核媒体字幕）</p>
     </div>;
   }
   return <div className="lexicon-shelf-controls">

@@ -10,6 +10,7 @@ import {
   VocabularyLibrary,
   vocabularyQuerySchema,
   VocabularyShelfControls,
+  VocabularyViewSwitcher,
 } from "@/src/modules/lexicon-corpus";
 import { listStudyVocabularyWords } from "@/src/modules/reading/domain/study-vocabulary";
 import { VocabularyStudyList } from "@/src/modules/reading/ui/vocabulary-study-list";
@@ -101,13 +102,20 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
           the word list. The section navigation already labels this page. */}
       <h1 className="sr-only">词汇</h1>
 
+      {/* The view is a URL, so the switcher is a row of destinations under the
+          page heading rather than tab panels: each shelf keeps its own
+          rendering and only one of them is ever on the page. It receives just
+          the reader's preferences; the current page belongs to the view being
+          left and is reset on the way to the next one. */}
+      <VocabularyViewSwitcher view={view} query={{ search: query.search, intent: query.intent, lemmaStatus: query.lemmaStatus, pageSize: query.pageSize }} />
+
       {view === "study" ? <VocabularyStudyList words={studyWords} storageScope={user?.id ?? "anonymous"} /> : null}
 
       {view === "frequency" ? <>
         <VocabularyShelfControls query={query} total={frequencyItems.total} view="frequency" />
         <VocabularyWordGrid items={frequencyWords} search={query.search ?? ""} total={frequencyItems.total} />
         {frequencyUnavailable && !frequencyWords.length ? <div className="lexicon-empty lexicon-empty--error" role="alert"><h2>语料高频词暂时不可用</h2><p>已发布内容仍然安全保留，请稍后刷新。</p></div> : null}
-        {!frequencyUnavailable && !frequencyWords.length ? <div className="lexicon-empty"><h2>还没有可用高频词</h2><p>发布并审核文章或媒体字幕后，这里会自动统计。</p></div> : null}
+        {!frequencyUnavailable && !frequencyWords.length ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或把页码调回第一页。</p></div> : null}
         <LexiconPagination basePath="/read/vocabulary" page={frequencyItems.page} pageSize={query.pageSize} total={frequencyItems.total} query={{ view: "frequency", search: query.search, pageSize: query.pageSize }} />
       </> : null}
 

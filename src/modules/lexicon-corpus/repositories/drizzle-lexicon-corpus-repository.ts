@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 
 import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, type SourcePosition } from "../domain";
+import { searchContentFrequencyWords } from "../domain/frequency-word-list";
 import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
 import { createDrizzleEvidenceRepository } from "@/src/modules/evidence/repositories";
 import type { Database } from "@/src/shared/db/client";
@@ -9,8 +10,6 @@ import { normalizeLexeme } from "../domain";
 import type { LexicalIntent, LexicalIntentFilter } from "../schemas/lexicon";
 import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusExample, CorpusItem, CorpusQuery, LexiconCorpusRepository, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
 
-const FREQUENCY_HEAD_LIMIT = 600;
-const FREQUENCY_AGGREGATE_ROWS = 1_500;
 const FREQUENCY_TTL_MS = 10 * 60 * 1_000;
 
 // The frequency shelf shows one usage line per word form. Contexts are clipped
@@ -19,14 +18,22 @@ const FREQUENCY_TTL_MS = 10 * 60 * 1_000;
 const FREQUENCY_CONTEXT_MAX_CHARS = 180;
 const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
 
-type FrequencyHead = readonly (readonly [string, Readonly<{ word: string; count: number }>])[];
+/**
+ * Occurrence counts for the whole published corpus, keyed by the accent-folded
+ * form the token index uses. The shelf asks about arbitrary reference-list
+ * words (rank 1..8000), so the aggregate keeps every distinct form instead of
+ * the old top-600 head; it is cached because the scan covers every published
+ * segment. Forms shorter than two characters are skipped, and `ir`/`ya` are the
+ * shortest words the shelf can show.
+ */
+type CorpusFormCounts = ReadonlyMap<string, number>;
 
-let frequencyCache: Readonly<{ loadedAt: number; head: FrequencyHead }> | null = null;
-let frequencyInFlight: Promise<FrequencyHead> | null = null;
+let formCountCache: Readonly<{ loadedAt: number; counts: CorpusFormCounts }> | null = null;
+let formCountInFlight: Promise<CorpusFormCounts> | null = null;
 
-async function computeFrequencyHead(database: Database): Promise<FrequencyHead> {
+async function computeCorpusFormCounts(database: Database): Promise<CorpusFormCounts> {
   // Aggregating inside PostgreSQL keeps the whole corpus scan server-side:
-  // only a bounded head of the distribution travels back to the app.
+  // only the (form, count) pairs travel back to the app.
   const rows = await database.execute(sql`
     with source_texts as (
       select ms.source_text as text
@@ -46,36 +53,31 @@ async function computeFrequencyHead(database: Database): Promise<FrequencyHead> 
     )
     select word, count(*)::int as n
     from tokens
-    where length(word) > 2
+    where length(word) >= 2
     group by word
-    order by n desc
-    limit ${FREQUENCY_AGGREGATE_ROWS}
   `) as unknown as readonly { word: string; n: number }[];
-  const byWord = new Map<string, { word: string; count: number }>();
+  const counts = new Map<string, number>();
   for (const row of rows) {
     const normalized = normalizeSpanishSurface(row.word);
-    if (normalized.length < 3) continue;
-    const current = byWord.get(normalized);
-    byWord.set(normalized, { word: current?.word ?? row.word.toLocaleLowerCase("es"), count: (current?.count ?? 0) + Number(row.n ?? 0) });
+    if (normalized.length < 2) continue;
+    counts.set(normalized, (counts.get(normalized) ?? 0) + Number(row.n ?? 0));
   }
-  return [...byWord.entries()]
-    .sort((left, right) => right[1].count - left[1].count || left[0].localeCompare(right[0], "es"))
-    .slice(0, FREQUENCY_HEAD_LIMIT);
+  return counts;
 }
 
-async function loadCorpusFrequency(database: Database): Promise<FrequencyHead> {
+async function loadCorpusFormCounts(database: Database): Promise<CorpusFormCounts> {
   const now = Date.now();
-  if (frequencyCache && now - frequencyCache.loadedAt < FREQUENCY_TTL_MS) return frequencyCache.head;
-  if (frequencyInFlight) return frequencyInFlight;
-  const pending = computeFrequencyHead(database)
-    .then((head) => {
-      frequencyCache = { loadedAt: Date.now(), head };
-      return head;
+  if (formCountCache && now - formCountCache.loadedAt < FREQUENCY_TTL_MS) return formCountCache.counts;
+  if (formCountInFlight) return formCountInFlight;
+  const pending = computeCorpusFormCounts(database)
+    .then((counts) => {
+      formCountCache = { loadedAt: Date.now(), counts };
+      return counts;
     })
     .finally(() => {
-      frequencyInFlight = null;
+      formCountInFlight = null;
     });
-  frequencyInFlight = pending;
+  formCountInFlight = pending;
   return pending;
 }
 
@@ -307,28 +309,32 @@ async function loadFrequencyOccurrences(database: Database, normalizedWords: rea
 export function createDrizzleLexiconCorpusRepository(database: Database): LexiconCorpusRepository {
   return {
     async listFrequencyWords(query) {
-      // The corpus holds tens of thousands of approved segments. Aggregate in
-      // PostgreSQL and cache the bounded head of the distribution instead of
-      // streaming every segment into Node on each request.
-      const all = await loadCorpusFrequency(database);
-      const normalizedSearch = query.search ? normalizeSpanishSurface(query.search) : "";
-      const filtered = normalizedSearch ? all.filter(([normalized]) => normalized.includes(normalizedSearch)) : all;
-      const pageSlice = filtered.slice((query.page - 1) * query.pageSize, query.page * query.pageSize);
-      // One batched query for the whole page; words without a visible
-      // occurrence keep `null` context and `null` source title.
-      const occurrences = await loadFrequencyOccurrences(database, pageSlice.map(([normalizedWord]) => normalizedWord));
-      const pageItems = pageSlice.map(([normalizedWord, item]) => {
+      // The shelf is the committed reference word list with function words
+      // removed, in reference-rank order; our corpus only supplies how often we
+      // have seen the form and one visible example. Order is never recomputed
+      // from our own counts — that is what put `que`/`los`/`por` at the top.
+      const matched = searchContentFrequencyWords(query.search ?? "");
+      const pageSlice = matched.slice((query.page - 1) * query.pageSize, query.page * query.pageSize);
+      const normalizedPage = pageSlice.map((entry) => normalizeSpanishSurface(entry.word));
+      // Two batched lookups for the whole page (one query at most for contexts,
+      // none for counts once the aggregate cache is warm) — never one per word.
+      const [counts, occurrences] = await Promise.all([
+        loadCorpusFormCounts(database),
+        loadFrequencyOccurrences(database, normalizedPage),
+      ]);
+      const pageItems = pageSlice.map((entry) => {
+        const normalizedWord = normalizeSpanishSurface(entry.word);
         const occurrence = occurrences.get(normalizedWord);
         return {
           id: `word:${normalizedWord}`,
-          word: item.word,
+          word: entry.word,
           normalizedWord,
-          occurrenceCount: item.count,
+          occurrenceCount: counts.get(normalizedWord) ?? 0,
           context: occurrence ? buildFrequencyContext(occurrence) : null,
           sourceTitle: occurrence?.sourceTitle ?? null,
         };
       });
-      return { items: pageItems, page: query.page, pageSize: query.pageSize, total: filtered.length };
+      return { items: pageItems, page: query.page, pageSize: query.pageSize, total: matched.length };
     },
 
     async findCorpusExample(word) {

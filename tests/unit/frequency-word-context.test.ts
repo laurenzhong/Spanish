@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { normalizeSpanishSurface } from "@/src/modules/lexicon-corpus/domain";
 import { createDrizzleLexiconCorpusRepository } from "@/src/modules/lexicon-corpus/repositories";
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -15,13 +16,20 @@ import * as schema from "@/src/shared/db/schema";
 // run the repository against a real PostgreSQL engine (PGlite) instead of
 // feeding the component fake rows, so they fail if the repository stops reading
 // `corpus_occurrences`.
+//
+// The shelf is now driven by the committed reference word list (task-12), so a
+// seeded word must exist in that list and can sit far beyond the first page.
+// Each case therefore reaches its word the way a reader does — by searching for
+// it on a small page — instead of growing the page until the position happens
+// to fit. The enrichment assertions themselves are unchanged in strength.
 
 const userId = "00000000-0000-4000-8000-0000000000a1";
 const publishedVersionId = "40000000-0000-4000-8000-000000000101";
 const withdrawnVersionId = "40000000-0000-4000-8000-000000000102";
 
 const publishedTitle = "Podcast publicado";
-// Approved subtitle lines define the frequency head used by the shelf.
+// Approved subtitle lines, so the shelf can count these forms; the enrichment
+// assertions below only use words the reference list actually contains.
 const approvedSegments = [
   "La casa de Pablo es grande.",
   "La ventana está abierta y la luz entra despacio.",
@@ -108,7 +116,7 @@ describe("frequency word context", () => {
         ('60000000-0000-4000-8000-000000000101', '${publishedVersionId}', 0, '${approvedSegments[0]}', null, 'approved'),
         ('60000000-0000-4000-8000-000000000102', '${publishedVersionId}', 1, '${approvedSegments[1]}', null, 'approved'),
         ('60000000-0000-4000-8000-000000000103', '${publishedVersionId}', 2, '${approvedSegments[2]}', null, 'approved'),
-        ('60000000-0000-4000-8000-000000000104', '${withdrawnVersionId}', 0, 'Un borrador retirado con parque y casa.', null, 'approved');
+        ('60000000-0000-4000-8000-000000000104', '${withdrawnVersionId}', 0, 'Un borrador secreto con parque y casa.', null, 'approved');
       insert into auth.users (id, email) values ('${userId}', 'a@example.test');
       insert into profiles (id) values ('${userId}');
     `);
@@ -128,19 +136,20 @@ describe("frequency word context", () => {
       publishedTitle,
       "media",
     );
-    // `pablo` only occurs in a withdrawn document, `abierta` only in a private
-    // one, and `ventana` has no occurrence at all.
+    // `secreto` only occurs in a withdrawn document, `feliz` only in a private
+    // one, and `ventana` has no occurrence at all. All three are reference-list
+    // words, so all three can actually appear on the shelf.
     await repository.indexLexeme(
-      { lemma: "pablo", normalizedLemma: "pablo", lemmaStatus: "pending", partOfSpeech: "noun", form: "pablo", normalizedForm: "pablo", reference: mediaReference(withdrawn, 0, "pablo", "Secreto", "retirado") },
+      { lemma: "secreto", normalizedLemma: "secreto", lemmaStatus: "pending", partOfSpeech: "noun", form: "secreto", normalizedForm: "secreto", reference: mediaReference(withdrawn, 0, "secreto", "Un borrador", "con parque y casa.") },
       "Podcast retirado",
       "media",
     );
-    const abiertaLexemeId = await repository.indexLexeme(
-      { lemma: "abierta", normalizedLemma: "abierta", lemmaStatus: "pending", partOfSpeech: "adjective", form: "abierta", normalizedForm: "abierta", reference: mediaReference(published, 1, "abierta", "La ventana está", "y la luz entra despacio.") },
+    const felizLexemeId = await repository.indexLexeme(
+      { lemma: "feliz", normalizedLemma: "feliz", lemmaStatus: "pending", partOfSpeech: "adjective", form: "feliz", normalizedForm: "feliz", reference: mediaReference(published, 2, "feliz", "El perro corre", "por el parque.") },
       "Nota privada",
       "manual",
     );
-    await client.exec(`update corpus_occurrences set owner_user_id = '${userId}' where lexeme_id = '${abiertaLexemeId}';`);
+    await client.exec(`update corpus_occurrences set owner_user_id = '${userId}' where lexeme_id = '${felizLexemeId}';`);
     // Long surrounding segments, to exercise clipping.
     await repository.indexLexeme(
       { lemma: "parque", normalizedLemma: "parque", lemmaStatus: "verified", partOfSpeech: "noun", form: "parque", normalizedForm: "parque", reference: mediaReference(published, 2, "parque", longBefore, longAfter) },
@@ -151,42 +160,56 @@ describe("frequency word context", () => {
 
   afterEach(async () => { await client.close(); });
 
-  async function frequencyByWord(pageSize = 50) {
-    const page = await repository.listFrequencyWords({ page: 1, pageSize });
-    return { page, byWord: new Map(page.items.map((item) => [item.normalizedWord, item])) };
+  /** A small page of the shelf, used to measure how many queries a page costs. */
+  function shelfPage(pageSize: number) {
+    return repository.listFrequencyWords({ page: 1, pageSize });
+  }
+
+  /**
+   * Reach a seeded word the way a reader does: search for it on a small page.
+   * The page stays small on purpose — growing it until a deep rank fits would
+   * hide the paging property instead of exercising it.
+   */
+  async function shelfWord(word: string) {
+    const page = await repository.listFrequencyWords({ page: 1, pageSize: 20, search: word });
+    return page.items.find((item) => item.normalizedWord === normalizeSpanishSurface(word));
   }
 
   it("fills the representative context and source title from visible occurrences", async () => {
-    const { byWord } = await frequencyByWord();
-    expect(byWord.get("casa")).toMatchObject({ word: "casa", context: "La casa de Pablo es grande.", sourceTitle: publishedTitle });
+    expect(await shelfWord("casa")).toMatchObject({ word: "casa", context: "La casa de Pablo es grande.", sourceTitle: publishedTitle });
   });
 
   it("keeps null context when the only occurrences are withdrawn, private or missing", async () => {
-    const { byWord } = await frequencyByWord();
-    expect(byWord.has("pablo")).toBe(true);
-    expect(byWord.get("pablo")).toMatchObject({ context: null, sourceTitle: null });
-    expect(byWord.get("abierta")).toMatchObject({ context: null, sourceTitle: null });
-    expect(byWord.get("ventana")).toMatchObject({ context: null, sourceTitle: null });
+    const secreto = await shelfWord("secreto");
+    const feliz = await shelfWord("feliz");
+    const ventana = await shelfWord("ventana");
+    // All three really are on the shelf; only their context is withheld.
+    expect(secreto).toBeDefined();
+    expect(feliz).toBeDefined();
+    expect(ventana).toBeDefined();
+    expect(secreto).toMatchObject({ context: null, sourceTitle: null });
+    expect(feliz).toMatchObject({ context: null, sourceTitle: null });
+    expect(ventana).toMatchObject({ context: null, sourceTitle: null });
   });
 
   it("clips long contexts around the word instead of dropping them", async () => {
-    const { byWord } = await frequencyByWord();
-    const context = byWord.get("parque")?.context ?? "";
+    const parque = await shelfWord("parque");
+    const context = parque?.context ?? "";
     expect(context).toContain("parque");
     expect(context.startsWith("…")).toBe(true);
     expect(context.endsWith("…")).toBe(true);
     expect(context.length).toBeLessThanOrEqual(180);
-    expect(byWord.get("parque")?.sourceTitle).toBe(publishedTitle);
+    expect(parque?.sourceTitle).toBe(publishedTitle);
   });
 
   it("resolves a whole page with one query and the shared visibility predicate", async () => {
-    // Warm the cached frequency head, then count only the per-page lookups.
-    await frequencyByWord(50);
+    // Warm the cached form counts, then count only the per-page lookups.
+    await shelfPage(50);
     const wideStart = logged.length;
-    await frequencyByWord(50);
+    await shelfPage(50);
     const wideQueries = logged.length - wideStart;
     const narrowStart = logged.length;
-    await frequencyByWord(3);
+    await shelfPage(3);
     const narrowQueries = logged.length - narrowStart;
 
     expect(wideQueries).toBe(1);

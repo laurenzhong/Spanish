@@ -34,15 +34,25 @@ function paramsOf(name: RegExp): URLSearchParams {
 describe("vocabulary word grid", () => {
   afterEach(() => cleanup());
 
-  it("sorts words by occurrence count and opens source context", async () => {
+  it("renders the order it is given and opens source context", async () => {
     const user = userEvent.setup();
     render(<VocabularyWordGrid search="" total={2} items={items} />);
     const words = screen.getAllByRole("button");
-    expect(words[0]).toHaveTextContent("comer");
+    expect(words[0]).toHaveTextContent("casa");
     await user.click(screen.getByRole("button", { name: /casa/ }));
     expect(screen.getByRole("heading", { name: "casa" })).toBeInTheDocument();
     expect(screen.getByText("Voy a casa.")).toBeInTheDocument();
     expect(screen.getByText("Una historia")).toBeInTheDocument();
+  });
+
+  // The shelf order belongs to the server: it is the reference-list rank order,
+  // function words removed (task-12). The grid used to re-sort by our corpus
+  // count, which put the corpus head back on top; a future client-side sort must
+  // fail here instead of silently winning. `comer` deliberately out-counts
+  // `casa` so a count sort is observable.
+  it("preserves the server-provided order instead of re-sorting by occurrence count", () => {
+    render(<VocabularyWordGrid search="" total={2} items={items} />);
+    expect(screen.getAllByRole("button").map((button) => button.querySelector("span")?.textContent)).toEqual(["casa", "comer"]);
   });
 
   // B1: `intent` is a server-side `user_lexical_intents` filter. Sending it

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 /**
  * A corpus frequency row.
@@ -42,9 +42,12 @@ function hrefFor(path: string, query: Readonly<Record<string, string | undefined
 
 export function VocabularyWordGrid({ items, search, total }: VocabularyWordGridProps) {
   const [selected, setSelected] = useState<VocabularyWordGridItem | null>(null);
-  const words = useMemo(() => [...items].sort((left, right) => right.count - left.count || left.text.localeCompare(right.text, "es")), [items]);
-  if (!words.length) return null;
-  const shownTotal = Math.max(total, words.length);
+  // The order is the server's: it comes from the ranked reference word list,
+  // with function words removed (see `frequency-word-list.ts`). Re-sorting here
+  // by our own occurrence count silently threw that order away and put the
+  // corpus head — `que`, `los`, `por` — back on top. Render what we are given.
+  if (!items.length) return null;
+  const shownTotal = Math.max(total, items.length);
 
   return <section className="vocabulary-word-workbench" aria-label="词汇表">
     <header className="vocabulary-word-workbench__topline">
@@ -64,7 +67,7 @@ export function VocabularyWordGrid({ items, search, total }: VocabularyWordGridP
       <span className="vocabulary-word-workbench__tag">/</span><span className="vocabulary-word-workbench__tag vocabulary-word-workbench__tag--green">#</span><span className="vocabulary-word-workbench__tag vocabulary-word-workbench__tag--yellow">#</span><span className="vocabulary-word-workbench__tag vocabulary-word-workbench__tag--red">#</span>
     </div>
     <div className="vocabulary-word-grid" role="list" aria-label="词汇列表">
-      {words.map((item) => <div role="listitem" key={item.id}><button className={`vocabulary-word${selected?.id === item.id ? " is-selected" : ""}`} type="button" onClick={() => setSelected(item)} lang="es"><span>{item.text}</span>{item.count > 1 ? <small>{item.count}</small> : null}</button></div>)}
+      {items.map((item) => <div role="listitem" key={item.id}><button className={`vocabulary-word${selected?.id === item.id ? " is-selected" : ""}`} type="button" onClick={() => setSelected(item)} lang="es"><span>{item.text}</span>{item.count > 1 ? <small>{item.count}</small> : null}</button></div>)}
     </div>
     {selected ? <aside className="vocabulary-word-detail" aria-live="polite"><div><p className="vocabulary-word-detail__eyebrow">词汇详情</p><h3 lang="es">{selected.text}</h3><p>{selected.meaning ?? "释义待补充"}</p>{selected.context ? <blockquote lang="es">{selected.context}</blockquote> : null}{selected.source ? <small>{selected.source}</small> : null}</div><div className="vocabulary-word-detail__actions"><button type="button" onClick={() => setSelected(null)}>关闭</button></div></aside> : null}
   </section>;
