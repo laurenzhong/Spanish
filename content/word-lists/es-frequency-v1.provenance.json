@@ -1,0 +1,9 @@
+{
+  "source": "Language Reactor (language-reactor.com), ALL_WORDS language dictionary",
+  "endpoint": "https://api-cdn.dioco.io/base_dict_getAllWordsForLang?lang_G=es&numWords=8000",
+  "fetchedAt": "2026-10-11T06:48:49.761Z",
+  "httpStatus": 200,
+  "wordsReturned": 8000,
+  "wordsStored": 8000,
+  "note": "Language-level frequency list, anonymous and credential-free. Captured with the project owner's authorisation. Rank order is meaningful; the list is a ranked reference, not derived from this project's content."
+}
