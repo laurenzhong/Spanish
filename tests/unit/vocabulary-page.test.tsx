@@ -1,4 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/link", () => ({
@@ -11,11 +12,18 @@ const mocks = vi.hoisted(() => ({
   createRepository: vi.fn(),
   redirect: vi.fn(),
   repository: { listFrequencyWords: vi.fn() },
+  languageReactor: { current: {} as Record<string, readonly string[]> },
 }));
 
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser: mocks.getCurrentUser }));
 vi.mock("@/src/shared/db/client", () => ({ getDatabase: mocks.getDatabase }));
+// The real loader reads the Language Reactor asset off disk; these tests hand it
+// the meanings directly, including the empty case the asset is in until the
+// scrape lands.
+vi.mock("@/app/(product)/read/vocabulary/lr-meanings", () => ({
+  loadLrMeaningAsset: () => ({ available: true, order: "language-reactor-hover-dictionary", meanings: mocks.languageReactor.current }),
+}));
 vi.mock("@/src/modules/lexicon-corpus/repositories", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/src/modules/lexicon-corpus/repositories")>();
   return { ...original, createDrizzleLexiconCorpusRepository: mocks.createRepository };
@@ -56,6 +64,7 @@ describe("vocabulary page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
+    mocks.languageReactor.current = {};
     delete process.env.DATABASE_URL;
     mocks.getCurrentUser.mockResolvedValue(null);
     mocks.getDatabase.mockReturnValue({});
@@ -104,6 +113,61 @@ describe("vocabulary page", () => {
     expect(words[1]).toHaveTextContent("房子、家");
     expect(words[2]).toHaveTextContent("释义待补充");
     expect(document.querySelectorAll(".vocabulary-study__word small")).toHaveLength(0);
+  });
+
+  it("puts Language Reactor's first meaning on the tile and all of them, in LR's order, on hover", async () => {
+    const user = userEvent.setup();
+    openWithDatabase();
+    // LR's own order, which is not a frequency order.
+    mocks.languageReactor.current = { item5: ["五", "第五", "五号"] };
+    await renderPage();
+
+    const tile = tiles().find((word) => word.dataset.word === "item5") as HTMLElement;
+    expect(tile).toHaveTextContent("五");
+    expect(tile).not.toHaveTextContent("第五");
+
+    await user.hover(tile);
+    const layer = document.getElementById("vocabulary-translation") as HTMLElement;
+    expect(within(layer).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["五", "第五", "五号"]);
+    // The hover path exists for a word the reviewed glossary does not carry.
+    expect(tile).toHaveAttribute("aria-describedby", "vocabulary-translation");
+
+    await user.click(tile);
+    const card = screen.getByRole("complementary", { name: "item5 词汇卡片" });
+    expect(card).toHaveTextContent("Language Reactor 词典释义");
+    // Nothing claims the order is by commonness.
+    expect(card).not.toHaveTextContent(/最常用|按频率|常用度/u);
+  });
+
+  it("shows a short LR list as it is, never padded to three", async () => {
+    const user = userEvent.setup();
+    openWithDatabase();
+    mocks.languageReactor.current = { item6: ["六"] };
+    await renderPage();
+
+    const tile = tiles().find((word) => word.dataset.word === "item6") as HTMLElement;
+    expect(tile).toHaveTextContent("六");
+    await user.hover(tile);
+
+    const layer = document.getElementById("vocabulary-translation") as HTMLElement;
+    expect(within(layer).getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("keeps the reviewed usage notes but not as positions in LR's list", async () => {
+    const user = userEvent.setup();
+    openWithDatabase();
+    mocks.languageReactor.current = { casa: ["家", "房子", "住宅"] };
+    await renderPage();
+
+    const tile = tiles()[1];
+    expect(tile).toHaveTextContent("家");
+    await user.click(tile);
+
+    const card = screen.getByRole("complementary", { name: "casa 词汇卡片" });
+    expect(within(card).getByRole("heading", { name: "词表用法" })).toBeInTheDocument();
+    expect(card).toHaveTextContent("en casa 表示在家");
+    // The meaning list itself is LR's, exactly three entries, in LR's order.
+    expect(within(card).getAllByRole("listitem").slice(0, 3).map((item) => item.textContent)).toEqual(["家", "房子", "住宅"]);
   });
 
   it("offers the rail as fragment jumps to the bands, with no page in sight", async () => {

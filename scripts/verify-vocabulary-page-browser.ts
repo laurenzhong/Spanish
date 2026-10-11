@@ -9,13 +9,42 @@
 // `@playwright/test` rather than the bare `.pnpm` `playwright` path: it is a real
 // dependency with type declarations, so this file stays type-checked instead of
 // importing an implicitly-`any` module.
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { chromium } from "@playwright/test";
 
-const base = "http://127.0.0.1:3100";
+// The acceptance run measures the page with and without the meanings payload in
+// one window, which means two servers; the base URL is therefore overridable.
+const base = process.env.VOCAB_VERIFY_BASE ?? "http://127.0.0.1:3100";
 const results: string[] = [];
 const check = (label: string, passed: boolean, detail = ""): void => {
   results.push(`${passed ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
 };
+
+/**
+ * Language Reactor's meaning asset, exactly as `scripts/build-lr-meaning-asset.ts`
+ * writes it, or `null` while the scrape has not landed it. The hover checks then
+ * compare against the asset instead of assuming which source is feeding the page.
+ */
+async function readMeaningAsset(): Promise<{ meanings: Record<string, readonly string[]> } | null> {
+  try {
+    const parsed = JSON.parse(readFileSync(path.join(process.cwd(), "content", "word-lists", "es-meanings-v1.json"), "utf8")) as { meanings?: unknown };
+    return parsed.meanings && typeof parsed.meanings === "object" && !Array.isArray(parsed.meanings)
+      ? { meanings: parsed.meanings as Record<string, readonly string[]> }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether the layer shows the asset's own list for a word, in the asset's order. */
+function matchesAsset(shown: readonly string[], expected: readonly string[] | undefined): boolean {
+  if (!expected?.length) return false;
+  const firstLines = shown.map((item) => item.split("\n")[0]?.trim() ?? "");
+  const wanted = expected.slice(0, 3).map((entry) => entry.trim());
+  return firstLines.length === wanted.length && firstLines.every((line, index) => line === wanted[index]);
+}
 
 const browser = await chromium.launch();
 try {
@@ -112,6 +141,9 @@ try {
   // single read the page made before it stopped paging). What the full render
   // adds to the *browser* is the wait from that response to the first paint.
   const clientPaint = perf.fcp - perf.ttfb;
+  // The number the acceptance quotes against the pre-change 110-550 ms: both are
+  // "first paint after the response arrived", so a slow TTFB cannot hide in it.
+  console.log(`client first paint (FCP - TTFB): cold ${coldPerf.fcp - coldPerf.ttfb} ms | warm ${clientPaint} ms`);
   check("first paint within 1.5 s of the response", clientPaint > 0 && clientPaint < 1_500, `${clientPaint} ms after TTFB`);
   check("DOM stays under 40k nodes", perf.nodes < 40_000, `${perf.nodes} nodes`);
 
@@ -260,14 +292,45 @@ try {
   const tooltip = page.locator("#vocabulary-translation");
   await tooltip.waitFor({ timeout: 10_000 });
   const tooltipMeanings = await tooltip.locator(".vocabulary-shelf__translation-meanings li").allInnerTexts();
-  check("hover shows the reviewed translation", tooltipMeanings.length === 2, tooltipMeanings.join(" | "));
-  // The glossary has no frequency field: the reviewed file's own order is what
-  // is shown, first meaning first.
-  check("meanings keep the reviewed order", tooltipMeanings[0]?.includes("咖啡这种饮料") && tooltipMeanings[1]?.includes("咖啡馆"), tooltipMeanings.join(" | "));
+  // Whether the meanings come from Language Reactor's asset or from the reviewed
+  // glossary, the displayed contract is the same: at most three, in the source's
+  // own order, never padded.
+  const meaningAsset = await readMeaningAsset();
+  check("hover shows at most three meanings", tooltipMeanings.length > 0 && tooltipMeanings.length <= 3, `${tooltipMeanings.length} meanings: ${tooltipMeanings.join(" | ")}`);
+  check("the meanings shown are the source's own list, in its own order", meaningAsset ? matchesAsset(tooltipMeanings, meaningAsset.meanings.cafe ?? meaningAsset.meanings.café) : (tooltipMeanings[0]?.includes("咖啡这种饮料") === true && tooltipMeanings[1]?.includes("咖啡馆") === true), meaningAsset ? `asset order: ${(meaningAsset.meanings.cafe ?? meaningAsset.meanings.café ?? []).join(" | ")}` : "reviewed glossary order (LR asset absent)");
+  check("no claim about commonness is made", !/最常用|按频率|常用度/u.test(await tooltip.innerText()), "no frequency wording");
+  check("the tile shows the same meaning the hover list leads with", (await cafe.innerText()).includes(tooltipMeanings[0]?.split("\n")[0]?.trim() ?? "\u0000"), `tile: ${(await cafe.innerText()).split("\n").join(" / ")}`);
   check("the translation cannot swallow a click", (await tooltip.evaluate((node) => getComputedStyle(node).pointerEvents)) === "none", await tooltip.evaluate((node) => getComputedStyle(node).pointerEvents));
   const heightAfter = await page.evaluate(() => document.body.scrollHeight);
   check("the translation does not shift the page", heightBefore === heightAfter, `${heightBefore} → ${heightAfter}`);
   check("no title attribute is used", (await cafe.getAttribute("title")) === null, "title absent");
+
+  // --- against the real Language Reactor asset, once the scrape has landed ---
+  // Sampling is driven by the asset itself: a one-meaning word, a two-meaning
+  // word and a three-meaning word if it has them, so "never padded to three" is
+  // checked against real data rather than asserted in the abstract.
+  if (meaningAsset) {
+    const byLength = [1, 2, 3]
+      .map((length) => Object.entries(meaningAsset.meanings).find(([, list]) => list.length === length)?.[0])
+      .filter((word): word is string => Boolean(word));
+    console.log(`LR asset: ${Object.keys(meaningAsset.meanings).length} words | sampled ${byLength.join(", ") || "none"}`);
+    let matched = 0;
+    for (const word of byLength) {
+      const tile = page.locator(`[data-word="${word}"]`).first();
+      if ((await tile.count()) === 0) continue;
+      await tile.scrollIntoViewIfNeeded();
+      await tile.hover();
+      await page.waitForTimeout(120);
+      const shown = await page.locator("#vocabulary-translation .vocabulary-shelf__translation-meanings li").allInnerTexts();
+      if (matchesAsset(shown, meaningAsset.meanings[word])) matched += 1;
+      else console.log(`  MISMATCH for ${word}: shown ${JSON.stringify(shown)} vs asset ${JSON.stringify(meaningAsset.meanings[word])}`);
+      const expectedLead = (meaningAsset.meanings[word] ?? [])[0] ?? "\u0000";
+      check(`the tile leads with the asset's first meaning for ${word}`, (await tile.innerText()).includes(expectedLead), expectedLead);
+    }
+    check("sampled words show the asset's own list, in its own order", matched === byLength.length, `${matched}/${byLength.length} matched`);
+  } else {
+    console.log("LR asset not present (content/word-lists/es-meanings-v1.json): hover checked against the reviewed glossary");
+  }
 
   // Clicking a neighbouring word while the layer is up must reach that word.
   const neighbour = page.locator(".vocabulary-study__word").nth((await page.locator(".vocabulary-study__word").count()) - 1);

@@ -17,10 +17,13 @@ import {
 import { contentFrequencyWords } from "@/src/modules/lexicon-corpus/domain/frequency-word-list";
 import { VocabularyShelf, type VocabularyShelfGlossary } from "@/src/modules/lexicon-corpus/ui/vocabulary-shelf";
 import { VocabularyShelfList, type VocabularyShelfItem } from "@/src/modules/lexicon-corpus/ui/vocabulary-shelf-list";
+import { displayMeanings } from "@/src/modules/lexicon-corpus/ui/vocabulary-meanings";
 import { bandAnchorId, groupRanks, rankBandStart, type VocabularyRankBand } from "@/src/modules/lexicon-corpus/ui/vocabulary-rank";
 import { findCommonGlossaryEntry, normalizeGlossarySurface } from "@/src/modules/reading/domain/common-glossary";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
+
+import { loadLrMeaningAsset } from "./lr-meanings";
 
 export const metadata: Metadata = { title: "词汇" };
 
@@ -76,34 +79,47 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
 }
 
 /**
- * One shelf row: the ranked reference word with our corpus facts, joined to the
- * reviewed glossary entry when the word has one.
+ * One shelf row: the ranked reference word with our corpus facts, joined to
+ * Language Reactor's dictionary entry and to the reviewed glossary when either
+ * has the word.
  *
  * `markKey` stays the accent-folded headword — the identity the study shelf's
  * browser-local marks were stored under — so a mark made there still lands on
- * this word. The tile shows the entry's *first* meaning; the full list travels
- * separately in the glossary map, in the reviewed file's own order.
+ * this word.
+ *
+ * The tile's meaning and the hover list both come from `displayMeanings`, so
+ * they can never disagree: LR's translations when the asset has the word,
+ * otherwise the reviewed entry's own meanings, otherwise nothing (「释义待补充」).
+ * The order is always the source's own — LR returns no frequency field and the
+ * glossary file has none — so no position is presented as commonness.
  */
-function toShelfItem(item: FrequencyWordItem, glossary: Record<string, VocabularyShelfGlossary>): VocabularyShelfItem {
+function toShelfItem(
+  item: FrequencyWordItem,
+  glossary: Record<string, VocabularyShelfGlossary>,
+  /** The asset's map, keyed by the reference list's own surface form. */
+  assetMeanings: Readonly<Record<string, readonly string[]>>,
+): VocabularyShelfItem {
   const entry = findCommonGlossaryEntry(item.word);
   const markKey = entry ? normalizeGlossarySurface(entry.headword) : normalizeGlossarySurface(item.word);
+  const reviewed = entry?.meanings.map((meaning) => ({ meaning: meaning.meaning, usage: meaning.usage }));
   if (entry && !glossary[markKey]) {
     glossary[markKey] = {
       cefr: entry.cefr,
       partOfSpeech: entry.partOfSpeech,
-      meanings: entry.meanings.map((meaning) => ({ meaning: meaning.meaning, usage: meaning.usage })),
+      meanings: reviewed ?? [],
       collocations: entry.collocations,
       examples: entry.examples,
       forms: entry.forms ?? [],
     };
   }
+  const display = displayMeanings({ languageReactor: assetMeanings[item.word], glossary: reviewed });
   return {
     id: item.id,
     markKey,
     text: item.word,
     context: item.context,
     source: item.sourceTitle,
-    meaning: entry?.meanings[0]?.meaning ?? null,
+    meaning: display.meanings[0]?.meaning ?? null,
   };
 }
 
@@ -153,8 +169,22 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
     }
   }
 
+  // The dictionaries are read once per process and never fetched inside the
+  // request: an absent asset (the scrape has not landed) still renders the whole
+  // shelf, just from the reviewed glossary alone.
+  const meaningAsset = loadLrMeaningAsset();
   const glossary: Record<string, VocabularyShelfGlossary> = {};
-  const items = shelf.items.map((item) => toShelfItem(item, glossary));
+  // Only the words on *this* page travel to the browser, keyed by the same mark
+  // key the tiles carry, and only as bare translation lists: the rich per-word
+  // shape measured 241 bytes a word against 40 for this one, and the page must
+  // not get heavier than the scroll fix left it.
+  const dictionary: Record<string, readonly string[]> = {};
+  const items = shelf.items.map((item) => {
+    const row = toShelfItem(item, glossary, meaningAsset.meanings);
+    const translated = meaningAsset.meanings[item.word];
+    if (translated?.length && !dictionary[row.markKey]) dictionary[row.markKey] = translated;
+    return row;
+  });
   // A search result's positions are not shelf ranks, so it gets no bands and no
   // rail rather than numbers it does not hold.
   const ranked = !query.search;
@@ -171,7 +201,7 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
 
       <VocabularyShelfControls query={{ search: query.search }} total={shelf.total} />
 
-      {items.length ? <VocabularyShelf storageScope={user?.id ?? "anonymous"} glossary={glossary} bands={bands} total={shelf.total} ranked={ranked}>
+      {items.length ? <VocabularyShelf storageScope={user?.id ?? "anonymous"} glossary={glossary} dictionary={dictionary} bands={bands} total={shelf.total} ranked={ranked}>
         <VocabularyShelfList items={items} ranked={ranked} total={shelf.total} />
       </VocabularyShelf> : null}
 

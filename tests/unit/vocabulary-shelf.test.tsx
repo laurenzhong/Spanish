@@ -61,13 +61,18 @@ const manyItems: readonly VocabularyShelfItem[] = Array.from({ length: 105 }, (_
   meaning: null,
 }));
 
-type ShelfOptions = Readonly<{ ranked?: boolean; total?: number }>;
+type ShelfOptions = Readonly<{
+  ranked?: boolean;
+  total?: number;
+  /** Language Reactor's translations by mark key, as the page passes them. */
+  dictionary?: Readonly<Record<string, readonly string[]>>;
+}>;
 
 function renderShelf(scope: string, shelfItems: readonly VocabularyShelfItem[] = items, options: ShelfOptions = {}) {
   const ranked = options.ranked ?? true;
   const total = options.total ?? 7_922;
   const bands = ranked ? groupRanks(shelfItems, 1, total).map((group) => group.band) : [];
-  render(<VocabularyShelf storageScope={scope} glossary={glossary} bands={bands} total={total} ranked={ranked}>
+  render(<VocabularyShelf storageScope={scope} glossary={glossary} dictionary={options.dictionary ?? {}} bands={bands} total={total} ranked={ranked}>
     <VocabularyShelfList items={shelfItems} ranked={ranked} total={total} />
   </VocabularyShelf>);
 }
@@ -143,6 +148,48 @@ describe("vocabulary shelf", () => {
     expect(words.map((word) => word.querySelector(".vocabulary-study__word-text")?.textContent)).toEqual(["ser", "casa", "vez"]);
     expect(wordTile("casa")).toHaveTextContent("房子、家");
     expect(wordTile("ser")).toHaveTextContent("释义待补充");
+  });
+
+  it("shows Language Reactor's list on hover, in its order, and labels the source", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-lr", items, { dictionary: { casa: ["家", "房子", "住宅"] } });
+
+    await user.hover(wordTile("casa"));
+
+    const tooltip = translation() as HTMLElement;
+    expect(within(tooltip).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["家", "房子", "住宅"]);
+    // Nothing claims the order means anything: it is LR's own order.
+    expect(tooltip).not.toHaveTextContent(/最常用|按频率|常用度/u);
+
+    await user.click(wordTile("casa"));
+    const card = screen.getByRole("complementary", { name: "casa 词汇卡片" });
+    expect(card).toHaveTextContent("Language Reactor 词典释义");
+    expect(cardMeanings(card)).toEqual(["家", "房子", "住宅"]);
+    // The reviewed usage line survives, in its own block rather than as a
+    // position inside LR's list.
+    expect(within(card).getByRole("heading", { name: "词表用法" })).toBeInTheDocument();
+    expect(card).toHaveTextContent("en casa 表示在家");
+  });
+
+  it("never pads a short Language Reactor list", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-lr-short", items, { dictionary: { casa: ["家"] } });
+
+    await user.hover(wordTile("casa"));
+
+    expect(within(translation() as HTMLElement).getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("keeps the reviewed meanings for a word Language Reactor does not carry", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-lr-missing", items, { dictionary: { vez: ["次"] } });
+
+    await user.hover(wordTile("casa"));
+
+    const tooltip = translation() as HTMLElement;
+    expect(within(tooltip).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["房子、家en casa 表示在家", "家、住所"]);
+    await user.click(wordTile("casa"));
+    expect(screen.getByRole("complementary", { name: "casa 词汇卡片" })).toHaveTextContent("已审核词表 · A1 · 名词");
   });
 
   it("shows every reviewed meaning on hover, in the reviewed order, and describes the tile for assistive tech", async () => {
@@ -252,7 +299,7 @@ describe("vocabulary shelf", () => {
 
     await user.click(wordTile("vez"));
     const card = screen.getByRole("complementary", { name: "vez 词汇卡片" });
-    expect(within(card).getByText("这个词还没有审核过的中文释义，先按下面的语境理解它。")).toBeInTheDocument();
+    expect(within(card).getByText("这个词还没有可显示的中文释义，先按下面的语境理解它。")).toBeInTheDocument();
     expect(within(card).getByText("已发布内容中暂时没有收录这个词的例句。")).toBeInTheDocument();
     expect(within(card).queryByText(/已发布内容出现/u)).toBeNull();
   });

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 
 import { useBrowserSpeech } from "@/src/modules/providers/tts";
 
+import { displayMeanings } from "./vocabulary-meanings";
 import {
   activeRankMilestone,
   rankBandAnchor,
@@ -17,12 +18,15 @@ import {
 export type { VocabularyShelfItem } from "./vocabulary-shelf-list";
 
 /**
- * The reviewed glossary entry of a word, as the page passes it in.
+ * The *reviewed* glossary entry of a word, as the page passes it in. Only words
+ * the reviewed file carries are in this map — the dictionary translations travel
+ * separately, as bare lists (see `dictionary` below), because shipping the rich
+ * shape per word measured six times the bytes.
  *
- * `meanings` keeps the reviewed file's own order. The glossary has no frequency
- * field, so there is nothing to sort "most common first" by — the first meaning
- * is the one the word tile already shows underneath, and the rest follow the
- * entry's own sequence. Nothing here invents a ranking.
+ * `meanings` keeps the reviewed file's own order, which is not a frequency order:
+ * it is used as given, and its first meaning is the one the tile shows
+ * underneath. Which of the two sources a word displays is decided by
+ * `displayMeanings`, never here.
  */
 export type VocabularyShelfGlossary = Readonly<{
   cefr: string;
@@ -39,8 +43,14 @@ type VocabularyShelfProps = Readonly<{
   /** The server-rendered shelf: every band, heading and word tile. */
   children: React.ReactNode;
   storageScope: string;
-  /** Reviewed meanings per mark key, for the hover/focus translation and the card. */
+  /** The reviewed glossary, for the words the reviewed file carries. */
   glossary: Readonly<Record<string, VocabularyShelfGlossary>>;
+  /**
+   * Language Reactor's translations, by mark key, as bare lists — the slim shape
+   * keeps the meanings payload off the page's critical path. The browser holds
+   * only this page's words, and only the words the asset has.
+   */
+  dictionary: Readonly<Record<string, readonly string[]>>;
   bands: readonly VocabularyRankBand[];
   total: number;
   /** False for a search result, whose positions are not shelf ranks. */
@@ -84,6 +94,9 @@ const emptyStatuses: Record<string, VocabularyShelfStatus> = {};
 const statusSnapshots = new Map<string, Record<string, VocabularyShelfStatus>>();
 
 const translationId = "vocabulary-translation";
+
+/** Named once: the card says where the translations come from, nothing more. */
+const languageReactorLabel = "Language Reactor 词典释义";
 
 function statusStorageKey(scope: string): string {
   return `${storagePrefix}${scope}`;
@@ -158,7 +171,7 @@ function tileFrom(target: EventTarget | null): HTMLElement | null {
  * card remains the equivalent path: it carries the same meanings plus the
  * word's published example.
  */
-export function VocabularyShelf({ children, storageScope, glossary, bands, total, ranked }: VocabularyShelfProps) {
+export function VocabularyShelf({ children, storageScope, glossary, dictionary, bands, total, ranked }: VocabularyShelfProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const decoratedRef = useRef<ReadonlySet<string>>(new Set());
   const describedRef = useRef<HTMLElement | null>(null);
@@ -180,10 +193,14 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
   }, []);
 
   const showTranslation = useCallback((tile: HTMLElement) => {
-    const entry = glossary[tile.dataset.wordKey ?? ""];
-    if (!entry?.meanings.length) {
-      // Nothing reviewed to show: the tile's own placeholder already answers,
-      // and inventing a translation here is exactly what must not happen.
+    const key = tile.dataset.wordKey ?? "";
+    // Same rule the tile's own meaning was built with, so the two can never
+    // disagree about which meaning leads.
+    const display = displayMeanings({ languageReactor: dictionary[key], glossary: glossary[key]?.meanings });
+    if (!display.meanings.length) {
+      // Neither source has this word: the tile's own placeholder already
+      // answers, and inventing a translation here is exactly what must not
+      // happen.
       describedRef.current?.removeAttribute("aria-describedby");
       describedRef.current = null;
       hoveredTileRef.current = null;
@@ -205,8 +222,8 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
     hoveredTileRef.current = tile;
     // No coordinates: the layer is rendered into the word's own row and CSS
     // anchors it there, so scrolling never needs a geometry read.
-    setHovered({ word: tile.dataset.word ?? "", meanings: entry.meanings, container });
-  }, [glossary]);
+    setHovered({ word: tile.dataset.word ?? "", meanings: display.meanings, container });
+  }, [dictionary, glossary]);
 
   const selectTile = useCallback((tile: HTMLElement) => {
     const key = tile.dataset.wordKey ?? "";
@@ -291,6 +308,11 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
   const marked = Object.keys(statuses).length;
   const visibleNotice = speech.errorMessage || notice;
   const entry = selected ? glossary[selected.key] ?? null : null;
+  // The card shows the same single-sourced list the hover layer shows.
+  const selectedDisplay = selected ? displayMeanings({ languageReactor: dictionary[selected.key], glossary: entry?.meanings }) : null;
+  const usageNotes = selectedDisplay?.source === "language-reactor" && entry
+    ? entry.meanings.map((meaning) => meaning.usage).filter((usage) => usage.trim().length > 0)
+    : [];
   const milestones = ranked && total > vocabularyRankBandSize ? reachableRankMilestones(total) : [];
 
   return <section className="vocabulary-study" aria-label="词汇表">
@@ -344,7 +366,14 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
       <div className="vocabulary-study__card-head">
         <div>
           <p className="vocabulary-study__eyebrow">
-            {entry ? `已审核词表 · ${entry.cefr} · ${entry.partOfSpeech}` : "参考词表"}
+            {selectedDisplay?.source === "language-reactor"
+              // Who the translations come from, said plainly. No claim is made
+              // about the order: LR returns no frequency field, and its order is
+              // not one (`tl=en` gives banco → bench before bank).
+              ? [languageReactorLabel, entry?.cefr, entry?.partOfSpeech].filter(Boolean).join(" · ")
+              : entry
+                ? `已审核词表 · ${entry.cefr} · ${entry.partOfSpeech}`
+                : "参考词表"}
           </p>
           <h3 lang="es">{selected.word}</h3>
         </div>
@@ -354,11 +383,15 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
         </div>
       </div>
 
-      {entry
+      {selectedDisplay?.meanings.length
         ? <ul className="vocabulary-study__meanings">
-          {entry.meanings.map((meaning) => <li key={meaning.meaning}><strong>{meaning.meaning}</strong>{meaning.usage ? <span>{meaning.usage}</span> : null}</li>)}
+          {selectedDisplay.meanings.map((meaning) => <li key={meaning.meaning}><strong>{meaning.meaning}</strong>{meaning.usage ? <span>{meaning.usage}</span> : null}</li>)}
         </ul>
-        : <p className="vocabulary-study__muted">这个词还没有审核过的中文释义，先按下面的语境理解它。</p>}
+        : <p className="vocabulary-study__muted">这个词还没有可显示的中文释义，先按下面的语境理解它。</p>}
+
+      {/* The reviewed usage notes, kept on their own once LR supplies the meanings
+          so they are never read as positions inside LR's list. */}
+      {usageNotes.length ? <div className="vocabulary-study__block"><h4>词表用法</h4><ul className="vocabulary-study__examples">{usageNotes.map((note) => <li key={note}>{note}</li>)}</ul></div> : null}
 
       {entry?.collocations.length ? <div className="vocabulary-study__block"><h4>常用搭配</h4><p className="vocabulary-study__chips" lang="es">{entry.collocations.map((item) => <span key={item}>{item}</span>)}</p></div> : null}
       {entry?.examples.length ? <div className="vocabulary-study__block"><h4>词表例句</h4><ul className="vocabulary-study__examples" lang="es">{entry.examples.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
