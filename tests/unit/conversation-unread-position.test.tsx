@@ -112,8 +112,10 @@ describe("conversation read acknowledgement", () => {
     expect(css).toContain(".desktop-navigation__icon {\n    position: relative;");
     expect(base).toContain("inset-block-start: -6px");
     expect(base).toContain("inset-inline-end: -9px");
-    // Wide desktop rail keeps the same relationship against its larger 28px icon.
-    expect(css).toContain(".desktop-navigation__link .navigation-unread-count { inset-block-start: -8px; inset-inline-end: -13px;");
+    // Wide desktop rail: same visual relationship as the phone — the fill bites
+    // into the icon's top-right corner by roughly the same share of the glyph
+    // width (measured at 1440px).
+    expect(css).toContain(".desktop-navigation__link .navigation-unread-count { inset-block-start: -8px; inset-inline-end: -7px;");
     expect(css).toContain('.desktop-navigation__link .navigation-unread-count { inset-inline-end: -10px; }');
   });
 
