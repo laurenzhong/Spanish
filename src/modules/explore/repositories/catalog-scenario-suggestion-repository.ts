@@ -8,6 +8,8 @@ function categoryFor(relationshipType: string): Readonly<{ key: string; label: s
   if (relationshipType.includes("campus")) return { key: "study", label: "学习办事" };
   if (relationshipType.includes("rental")) return { key: "housing", label: "居住沟通" };
   if (relationshipType.includes("restaurant")) return { key: "daily-life", label: "日常生活" };
+  if (relationshipType.includes("transport") || relationshipType.includes("hotel")) return { key: "travel", label: "出行与住宿" };
+  if (relationshipType.includes("post-office")) return { key: "services", label: "生活服务" };
   return { key: "social", label: "社交沟通" };
 }
 
