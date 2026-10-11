@@ -45,7 +45,7 @@ html:has(.vocabulary-shelf__body) {
      rendered; `auto` replaces the estimate with the real height once it has.
      Measured on a 3 s sustained scroll: 60 fps here, 17 fps before. */
   content-visibility: auto;
-  contain-intrinsic-size: auto 2050px;
+  contain-intrinsic-size: auto 900px;
 }
 
 /* The floating translation is anchored inside the word's own row, so it follows
@@ -56,34 +56,142 @@ html:has(.vocabulary-shelf__body) {
   position: relative;
 }
 
-.vocabulary-shelf__translation {
+/* `content-visibility: auto` makes every band a stacking context with paint
+   containment, so a layer inside one is clipped to its band and painted under
+   the bands that follow it. The layer has to cross into the band below, so the
+   hovered band drops its containment and is lifted above its siblings while the
+   layer is open. The band is on screen by definition, so nothing extra is
+   rendered, and this is one class toggle per hover — never per-frame work. */
+.vocabulary-shelf__band.is-hovered {
+  content-visibility: visible;
+  position: relative;
+  z-index: 5;
+}
+
+/* --- density ---------------------------------------------------------------
+   The owner's item 6: fewer boxes, more words per row, no dead space. The app
+   shell gives this page 72px of side padding and a centred measure; on a
+   7,922-word list that is most of the whitespace they saw. `:has()` keeps the
+   override to this page alone, so no other route inherits it. */
+main.product-content:has(.page-stack.read-page) {
+  width: auto;
+  margin-inline: 0;
+  padding-inline: 20px;
+}
+
+/* Words as words rather than as boxes — the owner's own suggestion — which is
+   what gets eight to a row instead of four. Scoped to this shelf so the shared
+   grid class keeps its meaning elsewhere. */
+.vocabulary-shelf__bands .vocabulary-study__grid {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 2px 8px;
+}
+
+.vocabulary-shelf__bands .vocabulary-study__word {
+  min-height: 44px;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+}
+
+.vocabulary-shelf__bands .vocabulary-study__word:hover,
+.vocabulary-shelf__bands .vocabulary-study__word.is-selected {
+  background: var(--accent-soft);
+}
+
+/* Marks without a box: a tint and a colour rather than a border nobody can see
+   once the borders are gone. */
+.vocabulary-shelf__bands .vocabulary-study__word.is-familiar {
+  color: #2f6b4c;
+  background: rgb(76 156 112 / 14%);
+}
+
+.vocabulary-shelf__bands .vocabulary-study__word.is-learning {
+  color: #2b5b7a;
+  background: rgb(63 127 168 / 14%);
+}
+
+.vocabulary-shelf__bands .vocabulary-study__word.is-revisit {
+  color: #7c5f1f;
+  background: rgb(180 138 50 / 14%);
+}
+
+.vocabulary-shelf__bands .vocabulary-study__word.is-ignore {
+  opacity: .55;
+}
+
+/* The layer's own wrapper: positioned inside the word's row by CSS, and
+   click-through everywhere except its buttons, so it can never take a click
+   meant for a word. */
+.vocabulary-shelf__translation-layer {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 40;
   display: grid;
-  gap: 5px;
+  gap: 4px;
   width: max-content;
   max-width: 264px;
-  padding: 9px 11px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
   pointer-events: none;
 }
 
-.vocabulary-shelf__translation-word {
-  margin: 0;
-  font-family: var(--font-display, inherit);
-  font-size: .92rem;
-  font-weight: 760;
+/* The hover/focus translation card. No accent bar down the left: the meaning
+   list carries its own hierarchy. */
+.vocabulary-shelf__translation {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
+
+/* The layer's two marking shortcuts. They are the only clickable part of it. */
+.vocabulary-shelf__translation-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.vocabulary-shelf__translation-actions button {
+  pointer-events: auto;
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: .68rem;
+  font-weight: 780;
+}
+
+.vocabulary-shelf__translation-actions button:hover {
+  color: var(--foreground);
+}
+
+.vocabulary-shelf__translation-actions button.is-active {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+/* The layer is wider than a tile, so in the last columns it has to open
+   leftwards instead of off the page. The frame measures its own rectangle once
+   per hover and adds this class; nothing here touches the scroll path. */
+.vocabulary-shelf__translation-layer.is-flipped {
+  left: auto;
+  right: 0;
+}
+
+/* The word is not repeated here: the reader is hovering it. */
 
 .vocabulary-shelf__translation-meanings {
   display: grid;
-  gap: 4px;
+  gap: 5px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -95,8 +203,28 @@ html:has(.vocabulary-shelf__body) {
 }
 
 .vocabulary-shelf__translation-meanings strong {
-  font-size: .82rem;
+  font-size: .84rem;
   font-weight: 720;
+}
+
+/* Positional hierarchy, not a claim about the language: the first entry reads
+   strongest and the later ones recede, which encodes an order that really exists
+   in the list. Language Reactor returns no frequency field and its order is not a
+   frequency order (with tl=en, banco answers bench|bank|stock), so nothing here —
+   or anywhere in the UI — says "most common". The steps use existing tokens, and
+   the last line stays at the design system's readable muted colour. */
+.vocabulary-shelf__translation-meanings li:nth-child(1) {
+  color: var(--foreground);
+}
+
+.vocabulary-shelf__translation-meanings li:nth-child(2) {
+  color: var(--muted);
+  color: color-mix(in oklab, var(--foreground) 78%, var(--muted));
+}
+
+.vocabulary-shelf__translation-meanings li:nth-child(3) {
+  color: var(--muted);
+  opacity: .72;
 }
 
 .vocabulary-shelf__translation-meanings span {
@@ -105,17 +233,19 @@ html:has(.vocabulary-shelf__body) {
   line-height: 1.45;
 }
 
-/* The rail is a jump control, so it stays in view while the list scrolls. */
+/* The rail is a jump control, so it stays in view while the list scrolls. It is
+   plain text against the page — no box — aligned flush to the right edge. */
 .vocabulary-rank-rail {
   position: sticky;
   top: 14px;
   display: grid;
   gap: 2px;
-  min-width: 62px;
-  padding: 7px 6px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
+  min-width: 52px;
+  justify-items: end;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: right;
 }
 
 .vocabulary-rank-rail__caption {
@@ -124,14 +254,15 @@ html:has(.vocabulary-shelf__body) {
   font-size: .6rem;
   font-weight: 820;
   letter-spacing: .04em;
-  text-align: center;
+  text-align: right;
 }
 
 .vocabulary-rank-rail a {
   display: flex;
-  min-height: 26px;
+  min-height: 30px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  padding: 0 6px;
   border-radius: 6px;
   color: var(--muted);
   font-size: .7rem;
@@ -141,12 +272,12 @@ html:has(.vocabulary-shelf__body) {
 
 .vocabulary-rank-rail a:hover {
   color: var(--foreground);
-  background: var(--surface-soft);
+  text-decoration: underline;
 }
 
 .vocabulary-rank-rail a[aria-current="true"] {
   color: var(--accent-strong);
-  background: var(--accent-soft);
+  font-weight: 900;
 }
 
 @media (max-width: 900px) {
@@ -172,23 +303,25 @@ html:has(.vocabulary-shelf__body) {
   }
 }
 
-/* The band's measured height at each column count, for the frames before a band
-   has been rendered. The grid drops to three columns at 1100px, two at 760px
-   and one at 520px, so a hundred words need taller placeholders as they narrow. */
+/* The band's measured height at each width, for the frames before a band has
+   been rendered: with the words shown as words, a hundred of them need about
+   772px at eight columns (1440px), 1,176px at five (1000px), 1,464px at four
+   (700px) and 2,905px at two (390px). `auto` replaces each estimate with the
+   measured height as soon as the band has been rendered once. */
 @media (max-width: 1100px) {
   .vocabulary-shelf__band {
-    contain-intrinsic-size: auto 2790px;
+    contain-intrinsic-size: auto 1180px;
   }
 }
 
 @media (max-width: 760px) {
   .vocabulary-shelf__band {
-    contain-intrinsic-size: auto 4100px;
+    contain-intrinsic-size: auto 1470px;
   }
 }
 
 @media (max-width: 520px) {
   .vocabulary-shelf__band {
-    contain-intrinsic-size: auto 7600px;
+    contain-intrinsic-size: auto 2900px;
   }
 }

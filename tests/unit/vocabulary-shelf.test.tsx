@@ -192,6 +192,51 @@ describe("vocabulary shelf", () => {
     expect(screen.getByRole("complementary", { name: "casa 词汇卡片" })).toHaveTextContent("已审核词表 · A1 · 名词");
   });
 
+  it("marks the hovered word from the layer, through the same local storage contract", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-layer-mark");
+
+    await user.hover(wordTile("casa"));
+    const actions = screen.getByRole("group", { name: "标记 casa" });
+    await user.click(within(actions).getByRole("button", { name: "标为已知" }));
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("sueno:vocabulary-status:v1:scope-layer-mark") ?? "{}")).toEqual({ casa: "familiar" });
+    });
+    await waitFor(() => expect(wordTile("casa")).toHaveClass("is-familiar"));
+  });
+
+  it("keeps 正在学习 as its own local state instead of reusing 想复现", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-learning");
+
+    await user.hover(wordTile("casa"));
+    const actions = screen.getByRole("group", { name: "标记 casa" });
+    const button = within(actions).getByRole("button", { name: "标为正在学习" });
+    await user.click(button);
+
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(wordTile("casa")).toHaveClass("is-learning");
+    expect(wordTile("casa")).not.toHaveClass("is-revisit");
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("sueno:vocabulary-status:v1:scope-learning") ?? "{}")).toEqual({ casa: "learning" });
+    });
+  });
+
+  it("keeps the layer open while the keyboard moves into its buttons", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-layer-keyboard");
+
+    await user.tab();
+    await user.tab();
+    expect(wordTile("casa")).toHaveFocus();
+    expect(translation()).not.toBeNull();
+
+    await user.tab();
+    expect(translation()).not.toBeNull();
+    expect(screen.getByRole("button", { name: "标为已知" })).toHaveFocus();
+  });
+
   it("shows every reviewed meaning on hover, in the reviewed order, and describes the tile for assistive tech", async () => {
     const user = userEvent.setup();
     renderShelf("scope-hover");
@@ -200,7 +245,8 @@ describe("vocabulary shelf", () => {
 
     const tooltip = translation();
     expect(tooltip).not.toBeNull();
-    expect(tooltip).toHaveTextContent("casa");
+    // The word is not repeated in the layer: the reader is hovering it.
+    expect(within(tooltip as HTMLElement).queryByText("casa")).toBeNull();
     // The reviewed file has no frequency field: its own order is what is shown,
     // and the first meaning is the one already under the word.
     expect(within(tooltip as HTMLElement).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["房子、家en casa 表示在家", "家、住所"]);
@@ -232,8 +278,10 @@ describe("vocabulary shelf", () => {
     await user.hover(tile);
     const tooltip = translation() as HTMLElement;
     // Anchored by CSS inside the same list row as the word: it follows that word
-    // through any scroll without the component ever reading a coordinate.
-    expect(tooltip.parentElement).toBe(tile.parentElement);
+    // through any scroll without the component ever reading a coordinate. The
+    // layer's wrapper is portalled into the row, and the tooltip element sits
+    // inside it.
+    expect(tooltip.closest("li")).toBe(tile.parentElement);
     expect(tile.parentElement?.tagName).toBe("LI");
 
     await user.unhover(tile);
@@ -359,17 +407,20 @@ describe("vocabulary shelf", () => {
     expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
   });
 
-  it("uses the shared lexicon wording for the three states and reads the word aloud", async () => {
+  it("offers the four local states in the card and reads the word aloud", async () => {
     const user = userEvent.setup();
     renderShelf("scope-wording");
 
     await user.click(wordTile("ser"));
     const card = screen.getByRole("complementary", { name: "ser 词汇卡片" });
     const marking = within(card).getByRole("group", { name: "标记 ser" });
-    for (const label of ["已熟悉", "想复现", "暂不学习"]) {
+    // `正在学习` is the owner's addition: a distinct local state, so it is a
+    // fourth button here rather than a relabelling of 想复现. This assertion used
+    // to lock the old three-state wording and had to be corrected with it.
+    for (const label of ["已熟悉", "正在学习", "想复现", "暂不学习"]) {
       expect(within(marking).getByRole("button", { name: label })).toBeInTheDocument();
     }
-    expect(within(marking).queryByRole("button", { name: /掌握|学习中/ })).not.toBeInTheDocument();
+    expect(within(marking).queryByRole("button", { name: /掌握/u })).not.toBeInTheDocument();
 
     await user.click(within(card).getByRole("button", { name: "朗读单词" }));
     expect(speechSpeak).toHaveBeenCalledTimes(1);

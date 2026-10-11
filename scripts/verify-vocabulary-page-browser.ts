@@ -28,6 +28,10 @@ const check = (label: string, passed: boolean, detail = ""): void => {
  * compare against the asset instead of assuming which source is feeding the page.
  */
 async function readMeaningAsset(): Promise<{ meanings: Record<string, readonly string[]> } | null> {
+  // `VOCAB_MEANINGS_ASSET` means the server under test was pointed at another
+  // path on purpose — that is the "without the payload" pass of the comparison,
+  // so the meanings the page should show are not this file's.
+  if (process.env.VOCAB_MEANINGS_ASSET) return null;
   try {
     const parsed = JSON.parse(readFileSync(path.join(process.cwd(), "content", "word-lists", "es-meanings-v1.json"), "utf8")) as { meanings?: unknown };
     return parsed.meanings && typeof parsed.meanings === "object" && !Array.isArray(parsed.meanings)
@@ -305,6 +309,86 @@ try {
   check("the translation does not shift the page", heightBefore === heightAfter, `${heightBefore} → ${heightAfter}`);
   check("no title attribute is used", (await cafe.getAttribute("title")) === null, "title absent");
 
+  // --- the layer must not be painted under the band below it -----------------
+  // Each band is a stacking context (`content-visibility: auto` implies paint
+  // containment), so the layer's own z-index can only order it inside its band.
+  // Hover the last word of a band — the layer then has to cross into the next
+  // one — and hit-test the layer's centre. `elementFromPoint` ignores
+  // `pointer-events: none` elements, so the probe re-enables pointer events for
+  // the hit test only and puts the inline style back afterwards.
+  await page.evaluate(() => {
+    const next = document.querySelector('[data-band-start="101"]');
+    if (next) window.scrollTo(0, Math.max(0, next.getBoundingClientRect().top + window.scrollY - window.innerHeight / 2));
+  });
+  await page.waitForTimeout(400);
+  // The words that carry meanings differ between the two passes (the reviewed
+  // glossary alone has ~100 of them), so walk the row from the right and use the
+  // first word that actually shows a layer. The layer must cross into the band
+  // below, which is why it is the *last* row of band 1 that is hovered.
+  const hoverableInRow = async (words: readonly string[]) => {
+    for (const word of [...words].reverse()) {
+      const tile = page.locator(`[data-word="${word}"]`).first();
+      if ((await tile.count()) === 0) continue;
+      await tile.scrollIntoViewIfNeeded();
+      await tile.hover();
+      try {
+        await page.locator("#vocabulary-translation-layer").waitFor({ timeout: 1_200 });
+        return tile;
+      } catch { /* this word has no meanings in this pass */ }
+    }
+    return null;
+  };
+  const lastRowWords = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('[data-band-start="1"] .vocabulary-study__word')];
+    const lastTop = Math.round(tiles[tiles.length - 1].getBoundingClientRect().top);
+    return tiles.filter((tile) => Math.abs(tile.getBoundingClientRect().top - lastTop) < 2).map((tile) => tile.getAttribute("data-word") ?? "");
+  });
+  const crossing = await hoverableInRow(lastRowWords);
+  if (!crossing) throw new Error("no word in the last row of band 1 shows a translation layer");
+  await page.waitForTimeout(200);
+  const occlusion = await page.evaluate(() => {
+    const layer = document.getElementById("vocabulary-translation");
+    if (!layer) return { present: false, crosses: false, onTop: false, hit: "absent", restored: false };
+    const rect = layer.getBoundingClientRect();
+    const next = document.querySelector('[data-band-start="101"]');
+    const before = layer.getAttribute("style");
+    layer.style.pointerEvents = "auto";
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    layer.setAttribute("style", before ?? "");
+    return {
+      present: true,
+      crosses: next ? rect.bottom > next.getBoundingClientRect().top : false,
+      onTop: Boolean(hit) && (hit === layer || layer.contains(hit)),
+      hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).split(" ")[0]}` : "none",
+      restored: (layer.getAttribute("style") ?? "") === (before ?? ""),
+    };
+  });
+  check("the layer is not painted under the band below it", occlusion.present && occlusion.crosses && occlusion.onTop, `crosses: ${occlusion.crosses} | hit at the layer's centre: ${occlusion.hit} | inline style restored: ${occlusion.restored}`);
+
+  // The layer is wider than a tile, so in the right-hand column it has to open
+  // leftwards rather than push a horizontal scrollbar out of the page.
+  const firstRowWords = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('[data-band-start="1"] .vocabulary-study__word')];
+    const firstTop = Math.round(tiles[0].getBoundingClientRect().top);
+    return tiles.filter((tile) => Math.abs(tile.getBoundingClientRect().top - firstTop) < 2).map((tile) => tile.getAttribute("data-word") ?? "");
+  });
+  const rightMostTile = await hoverableInRow(firstRowWords);
+  if (!rightMostTile) throw new Error("no word in the first row of band 1 shows a translation layer");
+  await page.waitForTimeout(200);
+  const inViewport = await page.evaluate(() => {
+    const layer = document.getElementById("vocabulary-translation-layer");
+    if (!layer) return { flipped: false, left: 9_999, right: 9_999, viewport: window.innerWidth, overflow: 9_999 };
+    const rect = layer.getBoundingClientRect();
+    return {
+      flipped: layer.classList.contains("is-flipped"),
+      left: Math.round(rect.left),
+      right: Math.round(rect.right),
+      viewport: window.innerWidth,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  check("the layer stays inside the page in the right-hand column", inViewport.left >= 0 && inViewport.right <= inViewport.viewport && inViewport.overflow <= 1, `left ${inViewport.left} / right ${inViewport.right} of ${inViewport.viewport} | flipped ${inViewport.flipped} | page overflow ${inViewport.overflow}`);
+
   // --- against the real Language Reactor asset, once the scrape has landed ---
   // Sampling is driven by the asset itself: a one-meaning word, a two-meaning
   // word and a three-meaning word if it has them, so "never padded to three" is
@@ -337,13 +421,16 @@ try {
   await neighbour.scrollIntoViewIfNeeded();
   await neighbour.click();
   check("a neighbour stays clickable through the layer", (await page.locator(".vocabulary-study__card").count()) === 1, "card opened");
-  await page.getByRole("button", { name: "关闭" }).click();
+  // Scoped to the card, and exact: with the meanings asset live, tiles for words
+  // like `cerrar` legitimately carry 关闭 as their translation, and an unscoped
+  // substring match then resolves to six elements.
+  await page.locator(".vocabulary-study__card").getByRole("button", { name: "关闭", exact: true }).click();
 
   // Keyboard focus shows the same meanings.
   await cafe.scrollIntoViewIfNeeded();
   await cafe.focus();
   await tooltip.waitFor({ timeout: 10_000 });
-  check("focus shows the same translation", (await tooltip.locator("li").count()) === 2, `${await tooltip.locator("li").count()} meanings`);
+  check("focus shows the same translation", (await tooltip.locator("li").count()) > 0 && (await tooltip.locator("li").count()) <= 3, `${await tooltip.locator("li").count()} meanings`);
   check("the focused tile is described by the layer", (await cafe.getAttribute("aria-describedby")) === "vocabulary-translation", (await cafe.getAttribute("aria-describedby")) ?? "none");
   await page.keyboard.press("Escape");
   check("escape dismisses the translation", (await page.locator("#vocabulary-translation").count()) === 0, "dismissed");
@@ -355,13 +442,16 @@ try {
   await cafe.hover();
   await tooltip.waitFor({ timeout: 10_000 });
   const anchoredIn = () => page.evaluate(() => {
-    const layer = document.querySelector("#vocabulary-translation");
+    // The positioned element is the layer wrapper (the card is inside it, and
+    // the actions row sits beside the card).
+    const layer = document.querySelector("#vocabulary-translation-layer");
     if (!layer) return { present: false };
-    const tile = layer.parentElement?.querySelector("[data-word-key]");
+    const row = layer.closest("li");
+    const tile = row?.querySelector("[data-word-key]");
     const layerRect = layer.getBoundingClientRect();
     return {
       present: true,
-      rowIsTheWordsRow: Boolean(tile) && layer.parentElement?.tagName === "LI",
+      rowIsTheWordsRow: Boolean(tile) && row?.tagName === "LI",
       gap: tile ? Math.round(layerRect.top - tile.getBoundingClientRect().bottom) : 9_999,
       pointerEvents: getComputedStyle(layer).pointerEvents,
     };

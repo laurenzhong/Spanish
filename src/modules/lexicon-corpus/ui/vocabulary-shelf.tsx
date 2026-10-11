@@ -37,7 +37,7 @@ export type VocabularyShelfGlossary = Readonly<{
   forms: readonly string[];
 }>;
 
-export type VocabularyShelfStatus = "familiar" | "revisit" | "ignore";
+export type VocabularyShelfStatus = "familiar" | "learning" | "revisit" | "ignore";
 
 type VocabularyShelfProps = Readonly<{
   /** The server-rendered shelf: every band, heading and word tile. */
@@ -58,6 +58,8 @@ type VocabularyShelfProps = Readonly<{
 }>;
 
 type Hovered = Readonly<{
+  /** The mark key of the hovered word, so the layer can mark it directly. */
+  key: string;
   word: string;
   meanings: VocabularyShelfGlossary["meanings"];
   /** The word's own list row: the layer is rendered inside it and CSS anchors it. */
@@ -67,22 +69,29 @@ type Hovered = Readonly<{
 type Selected = Readonly<{ key: string; word: string; example: string | null; source: string | null }>;
 
 /**
- * One wording for the familiar/revisit/ignore triad. The server-backed shelves
- * own the same words (`lexicon-shelf-controls.tsx`, `vocabulary-library.tsx`,
- * `phrase-library.tsx`) so one state never reads two ways.
+ * The wording the server-backed shelves use for three of these states
+ * (`lexicon-shelf-controls.tsx`, `vocabulary-library.tsx`, `phrase-library.tsx`)
+ * so one state never reads two ways. `learning` is local to this shelf: the
+ * server's `user_lexical_intents` triad has no equivalent, and mapping "正在学习"
+ * onto 想复现 ("want to see it again") would make the button's label say
+ * something the stored state does not mean.
  */
 const statusOptions = [
   ["familiar", "已熟悉"],
+  ["learning", "正在学习"],
   ["revisit", "想复现"],
   ["ignore", "暂不学习"],
 ] as const satisfies readonly (readonly [VocabularyShelfStatus, string])[];
 
-const statusLabels: Record<VocabularyShelfStatus, string> = { familiar: "已熟悉", revisit: "想复现", ignore: "暂不学习" };
+const statusLabels: Record<VocabularyShelfStatus, string> = { familiar: "已熟悉", learning: "正在学习", revisit: "想复现", ignore: "暂不学习" };
 
 /**
  * Browser-local marks, deliberately the same storage contract the study shelf
  * used (`sueno:vocabulary-status:v1:<scope>`, a flat `{ headword: status }`
  * map, the same cross-tab event), so a reader's existing marks stay valid.
+ * `learning` is an extra value in that same map: existing keys and values are
+ * untouched, and a build that predates it ignores the new value rather than
+ * losing the map.
  *
  * The server-side `user_lexical_intents` mechanism cannot serve this shelf: it
  * keys on a lexeme or phrase row, and the corpus still contains zero lexemes
@@ -94,9 +103,16 @@ const emptyStatuses: Record<string, VocabularyShelfStatus> = {};
 const statusSnapshots = new Map<string, Record<string, VocabularyShelfStatus>>();
 
 const translationId = "vocabulary-translation";
+const translationLayerId = "vocabulary-translation-layer";
 
 /** Named once: the card says where the translations come from, nothing more. */
 const languageReactorLabel = "Language Reactor 词典释义";
+
+/** The two shortcuts the layer offers, on top of the card's full set. */
+const quickStatusOptions = [
+  ["familiar", "标为已知"],
+  ["learning", "标为正在学习"],
+] as const satisfies readonly (readonly [VocabularyShelfStatus, string])[];
 
 function statusStorageKey(scope: string): string {
   return `${storagePrefix}${scope}`;
@@ -109,7 +125,7 @@ function parseStatuses(scope: string): Record<string, VocabularyShelfStatus> {
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     if (parsed && typeof parsed === "object") {
       for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        if (value === "familiar" || value === "revisit" || value === "ignore") next[key] = value;
+        if (value === "familiar" || value === "learning" || value === "revisit" || value === "ignore") next[key] = value;
       }
     }
   } catch {
@@ -176,6 +192,11 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
   const decoratedRef = useRef<ReadonlySet<string>>(new Set());
   const describedRef = useRef<HTMLElement | null>(null);
   const hoveredTileRef = useRef<HTMLElement | null>(null);
+  const hoveredBandRef = useRef<HTMLElement | null>(null);
+  /** The portalled layer, so moving onto its buttons is not "leaving the word". */
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  /** True while the pointer is on the layer itself. */
+  const keepLayerRef = useRef(false);
   const selectedTileRef = useRef<HTMLElement | null>(null);
   const [hovered, setHovered] = useState<Hovered | null>(null);
   const [selected, setSelected] = useState<Selected | null>(null);
@@ -189,8 +210,27 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
     describedRef.current?.removeAttribute("aria-describedby");
     describedRef.current = null;
     hoveredTileRef.current = null;
+    keepLayerRef.current = false;
+    // The hovered band only carries the class that lets the layer leave it.
+    hoveredBandRef.current?.classList.remove("is-hovered");
+    hoveredBandRef.current = null;
     setHovered(null);
   }, []);
+
+  /**
+   * Leaving a word hides the layer on the next tick rather than immediately:
+   * moving the pointer onto the layer's own buttons is not leaving the word, and
+   * `mouseout` does not reliably carry `relatedTarget` (jsdom never sets it, and
+   * a pointer sequence may deliver the two events in either order). The deferred
+   * check reads the state that actually settled.
+   */
+  const hideAfterLeaving = useCallback((tile: HTMLElement) => {
+    window.setTimeout(() => {
+      if (keepLayerRef.current) return;
+      if (hoveredTileRef.current !== tile) return;
+      hideTranslation();
+    }, 0);
+  }, [hideTranslation]);
 
   const showTranslation = useCallback((tile: HTMLElement) => {
     const key = tile.dataset.wordKey ?? "";
@@ -201,11 +241,18 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
       // Neither source has this word: the tile's own placeholder already
       // answers, and inventing a translation here is exactly what must not
       // happen.
-      describedRef.current?.removeAttribute("aria-describedby");
-      describedRef.current = null;
-      hoveredTileRef.current = null;
-      setHovered(null);
+      hideTranslation();
       return;
+    }
+    // `content-visibility: auto` makes a band a stacking context with paint
+    // containment, which would clip this layer to the band and paint it under the
+    // bands that follow. Moving the class off the previous band and onto this one
+    // is a single DOM write per hover — nothing on the scroll path.
+    const band = tile.closest<HTMLElement>("[data-band-start]");
+    if (band !== hoveredBandRef.current) {
+      hoveredBandRef.current?.classList.remove("is-hovered");
+      band?.classList.add("is-hovered");
+      hoveredBandRef.current = band;
     }
     if (describedRef.current !== tile) {
       describedRef.current?.removeAttribute("aria-describedby");
@@ -220,10 +267,11 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
       return;
     }
     hoveredTileRef.current = tile;
+    keepLayerRef.current = false;
     // No coordinates: the layer is rendered into the word's own row and CSS
     // anchors it there, so scrolling never needs a geometry read.
-    setHovered({ word: tile.dataset.word ?? "", meanings: display.meanings, container });
-  }, [dictionary, glossary]);
+    setHovered({ key, word: tile.dataset.word ?? "", meanings: display.meanings, container });
+  }, [dictionary, glossary, hideTranslation]);
 
   const selectTile = useCallback((tile: HTMLElement) => {
     const key = tile.dataset.wordKey ?? "";
@@ -268,6 +316,7 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
       const status = statuses[key];
       for (const tile of container.querySelectorAll<HTMLElement>(`[data-word-key="${CSS.escape(key)}"]`)) {
         tile.classList.toggle("is-familiar", on && status === "familiar");
+        tile.classList.toggle("is-learning", on && status === "learning");
         tile.classList.toggle("is-revisit", on && status === "revisit");
         tile.classList.toggle("is-ignore", on && status === "ignore");
       }
@@ -303,7 +352,21 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
     return () => observer.disconnect();
   }, [ranked, bands, total]);
 
-  useEffect(() => () => { describedRef.current?.removeAttribute("aria-describedby"); }, []);
+  useEffect(() => () => {
+    describedRef.current?.removeAttribute("aria-describedby");
+    hoveredBandRef.current?.classList.remove("is-hovered");
+  }, []);
+
+  // The layer is wider than one tile, so in the right-hand columns it would run
+  // off the page. One measurement per hover — deliberately not per frame: the
+  // scroll path stays free of geometry reads, which is what the guard test and
+  // the scroll measurements protect.
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+    const rect = layer.getBoundingClientRect();
+    layer.classList.toggle("is-flipped", rect.right > window.innerWidth - 8 && rect.left - rect.width >= 8);
+  }, [hovered]);
 
   const marked = Object.keys(statuses).length;
   const visibleNotice = speech.errorMessage || notice;
@@ -326,10 +389,27 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
         onMouseOver={(event) => { const tile = tileFrom(event.target); if (tile) showTranslation(tile); }}
         onMouseOut={(event) => {
           const tile = tileFrom(event.target);
-          if (tile && !tile.contains(event.relatedTarget as Node | null)) hideTranslation();
+          if (!tile) return;
+          const next = event.relatedTarget as Node | null;
+          // Moving onto the layer's own buttons is not leaving the word.
+          if (next && (tile.contains(next) || layerRef.current?.contains(next))) return;
+          hideAfterLeaving(tile);
         }}
         onFocus={(event) => { const tile = tileFrom(event.target); if (tile) showTranslation(tile); }}
-        onBlur={(event) => { if (tileFrom(event.target)) hideTranslation(); }}
+        onBlur={(event) => {
+          if (!tileFrom(event.target)) return;
+          // Tabbing from the word into the layer's buttons keeps it open. Blur
+          // does not always carry `relatedTarget` (jsdom never does, and some
+          // browsers omit it), so the active element decides on the next tick —
+          // one timeout per focus change, nothing on the scroll path.
+          const next = event.relatedTarget as Node | null;
+          if (next && layerRef.current?.contains(next)) return;
+          window.setTimeout(() => {
+            const active = document.activeElement;
+            if (active && (layerRef.current?.contains(active) || hoveredTileRef.current?.contains(active))) return;
+            hideTranslation();
+          }, 0);
+        }}
         onClick={(event) => { const tile = tileFrom(event.target); if (tile) selectTile(tile); }}
         onKeyDown={(event) => { if (event.key === "Escape") { hideTranslation(); selectedTileRef.current = null; setSelected(null); } }}
       >
@@ -352,14 +432,40 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
         keep it in place. Portalled because the page wrapper carries a
         `transform` (its entrance animation), which would otherwise become the
         containing block for anything positioned. */}
-    {hovered ? createPortal(<div className="vocabulary-shelf__translation" id={translationId} role="tooltip">
-      <p className="vocabulary-shelf__translation-word" lang="es">{hovered.word}</p>
-      <ul className="vocabulary-shelf__translation-meanings">
-        {hovered.meanings.map((meaning) => <li key={meaning.meaning}>
-          <strong>{meaning.meaning}</strong>
-          {meaning.usage ? <span>{meaning.usage}</span> : null}
-        </li>)}
-      </ul>
+    {hovered ? createPortal(<div
+      className="vocabulary-shelf__translation-layer"
+      id={translationLayerId}
+      ref={layerRef}
+      onMouseOver={() => { keepLayerRef.current = true; }}
+      onMouseOut={() => {
+        keepLayerRef.current = false;
+        const tile = hoveredTileRef.current;
+        if (tile) hideAfterLeaving(tile);
+      }}
+      onKeyDown={(event) => { if (event.key === "Escape") hideTranslation(); }}
+    >
+      <div className="vocabulary-shelf__translation" id={translationId} role="tooltip">
+        {/* The word is not repeated: the reader is hovering it. */}
+        <ul className="vocabulary-shelf__translation-meanings">
+          {hovered.meanings.map((meaning) => <li key={meaning.meaning}>
+            <strong>{meaning.meaning}</strong>
+            {meaning.usage ? <span>{meaning.usage}</span> : null}
+          </li>)}
+        </ul>
+      </div>
+
+      {/* The two states a reader reaching for the mouse most likely wants. They
+          sit outside the `tooltip` element so the description assistive tech
+          reads stays the meanings alone. */}
+      <div className="vocabulary-shelf__translation-actions" role="group" aria-label={`标记 ${hovered.word}`}>
+        {quickStatusOptions.map(([value, label]) => <button
+          key={value}
+          type="button"
+          aria-pressed={statuses[hovered.key] === value}
+          className={statuses[hovered.key] === value ? "is-active" : undefined}
+          onClick={() => markStatus(hovered.key, value)}
+        >{label}</button>)}
+      </div>
     </div>, hovered.container) : null}
 
     {selected ? <aside className="vocabulary-study__card" aria-live="polite" aria-label={`${selected.word} 词汇卡片`}>
