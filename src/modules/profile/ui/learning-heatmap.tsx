@@ -162,10 +162,21 @@ export function LearningHeatmap({ onError, retryToken = 0, showError = true }: L
       </div>
 
       {heatmap.totals.activeDays === 0 ? (
-        <div className="learning-heatmap__empty" data-testid="learning-heatmap-empty">
-          <strong>还没有有效学习记录</strong>
-          <span>完成一次有实际表达的学习后，这里会开始记录活动；学习时长不会参与能力评分。</span>
-        </div>
+        error ? (
+          // A failed read used to fall through to the empty state above, so a
+          // network or 503 looked exactly like "you have never learned". Say
+          // which one it is, even when the section renders its own notice.
+          <div className="learning-heatmap__empty" data-testid="learning-heatmap-unavailable">
+            <strong>暂时无法读取学习活动</strong>
+            <span>这次没有取到你的活动记录，因此这里无法显示；这不代表你没有学习。</span>
+            <button onClick={() => void loadHeatmap()} type="button">重试</button>
+          </div>
+        ) : (
+          <div className="learning-heatmap__empty" data-testid="learning-heatmap-empty">
+            <strong>还没有有效学习记录</strong>
+            <span>这里只统计被记录下来的有效学习：在前台完成、且有实际表达或活动的练习。学习时长不参与能力评分，也不惩罚中断。</span>
+          </div>
+        )
       ) : <>
       <div className="learning-heatmap__scroll" role="group" aria-label="最近 12 周学习活动">
         <div className="learning-heatmap__weekdays" aria-hidden="true">
