@@ -107,3 +107,20 @@ $env:PROBE_RUNS='4'; node --conditions=react-server --import tsx/esm .tmp-phrase
 
 性质说明：表内 1–4 是**部署/运维决策**（会影响到所有人和全部路由），我没有擅自改连接配置、池参数或端点；5 是唯一还能在代码里做的，但它也需要产品对「卡片字段」与「播放器是否需要 `words`」拍板。
 
+## 9. 决定（2026-10-11，代码侧就此收口）
+
+结论：**代码侧停止继续优化，把决策权交回部署层；只排入一项后续代码任务。**
+
+- **接受并排入队列（唯一还有意义的代码项）：把阅读器 `findById` 的三条语句压成一波。** 现在 `/read/article/[id]` 是 **2 波**（先取文章行拿到 version id，再并发取 segments+assets），是本会话结束后**最慢的页面**（实测 1.8–2.3 s）。三条读其实都只以 `(stableKey, version)` 为键，可以让 segments/assets 自己 join `articles`+`article_versions` 定位，从而 **3 条语句 1 波**，省 1 趟 250–600 ms（该页约 -15~25%）。做法与验收已写死在下面「后续任务」；本轮**不启动**，理由是：它要改一个其他会话反复编辑的仓库文件，而收益只占该页一小部分——在上下文预算不足时开始这种改动，风险大于收益。
+- **明确不做（并给出理由，而不是无限期挂着）**：
+  - 选项 1（区域同置）：**收益最大**（每一页、每一波都受益），但属于部署决策且需要迁移窗口，不是我能单方面执行的；我提供可复现的只读测量方法（§6）。
+  - 选项 2（`idle_timeout` 20→60 s）：**方向正确但未经验证**——Supabase 的 transaction pooler 也可能在服务端断开空闲连接，盲目调大不一定有效，且会占用常驻连接。要求先做「相隔 5 分钟的两次 `/learn` 首请求」对照再决定，而不是直接改共享配置。
+  - 选项 3（共享缓存）：**不做**。它需要新增一个 KV/Redis 服务与失效设计，而 alpha 范围明确把「独立微服务和复杂消息队列」推迟（AGENTS.md §3），且仓库规则要求先有失效方案再上缓存；进程内缓存 + 启动预热已经覆盖了重复访问。
+  - 选项 4（预处理语句）：**不做**。transaction pooler 不支持，换 session/direct 会放大连接数，收益还未知。
+  - 选项 5（收窄宽投影）：**暂缓**。目录那条宽读在重复访问时已被进程内缓存挡住、首次访问已由启动预热覆盖，它只对「冷实例首访」有效；而收窄需要产品对卡片/播放器字段范围拍板。等实例数或内容量增长再回来看。
+
+### 后续任务（可直接照做）
+
+**READ-PERF-002：阅读器 3 语句 1 波。** `src/modules/content/repositories/drizzle-article-repository.ts` 的 `findById`：把第二波的 `Promise.all([segments, assets])` 改为与文章行查询**同一个** `Promise.all`，其中 segments/assets 各自 `innerJoin(schema.articleVersions).innerJoin(schema.articles)` 并用 `eq(articles.stableKey, parsed.stableKey) + eq(articleVersions.version, parsed.version)` 过滤（`parsed` 在第一次查询前就能拿到）。验收：①先写脚本记录**当前实现**对生产库 N 条（建议 ≥20 条，含 private story 与未发布）文章输出的 DTO，改动后逐字节比对必须完全一致；②`tests/unit/article-reader*`、`article-library`、`tests/contracts/api-contract` 全绿；③`tsc`/ESLint 干净；④用 §6 的探针记录 `/read/article/<key>` 前后对比。注意 `if (!row) return not-found` 的短路语义会变成「三条查询都发出」，404 路径多两条查询，可接受但要写进限制。
+
+
