@@ -12,6 +12,11 @@ import {
   lexiconReviewDimensionValues,
   type LexiconReviewOutcome,
 } from "@/src/modules/lexicon-corpus/domain/lexicon-candidate";
+import {
+  normalizeReviewEvidence,
+  normalizeReviewIssues,
+  normalizeReviewReason,
+} from "@/src/modules/lexicon-corpus/domain/lexicon-review-reason";
 
 import {
   MiniMaxLexiconReviewError,
@@ -237,6 +242,12 @@ type AttemptResult =
   | Readonly<{
       ok: true;
       decision: z.infer<typeof decisionPayloadSchema>;
+      /**
+       * The reviewer's explanation, assembled for storage. Built from the
+       * payload's prose fields, and **never** read back to decide anything: the
+       * verdict travels separately in `decision.outcome`.
+       */
+      reason: string | null;
       providerRequestId: string | null;
       stopReason: string | null;
       responseBytes: number;
@@ -429,6 +440,10 @@ export class MiniMaxCandidateReviewer implements CandidateReviewer {
             // Code-owned identity: never the model's claim, never a human signature.
             reviewerReference: reviewIdentity,
             reviewedAt: new Date(settledAt),
+            // Diagnosis, not decision: assembled from the payload's prose. The
+            // verdict above came from `decision.outcome` and nothing here can
+            // change it — see `composeReviewReason`.
+            ...(response.reason === null ? {} : { reason: response.reason }),
             observation: {
               provider: "minimax",
               modelVersion: this.modelVersion,
@@ -614,7 +629,7 @@ export class MiniMaxCandidateReviewer implements CandidateReviewer {
         );
       }
 
-      return { ok: true, decision, providerRequestId, stopReason, responseBytes };
+      return { ok: true, decision, reason: composeReviewReason(decision), providerRequestId, stopReason, responseBytes };
     } catch (error) {
       if (error instanceof MiniMaxLexiconReviewError) {
         return failure(error, providerRequestId, stopReason, responseBytes);
@@ -678,6 +693,54 @@ export function createMiniMaxCandidateReviewer(
 
 /** The identity this adapter writes; exported so a caller/test can assert it. */
 export const lexiconReviewIdentity = reviewIdentity;
+
+/**
+ * Assemble the reviewer's explanation for storage.
+ *
+ * The vendor returns four prose fields and the seam has room for one string, so
+ * this packs them under stable labels:
+ *
+ * `verdicts: <languageVerdict> | <teachingVerdict>; reason: <reason>; evidence: <…>; issues: <…>`
+ *
+ * The labels are always present and short, so even a pathologically long answer
+ * cannot truncate the *shape* of the record — a reader can always find the
+ * reason and see whether evidence was offered. The three long segments are each
+ * trimmed (per-item and per-list caps) before assembly, and the whole string is
+ * capped last, which means a 1500-character record is a prefix of a real
+ * explanation rather than a set of half-sentences.
+ *
+ * ## Why the prose is packed rather than trusted
+ *
+ * An earlier design considered keeping the fields separate so a reader could ask
+ * "did every rejection have empty evidence?" with one query. That means three
+ * more optional jsonb fields, and this string already answers the first question
+ * a canary has — *why did `content-es-ES` refuse three quarters of the
+ * lexemes?* The labels make the diagnostic greppable (`issues: []` versus
+ * `evidence:`) without widening the stored shape further.
+ *
+ * ## This function cannot influence the verdict
+ *
+ * It reads prose fields only. It is called *after* the outcome is final, its
+ * return value is attached beside the outcome and never fed back into any
+ * decision, and a `null` result simply means "no explanation" — which stores the
+ * historical four-key shape. A model that writes "outcome: pass" in its reason
+ * changes nothing: `decision.outcome` was already read from the payload's
+ * `outcome` key, and every later reader (the pipeline, `recordCandidateReview`,
+ * the jsonb codec) takes the verdict from that field alone.
+ */
+function composeReviewReason(decision: z.infer<typeof decisionPayloadSchema>): string | null {
+  const evidence = normalizeReviewEvidence(decision.evidence);
+  const issues = normalizeReviewIssues(decision.issues);
+  const parts = [
+    `verdicts: ${decision.languageVerdict} | ${decision.teachingVerdict}`,
+    `reason: ${decision.reason}`,
+    `evidence: ${evidence === null ? "[]" : evidence.join(" / ")}`,
+    `issues: ${issues === null ? "[]" : issues.join(" / ")}`,
+  ];
+  // The domain cap decides the final length, so the adapter cannot store
+  // something a decoder would then have to trim.
+  return normalizeReviewReason(parts.join("; "));
+}
 
 /** Which dimension this adapter is currently answering. Exposed for smoke tooling. */
 export const lexiconReviewDimensions = lexiconReviewDimensionValues;

@@ -69,13 +69,21 @@ function cloneProvenance(provenance: LexiconCandidateProvenance): LexiconCandida
   return { provider: provenance.provider, modelVersion: provenance.modelVersion, confidence: provenance.confidence };
 }
 
+/**
+ * Copy one review for storage in the fake.
+ *
+ * `reason` is copied only when present, so a review without one keeps the same
+ * four-key shape the database writes for historical rows. The verdict is copied
+ * verbatim, and the reason is never inspected — same rule as the jsonb codec.
+ */
 function cloneReview(review: LexiconCandidateReview): LexiconCandidateReview {
-  return {
+  const copy: LexiconCandidateReview = {
     dimension: review.dimension,
     outcome: review.outcome,
     reviewerReference: review.reviewerReference,
     reviewedAt: new Date(review.reviewedAt.getTime()),
   };
+  return review.reason === undefined ? copy : { ...copy, reason: review.reason };
 }
 
 function cloneRecord(record: LexiconCandidateRecord): LexiconCandidateRecord {

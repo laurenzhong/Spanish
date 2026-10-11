@@ -70,6 +70,10 @@ import * as schema from "@/src/shared/db/schema";
 import type { Database } from "@/src/shared/db/client";
 import { makeCandidateId, type LexiconCandidateReview } from "../domain/lexicon-candidate";
 import { parseDerivedCandidateId } from "./drizzle-lexicon-candidate-repository";
+import {
+  decodeReviews as decodeCandidateReviews,
+  encodeReviews as encodeCandidateReviews,
+} from "./lexicon-candidate-review-codec";
 import type {
   LexiconCandidateApprovalAuditStore,
   LexiconCandidateApprovalRecord,
@@ -112,44 +116,24 @@ export class LexiconCandidateApprovalRowDecodeError extends Error {
   }
 }
 
-/** `reviews` travels as jsonb: `reviewedAt` is written as an ISO string. */
+/**
+ * `reviews` travels as jsonb and is encoded by the shared codec, so the approval
+ * snapshot cannot drift from the candidate row it was copied out of.
+ */
 function encodeReviews(reviews: readonly LexiconCandidateReview[]): Record<string, unknown>[] {
-  return reviews.map((review) => ({
-    dimension: review.dimension,
-    outcome: review.outcome,
-    reviewerReference: review.reviewerReference,
-    reviewedAt: review.reviewedAt.toISOString(),
-  }));
+  return [...encodeCandidateReviews(reviews)] as Record<string, unknown>[];
 }
 
 /**
  * Decode the review snapshot.
  *
- * A malformed entry is an error, not something to skip: these are the two
+ * A malformed *decision* is an error, not something to skip: these are the two
  * verdicts the approval was based on, and dropping one would leave an audit row
- * that cannot prove dual review.
+ * that cannot prove dual review. A missing *reason* is the historical shape and
+ * decodes to "no reason" — older approval rows predate the field entirely.
  */
 function decodeReviews(entries: readonly Record<string, unknown>[], candidateId: string): readonly LexiconCandidateReview[] {
-  return entries.map((entry, index) => {
-    const dimension = entry.dimension;
-    const outcome = entry.outcome;
-    const reviewerReference = entry.reviewerReference;
-    const reviewedAt = entry.reviewedAt;
-    if (dimension !== "content-es-ES" && dimension !== "teaching-zh-CN") {
-      throw new LexiconCandidateApprovalRowDecodeError(candidateId, `review ${index} has an unknown dimension`);
-    }
-    if (outcome !== "pass" && outcome !== "fail") {
-      throw new LexiconCandidateApprovalRowDecodeError(candidateId, `review ${index} has an unknown outcome`);
-    }
-    if (typeof reviewerReference !== "string" || reviewerReference.length === 0) {
-      throw new LexiconCandidateApprovalRowDecodeError(candidateId, `review ${index} has no reviewer reference`);
-    }
-    const reviewedAtDate = typeof reviewedAt === "string" || reviewedAt instanceof Date ? new Date(reviewedAt) : null;
-    if (!reviewedAtDate || Number.isNaN(reviewedAtDate.getTime())) {
-      throw new LexiconCandidateApprovalRowDecodeError(candidateId, `review ${index} has no usable reviewedAt`);
-    }
-    return { dimension, outcome, reviewerReference, reviewedAt: reviewedAtDate };
-  });
+  return decodeCandidateReviews(entries, (detail) => new LexiconCandidateApprovalRowDecodeError(candidateId, detail));
 }
 
 /**

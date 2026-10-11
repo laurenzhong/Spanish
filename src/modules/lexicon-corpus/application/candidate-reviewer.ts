@@ -71,6 +71,22 @@ export type CandidateReviewDecision = Readonly<{
   /** Must satisfy `isOwnerAuthorizedReviewerReference()`; the pipeline checks it. */
   reviewerReference: string;
   reviewedAt: Date;
+  /**
+   * The reviewer's explanation of this dimension. **Explanatory only.**
+   *
+   * This is the field the canary needs in order to see *why* `content-es-ES`
+   * rejects three quarters of the extracted lexemes; before it existed, the
+   * vendor's reason was discarded at the adapter boundary and the stored review
+   * carried nothing but a verdict.
+   *
+   * It must never be an input to a decision: the pipeline records `outcome` and
+   * passes `reason` alongside it as an annotation. A reviewer whose reason
+   * contradicts its own outcome stores the outcome — the prose may mislead a
+   * human reader, but it can never flip a verdict (see
+   * `lexicon-review-reason.ts`). Optional for fakes and for callers that have
+   * nothing to say.
+   */
+  reason?: string;
 }>;
 
 export type CandidateReviewRequest = Readonly<{

@@ -60,6 +60,18 @@ export type LexiconCandidateReview = Readonly<{
   /** Must be a recognised review identity; the application layer validates it. */
   reviewerReference: string;
   reviewedAt: Date;
+  /**
+   * Why the reviewer answered this way. **Explanatory only.**
+   *
+   * Optional because rows written before LEX-INDEX-001 slice 8 have no reason,
+   * and `reviews` is jsonb: absence is the historical shape, not corruption.
+   * Nothing in this module ever reads it — `recordReview()` below decides status
+   * from `outcome` alone — so the model cannot talk its way to a different
+   * verdict through its prose. See `lexicon-review-reason.ts` for the full rule;
+   * an absent reason must never make a stored review undecodable, because losing
+   * the explanation is acceptable and losing the verdict is not.
+   */
+  reason?: string;
 }>;
 
 /**

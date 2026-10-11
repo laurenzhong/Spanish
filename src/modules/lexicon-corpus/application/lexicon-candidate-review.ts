@@ -17,6 +17,7 @@
 
 import { isOwnerAuthorizedReviewerReference } from "@/src/modules/content-acquisition/domain/review-identity";
 
+import { normalizeReviewReason } from "../domain/lexicon-review-reason";
 import {
   approveCandidate,
   lexiconReviewDimensionValues,
@@ -127,6 +128,16 @@ export function recordCandidateReview(
     outcome: LexiconReviewOutcome;
     reviewerReference: string;
     reviewedAt: Date;
+    /**
+     * The reviewer's explanation, recorded **for diagnosis only**.
+     *
+     * It is normalised (trimmed, capped, truncated) and attached to the stored
+     * review; it is never read back by this function and cannot influence the
+     * verdict or the resulting status. Only `outcome` decides whether the
+     * candidate settles as `rejected`. An over-long or malformed explanation is
+     * dropped, never a reason to refuse the review.
+     */
+    reason?: unknown;
     expectedRevision: number;
     now: Date;
   }>,
@@ -139,11 +150,16 @@ export function recordCandidateReview(
     return fail("CANDIDATE_REVIEW_RECORD_INCOMPLETE");
   }
 
+  const reason = normalizeReviewReason(input.reason);
   const review: LexiconCandidateReview = {
     dimension: input.dimension,
+    // Verbatim: the input outcome is the only authority here. Nothing below
+    // inspects `reason`, and the field is deliberately written after this line so
+    // a future edit is forced past the comment.
     outcome: input.outcome,
     reviewerReference: input.reviewerReference,
     reviewedAt: input.reviewedAt,
+    ...(reason === null ? {} : { reason }),
   };
   return fromDomain(recordReview(candidate, { review, expectedRevision: input.expectedRevision, now: input.now }));
 }

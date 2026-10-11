@@ -567,6 +567,9 @@ async function planCandidateReview(
       outcome: decision.outcome,
       reviewerReference: decision.reviewerReference,
       reviewedAt: decision.reviewedAt,
+      // Diagnosis only: recorded next to the verdict, never consulted when the
+      // verdict is applied. See `lexicon-review-reason.ts`.
+      reason: decision.reason,
       expectedRevision: current.revision,
       now,
     });
@@ -688,6 +691,9 @@ async function commitCandidate(
       outcome: decision.outcome,
       reviewerReference: decision.reviewerReference,
       reviewedAt: decision.reviewedAt,
+      // Same annotation as the planning phase: the verdict is `outcome`, and the
+      // reason is stored beside it so a rejection can be explained later.
+      reason: decision.reason,
       expectedRevision: current.revision,
       now,
     });

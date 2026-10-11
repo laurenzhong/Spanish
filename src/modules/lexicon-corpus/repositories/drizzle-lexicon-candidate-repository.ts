@@ -60,6 +60,7 @@ import {
   type LexiconCandidateSaveOutcome,
   type LexiconCandidateSourceKey,
 } from "./lexicon-candidate-repository";
+import { decodeReviews as decodeReviewsFromJson, encodeReviews } from "./lexicon-candidate-review-codec";
 
 type CandidateRow = typeof schema.lexiconCandidates.$inferSelect;
 
@@ -146,32 +147,16 @@ function identityWhere(
 /**
  * Decode one review record.
  *
- * A malformed entry is an error, not something to skip: these rows are what
- * proves dual review before approval, and silently dropping one would reinterpret
- * evidence that a human decision was based on.
+ * The rules live in the shared codec now (three stores used to implement them
+ * separately). A malformed *decision* is an error, not something to skip: these
+ * rows are what proves dual review before approval, and silently dropping one
+ * would reinterpret evidence that a human decision was based on. A missing or
+ * malformed `reason` is dropped instead — old rows have no reason at all, and a
+ * lost explanation must never cost the verdict.
  */
 function decodeReviews(row: CandidateRow): LexiconCandidateRecord["candidate"]["reviews"] {
   const candidateId = toCandidateId(row);
-  return row.reviews.map((entry, index) => {
-    const dimension = entry.dimension;
-    const outcome = entry.outcome;
-    const reviewerReference = entry.reviewerReference;
-    const reviewedAt = entry.reviewedAt;
-    if (dimension !== "content-es-ES" && dimension !== "teaching-zh-CN") {
-      throw new LexiconCandidateRowDecodeError(candidateId, `review ${index} has an unknown dimension`);
-    }
-    if (outcome !== "pass" && outcome !== "fail") {
-      throw new LexiconCandidateRowDecodeError(candidateId, `review ${index} has an unknown outcome`);
-    }
-    if (typeof reviewerReference !== "string" || reviewerReference.length === 0) {
-      throw new LexiconCandidateRowDecodeError(candidateId, `review ${index} has no reviewer reference`);
-    }
-    const reviewedAtDate = typeof reviewedAt === "string" || reviewedAt instanceof Date ? new Date(reviewedAt) : null;
-    if (!reviewedAtDate || Number.isNaN(reviewedAtDate.getTime())) {
-      throw new LexiconCandidateRowDecodeError(candidateId, `review ${index} has no usable reviewedAt`);
-    }
-    return { dimension, outcome, reviewerReference, reviewedAt: reviewedAtDate };
-  });
+  return decodeReviewsFromJson(row.reviews, (detail) => new LexiconCandidateRowDecodeError(candidateId, detail));
 }
 
 function toCandidateId(row: CandidateRow): string {
@@ -245,13 +230,9 @@ function toValues(record: LexiconCandidateRecord) {
     confidence: provenance.confidence,
     status: candidate.status,
     revision: candidate.revision,
-    // Dates travel as ISO strings inside jsonb; `decodeReviews` reads them back.
-    reviews: candidate.reviews.map((review) => ({
-      dimension: review.dimension,
-      outcome: review.outcome,
-      reviewerReference: review.reviewerReference,
-      reviewedAt: review.reviewedAt.toISOString(),
-    })),
+    // Dates travel as ISO strings inside jsonb, and an absent reason stays
+    // absent, so a reason-less review keeps the exact historical shape.
+    reviews: encodeReviews(candidate.reviews),
     approvedBy: candidate.approvedBy,
     approvedAt: candidate.approvedAt,
     rejectedReason: candidate.rejectedReason,
