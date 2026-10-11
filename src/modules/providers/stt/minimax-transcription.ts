@@ -7,6 +7,7 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { groupWordSegments } from "./word-segments";
 import {
   SpeechToTextError,
   type SpeechToTextInput,
@@ -29,13 +30,37 @@ export type MiniMaxTranscriptionProviderOptions = Readonly<{
   model?: string;
   timeoutMs?: number;
   fetchImplementation?: FetchImplementation;
+  /**
+   * `word` asks the provider for one unit per word, which is what a word-aligned
+   * timeline needs; `sentence` keeps the default, cheaper response.
+   */
+  timestampLevel?: "sentence" | "word";
 }>;
 
 const responseSchema = z.object({
   text: z.string(),
   duration: z.number().nonnegative().optional(),
   trace_id: z.string().optional(),
+  segments: z.array(z.object({
+    text: z.string(),
+    start: z.number().nonnegative(),
+    end: z.number().nonnegative(),
+    speaker: z.string().nullable().optional(),
+  }).passthrough()).optional(),
 }).passthrough();
+
+/** One provider unit, in milliseconds, before it is grouped into a segment. */
+type ProviderUnit = Readonly<{ text: string; startMs: number; endMs: number; speaker: string | null; confidence: null }>;
+
+function providerUnits(segments: NonNullable<z.infer<typeof responseSchema>["segments"]>): ProviderUnit[] {
+  return segments.map((segment) => ({
+    text: segment.text,
+    startMs: Math.round(segment.start * 1_000),
+    endMs: Math.round(segment.end * 1_000),
+    speaker: segment.speaker ?? null,
+    confidence: null,
+  }));
+}
 
 export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
   private readonly endpoint: string;
@@ -64,6 +89,7 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
     else options.signal?.addEventListener("abort", abort, { once: true });
     const startedAt = Date.now();
     try {
+      const wordLevel = this.options.timestampLevel === "word";
       const responses = input.durationMs && input.durationMs > maxRequestDurationMs
         ? await this.transcribeChunks(input, controller.signal)
         : [await this.transcribeBytes(input.audioBytes, input.mimeType, input.fileName, controller.signal)];
@@ -79,6 +105,7 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
         latencyMs: Math.max(0, Date.now() - startedAt),
         estimatedCostMicros: null,
         retentionPolicy: "ephemeral",
+        ...(wordLevel ? { segments: groupWordSegments(flattenUnits(responses)) } : {}),
       };
     } catch (error) {
       if (error instanceof SpeechToTextError) throw error;
@@ -112,7 +139,11 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
       for (const name of names) {
         if (signal.aborted) throw new SpeechToTextError("provider-cancelled", "Speech transcription was cancelled.", false);
         const bytes = await readFile(path.join(directory, name));
-        results.push(await this.transcribeBytes(new Uint8Array(bytes), "audio/mpeg", name, signal));
+        // ffmpeg numbers the parts in order, so the index gives this part's
+        // offset inside the asset (see chunkOffsetMs).
+        const offsetMs = chunkOffsetMs(name);
+        const transcribed = await this.transcribeBytes(new Uint8Array(bytes), "audio/mpeg", name, signal);
+        results.push({ ...transcribed, offsetMs });
       }
       return results;
     } finally {
@@ -127,7 +158,7 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
     form.append("model", this.model);
     form.append("file", new Blob([audioBuffer], { type: mimeType }), fileName);
     form.append("response_format", "verbose_json");
-    form.append("timestamp_level", "sentence");
+    form.append("timestamp_level", this.options.timestampLevel ?? "sentence");
     form.append("stream", "false");
     const response = await this.fetchImplementation(this.endpoint, {
       method: "POST",
@@ -142,11 +173,53 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
     catch { throw new SpeechToTextError("provider-response-invalid", "Speech provider returned invalid JSON.", false); }
     const parsed = responseSchema.safeParse(payload);
     if (!parsed.success) throw new SpeechToTextError("provider-response-invalid", "Speech provider response did not match the expected format.", false);
-    return { text: parsed.data.text, requestId: requestId ?? parsed.data.trace_id ?? null };
+    const units = this.options.timestampLevel === "word" && parsed.data.segments
+      ? providerUnits(parsed.data.segments)
+      : undefined;
+    if (units?.some((unit) => unit.endMs <= unit.startMs)) {
+      throw new SpeechToTextError("provider-response-invalid", "Speech provider returned an invalid timestamp timeline.", false);
+    }
+    return { text: parsed.data.text, requestId: requestId ?? parsed.data.trace_id ?? null, units };
   }
 }
 
-type MiniMaxResponse = Readonly<{ text: string; requestId: string | null }>;
+type MiniMaxResponse = Readonly<{
+  text: string;
+  requestId: string | null;
+  /** Word units relative to this request's own audio, when word level was asked for. */
+  units?: readonly ProviderUnit[];
+  /** Offset of this request's audio inside the source asset; 0 for a single call. */
+  offsetMs?: number;
+}>;
+
+/**
+ * Word units from every chunk, moved onto the source asset's timeline. Providers
+ * time each chunk from its own start, so without this every chunk after the first
+ * would report word positions relative to the wrong origin.
+ */
+export function flattenUnits(responses: readonly MiniMaxResponse[]): ProviderUnit[] {
+  return responses.flatMap((response) => {
+    const offset = response.offsetMs ?? 0;
+    return (response.units ?? []).map((unit) => offset === 0 ? unit : {
+      ...unit,
+      startMs: unit.startMs + offset,
+      endMs: unit.endMs + offset,
+    });
+  });
+}
+
+/**
+ * Offset of a numbered ffmpeg part inside the source asset. Parts are produced at
+ * the configured segment length, so the index gives the offset of that part's own
+ * audio; the final part is shorter, which only affects where it ends.
+ */
+export function chunkOffsetMs(fileName: string): number {
+  // Only the numeric part ffmpeg appends before the extension counts; a naive
+  // "all digits" read would also pick up the digits of the ".mp3" suffix.
+  const part = /-(\d+)\.[a-z0-9]+$/iu.exec(fileName)?.[1];
+  if (!part) throw new Error("minimax-chunk-name-invalid");
+  return Number(part) * chunkDurationSeconds * 1_000;
+}
 
 function runCommand(command: string, args: readonly string[], signal: AbortSignal, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {

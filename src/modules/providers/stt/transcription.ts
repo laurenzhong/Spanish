@@ -22,6 +22,25 @@ export type SpeechToTextInput = Readonly<{
   durationMs?: number;
 }>;
 
+/**
+ * A timed unit of speech. Word-level providers return one unit per word, which
+ * callers group into readable segments; the offsets are into the segment text so
+ * a reader can map a token back to its audio position.
+ */
+export type TranscriptSegment = Readonly<{
+  text: string;
+  startMs: number;
+  endMs: number;
+  speaker: string | null;
+  confidence: number | null;
+  words?: readonly Readonly<{
+    startMs: number;
+    endMs: number;
+    startOffset: number;
+    endOffset: number;
+  }>[];
+}>;
+
 export type TranscriptResult = Readonly<{
   text: string;
   detectedLanguages: readonly string[];
@@ -33,6 +52,8 @@ export type TranscriptResult = Readonly<{
   latencyMs: number;
   estimatedCostMicros: number | null;
   retentionPolicy: "ephemeral";
+  /** Present only when the provider was asked for a timed timeline. */
+  segments?: readonly TranscriptSegment[];
 }>;
 
 export interface SpeechToTextProvider {
