@@ -52,7 +52,15 @@
 | 媒体播放 | `getPlayback` 的 progress 与 segments 改 `Promise.all`（3 波→2 波） | **无干净 A/B**：直接测量时 500 行 segments 读取 ECONNRESET，HTTP 口径 668–1883 波动；按结构记账 |
 | 非 Lucía 门禁 | `getRelationshipStatus` 两条语句并为一条 `characters ⟕ character_relationships`，保持 fail-closed | **当前无线上路径受益**：只有 Lucía 是 published，Mateo/Inés 仍 draft；保留为形状正确与前置条件 |
 
-## 5. 未完成：P3 `/explore`
+## 5. 已完成：P3 `/explore`（公开目录不再等服务端私有读取）
+
+- 入口：[`app/(product)/explore/page.tsx`](../../(product)/explore/page.tsx) 原先的单个 `await Promise.all([dashboardPromise, libraryPromise])` 决定整页何时出现。
+- 问题：6 条**全部为用户私有**的语句（1 波）挡住了 3 个**完全来自内存 JSON、0 条语句**的公开视图；`explore-library-panel.tsx` 的卡片曾是原生 `<a href>`，下钻走整文档加载（无 prefetch）。
+- **结果（Lead 实测）**：`/explore` 流式时间线由 「ttfb 144ms / 内容 1040ms / gap 896ms / 3 个分块」变为 **「ttfb 82–97ms / 结束 83–98ms / gap 1ms / 单分块 53,329B」**；真实 Chrome 在 472ms 时公开视图已有 9 张场景卡，私有数据 hydration 后经既有 `GET /api/v1/explore/dashboard` 到达并替换（`activeLibrary` 与 `activeDashboard` 一并替换），无 hydration 报错；`explore-page.spec.ts` 桌面+手机 12/12。
+- 取舍：公开先到、私有后到（晚一个 hydration 周期）；`ExplorePrivateState` 新增 `"loading"`，只有需要用户私有行的筛选项显示加载占位，目录本身决定的筛选项（可立即开始/可打开）在窗口期照常工作。
+- 曾阻塞的 6 行其他会话改动已原样落为 `c30d184`；`openapi.json`、`media-item.schema.json` 里各一行他方 CEFR 枚举未随本改动提交。
+
+## 5b. 当时的建议顺序（已按此执行，保留供复核）
 
 - 入口：[`app/(product)/explore/page.tsx:54`](../../(product)/explore/page.tsx) 的单个 `await Promise.all([dashboardPromise, libraryPromise])` 决定整页何时出现。
 - 问题：6 条**全部为用户私有**的语句（1 波）挡住了 3 个**完全来自内存 JSON、0 条语句**的公开视图；`explore-library-panel.tsx` 的卡片是原生 `<a href>`，下钻走整文档加载（无 prefetch）。

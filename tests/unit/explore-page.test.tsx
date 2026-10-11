@@ -42,6 +42,54 @@ const library: ExploreLibraryDto = {
   ],
 };
 
+/** The bundle-backed half of the library, i.e. what the server can send without a private read. */
+const publicLibrary: ExploreLibraryDto = {
+  privateState: "loading",
+  scenarios: [{
+    stableKey: "scenario.campus-administration",
+    title: "校园办事：注册与材料",
+    description: "在学校行政窗口说明来意。",
+    cefr: "A2",
+    region: "es-ES",
+    category: "study",
+    categoryLabel: "学习办事",
+    role: "校园行政工作人员",
+    communicationGoal: "说明来意并确认材料",
+    expressionTexts: ["Quisiera entregar estos documentos."],
+    sourceKind: "public",
+    route: "/explore/scenarios/scenario.campus-administration",
+  }],
+  expressions: [
+    { id: "formal-1", text: "¿Cómo va todo?", translation: "一切都怎么样？", intent: "轻松询问近况", cefr: "A1", region: "es-ES", category: "start", categoryLabel: "开始交流", sourceKind: "formal", saved: false, saveSource: { sourceType: "formal-expression", expressionKey: "start.como-va-todo", version: 1 } },
+  ],
+};
+
+/** The same page once the owned rows arrived: one personal scenario and one saved expression. */
+const decoratedLibrary: ExploreLibraryDto = {
+  privateState: "available",
+  scenarios: [
+    { stableKey: "personal.10000000-0000-4000-8000-000000000001", title: "药店沟通", description: "说明症状并询问用法。", cefr: "A2", region: "es-ES", category: "personal", categoryLabel: "私人场景", role: "药剂师", communicationGoal: "询问药物用法", expressionTexts: ["¿Cómo debo tomarlo?"], sourceKind: "personal", route: "/explore/scenarios/personal.10000000-0000-4000-8000-000000000001" },
+    ...publicLibrary.scenarios,
+  ],
+  expressions: [
+    ...publicLibrary.expressions,
+    { id: "saved-1", text: "¿Me puede ayudar?", translation: "您能帮我吗？", intent: null, cefr: null, region: null, category: "saved", categoryLabel: "我的收藏", sourceKind: "saved", saved: true, savedExpressionId: "saved-1", generationSource: { sourceType: "saved-expression", sourceId: "saved-1" } },
+  ],
+};
+
+const ownedDashboard: ExploreDashboardDto = {
+  ...dashboard,
+  userState: "available",
+  packs: dashboard.packs.map((pack) => pack.stableKey === "published-pack" ? { ...pack, saved: true } : pack),
+};
+
+function privatePayload(library: ExploreLibraryDto = decoratedLibrary): Response {
+  return new Response(JSON.stringify({ apiVersion: "v1", data: { ...ownedDashboard, library } }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 describe("ExplorePageContent", () => {
   afterEach(() => {
     cleanup();
@@ -240,5 +288,89 @@ describe("ExplorePageContent", () => {
     expect(params.has("filter")).toBe(false);
     expect(screen.getByRole("tab", { name: "内容包" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("咖啡馆里的新朋友")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The owned part of the library is fetched by this component after paint, so
+ * the page no longer waits on it. These tests pin the three states the user can
+ * be in: the read is in flight, it succeeded, it failed.
+ */
+describe("ExplorePageContent owned-data lifecycle", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("renders the public scenarios while the owned read never settles", async () => {
+    // A private read that never resolves is the whole point: nothing in this
+    // component may wait for it before showing the public catalogue.
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+
+    render(<ExplorePageContent dashboard={dashboard} library={publicLibrary} userId="user-1" />);
+
+    expect(screen.getByRole("link", { name: /校园办事/u })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "场景" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText("没有匹配的场景")).not.toBeInTheDocument();
+    expect(screen.getByText(/私人内容加载中/u)).toBeInTheDocument();
+    expect(screen.queryByText("私人内容暂不可用，当前显示公共内容。")).not.toBeInTheDocument();
+  });
+
+  it("does not claim 我的收藏 is empty while the owned read is in flight", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+
+    render(<ExplorePageContent dashboard={dashboard} library={publicLibrary} userId="user-1" initialView="expressions" initialFilter="saved" />);
+
+    expect(screen.getByText("正在加载你的收藏与阅读来源…")).toBeInTheDocument();
+    expect(screen.queryByText("没有匹配的表达")).not.toBeInTheDocument();
+    expect(screen.getByText(/私人内容加载中/u)).toBeInTheDocument();
+  });
+
+  it("has not read anything owned when no viewer is supplied", () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    render(<ExplorePageContent dashboard={dashboard} library={publicLibrary} />);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: /校园办事/u })).toBeInTheDocument();
+  });
+
+  it("merges the owned scenarios and saved expressions when the read arrives", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(privatePayload());
+
+    const { container } = render(<ExplorePageContent dashboard={dashboard} library={publicLibrary} userId="user-1" />);
+
+    expect(await screen.findByText("药店沟通")).toBeInTheDocument();
+    expect(screen.queryByText(/私人内容加载中/u)).not.toBeInTheDocument();
+    expect(container.querySelectorAll(".explore-scenario-grid > a")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("tab", { name: "表达" }));
+    expect(screen.getByText("¿Me puede ayudar?")).toBeInTheDocument();
+  });
+
+  it("keeps the public catalogue and reports unavailable when the owned read fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 503, headers: { "content-type": "application/json" } }));
+
+    render(<ExplorePageContent dashboard={dashboard} library={publicLibrary} userId="user-1" />);
+
+    expect(await screen.findByText("私人内容暂不可用，当前显示公共内容。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /校园办事/u })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "表达" }));
+    expect(screen.getByRole("button", { name: "收藏表达：¿Cómo va todo?" })).toBeInTheDocument();
+  });
+
+  it("pages the pack filters by what they actually need: 可打开 is catalogue data, 已收藏 is owned", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+    render(<ExplorePageContent dashboard={dashboard} library={publicLibrary} userId="user-1" initialView="packs" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "筛选内容包" }));
+    fireEvent.click(screen.getByRole("button", { name: "可打开" }));
+    expect(screen.getByText("咖啡馆里的新朋友")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "筛选内容包" }));
+    fireEvent.click(screen.getByRole("button", { name: "已收藏" }));
+    expect(screen.getByText("正在加载你的内容包状态…")).toBeInTheDocument();
+    expect(screen.queryByText("没有匹配的内容包")).not.toBeInTheDocument();
   });
 });

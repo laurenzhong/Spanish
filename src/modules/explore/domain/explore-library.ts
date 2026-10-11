@@ -40,10 +40,23 @@ export type ExploreExpressionLibraryCard = Readonly<{
   generationSource?: ExploreExpressionGenerationSource;
 }>;
 
+/**
+ * Whether the owned part of the library (personal scenarios, saved
+ * expressions, reading highlights, recent errors) is present in this DTO.
+ *
+ * `"loading"` is not a synonym for `"unavailable"`: the public catalogue paints
+ * before the per-user reads are issued, so a library that has not been
+ * decorated yet must say so instead of reporting a failure. The saved and
+ * personal filters are dishonest under `"unavailable"` copy while the read is
+ * still in flight.
+ */
+export const explorePrivateStates = ["loading", "available", "unavailable"] as const;
+export type ExplorePrivateState = (typeof explorePrivateStates)[number];
+
 export type ExploreLibraryDto = Readonly<{
   scenarios: readonly ExploreScenarioLibraryCard[];
   expressions: readonly ExploreExpressionLibraryCard[];
-  privateState: "available" | "unavailable";
+  privateState: ExplorePrivateState;
 }>;
 
 export function normalizeExploreSearchText(value: string): string {
