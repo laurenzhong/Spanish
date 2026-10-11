@@ -19,6 +19,12 @@ const nextConfig: NextConfig = {
     staleTimes: { dynamic: 30 },
   },
   ...(distDir ? { distDir } : {}),
+  // Opt-in escape hatch for a local measurement build while another session's
+  // in-flight test files fail the project-wide type check (they do right now:
+  // tests/database/lexicon-candidate-reviews-reason.test.ts and some
+  // tmp-bisect-*.test.ts). Default off, so `pnpm build` and CI keep failing on
+  // real type errors; never set this for a release gate.
+  ...(process.env.NEXT_MEASUREMENT_BUILD === "1" ? { typescript: { ignoreBuildErrors: true } } : {}),
 };
 
 export default nextConfig;
