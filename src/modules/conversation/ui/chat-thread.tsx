@@ -15,7 +15,7 @@ import {
 } from "@/src/modules/conversation";
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
-import { CONVERSATION_LIST_UPDATED_EVENT, ConversationContactRail } from "./conversation-contact-rail";
+import { CONVERSATION_LIST_UPDATED_EVENT, ConversationContactRail, markConversationRead } from "./conversation-contact-rail";
 import {
   getCachedConversationAccess,
   getCachedConversationHistory,
@@ -326,6 +326,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         setCachedConversationHistory(characterKey, result.messages, result.access, cacheScope);
         setPersistenceStatus("available");
         serverHistoryLoadedRef.current = true;
+        // Reading the conversation is what makes its messages read. Without
+        // this the unread badge keeps counting messages the user is already
+        // looking at, and a message that lands while the thread is open never
+        // clears because only the contact row advanced `lastReadAt`.
+        void markConversationRead(characterKey);
       } catch {
         // A cached snapshot or a server-rendered view is still usable while the
         // server is temporarily unreachable; only show the unavailable state

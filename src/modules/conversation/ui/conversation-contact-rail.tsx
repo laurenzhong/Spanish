@@ -36,6 +36,28 @@ const CONTACT_SEARCH_THRESHOLD = 8;
 const CONTACT_REQUEST_TIMEOUT_MS = 8_000;
 export const CONVERSATION_LIST_UPDATED_EVENT = "conversation-list-updated";
 
+/**
+ * Marks one conversation as read and refetches the contact list so the navigation
+ * unread badge reflects it. Callers use this from the chat thread itself: opening
+ * or re-reading a conversation is what makes its messages read, not clicking the
+ * contact row. The request is idempotent (the route only advances `lastReadAt`)
+ * and failures are silent — a stale badge is better than a broken thread.
+ */
+export async function markConversationRead(characterKey: string): Promise<void> {
+  try {
+    const response = await fetch("/api/v1/conversations/preferences", {
+      method: "PATCH",
+      keepalive: true,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ characterKey, markRead: true }),
+    });
+    if (!response.ok) return;
+    window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
+  } catch {
+    // Keep the previous unread count; the next successful refresh corrects it.
+  }
+}
+
 async function fetchContactJson<T>(url: string, controller: AbortController): Promise<T> {
   const timeout = window.setTimeout(() => controller.abort(), CONTACT_REQUEST_TIMEOUT_MS);
   try {
@@ -214,6 +236,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLElement>(null);
   const introductionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const acknowledgedUnreadRef = useRef<{ characterKey: string; unreadCount: number } | null>(null);
   const dragState = useRef<DragState | null>(null);
   const dragOverCharacterKeyRef = useRef<string | null>(null);
   const [preferenceError, setPreferenceError] = useState(false);
@@ -254,15 +277,21 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
     return () => window.removeEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
   }, [resolvedCacheScope]);
 
+  // Opening a conversation marks it read. The signature guard keeps the
+  // patch → list-refresh → effect cycle bounded: each new unread count is
+  // acknowledged once instead of re-patching on every refetched array identity.
   useEffect(() => {
     const conversation = conversations.find((item) => item.characterKey === activeCharacterKey);
-    if (!conversation || (conversation.unreadCount ?? 0) < 1) return;
-    void fetch("/api/v1/conversations/preferences", {
-      method: "PATCH",
-      keepalive: true,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }),
-    }).then(() => window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT))).catch(() => undefined);
+    if (!conversation) {
+      acknowledgedUnreadRef.current = null;
+      return;
+    }
+    const unreadCount = conversation.unreadCount ?? 0;
+    if (unreadCount < 1) return;
+    const acknowledged = acknowledgedUnreadRef.current;
+    if (acknowledged?.characterKey === conversation.characterKey && acknowledged.unreadCount === unreadCount) return;
+    acknowledgedUnreadRef.current = { characterKey: conversation.characterKey, unreadCount };
+    void markConversationRead(conversation.characterKey);
   }, [activeCharacterKey, conversations]);
 
   useEffect(() => {

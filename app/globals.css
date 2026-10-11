@@ -142,6 +142,7 @@ a {
 }
 
 .navigation-icon {
+  position: relative;
   display: grid;
   width: 23px;
   height: 23px;
@@ -3376,6 +3377,13 @@ body { background: var(--background); }
   --warning: #b97817;
   --warning-soft: #fbf0d8;
   --danger: #a9362a;
+  /* Attention fill for unread/notification counts. Distinct from --danger,
+     which means failure or a destructive confirmation, and paired with an
+     on-fill ink so the count text keeps AA contrast in both themes instead of
+     relying on a hardcoded white. */
+  --notification: #d92d3f;
+  --notification-soft: #d9363e;
+  --notification-ink: #ffffff;
   --font-display: Georgia, "Songti SC", "Noto Serif SC", serif;
   --font-ui: "Plus Jakarta Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
   --font-serif: Georgia, "Songti SC", "Noto Serif SC", serif;
@@ -3423,6 +3431,11 @@ body { background: var(--background); }
   --warning: #e4b35d;
   --warning-soft: #3a2e19;
   --danger: #f08b7d;
+  /* Dark pairing: the fill lightens instead of inverting, and the on-fill ink
+     darkens with it (white on the light fill would drop to 2.42:1). */
+  --notification: #e2606f;
+  --notification-soft: #e2606f;
+  --notification-ink: #231310;
   --shadow: 0 18px 40px rgb(0 0 0 / 24%);
   --shadow-soft: 0 8px 22px rgb(0 0 0 / 20%);
 }
@@ -4893,7 +4906,7 @@ button {
 .conversation-empty-state { display: grid; place-content: center; gap: 8px; min-width: 0; flex: 1; padding: 32px; color: var(--conversation-muted); text-align: center; }
 .conversation-empty-state h1 { margin: 0; color: var(--conversation-ink); font-size: 18px; }
 .conversation-empty-state p { margin: 0; font-size: 13px; }
-.navigation-unread-count { position: absolute; top: 3px; left: calc(50% + 10px); display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border: 2px solid var(--surface, #fff); border-radius: 999px; color: #fff; background: #d92d3f; font-size: 10px; font-weight: 700; line-height: 1; }
+.navigation-unread-count { position: absolute; inset-block-start: -6px; inset-inline-end: -9px; display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border: 2px solid var(--surface, #fff); border-radius: 999px; color: var(--notification-ink); background: var(--notification); font-size: 10px; font-weight: 700; line-height: 1; }
 .conversation-contact-rail__state button { width: fit-content; min-height: 32px; padding: 0 10px; border: 1px solid var(--conversation-line); border-radius: 4px; color: var(--conversation-action); background: transparent; font-size: 11px; cursor: pointer; }
 
 .conversation-contact-row__unread {
@@ -8895,9 +8908,10 @@ body {
     font-weight: 750;
   }
   .desktop-navigation__link[data-pending="true"] { opacity: .55; }
-  .desktop-navigation__link .navigation-unread-count { top: 2px; left: calc(50% + 14px); border-color: var(--surface, #fff); }
+  .desktop-navigation__link .navigation-unread-count { inset-block-start: -8px; inset-inline-end: -13px; border-color: var(--surface, #fff); }
   .desktop-navigation__link[aria-current="page"]::before { background: var(--terracotta); }
   .desktop-navigation__icon {
+    position: relative;
     display: grid;
     width: 24px;
     height: 24px;
@@ -8936,7 +8950,7 @@ body {
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__group-label { display: none; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link { justify-content: center; padding: 6px; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link::before { left: -8px; }
-  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link .navigation-unread-count { left: calc(50% + 6px); }
+  .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__link .navigation-unread-count { inset-inline-end: -10px; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account { padding-inline: 14px; }
   .product-shell:has(.desktop-navigation[data-collapsed="true"]) .desktop-navigation__account .account-menu__trigger { justify-content: center; padding: 4px; }
@@ -10706,8 +10720,8 @@ body {
   margin-left: 0;
   padding: 0 6px;
   border-radius: 999px;
-  color: #fff;
-  background: #d9363e;
+  color: var(--notification-ink);
+  background: var(--notification-soft);
   font-size: 11px;
   font-weight: 760;
   line-height: 1;
@@ -12257,12 +12271,26 @@ body {
 .landing-nav__links a { position: relative; }
 .landing-nav__links a::before { position: absolute; top: 50%; right: -6px; left: -6px; height: 44px; content: ""; transform: translateY(-50%); }
 .landing-nav__indicator { background: var(--landing-coral, #ff6b57); }
+/* The header nav has no current item, so the underline only exists while the
+   pointer or keyboard is inside it (see PublicHomeNavigation). The transition
+   sits in a `no-preference` query so the shared reduced-motion rule that sets
+   `transition: none` on every indicator still wins for those users. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-nav__indicator { transition: transform var(--motion-standard) ease, width var(--motion-standard) ease, opacity 140ms ease; }
+}
 .landing-nav__cta { padding: 9px 15px; border: 1px solid rgb(255 255 255 / 25%); border-radius: 999px; color: #fff !important; background: rgb(255 255 255 / 9%); transition: background 180ms ease, transform 180ms ease; }
 .landing-nav__cta:hover { background: var(--landing-coral); transform: translateY(-1px); }
 .landing-hero__copy { display: grid; justify-items: center; padding-top: clamp(54px, 8vh, 92px); text-align: center; }
-.landing-hero__copy h1 { max-width: 14ch; margin: 0; color: #f7f3eb; font-family: Georgia, "Songti SC", serif; font-size: clamp(2.6rem, 5.3vw, 5.35rem); font-weight: 500; line-height: .98; letter-spacing: -.065em; text-wrap: balance; animation: landing-reveal 680ms cubic-bezier(.2,.75,.2,1) both; }
-.landing-hero__copy > p:not(.landing-hero__kicker) { max-width: 43ch; margin: 24px 0 0; color: rgb(247 243 235 / 68%); font-size: .95rem; line-height: 1.7; animation: landing-reveal 680ms 100ms cubic-bezier(.2,.75,.2,1) both; }
-.landing-hero__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; align-items: center; margin-top: 24px; animation: landing-reveal 680ms 180ms cubic-bezier(.2,.75,.2,1) both; }
+.landing-hero__copy h1 { max-width: 14ch; margin: 0; color: #f7f3eb; font-family: Georgia, "Songti SC", serif; font-size: clamp(2.4rem, 4.4vw, 4.3rem); font-weight: 500; line-height: .98; letter-spacing: -.065em; text-wrap: balance; animation: landing-reveal 520ms cubic-bezier(.2,.75,.2,1) both; }
+/* The headline is deliberately smaller than it used to be: it now shares the
+   first viewport with the full product preview instead of pushing it below. */
+.landing-hero__copy h1 > span { display: inline; }
+/* Chinese has no spaces, so the default breaker splits words across lines
+   (把认识的西 / 语). The noun stays whole and the phone layout breaks between the
+   two clauses instead. */
+.landing-hero__keep { white-space: nowrap; }
+.landing-hero__copy > p:not(.landing-hero__kicker) { max-width: 34em; margin: 20px 0 0; color: rgb(247 243 235 / 68%); font-size: .95rem; line-height: 1.7; animation: landing-reveal 520ms 60ms cubic-bezier(.2,.75,.2,1) both; }
+.landing-hero__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; align-items: center; margin-top: 20px; animation: landing-reveal 520ms 120ms cubic-bezier(.2,.75,.2,1) both; }
 .landing-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 10px; padding: 11px 17px; border-radius: 999px; font-size: .78rem; font-weight: 800; transition: transform 180ms ease, background 180ms ease; }
 .landing-button:hover { transform: translateY(-2px); }
 .landing-button span { font-size: 1rem; }
@@ -12281,7 +12309,7 @@ body {
   color: var(--landing-ink);
   background: var(--landing-surface);
   box-shadow: 0 30px 90px rgb(0 0 0 / 34%);
-  animation: landing-console-in 850ms 260ms cubic-bezier(.2,.75,.2,1) both;
+  animation: landing-console-in 520ms 120ms cubic-bezier(.2,.75,.2,1) both;
 }
 .landing-console__bar { display: flex; min-height: 46px; align-items: center; justify-content: space-between; gap: 16px; padding: 0 18px; color: rgb(23 33 29 / 58%); border-bottom: 1px solid var(--landing-line); font-size: .65rem; }
 .landing-console__product { color: var(--landing-ink); font-family: Georgia, serif; font-size: .9rem; font-style: italic; font-weight: 800; }
@@ -12562,39 +12590,38 @@ body {
   .landing-console { margin-top: 18px; }
 }
 
-/* PUBLIC-HOME-001G: show the real, de-identified learning workbench instead
-   of recreating product controls in the marketing page. */
-.landing-console { display: block; min-height: 0; }
+/* PUBLIC-HOME-001G/H: the preview is the real, de-identified workbench rather
+   than a rebuilt mock. Both assets are pre-cropped to exactly this window, so
+   the frame shows what it promises instead of cover-cropping a taller
+   screenshot and cutting a control in half. */
+.landing-console { display: block; min-height: 0; margin-top: clamp(22px, 3.4vh, 40px); }
 .landing-console__real-preview { overflow: hidden; background: #101315; }
-.landing-console__real-shot { position: relative; aspect-ratio: 1353 / 760; overflow: hidden; background: #101315; }
-.landing-console__shot { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
-.landing-console__shot--mobile { display: none; }
-.landing-console__real-caption { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; padding: 16px 20px 18px; color: #f7f3eb; }
+.landing-console__real-shot { overflow: hidden; background: #101315; }
+/* aspect-ratio reserves the box before the image lands, and it swaps with the
+   <source> breakpoint because the phone shot is a different shape. */
+.landing-console__shot { display: block; width: 100%; height: auto; aspect-ratio: 1353 / 440; }
+.landing-console__real-caption { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; padding: 14px 20px 15px; color: #f7f3eb; }
 .landing-console__real-caption div { display: grid; gap: 5px; }
 .landing-console__real-caption span { color: var(--landing-gold); font-size: .62rem; font-weight: 800; letter-spacing: .04em; }
 .landing-console__real-caption strong { font-family: Georgia, "Songti SC", serif; font-size: 1.08rem; font-weight: 500; }
 .landing-console__real-caption small { max-width: 28ch; color: rgb(247 243 235 / 66%); font-size: .68rem; line-height: 1.5; text-align: right; }
 .landing-console__live b { animation: none; opacity: .75; }
+/* Keep the first viewport editorial and let the next section peek through
+   instead of forcing the hero to fill a full screen. */
+.landing-hero { min-height: 0; }
+.landing-hero__copy { padding-top: clamp(38px, 5vh, 64px); }
+.landing-journey { padding-top: 32px; }
 @media (max-width: 620px) {
   .landing-console__bar { min-height: 40px; }
-  .landing-console__real-shot { aspect-ratio: 390 / 250; }
+  .landing-console__shot { aspect-ratio: 390 / 380; }
   .landing-console__real-caption { display: grid; gap: 6px; padding: 10px 12px 12px; }
   .landing-console__real-caption strong { font-size: .94rem; }
   .landing-console__real-caption small { max-width: none; font-size: .62rem; text-align: left; }
   .landing-hero__footline { padding-top: 8px; font-size: .52rem; }
-}
-
-/* PUBLIC-HOME-001H: keep the first viewport editorial and let the next
-   section peek through instead of forcing the hero to fill a full screen. */
-.landing-hero { min-height: 0; }
-.landing-hero__copy { padding-top: clamp(38px, 5vh, 64px); }
-.landing-console { margin-top: clamp(26px, 4vh, 46px); }
-.landing-console__real-shot { aspect-ratio: 1353 / 250; }
-.landing-journey { padding-top: 32px; }
-@media (max-width: 620px) {
   .landing-hero__copy { padding-top: 24px; }
+  /* Break between the two headline clauses instead of inside a word. */
+  .landing-hero__copy h1 > span { display: block; }
   .landing-console { margin-top: 18px; }
-  .landing-console__real-shot { aspect-ratio: 390 / 250; }
   .landing-journey { padding-top: 28px; }
 }
 
