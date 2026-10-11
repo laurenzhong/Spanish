@@ -44,9 +44,18 @@ function tiles(): readonly HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>(".vocabulary-study__word")];
 }
 
+/** jsdom ships no IntersectionObserver; the shelf frame observes its bands. */
+class NoopIntersectionObserver {
+  observe(): void { /* nothing to do */ }
+  unobserve(): void { /* nothing to do */ }
+  disconnect(): void { /* nothing to do */ }
+  takeRecords(): IntersectionObserverEntry[] { return []; }
+}
+
 describe("vocabulary page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
     delete process.env.DATABASE_URL;
     mocks.getCurrentUser.mockResolvedValue(null);
     mocks.getDatabase.mockReturnValue({});
@@ -60,6 +69,7 @@ describe("vocabulary page", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = previousDatabaseUrl;
   });

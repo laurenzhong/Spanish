@@ -77,7 +77,10 @@ try {
   check("every rank band is on the page", bands === 80, `${bands} band headings`);
   check("no pagination control is left", pagination === 0, `${pagination} found`);
   check("last word is the shelf's last rank", words.at(-1) === "neurociencia", `got "${words.at(-1)}"`);
-  check("last band heading is clipped to the shelf", (await page.locator(".vocabulary-rank-band").last().innerText()) === "排名 7901 - 7922:", await page.locator(".vocabulary-rank-band").last().innerText());
+  // `textContent`, not `innerText`: a band the browser is skipping under
+  // `content-visibility: auto` reports an empty `innerText` although its text is
+  // in the DOM (find-in-page and screen readers read the DOM, not the paint).
+  check("last band heading is clipped to the shelf", (await page.locator(".vocabulary-rank-band").last().textContent()) === "排名 7901 - 7922:", await page.locator(".vocabulary-rank-band").last().textContent() ?? "none");
 
   // --- what the full render actually costs -----------------------------------
   const readPerf = () => page.evaluate(() => {
@@ -111,6 +114,59 @@ try {
   const clientPaint = perf.fcp - perf.ttfb;
   check("first paint within 1.5 s of the response", clientPaint > 0 && clientPaint < 1_500, `${clientPaint} ms after TTFB`);
   check("DOM stays under 40k nodes", perf.nodes < 40_000, `${perf.nodes} nodes`);
+
+  // --- sustained scrolling, not a single jump --------------------------------
+  // The owner's report was jank while scrolling; a one-shot anchor jump never
+  // showed it. This scrolls continuously for three seconds and times every frame
+  // (and every Long Animation Frame, which attributes main-thread work).
+  // Passed as a string on purpose: the TS/JS transpiler wraps named function
+  // expressions with a `__name` helper that does not exist in the page context,
+  // so a compiled callback would throw there. The result shape is declared here.
+  type SustainedScroll = Readonly<{ frames: number; fps: number; mean: number; p50: number; p95: number; max: number; over33: number; loafCount: number; loafMax: number }>;
+  const sustained = await page.evaluate(`(async () => {
+    const times = [];
+    const loaf = [];
+    let observer = null;
+    try {
+      observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) loaf.push(Math.round(entry.duration));
+      });
+      observer.observe({ type: "long-animation-frame", buffered: false });
+    } catch (error) { /* not offered here */ }
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 1500);
+    await new Promise((resolve) => {
+      let last = performance.now();
+      const start = last;
+      const tick = (now) => {
+        times.push(now - last);
+        last = now;
+        window.scrollBy(0, 24);
+        if (now - start < 3000) requestAnimationFrame(tick);
+        else resolve(null);
+      };
+      requestAnimationFrame(tick);
+    });
+    if (observer) observer.disconnect();
+    const sorted = [...times].sort((left, right) => left - right);
+    const at = (quantile) => Math.round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * quantile))] * 10) / 10;
+    return {
+      frames: times.length,
+      fps: Math.round(times.length / 3),
+      mean: Math.round((times.reduce((sum, time) => sum + time, 0) / times.length) * 10) / 10,
+      p50: at(0.5),
+      p95: at(0.95),
+      max: Math.round(Math.max(...times)),
+      over33: times.filter((time) => time > 33).length,
+      loafCount: loaf.length,
+      loafMax: loaf.length ? Math.max(...loaf) : 0,
+    };
+  })()`) as SustainedScroll;
+  console.log(`sustained scroll (3 s): ${sustained.frames} frames ≈ ${sustained.fps} fps | mean ${sustained.mean} ms | p50 ${sustained.p50} | p95 ${sustained.p95} | max ${sustained.max} | frames over 33 ms: ${sustained.over33} | long animation frames: ${sustained.loafCount}${sustained.loafCount ? ` (max ${sustained.loafMax} ms)` : ""}`);
+  // The regression this guards against measured 58 ms frames / 17 fps; the fixed
+  // page measures ~17 ms. The bar sits deliberately between the two.
+  check("sustained scrolling holds a usable frame rate", sustained.mean < 34, `mean ${sustained.mean} ms (${sustained.fps} fps)`);
+  check("no frames are dropped badly while scrolling", sustained.over33 <= Math.max(3, Math.round(sustained.frames * 0.05)), `${sustained.over33} of ${sustained.frames} frames over 33 ms`);
 
   // Scrolling the whole shelf must stay responsive: jump to the last band and
   // watch for long tasks while it renders. Smooth scrolling is disabled for the
@@ -231,20 +287,38 @@ try {
 
   // The layer is `fixed`: it has to move with its word, not hang over whatever
   // word is at the coordinate it was first shown at.
+  // The layer is anchored inside its word's own row: it must follow that word
+  // with no geometry read of its own, and go away when the pointer leaves.
   await cafe.hover();
   await tooltip.waitFor({ timeout: 10_000 });
-  const gapTo = () => page.evaluate(() => {
-    const tile = document.querySelector('[data-word-key="cafe"]');
+  const anchoredIn = () => page.evaluate(() => {
     const layer = document.querySelector("#vocabulary-translation");
-    if (!tile || !layer) return 9_999;
-    return Math.round(layer.getBoundingClientRect().top - tile.getBoundingClientRect().bottom);
+    if (!layer) return { present: false };
+    const tile = layer.parentElement?.querySelector("[data-word-key]");
+    const layerRect = layer.getBoundingClientRect();
+    return {
+      present: true,
+      rowIsTheWordsRow: Boolean(tile) && layer.parentElement?.tagName === "LI",
+      gap: tile ? Math.round(layerRect.top - tile.getBoundingClientRect().bottom) : 9_999,
+      pointerEvents: getComputedStyle(layer).pointerEvents,
+    };
   });
-  const gapBefore = await gapTo();
-  await page.evaluate(() => window.scrollBy(0, 20));
+  const before = await anchoredIn();
+  check("the layer is anchored inside its word's own row", before.present === true && before.rowIsTheWordsRow === true && Math.abs(before.gap ?? 0) <= 12, `gap ${before.gap}px`);
+  check("the layer cannot take a click", before.pointerEvents === "none", before.pointerEvents ?? "absent");
+
+  await page.evaluate(() => window.scrollBy(0, 200));
+  await page.waitForTimeout(250);
+  const afterScroll = await anchoredIn();
+  const underPointer = await page.evaluate(() => {
+    const element = document.elementFromPoint(720, 400)?.closest("[data-word-key]");
+    return Boolean(element && element.textContent);
+  });
+  check("the layer never floats away from the word under the pointer", underPointer === false || afterScroll.present === false || afterScroll.rowIsTheWordsRow === true, `row anchored: ${afterScroll.rowIsTheWordsRow ?? "gone"}`);
+
+  await page.mouse.move(0, 0);
   await page.waitForTimeout(200);
-  const gapAfter = await gapTo();
-  check("the layer sits under its word", gapBefore >= 0 && gapBefore <= 16, `${gapBefore}px below the word`);
-  check("the layer follows its word while scrolling", gapAfter >= 0 && gapAfter <= 16, `${gapBefore}px → ${gapAfter}px`);
+  check("the layer goes away when the pointer leaves the word", (await page.locator("#vocabulary-translation").count()) === 0, "gone");
 
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
 

@@ -1,10 +1,33 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { VocabularyShelf, type VocabularyShelfGlossary } from "@/src/modules/lexicon-corpus/ui/vocabulary-shelf";
 import { VocabularyShelfList, type VocabularyShelfItem } from "@/src/modules/lexicon-corpus/ui/vocabulary-shelf-list";
 import { groupRanks } from "@/src/modules/lexicon-corpus/ui/vocabulary-rank";
+
+/**
+ * jsdom ships no IntersectionObserver. The frame watches a single line near the
+ * top of the viewport to know which band the reader is in, so the test drives
+ * that line directly instead of pretending to scroll.
+ */
+class FakeIntersectionObserver {
+  static instances: FakeIntersectionObserver[] = [];
+  readonly targets: Element[] = [];
+
+  constructor(private readonly callback: IntersectionObserverCallback) {
+    FakeIntersectionObserver.instances.push(this);
+  }
+
+  observe(target: Element): void { this.targets.push(target); }
+  unobserve(): void { /* nothing to do */ }
+  disconnect(): void { this.targets.length = 0; }
+  takeRecords(): IntersectionObserverEntry[] { return []; }
+
+  enter(target: Element): void {
+    this.callback([{ target, isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+  }
+}
 
 /**
  * Two reviewed meanings, in the reviewed file's own order. The glossary has no
@@ -72,6 +95,8 @@ describe("vocabulary shelf", () => {
   beforeEach(() => {
     window.localStorage.clear();
     speechSpeak.mockClear();
+    FakeIntersectionObserver.instances.length = 0;
+    vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
     // jsdom only ships requestAnimationFrame when it is built with
     // `pretendToBeVisual`; the frame throttles its scroll marker with it.
     if (typeof window.requestAnimationFrame !== "function") {
@@ -152,30 +177,44 @@ describe("vocabulary shelf", () => {
     expect(wordTile("casa")).toHaveAttribute("aria-describedby", "vocabulary-translation");
   });
 
-  it("follows its word when the page scrolls, and drops the translation once that word leaves view", async () => {
+  it("keeps the translation inside the word's own row, so it cannot go stale, and drops it on blur", async () => {
     const user = userEvent.setup();
-    const tops = new Map<HTMLElement, number>();
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
-      const top = tops.get(this) ?? 100;
-      return { top, bottom: top + 74, left: 40, right: 240, width: 200, height: 74, x: 40, y: top, toJSON: () => ({}) } as DOMRect;
-    });
-
     renderShelf("scope-follow");
+
     const tile = wordTile("casa");
     await user.hover(tile);
     const tooltip = translation() as HTMLElement;
-    expect(tooltip.style.top).toBe("182px");
+    // Anchored by CSS inside the same list row as the word: it follows that word
+    // through any scroll without the component ever reading a coordinate.
+    expect(tooltip.parentElement).toBe(tile.parentElement);
+    expect(tile.parentElement?.tagName).toBe("LI");
 
-    // The word scrolls up: the fixed layer moves with it instead of hanging over
-    // whatever word happens to be at the old coordinate.
-    tops.set(tile, 40);
-    window.dispatchEvent(new Event("scroll"));
-    await waitFor(() => expect(tooltip.style.top).toBe("122px"));
+    await user.unhover(tile);
+    expect(translation()).toBeNull();
 
-    // Once the word is off-screen there is nothing to point at.
-    tops.set(tile, -400);
-    window.dispatchEvent(new Event("scroll"));
-    await waitFor(() => expect(translation()).toBeNull());
+    await user.hover(tile);
+    expect(translation()).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: /ser/u }));
+    expect(translation()).toBeNull();
+  });
+
+  it("reads no geometry while the page scrolls", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-scroll-cost");
+    const tile = wordTile("casa");
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+
+    // The worst case: the translation is showing while the reader scrolls.
+    await user.hover(tile);
+    expect(translation()).not.toBeNull();
+    const before = (HTMLElement.prototype.getBoundingClientRect as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
+
+    for (let step = 0; step < 60; step += 1) window.dispatchEvent(new Event("scroll"));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    // Scrolling must not cost a single layout read: this guard fails if a
+    // per-frame "follow the word" handler ever comes back.
+    expect((HTMLElement.prototype.getBoundingClientRect as unknown as { mock: { calls: unknown[] } }).mock.calls.length - before).toBe(0);
   });
 
   it("lets another word be clicked while the translation is showing", async () => {
@@ -245,28 +284,24 @@ describe("vocabulary shelf", () => {
     expect(screen.getByText(/已标记 1 个/u)).toBeInTheDocument();
   });
 
-  it("turns the rail into band fragments and moves its marker with the band in view", async () => {
-    // jsdom has no layout, so give the bands a geometry before the frame measures
-    // them: band 1 at the document top, band 101 one viewport and a bit below.
-    // Rect tops are viewport-relative, hence the scrollY subtraction.
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
-      const documentTop = Number(this.dataset.bandStart ?? "0") === 101 ? 2_000 : 0;
-      const top = documentTop - window.scrollY;
-      return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
-    });
-
+  it("turns the rail into band fragments and tracks the band in view by observation, not by scrolling", async () => {
     renderShelf("scope-rail", manyItems, { total: 105 });
 
     expect(within(rail()).getByRole("link", { name: "跳到第 1 名" })).toHaveAttribute("href", "#vocabulary-band-1");
     expect(within(rail()).getByRole("link", { name: "跳到第 100 名" })).toHaveAttribute("href", "#vocabulary-band-1");
     expect(within(rail()).getByRole("link", { name: "跳到第 1 名" })).toHaveAttribute("aria-current", "true");
 
-    Object.defineProperty(window, "scrollY", { configurable: true, value: 2_100 });
-    window.dispatchEvent(new Event("resize"));
+    // jsdom has no IntersectionObserver: the frame's one observation line is
+    // driven directly, which is exactly what a scroll would do in a browser.
+    const observer = FakeIntersectionObserver.instances.at(-1);
+    expect(observer).toBeDefined();
+    const secondBand = document.querySelector<HTMLElement>('[data-band-start="101"]');
+    expect(secondBand).not.toBeNull();
+    expect(observer?.targets).toContain(secondBand);
 
-    await waitFor(() => {
-      expect(within(rail()).getByRole("link", { name: "跳到第 100 名" })).toHaveAttribute("aria-current", "true");
-    });
+    await act(async () => { observer?.enter(secondBand as Element); });
+
+    expect(within(rail()).getByRole("link", { name: "跳到第 100 名" })).toHaveAttribute("aria-current", "true");
   });
 
   it("offers no bands and no rail for a search result", () => {

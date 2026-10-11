@@ -38,14 +38,28 @@ html:has(.vocabulary-shelf__body) {
   display: grid;
   gap: 8px;
   min-width: 0;
+  /* The shelf is one page of ~80 bands: let the browser skip the off-screen
+     ones instead of laying out and painting all 7,922 words. The intrinsic size
+     is the measured band height at each breakpoint (100 words), so the
+     scrollbar and the rail's landings stay close before a band has ever been
+     rendered; `auto` replaces the estimate with the real height once it has.
+     Measured on a 3 s sustained scroll: 60 fps here, 17 fps before. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2050px;
 }
 
-/* The hover/focus translation. Fixed, so it never shifts the page, and
-   `pointer-events: none`, so it can never take a click meant for the word
-   underneath or beside it. Its coordinates are the one dynamic style the shelf
-   sets (they depend on where the reader's pointer or focus is). */
+/* The floating translation is anchored inside the word's own row, so it follows
+   that word with no geometry read and no scroll listener of its own. Absolute,
+   so it never shifts the page, and `pointer-events: none`, so it can never take
+   a click meant for the word underneath or beside it. */
+.vocabulary-study__grid > li {
+  position: relative;
+}
+
 .vocabulary-shelf__translation {
-  position: fixed;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
   z-index: 40;
   display: grid;
   gap: 5px;
@@ -155,5 +169,26 @@ html:has(.vocabulary-shelf__body) {
 
   .vocabulary-rank-rail a {
     min-width: 40px;
+  }
+}
+
+/* The band's measured height at each column count, for the frames before a band
+   has been rendered. The grid drops to three columns at 1100px, two at 760px
+   and one at 520px, so a hundred words need taller placeholders as they narrow. */
+@media (max-width: 1100px) {
+  .vocabulary-shelf__band {
+    contain-intrinsic-size: auto 2790px;
+  }
+}
+
+@media (max-width: 760px) {
+  .vocabulary-shelf__band {
+    contain-intrinsic-size: auto 4100px;
+  }
+}
+
+@media (max-width: 520px) {
+  .vocabulary-shelf__band {
+    contain-intrinsic-size: auto 7600px;
   }
 }

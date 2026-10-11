@@ -50,8 +50,8 @@ type VocabularyShelfProps = Readonly<{
 type Hovered = Readonly<{
   word: string;
   meanings: VocabularyShelfGlossary["meanings"];
-  top: number;
-  left: number;
+  /** The word's own list row: the layer is rendered inside it and CSS anchors it. */
+  container: HTMLElement;
 }>;
 
 type Selected = Readonly<{ key: string; word: string; example: string | null; source: string | null }>;
@@ -83,18 +83,7 @@ const statusEvent = "sueno:vocabulary-status-changed";
 const emptyStatuses: Record<string, VocabularyShelfStatus> = {};
 const statusSnapshots = new Map<string, Record<string, VocabularyShelfStatus>>();
 
-/** The width the floating translation is clamped to, so it stays on screen. */
-const translationWidth = 264;
 const translationId = "vocabulary-translation";
-const translationOffset = 8;
-
-/** Where the floating translation sits for a tile: under it, kept on screen. */
-function translationPosition(rect: DOMRect): Readonly<{ top: number; left: number }> {
-  return {
-    top: rect.bottom + translationOffset,
-    left: Math.min(Math.max(translationOffset, rect.left), Math.max(translationOffset, window.innerWidth - translationWidth - translationOffset)),
-  };
-}
 
 function statusStorageKey(scope: string): string {
   return `${storagePrefix}${scope}`;
@@ -207,8 +196,16 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
       tile.setAttribute("aria-describedby", translationId);
       describedRef.current = tile;
     }
+    const container = tile.parentElement;
+    if (!container) {
+      hoveredTileRef.current = null;
+      setHovered(null);
+      return;
+    }
     hoveredTileRef.current = tile;
-    setHovered({ word: tile.dataset.word ?? "", meanings: entry.meanings, ...translationPosition(tile.getBoundingClientRect()) });
+    // No coordinates: the layer is rendered into the word's own row and CSS
+    // anchors it there, so scrolling never needs a geometry read.
+    setHovered({ word: tile.dataset.word ?? "", meanings: entry.meanings, container });
   }, [glossary]);
 
   const selectTile = useCallback((tile: HTMLElement) => {
@@ -274,64 +271,20 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
     if (!ranked || !bands.length) return;
     const container = containerRef.current;
     if (!container) return;
-    let positions: readonly Readonly<{ start: number; top: number }>[] = [];
-    const measure = () => {
-      positions = [...container.querySelectorAll<HTMLElement>("[data-band-start]")].map((node) => ({
-        start: Number(node.dataset.bandStart ?? "1"),
-        top: node.getBoundingClientRect().top + window.scrollY,
-      }));
-    };
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      if (!positions.length) measure();
-      const probe = window.scrollY + 140;
-      let start = positions[0]?.start ?? 1;
-      for (const band of positions) {
-        if (band.top <= probe) start = band.start;
-        else break;
+    const bandNodes = [...container.querySelectorAll<HTMLElement>("[data-band-start]")];
+    if (!bandNodes.length) return;
+    // One observation line 140px below the top edge: whichever band crosses it is
+    // the one the reader is in. No scroll listener, and no layout read at all.
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const start = Number((entry.target as HTMLElement).dataset.bandStart ?? "1");
+        setActiveMilestone(activeRankMilestone(start, total));
       }
-      setActiveMilestone(activeRankMilestone(start, total));
-    };
-    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
-    const onResize = () => { positions = []; onScroll(); };
-    measure();
-    update();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onResize);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
+    }, { rootMargin: "-140px 0px -100% 0px", threshold: 0 });
+    for (const node of bandNodes) observer.observe(node);
+    return () => observer.disconnect();
   }, [ranked, bands, total]);
-
-  // The layer is `fixed`, so it must follow its word: reposition it on every
-  // scroll frame while it is showing, and drop it once that word has left the
-  // viewport. A coordinate cached at hover time would leave it floating over
-  // unrelated words after any scroll.
-  useEffect(() => {
-    let frame = 0;
-    const follow = () => {
-      frame = 0;
-      const tile = hoveredTileRef.current;
-      if (!tile) return;
-      const rect = tile.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        hideTranslation();
-        return;
-      }
-      setHovered((current) => current ? { ...current, ...translationPosition(rect) } : current);
-    };
-    const schedule = () => { if (!frame) frame = window.requestAnimationFrame(follow); };
-    window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
-    return () => {
-      window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [hideTranslation]);
 
   useEffect(() => () => { describedRef.current?.removeAttribute("aria-describedby"); }, []);
 
@@ -372,12 +325,12 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
       </nav> : null}
     </div>
 
-    {/* Portalled to the document body on purpose: the page wrapper carries a
-        `transform` (its entrance animation), and a transformed ancestor becomes
-        the containing block for `position: fixed` — the layer would be placed
-        relative to 165,000-pixel-tall content instead of the viewport. The
-        portal keeps the coordinates below meaning viewport coordinates. */}
-    {hovered ? createPortal(<div className="vocabulary-shelf__translation" id={translationId} role="tooltip" style={{ top: hovered.top, left: hovered.left }}>
+    {/* Rendered into the hovered word's own list row and anchored by CSS: it
+        follows the word with no geometry read, and no scroll listener exists to
+        keep it in place. Portalled because the page wrapper carries a
+        `transform` (its entrance animation), which would otherwise become the
+        containing block for anything positioned. */}
+    {hovered ? createPortal(<div className="vocabulary-shelf__translation" id={translationId} role="tooltip">
       <p className="vocabulary-shelf__translation-word" lang="es">{hovered.word}</p>
       <ul className="vocabulary-shelf__translation-meanings">
         {hovered.meanings.map((meaning) => <li key={meaning.meaning}>
@@ -385,7 +338,7 @@ export function VocabularyShelf({ children, storageScope, glossary, bands, total
           {meaning.usage ? <span>{meaning.usage}</span> : null}
         </li>)}
       </ul>
-    </div>, document.body) : null}
+    </div>, hovered.container) : null}
 
     {selected ? <aside className="vocabulary-study__card" aria-live="polite" aria-label={`${selected.word} 词汇卡片`}>
       <div className="vocabulary-study__card-head">
