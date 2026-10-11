@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 
 import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type SourcePosition } from "../domain";
-import { searchContentFrequencyWords, contentFrequencyWords } from "../domain/frequency-word-list";
+import { searchContentFrequencyWords } from "../domain/frequency-word-list";
+import { loadFormFrequencyRows, type FormFrequencyRow } from "./corpus-form-frequency";
 import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
 import { createDrizzleEvidenceRepository } from "@/src/modules/evidence/repositories";
 import type { Database } from "@/src/shared/db/client";
@@ -20,12 +21,10 @@ const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
 
 /**
  * Occurrence counts for the reference-list forms, keyed by the accent-folded
- * form the token index uses. Only the ~7.9k shelf forms are aggregated: the
- * corpus has ~64k distinct forms, and grouping all of them only to discard 56k
- * was most of the cold path. Cached for {@link FREQUENCY_TTL_MS} because the
- * scan still covers every published segment.
+ * form the token index uses, plus one real example of each form in the wild.
  *
- * Cold path, measured against the real database with
+ * The live form of this query is an aggregate over every published segment
+ * (109,211 texts on the real corpus). Measured against the real database with
  * `scripts/verify-frequency-shelf.ts` (fresh process each run, before/after
  * alternating so both share the same load):
  *
@@ -41,10 +40,14 @@ const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
  * 2206 ms; a 7.9k-value `IN (...)` placeholder list 3284 ms; tokenising without
  * folding or grouping 1435 ms; reading the segments without tokenising 1014 ms.
  *
- * Parallel branches were rejected: two connections per refresh for ~5% once
- * measured in the same run. The floors are the corpus scan itself, so going
- * well below ~1.5 s needs the counts materialised in a table or index — a
- * migration, not a smarter query.
+ * Those floors are the corpus scan itself, so the counts are now **materialised**
+ * into `lexicon_form_frequencies` and refreshed by
+ * `scripts/refresh-frequency-forms.ts`. The SQL that defines what "visible"
+ * means lives in one place, `corpus-form-frequency.ts`: the live query below and
+ * the refresh that fills the table are built from the same `source_texts` CTE,
+ * so they physically cannot drift apart. Which source serves a cold load, the
+ * 36-hour staleness cap that reverts to the live scan, and the fallback for an
+ * empty or never-refreshed table are documented there too.
  */
 type CorpusFormCounts = ReadonlyMap<string, number>;
 
@@ -72,53 +75,17 @@ let frequencySnapshotCache: Readonly<{ loadedAt: number; snapshot: CorpusFrequen
 let frequencySnapshotInFlight: Promise<CorpusFrequencySnapshot> | null = null;
 
 async function computeCorpusFrequencySnapshot(database: Database): Promise<CorpusFrequencySnapshot> {
-  // The filter travels as one space-joined parameter rather than a 7.9k-value
-  // `IN (...)`: drizzle expands a JS array into one placeholder per element, and
-  // the single parameter measured no slower while keeping the statement small.
-  const wantedForms = [...new Set(contentFrequencyWords().map((entry) => normalizeSpanishSurface(entry.word)))].join(" ");
-  // One scan produces both facts the shelf needs. `with ordinality` is not used
-  // and no offsets are computed here: `regexp_split_to_table` loses positions,
-  // so the sample travels as the whole segment text plus its title and the
-  // position is recovered in JS with `tokenizeSpanish`, which already yields
-  // exact token offsets.
+  // Both facts come from one source — the materialised table when it is fresh,
+  // the live corpus scan otherwise — so a caller cannot end up with counts from
+  // one visibility rule and examples from another. `corpus-form-frequency.ts`
+  // owns that choice and the single `source_texts` CTE behind it.
   const perfStarted = Date.now();
-  let rows: readonly { word: string; n: number; example: readonly string[] }[];
+  let rows: readonly FormFrequencyRow[];
   try {
-    rows = await database.execute(sql`
-    with source_texts as (
-      select ms.source_text as text, mv.title as title
-      from ${schema.mediaSegments} ms
-      inner join ${schema.mediaVersions} mv on mv.id = ms.media_version_id
-      where ms.review_status = 'approved' and mv.status = 'published' and mv.copyright_status = 'cleared'
-      union all
-      select seg.source_text, av.title
-      from ${schema.articleSegments} seg
-      inner join ${schema.articleVersions} av on av.id = seg.article_version_id
-      inner join ${schema.articleSources} src on src.id = av.source_id
-      where av.status = 'published' and src.copyright_status = 'cleared'
-        and not exists (select 1 from ${schema.userGeneratedArticles} uga where uga.article_version_id = av.id)
-    ), tokens as (
-      -- Splitting straight on the separator class is one regex pass instead of
-      -- replace-then-split; the empty pieces it can produce are dropped by the
-      -- membership test below, so the token set is unchanged.
-      select regexp_split_to_table(lower(text), '[^a-záéíóúüñ]+') as word, text, title
-      from source_texts
-    ), folded as (
-      -- Fold once per token (not once in WHERE and again in SELECT). The fold
-      -- must stay equivalent to normalizeSpanishSurface in JS: the tokenizer
-      -- only ever emits [a-záéíóúüñ], and NFKD + strip-combining-marks maps
-      -- exactly áéíóúü to aeiou and ñ to n.
-      select translate(word, 'áéíóúüñ', 'aeiouun') as word, text, title
-      from tokens
-    )
-    select word, count(*)::int as n, min(array[text, title]) as example
-    from folded
-    where word = any(string_to_array(${wantedForms}, ' '))
-    group by word
-  `) as unknown as readonly { word: string; n: number; example: readonly string[] }[];
+    rows = (await loadFormFrequencyRows(database)).rows;
   } catch (error) {
-    // Both facts come from the one scan, so a failure here must keep the page's
-    // "unavailable" state rather than render every badge as a fabricated zero.
+    // A failure here must keep the page's "unavailable" state rather than render
+    // every badge as a fabricated zero.
     const cause = (error as { cause?: unknown }).cause;
     console.log(`[frequency] corpus snapshot failed after ${Date.now() - perfStarted} ms: ${String(cause ?? error).slice(0, 300)}`);
     throw error;
@@ -134,7 +101,8 @@ async function computeCorpusFrequencySnapshot(database: Database): Promise<Corpu
     // `min(array[text, title])` compares the text first, so the aggregate settles
     // early instead of carrying whichever long segment happens to win, and the two
     // fields stay one value with no separator the text could itself contain. It is
-    // loaded with the counts, so the example is a row of the same visible set.
+    // loaded with the counts, so the example is a row of the same visible set --
+    // and the materialised table stores exactly the pair this aggregate picked.
     const text = row.example?.[0];
     const title = row.example?.[1];
     if (typeof text === "string" && typeof title === "string") examples.set(normalized, { title, text });

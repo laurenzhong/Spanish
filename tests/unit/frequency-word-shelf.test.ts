@@ -78,6 +78,10 @@ describe("frequency word shelf", () => {
   let repository: ReturnType<typeof createDrizzleLexiconCorpusRepository>;
 
   beforeEach(async () => {
+    // This suite pins the live corpus scan: one cold statement, carrying the
+    // visibility predicate. The materialised fast path (the production default)
+    // is covered by tests/database/corpus-form-frequency-materialisation.test.ts.
+    process.env.LEXICON_FREQUENCY_SOURCE = "live";
     client = new PGlite();
     logged = [];
     await client.exec(`
@@ -137,7 +141,7 @@ describe("frequency word shelf", () => {
     );
   });
 
-  afterEach(async () => { await client.close(); });
+  afterEach(async () => { delete process.env.LEXICON_FREQUENCY_SOURCE; await client.close(); });
 
   function shelf(page: number, pageSize: number, search?: string) {
     return repository.listFrequencyWords(search === undefined ? { page, pageSize } : { page, pageSize, search });

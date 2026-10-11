@@ -285,6 +285,65 @@ export const lexiconCandidateApprovals = pgTable("lexicon_candidate_approvals", 
   check("lexicon_candidate_approvals_counts_check", sql`${table.lexemeCount} >= 0 and ${table.phraseCount} >= 0`),
 ]);
 
+/**
+ * Materialised per-form counts for the vocabulary shelf.
+ *
+ * The shelf needs two facts about the published corpus: how often each surface
+ * form occurs, and one real segment it occurs in. Computing them live means
+ * reading every published segment — 109,211 texts, ~1.0 s just to transfer them
+ * and ~1.4 s with the tokenising aggregate — on every cold cache. This table is
+ * that answer, stored.
+ *
+ * **The visibility predicate has exactly one definition.** The refresh that
+ * fills this table reads the same `source_texts` set the live scan reads
+ * (published media versions + published, copyright-cleared article versions,
+ * with `user_generated_articles` excluded); that SQL lives in one place,
+ * `src/modules/lexicon-corpus/repositories/corpus-form-frequency.ts`, and both
+ * the refresh and the live fallback are built from it. A second, independent
+ * visibility rule is the failure mode this table must not introduce.
+ *
+ * **Staleness is explicit, bounded and observable.** Nothing here is triggered
+ * by a publish or a withdraw; the table is refreshed by
+ * `scripts/refresh-frequency-forms.ts`. `lexicon_form_frequency_state` records
+ * when that last happened, the read path refuses a refresh older than its
+ * documented cap (falling back to the exact live numbers), and a cold load logs
+ * the age it served from. Counts can therefore be stale, but never silently and
+ * never without a bound.
+ *
+ * `word` is the accent-folded form — the same key the token index and the shelf
+ * lookup use — and `example_text`/`example_title` are the segment the live scan
+ * would have picked (`min(array[text, title])`), so a materialised page renders
+ * exactly what the live scan rendered.
+ */
+export const lexiconFormFrequencies = pgTable("lexicon_form_frequencies", {
+  word: text("word").primaryKey(),
+  occurrenceCount: integer("occurrence_count").notNull(),
+  exampleTitle: text("example_title").notNull(),
+  exampleText: text("example_text").notNull(),
+}, (table) => [
+  // Single-character forms are dropped by the live scan before they are counted;
+  // keeping them out of the table keeps the two paths equivalent.
+  check("lexicon_form_frequencies_word_check", sql`length(${table.word}) >= 2`),
+  check("lexicon_form_frequencies_count_check", sql`${table.occurrenceCount} > 0`),
+]);
+
+/**
+ * When the form-frequency table was last refreshed — one row, keyed `corpus`.
+ *
+ * This is the switch the read path reads: no row means the materialisation has
+ * never run, which is a correct state (the shelf falls back to the live scan),
+ * not an error. `form_count` is what the refresh wrote, so an operator can see
+ * the size of the last refresh without counting the table.
+ */
+export const lexiconFormFrequencyState = pgTable("lexicon_form_frequency_state", {
+  id: text("id").primaryKey(),
+  refreshedAt: timestamp("refreshed_at", { withTimezone: true, mode: "date" }).notNull(),
+  formCount: integer("form_count").notNull(),
+}, (table) => [
+  check("lexicon_form_frequency_state_id_check", sql`${table.id} = 'corpus'`),
+  check("lexicon_form_frequency_state_count_check", sql`${table.formCount} >= 0`),
+]);
+
 export type LexemeRow = typeof lexemes.$inferSelect;
 export type PhraseEntryRow = typeof phraseEntries.$inferSelect;
 export type CorpusOccurrenceRow = typeof corpusOccurrences.$inferSelect;

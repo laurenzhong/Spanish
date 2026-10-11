@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   getDatabase: vi.fn(),
   createRepository: vi.fn(),
+  redirect: vi.fn(),
   repository: { listFrequencyWords: vi.fn() },
 }));
 
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser: mocks.getCurrentUser }));
 vi.mock("@/src/shared/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/src/modules/lexicon-corpus/repositories", async (importOriginal) => {
@@ -23,19 +25,23 @@ import VocabularyPage from "@/app/(product)/read/vocabulary/page";
 
 const previousDatabaseUrl = process.env.DATABASE_URL;
 
-const shelfPage = {
-  items: [
-    { id: "word:ser", word: "ser", normalizedWord: "ser", occurrenceCount: 2_659, context: "Ser uno mismo es difícil.", sourceTitle: "Podcast publicado" },
-    { id: "word:casa", word: "casa", normalizedWord: "casa", occurrenceCount: 3, context: "Mi casa y tu casa son casa.", sourceTitle: "Podcast publicado" },
-    { id: "word:neurociencia", word: "neurociencia", normalizedWord: "neurociencia", occurrenceCount: 0, context: null, sourceTitle: null },
-  ],
-  page: 1,
-  pageSize: 24,
-  total: 7_922,
-};
+/** 250 rows: three bands, and proof that nothing is paged away. */
+const shelfItems = Array.from({ length: 250 }, (_, index) => ({
+  id: `word:item${index}`,
+  word: index === 0 ? "ser" : index === 1 ? "casa" : `item${index}`,
+  normalizedWord: index === 0 ? "ser" : index === 1 ? "casa" : `item${index}`,
+  occurrenceCount: index,
+  context: index === 0 ? "Ser uno mismo es difícil." : null,
+  sourceTitle: index === 0 ? "Podcast publicado" : null,
+}));
 
 async function renderPage(params: Record<string, string> = {}) {
   render(await VocabularyPage({ searchParams: Promise.resolve(params) }));
+}
+
+/** The word tiles only: the page's own search submit button is not a word. */
+function tiles(): readonly HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>(".vocabulary-study__word")];
 }
 
 describe("vocabulary page", () => {
@@ -45,7 +51,11 @@ describe("vocabulary page", () => {
     mocks.getCurrentUser.mockResolvedValue(null);
     mocks.getDatabase.mockReturnValue({});
     mocks.createRepository.mockReturnValue(mocks.repository);
-    mocks.repository.listFrequencyWords.mockResolvedValue(shelfPage);
+    mocks.redirect.mockImplementation((url: string) => { throw new Error(`NEXT_REDIRECT:${url}`); });
+    mocks.repository.listFrequencyWords.mockImplementation(async (query: { search?: string; page: number; pageSize: number }) => {
+      const matched = query.search ? shelfItems.filter((item) => item.word.includes(query.search!)) : shelfItems;
+      return { items: matched.slice(0, query.pageSize), page: 1, pageSize: query.pageSize, total: matched.length };
+    });
   });
 
   afterEach(() => {
@@ -58,20 +68,58 @@ describe("vocabulary page", () => {
     process.env.DATABASE_URL = "postgresql://test.invalid/db";
   }
 
-  it("renders the ranked shelf with the reviewed meanings and the honest placeholder", async () => {
+  it("renders the whole shelf on one page, without pagination", async () => {
     openWithDatabase();
     await renderPage();
 
-    expect(screen.getByText(/按参考词频排序的 7922 个内容词/u)).toBeInTheDocument();
-    expect(mocks.repository.listFrequencyWords).toHaveBeenCalledWith({ search: undefined, page: 1, pageSize: 24 });
+    // One call for the whole shelf, sized by the committed reference list: the
+    // page never asks twice, so a request builds the corpus snapshot once.
+    expect(mocks.repository.listFrequencyWords).toHaveBeenCalledTimes(1);
+    expect(mocks.repository.listFrequencyWords).toHaveBeenCalledWith({ search: undefined, page: 1, pageSize: 7_922 });
 
-    const words = within(screen.getByRole("list", { name: "排名 1 - 100:" })).getAllByRole("button");
-    expect(words.map((word) => word.querySelector(".vocabulary-study__word-text")?.firstChild?.textContent)).toEqual(["ser", "casa", "neurociencia"]);
-    // Two words carry the reviewed glossary meaning; the third keeps the
-    // placeholder instead of an invented one.
+    const lists = screen.getAllByRole("list");
+    expect(lists.map((list) => list.getAttribute("aria-labelledby"))).toEqual(["vocabulary-band-1", "vocabulary-band-101", "vocabulary-band-201"]);
+    expect(tiles()).toHaveLength(250);
+    expect(screen.getByRole("heading", { name: "排名 201 - 250:" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "词句分页" })).not.toBeInTheDocument();
+    expect(screen.getByText(/按参考词频排序的 250 个内容词/u)).toBeInTheDocument();
+  });
+
+  it("keeps the reviewed meaning under the word and the honest placeholder elsewhere", async () => {
+    openWithDatabase();
+    await renderPage();
+
+    const words = tiles();
     expect(words[0]).toHaveTextContent("是（说明身份、来源或本质）");
     expect(words[1]).toHaveTextContent("房子、家");
     expect(words[2]).toHaveTextContent("释义待补充");
+    expect(document.querySelectorAll(".vocabulary-study__word small")).toHaveLength(0);
+  });
+
+  it("offers the rail as fragment jumps to the bands, with no page in sight", async () => {
+    openWithDatabase();
+    await renderPage();
+
+    const rail = screen.getByRole("navigation", { name: "按名次跳转" });
+    expect(within(rail).getAllByRole("link")).toHaveLength(3);
+    expect(within(rail).getByRole("link", { name: "跳到第 200 名" })).toHaveAttribute("href", "#vocabulary-band-101");
+    // Which milestone is marked current follows the scroll position, so that
+    // assertion lives where layout exists (the frame suite and the browser
+    // check). Here: the rail deals in fragments, and never in pages.
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href") ?? "").not.toContain("page=");
+    }
+  });
+
+  it("converts a legacy paging deep link into the band fragment holding that rank", async () => {
+    openWithDatabase();
+
+    await expect(renderPage({ page: "42", pageSize: "24" })).rejects.toThrow("NEXT_REDIRECT:/read/vocabulary#vocabulary-band-901");
+    // Page 2 of the default 24 starts at rank 25, inside the first band.
+    await expect(renderPage({ page: "2" })).rejects.toThrow("NEXT_REDIRECT:/read/vocabulary#vocabulary-band-1");
+    // A filtered list has no shelf ranks to convert to: keep the search, drop the page.
+    await expect(renderPage({ search: "casa", page: "3", pageSize: "12" })).rejects.toThrow("NEXT_REDIRECT:/read/vocabulary?search=casa");
+    expect(mocks.repository.listFrequencyWords).not.toHaveBeenCalled();
   });
 
   it("shows no view switcher and no view link anywhere on the page", async () => {
@@ -91,17 +139,12 @@ describe("vocabulary page", () => {
     openWithDatabase();
     for (const view of ["study", "frequency", "lexicon"]) {
       cleanup();
-      await renderPage({ view, search: "casa" });
+      await renderPage({ view });
 
-      expect(screen.getByRole("list", { name: "词汇列表" })).toBeInTheDocument();
+      expect(tiles()).toHaveLength(250);
       expect(screen.queryByRole("navigation", { name: "词汇视图" })).not.toBeInTheDocument();
       expect(screen.queryByText(/共 80 个已审核单词/u)).not.toBeInTheDocument();
-      expect(screen.queryByRole("list", { name: "单词列表" })).not.toBeInTheDocument();
-      for (const link of screen.getAllByRole("link")) {
-        expect(link.getAttribute("href") ?? "").not.toContain("view=");
-      }
     }
-    expect(mocks.repository.listFrequencyWords).toHaveBeenCalledWith({ search: "casa", page: 1, pageSize: 24 });
   });
 
   it("keeps exactly one page-level heading for assistive technology", async () => {
@@ -114,27 +157,27 @@ describe("vocabulary page", () => {
     expect(headings[0]).toHaveClass("sr-only");
   });
 
-  it("searches and pages through the shelf without carrying a view parameter", async () => {
+  it("searches without carrying a view or a page parameter", async () => {
     openWithDatabase();
     await renderPage({ search: "casa" });
 
     const form = screen.getByRole("search") as HTMLFormElement;
     expect(form.getAttribute("action")).toBe("/read/vocabulary");
     expect(form.querySelector('input[name="view"]')).toBeNull();
+    expect(form.querySelector('input[name="page"]')).toBeNull();
     expect(within(form).getByLabelText("搜索词表")).toHaveValue("casa");
     expect(screen.getByRole("link", { name: "重置" })).toHaveAttribute("href", "/read/vocabulary");
-    expect(mocks.repository.listFrequencyWords).toHaveBeenCalledWith({ search: "casa", page: 1, pageSize: 24 });
-
-    const pagination = screen.getByRole("navigation", { name: "词句分页" });
-    expect(within(pagination).getByRole("link", { name: "下一页" })).toHaveAttribute("href", "/read/vocabulary?search=casa&pageSize=24&page=2");
+    expect(mocks.repository.listFrequencyWords).toHaveBeenCalledWith({ search: "casa", page: 1, pageSize: 7_922 });
+    // A result set holds no shelf ranks, so it gets no bands and no rail.
+    expect(screen.queryByRole("heading", { name: /排名/u })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
   });
 
   it("states honestly when the shelf cannot be read", async () => {
     await renderPage({ view: "frequency" });
 
     expect(screen.getByRole("heading", { name: "词汇表暂时不可用" })).toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "词汇列表" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "词汇视图" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
     expect(mocks.repository.listFrequencyWords).not.toHaveBeenCalled();
   });
 
@@ -149,50 +192,13 @@ describe("vocabulary page", () => {
     expect(screen.queryByRole("heading", { name: "没有匹配的词" })).not.toBeInTheDocument();
   });
 
-  it("names the rank band on the page and offers the milestone rail", async () => {
+  it("reports a search that matches nothing, with the way back to the whole shelf", async () => {
     openWithDatabase();
-    await renderPage();
+    mocks.repository.listFrequencyWords.mockImplementation(async (query: { pageSize: number }) => ({ items: [], page: 1, pageSize: query.pageSize, total: 0 }));
 
-    expect(screen.getByRole("heading", { name: "排名 1 - 100:" })).toBeInTheDocument();
-    const rail = screen.getByRole("navigation", { name: "按名次跳转" });
-    expect(within(rail).getAllByRole("link")).toHaveLength(17);
-    expect(within(rail).getByRole("link", { name: "跳到第 1k 名" })).toHaveAttribute("href", "/read/vocabulary?page=42&pageSize=24");
-    expect(within(rail).getByRole("link", { name: "跳到第 1 名" })).toHaveAttribute("aria-current", "true");
-  });
+    await renderPage({ search: "zzzz" });
 
-  it("lands a deep link on the page holding that rank, and says which band it is", async () => {
-    openWithDatabase();
-    // The shelf answers with whichever page was asked for, like the server does.
-    mocks.repository.listFrequencyWords.mockImplementation(async (query: Record<string, unknown>) => ({ ...shelfPage, ...query }));
-
-    await renderPage({ page: "42" });
-
-    expect(mocks.repository.listFrequencyWords).toHaveBeenCalledWith({ search: undefined, page: 42, pageSize: 24 });
-    // Page 42 of 24 starts at shelf rank 985, inside band 901-1000.
-    expect(screen.getByRole("heading", { name: "排名 901 - 1000:" })).toBeInTheDocument();
-    const rail = screen.getByRole("navigation", { name: "按名次跳转" });
-    expect(within(rail).getByRole("link", { name: "跳到第 900 名" })).toHaveAttribute("aria-current", "true");
-    expect(within(rail).getByRole("link", { name: "跳到第 1k 名" })).toHaveAttribute("href", "/read/vocabulary?page=42&pageSize=24");
-  });
-
-  it("hides the rail and the bands while the list is a search result", async () => {
-    openWithDatabase();
-    await renderPage({ search: "casa" });
-
-    expect(screen.getByRole("list", { name: "词汇列表" })).toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /排名/u })).not.toBeInTheDocument();
-  });
-
-  it("says a deep link past the shelf's end is out of range, not an empty search", async () => {
-    openWithDatabase();
-    mocks.repository.listFrequencyWords.mockImplementation(async (query: Record<string, unknown>) => ({ ...shelfPage, ...query, items: [] }));
-
-    await renderPage({ page: "400" });
-
-    expect(screen.getByRole("heading", { name: "这一页在词架之外" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "没有匹配的词" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "回到第 1 页" })).toHaveAttribute("href", "/read/vocabulary");
-    expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "没有匹配的词" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "回到完整词表" })).toHaveAttribute("href", "/read/vocabulary");
   });
 });

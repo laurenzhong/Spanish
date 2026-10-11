@@ -2,9 +2,24 @@
  * Rank navigation for the vocabulary shelf.
  *
  * Kept beside the page that imports it, like `app/public-home.css`: the global
- * stylesheet owns the shared look of the shelf's word tiles, this file only
- * owns the two-column shelf body and the rank rail the page adds on top.
+ * stylesheet owns the shared look of the shelf's word tiles, this file owns the
+ * two-column shelf body, the rank rail, and the hover/focus translation.
  */
+
+/* One page now holds the whole shelf, so a rail jump is a fragment scroll:
+   soften it, and keep the band heading clear of the top edge. */
+html:has(.vocabulary-shelf__body) {
+  scroll-behavior: smooth;
+}
+
+.vocabulary-rank-band {
+  margin: 0;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  scroll-margin-top: 16px;
+}
 
 .vocabulary-shelf__body {
   display: grid;
@@ -25,12 +40,55 @@
   min-width: 0;
 }
 
-.vocabulary-rank-band {
+/* The hover/focus translation. Fixed, so it never shifts the page, and
+   `pointer-events: none`, so it can never take a click meant for the word
+   underneath or beside it. Its coordinates are the one dynamic style the shelf
+   sets (they depend on where the reader's pointer or focus is). */
+.vocabulary-shelf__translation {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 5px;
+  width: max-content;
+  max-width: 264px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+.vocabulary-shelf__translation-word {
   margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: .92rem;
+  font-weight: 760;
+}
+
+.vocabulary-shelf__translation-meanings {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vocabulary-shelf__translation-meanings li {
+  display: grid;
+  gap: 1px;
+}
+
+.vocabulary-shelf__translation-meanings strong {
+  font-size: .82rem;
+  font-weight: 720;
+}
+
+.vocabulary-shelf__translation-meanings span {
   color: var(--muted);
-  font-size: .7rem;
-  font-weight: 850;
-  letter-spacing: .06em;
+  font-size: .72rem;
+  line-height: 1.45;
 }
 
 /* The rail is a jump control, so it stays in view while the list scrolls. */

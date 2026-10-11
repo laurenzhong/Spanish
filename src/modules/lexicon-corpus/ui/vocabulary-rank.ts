@@ -33,11 +33,15 @@ export function reachableRankMilestones(total: number): readonly number[] {
   return vocabularyRankMilestones.filter((rank) => rank <= total);
 }
 
-/** The 1-based page holding a 1-based shelf rank. */
-export function pageForRank(rank: number, pageSize: number): number {
+/** The DOM id of the band that starts at `start`; the rail's jump destination. */
+export function bandAnchorId(start: number): string {
+  return `vocabulary-band-${start}`;
+}
+
+/** The first rank of the band holding `rank` (its anchor target as well). */
+export function rankBandStart(rank: number): number {
   const safeRank = Math.max(1, Math.trunc(rank));
-  const safePageSize = Math.max(1, Math.trunc(pageSize));
-  return Math.floor((safeRank - 1) / safePageSize) + 1;
+  return Math.floor((safeRank - 1) / vocabularyRankBandSize) * vocabularyRankBandSize + 1;
 }
 
 export type VocabularyRankBand = Readonly<{ start: number; end: number }>;
@@ -48,13 +52,40 @@ export type VocabularyRankBand = Readonly<{ start: number; end: number }>;
  * instead of claiming a hundred words that do not exist.
  */
 export function rankBandFor(rank: number, total: number): VocabularyRankBand {
-  const safeRank = Math.max(1, Math.trunc(rank));
-  const start = Math.floor((safeRank - 1) / vocabularyRankBandSize) * vocabularyRankBandSize + 1;
+  const start = rankBandStart(rank);
   return { start, end: Math.min(start + vocabularyRankBandSize - 1, Math.max(start, Math.trunc(total))) };
 }
 
-/** The milestone the reader has reached: the largest one at or before `rank`. */
+/**
+ * Where a milestone takes the reader. The shelf is one page now, so a milestone
+ * is a fragment: it scrolls to the band holding that rank rather than opening a
+ * page that no longer exists.
+ */
+export function rankBandAnchor(rank: number, total: number): string {
+  return bandAnchorId(rankBandFor(rank, total).start);
+}
+
+/**
+ * The milestone the reader has reached: the largest one at or before `rank`.
+ * With the shelf on one page this doubles as the rail's "you are here" marker
+ * for the band currently in view.
+ */
 export function activeRankMilestone(rank: number, total: number): number {
   const reached = reachableRankMilestones(total).filter((milestone) => milestone <= rank);
   return reached.length ? reached[reached.length - 1]! : 1;
+}
+
+/**
+ * Split an ordered list into its rank bands. Generic so the shelf's own row
+ * type stays in the UI layer; the arithmetic is the tested part.
+ */
+export function groupRanks<T>(items: readonly T[], firstRank: number, total: number): readonly Readonly<{ band: VocabularyRankBand; items: readonly T[] }>[] {
+  const grouped: { band: VocabularyRankBand; items: T[] }[] = [];
+  for (const [index, item] of items.entries()) {
+    const band = rankBandFor(firstRank + index, total);
+    const previous = grouped[grouped.length - 1];
+    if (previous?.band.start === band.start) previous.items.push(item);
+    else grouped.push({ band, items: [item] });
+  }
+  return grouped;
 }

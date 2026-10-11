@@ -1,37 +1,29 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 
 import { useBrowserSpeech } from "@/src/modules/providers/tts";
 
 import {
   activeRankMilestone,
-  pageForRank,
-  rankBandFor,
+  rankBandAnchor,
   rankMilestoneLabel,
   reachableRankMilestones,
+  vocabularyRankBandSize,
   type VocabularyRankBand,
 } from "./vocabulary-rank";
 
-/**
- * One ranked word of the single vocabulary shelf.
- *
- * `markKey` is the local mark identity, not `id`: it is the accent-folded
- * headword the study shelf already stored its marks under, so marks a reader
- * made there keep applying to the same word here.
- */
-export type VocabularyShelfItem = Readonly<{
-  id: string;
-  markKey: string;
-  text: string;
-  count: number;
-  context: string | null;
-  source: string | null;
-  /** The reviewed glossary entry for this word, or null when it has none. */
-  glossary: VocabularyShelfGlossary | null;
-}>;
+export type { VocabularyShelfItem } from "./vocabulary-shelf-list";
 
+/**
+ * The reviewed glossary entry of a word, as the page passes it in.
+ *
+ * `meanings` keeps the reviewed file's own order. The glossary has no frequency
+ * field, so there is nothing to sort "most common first" by — the first meaning
+ * is the one the word tile already shows underneath, and the rest follow the
+ * entry's own sequence. Nothing here invents a ranking.
+ */
 export type VocabularyShelfGlossary = Readonly<{
   cefr: string;
   partOfSpeech: string;
@@ -44,47 +36,25 @@ export type VocabularyShelfGlossary = Readonly<{
 export type VocabularyShelfStatus = "familiar" | "revisit" | "ignore";
 
 type VocabularyShelfProps = Readonly<{
-  items: readonly VocabularyShelfItem[];
+  /** The server-rendered shelf: every band, heading and word tile. */
+  children: React.ReactNode;
   storageScope: string;
-  /** The page the server returned, so every word can be given its shelf rank. */
-  page: number;
-  pageSize: number;
-  /** The shelf's real size; the last band and the rail are clipped to it. */
+  /** Reviewed meanings per mark key, for the hover/focus translation and the card. */
+  glossary: Readonly<Record<string, VocabularyShelfGlossary>>;
+  bands: readonly VocabularyRankBand[];
   total: number;
-  /**
-   * True when `items` are the unfiltered shelf in reference order, so each word
-   * holds a real shelf rank. A search result is a filtered subset whose
-   * positions are not shelf ranks, so its words are neither numbered into bands
-   * nor offered the rail — the page never implies a rank the list does not have.
-   */
+  /** False for a search result, whose positions are not shelf ranks. */
   ranked: boolean;
 }>;
 
-type VocabularyShelfBand = Readonly<{ band: VocabularyRankBand | null; items: readonly VocabularyShelfItem[] }>;
+type Hovered = Readonly<{
+  word: string;
+  meanings: VocabularyShelfGlossary["meanings"];
+  top: number;
+  left: number;
+}>;
 
-/** Consecutive words sharing a band become one headed group (`排名 1 - 100:`). */
-function groupIntoBands(items: readonly VocabularyShelfItem[], firstRank: number, total: number): readonly VocabularyShelfBand[] {
-  const bands: VocabularyShelfBand[] = [];
-  for (const [index, item] of items.entries()) {
-    const band = rankBandFor(firstRank + index, total);
-    const previous = bands[bands.length - 1];
-    if (previous?.band?.start === band.start) {
-      bands[bands.length - 1] = { band, items: [...previous.items, item] };
-    } else {
-      bands.push({ band, items: [item] });
-    }
-  }
-  return bands;
-}
-
-/** A milestone is a destination, never decoration: it opens the page holding that rank. */
-function rankHref(rank: number, pageSize: number): string {
-  return `/read/vocabulary?${new URLSearchParams({ page: String(pageForRank(rank, pageSize)), pageSize: String(pageSize) }).toString()}`;
-}
-
-function bandHeadingId(start: number): string {
-  return `vocabulary-band-${start}`;
-}
+type Selected = Readonly<{ key: string; word: string; example: string | null; source: string | null }>;
 
 /**
  * One wording for the familiar/revisit/ignore triad. The server-backed shelves
@@ -102,19 +72,29 @@ const statusLabels: Record<VocabularyShelfStatus, string> = { familiar: "已熟�
 /**
  * Browser-local marks, deliberately the same storage contract the study shelf
  * used (`sueno:vocabulary-status:v1:<scope>`, a flat `{ headword: status }`
- * map, the same cross-tab event), so a reader's existing marks stay valid after
- * the two shelves became one page.
+ * map, the same cross-tab event), so a reader's existing marks stay valid.
  *
  * The server-side `user_lexical_intents` mechanism cannot serve this shelf: it
  * keys on a lexeme or phrase row, and the corpus still contains zero lexemes
- * because the indexing pipeline has never run. Local marks are therefore the
- * only mechanism that can mark a reference-list word today; moving them to the
- * server is the natural follow-up once indexing fills the lexicon.
+ * because the indexing pipeline has never run.
  */
 const storagePrefix = "sueno:vocabulary-status:v1:";
 const statusEvent = "sueno:vocabulary-status-changed";
 const emptyStatuses: Record<string, VocabularyShelfStatus> = {};
 const statusSnapshots = new Map<string, Record<string, VocabularyShelfStatus>>();
+
+/** The width the floating translation is clamped to, so it stays on screen. */
+const translationWidth = 264;
+const translationId = "vocabulary-translation";
+const translationOffset = 8;
+
+/** Where the floating translation sits for a tile: under it, kept on screen. */
+function translationPosition(rect: DOMRect): Readonly<{ top: number; left: number }> {
+  return {
+    top: rect.bottom + translationOffset,
+    left: Math.min(Math.max(translationOffset, rect.left), Math.max(translationOffset, window.innerWidth - translationWidth - translationOffset)),
+  };
+}
 
 function statusStorageKey(scope: string): string {
   return `${storagePrefix}${scope}`;
@@ -168,21 +148,83 @@ function writeStatuses(scope: string, next: Record<string, VocabularyShelfStatus
   window.dispatchEvent(new Event(statusEvent));
 }
 
+/** The word tile an event happened on, or null when it happened elsewhere. */
+function tileFrom(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  return target.closest<HTMLElement>("[data-word-key]");
+}
+
 /**
- * The single vocabulary page's word shelf: the reference-ranked content words
- * with their real corpus counts and one published example, the reviewed Chinese
- * meanings where the glossary has them, and the reader's browser-local marks.
+ * The interactive frame around the server-rendered shelf.
  *
- * The order is the server's (reference rank with function words removed) and is
- * rendered exactly as given — re-sorting locally would put the corpus head back
- * on top, which is the defect this shelf exists to fix.
+ * The 7,922 tiles stay plain HTML: this frame listens on their container and
+ * reads each tile's `data-*` attributes, so a page holding the whole shelf never
+ * pays for a hydrated component per word. Marks and selection are applied to the
+ * few marked tiles imperatively instead of re-rendering all of them.
+ *
+ * The hover translation is mirrored on real keyboard focus (not `title`, which
+ * keyboard and touch users cannot reach and which cannot be styled), and the
+ * floating layer is `pointer-events: none` so it can never swallow a click
+ * meant for a neighbouring word. Touch has no hover at all, so the click-open
+ * card remains the equivalent path: it carries the same meanings plus the
+ * word's published example.
  */
-export function VocabularyShelf({ items, storageScope, page, pageSize, total, ranked }: VocabularyShelfProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export function VocabularyShelf({ children, storageScope, glossary, bands, total, ranked }: VocabularyShelfProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const decoratedRef = useRef<ReadonlySet<string>>(new Set());
+  const describedRef = useRef<HTMLElement | null>(null);
+  const hoveredTileRef = useRef<HTMLElement | null>(null);
+  const selectedTileRef = useRef<HTMLElement | null>(null);
+  const [hovered, setHovered] = useState<Hovered | null>(null);
+  const [selected, setSelected] = useState<Selected | null>(null);
   const [notice, setNotice] = useState("");
+  const [activeMilestone, setActiveMilestone] = useState(1);
   const statuses = useSyncExternalStore(subscribeStatuses, () => readStatuses(storageScope), () => emptyStatuses);
   const speech = useBrowserSpeech();
   const speakingId = speech.speakingId;
+
+  const hideTranslation = useCallback(() => {
+    describedRef.current?.removeAttribute("aria-describedby");
+    describedRef.current = null;
+    hoveredTileRef.current = null;
+    setHovered(null);
+  }, []);
+
+  const showTranslation = useCallback((tile: HTMLElement) => {
+    const entry = glossary[tile.dataset.wordKey ?? ""];
+    if (!entry?.meanings.length) {
+      // Nothing reviewed to show: the tile's own placeholder already answers,
+      // and inventing a translation here is exactly what must not happen.
+      describedRef.current?.removeAttribute("aria-describedby");
+      describedRef.current = null;
+      hoveredTileRef.current = null;
+      setHovered(null);
+      return;
+    }
+    if (describedRef.current !== tile) {
+      describedRef.current?.removeAttribute("aria-describedby");
+      // Screen readers get the same meanings the sighted hover shows.
+      tile.setAttribute("aria-describedby", translationId);
+      describedRef.current = tile;
+    }
+    hoveredTileRef.current = tile;
+    setHovered({ word: tile.dataset.word ?? "", meanings: entry.meanings, ...translationPosition(tile.getBoundingClientRect()) });
+  }, [glossary]);
+
+  const selectTile = useCallback((tile: HTMLElement) => {
+    const key = tile.dataset.wordKey ?? "";
+    hideTranslation();
+    // Accent-folded keys repeat on the shelf (`solo`/`sólo` share one mark key),
+    // so the *clicked tile* decides what is selected, not the key.
+    const closing = selectedTileRef.current === tile;
+    selectedTileRef.current = closing ? null : tile;
+    setSelected(closing ? null : {
+      key,
+      word: tile.dataset.word ?? "",
+      example: tile.dataset.example ?? null,
+      source: tile.dataset.source ?? null,
+    });
+  }, [hideTranslation]);
 
   const markStatus = useCallback((markKey: string, status: VocabularyShelfStatus) => {
     const next = { ...readStatuses(storageScope) };
@@ -191,114 +233,198 @@ export function VocabularyShelf({ items, storageScope, page, pageSize, total, ra
     writeStatuses(storageScope, next);
   }, [storageScope]);
 
-  const toggleSpeech = useCallback((item: VocabularyShelfItem) => {
-    if (speech.speakingId === item.id) {
+  const toggleSpeech = useCallback((key: string, word: string) => {
+    if (speech.speakingId === key) {
       speech.stop();
       return;
     }
     setNotice("");
-    speech.speak(item.id, item.text, () => setNotice("当前浏览器不支持朗读，单词仍可正常学习。"));
+    speech.speak(key, word, () => setNotice("当前浏览器不支持朗读，单词仍可正常学习。"));
   }, [speech]);
 
-  if (!items.length) return null;
-  const selected = items.find((item) => item.id === selectedId) ?? null;
+  // Marks and selection live on server-rendered tiles, so they are applied to
+  // the few marked nodes rather than by re-rendering all 7,922 of them. A mark
+  // key can match more than one tile (`solo`/`sólo`), and both must show it.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const next = new Set<string>(Object.keys(statuses));
+    if (selected) next.add(selected.key);
+    const decorateKey = (key: string, on: boolean) => {
+      const status = statuses[key];
+      for (const tile of container.querySelectorAll<HTMLElement>(`[data-word-key="${CSS.escape(key)}"]`)) {
+        tile.classList.toggle("is-familiar", on && status === "familiar");
+        tile.classList.toggle("is-revisit", on && status === "revisit");
+        tile.classList.toggle("is-ignore", on && status === "ignore");
+      }
+    };
+    for (const key of decoratedRef.current) if (!next.has(key)) decorateKey(key, false);
+    for (const key of next) decorateKey(key, true);
+
+    for (const tile of container.querySelectorAll<HTMLElement>(".vocabulary-study__word.is-selected")) {
+      if (tile !== selectedTileRef.current) tile.classList.remove("is-selected");
+    }
+    selectedTileRef.current?.classList.add("is-selected");
+    decoratedRef.current = next;
+  }, [statuses, selected]);
+
+  // The rail marks the band the reader is in: with no pages left to be "on",
+  // the milestone is the last one the band at the top of the viewport passed.
+  useEffect(() => {
+    if (!ranked || !bands.length) return;
+    const container = containerRef.current;
+    if (!container) return;
+    let positions: readonly Readonly<{ start: number; top: number }>[] = [];
+    const measure = () => {
+      positions = [...container.querySelectorAll<HTMLElement>("[data-band-start]")].map((node) => ({
+        start: Number(node.dataset.bandStart ?? "1"),
+        top: node.getBoundingClientRect().top + window.scrollY,
+      }));
+    };
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (!positions.length) measure();
+      const probe = window.scrollY + 140;
+      let start = positions[0]?.start ?? 1;
+      for (const band of positions) {
+        if (band.top <= probe) start = band.start;
+        else break;
+      }
+      setActiveMilestone(activeRankMilestone(start, total));
+    };
+    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    const onResize = () => { positions = []; onScroll(); };
+    measure();
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [ranked, bands, total]);
+
+  // The layer is `fixed`, so it must follow its word: reposition it on every
+  // scroll frame while it is showing, and drop it once that word has left the
+  // viewport. A coordinate cached at hover time would leave it floating over
+  // unrelated words after any scroll.
+  useEffect(() => {
+    let frame = 0;
+    const follow = () => {
+      frame = 0;
+      const tile = hoveredTileRef.current;
+      if (!tile) return;
+      const rect = tile.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        hideTranslation();
+        return;
+      }
+      setHovered((current) => current ? { ...current, ...translationPosition(rect) } : current);
+    };
+    const schedule = () => { if (!frame) frame = window.requestAnimationFrame(follow); };
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [hideTranslation]);
+
+  useEffect(() => () => { describedRef.current?.removeAttribute("aria-describedby"); }, []);
+
   const marked = Object.keys(statuses).length;
   const visibleNotice = speech.errorMessage || notice;
-
-  const firstRank = ranked ? (page - 1) * pageSize + 1 : null;
-  const bands: readonly VocabularyShelfBand[] = firstRank === null ? [{ band: null, items }] : groupIntoBands(items, firstRank, total);
-  // The rail jumps across the whole shelf, so it needs more than one page to
-  // jump through, and it only exists where positions really are shelf ranks.
-  const milestones = firstRank !== null && total > pageSize ? reachableRankMilestones(total) : [];
-  const activeMilestone = firstRank === null ? null : activeRankMilestone(firstRank, total);
-
-  const wordTile = (item: VocabularyShelfItem) => {
-    const status = statuses[item.markKey];
-    return <div role="listitem" key={item.id}>
-      <button
-        type="button"
-        lang="es"
-        className={`vocabulary-study__word${selected?.id === item.id ? " is-selected" : ""}${status ? ` is-${status}` : ""}`}
-        onClick={() => setSelectedId(item.id)}
-      >
-        <span className="vocabulary-study__word-text">
-          {/*
-            The occurrence count used to sit here. It was the shelf's sort key
-            when the order was raw corpus frequency, and it lost that job when
-            the order became the reference frequency rank — the numbers are not
-            monotonic, so a count beside a sorted list reads as if it were the
-            sort key and makes the list look arbitrary. It is also a
-            surface-form count rather than a lemma count (`estar` does not
-            include `está`), so it understated the very quantity it named, and
-            nothing acted on it. The example sentence below is what carries the
-            one actionable fact: that this word really occurs in published
-            content.
-          */}
-          {item.text}
-        </span>
-        <span className="vocabulary-study__word-meaning">{item.glossary?.meanings[0]?.meaning ?? "释义待补充"}</span>
-      </button>
-    </div>;
-  };
+  const entry = selected ? glossary[selected.key] ?? null : null;
+  const milestones = ranked && total > vocabularyRankBandSize ? reachableRankMilestones(total) : [];
 
   return <section className="vocabulary-study" aria-label="词汇表">
     <p className="vocabulary-study__summary" aria-live="polite">已标记 {marked} 个 · 标记保存在本机浏览器，换设备不会同步</p>
     {visibleNotice ? <p className="vocabulary-study__notice" role="status">{visibleNotice}</p> : null}
 
     <div className="vocabulary-shelf__body">
-      <div className="vocabulary-shelf__bands">
-        {bands.map(({ band, items: bandItems }) => band
-          ? <div className="vocabulary-shelf__band" key={band.start}>
-            <h2 className="vocabulary-rank-band" id={bandHeadingId(band.start)}>排名 {band.start} - {band.end}:</h2>
-            <div className="vocabulary-study__grid" role="list" aria-labelledby={bandHeadingId(band.start)}>{bandItems.map(wordTile)}</div>
-          </div>
-          : <div className="vocabulary-study__grid" role="list" aria-label="词汇列表" key="results">{bandItems.map(wordTile)}</div>)}
+      <div
+        className="vocabulary-shelf__bands"
+        ref={containerRef}
+        onMouseOver={(event) => { const tile = tileFrom(event.target); if (tile) showTranslation(tile); }}
+        onMouseOut={(event) => {
+          const tile = tileFrom(event.target);
+          if (tile && !tile.contains(event.relatedTarget as Node | null)) hideTranslation();
+        }}
+        onFocus={(event) => { const tile = tileFrom(event.target); if (tile) showTranslation(tile); }}
+        onBlur={(event) => { if (tileFrom(event.target)) hideTranslation(); }}
+        onClick={(event) => { const tile = tileFrom(event.target); if (tile) selectTile(tile); }}
+        onKeyDown={(event) => { if (event.key === "Escape") { hideTranslation(); selectedTileRef.current = null; setSelected(null); } }}
+      >
+        {children}
       </div>
 
       {milestones.length ? <nav className="vocabulary-rank-rail" aria-label="按名次跳转">
         <p className="vocabulary-rank-rail__caption">名次（已滤除功能词）</p>
-        {milestones.map((rank) => <Link key={rank} href={rankHref(rank, pageSize)} aria-current={rank === activeMilestone ? "true" : undefined} aria-label={`跳到第 ${rankMilestoneLabel(rank)} 名`}>{rankMilestoneLabel(rank)}</Link>)}
+        {milestones.map((rank) => <a
+          key={rank}
+          href={`#${rankBandAnchor(rank, total)}`}
+          aria-current={rank === activeMilestone ? "true" : undefined}
+          aria-label={`跳到第 ${rankMilestoneLabel(rank)} 名`}
+        >{rankMilestoneLabel(rank)}</a>)}
       </nav> : null}
     </div>
 
-    {selected ? <aside className="vocabulary-study__card" aria-live="polite" aria-label={`${selected.text} 词汇卡片`}>
+    {/* Portalled to the document body on purpose: the page wrapper carries a
+        `transform` (its entrance animation), and a transformed ancestor becomes
+        the containing block for `position: fixed` — the layer would be placed
+        relative to 165,000-pixel-tall content instead of the viewport. The
+        portal keeps the coordinates below meaning viewport coordinates. */}
+    {hovered ? createPortal(<div className="vocabulary-shelf__translation" id={translationId} role="tooltip" style={{ top: hovered.top, left: hovered.left }}>
+      <p className="vocabulary-shelf__translation-word" lang="es">{hovered.word}</p>
+      <ul className="vocabulary-shelf__translation-meanings">
+        {hovered.meanings.map((meaning) => <li key={meaning.meaning}>
+          <strong>{meaning.meaning}</strong>
+          {meaning.usage ? <span>{meaning.usage}</span> : null}
+        </li>)}
+      </ul>
+    </div>, document.body) : null}
+
+    {selected ? <aside className="vocabulary-study__card" aria-live="polite" aria-label={`${selected.word} 词汇卡片`}>
       <div className="vocabulary-study__card-head">
         <div>
           <p className="vocabulary-study__eyebrow">
-            {selected.glossary ? `已审核词表 · ${selected.glossary.cefr} · ${selected.glossary.partOfSpeech}` : "参考词表"}
+            {entry ? `已审核词表 · ${entry.cefr} · ${entry.partOfSpeech}` : "参考词表"}
           </p>
-          <h3 lang="es">{selected.text}</h3>
+          <h3 lang="es">{selected.word}</h3>
         </div>
         <div className="vocabulary-study__card-actions">
-          <button type="button" onClick={() => toggleSpeech(selected)}>{speakingId === selected.id ? "停止朗读" : "朗读单词"}</button>
-          <button type="button" onClick={() => setSelectedId(null)}>关闭</button>
+          <button type="button" onClick={() => toggleSpeech(selected.key, selected.word)}>{speakingId === selected.key ? "停止朗读" : "朗读单词"}</button>
+          <button type="button" onClick={() => { selectedTileRef.current = null; setSelected(null); }}>关闭</button>
         </div>
       </div>
 
-      {selected.glossary
+      {entry
         ? <ul className="vocabulary-study__meanings">
-          {selected.glossary.meanings.map((item) => <li key={item.meaning}><strong>{item.meaning}</strong>{item.usage ? <span>{item.usage}</span> : null}</li>)}
+          {entry.meanings.map((meaning) => <li key={meaning.meaning}><strong>{meaning.meaning}</strong>{meaning.usage ? <span>{meaning.usage}</span> : null}</li>)}
         </ul>
         : <p className="vocabulary-study__muted">这个词还没有审核过的中文释义，先按下面的语境理解它。</p>}
 
-      {selected.glossary?.collocations.length ? <div className="vocabulary-study__block"><h4>常用搭配</h4><p className="vocabulary-study__chips" lang="es">{selected.glossary.collocations.map((item) => <span key={item}>{item}</span>)}</p></div> : null}
-      {selected.glossary?.examples.length ? <div className="vocabulary-study__block"><h4>词表例句</h4><ul className="vocabulary-study__examples" lang="es">{selected.glossary.examples.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
-      {selected.glossary?.forms.length ? <div className="vocabulary-study__block"><h4>常见变位 / 形式</h4><p className="vocabulary-study__chips" lang="es">{selected.glossary.forms.slice(0, 8).map((item) => <span key={item}>{item}</span>)}</p></div> : null}
+      {entry?.collocations.length ? <div className="vocabulary-study__block"><h4>常用搭配</h4><p className="vocabulary-study__chips" lang="es">{entry.collocations.map((item) => <span key={item}>{item}</span>)}</p></div> : null}
+      {entry?.examples.length ? <div className="vocabulary-study__block"><h4>词表例句</h4><ul className="vocabulary-study__examples" lang="es">{entry.examples.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+      {entry?.forms.length ? <div className="vocabulary-study__block"><h4>常见变位 / 形式</h4><p className="vocabulary-study__chips" lang="es">{entry.forms.slice(0, 8).map((item) => <span key={item}>{item}</span>)}</p></div> : null}
 
       <div className="vocabulary-study__block">
         <h4>已发布内容中的真实例句</h4>
-        {selected.context
+        {selected.example
           ? <figure className="vocabulary-study__corpus">
-            <blockquote lang="es">{selected.context}</blockquote>
+            <blockquote lang="es">{selected.example}</blockquote>
             {selected.source ? <figcaption>{selected.source}</figcaption> : null}
           </figure>
           : <p className="vocabulary-study__muted">已发布内容中暂时没有收录这个词的例句。</p>}
       </div>
 
-      <div className="vocabulary-study__marking" role="group" aria-label={`标记 ${selected.text}`}>
-        {statusOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={statuses[selected.markKey] === value} className={statuses[selected.markKey] === value ? "is-active" : undefined} onClick={() => markStatus(selected.markKey, value)}>{label}</button>)}
-        {statuses[selected.markKey] ? <button type="button" onClick={() => markStatus(selected.markKey, statuses[selected.markKey]!)}>清除标记</button> : null}
-        <span className="vocabulary-study__muted">{statuses[selected.markKey] ? `当前：${statusLabels[statuses[selected.markKey]!]}` : "还没有标记"}</span>
+      <div className="vocabulary-study__marking" role="group" aria-label={`标记 ${selected.word}`}>
+        {statusOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={statuses[selected.key] === value} className={statuses[selected.key] === value ? "is-active" : undefined} onClick={() => markStatus(selected.key, value)}>{label}</button>)}
+        {statuses[selected.key] ? <button type="button" onClick={() => markStatus(selected.key, statuses[selected.key]!)}>清除标记</button> : null}
+        <span className="vocabulary-study__muted">{statuses[selected.key] ? `当前：${statusLabels[statuses[selected.key]!]}` : "还没有标记"}</span>
       </div>
     </aside> : null}
   </section>;
