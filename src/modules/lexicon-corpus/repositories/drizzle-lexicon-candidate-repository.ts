@@ -1,33 +1,29 @@
 /**
  * Postgres lexicon candidate repository (LEX-INDEX-001 slice 6 prerequisite).
  *
- * ## Status: **code only — not wired, not verified against a database**
+ * ## Status: implemented, and exercised against a real database
  *
- * The `lexicon_candidates` migration is generated but deliberately **not
- * applied** (see `docs/migrations/0041-lexicon-candidates-review.md`), and no
- * migration, DDL or `drizzle-kit push`/`migrate` may be run for this slice.
- * Consequences, stated plainly so nobody reads this file as tested code:
+ * Migration `0042_stale_starbolt.sql` created `lexicon_candidates` and
+ * `lexicon_candidate_approvals` and has been applied to the target database, so
+ * this is no longer "code only". What that means in practice:
  *
- * - nothing imports this module yet; the application layer still uses
- *   {@link createInMemoryLexiconCandidateRepository} and the slice-5 gate;
- * - the queries below have never executed against a real PostgreSQL, so `.set()`
- *   shapes, the `onConflictDoNothing` target and the JSONB round-trip are
- *   unproven;
- * - `tsc --noEmit` and ESLint are the only checks that ran on it.
+ * - `scripts/verify-drizzle-candidate-repository.ts` drives this factory inside
+ *   a transaction that is rolled back, so `.set()` shapes, the
+ *   `onConflictDoNothing` target, the `for update` read and the jsonb round-trip
+ *   have all executed real SQL;
+ * - `scripts/lexicon-indexing-canary.ts` constructs it for the canary run;
+ * - `tests/database/lexicon-candidates-migration.test.ts` re-applies the
+ *   migration artifact on PGlite, so the table shape this file maps is checked
+ *   on every run.
  *
- * ## What the committed table can and cannot store
+ * ## Where the approval audit lives
  *
- * `lexicon_candidates` has 26 columns. It can store a candidate, its frozen
- * source snapshot, the review records and the approval audit pair
- * (`approved_by` / `approved_at` / `revision`, guarded by
- * `lexicon_candidates_approved_audit_check`).
- *
- * It has **no column** for the approval audit's `mode`, `batchId`, `lexemes` or
- * `phrases`. `LexiconCandidateApprovalAuditStore` is therefore *not* implemented
- * here: silently dropping the batch correlation would destroy the only record
- * that ADR-0011 §5 requires for a bulk approval. Completing it needs its own
- * migration (an append-only `lexicon_candidate_approvals` table) **before** this
- * path can be wired; that is a schema change and out of scope for this slice.
+ * This file implements {@link LexiconCandidateRepository} only. The audit trail
+ * is a separate concern with a separate table: `lexicon_candidates` has **no
+ * column** for `mode`, `batchId`, `lexemes` or `phrases`, so an audit written
+ * into the candidate row would have to drop the batch correlation that
+ * ADR-0011 §5 requires. It lives in `lexicon_candidate_approvals` and its store
+ * is `drizzle-lexicon-candidate-approval-audit-store.ts`.
  *
  * ## Identity
  *
@@ -266,10 +262,9 @@ function toValues(record: LexiconCandidateRecord) {
 /**
  * Postgres candidate store.
  *
- * Implements {@link LexiconCandidateRepository} only. The approval audit store is
- * intentionally absent: the committed table has nowhere to put `mode`, `batchId`,
- * `lexemes` or `phrases`, and an audit record that loses the batch correlation is
- * not an audit record (see the file header).
+ * Implements {@link LexiconCandidateRepository}. The approval audit store is a
+ * sibling concern with its own table and its own factory; see
+ * `drizzle-lexicon-candidate-approval-audit-store.ts` and the file header.
  */
 export function createDrizzleLexiconCandidateRepository(database: Database): LexiconCandidateRepository {
   function conflictFrom(
