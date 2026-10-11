@@ -54,13 +54,13 @@ test("plays the real product recording in the first viewport", async ({ page }) 
   if (!videoBox) throw new Error("The recording must have a box.");
   // The recording is the hero visual, so it starts inside the first viewport.
   expect(videoBox.y).toBeLessThan(viewport.height * 0.8);
-  expect(Math.abs(videoBox.width / videoBox.height - 960 / 514)).toBeLessThan(0.02);
+  expect(Math.abs(videoBox.width / videoBox.height - 1280 / 720)).toBeLessThan(0.02);
 
   // The poster is the largest paint; exactly one request, and it landed.
   expect(posterResponses).toHaveLength(1);
 
-  // The page starts the recording itself and the minute actually runs. The
-  // clip has no audio track, so muted autoplay is never a surprise.
+  // The page starts the recording itself and the minute actually runs. The clip
+  // carries the lesson's own audio, so muted autoplay is never a surprise.
   expect(await video.evaluate((element: HTMLVideoElement) => element.muted)).toBe(true);
   await page.waitForFunction(() => {
     const element = document.querySelector<HTMLVideoElement>(".landing-demo__video");
@@ -68,11 +68,21 @@ test("plays the real product recording in the first viewport", async ({ page }) 
   }, undefined, { timeout: 30000 });
 
   // Every primary control is a 44px target, the way the stylesheet claims.
-  for (const selector of [".landing-nav__cta", ".landing-hero__actions .landing-button", ".landing-hero__actions .landing-text-button", ".landing-demo__mark"]) {
+  for (const selector of [".landing-nav__cta", ".landing-hero__actions .landing-button", ".landing-hero__actions .landing-text-button", ".landing-demo__mark", ".landing-demo__sound"]) {
     const target = await page.locator(selector).first().boundingBox();
     expect(target, `${selector} must be laid out`).not.toBeNull();
     expect(target?.height ?? 0, `${selector} must be a 44px target`).toBeGreaterThanOrEqual(44);
   }
+
+  // The lesson's audio is real and one tap away; the button reflects the state
+  // that the player chrome reports, not just its own clicks.
+  const sound = page.locator(".landing-demo__sound");
+  await expect(sound).toHaveAttribute("aria-pressed", "false");
+  await sound.click();
+  expect(await video.evaluate((element: HTMLVideoElement) => element.muted)).toBe(false);
+  await expect(sound).toHaveAttribute("aria-pressed", "true");
+  await sound.click();
+  expect(await video.evaluate((element: HTMLVideoElement) => element.muted)).toBe(true);
 
   // The burned-in subtitles also exist as text: a screen reader cannot read the
   // picture, and a 320px phone cannot enlarge it.

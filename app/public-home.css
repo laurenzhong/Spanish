@@ -121,7 +121,7 @@ main.landing-page {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 960 / 514;
+  aspect-ratio: 1280 / 720;
   border: 1px solid rgb(255 255 255 / 14%);
   border-radius: 12px;
   background: #0b0f0e;
@@ -149,6 +149,26 @@ main.landing-page {
 .landing-page .landing-demo__mark:hover { border-color: rgb(247 243 235 / 42%); background: rgb(255 255 255 / 6%); }
 .landing-demo__mark b { color: var(--landing-gold); font-size: .72rem; font-variant-numeric: tabular-nums; font-weight: 700; }
 .landing-demo__mark span { color: rgb(247 243 235 / 76%); font-size: .74rem; }
+/* Browsers only autoplay a muted video, so the lesson's own Spanish audio gets
+   its own control instead of hiding inside the player chrome. */
+.landing-page .landing-demo__sound {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 0 14px;
+  border: 1px solid var(--landing-gold);
+  border-radius: 999px;
+  color: var(--landing-gold);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.landing-page .landing-demo__sound:hover { background: rgb(223 181 110 / 14%); }
+.landing-page .landing-demo__sound span { font-size: .74rem; font-weight: 650; }
+.landing-page .landing-demo__sound[aria-pressed="true"] { border-color: rgb(247 243 235 / 26%); color: rgb(247 243 235 / 62%); }
 /* The burned-in subtitles are unreadable on a 320px phone and invisible to a
    screen reader; this is the same three lines as text, one tap away. */
 .landing-page .landing-demo__transcript { border: 1px solid rgb(247 243 235 / 16%); border-radius: 12px; padding: 0 14px; }

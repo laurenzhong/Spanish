@@ -7,17 +7,31 @@ import { PublicHomeNavigation } from "./public-home-navigation";
 
 /**
  * The public home is a product page, not a poster: the headline stays short and
- * quiet, and the real product carries the page — a silent minute of the
- * workbench playing a lesson with the bilingual transcript following along,
- * then a plain list of what the product actually does.
+ * quiet, and the real product carries the page — a minute of the workbench
+ * playing a lesson with the bilingual transcript following along, then a plain
+ * list of what the product actually does.
  *
  * The recording is generated, never hand-edited: a Playwright pass over the
  * published item `youtube.language-reactor.f79e84b7ec9030b11c5b3be1`
  * ("El sol de medianoche en Kiruna, Suecia", Luisito Comunica — a whitelisted
- * source), transcript switched to 双语, seeked to 30:55 where the midnight sun
- * appears, then 60 s of real playback. Cut and encoded with
- * `ffmpeg -ss 13.4 -t 60 -vf "crop=1280:686:0:0,fps=24,scale=960:-2" -crf 31
- * -pix_fmt yuv420p -an -movflags +faststart`; the poster is a frame of it.
+ * source), transcript switched to 双语, seeked to 31:00 where the midnight sun
+ * passage starts. Three things make the capture watchable, all with reasons:
+ *
+ *  - the browser scrollbar is hidden at the compositor, because it showed up as
+ *    a pale block down the left edge;
+ *  - the page is zoomed to 1.25, so the text carries real pixels when the clip
+ *    is shown at ~540 CSS px;
+ *  - playback runs at 0.5x while recording and is squeezed back with
+ *    `setpts=0.5*PTS,fps=25`, because the pull zone sustains ~450 KB/s and this
+ *    lesson needs ~620 KB/s at 1x — at full speed the player spent a fifth of
+ *    the take buffering.
+ *
+ * The audio is the lesson's own: Playwright records video only, so the same
+ * 58 s window is pulled from the source with `ffmpeg -ss 1860 -t 58` and muxed
+ * back in, aligned by a trace of (recording clock -> video clock) whose worst
+ * residual was 0.026 s. Encode: `libx264 -crf 28` at the native 1280x720 plus
+ * `-c:a copy`; the poster is a frame of it. (CRF 26 was indistinguishable from
+ * 28 at the size the page shows and cost 1.7 MB more.)
  */
 
 const demo = {
@@ -124,13 +138,13 @@ export default function PublicHomeExperience() {
               <PublicHomeDemo
                 poster={demo.poster}
                 src={demo.video}
-                width={960}
-                height={514}
-                label="产品实录：媒体学习工作台播放《El sol de medianoche en Kiruna, Suecia》，右侧字幕逐句跟随，西班牙语与中文对照"
+                width={1280}
+                height={720}
+                label="产品实录：媒体学习工作台播放《El sol de medianoche en Kiruna, Suecia》，右侧字幕逐句跟随，西班牙语与中文对照；静音自动播放，可用旁边的按钮打开西语原声"
                 fallback={<>你的浏览器不支持内嵌视频，可以<a href={demo.video}>下载这段一分钟的实录</a>。</>}
               />
               <figcaption className="landing-demo__caption">
-                <span>真实产品实录 · 约一分钟 · 无声</span>
+                <span>真实产品实录 · 约一分钟 · 西语原声</span>
                 {/* The title is Spanish inside a Chinese sentence; the language
                     tag keeps a screen reader from reading it as Chinese. */}
                 <span>《<span lang="es">El sol de medianoche en Kiruna, Suecia</span>》· 双语字幕</span>

@@ -65,8 +65,9 @@ describe("public home", () => {
     expect(video).toHaveAttribute("poster", demo.poster);
     expect(video).toHaveAttribute("controls");
     expect(video).toHaveAttribute("preload", "metadata");
-    // iOS Safari needs playsinline or it takes the video full screen, and the
-    // clip carries no audio track at all, so autoplay can never make noise.
+    // iOS Safari needs playsinline or it takes the video full screen. The clip
+    // has the lesson's real audio, so autoplay has to be muted — the sound
+    // button beside the marks is how a visitor turns it on.
     expect(video).toHaveAttribute("playsinline");
     // React sets `muted` as a DOM property, not an attribute.
     expect((video as HTMLVideoElement).muted).toBe(true);
@@ -74,11 +75,37 @@ describe("public home", () => {
     // asked for reduced motion keeps the poster instead.
     expect(video).not.toHaveAttribute("autoplay");
     expect(video?.getAttribute("aria-label")).toMatch(/双语|字幕/);
-    expect(video).toHaveAttribute("width", "960");
-    expect(video).toHaveAttribute("height", "514");
+    expect(video).toHaveAttribute("width", "1280");
+    expect(video).toHaveAttribute("height", "720");
     const source = container.querySelector("video source");
     expect(source).toHaveAttribute("src", demo.video);
     expect(source).toHaveAttribute("type", "video/mp4");
+  });
+
+  it("turns the lesson's sound on and off from the button beside the marks", () => {
+    const play = vi.fn(() => Promise.resolve());
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(play as never);
+
+    const { container } = render(<PublicHomeExperience />);
+    const video = container.querySelector("video") as HTMLVideoElement;
+    const button = container.querySelector(".landing-demo__sound") as HTMLButtonElement;
+
+    expect(button).not.toBeNull();
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.textContent).toContain("开启声音");
+
+    fireEvent.click(button);
+    expect(video.muted).toBe(false);
+    expect(video.volume).toBe(1);
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    expect(button.textContent).toContain("静音");
+    // Turning it on must also start playback: the visitor asked for sound, not
+    // for a paused frame.
+    expect(play).toHaveBeenCalled();
+
+    fireEvent.click(button);
+    expect(video.muted).toBe(true);
+    expect(button.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("starts the recording by itself once the document has loaded", () => {
