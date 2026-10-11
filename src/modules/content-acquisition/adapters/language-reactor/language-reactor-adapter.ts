@@ -249,6 +249,10 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           // Podcast directory enclosures commonly pass through several
           // authorized CDN redirectors before reaching the audio asset.
           maxRedirects: 6,
+          // The directory lists many episodes and the caller already skips a
+          // single unavailable enclosure, so retrying inside the probe buys
+          // nothing and would multiply requests against a dead CDN.
+          maxAttempts: 1,
           signal: requestOptions?.signal,
         });
         const artwork = await this.podcastArtwork(document.info.itunesId, document.info.feedTitle?.trim() || title, requestOptions?.signal);
