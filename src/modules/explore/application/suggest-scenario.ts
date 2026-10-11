@@ -30,13 +30,13 @@ export async function suggestScenarioForUser(
   input: SuggestScenarioForUserInput,
   random: () => number = Math.random,
 ) {
-  const candidates = await candidateRepository.listForUser(input.userId);
-  let context: ScenarioSuggestionContext;
-  try {
-    context = await contextRepository.getForUser(input.userId);
-  } catch {
-    context = emptyScenarioSuggestionContext;
-  }
+  // Candidates and context are both keyed only by the user, so they share one
+  // round trip; the context keeps its own fallback (an unavailable context is
+  // an empty one, an unavailable candidate list still fails the suggestion).
+  const [candidates, context] = await Promise.all([
+    candidateRepository.listForUser(input.userId),
+    contextRepository.getForUser(input.userId).catch((): ScenarioSuggestionContext => emptyScenarioSuggestionContext),
+  ]);
   return suggestScenario({
     mode: input.mode,
     candidates,

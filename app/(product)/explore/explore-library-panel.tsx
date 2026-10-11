@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExploreDashboardDto, ExploreCardDto } from "@/src/modules/explore/domain";
@@ -157,7 +158,7 @@ export function ExploreLibraryPanel({ dashboard, library, view, query, filter, s
 
     {view === "scenarios" ? scenarios.length === 0
       ? <div className="explore-empty explore-library__empty" role="status"><strong>没有匹配的场景</strong><button type="button" onClick={onClear}>清除搜索和筛选</button></div>
-      : <div className="explore-scenario-grid">{scenarios.map((scenario) => <a href={scenario.route} key={scenario.stableKey}><div><small>{scenario.cefr} · {scenario.role}{scenario.sourceKind === "personal" ? " · 私人" : ""}</small><h3>{scenario.title}</h3><span className="explore-scenario-card__goal">{scenario.communicationGoal}</span></div><span aria-hidden="true">→</span></a>)}</div>
+      : <div className="explore-scenario-grid">{scenarios.map((scenario) => <Link href={scenario.route} key={scenario.stableKey}><div><small>{scenario.cefr} · {scenario.role}{scenario.sourceKind === "personal" ? " · 私人" : ""}</small><h3>{scenario.title}</h3><span className="explore-scenario-card__goal">{scenario.communicationGoal}</span></div><span aria-hidden="true">→</span></Link>)}</div>
       : null}
 
     {view === "expressions" ? expressions.length === 0
