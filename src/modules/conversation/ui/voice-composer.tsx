@@ -20,6 +20,9 @@ type VoiceComposerProps = Readonly<{
   onClearQuote?: () => void;
 }>;
 
+/** Per-bar multipliers so the live level reads as a wave rather than a solid block. */
+const composerBarWeights = [0.5, 0.85, 1, 0.68, 0.92, 0.58, 0.74] as const;
+
 export function VoiceComposer({
   disabled = false,
   unavailable = false,
@@ -39,6 +42,10 @@ export function VoiceComposer({
   const [transcribing, setTranscribing] = useState(false);
   const transcriptionAbortRef = useRef<AbortController | null>(null);
   const transcriptionAttemptRef = useRef(0);
+  // `null` means "no live measurement available": the bars keep their decorative
+  // fallback animation instead of pretending to show real input.
+  const [inputLevel, setInputLevel] = useState<number | null>(null);
+  const levelUnsubscribeRef = useRef<(() => void) | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // Streaming only blocks submitting another turn and recording. The text
   // field remains a normal composer so the user can prepare their next reply
@@ -48,6 +55,8 @@ export function VoiceComposer({
   useEffect(() => {
     recorderRef.current = createBrowserAudioRecorder();
     return () => {
+      levelUnsubscribeRef.current?.();
+      levelUnsubscribeRef.current = null;
       void recorderRef.current?.cancel();
       transcriptionAbortRef.current?.abort();
     };
@@ -68,7 +77,14 @@ export function VoiceComposer({
     textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
   }, [value]);
 
+  function stopLevelMeter() {
+    levelUnsubscribeRef.current?.();
+    levelUnsubscribeRef.current = null;
+    setInputLevel(null);
+  }
+
   function resetRecordingState() {
+    stopLevelMeter();
     setRecording(false);
     setRecordingStartedAt(null);
     setRecordingSeconds(0);
@@ -138,6 +154,11 @@ export function VoiceComposer({
       setRecordingStartedAt(Date.now());
       setRecordingSeconds(0);
       setRecording(true);
+      // Real input level replaces the decorative loop as soon as the browser can
+      // measure it; otherwise `inputLevel` stays null and the fallback runs.
+      levelUnsubscribeRef.current = recorder.isLevelMeterSupported
+        ? recorder.subscribeLevel((level) => setInputLevel(level))
+        : null;
     } catch (error) {
       resetRecordingState();
       const code = speechCapabilityErrorCode(error, "microphone-not-supported");
@@ -182,8 +203,15 @@ export function VoiceComposer({
 
         {recording ? (
           <div className="conversation-composer__recording" role="status" aria-live="polite">
-            <span className="conversation-composer__recording-time">{String(Math.floor(recordingSeconds / 60)).padStart(2, "0")}:{String(recordingSeconds % 60).padStart(2, "0")}</span>
-            <span className="conversation-composer__waveform" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></span>
+            <span aria-hidden="true" className="conversation-composer__recording-time">{String(Math.floor(recordingSeconds / 60)).padStart(2, "0")}:{String(recordingSeconds % 60).padStart(2, "0")}</span>
+            <span className="conversation-composer__waveform" aria-hidden="true" data-live={inputLevel === null ? "false" : "true"}>
+              {composerBarWeights.map((weight, index) => (
+                <i
+                  key={index}
+                  style={inputLevel === null ? undefined : { animation: "none", transform: `scaleY(${Math.max(0.05, Math.min(1, weight * inputLevel)).toFixed(3)})` }}
+                />
+              ))}
+            </span>
             <span className="conversation-composer__recording-label">正在录音</span>
           </div>
         ) : transcribing ? (
