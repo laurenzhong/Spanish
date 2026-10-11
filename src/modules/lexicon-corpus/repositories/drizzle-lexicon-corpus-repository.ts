@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 
 import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, type SourcePosition } from "../domain";
-import { searchContentFrequencyWords } from "../domain/frequency-word-list";
+import { searchContentFrequencyWords, contentFrequencyWords } from "../domain/frequency-word-list";
 import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
 import { createDrizzleEvidenceRepository } from "@/src/modules/evidence/repositories";
 import type { Database } from "@/src/shared/db/client";
@@ -19,12 +19,32 @@ const FREQUENCY_CONTEXT_MAX_CHARS = 180;
 const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
 
 /**
- * Occurrence counts for the whole published corpus, keyed by the accent-folded
- * form the token index uses. The shelf asks about arbitrary reference-list
- * words (rank 1..8000), so the aggregate keeps every distinct form instead of
- * the old top-600 head; it is cached because the scan covers every published
- * segment. Forms shorter than two characters are skipped, and `ir`/`ya` are the
- * shortest words the shelf can show.
+ * Occurrence counts for the reference-list forms, keyed by the accent-folded
+ * form the token index uses. Only the ~7.9k shelf forms are aggregated: the
+ * corpus has ~64k distinct forms, and grouping all of them only to discard 56k
+ * was most of the cold path. Cached for {@link FREQUENCY_TTL_MS} because the
+ * scan still covers every published segment.
+ *
+ * Cold path, measured against the real database with
+ * `scripts/verify-frequency-shelf.ts` (fresh process each run, before/after
+ * alternating so both share the same load):
+ *
+ * | query                                              | cold            |
+ * |----------------------------------------------------|-----------------|
+ * | group every form, filter in Node (previous)        | 4548/4273/4052 ms |
+ * | fold + filter in SQL, one fold per token (shipped) | 2844/2790/2866 ms |
+ *
+ * Variants probed in a single process (relative to each other, not to the runs
+ * above — the first query of a process also warms the buffer cache, so these
+ * flatter whatever ran second): filter in SQL with `translate` twice per token
+ * 2394 ms; fold once per token 2332 ms; media and article branches in parallel
+ * 2206 ms; a 7.9k-value `IN (...)` placeholder list 3284 ms; tokenising without
+ * folding or grouping 1435 ms; reading the segments without tokenising 1014 ms.
+ *
+ * Parallel branches were rejected: two connections per refresh for ~5% once
+ * measured in the same run. The floors are the corpus scan itself, so going
+ * well below ~1.5 s needs the counts materialised in a table or index — a
+ * migration, not a smarter query.
  */
 type CorpusFormCounts = ReadonlyMap<string, number>;
 
@@ -32,8 +52,14 @@ let formCountCache: Readonly<{ loadedAt: number; counts: CorpusFormCounts }> | n
 let formCountInFlight: Promise<CorpusFormCounts> | null = null;
 
 async function computeCorpusFormCounts(database: Database): Promise<CorpusFormCounts> {
-  // Aggregating inside PostgreSQL keeps the whole corpus scan server-side:
-  // only the (form, count) pairs travel back to the app.
+  // The filter travels as one space-joined parameter rather than a 7.9k-value
+  // `IN (...)`: drizzle expands a JS array into one placeholder per element, and
+  // the single parameter measured no slower while keeping the statement small.
+  const wantedForms = [...new Set(contentFrequencyWords().map((entry) => normalizeSpanishSurface(entry.word)))].join(" ");
+  // Aggregating inside PostgreSQL keeps the whole corpus scan server-side, and
+  // only the shelf's own forms are grouped. Measured on the real database:
+  // grouping every one of the ~64k distinct forms and filtering in Node cost
+  // 4949 ms cold; folding and filtering in SQL costs 2332 ms in the same run.
   const rows = await database.execute(sql`
     with source_texts as (
       select ms.source_text as text
@@ -48,16 +74,28 @@ async function computeCorpusFormCounts(database: Database): Promise<CorpusFormCo
       where av.status = 'published' and src.copyright_status = 'cleared'
         and not exists (select 1 from ${schema.userGeneratedArticles} uga where uga.article_version_id = av.id)
     ), tokens as (
-      select regexp_split_to_table(regexp_replace(lower(text), '[^a-záéíóúüñ]+', ' ', 'g'), ' ') as word
+      -- Splitting straight on the separator class is one regex pass instead of
+      -- replace-then-split; the empty pieces it can produce are dropped by the
+      -- membership test below, so the token set is unchanged.
+      select regexp_split_to_table(lower(text), '[^a-záéíóúüñ]+') as word
       from source_texts
+    ), folded as (
+      -- Fold once per token (not once in WHERE and again in SELECT). The fold
+      -- must stay equivalent to normalizeSpanishSurface in JS: the tokenizer
+      -- only ever emits [a-záéíóúüñ], and NFKD + strip-combining-marks maps
+      -- exactly áéíóúü to aeiou and ñ to n.
+      select translate(word, 'áéíóúüñ', 'aeiouun') as word
+      from tokens
     )
     select word, count(*)::int as n
-    from tokens
-    where length(word) >= 2
+    from folded
+    where word = any(string_to_array(${wantedForms}, ' '))
     group by word
   `) as unknown as readonly { word: string; n: number }[];
   const counts = new Map<string, number>();
   for (const row of rows) {
+    // Folding again in JS is a no-op for these rows and keeps the SQL fold and
+    // `normalizeSpanishSurface` from drifting apart unnoticed.
     const normalized = normalizeSpanishSurface(row.word);
     if (normalized.length < 2) continue;
     counts.set(normalized, (counts.get(normalized) ?? 0) + Number(row.n ?? 0));
