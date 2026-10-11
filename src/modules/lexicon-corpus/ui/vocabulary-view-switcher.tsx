@@ -4,6 +4,13 @@ import Link from "next/link";
 
 import type { VocabularyQuery } from "../schemas";
 
+/**
+ * @deprecated The vocabulary page is one shelf now (2026-10-11): the product
+ * decision removed the 学习词表 / 语料高频词 / 正式词元 views, so nothing renders
+ * this switcher and the page no longer reads `?view=`. The component is kept
+ * only until the module barrel can drop its export; do not mount it again
+ * without a new product decision.
+ */
 export const vocabularyViewHrefBasePath = "/read/vocabulary";
 export const vocabularyViews = ["study", "frequency", "lexicon"] as const;
 

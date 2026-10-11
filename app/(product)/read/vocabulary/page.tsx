@@ -5,16 +5,12 @@ import {
   createDrizzleLexiconCorpusRepository,
   LexiconPagination,
   listFrequencyWords,
-  listVocabulary,
   ReadSectionNavigation,
-  VocabularyLibrary,
-  vocabularyQuerySchema,
   VocabularyShelfControls,
-  VocabularyViewSwitcher,
+  type FrequencyWordItem,
 } from "@/src/modules/lexicon-corpus";
-import { listStudyVocabularyWords } from "@/src/modules/reading/domain/study-vocabulary";
-import { VocabularyStudyList } from "@/src/modules/reading/ui/vocabulary-study-list";
-import { VocabularyWordGrid, type VocabularyWordGridItem } from "@/src/modules/reading/ui/vocabulary-word-grid";
+import { VocabularyShelf, type VocabularyShelfItem } from "@/src/modules/lexicon-corpus/ui/vocabulary-shelf";
+import { findCommonGlossaryEntry, normalizeGlossarySurface } from "@/src/modules/reading/domain/common-glossary";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -22,117 +18,122 @@ export const metadata: Metadata = { title: "词汇" };
 
 type VocabularyPageProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
 
-const viewSchema = z.enum(["study", "frequency", "lexicon"]).catch("study");
-const LEXICON_LOAD_TIMEOUT_MS = 2_500;
-const FREQUENCY_LOAD_TIMEOUT_MS = 20_000;
+/**
+ * The single vocabulary shelf's contract: a search over the ranked reference
+ * list plus paging through it.
+ *
+ * `?view=` is deliberately not read. The page used to be three views
+ * (`study` / `frequency` / `lexicon`) selected by that parameter; it is now one
+ * shelf, so the parameter can no longer select behaviour — an old bookmark or
+ * link still resolves, to the same page everyone else sees. The lexicon-only
+ * `intent` / `lemmaStatus` filters are gone with the server-side shelf for the
+ * same reason: they would be silently ignored filters.
+ */
+const shelfQuerySchema = z.object({
+  search: z.preprocess((value) => (typeof value === "string" && value.trim() === "" ? undefined : value), z.string().trim().max(80).optional()),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(24),
+});
+
+const SHELF_LOAD_TIMEOUT_MS = 20_000;
 const SESSION_LOAD_TIMEOUT_MS = 1_500;
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     promise,
-    new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("LEXICON_LOAD_TIMEOUT")), milliseconds); }),
+    new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("SHELF_LOAD_TIMEOUT")), milliseconds); }),
   ]).finally(() => { if (timeout) clearTimeout(timeout); });
+}
+
+/**
+ * One shelf row: the ranked reference word with our corpus facts, joined to the
+ * reviewed glossary entry when the word has one.
+ *
+ * `markKey` stays the accent-folded headword — the identity the study shelf's
+ * browser-local marks were stored under — so a mark made there still lands on
+ * this word. Words without a reviewed entry keep the key of their own surface
+ * and show the honest 「释义待补充」 placeholder rather than an invented meaning.
+ */
+function toShelfItem(item: FrequencyWordItem): VocabularyShelfItem {
+  const entry = findCommonGlossaryEntry(item.word);
+  return {
+    id: item.id,
+    markKey: entry ? normalizeGlossarySurface(entry.headword) : normalizeGlossarySurface(item.word),
+    text: item.word,
+    count: item.occurrenceCount,
+    context: item.context,
+    source: item.sourceTitle,
+    glossary: entry ? {
+      cefr: entry.cefr,
+      partOfSpeech: entry.partOfSpeech,
+      meanings: entry.meanings.map((meaning) => ({ meaning: meaning.meaning, usage: meaning.usage })),
+      collocations: entry.collocations,
+      examples: entry.examples,
+      forms: entry.forms ?? [],
+    } : null,
+  };
 }
 
 export default async function VocabularyPage({ searchParams }: VocabularyPageProps) {
   const params = await searchParams;
-  const parsed = vocabularyQuerySchema.safeParse(params);
-  const query = parsed.success ? parsed.data : vocabularyQuerySchema.parse({});
-  const view = viewSchema.parse(params.view);
+  const parsed = shelfQuerySchema.safeParse(params);
+  const query = parsed.success ? parsed.data : shelfQuerySchema.parse({});
   const databaseUrlConfigured = Boolean(process.env.DATABASE_URL);
 
-  let user: Awaited<ReturnType<typeof getCurrentUser>> = null;
-  let frequencyItems: Awaited<ReturnType<typeof listFrequencyWords>> = { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
-  let frequencyUnavailable = !databaseUrlConfigured;
-  let result: Awaited<ReturnType<typeof listVocabulary>> = { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
-  let unavailable = !databaseUrlConfigured;
+  let shelf: Awaited<ReturnType<typeof listFrequencyWords>> = { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+  let shelfUnavailable = !databaseUrlConfigured;
 
-  if (view === "study") {
-    // The study shelf renders without reading the database; only the local
-    // study marks need the account scope, so a slow or missing session must
-    // never block the list.
-    user = await withTimeout(getCurrentUser(), SESSION_LOAD_TIMEOUT_MS).catch(() => null);
-  }
-
-  if (databaseUrlConfigured && view !== "study") {
-    try {
-      const database = getDatabase();
-      const repository = createDrizzleLexiconCorpusRepository(database);
-      if (view === "frequency") {
-        try {
-          frequencyItems = await withTimeout(listFrequencyWords(repository, { search: query.search, page: query.page, pageSize: query.pageSize }), FREQUENCY_LOAD_TIMEOUT_MS);
-          frequencyUnavailable = false;
-        } catch {
-          frequencyUnavailable = true;
-        }
+  // The shelf itself never needs the session, but the local mark scope does.
+  // Both start together and the session is capped, so a slow (or absent)
+  // account lookup can neither delay the cold shelf nor fail the page.
+  const [user, loaded] = await Promise.all([
+    withTimeout(getCurrentUser(), SESSION_LOAD_TIMEOUT_MS).catch(() => null),
+    (async () => {
+      if (!databaseUrlConfigured) return null;
+      try {
+        return {
+          ok: true as const,
+          page: await withTimeout(
+            listFrequencyWords(createDrizzleLexiconCorpusRepository(getDatabase()), { search: query.search, page: query.page, pageSize: query.pageSize }),
+            SHELF_LOAD_TIMEOUT_MS,
+          ),
+        };
+      } catch {
+        // A configured database that cannot be read is an outage, not an empty
+        // shelf: keep it distinguishable so the page says so instead of
+        // claiming nothing matched.
+        return { ok: false as const };
       }
-      if (view === "lexicon") {
-        user = await getCurrentUser();
-        try {
-          result = await withTimeout(listVocabulary(repository, user?.id, query), LEXICON_LOAD_TIMEOUT_MS);
-          unavailable = false;
-        } catch {
-          unavailable = true;
-        }
-      }
-    } catch {
-      frequencyUnavailable = true;
-      unavailable = true;
+    })(),
+  ]);
+  if (loaded) {
+    if (loaded.ok) {
+      shelf = loaded.page;
+      shelfUnavailable = false;
+    } else {
+      shelfUnavailable = true;
     }
   }
 
-  const filtered = Boolean(query.search || query.intent || query.lemmaStatus);
-  const resultKey = [query.search, query.intent, query.lemmaStatus, query.page, query.pageSize].join(":");
-  const frequencyWords: readonly VocabularyWordGridItem[] = frequencyItems.items.map((item) => ({
-    id: item.id,
-    text: item.word,
-    count: item.occurrenceCount,
-    meaning: null,
-    context: item.context,
-    source: item.sourceTitle,
-  }));
-  const studyWords = listStudyVocabularyWords();
+  const items = shelf.items.map(toShelfItem);
 
   return <div className="page-stack read-page">
     <ReadSectionNavigation active="vocabulary" />
     <main className="lexicon-shelf">
       {/* Keep one page-level heading for assistive technology and the document
-          outline; it stays visually hidden so the shelf starts directly with
-          the word list. The section navigation already labels this page. */}
+          outline; it stays visually hidden so the shelf starts directly with the
+          search field and the word list. The section navigation already labels
+          this page, and there is no second navigation to label a view. */}
       <h1 className="sr-only">词汇</h1>
 
-      {/* The view is a URL, so the switcher is a row of destinations under the
-          page heading rather than tab panels: each shelf keeps its own
-          rendering and only one of them is ever on the page. It receives just
-          the reader's preferences; the current page belongs to the view being
-          left and is reset on the way to the next one. */}
-      <VocabularyViewSwitcher view={view} query={{ search: query.search, intent: query.intent, lemmaStatus: query.lemmaStatus, pageSize: query.pageSize }} />
+      <VocabularyShelfControls query={{ search: query.search }} total={shelf.total} />
+      <VocabularyShelf items={items} storageScope={user?.id ?? "anonymous"} />
 
-      {view === "study" ? <VocabularyStudyList words={studyWords} storageScope={user?.id ?? "anonymous"} /> : null}
+      {shelfUnavailable && !shelf.items.length ? <div className="lexicon-empty lexicon-empty--error" role="alert"><h2>词汇表暂时不可用</h2><p>已发布内容仍然安全保留，请稍后刷新。</p></div> : null}
+      {!shelfUnavailable && !shelf.items.length ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或把页码调回第一页。</p></div> : null}
 
-      {view === "frequency" ? <>
-        <VocabularyShelfControls query={query} total={frequencyItems.total} view="frequency" />
-        <VocabularyWordGrid items={frequencyWords} search={query.search ?? ""} total={frequencyItems.total} />
-        {frequencyUnavailable && !frequencyWords.length ? <div className="lexicon-empty lexicon-empty--error" role="alert"><h2>语料高频词暂时不可用</h2><p>已发布内容仍然安全保留，请稍后刷新。</p></div> : null}
-        {!frequencyUnavailable && !frequencyWords.length ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或把页码调回第一页。</p></div> : null}
-        <LexiconPagination basePath="/read/vocabulary" page={frequencyItems.page} pageSize={query.pageSize} total={frequencyItems.total} query={{ view: "frequency", search: query.search, pageSize: query.pageSize }} />
-      </> : null}
-
-      {view === "lexicon" ? <>
-        <div className="lexicon-formal-section">
-          <div className="lexicon-saved-section__heading">
-            <div>
-              <p className="lexicon-shelf__eyebrow">Corpus vocabulary</p>
-              <h2>正式词元</h2>
-              <p>已确认或待确认的词形，按来源出现次数整理。</p>
-            </div>
-          </div>
-          <VocabularyShelfControls query={query} total={result.total} view="lexicon" />
-          <VocabularyLibrary key={resultKey} filtered={filtered} items={result.items} total={result.total} unavailable={unavailable} />
-        </div>
-        <LexiconPagination basePath="/read/vocabulary" page={result.page} pageSize={query.pageSize} total={result.total} query={{ view: "lexicon", search: query.search, intent: query.intent, lemmaStatus: query.lemmaStatus, pageSize: query.pageSize }} />
-      </> : null}
+      <LexiconPagination basePath="/read/vocabulary" page={shelf.page} pageSize={query.pageSize} total={shelf.total} query={{ search: query.search, pageSize: query.pageSize }} />
     </main>
   </div>;
 }

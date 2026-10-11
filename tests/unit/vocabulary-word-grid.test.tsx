@@ -9,8 +9,8 @@ vi.mock("next/link", () => ({
 // Import the schema directly instead of the module barrel: the barrel also
 // re-exports client UI that other in-flight work touches, and this test only
 // needs the server-side query contract the landing page parses.
-import { vocabularyQuerySchema } from "@/src/modules/lexicon-corpus/schemas";
-import { VocabularyShelfControls } from "@/src/modules/lexicon-corpus/ui/lexicon-shelf-controls";
+import { phraseQuerySchema, vocabularyQuerySchema } from "@/src/modules/lexicon-corpus/schemas";
+import { PhraseShelfControls } from "@/src/modules/lexicon-corpus/ui/lexicon-shelf-controls";
 import { VocabularyWordGrid, type VocabularyWordGridItem } from "@/src/modules/reading/ui/vocabulary-word-grid";
 
 const items: readonly VocabularyWordGridItem[] = [
@@ -88,14 +88,14 @@ describe("vocabulary word grid", () => {
 
   // B5: the same familiar/revisit/ignore enum is rendered on several surfaces,
   // and two different Chinese wordings had drifted apart. Pin the grid's labels
-  // against the lexicon shelf controls (the canonical server-side wording) so
-  // they cannot drift apart again.
-  it("keeps the three status labels literally aligned with the lexicon shelf controls", () => {
+  // against the phrase shelf controls, which share the one wording list with the
+  // other lexicon surfaces, so they cannot drift apart again.
+  it("keeps the three status labels literally aligned with the shared lexicon wording", () => {
     render(<VocabularyWordGrid search="" total={2} items={items} />);
     // getByRole throws if the grid ever stops rendering one of the labels.
     const gridLabels = Object.fromEntries(statusFilters.slice(1).map(([label, intent]) => [intent, screen.getByRole("link", { name: label }).textContent]));
     cleanup();
-    render(<VocabularyShelfControls query={vocabularyQuerySchema.parse({})} total={0} view="lexicon" />);
+    render(<PhraseShelfControls query={phraseQuerySchema.parse({})} total={0} />);
     const options = [...(screen.getByLabelText(/学习状态/) as HTMLSelectElement).options];
     for (const [intent, label] of Object.entries(gridLabels)) {
       expect(options.find((option) => option.value === intent)?.textContent).toBe(label);

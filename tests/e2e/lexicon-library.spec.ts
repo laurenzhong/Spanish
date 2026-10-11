@@ -12,26 +12,28 @@ test("keeps vocabulary and phrase shelves directly reachable from reading", asyn
   await expect(page).toHaveTitle(/词汇/u);
   await expect(page.getByRole("navigation", { name: "阅读内容类型" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "阅读内容类型" }).getByRole("link", { name: "词汇" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("navigation", { name: "词汇表视图" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "可以马上开始学的西语词表" })).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1, name: "词汇" })).toHaveCount(1);
-  await expect(page.getByRole("button", { name: /casa/u })).toContainText("房子、家");
-  await expect(page.getByText(/共 \d+ 个已审核单词/u)).toBeVisible();
+  // The vocabulary page is one shelf now: the 学习词表 / 语料高频词 / 正式词元
+  // switcher is gone, and so are the study list and the lexicon library it used
+  // to switch between.
+  await expect(page.getByRole("navigation", { name: "词汇视图" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "词汇表视图" })).toHaveCount(0);
+  for (const label of ["学习词表", "语料高频词", "正式词元"]) {
+    await expect(page.getByRole("link", { name: label })).toHaveCount(0);
+  }
+  await expect(page.getByLabel("搜索词表")).toBeVisible();
+  // This server runs without DATABASE_URL, so the shelf must report itself
+  // rather than invent rows.
+  await expect(page.getByRole("heading", { name: "词汇表暂时不可用" })).toBeVisible();
 
-  await page.getByRole("button", { name: /casa/u }).click();
-  const card = page.getByRole("complementary", { name: "casa 学习卡片" });
-  await expect(card).toBeVisible();
-  await expect(card.getByText("房子、家")).toBeVisible();
-  await expect(card.getByRole("button", { name: "朗读单词" })).toBeVisible();
-  await expect(card.getByRole("group", { name: "标记 casa" }).getByRole("button", { name: "已熟悉" })).toBeVisible();
-  await expect(card.getByRole("button", { name: "关闭" })).toBeVisible();
-
+  // `?view=` can no longer select behaviour: the same single shelf answers, and
+  // the lexicon-only filters are gone with the lexicon view.
   await page.goto("/read/vocabulary?view=lexicon");
-  await expect(page.getByLabel("词元状态")).toBeVisible();
-  await expect(page.getByLabel("学习状态")).toBeVisible();
-  // The e2e server runs without DATABASE_URL, so the formal lexicon shelf may
-  // report either an empty library or an unavailable one.
-  await expect(page.getByRole("heading", { name: /还没有词汇|词汇库暂时不可用/u })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "词汇表暂时不可用" })).toBeVisible();
+  await expect(page.getByLabel("搜索词表")).toBeVisible();
+  await expect(page.getByLabel("词元状态")).toHaveCount(0);
+  await expect(page.getByLabel("学习状态")).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "词汇视图" })).toHaveCount(0);
 
   await page.goto("/read/phrases");
   await expect(page).toHaveTitle(/短语/u);
