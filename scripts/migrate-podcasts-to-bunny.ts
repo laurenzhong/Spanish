@@ -78,7 +78,11 @@ async function download(source: string) {
 
 async function decode(path: string, expectedDurationSeconds: number) {
   return new Promise<void>((done, reject) => {
-    const child = spawn(process.env.FFMPEG_BIN || "ffmpeg", ["-v", "error", "-xerror", "-i", path, "-progress", "pipe:1", "-nostats", "-f", "null", "NUL"], { windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+    // `-map 0:a:0` is required, not cosmetic: publisher MP3s routinely embed an
+    // MJPEG cover stream, and without an explicit map the progress timeline can
+    // follow that stream, reporting a fraction of the real length and turning a
+    // complete download into AUDIO_DECODE_DURATION_MISMATCH.
+    const child = spawn(process.env.FFMPEG_BIN || "ffmpeg", ["-v", "error", "-xerror", "-i", path, "-map", "0:a:0", "-progress", "pipe:1", "-nostats", "-f", "null", "NUL"], { windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
     let progress = "";
     child.stdout.on("data", (chunk: Buffer) => { progress = (progress + chunk.toString()).slice(-4096); });
     const timeout = setTimeout(() => { child.kill(); }, 10 * 60_000);
