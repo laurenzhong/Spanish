@@ -1,0 +1,101 @@
+/*
+ * Rank navigation for the vocabulary shelf.
+ *
+ * Kept beside the page that imports it, like `app/public-home.css`: the global
+ * stylesheet owns the shared look of the shelf's word tiles, this file only
+ * owns the two-column shelf body and the rank rail the page adds on top.
+ */
+
+.vocabulary-shelf__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.vocabulary-shelf__bands {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.vocabulary-shelf__band {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vocabulary-rank-band {
+  margin: 0;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+}
+
+/* The rail is a jump control, so it stays in view while the list scrolls. */
+.vocabulary-rank-rail {
+  position: sticky;
+  top: 14px;
+  display: grid;
+  gap: 2px;
+  min-width: 62px;
+  padding: 7px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.vocabulary-rank-rail__caption {
+  margin: 0 0 3px;
+  color: var(--muted);
+  font-size: .6rem;
+  font-weight: 820;
+  letter-spacing: .04em;
+  text-align: center;
+}
+
+.vocabulary-rank-rail a {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 780;
+  text-decoration: none;
+}
+
+.vocabulary-rank-rail a:hover {
+  color: var(--foreground);
+  background: var(--surface-soft);
+}
+
+.vocabulary-rank-rail a[aria-current="true"] {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+@media (max-width: 900px) {
+  .vocabulary-shelf__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vocabulary-rank-rail {
+    position: static;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .vocabulary-rank-rail__caption {
+    flex: 1 0 100%;
+    text-align: left;
+  }
+
+  .vocabulary-rank-rail a {
+    min-width: 40px;
+  }
+}

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { z } from "zod";
+
+import "./vocabulary-shelf.css";
 
 import {
   createDrizzleLexiconCorpusRepository,
@@ -128,10 +131,13 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
       <h1 className="sr-only">词汇</h1>
 
       <VocabularyShelfControls query={{ search: query.search }} total={shelf.total} />
-      <VocabularyShelf items={items} storageScope={user?.id ?? "anonymous"} />
+      <VocabularyShelf items={items} storageScope={user?.id ?? "anonymous"} page={shelf.page} pageSize={query.pageSize} total={shelf.total} ranked={!query.search} />
 
       {shelfUnavailable && !shelf.items.length ? <div className="lexicon-empty lexicon-empty--error" role="alert"><h2>词汇表暂时不可用</h2><p>已发布内容仍然安全保留，请稍后刷新。</p></div> : null}
-      {!shelfUnavailable && !shelf.items.length ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或把页码调回第一页。</p></div> : null}
+      {/* An empty result that never searched is an out-of-range page, not a
+          failed search: a deep link past the shelf's end must say so. */}
+      {!shelfUnavailable && !shelf.items.length && query.search ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或把页码调回第一页。</p></div> : null}
+      {!shelfUnavailable && !shelf.items.length && !query.search ? <div className="lexicon-empty"><h2>这一页在词架之外</h2><p>词架共 {shelf.total} 个内容词（每页 {query.pageSize} 个）。<Link href="/read/vocabulary">回到第 1 页</Link></p></div> : null}
 
       <LexiconPagination basePath="/read/vocabulary" page={shelf.page} pageSize={query.pageSize} total={shelf.total} query={{ search: query.search, pageSize: query.pageSize }} />
     </main>

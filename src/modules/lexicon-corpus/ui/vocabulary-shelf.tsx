@@ -1,8 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { useBrowserSpeech } from "@/src/modules/providers/tts";
+
+import {
+  activeRankMilestone,
+  pageForRank,
+  rankBandFor,
+  rankMilestoneLabel,
+  reachableRankMilestones,
+  type VocabularyRankBand,
+} from "./vocabulary-rank";
 
 /**
  * One ranked word of the single vocabulary shelf.
@@ -36,7 +46,45 @@ export type VocabularyShelfStatus = "familiar" | "revisit" | "ignore";
 type VocabularyShelfProps = Readonly<{
   items: readonly VocabularyShelfItem[];
   storageScope: string;
+  /** The page the server returned, so every word can be given its shelf rank. */
+  page: number;
+  pageSize: number;
+  /** The shelf's real size; the last band and the rail are clipped to it. */
+  total: number;
+  /**
+   * True when `items` are the unfiltered shelf in reference order, so each word
+   * holds a real shelf rank. A search result is a filtered subset whose
+   * positions are not shelf ranks, so its words are neither numbered into bands
+   * nor offered the rail — the page never implies a rank the list does not have.
+   */
+  ranked: boolean;
 }>;
+
+type VocabularyShelfBand = Readonly<{ band: VocabularyRankBand | null; items: readonly VocabularyShelfItem[] }>;
+
+/** Consecutive words sharing a band become one headed group (`排名 1 - 100:`). */
+function groupIntoBands(items: readonly VocabularyShelfItem[], firstRank: number, total: number): readonly VocabularyShelfBand[] {
+  const bands: VocabularyShelfBand[] = [];
+  for (const [index, item] of items.entries()) {
+    const band = rankBandFor(firstRank + index, total);
+    const previous = bands[bands.length - 1];
+    if (previous?.band?.start === band.start) {
+      bands[bands.length - 1] = { band, items: [...previous.items, item] };
+    } else {
+      bands.push({ band, items: [item] });
+    }
+  }
+  return bands;
+}
+
+/** A milestone is a destination, never decoration: it opens the page holding that rank. */
+function rankHref(rank: number, pageSize: number): string {
+  return `/read/vocabulary?${new URLSearchParams({ page: String(pageForRank(rank, pageSize)), pageSize: String(pageSize) }).toString()}`;
+}
+
+function bandHeadingId(start: number): string {
+  return `vocabulary-band-${start}`;
+}
 
 /**
  * One wording for the familiar/revisit/ignore triad. The server-backed shelves
@@ -129,7 +177,7 @@ function writeStatuses(scope: string, next: Record<string, VocabularyShelfStatus
  * rendered exactly as given — re-sorting locally would put the corpus head back
  * on top, which is the defect this shelf exists to fix.
  */
-export function VocabularyShelf({ items, storageScope }: VocabularyShelfProps) {
+export function VocabularyShelf({ items, storageScope, page, pageSize, total, ranked }: VocabularyShelfProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const statuses = useSyncExternalStore(subscribeStatuses, () => readStatuses(storageScope), () => emptyStatuses);
@@ -157,39 +205,60 @@ export function VocabularyShelf({ items, storageScope }: VocabularyShelfProps) {
   const marked = Object.keys(statuses).length;
   const visibleNotice = speech.errorMessage || notice;
 
+  const firstRank = ranked ? (page - 1) * pageSize + 1 : null;
+  const bands: readonly VocabularyShelfBand[] = firstRank === null ? [{ band: null, items }] : groupIntoBands(items, firstRank, total);
+  // The rail jumps across the whole shelf, so it needs more than one page to
+  // jump through, and it only exists where positions really are shelf ranks.
+  const milestones = firstRank !== null && total > pageSize ? reachableRankMilestones(total) : [];
+  const activeMilestone = firstRank === null ? null : activeRankMilestone(firstRank, total);
+
+  const wordTile = (item: VocabularyShelfItem) => {
+    const status = statuses[item.markKey];
+    return <div role="listitem" key={item.id}>
+      <button
+        type="button"
+        lang="es"
+        className={`vocabulary-study__word${selected?.id === item.id ? " is-selected" : ""}${status ? ` is-${status}` : ""}`}
+        onClick={() => setSelectedId(item.id)}
+      >
+        <span className="vocabulary-study__word-text">
+          {/*
+            The occurrence count used to sit here. It was the shelf's sort key
+            when the order was raw corpus frequency, and it lost that job when
+            the order became the reference frequency rank — the numbers are not
+            monotonic, so a count beside a sorted list reads as if it were the
+            sort key and makes the list look arbitrary. It is also a
+            surface-form count rather than a lemma count (`estar` does not
+            include `está`), so it understated the very quantity it named, and
+            nothing acted on it. The example sentence below is what carries the
+            one actionable fact: that this word really occurs in published
+            content.
+          */}
+          {item.text}
+        </span>
+        <span className="vocabulary-study__word-meaning">{item.glossary?.meanings[0]?.meaning ?? "释义待补充"}</span>
+      </button>
+    </div>;
+  };
+
   return <section className="vocabulary-study" aria-label="词汇表">
     <p className="vocabulary-study__summary" aria-live="polite">已标记 {marked} 个 · 标记保存在本机浏览器，换设备不会同步</p>
     {visibleNotice ? <p className="vocabulary-study__notice" role="status">{visibleNotice}</p> : null}
 
-    <div className="vocabulary-study__grid" role="list" aria-label="词汇列表">
-      {items.map((item) => {
-        const status = statuses[item.markKey];
-        return <div role="listitem" key={item.id}>
-          <button
-            type="button"
-            lang="es"
-            className={`vocabulary-study__word${selected?.id === item.id ? " is-selected" : ""}${status ? ` is-${status}` : ""}`}
-            onClick={() => setSelectedId(item.id)}
-          >
-            <span className="vocabulary-study__word-text">
-              {/*
-                The occurrence count used to sit here. It was the shelf's sort key
-                when the order was raw corpus frequency, and it lost that job when
-                the order became the reference frequency rank — the numbers are not
-                monotonic, so a count beside a sorted list reads as if it were the
-                sort key and makes the list look arbitrary. It is also a
-                surface-form count rather than a lemma count (`estar` does not
-                include `está`), so it understated the very quantity it named, and
-                nothing acted on it. The example sentence below is what carries the
-                one actionable fact: that this word really occurs in published
-                content.
-              */}
-              {item.text}
-            </span>
-            <span className="vocabulary-study__word-meaning">{item.glossary?.meanings[0]?.meaning ?? "释义待补充"}</span>
-          </button>
-        </div>;
-      })}
+    <div className="vocabulary-shelf__body">
+      <div className="vocabulary-shelf__bands">
+        {bands.map(({ band, items: bandItems }) => band
+          ? <div className="vocabulary-shelf__band" key={band.start}>
+            <h2 className="vocabulary-rank-band" id={bandHeadingId(band.start)}>排名 {band.start} - {band.end}:</h2>
+            <div className="vocabulary-study__grid" role="list" aria-labelledby={bandHeadingId(band.start)}>{bandItems.map(wordTile)}</div>
+          </div>
+          : <div className="vocabulary-study__grid" role="list" aria-label="词汇列表" key="results">{bandItems.map(wordTile)}</div>)}
+      </div>
+
+      {milestones.length ? <nav className="vocabulary-rank-rail" aria-label="按名次跳转">
+        <p className="vocabulary-rank-rail__caption">名次（已滤除功能词）</p>
+        {milestones.map((rank) => <Link key={rank} href={rankHref(rank, pageSize)} aria-current={rank === activeMilestone ? "true" : undefined} aria-label={`跳到第 ${rankMilestoneLabel(rank)} 名`}>{rankMilestoneLabel(rank)}</Link>)}
+      </nav> : null}
     </div>
 
     {selected ? <aside className="vocabulary-study__card" aria-live="polite" aria-label={`${selected.text} 词汇卡片`}>

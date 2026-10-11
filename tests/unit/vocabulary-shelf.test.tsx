@@ -23,8 +23,26 @@ const items: readonly VocabularyShelfItem[] = [
   { id: "word:vez", markKey: "vez", text: "vez", count: 1_956, context: null, source: null, glossary: null },
 ];
 
-function renderShelf(scope: string, shelfItems: readonly VocabularyShelfItem[] = items) {
-  render(<VocabularyShelf items={shelfItems} storageScope={scope} />);
+type ShelfPosition = Readonly<{ page?: number; pageSize?: number; total?: number; ranked?: boolean }>;
+
+function renderShelf(scope: string, shelfItems: readonly VocabularyShelfItem[] = items, position: ShelfPosition = {}) {
+  render(<VocabularyShelf
+    items={shelfItems}
+    storageScope={scope}
+    page={position.page ?? 1}
+    pageSize={position.pageSize ?? 24}
+    total={position.total ?? 7_922}
+    ranked={position.ranked ?? true}
+  />);
+}
+
+/** A ranked page's words are grouped under the heading that names their band. */
+function bandList(heading = "排名 1 - 100:"): HTMLElement {
+  return screen.getByRole("list", { name: heading });
+}
+
+function rail() {
+  return screen.getByRole("navigation", { name: "按名次跳转" });
 }
 
 function wordButton(text: string): HTMLElement {
@@ -59,7 +77,7 @@ describe("vocabulary shelf", () => {
   it("renders the reference-rank order it is given instead of re-sorting by our counts", () => {
     renderShelf("scope-order");
 
-    const words = within(screen.getByRole("list", { name: "词汇列表" })).getAllByRole("button");
+    const words = within(bandList()).getAllByRole("button");
     // `ser` ranks above `vez` in the reference list even though `vez` is not the
     // rarer word in this fixture; the order must stay the server's.
     expect(words.map((word) => word.querySelector(".vocabulary-study__word-text")?.textContent?.trim())).toEqual([
@@ -159,5 +177,77 @@ describe("vocabulary shelf", () => {
 
     await user.click(within(card).getByRole("button", { name: "朗读单词" }));
     expect(speechSpeak).toHaveBeenCalledTimes(1);
+  });
+
+  it("heads each rank band and splits a page that crosses a band edge", () => {
+    // Page 3 of 49 holds shelf ranks 99-101: two of them end band 1-100 and the
+    // third opens band 101-200, so the page carries both headings.
+    renderShelf("scope-band-edge", items, { page: 3, pageSize: 49 });
+
+    expect(screen.getByRole("heading", { name: "排名 1 - 100:" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "排名 101 - 200:" })).toBeInTheDocument();
+    expect(within(bandList("排名 1 - 100:")).getAllByRole("button")).toHaveLength(2);
+    expect(within(bandList("排名 101 - 200:")).getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("offers the reference rail as jump links to the page holding each milestone", () => {
+    renderShelf("scope-rail");
+
+    const links = within(rail()).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual(["1", "100", "200", "300", "400", "500", "600", "700", "800", "900", "1k", "2k", "3k", "4k", "5k", "6k", "7k"]);
+    // The 1,000th content word is the 42nd page of 24; the 7,000th is the 292nd.
+    expect(within(rail()).getByRole("link", { name: "跳到第 1k 名" })).toHaveAttribute("href", "/read/vocabulary?page=42&pageSize=24");
+    expect(within(rail()).getByRole("link", { name: "跳到第 7k 名" })).toHaveAttribute("href", "/read/vocabulary?page=292&pageSize=24");
+    // Rank 1 has passed milestone 1 and nothing else yet.
+    expect(within(rail()).getByRole("link", { name: "跳到第 1 名" })).toHaveAttribute("aria-current", "true");
+    expect(within(rail()).getByRole("link", { name: "跳到第 100 名" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks the last milestone passed and names the real band on a deep page", () => {
+    // Page 42 of 24 holds shelf ranks 985-1008, inside band 901-1000.
+    renderShelf("scope-rail-deep", items, { page: 42, pageSize: 24 });
+
+    expect(screen.getByRole("heading", { name: "排名 901 - 1000:" })).toBeInTheDocument();
+    expect(within(rail()).getByRole("link", { name: "跳到第 900 名" })).toHaveAttribute("aria-current", "true");
+    expect(within(rail()).getByRole("link", { name: "跳到第 1k 名" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("clips the last band to the shelf and drops milestones past its end", () => {
+    // The shelf's last rank is 7,922, so the final heading says 7901 - 7922
+    // rather than claiming a hundred words that do not exist.
+    renderShelf("scope-clip", items, { page: 331, pageSize: 24 });
+    expect(screen.getByRole("heading", { name: "排名 7901 - 7922:" })).toBeInTheDocument();
+
+    // A shelf that stops at rank 450 reaches the 400 milestone and no further.
+    cleanup();
+    renderShelf("scope-short", items, { total: 450 });
+    expect(within(rail()).queryByRole("link", { name: "跳到第 500 名" })).not.toBeInTheDocument();
+    expect(within(rail()).getByRole("link", { name: "跳到第 400 名" })).toBeInTheDocument();
+  });
+
+  it("hides the rail when there is only one page to jump through", () => {
+    renderShelf("scope-single-page", items, { total: 3, pageSize: 24 });
+
+    expect(screen.getByRole("heading", { name: "排名 1 - 3:" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
+  });
+
+  it("shows neither bands nor the rail for a filtered result set", () => {
+    renderShelf("scope-search", items, { ranked: false });
+
+    // A search result holds no shelf rank, so it is listed without a band
+    // heading and without destinations that would imply one.
+    expect(screen.getByRole("list", { name: "词汇列表" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /排名/u })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
+  });
+
+  it("reaches the rail with the keyboard, after the words it jumps past", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-keyboard");
+
+    // Three word tiles, then the rail's first milestone: real links, no tab traps.
+    for (let step = 0; step < 4; step += 1) await user.tab();
+    expect(within(rail()).getByRole("link", { name: "跳到第 1 名" })).toHaveFocus();
   });
 });
