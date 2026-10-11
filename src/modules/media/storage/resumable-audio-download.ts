@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 
 const digest = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex");
 
+/** Ranged podcast reads are audio; a caller may widen this for a host that does not honour it. */
+const defaultAudioContentTypes = new Set(["audio/mpeg", "audio/mp3"]);
+
 function allowedHost(hostname: string, hosts: ReadonlySet<string>): boolean {
   const host = hostname.toLowerCase();
   return hosts.has(host) || (hosts.has("mc.tritondigital.com") && host.endsWith(".mc.tritondigital.com"));
@@ -18,9 +21,16 @@ export async function downloadResumableAudio(options: {
   fetcher?: typeof fetch;
   chunkSize?: number;
   retryDelayMs?: number;
+  /**
+   * Content types accepted for the ranged read. Some podcast hosts serve audio
+   * as a generic binary stream, so a caller may widen this; it is never widened
+   * for us, and a mismatched type still fails the range.
+   */
+  acceptedContentTypes?: ReadonlySet<string>;
   progress?: (bytes: number, total: number) => void;
 }) {
   const fetcher = options.fetcher ?? fetch;
+  const acceptedContentTypes = options.acceptedContentTypes ?? defaultAudioContentTypes;
   async function request(start: number, end: number, validator?: string) {
     let url = await options.source();
     for (let hop = 0; hop < 5; hop++) {
@@ -79,7 +89,7 @@ export async function downloadResumableAudio(options: {
     if (!bytes) {
       bytes = await retry(async () => {
         const response = await request(start, end, validator);
-        if (response.headers.get("content-range") !== `bytes ${start}-${end}/${total}` || !["audio/mpeg", "audio/mp3"].includes(response.headers.get("content-type")?.split(";")[0].toLowerCase() ?? "")) {
+        if (response.headers.get("content-range") !== `bytes ${start}-${end}/${total}` || !acceptedContentTypes.has(response.headers.get("content-type")?.split(";")[0].toLowerCase() ?? "")) {
           await response.body?.cancel(); throw new Error("AUDIO_RANGE_INVALID");
         }
         if (validator && response.headers.get("etag") !== validator) {
