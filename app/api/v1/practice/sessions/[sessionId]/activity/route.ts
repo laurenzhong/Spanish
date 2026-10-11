@@ -10,7 +10,7 @@ import {
   recordLearningActivityInputSchema,
 } from "@/src/modules/profile/application";
 import { createDrizzleProfileRepository } from "@/src/modules/profile/repositories";
-import { verifyRequestUser } from "@/src/shared/auth/server";
+import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import {
   API_VERSION,
   type ApiErrorCode,
@@ -39,7 +39,13 @@ export async function POST(
   context: { params: Promise<{ sessionId: string }> },
 ) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const user = await verifyRequestUser(request);
+  // Bearer token first (native clients), then the browser's Supabase cookie
+  // session. Without the cookie fallback every heartbeat from the web app was
+  // answered 401 AUTH_REQUIRED - verified end to end in a real signed-in
+  // browser, where the client posted a valid `active` event and the database
+  // stayed empty. The sibling profile/heatmap route resolves users the same way.
+  const user = (await verifyRequestUser(request)) ??
+    (request.cookies.getAll().length > 0 ? await getCurrentUser() : null);
   if (!user) {
     return errorResponse(
       requestId,
