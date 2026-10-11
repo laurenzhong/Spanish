@@ -7,6 +7,7 @@ import {
   PodcastPublicationConflictError,
   createPodcastCandidateDraft,
 } from "@/src/modules/content-acquisition";
+import { calculatePodcastCandidateContentHash } from "@/src/modules/content-acquisition/normalizers";
 import type { AcquiredPodcastRepository } from "@/src/modules/media";
 import { contentWorkflowPublishers } from "@/src/modules/content-acquisition/publishers/runtime-registry";
 
@@ -31,6 +32,14 @@ const reviews = [
   { id: "r-structure", candidateId: "candidate-1", dimension: "structure" as const, status: "approved" as const, reviewerReference: "codex-ai-owner-authorized-review", candidateRevision: 5, notes: null },
 ];
 
+function withArtwork(cover = "https://cdn.example.test/cover.jpg") {
+  const base = draft();
+  const art = { url: cover, alt: "Portada", source: "podcast-feed" as const, width: 1400, height: 1400, expiresAt: null };
+  const next = { ...base, artwork: art };
+  // The publisher re-derives and compares this hash, so it has to cover the art.
+  return { ...next, contentHash: calculatePodcastCandidateContentHash(next) };
+}
+
 describe("acquired podcast publisher", () => {
   it("is registered for the owner publication workflow", () => {
     expect(contentWorkflowPublishers.has("podcast")).toBe(true);
@@ -51,6 +60,42 @@ describe("acquired podcast publisher", () => {
       candidateId: "candidate-1", candidateRevision: 5, draft: podcast,
       reviews: [expect.objectContaining({ locale: "es-ES" }), expect.objectContaining({ locale: "zh-CN" })],
     }));
+  });
+
+  it("passes the durable artwork snapshot instead of the publisher URL", async () => {
+    const podcast = withArtwork();
+    const durable = { url: "https://sueno-media.b-cdn.net/media/artwork/podcast.episode42/v5-abc.jpg", alt: "Portada", source: "podcast-feed" as const, width: 1400, height: 1400, expiresAt: null };
+    const snapshot = vi.fn(async () => durable);
+    const publishAcquiredPodcast = vi.fn(async () => ({ kind: "media" as const, stableKey: podcast.stableKey, version: 1 }));
+    const repository = { publishAcquiredPodcast, archiveAcquiredPodcast: vi.fn() } as unknown as AcquiredPodcastRepository;
+    const publisher = new AcquiredPodcastPublisher(repository, {
+      now: () => new Date("2026-09-14T11:00:00.000Z"),
+      artworkStorage: { snapshot },
+    });
+
+    await publisher.publish({
+      candidateId: "candidate-1", candidateRevision: 5, contentHash: podcast.contentHash, contentType: "podcast",
+      title: podcast.title, language: podcast.language, normalizedUrl: podcast.canonicalUrl,
+      metadata: { podcastDraft: podcast }, reviews,
+    });
+
+    expect(snapshot).toHaveBeenCalledWith({ stableKey: "podcast.episode42", revision: 5, artwork: podcast.artwork });
+    expect(publishAcquiredPodcast).toHaveBeenCalledWith(expect.objectContaining({ artworkOverride: durable }));
+  });
+
+  it("refuses to publish artwork when durable storage is not configured", async () => {
+    const podcast = withArtwork();
+    const publishAcquiredPodcast = vi.fn();
+    const publisher = new AcquiredPodcastPublisher({ publishAcquiredPodcast, archiveAcquiredPodcast: vi.fn() } as unknown as AcquiredPodcastRepository, {
+      now: () => new Date("2026-09-14T11:00:00.000Z"),
+    });
+
+    await expect(publisher.publish({
+      candidateId: "candidate-1", candidateRevision: 5, contentHash: podcast.contentHash, contentType: "podcast",
+      title: podcast.title, language: podcast.language, normalizedUrl: podcast.canonicalUrl,
+      metadata: { podcastDraft: podcast }, reviews,
+    })).rejects.toThrow("Durable artwork storage is not configured.");
+    expect(publishAcquiredPodcast).not.toHaveBeenCalled();
   });
 
   it("rejects stale fields, expired playback validation, and mismatched transcript state", async () => {

@@ -8,6 +8,9 @@ function required(name: string): string | null {
   return value || null;
 }
 
+/** Cover images are small; the server only accepts the web-safe raster formats. */
+const allowedArtworkContentTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 export function createBunnyStorageMediaAssetStorage(): MediaAssetStorage | null {
   const zone = required("BUNNY_STORAGE_ZONE_NAME");
   const password = required("BUNNY_STORAGE_PASSWORD");
@@ -70,6 +73,20 @@ export function createBunnyStorageMediaAssetStorage(): MediaAssetStorage | null 
       return { url: `https://${pullZone}/${key}` };
     },
     putVideoFromFile: putFile,
+    async putArtwork(path, body, contentType) {
+      if (!allowedArtworkContentTypes.has(contentType) || !body.byteLength) throw new Error("bunny-storage-artwork-invalid");
+      const key = encodedPath(path);
+      const response = await fetch(`${endpoint}/${key}`, {
+        method: "PUT",
+        headers: { ...headers, "content-type": contentType, "content-length": String(body.byteLength) },
+        body: Buffer.from(body),
+        redirect: "error",
+        signal: AbortSignal.timeout(2 * 60 * 1_000),
+      });
+      await response.body?.cancel();
+      if (!response.ok) throw new Error(`bunny-storage-upload-${response.status}`);
+      return { url: `https://${pullZone}/${key}` };
+    },
     async remove(path) {
       const response = await fetch(`${endpoint}/${encodedPath(path)}`, { method: "DELETE", headers, redirect: "error", signal: AbortSignal.timeout(30_000) });
       await response.body?.cancel();

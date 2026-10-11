@@ -76,6 +76,33 @@ describe("reviewed podcast publication persistence", () => {
     await expect(repository().publishAcquiredPodcast({ ...input, contentHash: "f".repeat(64) })).rejects.toBeInstanceOf(AcquiredPodcastPersistenceConflictError);
   });
 
+  it("persists the durable artwork snapshot instead of the draft's remote URL", async () => {
+    const podcast = draft();
+    const draftArtwork = { url: "https://cdn.example.test/cover.jpg", alt: "Portada", source: "podcast-feed" as const, width: 1400, height: 1400, expiresAt: "2026-09-20T00:00:00.000Z" };
+    const durableArtwork = { url: "https://sueno-media.b-cdn.net/media/artwork/podcast.episode42/v5-abc.jpg", alt: "Portada", source: "podcast-feed" as const, width: 1400, height: 1400, expiresAt: null };
+    const withArtwork = { ...podcast, artwork: draftArtwork };
+
+    await repository().publishAcquiredPodcast({
+      candidateId,
+      candidateRevision: 5,
+      contentHash: withArtwork.contentHash,
+      draft: withArtwork,
+      artworkOverride: durableArtwork,
+      reviews,
+      publishedAt: new Date("2026-09-14T12:00:00.000Z"),
+    });
+
+    const [version] = await database.select().from(schema.mediaVersions).where(eq(schema.mediaVersions.acquisitionCandidateId, candidateId));
+    expect(version).toMatchObject({
+      artworkUrl: durableArtwork.url,
+      artworkAlt: durableArtwork.alt,
+      artworkSource: durableArtwork.source,
+      artworkWidth: 1400,
+      artworkHeight: 1400,
+      artworkExpiresAt: null,
+    });
+  });
+
   it("expires playback and archives only the candidate-owned podcast publication", async () => {
     const podcast = draft();
     const publication = await repository().publishAcquiredPodcast({ candidateId, candidateRevision: 5, contentHash: podcast.contentHash, draft: podcast, reviews, publishedAt: new Date("2026-09-14T12:00:00.000Z") });

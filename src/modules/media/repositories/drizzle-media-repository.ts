@@ -13,6 +13,7 @@ import {
   nextMediaProgress,
   projectMediaCard,
   projectMediaPlayback,
+  type MediaArtwork,
   type MediaCard,
   type MediaProgress,
 } from "../domain";
@@ -64,6 +65,22 @@ function progressRecord(row: typeof schema.userMediaProgress.$inferSelect): Medi
 function isPlayable(row: JoinedRow, now: Date): boolean {
   return row.asset.availability === "available"
     && (!row.asset.playbackExpiresAt || row.asset.playbackExpiresAt.getTime() > now.getTime());
+}
+
+/**
+ * Cover columns for a published version. The publisher passes a durable snapshot
+ * once it has copied the artwork into our own storage; falling back to the draft
+ * keeps imports that have no storage configured working as before.
+ */
+function artworkColumns(artwork: MediaArtwork | null | undefined) {
+  return {
+    artworkUrl: artwork?.url ?? null,
+    artworkAlt: artwork?.alt ?? null,
+    artworkSource: artwork?.source ?? null,
+    artworkWidth: artwork?.width ?? null,
+    artworkHeight: artwork?.height ?? null,
+    artworkExpiresAt: artwork?.expiresAt ? new Date(artwork.expiresAt) : null,
+  };
 }
 
 function assertHostedVideoAsset(asset: HostedVideoAsset): void {
@@ -318,12 +335,7 @@ export function createDrizzleMediaRepository(
           platformSourceId: input.draft.episodeGuid,
           sourceFeedUrl: input.draft.feedUrl,
           enclosureUrlHash: input.draft.enclosureUrlHash,
-          artworkUrl: input.draft.artwork?.url ?? null,
-          artworkAlt: input.draft.artwork?.alt ?? null,
-          artworkSource: input.draft.artwork?.source ?? null,
-          artworkWidth: input.draft.artwork?.width ?? null,
-          artworkHeight: input.draft.artwork?.height ?? null,
-          artworkExpiresAt: input.draft.artwork?.expiresAt ? new Date(input.draft.artwork.expiresAt) : null,
+          ...artworkColumns(input.artworkOverride ?? input.draft.artwork),
           language: input.draft.language,
           region: input.draft.region,
           cefr: input.draft.cefr,
@@ -490,12 +502,7 @@ export function createDrizzleMediaRepository(
           sourceUrl: input.draft.canonicalUrl,
           platformSourceId: input.draft.platformVideoId,
           sourceChannelId: input.draft.sourceChannelId,
-          artworkUrl: input.draft.artwork?.url ?? null,
-          artworkAlt: input.draft.artwork?.alt ?? null,
-          artworkSource: input.draft.artwork?.source ?? null,
-          artworkWidth: input.draft.artwork?.width ?? null,
-          artworkHeight: input.draft.artwork?.height ?? null,
-          artworkExpiresAt: input.draft.artwork?.expiresAt ? new Date(input.draft.artwork.expiresAt) : null,
+          ...artworkColumns(input.artworkOverride ?? input.draft.artwork),
           language: input.draft.language,
           region: input.draft.region,
           cefr: input.draft.cefr,

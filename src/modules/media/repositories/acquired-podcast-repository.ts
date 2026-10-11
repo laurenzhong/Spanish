@@ -40,6 +40,7 @@ export interface AcquiredPodcastRepository {
     candidateRevision: number;
     contentHash: string;
     draft: AcquiredPodcastDraft;
+    artworkOverride?: MediaArtwork | null;
     reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
     publishedAt: Date;
   }>): Promise<AcquiredMediaPublication>;

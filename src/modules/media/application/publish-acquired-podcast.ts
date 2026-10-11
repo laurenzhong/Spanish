@@ -1,3 +1,4 @@
+import type { MediaArtwork } from "../domain";
 import type {
   AcquiredMediaPublication,
   AcquiredMediaReview,
@@ -10,6 +11,8 @@ export function publishAcquiredPodcast(repository: AcquiredPodcastRepository, in
   candidateRevision: number;
   contentHash: string;
   draft: AcquiredPodcastDraft;
+  /** Durable artwork snapshot; falls back to the draft artwork when absent. */
+  artworkOverride?: MediaArtwork | null;
   reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
   publishedAt: Date;
 }>): Promise<AcquiredMediaPublication> {
