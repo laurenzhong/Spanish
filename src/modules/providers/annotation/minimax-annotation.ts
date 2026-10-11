@@ -124,7 +124,7 @@ export class MiniMaxAnnotationDraftProvider implements AnnotationDraftProvider {
         }),
         signal: requestSignal.signal,
       });
-      const providerRequestId = response.headers.get("x-request-id");
+      const providerRequestId = readRequestId(response.headers);
 
       if (!response.ok) throw errorForResponseStatus(response.status);
 
@@ -171,6 +171,23 @@ export class MiniMaxAnnotationDraftProvider implements AnnotationDraftProvider {
       requestSignal.dispose();
     }
   }
+}
+
+/**
+ * The request id the vendor actually returns.
+ *
+ * This host answers with `x-mm-request-id` (and `trace-id`, `x-session-id`,
+ * `alb_request_id`) and **no** `x-request-id`. Reading only `x-request-id`
+ * therefore recorded `null` on every successful call, which left the request-id
+ * requirement in AGENTS.md section 7 unmet and made a vendor-side investigation
+ * impossible. Names are tried most specific first.
+ */
+function readRequestId(headers: Headers): string | null {
+  for (const name of ["x-mm-request-id", "trace-id", "x-request-id"]) {
+    const value = headers.get(name);
+    if (value) return value;
+  }
+  return null;
 }
 
 export function createMiniMaxAnnotationDraftProvider(
