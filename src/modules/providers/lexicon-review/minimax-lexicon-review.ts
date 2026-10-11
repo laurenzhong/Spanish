@@ -460,17 +460,60 @@ function parseDecisionPayload(text: string): z.infer<typeof decisionPayloadSchem
   try {
     value = JSON.parse(normalized);
   } catch {
-    throw invalidResponse();
+    // Not JSON at all: report how long it was, since the usual cause is a
+    // truncated or prose-wrapped answer rather than a wrong shape.
+    throw invalidResponse({ lengths: { rawText: normalized.length } });
   }
   const parsed = decisionPayloadSchema.safeParse(value);
-  if (!parsed.success) throw invalidResponse();
+  if (!parsed.success) throw invalidResponse(describePayload(value));
   return parsed.data;
 }
 
-function invalidResponse(): MiniMaxLexiconReviewError {
+/** Key names and string lengths only — never the text itself. */
+function describePayload(value: unknown): Readonly<{
+  keys?: readonly string[];
+  lengths?: Readonly<Record<string, number>>;
+}> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { lengths: { rawType: Array.isArray(value) ? -1 : -2 } };
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  const lengths: Record<string, number> = {};
+  for (const [key, field] of entries) {
+    if (typeof field === "string") lengths[key] = field.length;
+    else if (Array.isArray(field)) {
+      // Report each element's length, so an over-long array member is visible.
+      field.forEach((member, index) => {
+        if (typeof member === "string") lengths[`${key}[${index}]`] = member.length;
+      });
+    }
+  }
+  return { keys: entries.map(([key]) => key), lengths };
+}
+
+/**
+ * A rejection that says why, without saying what.
+ *
+ * The bare message used to be "did not match the expected format", which is true
+ * and useless: the first real canary run failed on a live candidate with exactly
+ * that text and no way to tell a wrong key from an over-long field. This reports
+ * the shape of what came back — the key names, and the length of each string
+ * field — which is always safe to log, contains none of the vendor's prose, and
+ * is enough to distinguish the cases that actually happen: an unexpected key, a
+ * missing key, or a field past its length cap.
+ */
+function invalidResponse(detail?: Readonly<{ keys?: readonly string[]; lengths?: Readonly<Record<string, number>> }>): MiniMaxLexiconReviewError {
+  const parts: string[] = [];
+  if (detail?.keys?.length) parts.push(`keys=[${detail.keys.join(",")}]`);
+  if (detail?.lengths) {
+    const lengths = Object.entries(detail.lengths)
+      .map(([key, length]) => `${key}=${length}`)
+      .join(",");
+    if (lengths) parts.push(`lengths={${lengths}}`);
+  }
   return new MiniMaxLexiconReviewError(
     "provider-response-invalid",
-    "Lexicon review response did not match the expected format.",
+    `Lexicon review response did not match the expected format.${parts.length ? ` ${parts.join(" ")}` : ""}`,
     false,
   );
 }
