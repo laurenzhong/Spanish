@@ -5,7 +5,7 @@ import { acceptsPodcastAudioContentType, resolveOfficialPodcastSource } from "@/
 const allowedHosts = new Set(["content.libsyn.com", "traffic.libsyn.com", "charlashispanas.com", "www.hoyhablamos.com"]);
 const options = { isAllowedSourceHost: (hostname: string) => allowedHosts.has(hostname.trim().toLowerCase()) };
 
-const feed = (items: string) => `<rss><channel>${items}</channel></rss>`;
+const feed = (items: readonly string[]) => `<rss><channel>${items.join("")}</channel></rss>`;
 const item = (title: string, url: string) => `<item><title>${title}</title><enclosure url="${url}" /></item>`;
 
 function stubFeed(xml: string, status = 200) {
