@@ -179,22 +179,13 @@ main.landing-page {
 .landing-page h2 { margin: 0; max-width: none; font-family: inherit; font-size: 1.08rem; font-weight: 650; line-height: 1.35; letter-spacing: -.01em; }
 .landing-page .landing-section-head p { grid-column: auto; max-width: none; margin: 0; color: var(--landing-muted); font-size: .84rem; line-height: 1.7; }
 
-.landing-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 12px; margin: 24px 0 0; padding: 0; list-style: none; }
+.landing-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 0 0; padding: 0; list-style: none; }
 .landing-card { padding: 16px; border: 1px solid var(--landing-line); border-radius: 12px; background: var(--landing-surface); transition: border-color 160ms ease, transform 160ms ease; }
 .landing-card:hover { border-color: rgb(23 33 29 / 28%); transform: translateY(-2px); }
 .landing-card__icon { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 9px; color: var(--landing-teal); background: rgb(47 111 102 / 10%); }
 .landing-card__icon svg { width: 17px; height: 17px; }
 .landing-card h3 { margin: 12px 0 6px; font-size: .92rem; font-weight: 620; }
 .landing-card p { margin: 0; color: var(--landing-muted); font-size: .8rem; line-height: 1.66; }
-/* Two cards can prove their claim with a real screen; the image is lazy so
-   nothing is fetched until somebody opens the disclosure. */
-.landing-page .landing-card__more { margin-top: 12px; border-top: 1px solid var(--landing-line); }
-.landing-page .landing-card__more summary { display: flex; min-height: 44px; align-items: center; gap: 6px; color: var(--landing-teal); font-size: .76rem; font-weight: 650; cursor: pointer; list-style: none; }
-.landing-page .landing-card__more summary::-webkit-details-marker { display: none; }
-.landing-page .landing-card__more summary::after { margin-left: auto; color: var(--landing-muted); content: "▾"; transition: transform 160ms ease; }
-.landing-page .landing-card__more[open] summary::after { transform: rotate(180deg); }
-.landing-page .landing-card__more img { display: block; width: 100%; height: auto; margin-top: 8px; border: 1px solid var(--landing-line); border-radius: 8px; background: var(--landing-paper); }
-.landing-card__caption { margin: 8px 0 0; color: var(--landing-muted); font-size: .72rem; line-height: 1.6; }
 
 /* --- Practice loop ------------------------------------------------------ */
 .landing-loop__body { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 14px; margin-top: 22px; }

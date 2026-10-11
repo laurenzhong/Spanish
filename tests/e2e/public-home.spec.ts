@@ -83,16 +83,6 @@ test("plays the real product recording in the first viewport", async ({ page }) 
   await expect(transcript.locator('p[lang="es"]').first()).toBeVisible();
   await expect(transcript).toContainText("在这个美丽的场景里");
 
-  // Two capability cards prove themselves with a real screenshot, fetched only
-  // when the visitor opens them.
-  const cardShot = page.locator(".landing-card__more").nth(1);
-  await cardShot.locator("summary").click();
-  const shotImage = cardShot.locator("img");
-  await expect(shotImage).toBeVisible();
-  await expect
-    .poll(async () => shotImage.evaluate((element: HTMLImageElement) => element.naturalWidth), { timeout: 15000 })
-    .toBeGreaterThan(0);
-
   // The three markers jump to the transcript lines they name.
   const marker = page.getByRole("button", { name: /^跳到 31:41/ });
   await expect(marker).toBeVisible();
