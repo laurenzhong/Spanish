@@ -765,7 +765,7 @@ const systemPrompt = [
   "You answer exactly one dimension per call, named in the request payload as dimension.",
   "Answering content-es-ES: use pass only when the surface form occurs in frozenContext.passage, the part of speech fits the way the form is used there, a lexeme's lemma is its dictionary form for that use, and a phrase is a complete, learner-usable unit of the text provided.",
   "Answering content-es-ES: use fail when any of that is wrong, when the form does not occur in frozenContext.passage, or when the passage is not enough to judge.",
-  "How frozenContext is built: passage is contextBefore, then the candidate's surfaceText, then contextAfter, in that order. contextBefore and contextAfter are trimmed slices of the same frozen segment, and one space joins them to the surfaceText where two word characters meet; the form is therefore visible in the passage, at that join. Judge usage from the passage (or from the whole frozenContext), never from contextBefore or contextAfter alone.",
+  "How frozenContext is built: passage is contextBefore, then the candidate's surfaceText, then contextAfter, in that order. contextBefore and contextAfter are trimmed slices of the same frozen segment, and one space is restored at each join unless the neighbouring character is punctuation that attaches without one (an opening mark like « or ( attaches to what follows; a comma, a full stop or a closing mark attaches to what precedes). The form is therefore visible in the passage, at the join. Judge usage from the passage (or from the whole frozenContext), never from contextBefore or contextAfter alone.",
   "Answering teaching-zh-CN: use pass only when meaningZh is an accurate Chinese rendering of the Spanish, the wording is clear, and the register suits a learner without false claims.",
   "Answering teaching-zh-CN: use fail when meaningZh is missing, misleading, or wrong in register, or when you cannot verify it from the given text.",
   "Judge only the named dimension: a problem outside it does not change this outcome.",
@@ -795,21 +795,52 @@ const systemPrompt = [
  * frozen context" unanswerable before: the payload now carries the reassembled
  * passage and the prompt states this rule.
  *
- * The join inserts one space only where a word character meets a word character,
- * so punctuation keeps the spacing the segment had (`... un terremoto, dijo`).
+ * The join restores one space, except where the neighbouring character is
+ * punctuation that attaches without one:
+ *
+ * - an opening mark at the end of the left slice (`«`, `(`, `¡`, `“`) attaches to
+ *   what follows, so `dice: «` + `hola` stays `dice: «hola`;
+ * - a closing mark at the start of the right slice (`,`, `.`, `»`, `)`, `!`, `?`)
+ *   attaches to what precedes, so `…adelante",` + `añade` becomes
+ *   `…adelante", añade`;
+ * - ASCII `"` is both, and is read as an opener only when it directly follows a
+ *   space, a colon or a dash.
+ *
+ * A space that the segment did not have, or a missing one it did, is what this
+ * rule exists to prevent: `,` running into `añade` changes the text the model
+ * reads, and the form's presence is the one thing this payload must not get
+ * wrong.
  */
 export function assembleFrozenPassage(
   contextBefore: string,
   surfaceText: string,
   contextAfter: string,
 ): string {
-  const before = /[\p{L}\p{N}]$/u.test(contextBefore) && /^[\p{L}\p{N}]/u.test(surfaceText)
-    ? `${contextBefore} `
-    : contextBefore;
-  const after = /[\p{L}\p{N}]$/u.test(surfaceText) && /^[\p{L}\p{N}]/u.test(contextAfter)
-    ? ` ${contextAfter}`
-    : contextAfter;
-  return `${before}${surfaceText}${after}`;
+  return `${contextBefore}${boundarySpace(contextBefore, surfaceText)}${surfaceText}`
+    + `${boundarySpace(surfaceText, contextAfter)}${contextAfter}`;
+}
+
+/** Punctuation that attaches to the text on its left, so nothing separates them. */
+const openingMarkAtEnd = /[\p{Ps}\p{Pi}]$/u;
+
+/**
+ * Punctuation that attaches to the text on its right, so nothing separates them.
+ *
+ * ASCII `"` belongs here even though it is Unicode "other punctuation": when it
+ * is the first character after the form, it is closing the quoted span the form
+ * sits in, not opening a new one.
+ */
+const closingMarkAtStart = /^[\p{Pe}\p{Pf},.;:!?…"]/u;
+
+/** The separator one join needs: a space, or nothing when punctuation already joins it. */
+function boundarySpace(left: string, right: string): string {
+  if (!left || !right) return "";
+  if (/\s$/u.test(left) || /^\s/u.test(right)) return "";
+  if (closingMarkAtStart.test(right)) return "";
+  if (openingMarkAtEnd.test(left)) return "";
+  // ASCII `"` is ambiguous: it opens after whitespace, a colon or a dash.
+  if (/(?:^|[\s:—–-])"$/u.test(left)) return "";
+  return " ";
 }
 
 function buildPrompt(snapshot: LexiconReviewSnapshot): string {
@@ -836,8 +867,9 @@ function buildPrompt(snapshot: LexiconReviewSnapshot): string {
       // "does the form occur in the text you were given" has an answer.
       passage: assembleFrozenPassage(snapshot.contextBefore, snapshot.surfaceText, snapshot.contextAfter),
       passageComposition:
-        "passage = contextBefore + candidate.surfaceText + contextAfter; the two sides are trimmed slices "
-        + "of the frozen segment and one space joins them to the form where two word characters meet",
+        "passage = contextBefore + candidate.surfaceText + contextAfter; both sides are trimmed slices "
+        + "of the frozen segment and one space is restored at each join unless the neighbouring character "
+        + "is punctuation that attaches without one",
     },
     constraints: {
       oneDimensionPerCall: true,

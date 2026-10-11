@@ -593,9 +593,20 @@ describe("reviewer payload satisfiability", () => {
     expect(assembleFrozenPassage("Y en Panamá, un", "terremoto", "de magnitud 7.2")).toBe(
       "Y en Panamá, un terremoto de magnitud 7.2",
     );
-    // Punctuation keeps the spacing the segment had: no space after an opening
-    // mark, none before a closing one.
+    // A comma that ends the slice still needs the space the trim removed. This
+    // is the case the real database surfaced (`…"Sigamos adelante",` + `añade`),
+    // and running them together changes the text the model reads.
+    expect(assembleFrozenPassage('…"Sigamos adelante",', "añade", " ella, decidida.")).toBe(
+      '…"Sigamos adelante", añade ella, decidida.',
+    );
+    // Opening marks attach to what follows, so no space goes after them.
     expect(assembleFrozenPassage("dice: «", "hola", "».")).toBe("dice: «hola».");
+    expect(assembleFrozenPassage("dijo (", "hola", ").")).toBe("dijo (hola).");
+    // A closing quote after a letter attaches to what precedes.
+    expect(assembleFrozenPassage('Él dijo "hola"', "y", "más.")).toBe('Él dijo "hola" y más.');
+    // An ASCII quote directly after a colon is an opener.
+    expect(assembleFrozenPassage('Él dijo: "', "hola", '"')).toBe('Él dijo: "hola"');
+    // Empty sides add nothing.
     expect(assembleFrozenPassage("", "casa", " y tu casa")).toBe("casa y tu casa");
     expect(assembleFrozenPassage("Mi", "casa", "")).toBe("Mi casa");
   });
