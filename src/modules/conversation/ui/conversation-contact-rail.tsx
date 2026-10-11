@@ -40,22 +40,35 @@ export const CONVERSATION_LIST_UPDATED_EVENT = "conversation-list-updated";
  * Marks one conversation as read and refetches the contact list so the navigation
  * unread badge reflects it. Callers use this from the chat thread itself: opening
  * or re-reading a conversation is what makes its messages read, not clicking the
- * contact row. The request is idempotent (the route only advances `lastReadAt`)
- * and failures are silent — a stale badge is better than a broken thread.
+ * contact row.
+ *
+ * A lost acknowledgement is not a cosmetic problem: the conversation keeps
+ * being counted as unread, so the dot comes back for a message the reader has
+ * already seen ("已读之后又出现未读 1，但没有新消息"). The request is
+ * idempotent — the route only advances `lastReadAt` — so a failed attempt is
+ * retried once, and only a confirmed acknowledgement refreshes the badge.
  */
-export async function markConversationRead(characterKey: string): Promise<void> {
-  try {
-    const response = await fetch("/api/v1/conversations/preferences", {
-      method: "PATCH",
-      keepalive: true,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ characterKey, markRead: true }),
-    });
-    if (!response.ok) return;
-    window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
-  } catch {
-    // Keep the previous unread count; the next successful refresh corrects it.
+export async function markConversationRead(characterKey: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch("/api/v1/conversations/preferences", {
+        method: "PATCH",
+        keepalive: true,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ characterKey, markRead: true }),
+      });
+      if (response.ok) {
+        window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
+        return true;
+      }
+      // A 4xx is a stable refusal (validation, authorization); retrying it only
+      // adds noise. Anything else may be a transient outage.
+      if (response.status < 500) return false;
+    } catch {
+      // Network failure: fall through and retry once.
+    }
   }
+  return false;
 }
 
 async function fetchContactJson<T>(url: string, controller: AbortController): Promise<T> {
@@ -273,8 +286,22 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
         setStatus(cachedStatus);
       });
     };
+    // Each row carries its own unread count, so the list has to converge on the
+    // server the same way the navigation badge does. Without this, a
+    // conversation read in another tab (or on the phone) kept its row badge
+    // until the next page load, while the navigation dot had already cleared.
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "hidden") return;
+      refresh();
+    };
     window.addEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
-    return () => window.removeEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [resolvedCacheScope]);
 
   // Opening a conversation marks it read. The signature guard keeps the
@@ -571,7 +598,9 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                     return;
                   }
                   setMarkedUnread((current) => { const next = new Set(current); next.delete(conversation.characterKey); return next; });
-                  if (unreadCount > 0) void fetch("/api/v1/conversations/preferences", { method: "PATCH", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }) }).then(() => window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT))).catch(() => undefined);
+                  // The shared helper retries a failed acknowledgement and only
+                  // refreshes the list once the server confirmed the read.
+                  if (unreadCount > 0) void markConversationRead(conversation.characterKey);
                 }}
                 onMouseEnter={() => prefetchConversationHistory(conversation.characterKey, resolvedCacheScope)}
                 onFocus={() => prefetchConversationHistory(conversation.characterKey, resolvedCacheScope)}
