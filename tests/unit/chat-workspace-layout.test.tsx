@@ -56,11 +56,14 @@ describe("conversation workspace layout", () => {
     expect(container.querySelector(".conversation-page--detail")).not.toBeNull();
   });
 
-  it("opens the index with the contacts on the left and an empty pane", () => {
+  it("opens the index with the contacts on the left and a chooser prompt in the empty pane", () => {
     const { container } = render(<ChatPage />);
 
-    expect(container.textContent).toBe("");
+    // Still no thread frame, so the rail keeps the pane on small screens, but
+    // the desktop pane explains what to do instead of staying blank.
     expect(container.querySelector(".conversation-thread")).toBeNull();
+    expect(container.querySelector(".conversation-empty")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "选择一个好友开始对话" })).toBeInTheDocument();
   });
 
   it("has nothing of its own to show while the index settles", () => {

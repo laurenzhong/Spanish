@@ -9,3 +9,4 @@ export * from "./ui/lexical-assessment";
 export * from "./ui/lexicon-occurrences";
 export * from "./ui/lexicon-shelf-controls";
 export * from "./ui/vocabulary-library";
+export * from "./ui/vocabulary-view-switcher";
