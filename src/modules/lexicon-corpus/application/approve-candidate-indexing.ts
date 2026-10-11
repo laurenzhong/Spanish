@@ -332,9 +332,16 @@ export async function approveCandidateAndIndex(
  * linguistic fact, so confirming many of them at once cannot launder a claim
  * into the corpus. Anything with a part-of-speech claim — and every phrase, whose
  * `meaningZh` is a translation judgement — must be approved one at a time.
+ *
+ * `meaningZh` is now checked for lexemes too, not just phrases. Glosses used to
+ * be a phrase-only concern, so a lexeme could never carry one; the extraction
+ * contract now requires a gloss on every proposal, because the teaching review
+ * judges it and the vocabulary view renders it. Without this clause, adding that
+ * gloss would have quietly widened what bulk approval is allowed to confirm, and
+ * "no translation is ever approved in bulk" would stop being true.
  */
 export function isLowRiskBatchApprovableCandidate(candidate: LexiconCandidate): boolean {
-  return candidate.kind === "lexeme" && candidate.partOfSpeech === null;
+  return candidate.kind === "lexeme" && candidate.partOfSpeech === null && candidate.meaningZh === null;
 }
 
 export type LexiconCandidateBatchApprovalRequest = Readonly<{

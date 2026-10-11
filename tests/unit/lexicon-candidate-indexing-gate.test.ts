@@ -111,7 +111,7 @@ function source(overrides: Partial<LexiconCandidateSource> = {}): LexiconCandida
 
 function candidate(overrides: Partial<LexiconCandidate> = {}): LexiconCandidate {
   return {
-    id: "lexeme|article.a|1|0|terremoto",
+    id: "lexeme|article|article.a|1|0|terremoto",
     kind: "lexeme",
     surfaceText: "terremoto",
     normalizedText: "terremoto",
@@ -139,7 +139,7 @@ function unwrap(result: LexiconCandidateReviewResult): LexiconCandidate {
 /** A lexeme candidate with no part-of-speech claim: the batch-approval class. */
 function lowRiskCandidate(normalizedText: string, overrides: Partial<LexiconCandidate> = {}): LexiconCandidate {
   return candidate({
-    id: `lexeme|article.a|1|0|${normalizedText}`,
+    id: `lexeme|article|article.a|1|0|${normalizedText}`,
     surfaceText: normalizedText,
     normalizedText,
     lemma: normalizedText,
@@ -445,7 +445,7 @@ describe("owner approval gates the corpus write (LEX-INDEX-001 slice 5)", () => 
     const { repository, calls } = createRecordingRepository();
     const ready = atStatus("review_ready", {
       lemma: null,
-      id: "lexeme|article.a|1|0|sismo",
+      id: "lexeme|article|article.a|1|0|sismo",
       surfaceText: "sismo",
       normalizedText: "sismo",
       partOfSpeech: null,
@@ -512,7 +512,7 @@ describe("owner approval gates the corpus write (LEX-INDEX-001 slice 5)", () => 
   it("writes an approved phrase as a phrase entry and never as a lexeme", async () => {
     const { repository, calls } = createRecordingRepository();
     const ready = atStatus("review_ready", {
-      id: "phrase|article.a|1|0|y en panama un terremoto",
+      id: "phrase|article|article.a|1|0|y en panama un terremoto",
       kind: "phrase",
       surfaceText: "Y en Panamá un terremoto",
       normalizedText: "y en panama un terremoto",
@@ -555,7 +555,7 @@ describe("owner approval gates the corpus write (LEX-INDEX-001 slice 5)", () => 
       endMs: 126000,
     };
     const mediaCandidate = atStatus("approved", {
-      id: "lexeme|media.podcast-1|3|7|sismo",
+      id: "lexeme|media|media.podcast-1|3|7|sismo",
       surfaceText: "sismo",
       normalizedText: "sismo",
       lemma: "sismo",
@@ -732,7 +732,7 @@ describe("bulk approval stays inside ADR-0011 §5 (LEX-INDEX-001 slice 5)", () =
 
     const phrase = readyFrom(
       candidate({
-        id: "phrase|article.a|1|0|y en panama",
+        id: "phrase|article|article.a|1|0|y en panama",
         kind: "phrase",
         surfaceText: "Y en Panamá",
         normalizedText: "y en panama",
@@ -760,10 +760,39 @@ describe("bulk approval stays inside ADR-0011 §5 (LEX-INDEX-001 slice 5)", () =
     expect(calls).toHaveLength(0);
   });
 
+  it("does not let bulk approval confirm a gloss, now that lexemes carry one", async () => {
+    const { repository, calls } = createRecordingRepository();
+    // The low-risk class used to be "a lexeme with no part-of-speech claim",
+    // because glosses were a phrase-only concern and a lexeme could never have
+    // one. Extraction now requires a gloss on every proposal, so without the
+    // `meaningZh` clause this candidate would have become bulk-approvable and
+    // "no translation is ever approved in bulk" would have quietly stopped
+    // being true.
+    const glossed = lowRiskCandidate("terremoto", { meaningZh: "地震" });
+    expect(isLowRiskBatchApprovableCandidate(glossed)).toBe(false);
+
+    const safe = readyFrom(lowRiskCandidate("sismo"));
+    expect(isLowRiskBatchApprovableCandidate(safe)).toBe(true);
+
+    const outcome = await approveCandidateBatch(repository, {
+      ...batch,
+      requests: [
+        { candidate: safe, frozen: FROZEN },
+        { candidate: readyFrom(glossed), frozen: FROZEN },
+      ],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.code).toBe("CANDIDATE_BATCH_NOT_ALLOWED");
+    // All-or-nothing: the glossed member is refused as a member, so the
+    // eligible one is not indexed either.
+    expect(calls).toHaveLength(0);
+  });
+
   it("does not let bulk approval bypass dual review", async () => {
     const { repository, calls } = createRecordingRepository();
     const halfReviewed = atStatus("review_submitted", {
-      id: "lexeme|article.a|1|0|sismo",
+      id: "lexeme|article|article.a|1|0|sismo",
       surfaceText: "sismo",
       normalizedText: "sismo",
       lemma: "sismo",
@@ -828,7 +857,7 @@ describe("bulk approval stays inside ADR-0011 §5 (LEX-INDEX-001 slice 5)", () =
   it("refuses a batch that contains an already-approved candidate", async () => {
     const { repository, calls } = createRecordingRepository();
     const approved = atStatus("approved", {
-      id: "lexeme|article.a|1|0|sismo",
+      id: "lexeme|article|article.a|1|0|sismo",
       surfaceText: "sismo",
       normalizedText: "sismo",
       lemma: "sismo",

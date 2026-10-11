@@ -174,10 +174,21 @@ export function validateLexiconCandidateProposals(
         false,
       );
     }
-    if (proposal.kind === "lexeme" && proposal.meaningZh !== null) {
+    // Both kinds carry a Chinese gloss, and a lexeme's gloss is not incidental:
+    // the `teaching-zh-CN` review dimension judges it, and the vocabulary view
+    // renders it. A lexeme without one cannot be approved, so it is refused here
+    // rather than being carried to a review that is guaranteed to fail.
+    if (proposal.meaningZh === null || !proposal.meaningZh.trim()) {
       throw new LexiconExtractionError(
         "provider-response-invalid",
-        "A lexeme proposal must not carry a phrase translation.",
+        "Every proposal must carry a Chinese gloss of its meaning.",
+        false,
+      );
+    }
+    if (proposal.kind === "lexeme" && proposal.lemma === null) {
+      throw new LexiconExtractionError(
+        "provider-response-invalid",
+        "A lexeme proposal must carry its dictionary form as the lemma.",
         false,
       );
     }

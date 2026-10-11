@@ -531,7 +531,11 @@ describe("only an approved candidate reaches the corpus (LEX-INDEX-001 slice 6)"
       // `verified` is earned: this candidate passed both dimensions and was approved.
       lemmaStatus: "verified",
       partOfSpeech: null,
-      meaningZh: null,
+      // The fake's synthetic gloss reaches the corpus now. It used to arrive as
+      // null, which is precisely what made the teaching dimension reject every
+      // lexeme; this assertion is what proves the gloss survives the whole chain.
+      // The placeholder echoes the surface form as it appeared in the sentence.
+      meaningZh: "〔fake〕Terremoto",
       form: "Terremoto",
       normalizedForm: "terremoto",
       reference: {

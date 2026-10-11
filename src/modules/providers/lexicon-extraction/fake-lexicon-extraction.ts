@@ -16,6 +16,13 @@ import {
  * come from simple, explainable rules so tests can assert exact output; real
  * extraction quality is the MiniMax adapter's concern, and nothing here should
  * be read as a linguistic judgement.
+ *
+ * That extends to the Chinese gloss the contract now requires of every
+ * proposal. The fake cannot translate, so it does not pretend to: it emits a
+ * gloss that names the surface form and is marked as synthetic. The shape is
+ * satisfied and no test can mistake the placeholder for a real translation —
+ * which matters, because inventing a plausible-looking meaning would be a worse
+ * failure than leaving the field empty.
  */
 
 /** Stand-in for a real tokenizer. Splits on whitespace and strips edge punctuation. */
@@ -28,6 +35,16 @@ function surfaceForms(sourceText: string): readonly string[] {
 
 function normalize(surface: string): string {
   return surface.toLocaleLowerCase("es");
+}
+
+/**
+ * A placeholder gloss that is obviously synthetic rather than a translation.
+ *
+ * Deliberately not a plausible Chinese word: a fake that produced believable
+ * meanings would make every downstream test assert against fiction.
+ */
+function syntheticGloss(surface: string): string {
+  return `〔fake〕${surface}`;
 }
 
 /** Prose-like forms only. The fake cannot know part of speech, so it claims none. */
@@ -78,7 +95,9 @@ export function createFakeLexemeCandidateProvider(): LexemeCandidateProvider {
             lemma: normalize(word),
             // Claiming a part of speech here would fabricate a linguistic fact.
             partOfSpeech: null,
-            meaningZh: null,
+            // The contract requires a gloss; the fake marks its placeholder as
+            // synthetic rather than inventing a meaning.
+            meaningZh: syntheticGloss(word),
             segmentIndex: segment.segmentIndex,
             confidence: 1,
           });

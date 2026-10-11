@@ -97,18 +97,28 @@ try {
   }
 
   // Guard checks that matter most: every lexeme's surface form must exist in the
-  // segment, and no lexeme may carry a phrase translation.
+  // segment, every proposal must carry a gloss, and no phrase may carry a lemma.
+  // The gloss check used to be its inverse — a lexeme with a gloss was the
+  // malformation — and it inverted when the teaching dimension made the gloss
+  // mandatory, which is also what made the pipeline able to approve anything.
   const lower = segment.sourceText.toLocaleLowerCase("es");
   const hallucinated = result.proposals.filter(
     (proposal) => !lower.includes(proposal.surfaceText.toLocaleLowerCase("es")),
   );
-  const crossKind = result.proposals.filter(
-    (proposal) =>
-      (proposal.kind === "lexeme" && proposal.meaningZh !== null) ||
-      (proposal.kind === "phrase" && proposal.lemma !== null),
+  const missingGloss = result.proposals.filter(
+    (proposal) => proposal.meaningZh === null || !proposal.meaningZh.trim(),
   );
+  const crossKind = result.proposals.filter(
+    (proposal) => proposal.kind === "phrase" && proposal.lemma !== null,
+  );
+  const lexemes = result.proposals.filter((proposal) => proposal.kind === "lexeme");
   console.log("hallucinated (not in segment):", hallucinated.length);
-  console.log("cross-kind malformed:", crossKind.length);
+  console.log("missing a Chinese gloss:", missingGloss.length);
+  console.log("cross-kind malformed (phrase with lemma):", crossKind.length);
+  console.log("lexemes carrying a gloss:", `${lexemes.filter((p) => p.meaningZh).length}/${lexemes.length}`);
+  for (const proposal of result.proposals.slice(0, 12)) {
+    console.log(`    [${proposal.kind}] ${proposal.surfaceText} → lemma=${proposal.lemma} zh=${proposal.meaningZh}`);
+  }
 } catch (error) {
   if (error instanceof LexiconExtractionError) {
     console.log("LexiconExtractionError:", error.code, "| retryable:", error.retryable, "|", error.message);
