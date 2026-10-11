@@ -72,20 +72,20 @@ describe("podcast audio player", () => {
     pause.mockRestore();
   });
 
-  it("uses the shared sentence controls, transcript drawer, and revisioned progress", async () => {
+  it("keeps sentence navigation on the arrow keys, plus the transcript drawer and revisioned progress", async () => {
     const player = fakePlayer();
-    const user = userEvent.setup();
     render(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={playback()} />);
     act(() => player.lifecycle().onReady());
     expect(screen.getByLabelText("Una mañana en el mercado 播放器")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "下一句" }));
+    // The owner navigates sentences with the arrow keys; there is no button row.
+    fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(player.port.seek).toHaveBeenLastCalledWith(2_200);
     expect(player.port.play).toHaveBeenCalled();
 
     const word = screen.getByRole("button", { name: "查看词语 Buenos" });
-    await user.click(word);
-    await user.click(screen.getByRole("button", { name: "关闭词句上下文" }));
+    await userEvent.setup().click(word);
+    await userEvent.setup().click(screen.getByRole("button", { name: "关闭词句上下文" }));
     expect(word).toHaveFocus();
 
     player.setCurrentTime(3_000);
@@ -120,8 +120,11 @@ describe("podcast audio player", () => {
     const player = fakePlayer();
     render(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={playback(false)} />);
     expect(screen.getByText("这期播客可以播放，但目前没有已审核的逐句文本。")).toBeVisible();
-    expect(screen.getByRole("button", { name: "上一句" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "下一句" })).toBeDisabled();
+    // With no reviewed lines the arrow keys must do nothing instead of throwing
+    // or moving a player that has no segments to navigate.
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(player.port.seek).not.toHaveBeenCalled();
   });
 
   it("shows a recoverable error when the current enclosure cannot play", () => {

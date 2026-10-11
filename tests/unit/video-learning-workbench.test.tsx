@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -85,8 +85,23 @@ describe("video learning workbench", () => {
     render(<MediaLearningWorkbench nativeVideoFactory={player.factory} playback={nativePlayback} />);
     expect(player.factory).toHaveBeenCalledWith(expect.any(HTMLVideoElement), expect.objectContaining({ url: nativePlayback.asset.url }));
     act(() => player.lifecycle().onReady());
-    await userEvent.setup().click(screen.getByRole("button", { name: "下一句" }));
+    fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
+  });
+
+  it("applies the saved position once even when the player reports ready again", () => {
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench initialPositionMs={4_250} playback={playback()} playerFactory={player.factory} />);
+
+    act(() => player.lifecycle().onReady());
+    expect(player.port.seek).toHaveBeenCalledTimes(1);
+
+    // Plyr announces `ready` again after a source reload. Re-seeking there yanked
+    // playback back to the saved position over and over, which is what made the
+    // picture tear while the player still claimed to be playing.
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onReady());
+    expect(player.port.seek).toHaveBeenCalledTimes(1);
   });
 
   it("honors a source deep link before saved progress", () => {
@@ -97,19 +112,25 @@ describe("video learning workbench", () => {
     expect(view.container.querySelector("#segment-2")).toBeInTheDocument();
   });
 
-  it("supports transcript seeking, A/S/D/Q controls, caption modes and focus-restoring lexical drawer", async () => {
+  it("supports transcript seeking, arrow/A-S-D/Q keys, caption modes and focus-restoring lexical drawer", async () => {
     const player = fakePlayer();
     const user = userEvent.setup();
     render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
     act(() => player.lifecycle().onReady());
 
-    await user.click(screen.getByRole("button", { name: "下一句" }));
+    // Sentence navigation is keyboard-only: the owner already uses the arrow
+    // keys, so the workbench renders no button row for it.
+    fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
     expect(player.port.play).toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(0);
     fireEvent.keyDown(window, { key: "a" });
     expect(player.port.seek).toHaveBeenLastCalledWith(0);
     fireEvent.keyDown(window, { key: "s" });
     expect(player.port.seek).toHaveBeenLastCalledWith(0);
+    expect(screen.queryByRole("button", { name: "下一句" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /播放速度/ })).not.toBeInTheDocument();
 
     const autoPause = screen.getByRole("checkbox", { name: "自动暂停" });
     expect(autoPause).not.toBeChecked();
@@ -117,12 +138,50 @@ describe("video learning workbench", () => {
     expect(autoPause).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "双语" }));
-    expect(screen.getByText("早上好。")).toBeVisible();
+    // The active line's translation is now also shown in the "当前片段" card,
+    // so assert inside the transcript region instead of the whole document.
+    expect(within(screen.getByRole("region", { name: "字幕与文本" })).getByText("早上好。")).toBeVisible();
     const word = screen.getByRole("button", { name: "查看词语 Buenos" });
     await user.click(word);
     expect(screen.getByRole("dialog", { name: "词句上下文" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "关闭词句上下文" }));
     expect(word).toHaveFocus();
+  });
+
+  it("plays and pauses on Space without needing to focus the player first", async () => {
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+
+    // Space plays when paused …
+    fireEvent.keyDown(window, { key: " " });
+    expect(player.port.play).toHaveBeenCalled();
+
+    // … and pauses once the player reports it is playing.
+    act(() => player.lifecycle().onStateChange("playing"));
+    fireEvent.keyDown(window, { key: " " });
+    expect(player.port.pause).toHaveBeenCalled();
+
+    // A space typed into a text field must still be a space.
+    const box = document.createElement("input");
+    document.body.append(box);
+    fireEvent.keyDown(box, { key: " " });
+    expect(player.port.pause).toHaveBeenCalledTimes(1);
+    box.remove();
+  });
+
+  it("ignores Space (and other keys) until the player reports it is mounted", () => {
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+
+    // No onReady() yet: the player is still mounting, so nothing may be toggled.
+    fireEvent.keyDown(window, { key: " " });
+    expect(player.port.play).not.toHaveBeenCalled();
+    expect(player.port.pause).not.toHaveBeenCalled();
+
+    act(() => player.lifecycle().onReady());
+    fireEvent.keyDown(window, { key: " " });
+    expect(player.port.play).toHaveBeenCalled();
   });
 
   it("follows playback time with a current word selection inside the active subtitle", () => {
@@ -226,6 +285,9 @@ describe("video learning workbench", () => {
     act(() => second.lifecycle().onReady());
     second.setCurrentTime(4_500);
     act(() => second.lifecycle().onStateChange("paused"));
-    expect(await screen.findByText("进度已在其他页面更新，请刷新后继续。")).toBeVisible();
+    // A conflict no longer tells the reader to reload the page: the workbench
+    // offers a control that re-reads the server revision in place.
+    expect(await screen.findByText("进度已在其他页面更新。重新读取服务器进度后即可继续同步，不需要刷新整个页面。")).toBeVisible();
+    expect(screen.getByRole("button", { name: "重新读取服务器进度" })).toBeInTheDocument();
   });
 });

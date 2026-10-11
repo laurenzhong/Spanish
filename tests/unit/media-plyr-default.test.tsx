@@ -72,6 +72,8 @@ describe("default media player", () => {
     expect(plyrMock.instances[0]?.options).toMatchObject({ settings: ["speed"] });
     expect(document.querySelector(".plyr")).toHaveAttribute("data-media-player", "plyr");
     expect(document.querySelector(".plyr")).toHaveAttribute("data-media-player-version", "3.8.4");
+    expect(document.querySelector(".media-learning-workbench")).toHaveAttribute("data-media-player-contract", "plyr");
+    expect(document.querySelector(".media-learning-workbench")).toHaveAttribute("data-media-player-version", "3.8.4");
     expect(document.querySelector("audio")).not.toHaveAttribute("controls");
   });
 
@@ -81,6 +83,7 @@ describe("default media player", () => {
     expect(plyrMock.instances[0]?.target).toBeInstanceOf(HTMLVideoElement);
     expect(document.querySelector(".plyr")).toHaveAttribute("data-media-player", "plyr");
     expect(document.querySelector(".plyr")).toHaveAttribute("data-media-player-version", "3.8.4");
+    expect(document.querySelector(".media-learning-workbench")).toHaveAttribute("data-media-player-contract", "plyr");
     expect(document.querySelector("video")).not.toHaveAttribute("controls");
     hosted.unmount();
 

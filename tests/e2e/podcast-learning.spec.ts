@@ -67,7 +67,9 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
   await expect(audio).not.toHaveAttribute("controls");
   await expect(page.getByText("播放器已就绪")).toBeVisible();
 
-  await page.getByRole("button", { name: "下一句" }).click();
+  // Sentence navigation is keyboard-only by product decision: the arrow keys
+  // move between reviewed lines, so the button row no longer exists.
+  await page.keyboard.press("ArrowRight");
   await expect(audio).toHaveAttribute("data-current-time", "2.2");
   await expect(page.getByRole("button", { name: "查看词语 Quería" })).toHaveAttribute("data-active-word", "true");
   await page.keyboard.press("a");

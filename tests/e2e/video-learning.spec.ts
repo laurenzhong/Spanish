@@ -100,7 +100,8 @@ test("keeps a licensed native video in the shared learning workbench", async ({ 
   await expect(video).not.toHaveAttribute("controls");
   await expect(video).toHaveAttribute("data-source", "https://media.example.test/video/sample.mp4");
   await expect(page.getByText("播放器已就绪")).toBeVisible();
-  await page.getByRole("button", { name: "下一句" }).click();
+  // Sentence navigation is keyboard-only by product decision.
+  await page.keyboard.press("ArrowRight");
   await expect(video).toHaveAttribute("data-current-time", "1.8");
   await page.getByRole("button", { name: "双语" }).click();
   await expect(page.getByText("早上好。")).toBeVisible();
@@ -116,7 +117,8 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
   await expect(youtube).toHaveAttribute("data-plyr-embed-id", "e2eCafe1234");
   await expect(page.getByText("播放器已就绪")).toBeVisible();
 
-  await page.getByRole("button", { name: "下一句" }).click();
+  // Sentence navigation is keyboard-only by product decision.
+  await page.keyboard.press("ArrowRight");
   await expect(youtube).toHaveAttribute("data-current-time", "1.8");
   await expect(page.getByRole("button", { name: "查看词语 Quería" })).toHaveAttribute("data-active-word", "true");
   await page.keyboard.press("a");
