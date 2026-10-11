@@ -110,9 +110,13 @@ describe("MiniMaxCandidateReviewer", () => {
     );
     // An extra key is a schema mismatch: a model answering a different question
     // must not be reinterpreted, and identity is never taken from the response.
+    //
+    // `retryable: true` because a schema mismatch is model drift, which is worth
+    // one more attempt — the parse rules themselves are unchanged, so a stubbed
+    // response that never conforms still exhausts the budget and rejects.
     await expect(reviewer.review(request("content-es-ES"))).rejects.toMatchObject({
       code: "provider-response-invalid",
-      retryable: false,
+      retryable: true,
     });
   });
 
@@ -143,9 +147,10 @@ describe("MiniMaxCandidateReviewer", () => {
     ];
     for (const payload of cases) {
       const { reviewer } = reviewerWithResponse(envelope(payload));
+      // Still rejects: retrying a stub that never conforms exhausts the budget.
       await expect(reviewer.review(request("content-es-ES"))).rejects.toMatchObject({
         code: "provider-response-invalid",
-        retryable: false,
+        retryable: true,
       });
     }
   });
@@ -154,7 +159,7 @@ describe("MiniMaxCandidateReviewer", () => {
     const { reviewer } = reviewerWithResponse(envelope(validPayload({ dimension: "teaching-zh-CN" })));
     await expect(reviewer.review(request("content-es-ES"))).rejects.toMatchObject({
       code: "provider-response-invalid",
-      retryable: false,
+      retryable: true,
     });
   });
 
@@ -210,7 +215,11 @@ describe("MiniMaxCandidateReviewer", () => {
     const cases: readonly (readonly [number, string, boolean])[] = [
       [401, "provider-auth-failed", false],
       [403, "provider-auth-failed", false],
-      [429, "provider-rate-limited", true],
+      // 429 is deliberately NOT retried here. The adapter's backoff is under two
+      // seconds, which cannot clear a rate limit, so a repeat would fail the same
+      // way and spend quota doing it. Backing off far enough is the calling
+      // pipeline's decision, not this adapter's.
+      [429, "provider-rate-limited", false],
       [500, "provider-unavailable", true],
       [503, "provider-unavailable", true],
       [400, "provider-response-invalid", false],
@@ -328,6 +337,10 @@ describe("MiniMaxCandidateReviewer", () => {
         estimatedCostMicros: null,
         failureCode: null,
         stopReason: "end_turn",
+        // Retry accounting: a first-attempt success is reported as such, so the
+        // canary can show what a run actually cost.
+        attempts: 1,
+        attemptFailures: [],
       },
     ]);
     const serialized = JSON.stringify(observations);

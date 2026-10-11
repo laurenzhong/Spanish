@@ -15,9 +15,15 @@ import {
 
 import {
   MiniMaxLexiconReviewError,
+  createLinearBackoff,
+  createSleep,
   validateLexiconReviewSnapshot,
+  type LexiconReviewBackoff,
+  type LexiconReviewErrorCode,
   type LexiconReviewObservation,
   type LexiconReviewObserver,
+  type LexiconReviewRetryHook,
+  type LexiconReviewSleep,
   type LexiconReviewSnapshot,
 } from "./lexicon-review";
 
@@ -39,6 +45,16 @@ import {
  * matters because a `pass` here is a step towards owner approval and corpus
  * indexing; the pipeline refuses `fail`/`pass` only on stored verdicts, so this
  * adapter must never manufacture one out of noise.
+ *
+ * ## Retry, and why it is not a loosening
+ *
+ * Real canary runs on published articles failed roughly one time in three with
+ * `provider-response-invalid`: the model is non-deterministic, so the same frozen
+ * candidate and prompt occasionally come back in a shape the strict schema
+ * refuses. The fix is a bounded second (and third) call — never a relaxed parse.
+ * Each attempt runs the identical validation; a retry only changes *when* the
+ * question is asked, never *what counts as an answer*. When the budget runs out
+ * the last failure is rethrown, so exhausting retries still cannot yield `pass`.
  *
  * What the model is *not* allowed to decide (the code checks each):
  *
@@ -72,6 +88,45 @@ const defaultTimeoutMs = 45_000;
 const defaultMaxTokens = 4_000;
 
 /**
+ * Retry defaults.
+ *
+ * Three attempts in total (the first call plus two retries) is the smallest
+ * budget that fixes the observed flake: a run that failed about once in three
+ * becomes roughly one in twenty-seven if the failures are independent, while a
+ * permanently broken prompt still stops after three calls instead of looping.
+ * Two would leave no margin for a second flake in the same run; more than three
+ * multiplies spend for a failure mode that is already rare.
+ */
+const defaultMaxAttempts = 3;
+/**
+ * A truncated answer gets more room on the next attempt rather than the same
+ * room: re-asking with an identical budget truncates identically. Capped so one
+ * candidate cannot request an unbounded completion.
+ */
+const defaultTruncatedMaxTokens = 8_000;
+/** Base delay for the default linear-jittered backoff: ~500ms, then ~1000ms. */
+const defaultBackoffMs = 500;
+/**
+ * Never start an attempt with less than this left in the wall-clock budget: a
+ * sub-second window cannot complete, so spending a paid call on it would be pure
+ * waste. The attempt is skipped and the last failure is rethrown.
+ */
+const minAttemptBudgetMs = 1_000;
+/**
+ * Headroom multiplier for the default wall-clock budget.
+ *
+ * The budget must leave room for retries, or the retry policy would be decorative:
+ * with `totalTimeoutMs === timeoutMs`, a single attempt that took the full
+ * per-attempt timeout consumes the entire budget and no retry can ever fit.
+ * `totalTimeoutMs` therefore defaults to `maxAttempts × timeoutMs`, which bounds
+ * the worst case at three full attempts plus backoff (~137s with the defaults)
+ * while keeping each attempt's ceiling at `timeoutMs`. The budget is still
+ * shared, so a *fast* failure leaves the retries their full per-attempt window
+ * instead of a shrinking slice of it.
+ */
+const totalBudgetMultiplier = 3;
+
+/**
  * The review identity written on every decision. Built through the shared
  * authority so this adapter cannot invent an identity the corpus gate would
  * refuse, and so the AI provenance is stated in the record itself.
@@ -97,11 +152,36 @@ export type MiniMaxCandidateReviewerOptions = Readonly<{
    */
   estimateCostMicros?: CostEstimator;
   /**
-   * Telemetry sink. Called once per call, on success and on failure. It must not
-   * throw; the adapter swallows its errors either way so telemetry can never
-   * change a verdict.
+   * Telemetry sink. Called once per `review()` call — not once per HTTP attempt,
+   * which the observation's `attempts` field reports — on success and on failure.
+   * It must not throw; the adapter swallows its errors either way so telemetry can
+   * never change a verdict.
    */
   observe?: LexiconReviewObserver;
+  /**
+   * Total HTTP attempts allowed for one `review()` call, including the first.
+   * Default 3. Clamped to `[1, 5]`: a caller cannot configure an unbounded loop
+   * over a paid endpoint, and an unusable value falls back to 1 (no retry).
+   */
+  maxAttempts?: number;
+  /**
+   * Wall-clock budget shared by **all** attempts of one call, in milliseconds.
+   * Defaults to `timeoutMs` (45s), so the worst case stays bounded no matter how
+   * many attempts are configured. Each attempt gets its own cancellation signal
+   * carrying the remaining budget; the wait between attempts is carved out of the
+   * same budget, and an attempt that cannot fit is not made at all.
+   */
+  totalTimeoutMs?: number;
+  /** Completion budget used from the attempt after a truncation. Default 8000. */
+  truncatedMaxTokens?: number;
+  /** Base delay in ms for the default linear-jittered backoff. Default 500. */
+  backoffMs?: number;
+  /** Replaces the default linear-jittered backoff. */
+  backoff?: LexiconReviewBackoff;
+  /** Replaces the default sleep. Inject in tests so no test ever waits. */
+  sleep?: LexiconReviewSleep;
+  /** Called before each backoff. `null` declines the retry and rethrows the failure. */
+  onRetry?: LexiconReviewRetryHook;
 }>;
 
 /**
@@ -113,7 +193,7 @@ export type MiniMaxCandidateReviewerOptions = Readonly<{
  */
 export type MiniMaxCandidateReviewDecision = Readonly<
   CandidateReviewDecision & {
-    /** Provider / model / latency / request id (AGENTS.md §7). No prompt, no key. */
+    /** Provider / model / latency / request id / attempts (AGENTS.md §7). No prompt, no key. */
     observation: LexiconReviewObservation;
   }
 >;
@@ -124,7 +204,7 @@ export type MiniMaxCandidateReviewDecision = Readonly<
  * `.strict()` is the point: an unexpected key means the model answered a
  * different question than the one asked, and guessing which key it meant is how
  * a wrong verdict reaches the corpus. A missing key, an extra key, a wrong type
- * or an out-of-range length all throw.
+ * or an out-of-range length all throw — on every attempt, retry or not.
  */
 const decisionPayloadSchema = z
   .object({
@@ -152,27 +232,89 @@ type RequestSignal = Readonly<{
   dispose: () => void;
 }>;
 
+/** One attempt's outcome, kept so the final observation can report the whole call. */
+type AttemptResult =
+  | Readonly<{
+      ok: true;
+      decision: z.infer<typeof decisionPayloadSchema>;
+      providerRequestId: string | null;
+      stopReason: string | null;
+      responseBytes: number;
+    }>
+  | Readonly<{
+      ok: false;
+      error: MiniMaxLexiconReviewError;
+      providerRequestId: string | null;
+      stopReason: string | null;
+      responseBytes: number;
+    }>;
+
+/**
+ * Attempt limits, normalised once so the loop below reads a single number.
+ *
+ * `maxAttempts` is clamped rather than trusted: the point of the budget is that a
+ * caller cannot accidentally configure an unbounded loop over a paid endpoint. An
+ * unusable value degrades to "no retry", which is the safe direction.
+ */
+function normalizeMaxAttempts(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) return 1;
+  return Math.min(value, 5);
+}
+
 export class MiniMaxCandidateReviewer implements CandidateReviewer {
   private readonly endpoint: string;
   private readonly modelVersion: string;
   private readonly maxTokens: number;
   private readonly timeoutMs: number;
+  private readonly totalTimeoutMs: number;
+  private readonly maxAttempts: number;
+  private readonly truncatedMaxTokens: number;
+  private readonly backoff: LexiconReviewBackoff;
+  private readonly sleep: LexiconReviewSleep;
+  private readonly onRetry: LexiconReviewRetryHook | undefined;
   private readonly fetchImplementation: FetchImplementation;
   private readonly clock: Clock;
   private readonly estimateCostMicros: CostEstimator | undefined;
   private readonly observe: LexiconReviewObserver | undefined;
+  /** Attempts spent so far, across every `review()` call on this instance. */
+  private attemptsSpent = 0;
+  /** Set while the loop retries a truncation, so the next attempt asks for more. */
+  private lastFailureWasTruncated = false;
 
   constructor(private readonly options: MiniMaxCandidateReviewerOptions) {
     this.endpoint = options.endpoint ?? defaultEndpoint;
     this.modelVersion = options.modelVersion ?? defaultModelVersion;
     this.maxTokens = options.maxTokens ?? defaultMaxTokens;
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
+    // Shared by every attempt, with room for the retries to actually happen; see
+    // `totalBudgetMultiplier`. A caller who needs a tighter SLA can set it
+    // explicitly — at the cost of skipping retries near the deadline.
+    this.totalTimeoutMs = options.totalTimeoutMs ?? this.timeoutMs * totalBudgetMultiplier;
+    this.maxAttempts = normalizeMaxAttempts(options.maxAttempts ?? defaultMaxAttempts);
+    this.truncatedMaxTokens = options.truncatedMaxTokens ?? defaultTruncatedMaxTokens;
+    this.backoff = options.backoff ?? createLinearBackoff(options.backoffMs ?? defaultBackoffMs);
+    this.sleep = options.sleep ?? createSleep();
+    this.onRetry = options.onRetry;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
     this.clock = options.clock ?? Date.now;
     this.estimateCostMicros = options.estimateCostMicros;
     this.observe = options.observe;
   }
 
+  /** HTTP attempts this instance has spent, so a canary can print real cost. */
+  get attemptsUsed(): number {
+    return this.attemptsSpent;
+  }
+
+  /**
+   * Judge one dimension, with a bounded, observable retry around the call.
+   *
+   * Fail-closed is unchanged: every attempt must end in a Zod-validated,
+   * key-exact, untruncated payload whose dimension matches, and the only way out
+   * of this method with a verdict is that check having passed on some attempt.
+   * Exhausting the budget rethrows the last failure — retry never becomes "accept
+   * anyway", and the parse is identical on every attempt.
+   */
   async review(
     input: CandidateReviewRequest,
     options: Readonly<{ signal?: AbortSignal }> = {},
@@ -189,22 +331,44 @@ export class MiniMaxCandidateReviewer implements CandidateReviewer {
       );
     }
 
-    const requestSignal = createRequestSignal(options.signal, this.timeoutMs);
     const startedAt = this.clock();
+    // Scratch state for this call only: a truncation in one call must not raise
+    // the completion budget of the next one (the same instance reviews both
+    // dimensions of every candidate).
+    this.lastFailureWasTruncated = false;
+    /** Everything the single observation at the end has to report. */
+    const attemptFailures: LexiconReviewErrorCode[] = [];
+    let attempts = 0;
     let providerRequestId: string | null = null;
     let stopReason: string | null = null;
     let responseBytes = 0;
+    let outcome: LexiconReviewOutcome | null = null;
+    let finalError: MiniMaxLexiconReviewError | null = null;
     let observed = false;
+    /**
+     * Wall-clock time consumed by attempts and backoffs so far, and the clock
+     * reading taken right after the last attempt settled.
+     *
+     * Both the telemetry and the returned decision report this latency, so the two
+     * can never disagree, and timing costs exactly one clock read per attempt —
+     * the first attempt starts at `startedAt`, so a single-attempt call reads the
+     * clock twice in total, exactly as it did before retries existed.
+     */
+    let elapsedMs = 0;
+    let lastSettledAt = startedAt;
+    let attemptStartedAt = startedAt;
 
-    /** Emit telemetry exactly once per call, whatever the path. Never throws. */
-    const emit = (obs: Readonly<{ failureCode: LexiconReviewObservation["failureCode"] }>): void => {
+    /**
+     * Emit telemetry exactly once per `review()` call — never per attempt, so a
+     * sink cannot be called twice for one verdict. Never throws.
+     */
+    const emit = (): void => {
       if (observed) return;
       observed = true;
-      const latencyMs = Math.max(0, this.clock() - startedAt);
       let estimatedCostMicros: number | null = null;
       try {
         estimatedCostMicros = this.estimateCostMicros
-          ? this.estimateCostMicros({ modelVersion: this.modelVersion, responseBytes })
+          ? safeCost(this.estimateCostMicros, this.modelVersion, responseBytes)
           : null;
       } catch {
         estimatedCostMicros = null;
@@ -214,10 +378,12 @@ export class MiniMaxCandidateReviewer implements CandidateReviewer {
         modelVersion: this.modelVersion,
         dimension,
         providerRequestId,
-        latencyMs,
+        latencyMs: elapsedMs,
         estimatedCostMicros,
-        failureCode: obs.failureCode,
+        failureCode: finalError?.code ?? null,
         stopReason,
+        attempts,
+        attemptFailures: attemptFailures.slice(),
       };
       try {
         this.observe?.(observation);
@@ -225,6 +391,152 @@ export class MiniMaxCandidateReviewer implements CandidateReviewer {
         // A telemetry sink must never change a verdict in either direction.
       }
     };
+
+    try {
+      for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
+        // Cancellation is checked before every attempt, so a stop requested during
+        // a backoff never causes another call. This is also why `provider-cancelled`
+        // is not retryable: retrying it would ignore the caller.
+        if (options.signal?.aborted) {
+          throw cancelled();
+        }
+
+        const response = await this.attemptReview(
+          snapshot,
+          dimension,
+          attempt,
+          this.totalTimeoutMs - elapsedMs,
+          options.signal,
+        );
+        // One clock read per attempt: the attempt started at the reading the
+        // previous iteration settled on (or at `startedAt` for the first).
+        const settledAt = this.clock();
+        elapsedMs += Math.max(0, settledAt - attemptStartedAt);
+        lastSettledAt = settledAt;
+        attempts += 1;
+        this.attemptsSpent += 1;
+        providerRequestId = response.providerRequestId;
+        stopReason = response.stopReason ?? stopReason;
+        responseBytes = response.responseBytes;
+
+        if (response.ok) {
+          outcome = response.decision.outcome;
+          finalError = null;
+          emit();
+          return {
+            dimension,
+            outcome,
+            // Code-owned identity: never the model's claim, never a human signature.
+            reviewerReference: reviewIdentity,
+            reviewedAt: new Date(settledAt),
+            observation: {
+              provider: "minimax",
+              modelVersion: this.modelVersion,
+              dimension,
+              providerRequestId,
+              latencyMs: elapsedMs,
+              estimatedCostMicros: this.estimateCostMicros
+                ? safeCost(this.estimateCostMicros, this.modelVersion, responseBytes)
+                : null,
+              failureCode: null,
+              stopReason,
+              attempts,
+              attemptFailures: attemptFailures.slice(),
+            },
+          };
+        }
+
+        // The failure is recorded on the error itself; it joins `attemptFailures`
+        // only if a retry actually follows, so the list holds the *earlier*
+        // attempts and its length is exactly `attempts - 1` on a failure.
+        finalError = response.error;
+        this.lastFailureWasTruncated = response.error.code === "provider-response-truncated";
+
+        const attemptsRemaining = this.maxAttempts - attempt;
+        if (attemptsRemaining < 1) break;
+        // The retry decision is the error's own flag: one authority, set at the
+        // call site that knows whether the request or the answer was at fault.
+        if (!response.error.retryable) break;
+        if (options.signal?.aborted) break;
+
+        // The backoff and the next attempt both live inside the same wall-clock
+        // budget: a wait that would leave nothing to retry with is not a retry.
+        const budgetLeftMs = this.totalTimeoutMs - elapsedMs;
+        if (budgetLeftMs < minAttemptBudgetMs) break;
+
+        const delayMs = this.backoff(attemptFailures.length + 1);
+        const permittedDelayMs = this.onRetry
+          ? this.onRetry({
+              attempt,
+              code: response.error.code,
+              delayMs,
+              attemptsRemaining,
+            })
+          : delayMs;
+        if (permittedDelayMs === null) break;
+
+        // From here on another call is certain, so this attempt is an "earlier" one.
+        attemptFailures.push(response.error.code);
+
+        const waitMs = Math.min(Math.max(0, permittedDelayMs), budgetLeftMs);
+        try {
+          await this.sleep(waitMs, options.signal);
+        } catch {
+          // A cancelled wait is over immediately; nothing is left to clean up
+          // because the attempt that had a signal already disposed of it.
+          break;
+        }
+        // The wait counts against the wall-clock budget, so the next attempt
+        // cannot push the total past `totalTimeoutMs`.
+        elapsedMs += waitMs;
+        // The next attempt starts once the wait is over. It reuses the last
+        // settled reading as its start, so the sleep is not billed as attempt
+        // latency — it is carved out of the shared budget above instead.
+        attemptStartedAt = lastSettledAt;
+      }
+
+      // Budget exhausted, or the failure was not worth another call. Fail closed:
+      // the last failure is rethrown and no verdict is ever manufactured.
+      if (finalError) throw finalError;
+      // Unreachable while maxAttempts >= 1; kept because throwing here would be a
+      // silent contract change if the loop above were ever restructured.
+      throw new MiniMaxLexiconReviewError(
+        "provider-unavailable",
+        "Lexicon candidate review produced no verdict.",
+        true,
+      );
+    } finally {
+      emit();
+    }
+  }
+
+  /**
+   * One HTTP attempt. Never retries, never decides: it either returns a validated
+   * decision or the coded failure the loop above may or may not retry.
+   *
+   * `remainingMs` is the *remaining* wall-clock budget, not `timeoutMs` again —
+   * that is what keeps `maxAttempts` from multiplying the total wait — and it is
+   * additionally clamped to `timeoutMs`, which stays the per-attempt ceiling it
+   * has always been. It is passed in rather than measured here so this method
+   * reads the clock zero times: the loop owns timing, and the loop's clock reads
+   * stay countable.
+   */
+  private async attemptReview(
+    snapshot: LexiconReviewSnapshot,
+    dimension: CandidateReviewRequest["dimension"],
+    attempt: number,
+    remainingMs: number,
+    parentSignal: AbortSignal | undefined,
+  ): Promise<AttemptResult> {
+    const requestSignal = createRequestSignal(parentSignal, Math.max(1, Math.min(remainingMs, this.timeoutMs)));
+    const isRetry = attempt > 1;
+    // A truncated answer gets more room next time; the same budget would truncate
+    // the same way. Only truncation raises it, so a normal retry costs the same.
+    const budget = isRetry && this.lastFailureWasTruncated ? this.truncatedMaxTokens : this.maxTokens;
+
+    let providerRequestId: string | null = null;
+    let stopReason: string | null = null;
+    let responseBytes = 0;
 
     try {
       const response = await this.fetchImplementation(this.endpoint, {
@@ -236,7 +548,7 @@ export class MiniMaxCandidateReviewer implements CandidateReviewer {
         },
         body: JSON.stringify({
           model: this.modelVersion,
-          max_tokens: this.maxTokens,
+          max_tokens: budget,
           thinking: { type: "disabled" },
           system: systemPrompt,
           messages: [{ role: "user", content: [{ type: "text", text: buildPrompt(snapshot) }] }],
@@ -248,17 +560,19 @@ export class MiniMaxCandidateReviewer implements CandidateReviewer {
       // header, not a credential or a payload.
       providerRequestId = readRequestId(response.headers);
 
-      if (!response.ok) throw errorForResponseStatus(response.status);
+      if (!response.ok) {
+        return failure(errorForResponseStatus(response.status), providerRequestId, null, 0);
+      }
 
       let envelope: unknown;
       try {
-        envelope = await response.json();
+        envelope = await readEnvelope(response);
       } catch {
-        throw invalidResponse();
+        return failure(invalidResponse(), providerRequestId, null, 0);
       }
 
       const parsedResponse = anthropicResponseSchema.safeParse(envelope);
-      if (!parsedResponse.success) throw invalidResponse();
+      if (!parsedResponse.success) return failure(invalidResponse(), providerRequestId, null, 0);
       stopReason = parsedResponse.data.stop_reason ?? null;
 
       const text = parsedResponse.data.content
@@ -267,79 +581,87 @@ export class MiniMaxCandidateReviewer implements CandidateReviewer {
         .join("\n")
         .trim();
       responseBytes = text.length;
-      if (!text) throw invalidResponse();
+      if (!text) return failure(invalidResponse(), providerRequestId, stopReason, responseBytes);
 
       // Truncation is checked before the parse: a mid-JSON cut must be reported
       // as "too long", never as "wrong format".
-      if (stopReason === "max_tokens") throw truncatedResponse();
+      if (stopReason === "max_tokens") {
+        return failure(truncatedResponse(), providerRequestId, stopReason, responseBytes);
+      }
 
-      const decision = parseDecisionPayload(text);
+      let decision: z.infer<typeof decisionPayloadSchema>;
+      try {
+        decision = parseDecisionPayload(text);
+      } catch (error) {
+        if (error instanceof MiniMaxLexiconReviewError) {
+          return failure(error, providerRequestId, stopReason, responseBytes);
+        }
+        return failure(invalidResponse(), providerRequestId, stopReason, responseBytes);
+      }
 
       if (decision.dimension !== dimension) {
-        throw new MiniMaxLexiconReviewError(
-          "provider-response-invalid",
-          `Lexicon review answered the "${decision.dimension}" dimension when "${dimension}" was requested.`,
-          false,
+        // Another dimension's answer is a wrong answer, and it is worth one more
+        // call: the model drifted, the request itself was fine.
+        return failure(
+          new MiniMaxLexiconReviewError(
+            "provider-response-invalid",
+            `Lexicon review answered the "${decision.dimension}" dimension when "${dimension}" was requested.`,
+            true,
+          ),
+          providerRequestId,
+          stopReason,
+          responseBytes,
         );
       }
 
-      const outcome: LexiconReviewOutcome = decision.outcome;
-      emit({ failureCode: null });
-
-      return {
-        dimension,
-        outcome,
-        // Code-owned identity: never the model's claim, never a human signature.
-        reviewerReference: reviewIdentity,
-        reviewedAt: new Date(this.clock()),
-        observation: {
-          provider: "minimax",
-          modelVersion: this.modelVersion,
-          dimension,
-          providerRequestId,
-          latencyMs: Math.max(0, this.clock() - startedAt),
-          estimatedCostMicros: this.estimateCostMicros
-            ? safeCost(this.estimateCostMicros, this.modelVersion, responseBytes)
-            : null,
-          failureCode: null,
-          stopReason,
-        },
-      };
+      return { ok: true, decision, providerRequestId, stopReason, responseBytes };
     } catch (error) {
-      // Fail-closed: whatever went wrong, the caller gets an error and no verdict.
       if (error instanceof MiniMaxLexiconReviewError) {
-        emit({ failureCode: error.code });
-        throw error;
+        return failure(error, providerRequestId, stopReason, responseBytes);
       }
       if (requestSignal.timedOut()) {
-        const timeout = new MiniMaxLexiconReviewError(
-          "provider-timeout",
-          "Lexicon candidate review timed out.",
-          true,
+        return failure(
+          new MiniMaxLexiconReviewError("provider-timeout", "Lexicon candidate review timed out.", true),
+          providerRequestId,
+          stopReason,
+          responseBytes,
         );
-        emit({ failureCode: timeout.code });
-        throw timeout;
       }
       if (requestSignal.signal.aborted) {
-        const cancelled = new MiniMaxLexiconReviewError(
-          "provider-cancelled",
-          "Lexicon candidate review was cancelled.",
-          false,
-        );
-        emit({ failureCode: cancelled.code });
-        throw cancelled;
+        return failure(cancelled(), providerRequestId, stopReason, responseBytes);
       }
-      const unavailable = new MiniMaxLexiconReviewError(
-        "provider-unavailable",
-        "Lexicon candidate review provider is temporarily unavailable.",
-        true,
+      return failure(
+        new MiniMaxLexiconReviewError(
+          "provider-unavailable",
+          "Lexicon candidate review provider is temporarily unavailable.",
+          true,
+        ),
+        providerRequestId,
+        stopReason,
+        responseBytes,
       );
-      emit({ failureCode: unavailable.code });
-      throw unavailable;
     } finally {
       requestSignal.dispose();
     }
   }
+}
+
+/** Wrap a coded failure in the loop's result shape. */
+function failure(
+  error: MiniMaxLexiconReviewError,
+  providerRequestId: string | null,
+  stopReason: string | null,
+  responseBytes: number,
+): AttemptResult {
+  return { ok: false, error, providerRequestId, stopReason, responseBytes };
+}
+
+function cancelled(): MiniMaxLexiconReviewError {
+  return new MiniMaxLexiconReviewError(
+    "provider-cancelled",
+    "Lexicon candidate review was cancelled.",
+    false,
+  );
 }
 
 export function createMiniMaxCandidateReviewer(
@@ -395,7 +717,7 @@ const systemPrompt = [
   "Every key must be present on every response, including issues when it is empty.",
   "The exact shape, for dimension content-es-ES, is: " +
     '{"outcome":"pass","dimension":"content-es-ES","languageVerdict":"The surface form occurs in the context and is used as a noun.","teachingVerdict":"The Chinese explanation matches the Spanish meaning.","reason":"The candidate form, part of speech and explanation are all supported by the frozen context.","evidence":["... un terremoto de magnitud 7.2 ..."],"issues":[]}',
-  'The exact shape, for dimension teaching-zh-CN, is: ' +
+  "The exact shape, for dimension teaching-zh-CN, is: " +
     '{"outcome":"fail","dimension":"teaching-zh-CN","languageVerdict":"The Spanish form is used correctly as a noun.","teachingVerdict":"The Chinese explanation omits part of the meaning.","reason":"The explanation is incomplete against the Spanish, so a learner would be misled.","evidence":["meaningZh: 地震"],"issues":["The explanation does not cover the magnitude phrase."]}',
 ].join(" ");
 
@@ -514,6 +836,24 @@ function invalidResponse(detail?: Readonly<{ keys?: readonly string[]; lengths?:
   return new MiniMaxLexiconReviewError(
     "provider-response-invalid",
     `Lexicon review response did not match the expected format.${parts.length ? ` ${parts.join(" ")}` : ""}`,
+    // Retryable: this is the model drifting, not the request being wrong. The same
+    // frozen candidate usually comes back schema-clean on the next call, and the
+    // parse rules are not relaxed to make that happen.
+    true,
+  );
+}
+
+/**
+ * The vendor refused the request itself with a 4xx.
+ *
+ * Same code as a schema mismatch — the wire contract was not what this adapter
+ * expected — but explicitly **not** retryable: the same request fails the same
+ * way, so a second call only spends quota to learn that again.
+ */
+function requestRejected(status: number): MiniMaxLexiconReviewError {
+  return new MiniMaxLexiconReviewError(
+    "provider-response-invalid",
+    `Lexicon review request was rejected by the provider (HTTP ${status}).`,
     false,
   );
 }
@@ -553,12 +893,40 @@ function errorForResponseStatus(status: number): MiniMaxLexiconReviewError {
     return new MiniMaxLexiconReviewError("provider-auth-failed", "Lexicon review authentication failed.", false);
   }
   if (status === 429) {
-    return new MiniMaxLexiconReviewError("provider-rate-limited", "Lexicon review rate limit was reached.", true);
+    // Explicitly not retryable inside this call. The vendor asked us to slow
+    // down; hammering it again from the same call makes that worse, and pausing
+    // is the calling pipeline's decision (it owns the run's schedule), not this
+    // adapter's. The error still surfaces unchanged either way.
+    return new MiniMaxLexiconReviewError("provider-rate-limited", "Lexicon review rate limit was reached.", false);
   }
   if (status >= 500) {
     return new MiniMaxLexiconReviewError("provider-unavailable", "Lexicon review provider is unavailable.", true);
   }
-  return invalidResponse();
+  return requestRejected(status);
+}
+
+/**
+ * Parse the JSON body of a successful response.
+ *
+ * Reads a **clone** when it can, leaving the original untouched. A `Response` body
+ * can only be consumed once, and a retry loop asks its fetch seam for a body more
+ * than once; a seam that hands back the same object (a single stubbed `Response`
+ * in a test, a cached upstream response) would otherwise fail every retry with
+ * "Body is already read" — which would look like a provider failure and spend the
+ * retry on the wrong cause. Cloning keeps repeat reads possible without weakening
+ * anything: the clone is parsed by exactly the same code.
+ *
+ * The fallback matters for the public seam: a caller may inject any
+ * `(input, init) => Promise<Response>`, and an exotic implementation can refuse
+ * `clone()`. In that case the original is read directly, which is the older
+ * behaviour and still correct for a one-shot body.
+ */
+async function readEnvelope(response: Response): Promise<unknown> {
+  try {
+    return await response.clone().json();
+  } catch {
+    return await response.json();
+  }
 }
 
 function safeCost(
@@ -576,8 +944,8 @@ function safeCost(
 
 /**
  * One signal for the call: the caller's cancellation, plus this adapter's own
- * timeout. Mirrors `createRequestSignal` in the extraction adapter so the two
- * behave identically under abort.
+ * timeout for the current attempt. Mirrors `createRequestSignal` in the
+ * extraction adapter so the two behave identically under abort.
  */
 function createRequestSignal(parentSignal: AbortSignal | undefined, timeoutMs: number): RequestSignal {
   const controller = new AbortController();
