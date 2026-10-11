@@ -183,6 +183,35 @@ describe("public home", () => {
     expect(transcript?.textContent).toMatch(/这次冒险就要结束了/);
   });
 
+  it("proves two capability cards with a real screen", () => {
+    const { container } = render(<PublicHomeExperience />);
+    const disclosures = [...container.querySelectorAll(".landing-card__more")];
+
+    expect(disclosures).toHaveLength(2);
+    for (const disclosure of disclosures) {
+      // Closed by default: the grid stays a grid until somebody asks.
+      expect(disclosure).not.toHaveAttribute("open");
+      expect(disclosure.querySelector("summary")?.textContent?.trim()).toBe("看真实界面");
+
+      const image = disclosure.querySelector("img");
+      expect(image).not.toBeNull();
+      const src = image?.getAttribute("src") ?? "";
+      expect(src).toMatch(/^\/public-home\/capability-[a-z]+\.webp$/);
+      expect(image?.getAttribute("alt")?.length ?? 0).toBeGreaterThan(10);
+      // Lazy: nothing is fetched until the disclosure is opened.
+      expect(image).toHaveAttribute("loading", "lazy");
+      expect(image).toHaveAttribute("width", "900");
+      expect(image).toHaveAttribute("height", "586");
+
+      const file = path.join(process.cwd(), "public", src.replace(/^\//, ""));
+      expect(existsSync(file), `${src} must exist under public/`).toBe(true);
+      expect(statSync(file).size, `${src} must be a real screenshot`).toBeGreaterThan(5_000);
+    }
+
+    // The vocabulary card names the shelf size its screenshot shows.
+    expect(container.querySelector(".landing-cards")?.textContent).toMatch(/7,922/);
+  });
+
   it("lists the capabilities as small cards with icons", () => {
     const { container } = render(<PublicHomeExperience />);
     const cards = [...container.querySelectorAll(".landing-card")];

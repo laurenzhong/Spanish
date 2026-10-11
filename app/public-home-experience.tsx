@@ -25,11 +25,31 @@ const demo = {
   poster: "/public-home/midnight-sun-kiruna-poster.webp",
 };
 
-const capabilities = [
+type Capability = Readonly<{
+  title: string;
+  detail: string;
+  icon: "library" | "captions" | "word" | "mic" | "chart" | "shield";
+  /**
+   * A real screenshot of the surface this card claims, shown only when the
+   * visitor asks for it. Two cards carry one: they are the claims a picture
+   * settles better than a sentence, and the rest stay text so the grid does
+   * not turn into a gallery.
+   */
+  shot?: Readonly<{ src: string; width: number; height: number; alt: string; caption: string }>;
+}>;
+
+const capabilities: readonly Capability[] = [
   {
     title: "打开就是资料库",
     detail: "白名单来源每天增量发现，审核通过才发布；“学习”打开直接是视频和播客。",
     icon: "library",
+    shot: {
+      src: "/public-home/capability-library.webp",
+      width: 900,
+      height: 586,
+      alt: "媒体资料库桌面端截图：搜索框、全部/视频/播客分类，以及带时长与难度的内容卡片网格",
+      caption: "桌面端资料库：已发布内容按最近收录排列，卡片本身就是入口。",
+    },
   },
   {
     title: "逐句字幕跟随",
@@ -38,8 +58,15 @@ const capabilities = [
   },
   {
     title: "生词就地回看",
-    detail: "播放中直接查词、存词，词语保留它出现的那句话。",
+    detail: "播放中直接查词、存词；查过的词落在一张按参考词频排列的 7,922 词架上。",
     icon: "word",
+    shot: {
+      src: "/public-home/capability-vocabulary.webp",
+      width: 900,
+      height: 586,
+      alt: "词汇页截图：搜索框、按参考词频排序的词条网格，以及右侧的名次轨",
+      caption: "词汇页：7,922 个词条按参考词频排序，右侧是名次轨。",
+    },
   },
   {
     title: "说完再纠正",
@@ -56,9 +83,9 @@ const capabilities = [
     detail: "和 Lucía 的记忆默认只属于这段关系，允许时才共享。",
     icon: "shield",
   },
-] as const;
+];
 
-function CapabilityIcon({ name }: Readonly<{ name: (typeof capabilities)[number]["icon"] }>) {
+function CapabilityIcon({ name }: Readonly<{ name: Capability["icon"] }>) {
   const common = {
     viewBox: "0 0 24 24",
     fill: "none",
@@ -144,6 +171,21 @@ export default function PublicHomeExperience() {
                 <span className="landing-card__icon"><CapabilityIcon name={capability.icon} /></span>
                 <h3>{capability.title}</h3>
                 <p>{capability.detail}</p>
+                {capability.shot ? (
+                  <details className="landing-card__more">
+                    <summary>看真实界面</summary>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- a pre-sized static WebP, below the fold and lazy, so the image optimiser would only add a round trip */}
+                    <img
+                      src={capability.shot.src}
+                      alt={capability.shot.alt}
+                      width={capability.shot.width}
+                      height={capability.shot.height}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <p className="landing-card__caption">{capability.shot.caption}</p>
+                  </details>
+                ) : null}
               </li>
             ))}
           </ul>
