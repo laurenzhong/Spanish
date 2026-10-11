@@ -5,6 +5,7 @@ import type {
   HostedVideoAsset,
   AcquiredVideoRepository,
 } from "../repositories";
+import type { MediaArtwork } from "../domain";
 
 export function publishAcquiredVideo(repository: AcquiredVideoRepository, input: Readonly<{
   candidateId: string;
@@ -12,6 +13,7 @@ export function publishAcquiredVideo(repository: AcquiredVideoRepository, input:
   contentHash: string;
   draft: AcquiredVideoDraft;
   hostedAsset: HostedVideoAsset;
+  artworkOverride?: MediaArtwork | null;
   reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
   publishedAt: Date;
 }>): Promise<AcquiredMediaPublication> {

@@ -11,6 +11,7 @@ describe("segment transcript playback highlighting", () => {
       activeIndex={0}
       captionMode="es"
       currentPositionMs={500}
+      follow
       mediaKind="video"
       onSeek={vi.fn()}
       onWord={vi.fn()}

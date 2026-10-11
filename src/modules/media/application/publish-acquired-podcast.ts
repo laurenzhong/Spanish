@@ -4,12 +4,14 @@ import type {
   AcquiredPodcastDraft,
   AcquiredPodcastRepository,
 } from "../repositories";
+import type { MediaArtwork } from "../domain";
 
 export function publishAcquiredPodcast(repository: AcquiredPodcastRepository, input: Readonly<{
   candidateId: string;
   candidateRevision: number;
   contentHash: string;
   draft: AcquiredPodcastDraft;
+  artworkOverride?: MediaArtwork | null;
   reviews: readonly [AcquiredMediaReview, AcquiredMediaReview];
   publishedAt: Date;
 }>): Promise<AcquiredMediaPublication> {
