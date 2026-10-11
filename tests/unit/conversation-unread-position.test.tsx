@@ -110,13 +110,21 @@ describe("conversation read acknowledgement", () => {
     // pixel magic numbers tied to the width of the whole navigation link.
     expect(css).toContain(".navigation-icon {\n  position: relative;");
     expect(css).toContain(".desktop-navigation__icon {\n    position: relative;");
-    expect(base).toContain("inset-block-start: -6px");
+    expect(base).toContain("inset-block-start: -3px");
     expect(base).toContain("inset-inline-end: -9px");
+    // A 20px box with a 1.5px ring paints an 18px red disc for one digit, and a
+    // "99+" label grows the same box into a pill. Note there is deliberately no
+    // `aspect-ratio` here: stacking it on the padded box also squashed the
+    // three-character label (the text escaped the circle), which is worse than
+    // the oval it was meant to fix.
+    expect(base).toContain("min-width: 20px");
+    expect(base).toContain("border: 1.5px solid var(--surface, #fff)");
+    expect(base).not.toContain("aspect-ratio");
     // Wide desktop rail: same visual relationship as the phone — the fill bites
     // into the icon's top-right corner by roughly the same share of the glyph
     // width (measured at 1440px).
-    expect(css).toContain(".desktop-navigation__link .navigation-unread-count { inset-block-start: -8px; inset-inline-end: -7px;");
-    expect(css).toContain('.desktop-navigation__link .navigation-unread-count { inset-inline-end: -10px; }');
+    expect(css).toContain(".desktop-navigation__link .navigation-unread-count { inset-block-start: -5px; inset-inline-end: -7px;");
+    expect(css).toContain('.desktop-navigation__link .navigation-unread-count { inset-block-start: -3px; inset-inline-end: -10px; }');
   });
 
   it("draws both unread badges from the notification tokens instead of hardcoded red", () => {
