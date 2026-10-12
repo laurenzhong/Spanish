@@ -48,6 +48,36 @@ export function referenceListForms(): ReadonlySet<string> {
 }
 
 /**
+ * Read the learner-facing glosses out of the Language Reactor meaning asset.
+ *
+ * Pure and total: anything that is not the documented `{ meanings: { word: [..] } }`
+ * shape yields an empty map, so a missing or malformed asset makes this source
+ * propose candidates *without* glosses — which the teaching dimension then fails
+ * visibly — rather than crashing the run or inventing a meaning.
+ *
+ * Keys are **folded** (`normalizeSpanishSurface`), because the asset is keyed by
+ * the reference list's own spelling while a candidate's surface is whatever the
+ * segment contains: `Casi` in a sentence has to find `casi` in the asset.
+ *
+ * Only the first gloss is used. The asset holds up to three and a candidate
+ * carries one `meaningZh` — the same one the shelf's tile leads with, so the
+ * entry and the shelf cannot disagree about which meaning leads.
+ */
+export function parseReferenceMeanings(asset: unknown): ReadonlyMap<string, string> {
+  const meanings = new Map<string, string>();
+  if (!asset || typeof asset !== "object") return meanings;
+  const table = (asset as { meanings?: unknown }).meanings;
+  if (!table || typeof table !== "object" || Array.isArray(table)) return meanings;
+  for (const [word, value] of Object.entries(table as Record<string, unknown>)) {
+    if (!Array.isArray(value)) continue;
+    const first = value.find((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+    if (!first) continue;
+    meanings.set(normalizeSpanishSurface(word), first.trim());
+  }
+  return meanings;
+}
+
+/**
  * Propose the reference-list forms that occur in this run's segments.
  *
  * One proposal per (form, segment) pair, in segment order, capped by
@@ -58,10 +88,21 @@ export function referenceListForms(): ReadonlySet<string> {
  * `confidence` is 1 for a reason that is not a model judgement: the form was
  * found as a token of the segment, which is a fact, not an estimate. It is
  * informational and never a publication gate.
+ *
+ * `meanings` supplies the Chinese gloss the teaching dimension judges. Without
+ * it every candidate fails that dimension for a missing field — measured: 13 of
+ * 13 candidates failed with `meaningZh is null` while 13 of 13 passed the Spanish
+ * dimension — which is why the runner reads the Language Reactor asset and passes
+ * it in, at no vendor cost.
  */
 export function createReferenceListCandidateProvider(
-  forms: ReadonlySet<string> = referenceListForms(),
+  options: Readonly<{
+    forms?: ReadonlySet<string>;
+    meanings?: ReadonlyMap<string, string>;
+  }> = {},
 ): LexemeCandidateProvider {
+  const forms = options.forms ?? referenceListForms();
+  const meanings = options.meanings ?? new Map<string, string>();
   return {
     async extractCandidates(input: LexiconExtractionInput): Promise<LexiconExtractionResult> {
       const proposals: LexiconCandidateProposal[] = [];
@@ -79,7 +120,7 @@ export function createReferenceListCandidateProvider(
             normalizedText: normalized,
             lemma: null,
             partOfSpeech: null,
-            meaningZh: null,
+            meaningZh: meanings.get(normalized) ?? null,
             segmentIndex: segment.segmentIndex,
             confidence: 1,
           });

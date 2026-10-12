@@ -31,6 +31,9 @@
 import { and, asc, eq, inArray, notExists, sql } from "drizzle-orm";
 import { config as loadDotEnv } from "dotenv";
 
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { createDatabaseConnection } from "../src/shared/db/client";
 import * as schema from "../src/shared/db/schema";
 import { runLexiconIndexingPipeline, type LexiconIndexingSegment } from "../src/modules/lexicon-corpus/application/lexicon-indexing-pipeline";
@@ -38,6 +41,29 @@ import { createDrizzleLexiconCandidateRepository } from "../src/modules/lexicon-
 import { createDrizzleLexiconCorpusRepository } from "../src/modules/lexicon-corpus/repositories/drizzle-lexicon-corpus-repository";
 
 loadDotEnv({ quiet: true });
+
+const MEANING_ASSET_PATH = path.join(process.cwd(), "content", "word-lists", "es-meanings-v1.json");
+
+/**
+ * The learner-facing glosses, read from the Language Reactor asset.
+ *
+ * Read-only, and an absent asset is not an error: the run then proposes
+ * candidates without glosses, which the teaching dimension fails for a missing
+ * field. That is visible in the report rather than silently tolerated.
+ */
+async function loadReferenceMeanings(): Promise<ReadonlyMap<string, string>> {
+  try {
+    const { parseReferenceMeanings } = await import(
+      "../src/modules/lexicon-corpus/application/reference-list-candidate-provider"
+    );
+    const parsed = parseReferenceMeanings(JSON.parse(await readFile(MEANING_ASSET_PATH, "utf8")));
+    console.log(`  glosses from asset  ${parsed.size}`);
+    return parsed;
+  } catch (error) {
+    console.log(`  glosses from asset  0 (no asset: ${String(error).slice(0, 70)})`);
+    return new Map();
+  }
+}
 
 const args = process.argv.slice(2);
 const readNumber = (name: string, fallback: number): number => {
@@ -113,7 +139,10 @@ async function chooseArticles(limit: number): Promise<readonly { stableKey: stri
       ),
     ))
     .orderBy(asc(schema.articles.stableKey))
-    .limit(limit * 5);
+    // Wide enough that a batch run finds fresh documents even after several runs
+    // have consumed the alphabetically first ones — the skip loop below is what
+    // decides, this is only how far ahead it may look.
+    .limit(limit * 40);
 
   const chosen: { stableKey: string; versionId: string; version: number; title: string }[] = [];
   for (const row of rows) {
@@ -172,7 +201,7 @@ async function runDocument(article: { stableKey: string; versionId: string; vers
     "../src/modules/lexicon-corpus/application/reference-list-candidate-provider"
   );
   const provider = source === "reference"
-    ? createReferenceListCandidateProvider()
+    ? createReferenceListCandidateProvider({ meanings: await loadReferenceMeanings() })
     : createMiniMaxLexiconExtractionProvider();
   const reviewer = createMiniMaxCandidateReviewer();
 
