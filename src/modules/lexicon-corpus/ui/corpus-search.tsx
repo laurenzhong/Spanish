@@ -17,6 +17,7 @@ type CorpusItem = Readonly<{
   sourceKind: string;
   entryKind?: EntryKind;
   entryId?: string;
+  isContentDiscovery?: boolean;
   document: Readonly<{ kind: "article" | "media"; stableKey: string; version: number }>;
   location: SourcePosition;
 }>;
@@ -32,6 +33,7 @@ type CorpusCluster = Readonly<{
   pragmaticPurpose: string | null;
   contexts: readonly CorpusClusterContext[];
   contentKinds: readonly ContentKind[];
+  isContentDiscovery?: boolean;
 }>;
 type CorpusBrowseResponse = Readonly<{ items: readonly CorpusCluster[]; page: number; pageSize: number; total: number }>;
 
@@ -134,7 +136,7 @@ function filterParams(state: SearchState, page: number, pageSize: number): URLSe
 function ContextCard({ item }: Readonly<{ item: CorpusItem }>) {
   return <article className="corpus-context">
     <p className="corpus-result__context"><span>{item.leftContext}{item.leftContext ? " " : ""}</span><mark>{item.keyword}</mark><span>{item.rightContext ? ` ${item.rightContext}` : ""}</span></p>
-    <div className="corpus-result__meta"><span>{item.sourceTitle}</span><span>{item.document.kind === "article" ? "文章" : "媒体"}</span><span>{locationLabel(item.location)}</span><a href={contentSourceHref(item.document, item.location)}>打开来源</a>{item.entryKind && item.entryId ? <Link href={item.entryKind === "phrase" ? `/read/phrases?search=${encodeURIComponent(item.keyword)}` : `/read/vocabulary?search=${encodeURIComponent(item.keyword)}`}>{item.entryKind === "phrase" ? "查看短语条目" : "查看词条"}</Link> : null}</div>
+    <div className="corpus-result__meta"><span>{item.sourceTitle}</span><span>{item.document.kind === "article" ? "文章" : "媒体"}</span><span>{locationLabel(item.location)}</span><a href={contentSourceHref(item.document, item.location)}>打开来源</a>{item.entryKind && item.entryId && !item.isContentDiscovery ? <Link href={item.entryKind === "phrase" ? `/read/phrases?search=${encodeURIComponent(item.keyword)}` : `/read/vocabulary?search=${encodeURIComponent(item.keyword)}`}>{item.entryKind === "phrase" ? "查看短语条目" : "查看词条"}</Link> : null}</div>
   </article>;
 }
 
@@ -154,7 +156,7 @@ function ClusterCard({ cluster }: Readonly<{ cluster: CorpusCluster }>) {
         </section>;
       })}
     </div>
-    <footer className="corpus-cluster__footer"><Link href={`/read/corpus?entryKind=phrase&entryId=${encodeURIComponent(cluster.entryId)}`}>查看这个短语的全部用例</Link><Link href={`/read/phrases?search=${encodeURIComponent(cluster.expression)}`}>查看短语卡</Link></footer>
+    <footer className="corpus-cluster__footer">{cluster.isContentDiscovery ? <span>内容发现片段 · 打开每条来源查看完整上下文</span> : <><Link href={`/read/corpus?entryKind=phrase&entryId=${encodeURIComponent(cluster.entryId)}`}>查看这个短语的全部用例</Link><Link href={`/read/phrases?search=${encodeURIComponent(cluster.expression)}`}>查看短语卡</Link></>}</footer>
   </article>;
 }
 

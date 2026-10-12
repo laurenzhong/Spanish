@@ -64,9 +64,11 @@ export function PhraseLibrary({ items, total = items.length, filtered = false, u
         <p className="lexicon-representative__context"><span>{item.representativeOccurrence.leftContext}</span>{item.representativeOccurrence.leftContext ? " " : null}<mark>{item.representativeOccurrence.keyword}</mark>{item.representativeOccurrence.rightContext ? " " : null}<span>{item.representativeOccurrence.rightContext}</span></p>
         <div className="lexicon-representative__source"><span>{item.representativeOccurrence.sourceTitle}</span><span>{item.representativeOccurrence.document.kind === "article" ? "文章" : "媒体"} · {locationLabel(item.representativeOccurrence)}</span><a href={contentSourceHref(item.representativeOccurrence.document, item.representativeOccurrence.location)}>打开来源</a></div>
       </div> : <div className="lexicon-representative lexicon-representative--empty" aria-label={`${item.expression} 代表例句`}><p>暂无可见代表例句</p></div>}
-      <div className="lexicon-entry__links"><Link href={`/read/corpus?entryKind=phrase&entryId=${encodeURIComponent(item.id)}`}>在语料中查看全部用例</Link></div>
-      <LexiconOccurrences entryId={item.id} entryKind="phrase" label={item.expression} occurrenceCount={item.occurrenceCount} />
-      <div className="lexicon-intent-actions" aria-label={`${item.expression} 复习意图`}>{intents.map(([intent, label]) => <button key={intent} type="button" aria-pressed={item.intent === intent} disabled={busy === item.id} onClick={() => void update(item, intent)}>{label}</button>)}</div>
+      <div className="lexicon-entry__links">{item.isContentDiscovery ? <span className="lexicon-entry__discovery-note">来自已发布内容，可直接打开原文</span> : <Link href={`/read/corpus?entryKind=phrase&entryId=${encodeURIComponent(item.id)}`}>在语料中查看全部用例</Link>}</div>
+      {!item.isContentDiscovery ? <>
+        <LexiconOccurrences entryId={item.id} entryKind="phrase" label={item.expression} occurrenceCount={item.occurrenceCount} />
+        <div className="lexicon-intent-actions" aria-label={`${item.expression} 复习意图`}>{intents.map(([intent, label]) => <button key={intent} type="button" aria-pressed={item.intent === intent} disabled={busy === item.id} onClick={() => void update(item, intent)}>{label}</button>)}</div>
+      </> : null}
     </article>)}</div>
   </section>;
 }

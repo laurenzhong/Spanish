@@ -50,6 +50,8 @@ export type PhraseItem = Readonly<{
   representativeOccurrence: PhraseOccurrence | null;
   intent: LexicalIntent | null;
   revision: number;
+  /** True when this card is a read-only projection of published content, not a reviewed phrase entry. */
+  isContentDiscovery?: boolean;
 }>;
 
 export type PhraseOccurrence = KwicResult & Readonly<{
@@ -77,6 +79,7 @@ export type CorpusItem = KwicResult & Readonly<{
   entryKind: "lexeme" | "phrase";
   entryId: string;
   surfaceText: string;
+  isContentDiscovery?: boolean;
 }>;
 
 export type CorpusContentKind = "article" | "video" | "podcast";
@@ -93,6 +96,8 @@ export type CorpusCluster = Readonly<{
   pragmaticPurpose: string | null;
   contexts: readonly CorpusClusterContext[];
   contentKinds: readonly CorpusContentKind[];
+  /** True when this cluster is derived directly from published content. */
+  isContentDiscovery?: boolean;
 }>;
 
 export type CorpusBrowseQuery = Readonly<{

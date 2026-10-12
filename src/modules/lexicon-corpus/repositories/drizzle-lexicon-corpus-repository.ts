@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
-import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type SourcePosition } from "../domain";
+import { buildKwic, discoveryContext, evaluateLexicalAnswer, buildLexicalEvidenceDraft, extractContentExpression, extractContentExpressions, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type ContentDiscoveryExpression, type ContentDiscoverySegment, type SourcePosition } from "../domain";
 import { searchContentFrequencyWords } from "../domain/frequency-word-list";
 import { FREQUENCY_CONTEXT_EDGE_CHARS, FREQUENCY_CONTEXT_MAX_CHARS, loadFormFrequencyRows, type FormFrequencyRow } from "./corpus-form-frequency";
 import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
@@ -9,9 +9,97 @@ import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
 import { normalizeLexeme } from "../domain";
 import type { LexicalIntent, LexicalIntentFilter } from "../schemas/lexicon";
-import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusBrowseQuery, CorpusCluster, CorpusClusterContext, CorpusExample, CorpusItem, CorpusQuery, LexiconCorpusRepository, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
+import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusBrowseQuery, CorpusCluster, CorpusClusterContext, CorpusExample, CorpusItem, CorpusQuery, LexiconCorpusRepository, PagedResult, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
+import type { PhraseQuery } from "../schemas/lexicon";
 
 const FREQUENCY_TTL_MS = 10 * 60 * 1_000;
+// The discovery path is a bounded read-through for databases that have
+// published content but have not finished the reviewed lexicon indexing job.
+// It must paint quickly; the formal phrase index remains the source of truth
+// once it has rows.
+const CONTENT_DISCOVERY_SEGMENT_LIMIT = 600;
+
+type DiscoveryFilters = Readonly<{ documentKind?: "article" | "media"; contentKind?: "article" | "video" | "podcast" }>;
+
+function discoverySourcePosition(segment: ContentDiscoverySegment): SourcePosition {
+  return segment.documentKind === "article"
+    ? { kind: "text", paragraphId: String(segment.segmentIndex), segmentIndex: segment.segmentIndex }
+    : { kind: "media", startMs: 0, endMs: 1, segmentIndex: segment.segmentIndex };
+}
+
+function discoveryId(normalizedExpression: string, segment: ContentDiscoverySegment): string {
+  return `content:${segment.documentKind}:${segment.documentStableKey}:${segment.documentVersion}:${segment.segmentIndex}:${normalizedExpression}`;
+}
+
+function discoveryExpressionMatches(expression: ContentDiscoveryExpression, query: string | undefined): boolean {
+  const tokens = normalizeCorpusQuery(query ?? "");
+  if (tokens.length === 0) return true;
+  const haystack = expression.normalizedExpression.split(" ");
+  return tokens.every((token, index) => haystack[index] === token);
+}
+
+function toDiscoveryContext(expression: ContentDiscoveryExpression): CorpusClusterContext {
+  const context = discoveryContext(expression);
+  const segment = expression.segment;
+  const position = discoverySourcePosition(segment);
+  return {
+    ...buildKwic({
+      surfaceText: expression.expression,
+      contextBefore: context.contextBefore,
+      contextAfter: context.contextAfter,
+      sourceTitle: segment.sourceTitle,
+      sourceKind: segment.sourceKind,
+      documentKind: segment.documentKind,
+      documentStableKey: segment.documentStableKey,
+      documentVersion: segment.documentVersion,
+      sourcePosition: position,
+    }),
+    entryKind: "phrase",
+    entryId: discoveryId(expression.normalizedExpression, segment),
+    surfaceText: expression.expression,
+    contentKind: segment.contentKind,
+    isContentDiscovery: true,
+  };
+}
+
+function toDiscoveryPhrase(expression: ContentDiscoveryExpression): PhraseItem {
+  const context = discoveryContext(expression);
+  const segment = expression.segment;
+  const position = discoverySourcePosition(segment);
+  const id = discoveryId(expression.normalizedExpression, segment);
+  return {
+    id,
+    expression: expression.expression,
+    normalizedExpression: expression.normalizedExpression,
+    scope: "public",
+    meaningZh: null,
+    pragmaticPurpose: null,
+    register: null,
+    region: null,
+    cefr: null,
+    variants: [],
+    occurrenceCount: 1,
+    representativeOccurrence: {
+      ...buildKwic({
+        surfaceText: expression.expression,
+        contextBefore: context.contextBefore,
+        contextAfter: context.contextAfter,
+        sourceTitle: segment.sourceTitle,
+        sourceKind: segment.sourceKind,
+        documentKind: segment.documentKind,
+        documentStableKey: segment.documentStableKey,
+        documentVersion: segment.documentVersion,
+        sourcePosition: position,
+      }),
+      entryKind: "phrase",
+      entryId: id,
+      surfaceText: expression.expression,
+    },
+    intent: null,
+    revision: 1,
+    isContentDiscovery: true,
+  };
+}
 
 // The frequency shelf shows one usage line per word form. Contexts are clipped
 // around the form itself so a detail panel can never render an unbounded
@@ -366,6 +454,124 @@ function phraseVisibility(userId: string | undefined) {
     : and(isNull(schema.phraseEntries.ownerUserId), eq(schema.phraseEntries.reviewStatus, "approved"));
 }
 
+async function listPublishedContentSegments(database: Database, filters: DiscoveryFilters = {}): Promise<readonly ContentDiscoverySegment[]> {
+  const mediaKinds = filters.contentKind && filters.contentKind !== "article" ? [filters.contentKind] : ["video", "podcast"] as const;
+  const mediaRows = filters.documentKind === "article" ? [] : (await Promise.all(
+    mediaKinds.map((kind) => database.select({
+    contentKind: schema.mediaItems.kind,
+    documentStableKey: schema.mediaItems.stableKey,
+    documentVersion: schema.mediaVersions.version,
+    sourceText: schema.mediaSegments.sourceText,
+    segmentIndex: schema.mediaSegments.segmentIndex,
+    sourceTitle: schema.mediaVersions.title,
+    sourceKind: schema.mediaVersions.sourceName,
+    publishedAt: schema.mediaVersions.publishedAt,
+  })
+    .from(schema.mediaSegments)
+    .innerJoin(schema.mediaVersions, eq(schema.mediaSegments.mediaVersionId, schema.mediaVersions.id))
+    .innerJoin(schema.mediaItems, eq(schema.mediaVersions.mediaItemId, schema.mediaItems.id))
+    .where(and(
+      eq(schema.mediaSegments.reviewStatus, "approved"),
+      eq(schema.mediaVersions.status, "published"),
+      eq(schema.mediaVersions.copyrightStatus, "cleared"),
+      eq(schema.mediaItems.kind, kind),
+    ))
+      .limit(CONTENT_DISCOVERY_SEGMENT_LIMIT)),
+  )).flat();
+  const articleRows = filters.documentKind === "media" || (filters.contentKind && filters.contentKind !== "article") ? [] : await database.select({
+    documentStableKey: schema.articles.stableKey,
+    documentVersion: schema.articleVersions.version,
+    sourceText: schema.articleSegments.sourceText,
+    segmentIndex: schema.articleSegments.position,
+    sourceTitle: schema.articleVersions.title,
+    publishedAt: schema.articleVersions.publishedAt,
+  })
+    .from(schema.articleSegments)
+    .innerJoin(schema.articleVersions, eq(schema.articleSegments.articleVersionId, schema.articleVersions.id))
+    .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
+    .where(eq(schema.articleVersions.status, "published"))
+    .limit(CONTENT_DISCOVERY_SEGMENT_LIMIT);
+  const segments: ContentDiscoverySegment[] = [
+    ...mediaRows.map((row) => ({ ...row, documentKind: "media" as const, contentKind: row.contentKind as "video" | "podcast", sourceKind: row.sourceKind || row.contentKind, publishedAt: row.publishedAt ?? null })),
+    ...articleRows.map((row) => ({ ...row, documentKind: "article" as const, contentKind: "article" as const, sourceKind: "article", publishedAt: row.publishedAt ?? null })),
+  ];
+  segments.sort((left, right) => (right.publishedAt?.getTime() ?? 0) - (left.publishedAt?.getTime() ?? 0) || left.documentStableKey.localeCompare(right.documentStableKey) || left.segmentIndex - right.segmentIndex);
+  return segments;
+}
+
+async function listContentDiscoveryPhrases(database: Database, query: PhraseQuery): Promise<PagedResult<PhraseItem>> {
+  if (query.intent || query.pragmaticPurpose || query.register || query.region || query.cefr) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+  let segments: readonly ContentDiscoverySegment[];
+  try {
+    segments = await listPublishedContentSegments(database);
+  } catch {
+    // Older test fixtures and partially migrated local databases may not have
+    // the published segment projections yet; keep the formal shelf empty
+    // rather than turning a browse into a 500.
+    return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+  }
+  const seen = new Set<string>();
+  const expressions: ContentDiscoveryExpression[] = [];
+  for (const segment of segments) {
+    const expression = extractContentExpression(segment);
+    if (!expression || !discoveryExpressionMatches(expression, query.search)) continue;
+    if (seen.has(expression.normalizedExpression)) continue;
+    seen.add(expression.normalizedExpression);
+    expressions.push(expression);
+  }
+  const offset = (query.page - 1) * query.pageSize;
+  return { items: expressions.slice(offset, offset + query.pageSize).map(toDiscoveryPhrase), page: query.page, pageSize: query.pageSize, total: expressions.length };
+}
+
+async function listContentDiscoveryClusters(database: Database, query: CorpusBrowseQuery): Promise<PagedResult<CorpusCluster>> {
+  let segments: readonly ContentDiscoverySegment[];
+  try {
+    segments = await listPublishedContentSegments(database, { documentKind: query.documentKind, contentKind: query.contentKind });
+  } catch {
+    return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+  }
+  const byExpression = new Map<string, ContentDiscoveryExpression[]>();
+  for (const segment of segments) {
+    const seenInSegment = new Set<string>();
+    for (const expression of extractContentExpressions(segment).slice(0, 8)) {
+      if (!discoveryExpressionMatches(expression, query.query) || seenInSegment.has(expression.normalizedExpression)) continue;
+      seenInSegment.add(expression.normalizedExpression);
+      const current = byExpression.get(expression.normalizedExpression) ?? [];
+      current.push(expression);
+      byExpression.set(expression.normalizedExpression, current);
+    }
+  }
+  const ranked = [...byExpression.entries()].sort((left, right) => {
+    const leftKinds = new Set(left[1].map((item) => item.segment.contentKind)).size;
+    const rightKinds = new Set(right[1].map((item) => item.segment.contentKind)).size;
+    return rightKinds - leftKinds || right[1].length - left[1].length || left[0].localeCompare(right[0]);
+  });
+  const offset = (query.page - 1) * query.pageSize;
+  const items = ranked.slice(offset, offset + query.pageSize).map(([normalizedExpression, expressions]) => {
+    const contexts: CorpusClusterContext[] = [];
+    for (const kind of ["article", "video", "podcast"] as const) {
+      for (const expression of expressions) {
+        const duplicate = contexts.some((item) => item.contentKind === kind && item.document.stableKey === expression.segment.documentStableKey && item.location.segmentIndex === expression.segment.segmentIndex);
+        if (expression.segment.contentKind !== kind || duplicate) continue;
+        contexts.push(toDiscoveryContext(expression));
+        if (contexts.filter((item) => item.contentKind === kind).length >= 3) break;
+      }
+    }
+    const contentKinds = ["article", "video", "podcast"] as const;
+    return {
+      entryKind: "phrase" as const,
+      entryId: `content:${normalizedExpression}`,
+      expression: expressions[0]?.expression ?? normalizedExpression,
+      meaningZh: null,
+      pragmaticPurpose: null,
+      contexts,
+      contentKinds: contentKinds.filter((kind) => contexts.some((context) => context.contentKind === kind)),
+      isContentDiscovery: true,
+    } satisfies CorpusCluster;
+  });
+  return { items, page: query.page, pageSize: query.pageSize, total: ranked.length };
+}
+
 export function createDrizzleLexiconCorpusRepository(database: Database): LexiconCorpusRepository {
   return {
     async listFrequencyWords(query) {
@@ -393,6 +599,29 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         };
       });
       return { items: pageItems, page: query.page, pageSize: query.pageSize, total: matched.length };
+    },
+
+    async readFrequencyWord(word) {
+      // The form the caller asked about is the form the corpus was read by, so the
+      // row is taken only when it really is that form: `casa` must not be answered
+      // with `casas`, which the fold would otherwise allow.
+      const normalizedWord = normalizeSpanishSurface(word);
+      if (!normalizedWord) return null;
+      // The same cached snapshot the page reads — not a second read path. The warm-up
+      // at boot fills it, so a lookup costs no query, and the shelf and the lookup
+      // cannot disagree about a word's count or excerpt.
+      const snapshot = await loadCorpusFrequencySnapshot(database);
+      if (!snapshot.counts.has(normalizedWord) && !snapshot.examples.has(normalizedWord)) return null;
+      const example = snapshot.examples.get(normalizedWord);
+      const occurrence = example ? locateFrequencyExample(example, normalizedWord) : null;
+      return {
+        id: `word:${normalizedWord}`,
+        word: normalizedWord,
+        normalizedWord,
+        occurrenceCount: snapshot.counts.get(normalizedWord) ?? 0,
+        context: occurrence ? buildFrequencyContext(occurrence) : null,
+        sourceTitle: occurrence?.sourceTitle ?? null,
+      };
     },
 
     async findCorpusExample(word) {
@@ -487,6 +716,7 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         userId ? database.select().from(schema.userLexicalIntents).where(eq(schema.userLexicalIntents.userId, userId)) : Promise.resolve([]),
       ]);
       const ids = idRows.map((row) => row.id);
+      if (ids.length === 0 && Number(countRows[0]?.count ?? 0) === 0) return listContentDiscoveryPhrases(database, query);
       const [phraseRows, variantRows, occurrenceRows, representativeRows] = ids.length === 0
         ? [[], [], [], []] as const
         : await Promise.all([
@@ -638,7 +868,9 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
           .where(where),
       ]);
       const ids = idRows.map((row) => row.id);
-      if (ids.length === 0) return { items: [], page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
+      if (ids.length === 0) return Number(countRows[0]?.count ?? 0) === 0
+        ? listContentDiscoveryClusters(database, query)
+        : { items: [], page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
 
       // A cluster is deliberately bounded: three contexts per source kind keeps
       // the default page useful on mobile and prevents one prolific source from
