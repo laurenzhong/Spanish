@@ -174,6 +174,7 @@ function createRecordingCorpus(
       throw new Error("submitAssessment must not be called: it writes ability evidence");
     },
     ...overrides,
+    listCorpusClusters: overrides.listCorpusClusters ?? (async () => ({ items: [], page: 1, pageSize: 8, total: 0 })),
   };
   return { repository, indexCalls, methodCalls };
 }

@@ -19,6 +19,7 @@ import * as schema from "@/src/shared/db/schema";
 const userA = "00000000-0000-4000-0000-000000000091";
 const userB = "00000000-0000-4000-0000-000000000092";
 const characterId = "10000000-0000-4000-0000-000000000091";
+const identityId = "15000000-0000-4000-0000-000000000091";
 const sessionA = "20000000-0000-4000-0000-000000000091";
 const attemptA = "30000000-0000-4000-0000-000000000091";
 const conversationA = "40000000-0000-4000-0000-000000000091";
@@ -98,6 +99,13 @@ describe("account data deletion", () => {
       homeLocation: "Madrid",
       profile: {},
     });
+    // All of this user's Lucía state is keyed by the identity; the deletion is
+    // scoped by it rather than by a set of revision ids.
+    await database.insert(schema.characterIdentities).values({
+      id: identityId,
+      stableKey: "lucia",
+      currentCharacterId: characterId,
+    });
     await database.insert(schema.practiceSessions).values({
       id: sessionA,
       userId: userA,
@@ -155,6 +163,7 @@ describe("account data deletion", () => {
       id: conversationA,
       userId: userA,
       characterId,
+      identityId,
     });
     await database.insert(schema.messages).values([
       {
@@ -162,6 +171,7 @@ describe("account data deletion", () => {
         userId: userA,
         conversationId: conversationA,
         characterId,
+        identityId,
         clientMessageId: "client-lucia-reset-1",
         generationId: "generation-lucia-reset-1",
         role: "user",
@@ -174,6 +184,7 @@ describe("account data deletion", () => {
         userId: userA,
         conversationId: conversationA,
         characterId,
+        identityId,
         clientMessageId: "assistant-lucia-reset-1",
         generationId: "generation-lucia-reset-1",
         role: "character",
@@ -187,6 +198,7 @@ describe("account data deletion", () => {
       id: memoryA,
       userId: userA,
       characterId,
+      identityId,
       factKey: "city",
       category: "interest",
       content: "Valencia",
@@ -196,12 +208,14 @@ describe("account data deletion", () => {
     await database.insert(schema.characterRelationships).values({
       userId: userA,
       characterId,
+      identityId,
       relationshipStage: "familiar",
     });
     await database.insert(schema.memorySharingPermissions).values({
       userId: userA,
       memoryId: memoryA,
       targetCharacterId: characterId,
+      targetIdentityId: identityId,
       isAllowed: true,
     });
   });
@@ -263,7 +277,8 @@ describe("account data deletion", () => {
 
   it("deletes Lucía data that sits on a newer revision too", async () => {
     // The 2026-10-12 v1 -> v2 rollover moved the conversation to a new revision
-    // row. Resolving one hardcoded version made this deletion remove nothing.
+    // row while the relationship stayed behind. Both rows now carry the same
+    // identity, which is what the deletion is scoped by.
     const newerCharacterId = "10000000-0000-4000-0000-000000000092";
     const newerConversationId = "40000000-0000-4000-0000-000000000092";
     await database.insert(schema.characters).values({
@@ -274,12 +289,13 @@ describe("account data deletion", () => {
       homeLocation: "Madrid",
       profile: {},
     });
-    await database.insert(schema.conversations).values({ id: newerConversationId, userId: userA, characterId: newerCharacterId });
+    await database.insert(schema.conversations).values({ id: newerConversationId, userId: userA, characterId: newerCharacterId, identityId });
     await database.insert(schema.messages).values({
       id: "70000000-0000-4000-0000-000000000093",
       conversationId: newerConversationId,
       userId: userA,
       characterId: newerCharacterId,
+      identityId,
       clientMessageId: "client-lucia-v2",
       generationId: "generation-lucia-v2",
       role: "user",
@@ -293,6 +309,9 @@ describe("account data deletion", () => {
     expect(result.messagesDeleted).toBe(3);
     await expect(
       database.select().from(schema.conversations).where(eq(schema.conversations.characterId, newerCharacterId)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      database.select().from(schema.conversations).where(eq(schema.conversations.identityId, identityId)),
     ).resolves.toHaveLength(0);
   });
 

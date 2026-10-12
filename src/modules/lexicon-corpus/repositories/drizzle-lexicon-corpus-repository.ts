@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type SourcePosition } from "../domain";
 import { searchContentFrequencyWords } from "../domain/frequency-word-list";
@@ -9,7 +9,7 @@ import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
 import { normalizeLexeme } from "../domain";
 import type { LexicalIntent, LexicalIntentFilter } from "../schemas/lexicon";
-import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusExample, CorpusItem, CorpusQuery, LexiconCorpusRepository, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
+import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusBrowseQuery, CorpusCluster, CorpusClusterContext, CorpusExample, CorpusItem, CorpusQuery, LexiconCorpusRepository, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
 
 const FREQUENCY_TTL_MS = 10 * 60 * 1_000;
 
@@ -360,6 +360,12 @@ function corpusVisibility(userId: string | undefined) {
     : and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia)));
 }
 
+function phraseVisibility(userId: string | undefined) {
+  return userId
+    ? or(and(isNull(schema.phraseEntries.ownerUserId), eq(schema.phraseEntries.reviewStatus, "approved")), eq(schema.phraseEntries.ownerUserId, userId))
+    : and(isNull(schema.phraseEntries.ownerUserId), eq(schema.phraseEntries.reviewStatus, "approved"));
+}
+
 export function createDrizzleLexiconCorpusRepository(database: Database): LexiconCorpusRepository {
   return {
     async listFrequencyWords(query) {
@@ -589,6 +595,118 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
       });
     },
 
+    async listCorpusClusters(userId, query: CorpusBrowseQuery): Promise<{
+      items: readonly CorpusCluster[];
+      page: number;
+      pageSize: number;
+      total: number;
+    }> {
+      const search = query.query ? `%${query.query}%` : undefined;
+      const contentFilter = query.contentKind === "article"
+        ? eq(schema.corpusOccurrences.documentKind, "article")
+        : query.contentKind === "video" || query.contentKind === "podcast"
+          ? eq(schema.mediaItems.kind, query.contentKind)
+          : undefined;
+      const where = and(
+        isNotNull(schema.corpusOccurrences.phraseEntryId),
+        phraseVisibility(userId),
+        corpusVisibility(userId),
+        query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,
+        contentFilter,
+        search ? or(ilike(schema.phraseEntries.expression, search), ilike(schema.phraseEntries.normalizedExpression, search)) : undefined,
+      );
+      const [idRows, countRows] = await Promise.all([
+        database.select({
+          id: schema.phraseEntries.id,
+          expression: schema.phraseEntries.expression,
+          meaningZh: schema.phraseEntries.meaningZh,
+          pragmaticPurpose: schema.phraseEntries.pragmaticPurpose,
+          latestAt: sql<Date>`max(${schema.corpusOccurrences.createdAt})`,
+        })
+          .from(schema.corpusOccurrences)
+          .innerJoin(schema.phraseEntries, eq(schema.corpusOccurrences.phraseEntryId, schema.phraseEntries.id))
+          .leftJoin(schema.mediaItems, and(eq(schema.mediaItems.stableKey, schema.corpusOccurrences.documentStableKey), eq(schema.corpusOccurrences.documentKind, "media")))
+          .where(where)
+          .groupBy(schema.phraseEntries.id, schema.phraseEntries.expression, schema.phraseEntries.meaningZh, schema.phraseEntries.pragmaticPurpose)
+          .orderBy(desc(sql`max(${schema.corpusOccurrences.createdAt})`), asc(schema.phraseEntries.expression))
+          .limit(query.pageSize)
+          .offset((query.page - 1) * query.pageSize),
+        database.select({ count: sql<number>`count(distinct ${schema.corpusOccurrences.phraseEntryId})` })
+          .from(schema.corpusOccurrences)
+          .innerJoin(schema.phraseEntries, eq(schema.corpusOccurrences.phraseEntryId, schema.phraseEntries.id))
+          .leftJoin(schema.mediaItems, and(eq(schema.mediaItems.stableKey, schema.corpusOccurrences.documentStableKey), eq(schema.corpusOccurrences.documentKind, "media")))
+          .where(where),
+      ]);
+      const ids = idRows.map((row) => row.id);
+      if (ids.length === 0) return { items: [], page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
+
+      // A cluster is deliberately bounded: three contexts per source kind keeps
+      // the default page useful on mobile and prevents one prolific source from
+      // starving the other phrases in the same page.
+      const contextRows = await database.select({
+        phraseEntryId: schema.corpusOccurrences.phraseEntryId,
+        surfaceText: schema.corpusOccurrences.surfaceText,
+        contextBefore: schema.corpusOccurrences.contextBefore,
+        contextAfter: schema.corpusOccurrences.contextAfter,
+        sourceTitle: schema.corpusOccurrences.sourceTitle,
+        sourceKind: schema.corpusOccurrences.sourceKind,
+        documentKind: schema.corpusOccurrences.documentKind,
+        documentStableKey: schema.corpusOccurrences.documentStableKey,
+        documentVersion: schema.corpusOccurrences.documentVersion,
+        sourcePosition: schema.corpusOccurrences.sourcePosition,
+        mediaKind: schema.mediaItems.kind,
+      })
+        .from(schema.corpusOccurrences)
+        .innerJoin(schema.phraseEntries, eq(schema.corpusOccurrences.phraseEntryId, schema.phraseEntries.id))
+        .leftJoin(schema.mediaItems, and(eq(schema.mediaItems.stableKey, schema.corpusOccurrences.documentStableKey), eq(schema.corpusOccurrences.documentKind, "media")))
+        .where(and(
+          inArray(schema.corpusOccurrences.phraseEntryId, ids),
+          phraseVisibility(userId),
+          corpusVisibility(userId),
+          query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,
+          contentFilter,
+        ))
+        .orderBy(desc(schema.corpusOccurrences.createdAt), asc(schema.corpusOccurrences.id))
+        .limit(Math.min(1_000, Math.max(100, ids.length * 30)));
+
+      const contextsById = new Map<string, CorpusClusterContext[]>();
+      for (const row of contextRows) {
+        if (!row.phraseEntryId) continue;
+        const kind: CorpusClusterContext["contentKind"] = row.documentKind === "article"
+          ? "article"
+          : row.mediaKind === "video" || row.mediaKind === "podcast" ? row.mediaKind : "article";
+        const current = contextsById.get(row.phraseEntryId) ?? [];
+        if (current.filter((item) => item.contentKind === kind).length >= 3) continue;
+        current.push({
+          ...buildKwic({
+            surfaceText: row.surfaceText,
+            contextBefore: row.contextBefore,
+            contextAfter: row.contextAfter,
+            sourceTitle: row.sourceTitle,
+            sourceKind: row.sourceKind,
+            documentKind: row.documentKind as "article" | "media",
+            documentStableKey: row.documentStableKey,
+            documentVersion: row.documentVersion,
+            sourcePosition: row.sourcePosition as SourcePosition,
+          }),
+          entryKind: "phrase",
+          entryId: row.phraseEntryId,
+          surfaceText: row.surfaceText,
+          contentKind: kind,
+        });
+        contextsById.set(row.phraseEntryId, current);
+      }
+
+      const order: CorpusClusterContext["contentKind"][] = ["article", "video", "podcast"];
+      const items = idRows.flatMap((row) => {
+        const contexts = contextsById.get(row.id) ?? [];
+        if (contexts.length === 0) return [];
+        const contentKinds = order.filter((kind) => contexts.some((context) => context.contentKind === kind));
+        return [{ entryKind: "phrase" as const, entryId: row.id, expression: row.expression, meaningZh: row.meaningZh, pragmaticPurpose: row.pragmaticPurpose, contexts, contentKinds } satisfies CorpusCluster];
+      });
+      return { items, page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
+    },
+
     async searchCorpus(userId, query: CorpusQuery) {
       const tokens = query.query ? normalizeCorpusQuery(query.query) : [];
       if (tokens.length === 0 && !(query.entryKind && query.entryId)) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
@@ -604,6 +722,10 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         query.entryKind === "lexeme" && query.entryId ? eq(schema.corpusOccurrences.lexemeId, query.entryId) : undefined,
         query.entryKind === "phrase" && query.entryId ? eq(schema.corpusOccurrences.phraseEntryId, query.entryId) : undefined,
         query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,
+        query.contentKind === "article" ? eq(schema.corpusOccurrences.documentKind, "article") : undefined,
+        query.contentKind === "video" || query.contentKind === "podcast"
+          ? sql`exists (select 1 from ${schema.mediaItems} mi where mi.stable_key = ${schema.corpusOccurrences.documentStableKey} and mi.kind = ${query.contentKind})`
+          : undefined,
         query.sourceKind ? eq(schema.corpusOccurrences.sourceKind, query.sourceKind) : undefined,
         query.stableKey ? eq(schema.corpusOccurrences.documentStableKey, query.stableKey) : undefined,
       );

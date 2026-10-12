@@ -36,6 +36,7 @@ const corpusQueryObjectSchema = z.object({
   entryKind: lexiconEntryKindSchema.optional(),
   entryId: z.string().uuid().optional(),
   documentKind: z.enum(["article", "media"]).optional(),
+  contentKind: z.enum(["article", "video", "podcast"]).optional(),
   sourceKind: z.string().trim().max(80).optional(),
   stableKey: z.string().trim().max(240).optional(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
@@ -47,6 +48,14 @@ const corpusQueryObjectSchema = z.object({
   if (!value.query && !(value.entryKind && value.entryId)) {
     context.addIssue({ code: "custom", message: "A query or exact entry is required." });
   }
+});
+
+export const corpusBrowseQuerySchema = z.object({
+  query: optionalFilter(z.string().trim().max(120)),
+  documentKind: optionalFilter(z.enum(["article", "media"])),
+  contentKind: optionalFilter(z.enum(["article", "video", "podcast"])),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(24).default(8),
 });
 
 /** Accept the browser-facing `q` alias while keeping the application DTO named `query`. */
@@ -71,4 +80,5 @@ export type LexicalIntent = z.infer<typeof lexicalIntentSchema>;
 export type LexicalIntentFilter = z.infer<typeof lexicalIntentFilterSchema>;
 export type LexiconEntryKind = z.infer<typeof lexiconEntryKindSchema>;
 export type CorpusQueryInput = z.infer<typeof corpusQuerySchema>;
+export type CorpusBrowseQueryInput = z.infer<typeof corpusBrowseQuerySchema>;
 export type LexicalAssessmentAnswer = z.infer<typeof lexicalAssessmentAnswerSchema>;

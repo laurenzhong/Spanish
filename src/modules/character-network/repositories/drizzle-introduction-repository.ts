@@ -17,18 +17,35 @@ import type {
 
 type NetworkDatabase<TResult extends PgQueryResultHKT> = PgDatabase<TResult, typeof schema>;
 
-async function characterId<TResult extends PgQueryResultHKT>(
+/**
+ * Resolves a character's stable identity plus the revision its pointer names.
+ *
+ * Everything the user owns - relationships, conversations, memories, sharing
+ * permissions, offers - is keyed by `identity_id`, so a new bible revision no
+ * longer has to move it (ADR 0014). The revision is only the availability gate
+ * and the dual-written `character_id` that keeps rollback possible; it is read
+ * from the identity pointer, never from the caller's version argument.
+ *
+ * The gate fails closed: a missing identity, or a pointer at an unpublished or
+ * conversation-disabled revision, raises CHARACTER_UNAVAILABLE.
+ */
+async function characterIdentity<TResult extends PgQueryResultHKT>(
   database: NetworkDatabase<TResult>,
   characterKey: string,
-  version: number,
   capability: "conversation" | "introductions" = "conversation",
-): Promise<string> {
+): Promise<Readonly<{ identityId: string; revisionId: string; version: number }>> {
   const [character] = await database
-    .select({ id: schema.characters.id, status: schema.characters.status })
-    .from(schema.characters)
-    .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.characterVersion, version)))
+    .select({
+      identityId: schema.characterIdentities.id,
+      revisionId: schema.characters.id,
+      version: schema.characters.characterVersion,
+      status: schema.characters.status,
+    })
+    .from(schema.characterIdentities)
+    .innerJoin(schema.characters, eq(schema.characters.id, schema.characterIdentities.currentCharacterId))
+    .where(eq(schema.characterIdentities.stableKey, characterKey))
     .limit(1);
-  const definition = findCharacterRuntimeDefinition(characterKey, version);
+  const definition = character ? findCharacterRuntimeDefinition(characterKey, character.version) : null;
   const manifestReady = definition && (definition.lifecycle === "published" || process.env.NODE_ENV === "test");
   if (!character || !isPublishedCharacterStatus(character.status) || !manifestReady || definition?.policy.conversation === "disabled") {
     throw new Error("CHARACTER_UNAVAILABLE");
@@ -36,7 +53,7 @@ async function characterId<TResult extends PgQueryResultHKT>(
   if (capability === "introductions" && !definition?.policy.introductions) {
     throw new Error("CHARACTER_UNAVAILABLE");
   }
-  return character.id;
+  return character;
 }
 
 /**
@@ -44,21 +61,59 @@ async function characterId<TResult extends PgQueryResultHKT>(
  * available even after a target character is retired or moved back to draft;
  * only creation/sharing is gated by the published runtime policy.
  */
-async function permissionTargetCharacterId<TResult extends PgQueryResultHKT>(
+async function permissionTargetIdentity<TResult extends PgQueryResultHKT>(
   database: NetworkDatabase<TResult>,
   characterKey: string,
-  version: number,
-): Promise<string> {
-  const [character] = await database
-    .select({ id: schema.characters.id })
-    .from(schema.characters)
+): Promise<Readonly<{ identityId: string; revisionId: string }>> {
+  const [identity] = await database
+    .select({ identityId: schema.characterIdentities.id, revisionId: schema.characterIdentities.currentCharacterId })
+    .from(schema.characterIdentities)
+    .where(eq(schema.characterIdentities.stableKey, characterKey))
+    .limit(1);
+  if (!identity) throw new Error("CHARACTER_UNAVAILABLE");
+  return identity;
+}
+
+/**
+ * Grants (or re-grants) one memory permission for a target identity.
+ *
+ * `memory_sharing_permissions` is unique per (memory, revision), so an upsert
+ * keyed on the revision would insert a second grant once the pointer moves to a
+ * newer one. The identity pair is checked first for that reason.
+ */
+async function grantMemoryPermission<TResult extends PgQueryResultHKT>(
+  database: NetworkDatabase<TResult>,
+  input: Readonly<{ userId: string; memoryId: string; targetIdentityId: string; targetCharacterId: string }>,
+): Promise<void> {
+  const now = new Date();
+  const [existing] = await database
+    .select({ targetIdentityId: schema.memorySharingPermissions.targetIdentityId })
+    .from(schema.memorySharingPermissions)
     .where(and(
-      eq(schema.characters.stableKey, characterKey),
-      eq(schema.characters.characterVersion, version),
+      eq(schema.memorySharingPermissions.userId, input.userId),
+      eq(schema.memorySharingPermissions.memoryId, input.memoryId),
+      eq(schema.memorySharingPermissions.targetIdentityId, input.targetIdentityId),
     ))
     .limit(1);
-  if (!character) throw new Error("CHARACTER_UNAVAILABLE");
-  return character.id;
+  if (existing) {
+    await database.update(schema.memorySharingPermissions)
+      .set({ isAllowed: true, grantedAt: now, updatedAt: now })
+      .where(and(
+        eq(schema.memorySharingPermissions.userId, input.userId),
+        eq(schema.memorySharingPermissions.memoryId, input.memoryId),
+        eq(schema.memorySharingPermissions.targetIdentityId, input.targetIdentityId),
+      ));
+    return;
+  }
+  await database.insert(schema.memorySharingPermissions).values({
+    userId: input.userId,
+    memoryId: input.memoryId,
+    targetCharacterId: input.targetCharacterId,
+    targetIdentityId: input.targetIdentityId,
+    isAllowed: true,
+  }).onConflictDoNothing({
+    target: [schema.memorySharingPermissions.memoryId, schema.memorySharingPermissions.targetCharacterId],
+  });
 }
 
 function toOffer(row: typeof schema.characterIntroductionOffers.$inferSelect): IntroductionRecord {
@@ -88,13 +143,15 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
     },
 
     async createOrGetPending(offer) {
-      const sourceCharacterId = await characterId(database, offer.sourceCharacterKey, offer.sourceCharacterVersion, "introductions");
-      const targetCharacterId = await characterId(database, offer.targetCharacterKey, offer.targetCharacterVersion);
+      const source = await characterIdentity(database, offer.sourceCharacterKey, "introductions");
+      const target = await characterIdentity(database, offer.targetCharacterKey);
       await database.insert(schema.characterIntroductionOffers).values({
         userId: offer.userId,
         offerKey: offer.offerKey,
-        sourceCharacterId,
-        targetCharacterId,
+        sourceCharacterId: source.revisionId,
+        targetCharacterId: target.revisionId,
+        sourceIdentityId: source.identityId,
+        targetIdentityId: target.identityId,
         reasonCode: offer.reasonCode,
         reasonText: offer.reasonText,
         context: {
@@ -135,26 +192,29 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
       // is this user's relationship with it - and one statement answers both.
       // They used to be two sequential round trips, which a remote database
       // bills to every non-Lucía history read and send; this is the merged
-      // shape the Lucía contact gate already uses. The unique index
-      // character_relationships_user_character_uidx keeps the left join to at
-      // most one row, and an absent relationship row stays null, which both
-      // callers read as "no permission" rather than "no gate".
+      // shape the Lucía contact gate already uses.
+      //
+      // The relationship is now joined on `identity_id`, and the published
+      // check reads the revision the identity points at. The caller's
+      // `characterVersion` no longer selects the user-state row: it was a
+      // hardcoded literal at both call sites, so a newer revision would have
+      // made this gate report "pending" against a relationship that exists.
+      void characterVersion;
       const [row] = await database
         .select({
+          characterVersion: schema.characters.characterVersion,
           characterStatus: schema.characters.status,
           relationshipStatus: schema.characterRelationships.status,
         })
-        .from(schema.characters)
+        .from(schema.characterIdentities)
+        .innerJoin(schema.characters, eq(schema.characters.id, schema.characterIdentities.currentCharacterId))
         .leftJoin(schema.characterRelationships, and(
-          eq(schema.characterRelationships.characterId, schema.characters.id),
+          eq(schema.characterRelationships.identityId, schema.characterIdentities.id),
           eq(schema.characterRelationships.userId, userId),
         ))
-        .where(and(
-          eq(schema.characters.stableKey, characterKey),
-          eq(schema.characters.characterVersion, characterVersion),
-        ))
+        .where(eq(schema.characterIdentities.stableKey, characterKey))
         .limit(1);
-      const definition = findCharacterRuntimeDefinition(characterKey, characterVersion);
+      const definition = row ? findCharacterRuntimeDefinition(characterKey, row.characterVersion) : null;
       if (!row || !isPublishedCharacterStatus(row.characterStatus) || !isCharacterConversationEnabled(definition)) return null;
       return (row.relationshipStatus as "active" | "declined" | "pending" | null) ?? null;
     },
@@ -177,13 +237,25 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
     },
 
     async ensureRelationship(userId, characterKey, characterVersion) {
-      const id = await characterId(database, characterKey, characterVersion);
-      await database.insert(schema.characterRelationships).values({ userId, characterId: id })
-        .onConflictDoNothing({ target: [schema.characterRelationships.userId, schema.characterRelationships.characterId] });
-      const [row] = await database.select().from(schema.characterRelationships).where(and(
+      void characterVersion;
+      const character = await characterIdentity(database, characterKey);
+      // Identity first: inserting keyed on the caller's revision would insert a
+      // second relationship row once the identity points at a newer revision.
+      let [row] = await database.select().from(schema.characterRelationships).where(and(
         eq(schema.characterRelationships.userId, userId),
-        eq(schema.characterRelationships.characterId, id),
+        eq(schema.characterRelationships.identityId, character.identityId),
       )).limit(1);
+      if (!row) {
+        await database.insert(schema.characterRelationships).values({
+          userId,
+          characterId: character.revisionId,
+          identityId: character.identityId,
+        }).onConflictDoNothing({ target: [schema.characterRelationships.userId, schema.characterRelationships.characterId] });
+        [row] = await database.select().from(schema.characterRelationships).where(and(
+          eq(schema.characterRelationships.userId, userId),
+          eq(schema.characterRelationships.identityId, character.identityId),
+        )).limit(1);
+      }
       if (!row) throw new Error("RELATIONSHIP_UNAVAILABLE");
       return {
         id: row.id,
@@ -195,24 +267,35 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
     },
 
     async ensureConversation(userId, characterKey, characterVersion) {
-      const id = await characterId(database, characterKey, characterVersion);
-      await database.insert(schema.conversations).values({ userId, characterId: id })
-        .onConflictDoNothing({ target: [schema.conversations.userId, schema.conversations.characterId] });
-      const [conversation] = await database.select({ id: schema.conversations.id }).from(schema.conversations).where(and(
-        eq(schema.conversations.userId, userId),
-        eq(schema.conversations.characterId, id),
-      )).limit(1);
+      void characterVersion;
+      const character = await characterIdentity(database, characterKey);
+      const findConversation = async () => {
+        const [conversation] = await database.select({ id: schema.conversations.id }).from(schema.conversations).where(and(
+          eq(schema.conversations.userId, userId),
+          eq(schema.conversations.identityId, character.identityId),
+        )).limit(1);
+        return conversation ?? null;
+      };
+      const existing = await findConversation();
+      if (existing) return existing.id;
+      await database.insert(schema.conversations).values({
+        userId,
+        characterId: character.revisionId,
+        identityId: character.identityId,
+      }).onConflictDoNothing({ target: [schema.conversations.userId, schema.conversations.characterId] });
+      const conversation = await findConversation();
       if (!conversation) throw new Error("CONVERSATION_UNAVAILABLE");
       return conversation.id;
     },
 
     async validateShareableMemories(userId, memoryIds, sourceCharacterKey, sourceCharacterVersion = 1) {
-      const sourceId = await characterId(database, sourceCharacterKey, sourceCharacterVersion);
+      void sourceCharacterVersion;
+      const source = await characterIdentity(database, sourceCharacterKey);
       if (memoryIds.length === 0) return [];
       const rows = await database.select({ id: schema.relationshipMemories.id }).from(schema.relationshipMemories).where(and(
         eq(schema.relationshipMemories.userId, userId),
         inArray(schema.relationshipMemories.id, memoryIds),
-        eq(schema.relationshipMemories.characterId, sourceId),
+        eq(schema.relationshipMemories.identityId, source.identityId),
         or(eq(schema.relationshipMemories.status, "candidate"), eq(schema.relationshipMemories.status, "confirmed")),
         or(eq(schema.relationshipMemories.sensitivity, "normal"), eq(schema.relationshipMemories.sensitivity, "sensitive")),
       ));
@@ -221,16 +304,14 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
 
     async grantMemoryPermissions(userId, memoryIds, targetCharacterKey, targetCharacterVersion = 1) {
       if (memoryIds.length === 0) return;
-      const targetId = await characterId(database, targetCharacterKey, targetCharacterVersion);
+      void targetCharacterVersion;
+      const target = await characterIdentity(database, targetCharacterKey);
       for (const memoryId of memoryIds) {
-        await database.insert(schema.memorySharingPermissions).values({
+        await grantMemoryPermission(database, {
           userId,
           memoryId,
-          targetCharacterId: targetId,
-          isAllowed: true,
-        }).onConflictDoUpdate({
-          target: [schema.memorySharingPermissions.memoryId, schema.memorySharingPermissions.targetCharacterId],
-          set: { isAllowed: true, grantedAt: new Date(), updatedAt: new Date() },
+          targetIdentityId: target.identityId,
+          targetCharacterId: target.revisionId,
         });
         await database.update(schema.relationshipMemories).set({ shareScope: "explicit", updatedAt: new Date() }).where(and(
           eq(schema.relationshipMemories.id, memoryId),
@@ -240,27 +321,29 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
     },
 
     async listShareableMemoryPreviews(userId, sourceCharacterKey, targetCharacterKey, sourceCharacterVersion = 1, targetCharacterVersion = 1): Promise<readonly ShareableMemoryPreview[]> {
-      const sourceId = await characterId(database, sourceCharacterKey, sourceCharacterVersion);
-      const targetId = await characterId(database, targetCharacterKey, targetCharacterVersion);
+      void sourceCharacterVersion;
+      void targetCharacterVersion;
+      const source = await characterIdentity(database, sourceCharacterKey);
+      const target = await characterIdentity(database, targetCharacterKey);
       const rows = await database
         .select({
           id: schema.relationshipMemories.id,
-          characterKey: schema.characters.stableKey,
+          characterKey: schema.characterIdentities.stableKey,
           category: schema.relationshipMemories.category,
           content: schema.relationshipMemories.content,
           sensitivity: schema.relationshipMemories.sensitivity,
           alreadyShared: schema.memorySharingPermissions.isAllowed,
         })
         .from(schema.relationshipMemories)
-        .innerJoin(schema.characters, eq(schema.relationshipMemories.characterId, schema.characters.id))
+        .innerJoin(schema.characterIdentities, eq(schema.relationshipMemories.identityId, schema.characterIdentities.id))
         .leftJoin(schema.memorySharingPermissions, and(
           eq(schema.memorySharingPermissions.memoryId, schema.relationshipMemories.id),
           eq(schema.memorySharingPermissions.userId, userId),
-          eq(schema.memorySharingPermissions.targetCharacterId, targetId),
+          eq(schema.memorySharingPermissions.targetIdentityId, target.identityId),
         ))
         .where(and(
           eq(schema.relationshipMemories.userId, userId),
-          eq(schema.relationshipMemories.characterId, sourceId),
+          eq(schema.relationshipMemories.identityId, source.identityId),
           or(eq(schema.relationshipMemories.status, "candidate"), eq(schema.relationshipMemories.status, "confirmed")),
           or(eq(schema.relationshipMemories.sensitivity, "normal"), eq(schema.relationshipMemories.sensitivity, "sensitive")),
         ))
@@ -276,17 +359,17 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
     },
 
     async listGrantedMemoryPreviews(userId): Promise<readonly ShareableMemoryPreview[]> {
-      const sourceCharacters = aliasedTable(schema.characters, "shared_memory_source_characters");
-      const targetCharacters = aliasedTable(schema.characters, "shared_memory_target_characters");
+      const sourceIdentities = aliasedTable(schema.characterIdentities, "shared_memory_source_identities");
+      const targetIdentities = aliasedTable(schema.characterIdentities, "shared_memory_target_identities");
       const rows = await database
         .select({
           id: schema.relationshipMemories.id,
-          characterKey: sourceCharacters.stableKey,
+          characterKey: sourceIdentities.stableKey,
           category: schema.relationshipMemories.category,
           content: schema.relationshipMemories.content,
           sensitivity: schema.relationshipMemories.sensitivity,
           alreadyShared: schema.memorySharingPermissions.isAllowed,
-          targetCharacterKey: targetCharacters.stableKey,
+          targetCharacterKey: targetIdentities.stableKey,
         })
         .from(schema.relationshipMemories)
         .innerJoin(schema.memorySharingPermissions, and(
@@ -294,8 +377,8 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
           eq(schema.memorySharingPermissions.userId, userId),
           eq(schema.memorySharingPermissions.isAllowed, true),
         ))
-        .innerJoin(sourceCharacters, eq(schema.relationshipMemories.characterId, sourceCharacters.id))
-        .innerJoin(targetCharacters, eq(schema.memorySharingPermissions.targetCharacterId, targetCharacters.id))
+        .innerJoin(sourceIdentities, eq(schema.relationshipMemories.identityId, sourceIdentities.id))
+        .innerJoin(targetIdentities, eq(schema.memorySharingPermissions.targetIdentityId, targetIdentities.id))
         .where(and(
           eq(schema.relationshipMemories.userId, userId),
           or(eq(schema.relationshipMemories.status, "candidate"), eq(schema.relationshipMemories.status, "confirmed")),
@@ -314,14 +397,15 @@ export function createDrizzleIntroductionRepository<TResult extends PgQueryResul
     },
 
     async revokeMemoryPermission(userId, memoryId, targetCharacterKey, targetCharacterVersion = 1) {
-      const targetId = await permissionTargetCharacterId(database, targetCharacterKey, targetCharacterVersion);
+      void targetCharacterVersion;
+      const target = await permissionTargetIdentity(database, targetCharacterKey);
       await database.update(schema.memorySharingPermissions).set({
         isAllowed: false,
         updatedAt: new Date(),
       }).where(and(
         eq(schema.memorySharingPermissions.userId, userId),
         eq(schema.memorySharingPermissions.memoryId, memoryId),
-        eq(schema.memorySharingPermissions.targetCharacterId, targetId),
+        eq(schema.memorySharingPermissions.targetIdentityId, target.identityId),
       ));
       const [activePermission] = await database.select({ id: schema.memorySharingPermissions.id }).from(schema.memorySharingPermissions).where(and(
         eq(schema.memorySharingPermissions.userId, userId),

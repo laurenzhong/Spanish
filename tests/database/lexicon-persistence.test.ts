@@ -38,7 +38,7 @@ describe("lexicon persistence", () => {
     await client.exec(`
       create table articles (id uuid primary key, stable_key text not null unique);
       create table article_versions (article_id uuid not null, version integer not null, status text not null);
-      create table media_items (id uuid primary key, stable_key text not null unique);
+      create table media_items (id uuid primary key, stable_key text not null unique, kind text not null);
       create table media_versions (media_item_id uuid not null, version integer not null, status text not null, copyright_status text not null);
       insert into articles (id, stable_key) values ('${articleId}', 'article.lexicon');
       insert into article_versions (article_id, version, status) values ('${articleId}', 1, 'published');
@@ -116,5 +116,29 @@ describe("lexicon persistence", () => {
 
     await expect(repository.listPhrases(userA, { pragmaticPurpose: "SALUDO", register: "NEUTRAL", region: "es-es", cefr: "A2", page: 1, pageSize: 1 })).resolves.toMatchObject({ total: 1, items: [{ expression: "¿Qué tal?" }] });
     await expect(repository.listPhrases(userA, { search: "como va", page: 1, pageSize: 1 })).resolves.toMatchObject({ total: 1, items: [{ expression: "¿Qué tal?" }] });
+  });
+
+  it("browses visible phrase clusters across article, video, and podcast contexts", async () => {
+    const videoId = "30000000-0000-4000-8000-000000000003";
+    const podcastId = "30000000-0000-4000-8000-000000000004";
+    await client.exec(`
+      insert into media_items (id, stable_key, kind) values ('${videoId}', 'media.video', 'video'), ('${podcastId}', 'media.podcast', 'podcast');
+      insert into media_versions (media_item_id, version, status, copyright_status) values ('${videoId}', 1, 'published', 'cleared'), ('${podcastId}', 1, 'published', 'cleared');
+    `);
+    const phrase = "por favor";
+    await repository.indexPhrase({ expression: phrase, normalizedExpression: phrase, reference }, "Article source", "article");
+    await repository.indexPhrase({ expression: phrase, normalizedExpression: phrase, reference: { ...reference, document: { kind: "media", stableKey: "media.video", version: 1 }, position: { kind: "media", startMs: 1_000, endMs: 2_000, segmentIndex: 0 } } }, "Video source", "video");
+    await repository.indexPhrase({ expression: phrase, normalizedExpression: phrase, reference: { ...reference, document: { kind: "media", stableKey: "media.podcast", version: 1 }, position: { kind: "media", startMs: 3_000, endMs: 4_000, segmentIndex: 1 } } }, "Podcast source", "podcast");
+
+    const page = await repository.listCorpusClusters(userA, { page: 1, pageSize: 8 });
+    expect(page).toMatchObject({ total: 1, items: [{ expression: phrase, contentKinds: ["article", "video", "podcast"] }] });
+    expect(page.items[0]?.contexts.map((context) => context.contentKind).sort()).toEqual(["article", "podcast", "video"]);
+  });
+
+  it("does not expose private phrases or withdrawn sources in browse clusters", async () => {
+    await repository.indexPhrase({ expression: "mi privada", normalizedExpression: "mi privada", ownerUserId: userA, reference }, "Private", "manual");
+    await repository.indexPhrase({ expression: "oculta", normalizedExpression: "oculta", reference: { ...reference, document: { kind: "article", stableKey: "article.withdrawn", version: 1 } } }, "Withdrawn", "article");
+    await expect(repository.listCorpusClusters(userB, { page: 1, pageSize: 8 })).resolves.toMatchObject({ total: 0, items: [] });
+    await expect(repository.listCorpusClusters(userA, { query: "oculta", page: 1, pageSize: 8 })).resolves.toMatchObject({ total: 0, items: [] });
   });
 });

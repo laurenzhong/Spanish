@@ -13,6 +13,7 @@ import * as schema from "@/src/shared/db/schema";
 
 const userId = "00000000-0000-4000-8000-000000000091";
 const characterId = "10000000-0000-4000-8000-000000000091";
+const identityId = "40000000-0000-4000-8000-000000000091";
 const conversationId = "20000000-0000-4000-8000-000000000091";
 
 async function migration(name: string) {
@@ -39,8 +40,9 @@ describe("proactive message persistence", () => {
     // Follow the catalog instead of a literal: the proactive path resolves the
     // current revision, so a fixture pinned to v1 would not be found.
     await database.insert(schema.characters).values({ id: characterId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: conversationCharacterVersion("lucia") ?? 1, status: "published" });
-    await database.insert(schema.characterRelationships).values({ userId, characterId, status: "active", relationshipStage: "familiar", relationshipSummary: { es: "Fotografía urbana" } });
-    await database.insert(schema.conversations).values({ id: conversationId, userId, characterId });
+    await database.insert(schema.characterIdentities).values({ id: identityId, stableKey: "lucia", currentCharacterId: characterId });
+    await database.insert(schema.characterRelationships).values({ userId, characterId, identityId, status: "active", relationshipStage: "familiar", relationshipSummary: { es: "Fotografía urbana" } });
+    await database.insert(schema.conversations).values({ id: conversationId, userId, characterId, identityId });
   });
 
   afterEach(async () => { await client.close(); });
@@ -58,5 +60,8 @@ describe("proactive message persistence", () => {
     expect(completed.message.sourceType).toBe("proactive");
     const rows = await database.select().from(schema.messages).where(and(eq(schema.messages.userId, userId), eq(schema.messages.sourceType, "proactive")));
     expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ characterId, identityId });
+    const [storedCandidate] = await database.select().from(schema.proactiveMessageCandidates).where(eq(schema.proactiveMessageCandidates.userId, userId));
+    expect(storedCandidate).toMatchObject({ characterId, identityId });
   });
 });

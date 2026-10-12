@@ -7,7 +7,7 @@
 export function PhraseShelfSkeleton() {
   return (
     <section className="phrase-shelf-skeleton" role="status" aria-busy="true" aria-label="正在载入短语库">
-      <p className="phrase-shelf-skeleton__status">正在载入短语库…</p>
+      <p className="phrase-shelf-skeleton__status">正在载入短语内容；筛选是可选的…</p>
       <div className="lexicon-shelf-controls" aria-hidden="true">
         <div className="phrase-shelf-skeleton__filters">
           <span className="phrase-shelf-skeleton__field phrase-shelf-skeleton__field--wide" />

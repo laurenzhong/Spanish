@@ -18,6 +18,8 @@ import * as schema from "@/src/shared/db/schema";
 const userId = "00000000-0000-4000-8000-000000000031";
 const characterId = "10000000-0000-4000-8000-000000000031";
 const draftCharacterId = "10000000-0000-4000-8000-000000000032";
+const luciaIdentityId = "30000000-0000-4000-8000-000000000031";
+const mateoIdentityId = "30000000-0000-4000-8000-000000000032";
 
 async function migration(name: string) {
   return (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
@@ -43,6 +45,12 @@ describe("conversation persistence", () => {
     await client.exec(`insert into auth.users (id, email) values ('${userId}', 'conversation@example.test');`);
     await database.insert(schema.characters).values({ id: characterId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "published" });
     await database.insert(schema.characters).values({ id: draftCharacterId, stableKey: "mateo", displayName: "Mateo", homeLocation: "Valencia", profile: {}, characterVersion: 1, status: "draft" });
+    // Slice 2 reads every user-state row through `identity_id`; these are the
+    // identities slice 1 created and backfilled in production.
+    await database.insert(schema.characterIdentities).values([
+      { id: luciaIdentityId, stableKey: "lucia", currentCharacterId: characterId },
+      { id: mateoIdentityId, stableKey: "mateo", currentCharacterId: draftCharacterId },
+    ]);
   });
 
   afterEach(async () => { await client.close(); });
@@ -76,9 +84,87 @@ describe("conversation persistence", () => {
   it("rejects draft characters for new conversations and excludes them from discovery", async () => {
     const repository = createDrizzleConversationRepository(database);
     await expect(repository.getOrCreateConversation(userId, "mateo", 1)).rejects.toThrow("CHARACTER_UNAVAILABLE");
-    await database.insert(schema.conversations).values({ userId, characterId: draftCharacterId });
+    await database.insert(schema.conversations).values({ userId, characterId: draftCharacterId, identityId: mateoIdentityId });
     expect(await repository.listConversations(userId)).toHaveLength(0);
     expect(await repository.searchMessages(userId, "Mateo")).toHaveLength(0);
+    expect(await repository.listMessages(userId, "mateo")).toHaveLength(0);
+  });
+
+  it("dual-writes character_id and identity_id on new conversations, messages and preferences", async () => {
+    const repository = createDrizzleConversationRepository(database);
+    const conversationId = await repository.getOrCreateConversation(userId, "lucia", 1);
+    const user = await persistUserMessage(repository, { userId, conversationId, characterKey: "lucia", clientMessageId: "dual-write", generationId: "dual-write", content: "Hola" });
+    await persistCompletedAssistantMessage(repository, {
+      userId,
+      conversationId,
+      characterKey: "lucia",
+      messageId: "20000000-0000-4000-8000-000000000038",
+      generationId: "dual-write",
+      clientMessageId: "assistant-dual-write",
+      content: "¡Hola!",
+      replyToMessageId: user.id,
+    });
+    await repository.updateConversationPreference(userId, "lucia", { isPinned: true });
+
+    const [conversation] = await database.select().from(schema.conversations).where(eq(schema.conversations.id, conversationId));
+    expect(conversation).toMatchObject({ characterId, identityId: luciaIdentityId });
+    const messages = await database.select().from(schema.messages).where(eq(schema.messages.conversationId, conversationId));
+    expect(messages).toHaveLength(2);
+    expect(messages.every((message) => message.characterId === characterId && message.identityId === luciaIdentityId)).toBe(true);
+    const [preference] = await database.select().from(schema.conversationPreferences).where(eq(schema.conversationPreferences.userId, userId));
+    expect(preference).toMatchObject({ characterId, identityId: luciaIdentityId, isPinned: true });
+  });
+
+  it("finds a conversation through the identity after the pointer moves to a new revision", async () => {
+    // This is the live shape the ADR was written for: Lucía's conversation was
+    // created under v1 while the released revision is v2, and the relationship
+    // row stayed on v1. A revision-keyed lookup created a second conversation.
+    const newerCharacterId = "10000000-0000-4000-8000-000000000033";
+    const conversationId = "20000000-0000-4000-8000-000000000039";
+    await database.insert(schema.characters).values({
+      id: newerCharacterId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 2, status: "published",
+    });
+    await database.update(schema.characterIdentities)
+      .set({ currentCharacterId: newerCharacterId })
+      .where(eq(schema.characterIdentities.id, luciaIdentityId));
+    await database.insert(schema.conversations).values({ id: conversationId, userId, characterId, identityId: luciaIdentityId });
+    await database.insert(schema.characterRelationships).values({ userId, characterId, identityId: luciaIdentityId, status: "active" });
+
+    const repository = createDrizzleConversationRepository(database);
+    await expect(repository.getOrCreateConversation(userId, "lucia", 2)).resolves.toBe(conversationId);
+    const conversations = await repository.listConversations(userId);
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0]).toMatchObject({ conversationId, characterKey: "lucia", characterName: "Lucía" });
+    // The new message is written against the revision the pointer names, while
+    // the lookup that found the conversation never consulted a revision.
+    await persistUserMessage(repository, { userId, conversationId, characterKey: "lucia", clientMessageId: "pointer-move", generationId: "pointer-move", content: "Sigo aquí" });
+    const [message] = await database.select().from(schema.messages).where(eq(schema.messages.clientMessageId, "pointer-move"));
+    expect(message).toMatchObject({ characterId: newerCharacterId, identityId: luciaIdentityId });
+    expect(await database.select().from(schema.conversations)).toHaveLength(1);
+  });
+
+  it("fails closed when the identity points at an unpublished revision", async () => {
+    await database.update(schema.characters)
+      .set({ status: "draft" })
+      .where(eq(schema.characters.id, characterId));
+    const repository = createDrizzleConversationRepository(database);
+
+    await expect(repository.getOrCreateConversation(userId, "lucia", 1)).rejects.toThrow("CHARACTER_UNAVAILABLE");
+    await expect(repository.markConversationRead(userId, "lucia")).rejects.toThrow("CHARACTER_UNAVAILABLE");
+    await expect(repository.updateConversationPreference(userId, "lucia", { isPinned: true })).rejects.toThrow("CHARACTER_UNAVAILABLE");
+    expect(await database.select().from(schema.conversations)).toHaveLength(0);
+  });
+
+  it("refuses to adopt a conversation whose identity belongs to another character", async () => {
+    // The identity column is authoritative: this row carries Lucía's revision
+    // id but Mateo's identity, so it must not be handed to Lucía - and the
+    // unique index on (user, revision) means it must not be silently replaced
+    // either.
+    await database.insert(schema.conversations).values({ userId, characterId, identityId: mateoIdentityId });
+    const repository = createDrizzleConversationRepository(database);
+
+    expect(await repository.listMessages(userId, "lucia")).toHaveLength(0);
+    await expect(repository.getOrCreateConversation(userId, "lucia", 1)).rejects.toThrow("CONVERSATION_UNAVAILABLE");
   });
 
   it("does not expose an assistant reply after its user turn is withdrawn", async () => {
@@ -149,13 +235,14 @@ describe("conversation persistence", () => {
     const conversationId = "20000000-0000-4000-8000-000000000035";
     const deleteMessageId = "20000000-0000-4000-8000-000000000036";
     const withdrawMessageId = "20000000-0000-4000-8000-000000000037";
-    await database.insert(schema.conversations).values({ id: conversationId, userId, characterId: draftCharacterId });
+    await database.insert(schema.conversations).values({ id: conversationId, userId, characterId: draftCharacterId, identityId: mateoIdentityId });
     await database.insert(schema.messages).values([
       {
         id: deleteMessageId,
         userId,
         conversationId,
         characterId: draftCharacterId,
+        identityId: mateoIdentityId,
         clientMessageId: "historical-delete",
         role: "user",
         status: "completed",
@@ -167,6 +254,7 @@ describe("conversation persistence", () => {
         userId,
         conversationId,
         characterId: draftCharacterId,
+        identityId: mateoIdentityId,
         clientMessageId: "historical-withdraw",
         role: "user",
         status: "completed",

@@ -643,6 +643,7 @@ src/modules/lexicon-corpus/application/submit-assessment-attempt.ts
 src/modules/lexicon-corpus/ui/corpus-search.tsx
 src/modules/lexicon-corpus/ui/lexical-assessment.tsx
 app/api/v1/corpus/search/route.ts
+app/api/v1/corpus/browse/route.ts
 app/api/v1/lexicon/assessments/[assessmentId]/route.ts
 app/api/v1/lexicon/assessments/[assessmentId]/attempts/route.ts
 ```
@@ -652,6 +653,7 @@ app/api/v1/lexicon/assessments/[assessmentId]/attempts/route.ts
 语料页面切片：
 
 - `corpusQuerySchema` 增加 `match: "phrase" | "all"`，默认 `phrase`，并保留 `q/match/documentKind/sourceKind/stableKey/page` 的 URL 恢复语义。
+- 语料页面默认调用 `listCorpusClusters` 浏览内容，不要求先输入 query；每个短语聚类按文章、视频、播客分 lane 展示真实上下文。`query`、来源类型和内容类型只是可选筛选，缺少某类来源时省略该 lane。
 - `phrase` 模式按西语 token 边界和顺序匹配；`all` 模式沿用同片段包含全部 token 的查询语义。两者都必须先通过服务端可见性、发布状态、版权和用户所有权检查。
 - 语料结果 DTO 对客户端提供 `sourceKind`、`entryKind`、`entryId` 和位置；文章跳到段落，媒体跳到毫秒/片段。
 - 语料结果默认有界分页；查询中保留旧结果，取消或过期响应不能覆盖新查询；无结果和失败状态提供恢复动作。
@@ -660,7 +662,7 @@ app/api/v1/lexicon/assessments/[assessmentId]/attempts/route.ts
 
 ### 13.4 验证
 
-运行 corpus/assessment 单元、连续短语匹配与 URL 状态组件测试、合同、数据库、E2E、evidence/profile 回归、lint、typecheck、db:check、build 和 `git diff --check`。Playwright 至少覆盖 375px 与桌面视口、短语卡代表例句、`match=phrase`/`match=all`、来源跳转、分页恢复和浏览不写证据。
+运行 corpus/assessment 单元、连续短语匹配与 URL 状态组件测试、合同、数据库、E2E、evidence/profile 回归、lint、typecheck、db:check、build 和 `git diff --check`。Playwright 至少覆盖 375px 与桌面视口、无 query 时的默认短语聚类、文章/视频/播客 lane、短语卡代表例句、`match=phrase`/`match=all`、来源跳转、分页恢复和浏览不写证据。
 
 建议提交：`feat: add corpus search and lexical assessment`
 

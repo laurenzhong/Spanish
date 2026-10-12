@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildKwic, contentSourceHref, matchesCorpusQuery, normalizeCorpusQuery } from "@/src/modules/lexicon-corpus/domain";
-import { corpusQuerySchema } from "@/src/modules/lexicon-corpus/schemas/lexicon";
+import { corpusBrowseQuerySchema, corpusQuerySchema } from "@/src/modules/lexicon-corpus/schemas/lexicon";
 
 describe("corpus search", () => {
   it("normalizes accents and requires every query token", () => {
@@ -19,6 +19,15 @@ describe("corpus search", () => {
 
   it("normalizes the browser q alias and defaults to phrase matching", () => {
     expect(corpusQuerySchema.parse({ q: "dar cuenta" })).toMatchObject({ query: "dar cuenta", match: "phrase", page: 1, pageSize: 20 });
+  });
+
+  it("allows the content-first browse feed without a query", () => {
+    expect(corpusBrowseQuerySchema.parse({})).toEqual({ page: 1, pageSize: 8 });
+    expect(corpusBrowseQuerySchema.parse({ contentKind: "podcast", pageSize: "12" })).toEqual({ contentKind: "podcast", page: 1, pageSize: 12 });
+  });
+
+  it("keeps content type filters in the validated search DTO", () => {
+    expect(corpusQuerySchema.parse({ q: "por favor", contentKind: "podcast" })).toMatchObject({ query: "por favor", contentKind: "podcast" });
   });
 
   it("builds bounded KWIC context without leaking unrelated fields", () => {

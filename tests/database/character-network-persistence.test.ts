@@ -26,6 +26,10 @@ import * as schema from "@/src/shared/db/schema";
 const userId = "00000000-0000-4000-8000-000000000061";
 const luciaId = "10000000-0000-4000-8000-000000000061";
 const mateoId = "10000000-0000-4000-8000-000000000062";
+const inesId = "10000000-0000-4000-8000-000000000063";
+const luciaIdentityId = "40000000-0000-4000-8000-000000000061";
+const mateoIdentityId = "40000000-0000-4000-8000-000000000062";
+const inesIdentityId = "40000000-0000-4000-8000-000000000063";
 const conversationId = "20000000-0000-4000-8000-000000000061";
 const memoryId = "30000000-0000-4000-8000-000000000061";
 
@@ -60,8 +64,12 @@ describe("character network persistence", () => {
       { id: luciaId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "published" },
       { id: mateoId, stableKey: "mateo", displayName: "Mateo", homeLocation: "Valencia", profile: {}, characterVersion: 1, status: "published" },
     ]);
-    await database.insert(schema.conversations).values({ id: conversationId, userId, characterId: luciaId });
-    await database.insert(schema.relationshipMemories).values({ id: memoryId, userId, characterId: luciaId, factKey: "interest.photo", category: "interest", content: "fotografía", confidence: 0.9, sensitivity: "normal", status: "candidate" });
+    await database.insert(schema.characterIdentities).values([
+      { id: luciaIdentityId, stableKey: "lucia", currentCharacterId: luciaId },
+      { id: mateoIdentityId, stableKey: "mateo", currentCharacterId: mateoId },
+    ]);
+    await database.insert(schema.conversations).values({ id: conversationId, userId, characterId: luciaId, identityId: luciaIdentityId });
+    await database.insert(schema.relationshipMemories).values({ id: memoryId, userId, characterId: luciaId, identityId: luciaIdentityId, factKey: "interest.photo", category: "interest", content: "fotografía", confidence: 0.9, sensitivity: "normal", status: "candidate" });
   });
 
   afterEach(async () => { await client.close(); });
@@ -78,10 +86,13 @@ describe("character network persistence", () => {
     expect("relationship" in accepted && accepted.relationship.characterKey).toBe("mateo");
     const [relationship] = await database.select().from(schema.characterRelationships).where(eq(schema.characterRelationships.userId, userId));
     expect(relationship?.characterId).toBe(mateoId);
+    expect(relationship?.identityId).toBe(mateoIdentityId);
     const [permission] = await database.select().from(schema.memorySharingPermissions).where(eq(schema.memorySharingPermissions.memoryId, memoryId));
     expect(permission?.targetCharacterId).toBe(mateoId);
+    expect(permission?.targetIdentityId).toBe(mateoIdentityId);
     const [offer] = await database.select().from(schema.characterIntroductionOffers).where(eq(schema.characterIntroductionOffers.userId, userId));
     expect(offer?.status).toBe("accepted");
+    expect(offer).toMatchObject({ sourceIdentityId: luciaIdentityId, targetIdentityId: mateoIdentityId });
 
     const shareable = await repository.listShareableMemoryPreviews(userId, "lucia", "mateo");
     expect(shareable).toEqual([expect.objectContaining({ id: memoryId, alreadyShared: true, sensitivity: "normal" })]);
@@ -153,8 +164,48 @@ describe("character network persistence", () => {
     expect(reviews.every((review) => review.reviewerReference?.startsWith("codex-ai-temporary-review:") === true)).toBe(true);
   });
 
+  it("finds Lucía's relationship and conversation when both still sit on a superseded revision", async () => {
+    // The live database shape the ADR was written for: the released revision is
+    // v2 while the relationship (and, before slice 2, the conversation) stayed
+    // on v1. The v1-keyed gate found the relationship but reported a null
+    // conversation and would have inserted a second one on the next accept.
+    const luciaV2Id = "10000000-0000-4000-8000-000000000064";
+    await database.insert(schema.characters).values({
+      id: luciaV2Id, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 2, status: "published",
+    });
+    await database.insert(schema.characterRelationships).values({
+      userId, characterId: luciaId, identityId: luciaIdentityId, status: "active", relationshipStage: "familiar",
+    });
+    await database.update(schema.characterIdentities)
+      .set({ currentCharacterId: luciaV2Id })
+      .where(eq(schema.characterIdentities.id, luciaIdentityId));
+
+    const repository = createDrizzleLuciaContactRepository(database);
+    await expect(repository.get(userId)).resolves.toMatchObject({
+      characterKey: "lucia",
+      status: "active",
+      relationshipStage: "familiar",
+      conversationId,
+    });
+
+    await repository.transaction((tx) => tx.respond(userId, "accept"));
+    expect(await database.select().from(schema.conversations)).toHaveLength(1);
+    const [opening] = await database.select().from(schema.messages).where(eq(schema.messages.clientMessageId, "lucia-authored-opening-v1"));
+    expect(opening).toMatchObject({ characterId: luciaV2Id, identityId: luciaIdentityId });
+  });
+
+  it("fails closed when Lucía's identity points at an unpublished revision", async () => {
+    await database.insert(schema.characterRelationships).values({
+      userId, characterId: luciaId, identityId: luciaIdentityId, status: "active",
+    });
+    await database.update(schema.characters).set({ status: "draft" }).where(eq(schema.characters.id, luciaId));
+    const repository = createDrizzleLuciaContactRepository(database);
+
+    await expect(repository.get(userId)).rejects.toThrow("CHARACTER_UNAVAILABLE");
+  });
+
   it("does not create an introduction for a draft target", async () => {
-    const draftId = "10000000-0000-4000-8000-000000000063";
+    const draftId = "10000000-0000-4000-8000-000000000065";
     await database.insert(schema.characters).values({
       id: draftId,
       stableKey: "ines",
@@ -163,6 +214,9 @@ describe("character network persistence", () => {
       profile: {},
       characterVersion: 1,
       status: "draft",
+    });
+    await database.insert(schema.characterIdentities).values({
+      id: inesIdentityId, stableKey: "ines", currentCharacterId: draftId,
     });
     const repository = createDrizzleIntroductionRepository(database);
     await expect(proposeIntroduction({ repository, candidate: {
@@ -207,6 +261,7 @@ describe("character network persistence", () => {
       userId,
       memoryId,
       targetCharacterId: mateoId,
+      targetIdentityId: mateoIdentityId,
       isAllowed: true,
     });
     await database.update(schema.relationshipMemories)

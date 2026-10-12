@@ -27,15 +27,39 @@ function corpusResponse(page: number, pageSize: number, total: number, count: nu
   }), { status: 200, headers: { "content-type": "application/json" } });
 }
 
+function browseResponse() {
+  return new Response(JSON.stringify({ data: { items: [], page: 1, pageSize: 8, total: 0 } }), { status: 200, headers: { "content-type": "application/json" } });
+}
+
+function browseClusterResponse() {
+  const context = (contentKind: "article" | "video" | "podcast", index: number) => ({
+    leftContext: "En",
+    keyword: "por favor",
+    rightContext: "escucha",
+    sourceTitle: `${contentKind} ${index}`,
+    sourceKind: contentKind,
+    entryKind: "phrase" as const,
+    entryId: "20000000-0000-4000-8000-000000000001",
+    surfaceText: "por favor",
+    contentKind,
+    document: { kind: contentKind === "article" ? "article" as const : "media" as const, stableKey: `${contentKind}.${index}`, version: 1 },
+    location: contentKind === "article" ? { kind: "text" as const, paragraphId: "p-1", segmentIndex: index } : { kind: "media" as const, startMs: 1_000, endMs: 2_000, segmentIndex: index },
+  });
+  return new Response(JSON.stringify({ data: {
+    items: [{ entryKind: "phrase", entryId: "20000000-0000-4000-8000-000000000001", expression: "por favor", meaningZh: "请", pragmaticPurpose: "请求", contentKinds: ["article", "video", "podcast"], contexts: [context("article", 0), context("video", 1), context("podcast", 2)] }],
+    page: 1, pageSize: 8, total: 1,
+  } }), { status: 200, headers: { "content-type": "application/json" } });
+}
+
 function requestUrl(call: number): URL {
   const fetchMock = vi.mocked(globalThis.fetch);
   return new URL(String(fetchMock.mock.calls[call]?.[0]), "http://localhost");
 }
 
 async function searchFor(user: ReturnType<typeof userEvent.setup>, term: string, documentKind?: string) {
-  await user.type(screen.getByRole("textbox", { name: /搜索词或短语/ }), term);
-  if (documentKind) await user.selectOptions(screen.getByRole("combobox", { name: /来源/ }), documentKind);
-  await user.click(screen.getByRole("button", { name: "查询" }));
+  await user.type(screen.getByRole("textbox", { name: /可选：筛选短语或来源/ }), term);
+  if (documentKind) await user.selectOptions(screen.getByRole("combobox", { name: /内容类型/ }), documentKind === "media" ? "video" : documentKind);
+  await user.click(screen.getByRole("button", { name: /应用筛选|筛选|加载中/ }));
 }
 
 describe("corpus search pagination", () => {
@@ -44,20 +68,33 @@ describe("corpus search pagination", () => {
     vi.restoreAllMocks();
   });
 
+  it("opens on the browse feed and compares contexts by content kind", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(browseClusterResponse());
+    render(<CorpusSearch />);
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1));
+    expect(requestUrl(0).pathname).toBe("/api/v1/corpus/browse");
+    expect(requestUrl(0).searchParams.has("query")).toBe(false);
+    expect(await screen.findByRole("heading", { name: "por favor" })).toBeInTheDocument();
+    expect(screen.getAllByText("文章").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("视频").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("播客").length).toBeGreaterThan(0);
+  });
+
   it("sends the first page with the query and the selected filter", async () => {
     const user = userEvent.setup();
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(corpusResponse(1, 20, 45, 20));
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(browseResponse()).mockResolvedValueOnce(corpusResponse(1, 20, 45, 20));
     render(<CorpusSearch />);
 
     await searchFor(user, "casa", "media");
 
-    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1));
-    const url = requestUrl(0);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+    const url = requestUrl(1);
     expect(url.pathname).toBe("/api/v1/corpus/search");
     expect(url.searchParams.get("query")).toBe("casa");
     expect(url.searchParams.get("match")).toBe("phrase");
     expect(url.searchParams.get("page")).toBe("1");
-    expect(url.searchParams.get("documentKind")).toBe("media");
+    expect(url.searchParams.get("contentKind")).toBe("video");
     expect(new URL(window.location.href).searchParams.get("q")).toBe("casa");
     expect(new URL(window.location.href).searchParams.get("match")).toBe("phrase");
     expect(await screen.findByText("第 1 / 3 页")).toBeInTheDocument();
@@ -68,6 +105,7 @@ describe("corpus search pagination", () => {
   it("pages forward without losing the query or the filter, and back again", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(browseResponse())
       .mockResolvedValueOnce(corpusResponse(1, 20, 45, 20))
       .mockResolvedValueOnce(corpusResponse(2, 20, 45, 20))
       .mockResolvedValueOnce(corpusResponse(1, 20, 45, 20));
@@ -77,23 +115,24 @@ describe("corpus search pagination", () => {
     await screen.findByText("第 1 / 3 页");
 
     await user.click(screen.getByRole("button", { name: "下一页" }));
-    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
-    expect(requestUrl(1).searchParams.get("page")).toBe("2");
-    expect(requestUrl(1).searchParams.get("query")).toBe("dar cuenta");
-    expect(requestUrl(1).searchParams.get("documentKind")).toBe("article");
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(3));
+    expect(requestUrl(2).searchParams.get("page")).toBe("2");
+    expect(requestUrl(2).searchParams.get("query")).toBe("dar cuenta");
+    expect(requestUrl(2).searchParams.get("contentKind")).toBe("article");
     expect(await screen.findByText("第 2 / 3 页")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "上一页" }));
-    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(3));
-    expect(requestUrl(2).searchParams.get("page")).toBe("1");
-    expect(requestUrl(2).searchParams.get("query")).toBe("dar cuenta");
-    expect(requestUrl(2).searchParams.get("documentKind")).toBe("article");
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(4));
+    expect(requestUrl(3).searchParams.get("page")).toBe("1");
+    expect(requestUrl(3).searchParams.get("query")).toBe("dar cuenta");
+    expect(requestUrl(3).searchParams.get("contentKind")).toBe("article");
     expect(await screen.findByText("第 1 / 3 页")).toBeInTheDocument();
   });
 
   it("disables paging on the last page and starts a new search on page one", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(browseResponse())
       .mockResolvedValueOnce(corpusResponse(3, 20, 45, 5))
       .mockResolvedValueOnce(corpusResponse(1, 20, 3, 3));
     render(<CorpusSearch />);
@@ -102,13 +141,13 @@ describe("corpus search pagination", () => {
     await screen.findByText("第 3 / 3 页");
     expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
 
-    await user.clear(screen.getByRole("textbox", { name: /搜索词或短语/ }));
-    await user.type(screen.getByRole("textbox", { name: /搜索词或短语/ }), "parque");
-    await user.click(screen.getByRole("button", { name: /查询/ }));
+    await user.clear(screen.getByRole("textbox", { name: /可选：筛选短语或来源/ }));
+    await user.type(screen.getByRole("textbox", { name: /可选：筛选短语或来源/ }), "parque");
+    await user.click(screen.getByRole("button", { name: /筛选|加载中/ }));
 
-    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
-    expect(requestUrl(1).searchParams.get("page")).toBe("1");
-    expect(requestUrl(1).searchParams.get("query")).toBe("parque");
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(3));
+    expect(requestUrl(2).searchParams.get("page")).toBe("1");
+    expect(requestUrl(2).searchParams.get("query")).toBe("parque");
     expect(await screen.findByText("找到 3 条出现记录")).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "语料分页" })).not.toBeInTheDocument();
   });
@@ -116,6 +155,7 @@ describe("corpus search pagination", () => {
   it("keeps the empty and error states explicit", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(browseResponse())
       .mockResolvedValueOnce(corpusResponse(1, 20, 0, 0))
       .mockResolvedValueOnce(new Response("{}", { status: 503 }));
     render(<CorpusSearch />);
@@ -124,16 +164,16 @@ describe("corpus search pagination", () => {
     expect(await screen.findByText("没有找到同时包含这些词的内容。")).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "语料分页" })).not.toBeInTheDocument();
 
-    await user.clear(screen.getByRole("textbox", { name: /搜索词或短语/ }));
-    await user.type(screen.getByRole("textbox", { name: /搜索词或短语/ }), "casa");
-    await user.click(screen.getByRole("button", { name: "查询" }));
+    await user.clear(screen.getByRole("textbox", { name: /可选：筛选短语或来源/ }));
+    await user.type(screen.getByRole("textbox", { name: /可选：筛选短语或来源/ }), "casa");
+    await user.click(screen.getByRole("button", { name: /应用筛选|筛选/ }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("语料库暂时不可用，请稍后再试。");
+    expect(await screen.findByRole("alert")).toHaveTextContent("语料内容暂时不可用，请稍后再试。");
   });
 
   it("takes known entries back to their library instead of a no-op corpus URL", async () => {
     const user = userEvent.setup();
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({ data: {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(browseResponse()).mockResolvedValueOnce(new Response(JSON.stringify({ data: {
       items: [{ ...corpusItem(0), keyword: "dar cuenta", entryKind: "phrase", entryId: "20000000-0000-4000-8000-000000000001" }],
       page: 1, pageSize: 20, total: 1,
     } }), { status: 200, headers: { "content-type": "application/json" } }));
@@ -150,15 +190,15 @@ describe("corpus search pagination", () => {
     render(<CorpusSearch />);
 
     await searchFor(user, "casa");
-    await user.clear(screen.getByRole("textbox", { name: /搜索词或短语/ }));
-    await user.type(screen.getByRole("textbox", { name: /搜索词或短语/ }), "parque");
-    await user.click(screen.getByRole("button", { name: /查询/ }));
-    expect(pending).toHaveLength(2);
+    await user.clear(screen.getByRole("textbox", { name: /可选：筛选短语或来源/ }));
+    await user.type(screen.getByRole("textbox", { name: /可选：筛选短语或来源/ }), "parque");
+    await user.click(screen.getByRole("button", { name: /筛选|加载中/ }));
+    expect(pending).toHaveLength(3);
 
     const responseFor = (title: string) => new Response(JSON.stringify({ data: { items: [{ ...corpusItem(0), sourceTitle: title }], page: 1, pageSize: 20, total: 1 } }), { status: 200, headers: { "content-type": "application/json" } });
-    pending[1]!(responseFor("新查询"));
+    pending[2]!(responseFor("新查询"));
     expect(await screen.findByText("新查询")).toBeInTheDocument();
-    pending[0]!(responseFor("旧查询"));
+    pending[1]!(responseFor("旧查询"));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(screen.getByText("新查询")).toBeInTheDocument();
     expect(screen.queryByText("旧查询")).not.toBeInTheDocument();

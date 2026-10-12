@@ -56,6 +56,10 @@ const luciaId = "10000000-0000-4000-8000-000000000071";
 const pabloId = "10000000-0000-4000-8000-000000000072";
 const mateoId = "10000000-0000-4000-8000-000000000073";
 const inesId = "10000000-0000-4000-8000-000000000074";
+const luciaIdentityId = "40000000-0000-4000-8000-000000000071";
+const pabloIdentityId = "40000000-0000-4000-8000-000000000072";
+const mateoIdentityId = "40000000-0000-4000-8000-000000000073";
+const inesIdentityId = "40000000-0000-4000-8000-000000000074";
 
 async function migration(name: string) {
   return (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
@@ -102,7 +106,7 @@ describe("conversation history access gate", () => {
       grant usage on schema auth, public to anon, authenticated;
       grant execute on function auth.uid() to anon, authenticated;
     `);
-    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0004_calm_iron_monger.sql", "0005_kind_character_network.sql", "0016_proactive_messages.sql"]) {
+    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0004_calm_iron_monger.sql", "0005_kind_character_network.sql", "0016_proactive_messages.sql", "0017_sudden_betty_brant.sql", "0045_lumpy_medusa.sql"]) {
       await client.exec(await migration(name));
     }
     database = drizzle(client, {
@@ -118,11 +122,17 @@ describe("conversation history access gate", () => {
       { id: mateoId, stableKey: "mateo", displayName: "Mateo", homeLocation: "Valencia", profile: {}, characterVersion: 1, status: "published" },
       { id: inesId, stableKey: "ines", displayName: "Inés", homeLocation: "Barcelona", profile: {}, characterVersion: 1, status: "draft" },
     ]);
+    await database.insert(schema.characterIdentities).values([
+      { id: luciaIdentityId, stableKey: "lucia", currentCharacterId: luciaId },
+      { id: pabloIdentityId, stableKey: "pablo", currentCharacterId: pabloId },
+      { id: mateoIdentityId, stableKey: "mateo", currentCharacterId: mateoId },
+      { id: inesIdentityId, stableKey: "ines", currentCharacterId: inesId },
+    ]);
     await database.insert(schema.characterRelationships).values([
-      { userId, characterId: luciaId, status: "active" },
-      { userId, characterId: pabloId, status: "active" },
-      { userId, characterId: mateoId, status: "active" },
-      { userId, characterId: inesId, status: "active" },
+      { userId, characterId: luciaId, identityId: luciaIdentityId, status: "active" },
+      { userId, characterId: pabloId, identityId: pabloIdentityId, status: "active" },
+      { userId, characterId: mateoId, identityId: mateoIdentityId, status: "active" },
+      { userId, characterId: inesId, identityId: inesIdentityId, status: "active" },
     ]);
   });
 
@@ -183,12 +193,62 @@ describe("conversation history access gate", () => {
     expect(statements).toHaveLength(1);
   });
 
+  it("finds the relationship while it still sits on a superseded revision", async () => {
+    // The live shape after the 2026-10-12 rollover: the relationship row (and,
+    // for Lucía, the conversation) stayed on v1 while the released revision is
+    // v2. The relationship is joined on the identity, so the stale revision id
+    // no longer decides whether the gate sees it.
+    const luciaV2Id = "10000000-0000-4000-8000-000000000075";
+    await database.insert(schema.characters).values({
+      id: luciaV2Id, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 2, status: "published",
+    });
+    await database.update(schema.characterIdentities)
+      .set({ currentCharacterId: luciaV2Id })
+      .where(eq(schema.characterIdentities.id, luciaIdentityId));
+
+    // The caller still passes the version it was constructed with; the gate no
+    // longer selects the user-state row by it.
+    await expect(relationshipStatus("lucia")).resolves.toBe("active");
+    expect(statements).toHaveLength(1);
+  });
+
+  it("fails closed when the identity points at an unpublished revision", async () => {
+    await database.update(schema.characters)
+      .set({ status: "draft" })
+      .where(eq(schema.characters.id, luciaId));
+
+    await expect(relationshipStatus("lucia")).resolves.toBeNull();
+    statements.length = 0;
+    // Lucía's gate is the contact repository, which raises
+    // CHARACTER_UNAVAILABLE for a character it cannot serve; the caller turns
+    // that into "unavailable", exactly as it did for a missing v1 row.
+    await expect(resolveHistoryAccess(accessDatabase(), userId, "lucia")).resolves.toEqual({
+      readOnly: true,
+      canSend: false,
+      contactStatus: "unavailable",
+    });
+  });
+
   it("allows a published non-Lucía contact in a single statement", async () => {
     statements.length = 0;
     await expect(resolveHistoryAccess(accessDatabase(), userId, "pablo")).resolves.toEqual({
       readOnly: false,
       canSend: true,
       contactStatus: "active",
+    });
+    expect(statements).toHaveLength(1);
+  });
+
+  it("refuses a non-Lucía contact whose identity points at an unpublished revision", async () => {
+    await database.update(schema.characters)
+      .set({ status: "draft" })
+      .where(eq(schema.characters.id, pabloId));
+
+    statements.length = 0;
+    await expect(resolveHistoryAccess(accessDatabase(), userId, "pablo")).resolves.toEqual({
+      readOnly: true,
+      canSend: false,
+      contactStatus: "pending",
     });
     expect(statements).toHaveLength(1);
   });

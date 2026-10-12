@@ -66,6 +66,7 @@ export type CorpusQuery = Readonly<{
   entryKind?: "lexeme" | "phrase";
   entryId?: string;
   documentKind?: "article" | "media";
+  contentKind?: CorpusContentKind;
   sourceKind?: string;
   stableKey?: string;
   page: number;
@@ -76,6 +77,30 @@ export type CorpusItem = KwicResult & Readonly<{
   entryKind: "lexeme" | "phrase";
   entryId: string;
   surfaceText: string;
+}>;
+
+export type CorpusContentKind = "article" | "video" | "podcast";
+
+export type CorpusClusterContext = CorpusItem & Readonly<{
+  contentKind: CorpusContentKind;
+}>;
+
+export type CorpusCluster = Readonly<{
+  entryKind: "phrase";
+  entryId: string;
+  expression: string;
+  meaningZh: string | null;
+  pragmaticPurpose: string | null;
+  contexts: readonly CorpusClusterContext[];
+  contentKinds: readonly CorpusContentKind[];
+}>;
+
+export type CorpusBrowseQuery = Readonly<{
+  query?: string;
+  documentKind?: "article" | "media";
+  contentKind?: CorpusContentKind;
+  page: number;
+  pageSize: number;
 }>;
 
 export type AssessmentItem = Readonly<{
@@ -130,6 +155,7 @@ export interface LexiconCorpusRepository {
   indexLexeme(input: LexemeIndexInput, sourceTitle: string, sourceKind: string): Promise<string>;
   indexPhrase(input: PhraseIndexInput, sourceTitle: string, sourceKind: string): Promise<string>;
   searchCorpus(userId: string | undefined, query: CorpusQuery): Promise<PagedResult<CorpusItem>>;
+  listCorpusClusters(userId: string | undefined, query: CorpusBrowseQuery): Promise<PagedResult<CorpusCluster>>;
   getAssessment(userId: string | undefined, assessmentKey: string): Promise<AssessmentItem | null>;
   submitAssessment(userId: string, assessmentKey: string, input: AssessmentAttemptInput): Promise<AssessmentAttemptResult>;
 }

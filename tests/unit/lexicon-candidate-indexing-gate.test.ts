@@ -87,6 +87,7 @@ function createRecordingRepository(): { repository: LexiconCorpusRepository; cal
       return `phrase-${calls.length}`;
     },
     searchCorpus: async () => ({ items: [], page: 1, pageSize: 20, total: 0 }),
+    listCorpusClusters: async () => ({ items: [], page: 1, pageSize: 8, total: 0 }),
     getAssessment: async () => null,
     submitAssessment: async () => {
       throw new Error("submitAssessment must not be called by the indexing gate");

@@ -660,6 +660,7 @@
           { "name": "entryKind", "in": "query", "schema": { "enum": ["lexeme", "phrase"] } },
           { "name": "entryId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
           { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },
+          { "name": "contentKind", "in": "query", "schema": { "enum": ["article", "video", "podcast"] }, "description": "Optional content type filter; search remains an explicit query mode." },
           { "name": "sourceKind", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
           { "name": "stableKey", "in": "query", "schema": { "type": "string", "maxLength": 240 } },
           { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
@@ -668,6 +669,24 @@
         "responses": {
           "200": { "description": "KWIC corpus results", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/corpus-search-response.schema.json" } } } },
           "400": { "description": "Invalid corpus query", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Corpus unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/corpus/browse": {
+      "get": {
+        "summary": "Browse published phrase clusters with article, video, and podcast contexts",
+        "description": "Content-first corpus entry point. Query and content filters are optional; when omitted, the response still contains available phrase clusters.",
+        "parameters": [
+          { "name": "query", "in": "query", "schema": { "type": "string", "maxLength": 120 }, "description": "Optional phrase filter; omitting it browses the default feed." },
+          { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },
+          { "name": "contentKind", "in": "query", "schema": { "enum": ["article", "video", "podcast"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 24, "default": 8 } }
+        ],
+        "responses": {
+          "200": { "description": "Phrase corpus clusters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/corpus-browse-response.schema.json" } } } },
+          "400": { "description": "Invalid corpus browse filters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
           "503": { "description": "Corpus unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
       }

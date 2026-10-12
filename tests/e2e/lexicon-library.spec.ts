@@ -55,7 +55,7 @@ test("keeps vocabulary and phrase shelves directly reachable from reading", asyn
   await expect(page.locator('select[name="cefr"]')).toHaveValue("A2");
 });
 
-test("keeps the corpus placeholder explicit and layout usable across phone and desktop widths", async ({ page }) => {
+test("keeps the content-first corpus shelf usable across phone and desktop widths", async ({ page }) => {
   await authenticate(page);
   for (const width of [320, 375, 414, 1440]) {
     await page.setViewportSize({ width, height: 760 });
@@ -70,11 +70,33 @@ test("keeps the corpus placeholder explicit and layout usable across phone and d
 test("restores corpus matching modes and pagination without recording browsing as evidence", async ({ page }) => {
   await authenticate(page);
   const requests: string[] = [];
+  const browseRequests: string[] = [];
   const evidenceRequests: string[] = [];
   await page.on("request", (request) => {
     const url = request.url();
     if (url.includes("/api/v1/corpus/search")) requests.push(url);
+    if (url.includes("/api/v1/corpus/browse")) browseRequests.push(url);
     if (url.includes("/api/v1/evidence")) evidenceRequests.push(url);
+  });
+  await page.route("**/api/v1/corpus/browse*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiVersion: "v1", data: {
+        items: [{
+          entryKind: "phrase",
+          entryId: "20000000-0000-4000-8000-000000000001",
+          expression: "dar cuenta",
+          meaningZh: "说明",
+          pragmaticPurpose: "表达说明",
+          contentKinds: ["article", "video", "podcast"],
+          contexts: [],
+        }],
+        page: 1,
+        pageSize: 8,
+        total: 1,
+      } }),
+    });
   });
   await page.route("**/api/v1/corpus/search*", async (route) => {
     const url = new URL(route.request().url());
@@ -107,9 +129,11 @@ test("restores corpus matching modes and pagination without recording browsing a
   });
 
   await page.goto("/read/corpus");
-  await page.getByRole("textbox", { name: "搜索词或短语" }).fill("dar cuenta");
+  await expect(page.getByRole("heading", { name: "dar cuenta" })).toBeVisible();
+  expect(browseRequests.some((url) => !new URL(url).searchParams.has("query"))).toBe(true);
+  await page.getByRole("textbox", { name: "可选：筛选短语或来源" }).fill("dar cuenta");
   await page.getByRole("combobox", { name: "匹配方式" }).selectOption("phrase");
-  await page.getByRole("button", { name: "查询" }).click();
+  await page.getByRole("button", { name: /筛选/ }).click();
   await expect(page.getByText("Phrase source 1")).toBeVisible();
   expect(new URL(page.url()).searchParams.get("q")).toBe("dar cuenta");
   expect(new URL(page.url()).searchParams.get("match")).toBe("phrase");
@@ -123,7 +147,7 @@ test("restores corpus matching modes and pagination without recording browsing a
   await expect(page.getByText("Phrase source 1")).toBeVisible();
 
   await page.getByRole("combobox", { name: "匹配方式" }).selectOption("all");
-  await page.getByRole("button", { name: "查询" }).click();
+  await page.getByRole("button", { name: /筛选/ }).click();
   await expect(page.getByText("All source 1")).toBeVisible();
   expect(new URL(page.url()).searchParams.get("match")).toBe("all");
   expect(requests.some((url) => new URL(url).searchParams.get("match") === "phrase")).toBe(true);

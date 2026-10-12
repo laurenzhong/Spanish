@@ -5,6 +5,7 @@ export * from "./lexicon-indexing-mode";
 export * from "./candidate-reviewer";
 export * from "./lexicon-indexing-pipeline";
 export * from "./list-phrases";
+export * from "./list-corpus-clusters";
 export * from "./list-vocabulary";
 export * from "./list-frequency-words";
 export * from "./set-lexical-intent";
