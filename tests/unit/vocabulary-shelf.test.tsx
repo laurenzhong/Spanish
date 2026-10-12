@@ -403,6 +403,34 @@ describe("vocabulary shelf", () => {
     expect(screen.getByText(/已标记 1 个/u)).toBeInTheDocument();
   });
 
+  // The fix that made the mark buttons reachable (owner-reported twice): the
+  // buttons live *inside* the card box, so there is no second box for the pointer
+  // to fall between. jsdom has no layout, so the pointer proof itself lives in
+  // `scripts/verify-vocabulary-page-browser.ts`; this pins the structure that
+  // makes that proof possible — move the actions back out as a sibling of the
+  // card and both assertions below fail.
+  it("keeps the mark buttons inside the card box, with no strip between them", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-card-structure");
+
+    await user.hover(wordTile("casa"));
+    const layer = document.getElementById("vocabulary-translation-layer");
+    expect(layer).not.toBeNull();
+
+    const card = layer?.querySelector(".vocabulary-shelf__translation-card") ?? null;
+    const actions = layer?.querySelector(".vocabulary-shelf__translation-actions") ?? null;
+    expect(card).not.toBeNull();
+    expect(actions).not.toBeNull();
+
+    // One box: the actions are the card's child, not its sibling.
+    expect(actions?.parentElement).toBe(card);
+    // And the layer holds nothing else — a second box would be a strip between
+    // the pointer's path and the buttons with no hit target of its own.
+    expect([...(layer?.children ?? [])]).toEqual([card]);
+    // Both shortcuts are the card's own buttons.
+    expect(card?.querySelectorAll("button")).toHaveLength(2);
+  });
+
   it("turns the rail into band fragments and tracks the band in view by observation, not by scrolling", async () => {
     renderShelf("scope-rail", manyItems, { total: 105 });
 

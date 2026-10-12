@@ -12,7 +12,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { chromium } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
 
 // The acceptance run measures the page with and without the meanings payload in
 // one window, which means two servers; the base URL is therefore overridable.
@@ -48,6 +48,94 @@ function matchesAsset(shown: readonly string[], expected: readonly string[] | un
   const firstLines = shown.map((item) => item.split("\n")[0]?.trim() ?? "");
   const wanted = expected.slice(0, 3).map((entry) => entry.trim());
   return firstLines.length === wanted.length && firstLines.every((line, index) => line === wanted[index]);
+}
+
+/**
+ * The component's own close delay: `vocabulary-shelf.tsx`'s `scheduleHide` waits
+ * 120 ms after the pointer leaves the word before the card can go away (Language
+ * Reactor's popup uses 100 ms). Every walk below waits this plus 100 ms after
+ * arriving, so a pending close would have fired unless a real hit target under
+ * the pointer was holding the card open.
+ */
+const CLOSE_DELAY_MS = 120;
+/**
+ * 16–30 ms between pointer points. Playwright's `mouse.move(..., { steps: n })`
+ * dispatches its n points with no delay at all — the entire traversal takes about
+ * 0 ms — which is why a `steps: 6` walk followed by a 120 ms wait still passed on
+ * a build whose buttons a hand could not reach. The owner reported that bug twice
+ * while the check was green.
+ */
+const TRAVEL_STEP_MS = 22;
+/** How far the arc bows sideways past the card's edge (20–40 px): hands overshoot. */
+const TRAVEL_OVERSHOOT_PX = 34;
+
+type Point = Readonly<{ x: number; y: number }>;
+type PointerWalk = Readonly<{
+  samples: number;
+  /** Steps whose `elementFromPoint` reached neither a word nor the layer. */
+  deadZones: readonly number[];
+  /** Steps where the layer was gone: the card vanished under the pointer. */
+  lostCard: readonly number[];
+  /** Steps where the layer was open, but on a different word. */
+  reTargets: readonly number[];
+}>;
+
+/** A quadratic arc from `from` to `to`, bowing `overshoot` px sideways. */
+function arcPath(from: Point, to: Point, overshoot: number, samples: number): readonly Point[] {
+  const control = { x: (from.x + to.x) / 2 + overshoot, y: (from.y + to.y) / 2 };
+  const points: Point[] = [];
+  for (let index = 0; index <= samples; index += 1) {
+    const t = index / samples;
+    points.push({
+      x: (1 - t) * (1 - t) * from.x + 2 * (1 - t) * t * control.x + t * t * to.x,
+      y: (1 - t) * (1 - t) * from.y + 2 * (1 - t) * t * control.y + t * t * to.y,
+    });
+  }
+  return points;
+}
+
+/**
+ * Walk the pointer point by point, waiting between points, and at *every* point
+ * ask the browser what is under it. That question is the dead-zone detector: when
+ * `elementFromPoint(x, y).closest("[data-word-key], #vocabulary-translation-layer")`
+ * is null, the pointer is over a strip with no hit target — the gap a hand fell
+ * through while the card re-targeted away. The same probe records whether the card
+ * is still open and still on the same word, so "the card survived the trip" is
+ * asserted at every step rather than only at the end.
+ */
+async function walkPointer(page: Page, path: readonly Point[], word: string, pauseAt?: Readonly<{ index: number; ms: number }>): Promise<PointerWalk> {
+  const deadZones: number[] = [];
+  const lostCard: number[] = [];
+  const reTargets: number[] = [];
+  for (let index = 0; index < path.length; index += 1) {
+    const point = path[index];
+    await page.mouse.move(point.x, point.y);
+    await page.waitForTimeout(TRAVEL_STEP_MS);
+    if (pauseAt && index === pauseAt.index) await page.waitForTimeout(pauseAt.ms);
+    const probe = await page.evaluate(`(() => {
+      const hit = document.elementFromPoint(${point.x}, ${point.y});
+      const layer = document.getElementById("vocabulary-translation-layer");
+      const row = layer ? layer.closest("li") : null;
+      const tile = row ? row.querySelector("[data-word]") : null;
+      return {
+        reachable: Boolean(hit && hit.closest("[data-word-key], #vocabulary-translation-layer")),
+        open: Boolean(layer),
+        word: tile ? tile.getAttribute("data-word") : "none",
+      };
+    })()`) as Readonly<{ reachable: boolean; open: boolean; word: string }>;
+    if (!probe.reachable) deadZones.push(index);
+    if (!probe.open) lostCard.push(index);
+    if (probe.word !== word) reTargets.push(index);
+  }
+  return { samples: path.length, deadZones, lostCard, reTargets };
+}
+
+function walkLine(label: string, walk: PointerWalk): string {
+  return `${label}: ${walk.samples} points @ ${TRAVEL_STEP_MS}ms | dead zones [${walk.deadZones.join(",")}] | card lost [${walk.lostCard.join(",")}] | re-targeted [${walk.reTargets.join(",")}]`;
+}
+
+function walkIsClean(walk: PointerWalk): boolean {
+  return walk.deadZones.length === 0 && walk.lostCard.length === 0 && walk.reTargets.length === 0;
 }
 
 const browser = await chromium.launch();
@@ -443,15 +531,12 @@ try {
   check("the layer is on top for the first words of the first row", firstRowTried > 0 && firstRowOk === firstRowTried, `${firstRowOk}/${firstRowTried} on top`);
 
   // --- item 3: the pointer must reach the card and its buttons must work ------
-  // Presence is not the assertion: the pointer walks onto the card and clicks
-  // both buttons for real, and the mark has to change.
+  // Presence is not the assertion. For *every* button: re-open the card from the
+  // word, travel to the button point by point with real waiting time, ask at each
+  // point what is under the pointer, wait longer than the close delay on arrival,
+  // then click and require the mark to change.
   const markWord = firstRow.find((word) => Boolean(word)) as string;
   const markTile = page.locator(`[data-word="${markWord}"]`).first();
-  await page.mouse.move(0, 0);
-  await markTile.scrollIntoViewIfNeeded();
-  await markTile.hover();
-  await page.locator("#vocabulary-translation-layer").waitFor({ timeout: 6_000 });
-  await page.waitForTimeout(150);
   const readMarks = async () => (await page.evaluate(`(() => {
     const marks = {};
     for (const key of Object.keys(window.localStorage)) {
@@ -464,36 +549,79 @@ try {
   const quickButtons = page.locator("#vocabulary-translation-layer .vocabulary-shelf__translation-actions button");
   const quickCount = await quickButtons.count();
   const outcomes: string[] = [];
+  const walks: PointerWalk[] = [];
+  let clicksThatChanged = 0;
+  let aborted = 0;
   for (let index = 0; index < quickCount; index += 1) {
     const button = quickButtons.nth(index);
-    const box = await button.boundingBox();
-    if (!box) { outcomes.push("no box"); continue; }
-    // Travel the way a pointer does, through the bridge into the card.
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
-    await page.waitForTimeout(120);
-    const alive = (await page.locator("#vocabulary-translation-layer").count()) > 0;
-    const pressed = await button.getAttribute("aria-pressed");
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await page.waitForTimeout(200);
-    const after = await readMarks();
-    outcomes.push(`${await button.getAttribute("aria-label")}: alive=${alive} pressed=${pressed} → ${after.tileClasses.includes("is-familiar") || after.tileClasses.includes("is-learning") ? after.tileClasses.split(" ").pop() : after.marks}`);
+    const label = (await button.getAttribute("aria-label", { timeout: 2_000 }).catch(() => null)) ?? `button ${index}`;
+    try {
+      // Back to the word, then open the card again: each button gets its own
+      // word→button trip instead of a hop between two adjacent buttons.
+      await page.mouse.move(0, 0);
+      await page.waitForTimeout(CLOSE_DELAY_MS + 100);
+      await markTile.scrollIntoViewIfNeeded();
+      await markTile.hover();
+      await page.locator("#vocabulary-translation-layer").waitFor({ timeout: 6_000 });
+      await page.waitForTimeout(200); // dwell on the word, as a reader does
+
+      const tileBox = await markTile.boundingBox();
+      const buttonBox = await button.boundingBox({ timeout: 2_000 }).catch(() => null);
+      if (!tileBox || !buttonBox) { outcomes.push(`${label}: no box`); continue; }
+      const from = { x: tileBox.x + tileBox.width / 2, y: tileBox.y + tileBox.height - 4 };
+      const to = { x: buttonBox.x + buttonBox.width / 2, y: buttonBox.y + buttonBox.height / 2 };
+      const walk = await walkPointer(page, arcPath(from, to, TRAVEL_OVERSHOOT_PX, 26), markWord);
+      walks.push(walk);
+
+      // Arrive, then wait past the close delay: a card held open by a real hit
+      // target is still there; one that only survived because the pointer
+      // teleported is not.
+      await page.mouse.move(to.x, to.y);
+      await page.waitForTimeout(CLOSE_DELAY_MS + 100);
+      const arrived = await page.evaluate(`(() => {
+        const layer = document.getElementById("vocabulary-translation-layer");
+        const row = layer ? layer.closest("li") : null;
+        const tile = row ? row.querySelector("[data-word]") : null;
+        const under = document.elementFromPoint(${to.x}, ${to.y});
+        return {
+          open: Boolean(layer),
+          word: tile ? tile.getAttribute("data-word") : "none",
+          underIsButton: Boolean(under && under.closest(".vocabulary-shelf__translation-actions")),
+        };
+      })()`) as Readonly<{ open: boolean; word: string; underIsButton: boolean }>;
+      const pressed = await button.getAttribute("aria-pressed", { timeout: 2_000 }).catch(() => null);
+      const before = await readMarks();
+      await page.mouse.click(to.x, to.y);
+      await page.waitForTimeout(250);
+      const after = await readMarks();
+      const changed = after.marks !== before.marks;
+      if (changed) clicksThatChanged += 1;
+      outcomes.push(`${label}: arrived=${arrived.open && arrived.word === markWord && arrived.underIsButton} pressed=${pressed} changed=${changed}`);
+    } catch (error) {
+      // A card that vanished mid-trip has to be a recorded failure, not an abort:
+      // naming the dead zone is the whole point of this check.
+      aborted += 1;
+      outcomes.push(`${label}: vanished mid-trip (${String(error).slice(0, 80)})`);
+    }
   }
   const marksAfter = await readMarks();
+  for (const walk of walks) console.log(`  ${walkLine("word→button", walk)}`);
   console.log(`  marking walk (${markWord}): ${outcomes.join(" | ")}`);
-  check("the pointer reaches the card without it vanishing", outcomes.every((entry) => entry.includes("alive=true")), outcomes.join(" | "));
+  check("every point of a word→button trip has a hit target", walks.length === quickCount && quickCount > 0 && walks.every((walk) => walk.deadZones.length === 0), walks.map((walk) => `[${walk.deadZones.join(",")}]`).join(" ") || `no walk (${aborted} aborted)`);
+  check("the card stays open on the same word for the whole trip", walks.length === quickCount && quickCount > 0 && walks.every((walk) => walk.lostCard.length === 0 && walk.reTargets.length === 0), walks.map((walk) => `lost[${walk.lostCard.join(",")}] re[${walk.reTargets.join(",")}]`).join(" ") || `no walk (${aborted} aborted)`);
+  check("the pointer reaches the card without it vanishing", aborted === 0 && outcomes.length === quickCount && outcomes.every((entry) => entry.includes("arrived=true")), outcomes.join(" | "));
+  check("every click on a card button changes the mark", quickCount > 0 && clicksThatChanged === quickCount, `${clicksThatChanged}/${quickCount} | ${outcomes.join(" | ")}`);
   check("clicking the card's buttons changes the mark", marksAfter.marks !== marksBefore.marks && /familiar|learning/.test(marksAfter.marks), `${marksBefore.marks} → ${marksAfter.marks}`);
+  if (quickCount > 0 && !walks.every(walkIsClean)) console.log(`  ${walkLine("first failing trip", walks.find((walk) => !walkIsClean(walk)) as PointerWalk)}`);
 
-  // ...and the same thing the way a hand does it. The walk above interpolates six
-  // points with no inter-step delay, so it traverses in ~0 ms and cannot see a
-  // hand's problem. This one moves point by point with real waiting time, arcs
-  // sideways past the card and pauses mid-path — and at *every* point asks the
-  // browser what is under the pointer, which is the dead-zone detector: if the
-  // answer is neither this word nor the layer, the pointer is over a strip with no
-  // hit target and the card is about to re-target away.
+  // ...and the same thing the way a hand does it: slower, from the word's edge,
+  // with a pause mid-path. The walk above already replaces Playwright's
+  // zero-delay `steps:`; this is the wandering variant, and it asserts the same
+  // two per-step facts (a hit target under every point, the card on this word).
   {
     const humanTile = page.locator(`[data-word="${markWord}"]`).first();
     await page.mouse.move(0, 0);
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(CLOSE_DELAY_MS + 100);
     await humanTile.scrollIntoViewIfNeeded();
     const humanBox = await humanTile.boundingBox();
     if (!humanBox) throw new Error("no box for the human-path check");
@@ -504,41 +632,16 @@ try {
     if (!humanButtonBox) throw new Error("no button box for the human-path check");
     const from = { x: humanBox.x + humanBox.width / 2, y: humanBox.y + humanBox.height - 4 };
     const to = { x: humanButtonBox.x + humanButtonBox.width / 2, y: humanButtonBox.y + humanButtonBox.height / 2 };
-    // A quadratic arc whose control point sits 34px to the side: the pointer
-    // overshoots past the card's edge and comes back, which is what a hand does.
-    const control = { x: (from.x + to.x) / 2 + 34, y: (from.y + to.y) / 2 };
-    const samples = 26;
-    const deadZones: number[] = [];
-    const reTargets: number[] = [];
-    for (let index = 0; index <= samples; index += 1) {
-      const t = index / samples;
-      const x = (1 - t) * (1 - t) * from.x + 2 * (1 - t) * t * control.x + t * t * to.x;
-      const y = (1 - t) * (1 - t) * from.y + 2 * (1 - t) * t * control.y + t * t * to.y;
-      await page.mouse.move(x, y);
-      await page.waitForTimeout(18); // 26 points × 18ms ≈ 470ms of travel
-      if (index === Math.round(samples * 0.45)) await page.waitForTimeout(200); // a pause mid-path
-      const probe = await page.evaluate(`(() => {
-        const hit = document.elementFromPoint(${x}, ${y});
-        const layer = document.getElementById("vocabulary-translation-layer");
-        const row = layer ? layer.closest("li") : null;
-        const word = (row ? row.querySelector("[data-word]") : null);
-        const meaningful = Boolean(hit && hit.closest("[data-word-key], #vocabulary-translation-layer"));
-        return { meaningful, word: word ? word.getAttribute("data-word") : "none" };
-      })()`) as Readonly<{ meaningful: boolean; word: string }>;
-      if (!probe.meaningful) deadZones.push(index);
-      if (probe.word !== markWord) reTargets.push(index);
-    }
-    const arrivalBox = await humanButton.boundingBox();
-    const arrival = arrivalBox ? { x: arrivalBox.x + arrivalBox.width / 2, y: arrivalBox.y + arrivalBox.height / 2 } : to;
-    await page.mouse.move(arrival.x, arrival.y);
-    // Wait longer than the close delay before clicking, so a pending close would
-    // have fired if the card were not held open by the pointer being on it.
-    await page.waitForTimeout(320);
+    // 26 points × 22 ms ≈ 570 ms of travel, with a pause at the halfway mark.
+    const humanWalk = await walkPointer(page, arcPath(from, to, TRAVEL_OVERSHOOT_PX, 26), markWord, { index: 12, ms: 200 });
+    // Arrive, then give a pending close longer than the close delay to fire.
+    await page.mouse.move(to.x, to.y);
+    await page.waitForTimeout(CLOSE_DELAY_MS + 100);
     const humanProbe = await page.evaluate(`(() => {
       const layer = document.getElementById("vocabulary-translation-layer");
       const row = layer ? layer.closest("li") : null;
       const tile = row ? row.querySelector("[data-word]") : null;
-      const under = document.elementFromPoint(${arrival.x}, ${arrival.y});
+      const under = document.elementFromPoint(${to.x}, ${to.y});
       return {
         open: Boolean(layer),
         word: tile ? tile.getAttribute("data-word") : "none",
@@ -546,12 +649,12 @@ try {
       };
     })()`) as Readonly<{ open: boolean; word: string; underIsButton: boolean }>;
     const humanMarksBefore = await readMarks();
-    await page.mouse.click(arrival.x, arrival.y);
+    await page.mouse.click(to.x, to.y);
     await page.waitForTimeout(250);
     const humanMarksAfter = await readMarks();
-    console.log(`  slow wandering path: dead zones at [${deadZones.join(",")}] | re-targeted at [${reTargets.join(",")}] | arrived over the button: ${humanProbe.underIsButton}`);
-    check("no point on a hand's path is a dead zone", deadZones.length === 0, `dead zones at steps [${deadZones.join(",")}]`);
-    check("a hand's path keeps the card on the same word", humanProbe.open && humanProbe.word === markWord && humanProbe.underIsButton, `open ${humanProbe.open} | word ${humanProbe.word} | over button ${humanProbe.underIsButton} | re-targeted at [${reTargets.join(",")}]`);
+    console.log(`  ${walkLine("slow wandering path", humanWalk)}`);
+    check("no point on a hand's path is a dead zone", humanWalk.deadZones.length === 0, `dead zones at steps [${humanWalk.deadZones.join(",")}]`);
+    check("a hand's path keeps the card on the same word", humanWalk.lostCard.length === 0 && humanWalk.reTargets.length === 0 && humanProbe.open && humanProbe.word === markWord && humanProbe.underIsButton, `card lost at [${humanWalk.lostCard.join(",")}] | re-targeted at [${humanWalk.reTargets.join(",")}] | open ${humanProbe.open} | word ${humanProbe.word} | over button ${humanProbe.underIsButton}`);
     check("a hand's click on the card's button changes the mark", humanMarksAfter.marks !== humanMarksBefore.marks && /familiar|learning/.test(humanMarksAfter.marks), `${humanMarksBefore.marks} → ${humanMarksAfter.marks}`);
   }
 
