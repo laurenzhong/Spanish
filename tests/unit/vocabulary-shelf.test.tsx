@@ -285,12 +285,15 @@ describe("vocabulary shelf", () => {
     expect(tile.parentElement?.tagName).toBe("LI");
 
     await user.unhover(tile);
-    expect(translation()).toBeNull();
+    // Closing is deliberately delayed (180 ms) so the pointer can travel from the
+    // word onto the card's buttons; the assertion waits for it rather than
+    // reading the state mid-flight.
+    await waitFor(() => expect(translation()).toBeNull());
 
     await user.hover(tile);
     expect(translation()).not.toBeNull();
     await user.click(screen.getByRole("button", { name: /ser/u }));
-    expect(translation()).toBeNull();
+    await waitFor(() => expect(translation()).toBeNull());
   });
 
   it("reads no geometry while the page scrolls", async () => {

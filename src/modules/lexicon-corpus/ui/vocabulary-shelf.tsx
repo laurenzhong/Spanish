@@ -193,6 +193,8 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
   const describedRef = useRef<HTMLElement | null>(null);
   const hoveredTileRef = useRef<HTMLElement | null>(null);
   const hoveredBandRef = useRef<HTMLElement | null>(null);
+  /** The hovered tile's list row: the first four rows carry a filled transform. */
+  const hoveredRowRef = useRef<HTMLElement | null>(null);
   /** The portalled layer, so moving onto its buttons is not "leaving the word". */
   const layerRef = useRef<HTMLDivElement | null>(null);
   /** True while the pointer is on the layer itself. */
@@ -211,25 +213,28 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
     describedRef.current = null;
     hoveredTileRef.current = null;
     keepLayerRef.current = false;
-    // The hovered band only carries the class that lets the layer leave it.
+    // The hovered band and row only carry the classes that let the layer out.
     hoveredBandRef.current?.classList.remove("is-hovered");
     hoveredBandRef.current = null;
+    hoveredRowRef.current?.classList.remove("is-hovered");
+    hoveredRowRef.current = null;
     setHovered(null);
   }, []);
 
   /**
-   * Leaving a word hides the layer on the next tick rather than immediately:
-   * moving the pointer onto the layer's own buttons is not leaving the word, and
-   * `mouseout` does not reliably carry `relatedTarget` (jsdom never sets it, and
-   * a pointer sequence may deliver the two events in either order). The deferred
-   * check reads the state that actually settled.
+   * Leaving a word hides the layer a beat later rather than immediately, so the
+   * pointer can travel from the word onto the card. The card's buttons are the
+   * point of the card, and an instant hide made them unreachable. The deferred
+   * check re-reads the state that settled: a pointer on the card keeps it, and
+   * another word taking over keeps that word's layer. 180 ms covers the 6px trip
+   * and still closes promptly when the pointer really leaves.
    */
   const hideAfterLeaving = useCallback((tile: HTMLElement) => {
     window.setTimeout(() => {
       if (keepLayerRef.current) return;
       if (hoveredTileRef.current !== tile) return;
       hideTranslation();
-    }, 0);
+    }, 180);
   }, [hideTranslation]);
 
   const showTranslation = useCallback((tile: HTMLElement) => {
@@ -253,6 +258,16 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
       hoveredBandRef.current?.classList.remove("is-hovered");
       band?.classList.add("is-hovered");
       hoveredBandRef.current = band;
+    }
+    // The first four grid children carry the entrance animation's filled
+    // `transform`, which makes each of them its own stacking context: a layer
+    // inside one of those rows is trapped in it and the later rows paint over it.
+    // Lifting the row itself is the same one-write trick one level down.
+    const row = tile.parentElement;
+    if (row && row !== hoveredRowRef.current) {
+      hoveredRowRef.current?.classList.remove("is-hovered");
+      row.classList.add("is-hovered");
+      hoveredRowRef.current = row;
     }
     if (describedRef.current !== tile) {
       describedRef.current?.removeAttribute("aria-describedby");
@@ -355,6 +370,7 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
   useEffect(() => () => {
     describedRef.current?.removeAttribute("aria-describedby");
     hoveredBandRef.current?.classList.remove("is-hovered");
+    hoveredRowRef.current?.classList.remove("is-hovered");
   }, []);
 
   // The layer is wider than one tile, so in the right-hand columns it would run
@@ -417,7 +433,6 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
       </div>
 
       {milestones.length ? <nav className="vocabulary-rank-rail" aria-label="按名次跳转">
-        <p className="vocabulary-rank-rail__caption">名次（已滤除功能词）</p>
         {milestones.map((rank) => <a
           key={rank}
           href={`#${rankBandAnchor(rank, total)}`}
@@ -456,15 +471,25 @@ export function VocabularyShelf({ children, storageScope, glossary, dictionary, 
 
       {/* The two states a reader reaching for the mouse most likely wants. They
           sit outside the `tooltip` element so the description assistive tech
-          reads stays the meanings alone. */}
+          reads stays the meanings alone. The glyph is the button's visible face;
+          the name is on the button, and the label appears for hover *and* focus,
+          so a keyboard user is not left with two unlabelled marks. */}
       <div className="vocabulary-shelf__translation-actions" role="group" aria-label={`标记 ${hovered.word}`}>
         {quickStatusOptions.map(([value, label]) => <button
           key={value}
           type="button"
+          aria-label={label}
           aria-pressed={statuses[hovered.key] === value}
           className={statuses[hovered.key] === value ? "is-active" : undefined}
           onClick={() => markStatus(hovered.key, value)}
-        >{label}</button>)}
+        >
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20">
+            {value === "familiar"
+              ? <path d="M4.5 10.5l3.2 3.2 7.3-7.3" />
+              : <><path d="M4 4.5h9.5a2 2 0 0 1 2 2v9H6a2 2 0 0 1-2-2z" /><path d="M7 8.5h6" /></>}
+          </svg>
+          <span className="vocabulary-shelf__translation-actions-label">{label}</span>
+        </button>)}
       </div>
     </div>, hovered.container) : null}
 

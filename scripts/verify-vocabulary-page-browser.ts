@@ -76,6 +76,15 @@ try {
   const coldMs = Date.now() - started;
 
   // --- the consolidation -----------------------------------------------------
+  // Item 1: how much blank sits above the section navigation. It used to be the
+  // shell's 48px top padding plus the page's own 12px.
+  const topSpace = await page.evaluate(`(() => {
+    const nav = document.querySelector("nav.read-section-navigation");
+    return nav ? Math.round(nav.getBoundingClientRect().top) : -1;
+  })()`) as number;
+  console.log(`blank above the section navigation: ${topSpace}px`);
+  check("the section navigation sits near the top of the content", topSpace >= 0 && topSpace <= 32, `${topSpace}px above it`);
+
   const switcher = await page.locator('nav[aria-label*="视图"]').count();
   check("no view switcher", switcher === 0, `nav count ${switcher}`);
   const oldLabels = await page.getByRole("link", { name: /学习词表|语料高频词|正式词元/u }).count();
@@ -304,7 +313,13 @@ try {
   check("the meanings shown are the source's own list, in its own order", meaningAsset ? matchesAsset(tooltipMeanings, meaningAsset.meanings.cafe ?? meaningAsset.meanings.café) : (tooltipMeanings[0]?.includes("咖啡这种饮料") === true && tooltipMeanings[1]?.includes("咖啡馆") === true), meaningAsset ? `asset order: ${(meaningAsset.meanings.cafe ?? meaningAsset.meanings.café ?? []).join(" | ")}` : "reviewed glossary order (LR asset absent)");
   check("no claim about commonness is made", !/最常用|按频率|常用度/u.test(await tooltip.innerText()), "no frequency wording");
   check("the tile shows the same meaning the hover list leads with", (await cafe.innerText()).includes(tooltipMeanings[0]?.split("\n")[0]?.trim() ?? "\u0000"), `tile: ${(await cafe.innerText()).split("\n").join(" / ")}`);
-  check("the translation cannot swallow a click", (await tooltip.evaluate((node) => getComputedStyle(node).pointerEvents)) === "none", await tooltip.evaluate((node) => getComputedStyle(node).pointerEvents));
+  // The contract changed with task-22: the layer must be hoverable and clickable
+  // now, so the *wrapper* stays click-through (it is mostly empty space) while the
+  // card itself is a hit target. The neighbour-click check below still proves the
+  // layer does not steal clicks meant for a visible word.
+  const layerPointerEvents = await page.locator("#vocabulary-translation-layer").evaluate((node) => getComputedStyle(node).pointerEvents);
+  const cardPointerEvents = await page.locator("#vocabulary-translation").evaluate((node) => getComputedStyle(node).pointerEvents);
+  check("the layer wrapper stays click-through while the card is clickable", layerPointerEvents === "none" && cardPointerEvents === "auto", `wrapper ${layerPointerEvents}, card ${cardPointerEvents}`);
   const heightAfter = await page.evaluate(() => document.body.scrollHeight);
   check("the translation does not shift the page", heightBefore === heightAfter, `${heightBefore} → ${heightAfter}`);
   check("no title attribute is used", (await cafe.getAttribute("title")) === null, "title absent");
@@ -388,6 +403,109 @@ try {
     };
   });
   check("the layer stays inside the page in the right-hand column", inViewport.left >= 0 && inViewport.right <= inViewport.viewport && inViewport.overflow <= 1, `left ${inViewport.left} / right ${inViewport.right} of ${inViewport.viewport} | flipped ${inViewport.flipped} | page overflow ${inViewport.overflow}`);
+
+  // --- item 2: the first row's first words, which were still occluded ---------
+  // Each of those rows keeps the entrance animation's filled `transform`, so the
+  // row is its own stacking context; the layer only escapes if the row is lifted
+  // too. The hit test names the element it actually reaches, so a regression says
+  // what is on top rather than just "not the layer".
+  const firstRow = await page.evaluate(`(() => {
+    const tiles = [...document.querySelectorAll('[data-band-start="1"] .vocabulary-study__word')];
+    const firstTop = Math.round(tiles[0].getBoundingClientRect().top);
+    return tiles.filter((tile) => Math.abs(tile.getBoundingClientRect().top - firstTop) < 2).map((tile) => tile.getAttribute("data-word"));
+  })()`) as readonly string[];
+  let firstRowOk = 0;
+  let firstRowTried = 0;
+  for (const word of firstRow.slice(0, 3)) {
+    const tile = page.locator(`[data-word="${word}"]`).first();
+    if ((await tile.count()) === 0) continue;
+    await page.mouse.move(0, 0);
+    await tile.scrollIntoViewIfNeeded();
+    await tile.hover();
+    try { await page.locator("#vocabulary-translation-layer").waitFor({ timeout: 2_500 }); } catch { continue; }
+    await page.waitForTimeout(120);
+    firstRowTried += 1;
+    const probe = await page.evaluate(`(() => {
+      const layer = document.getElementById("vocabulary-translation-layer");
+      const rect = layer.getBoundingClientRect();
+      const before = layer.style.pointerEvents;
+      layer.style.pointerEvents = "auto";
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      layer.style.pointerEvents = before;
+      return {
+        onLayer: Boolean(hit) && (hit === layer || layer.contains(hit)),
+        hit: hit ? hit.tagName.toLowerCase() + "." + String(hit.className).split(" ").slice(0, 2).join(".") + " band=" + (((hit.closest("[data-band-start]") || {}).dataset || {}).bandStart ?? "none") : "none",
+      };
+    })()`) as Readonly<{ onLayer: boolean; hit: string }>;
+    if (probe.onLayer) firstRowOk += 1;
+    else console.log(`  OCCLUDED for ${word}: hit ${probe.hit}`);
+  }
+  check("the layer is on top for the first words of the first row", firstRowTried > 0 && firstRowOk === firstRowTried, `${firstRowOk}/${firstRowTried} on top`);
+
+  // --- item 3: the pointer must reach the card and its buttons must work ------
+  // Presence is not the assertion: the pointer walks onto the card and clicks
+  // both buttons for real, and the mark has to change.
+  const markWord = firstRow.find((word) => Boolean(word)) as string;
+  const markTile = page.locator(`[data-word="${markWord}"]`).first();
+  await page.mouse.move(0, 0);
+  await markTile.scrollIntoViewIfNeeded();
+  await markTile.hover();
+  await page.locator("#vocabulary-translation-layer").waitFor({ timeout: 6_000 });
+  await page.waitForTimeout(150);
+  const readMarks = async () => (await page.evaluate(`(() => {
+    const marks = {};
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith("sueno:vocabulary-status:v1:")) marks[key.replace("sueno:vocabulary-status:v1:", "")] = window.localStorage.getItem(key);
+    }
+    const tile = document.querySelector('[data-word="${markWord}"]');
+    return { marks: JSON.stringify(marks), tileClasses: tile ? tile.className : "gone" };
+  })()`)) as Readonly<{ marks: string; tileClasses: string }>;
+  const marksBefore = await readMarks();
+  const quickButtons = page.locator("#vocabulary-translation-layer .vocabulary-shelf__translation-actions button");
+  const quickCount = await quickButtons.count();
+  const outcomes: string[] = [];
+  for (let index = 0; index < quickCount; index += 1) {
+    const button = quickButtons.nth(index);
+    const box = await button.boundingBox();
+    if (!box) { outcomes.push("no box"); continue; }
+    // Travel the way a pointer does, through the bridge into the card.
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
+    await page.waitForTimeout(120);
+    const alive = (await page.locator("#vocabulary-translation-layer").count()) > 0;
+    const pressed = await button.getAttribute("aria-pressed");
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(200);
+    const after = await readMarks();
+    outcomes.push(`${await button.getAttribute("aria-label")}: alive=${alive} pressed=${pressed} → ${after.tileClasses.includes("is-familiar") || after.tileClasses.includes("is-learning") ? after.tileClasses.split(" ").pop() : after.marks}`);
+  }
+  const marksAfter = await readMarks();
+  console.log(`  marking walk (${markWord}): ${outcomes.join(" | ")}`);
+  check("the pointer reaches the card without it vanishing", outcomes.every((entry) => entry.includes("alive=true")), outcomes.join(" | "));
+  check("clicking the card's buttons changes the mark", marksAfter.marks !== marksBefore.marks && /familiar|learning/.test(marksAfter.marks), `${marksBefore.marks} → ${marksAfter.marks}`);
+
+  // The label is the button's accessible name whether or not it is shown, and
+  // focus reveals it — not only hover. Focus is reached the way a keyboard
+  // reaches it: from the word, by Tab.
+  const quickButton = quickButtons.first();
+  const buttonName = await quickButton.getAttribute("aria-label");
+  await page.mouse.move(0, 0);
+  await markTile.focus();
+  await page.locator("#vocabulary-translation-layer").waitFor({ timeout: 5_000 }).catch(() => {});
+  await page.keyboard.press("Tab");
+  const labelShownOnFocus = await page.evaluate(`(() => {
+    const active = document.activeElement;
+    const layer = document.getElementById("vocabulary-translation-layer");
+    const isQuickButton = Boolean(active && active.closest(".vocabulary-shelf__translation-actions"));
+    const label = isQuickButton ? active.querySelector(".vocabulary-shelf__translation-actions-label") : null;
+    return {
+      layerOpen: Boolean(layer),
+      focused: active ? (active.getAttribute("aria-label") || String(active.className) || active.tagName) : "none",
+      isQuickButton,
+      shown: label ? getComputedStyle(label).display !== "none" : false,
+    };
+  })()`) as Readonly<{ layerOpen: boolean; focused: string; isQuickButton: boolean; shown: boolean }>;
+  check("the icon button keeps an accessible name", (buttonName ?? "").length > 0, buttonName ?? "none");
+  check("keyboard focus reveals the button's label, not only hover", labelShownOnFocus.layerOpen && labelShownOnFocus.isQuickButton && labelShownOnFocus.shown, `focused ${labelShownOnFocus.focused} | layer ${labelShownOnFocus.layerOpen} | shown ${labelShownOnFocus.shown}`);
 
   // --- against the real Language Reactor asset, once the scrape has landed ---
   // Sampling is driven by the asset itself: a one-meaning word, a two-meaning
@@ -473,6 +591,14 @@ try {
   await page.waitForTimeout(200);
   check("the layer goes away when the pointer leaves the word", (await page.locator("#vocabulary-translation").count()) === 0, "gone");
 
+  // --- item 6: the rail keeps its accessible name and the explanation stays ---
+  const railName = await page.locator('nav[aria-label="按名次跳转"]').count();
+  check("the rail keeps an accessible name without its caption", railName === 1, `${railName} named rail`);
+  const railText = await page.locator(".vocabulary-rank-rail").innerText().catch(() => "");
+  check("the rail shows only its numbers", !/名次|滤除|功能词/u.test(railText), railText.replace(/\s+/g, " ").slice(0, 40) || "empty");
+  const countLine = await page.locator(".lexicon-result-count").innerText().catch(() => "");
+  check("the page still explains what the rank is", /已过滤功能词/u.test(countLine), countLine.slice(0, 60));
+
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
 
   // --- search ----------------------------------------------------------------
@@ -489,6 +615,24 @@ try {
   // A result set holds no shelf ranks: no bands, no rail, and no page either.
   check("a search result drops the bands and the rail", (await page.locator(".vocabulary-rank-band").count()) === 0 && (await page.locator('nav[aria-label="按名次跳转"]').count()) === 0, "no bands, no rail");
   check("a search result holds every match", searched.length > 1 && searched.length < 7_922, `${searched.length} matches`);
+
+  // --- item 5: the icon becomes the way back, reachable by keyboard and touch -
+  const clearLink = page.getByRole("link", { name: /清除搜索/u });
+  const clearCount = await clearLink.count();
+  check("an active search turns the icon into a clear control", clearCount === 1, `${clearCount} found`);
+  if (clearCount === 1) {
+    await clearLink.focus();
+    const focused = await page.evaluate(`(() => document.activeElement ? document.activeElement.getAttribute("aria-label") : null)()`) as string | null;
+    check("the clear control is reachable by keyboard", typeof focused === "string" && focused.includes("清除搜索"), focused ?? "none");
+    const clearBox = await clearLink.boundingBox();
+    check("the clear control is a 44px touch target", clearBox !== null && clearBox.width >= 44 && clearBox.height >= 44, clearBox ? `${Math.round(clearBox.width)}x${Math.round(clearBox.height)}` : "no box");
+    await clearLink.click();
+    // The shelf comes back through a client-side navigation that re-reads the
+    // corpus, so wait for the tiles rather than for the network to go quiet.
+    await page.waitForFunction(`document.querySelectorAll(".vocabulary-study__word").length > 100`, undefined, { timeout: 180_000 }).catch(() => {});
+    const afterClear = await page.locator(".vocabulary-study__word").count();
+    check("clearing the search returns the whole shelf", !page.url().includes("search=") && afterClear === 7_922, `${afterClear} tiles | ${page.url()}`);
+  }
 
   // --- mobilisation ----------------------------------------------------------
   await page.setViewportSize({ width: 390, height: 844 });

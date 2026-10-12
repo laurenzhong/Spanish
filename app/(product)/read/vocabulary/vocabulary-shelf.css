@@ -49,9 +49,10 @@ html:has(.vocabulary-shelf__body) {
 }
 
 /* The floating translation is anchored inside the word's own row, so it follows
-   that word with no geometry read and no scroll listener of its own. Absolute,
-   so it never shifts the page, and `pointer-events: none`, so it can never take
-   a click meant for the word underneath or beside it. */
+   that word with no geometry read and no scroll listener of its own. Absolute, so
+   it never shifts the page. The *wrapper* stays click-through — it is mostly
+   empty space — while the card and its buttons are hit targets, which is how the
+   layer can be hovered and clicked without becoming a blanket over the shelf. */
 .vocabulary-study__grid > li {
   position: relative;
 }
@@ -68,6 +69,17 @@ html:has(.vocabulary-shelf__body) {
   z-index: 5;
 }
 
+/* One level down, the same trick. The first four grid children keep the entrance
+   animation's filled `transform` (`animation-fill-mode: both`), so each of those
+   rows is its own stacking context and a layer inside one cannot paint over the
+   rows that follow — which is exactly why the first few words of the first row
+   were still occluded. Lifting the hovered row fixes that with one class toggle
+   per hover and leaves the entrance animation alone. */
+.vocabulary-shelf__bands .vocabulary-study__grid > li.is-hovered {
+  position: relative;
+  z-index: 6;
+}
+
 /* --- density ---------------------------------------------------------------
    The owner's item 6: fewer boxes, more words per row, no dead space. The app
    shell gives this page 72px of side padding and a centred measure; on a
@@ -76,7 +88,73 @@ html:has(.vocabulary-shelf__body) {
 main.product-content:has(.page-stack.read-page) {
   width: auto;
   margin-inline: 0;
+  /* The shell's 48px top padding plus the page's own 12px put the section nav
+     60px below the viewport top — the band of blank the owner reported. 12px
+     here leaves the nav at 24px and still clears the sticky chrome. */
+  padding-top: 12px;
   padding-inline: 20px;
+}
+
+/* --- search field ----------------------------------------------------------
+   No frame and no buttons: the field is the control, and the icon inside it is a
+   magnifier until a search is active, when the same slot becomes the clear
+   control. The label is visually hidden but real, so the input keeps its name. */
+.vocabulary-search {
+  position: relative;
+  display: block;
+  max-width: 420px;
+}
+
+.vocabulary-search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px 0 44px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--foreground);
+  background: var(--surface);
+  font-size: .88rem;
+}
+
+.vocabulary-search input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 1px;
+}
+
+.vocabulary-search__icon,
+.vocabulary-search__clear {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  color: var(--muted);
+}
+
+/* The icon is the SVG itself in the idle state, and the SVG inside the clear
+   link once a search is active. */
+.vocabulary-search__icon,
+.vocabulary-search__clear svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.7;
+}
+
+.vocabulary-search__clear {
+  border-radius: 10px 0 0 10px;
+}
+
+.vocabulary-search__clear:hover,
+.vocabulary-search__clear:focus-visible {
+  color: var(--accent-strong);
 }
 
 /* Words as words rather than as boxes — the owner's own suggestion — which is
@@ -137,8 +215,11 @@ main.product-content:has(.page-stack.read-page) {
 }
 
 /* The hover/focus translation card. No accent bar down the left: the meaning
-   list carries its own hierarchy. */
+   list carries its own hierarchy. The card is a hit target — its own buttons are
+   the reason it exists — while the wrapper around it stays click-through, so the
+   layer only blocks where it is actually drawn. */
 .vocabulary-shelf__translation {
+  pointer-events: auto;
   display: grid;
   gap: 6px;
   padding: 10px 12px;
@@ -148,8 +229,22 @@ main.product-content:has(.page-stack.read-page) {
   box-shadow: var(--shadow);
 }
 
+/* An invisible bridge across the 6px between the word and the card: without it a
+   quick pointer move can jump the gap, land on the words underneath, and the
+   card re-targets away before the button is reached. */
+.vocabulary-shelf__translation-layer::before {
+  position: absolute;
+  top: -6px;
+  right: 0;
+  left: 0;
+  height: 6px;
+  content: "";
+  pointer-events: auto;
+}
+
 /* The layer's two marking shortcuts. They are the only clickable part of it. */
 .vocabulary-shelf__translation-actions {
+  pointer-events: auto;
   display: flex;
   gap: 4px;
 }
@@ -157,9 +252,9 @@ main.product-content:has(.page-stack.read-page) {
 .vocabulary-shelf__translation-actions button {
   pointer-events: auto;
   display: inline-flex;
-  min-height: 28px;
+  min-height: 30px;
   align-items: center;
-  padding: 4px 10px;
+  padding: 5px 8px;
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
@@ -167,6 +262,33 @@ main.product-content:has(.page-stack.read-page) {
   cursor: pointer;
   font-size: .68rem;
   font-weight: 780;
+}
+
+.vocabulary-shelf__translation-actions button svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+/* The glyph is what shows; the name lives on the button (`aria-label`), and the
+   label is revealed for hover *and* focus so neither a mouse nor a keyboard user
+   has to guess. `:focus` rather than `:focus-visible`: the latter depends on how
+   focus arrived, and "keyboard focus must reveal it" has to hold however the
+   reader got there. Touch never sees this layer at all — a tap opens the card,
+   which carries all four states with their words. */
+.vocabulary-shelf__translation-actions-label {
+  display: none;
+  margin-left: 5px;
+}
+
+.vocabulary-shelf__translation-actions button:hover .vocabulary-shelf__translation-actions-label,
+.vocabulary-shelf__translation-actions button:focus .vocabulary-shelf__translation-actions-label {
+  display: inline;
 }
 
 .vocabulary-shelf__translation-actions button:hover {
@@ -248,15 +370,6 @@ main.product-content:has(.page-stack.read-page) {
   text-align: right;
 }
 
-.vocabulary-rank-rail__caption {
-  margin: 0 0 3px;
-  color: var(--muted);
-  font-size: .6rem;
-  font-weight: 820;
-  letter-spacing: .04em;
-  text-align: right;
-}
-
 .vocabulary-rank-rail a {
   display: flex;
   min-height: 30px;
@@ -293,13 +406,9 @@ main.product-content:has(.page-stack.read-page) {
     flex-wrap: wrap;
   }
 
-  .vocabulary-rank-rail__caption {
-    flex: 1 0 100%;
-    text-align: left;
-  }
-
   .vocabulary-rank-rail a {
-    min-width: 40px;
+    min-width: 44px;
+    min-height: 34px;
   }
 }
 

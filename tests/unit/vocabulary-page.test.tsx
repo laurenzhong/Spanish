@@ -231,7 +231,7 @@ describe("vocabulary page", () => {
     expect(headings[0]).toHaveClass("sr-only");
   });
 
-  it("searches without carrying a view or a page parameter", async () => {
+  it("searches without carrying a view or a page parameter, and the field is the only control", async () => {
     openWithDatabase();
     await renderPage({ search: "casa" });
 
@@ -239,12 +239,25 @@ describe("vocabulary page", () => {
     expect(form.getAttribute("action")).toBe("/read/vocabulary");
     expect(form.querySelector('input[name="view"]')).toBeNull();
     expect(form.querySelector('input[name="page"]')).toBeNull();
-    expect(within(form).getByLabelText("搜索词表")).toHaveValue("casa");
-    expect(screen.getByRole("link", { name: "重置" })).toHaveAttribute("href", "/read/vocabulary");
+    const field = within(form).getByLabelText("搜索词表");
+    expect(field).toHaveValue("casa");
+    // The framed form and its two buttons are gone: the field is the control, and
+    // an active search turns the icon inside it into the way back.
+    expect(within(form).queryByRole("button")).toBeNull();
+    expect(within(form).getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "清除搜索：casa" })).toHaveAttribute("href", "/read/vocabulary");
     expect(mocks.repository.listFrequencyWords).toHaveBeenCalledWith({ search: "casa", page: 1, pageSize: 7_922 });
     // A result set holds no shelf ranks, so it gets no bands and no rail.
     expect(screen.queryByRole("heading", { name: /排名/u })).not.toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
+  });
+
+  it("shows the search icon, not a clear control, while no search is active", async () => {
+    openWithDatabase();
+    await renderPage();
+
+    expect(screen.getByRole("textbox", { name: "搜索词表" })).toHaveValue("");
+    expect(screen.queryByRole("link", { name: /清除搜索/u })).not.toBeInTheDocument();
   });
 
   it("states honestly when the shelf cannot be read", async () => {
