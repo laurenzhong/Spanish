@@ -67,6 +67,70 @@ test("keeps the corpus placeholder explicit and layout usable across phone and d
   }
 });
 
+test("restores corpus matching modes and pagination without recording browsing as evidence", async ({ page }) => {
+  await authenticate(page);
+  const requests: string[] = [];
+  const evidenceRequests: string[] = [];
+  await page.on("request", (request) => {
+    const url = request.url();
+    if (url.includes("/api/v1/corpus/search")) requests.push(url);
+    if (url.includes("/api/v1/evidence")) evidenceRequests.push(url);
+  });
+  await page.route("**/api/v1/corpus/search*", async (route) => {
+    const url = new URL(route.request().url());
+    const match = url.searchParams.get("match") ?? "phrase";
+    const pageNumber = Number(url.searchParams.get("page") ?? "1");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        apiVersion: "v1",
+        data: {
+          items: [{
+            leftContext: pageNumber === 1 ? "No" : "Ya",
+            keyword: "dar cuenta",
+            rightContext: "de lo ocurrido",
+            sourceTitle: `${match === "phrase" ? "Phrase" : "All"} source ${pageNumber}`,
+            sourceKind: "article-rss",
+            entryKind: "phrase",
+            entryId: "20000000-0000-4000-8000-000000000001",
+            surfaceText: "dar cuenta",
+            document: { kind: "article", stableKey: "article.corpus", version: 2 },
+            location: { kind: "text", paragraphId: "p1", segmentIndex: pageNumber - 1 },
+          }],
+          page: pageNumber,
+          pageSize: 1,
+          total: 2,
+        },
+      }),
+    });
+  });
+
+  await page.goto("/read/corpus");
+  await page.getByRole("textbox", { name: "搜索词或短语" }).fill("dar cuenta");
+  await page.getByRole("combobox", { name: "匹配方式" }).selectOption("phrase");
+  await page.getByRole("button", { name: "查询" }).click();
+  await expect(page.getByText("Phrase source 1")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("q")).toBe("dar cuenta");
+  expect(new URL(page.url()).searchParams.get("match")).toBe("phrase");
+  await expect(page.getByRole("link", { name: "打开来源" })).toHaveAttribute("href", "/read/article/article.corpus#segment-0");
+  await page.getByRole("button", { name: "下一页" }).click();
+  await expect(page).toHaveURL(/page=2/);
+  await expect(page.getByText("Phrase source 2")).toBeVisible();
+
+  await page.goBack();
+  expect(new URL(page.url()).searchParams.get("page")).toBeNull();
+  await expect(page.getByText("Phrase source 1")).toBeVisible();
+
+  await page.getByRole("combobox", { name: "匹配方式" }).selectOption("all");
+  await page.getByRole("button", { name: "查询" }).click();
+  await expect(page.getByText("All source 1")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("match")).toBe("all");
+  expect(requests.some((url) => new URL(url).searchParams.get("match") === "phrase")).toBe(true);
+  expect(requests.some((url) => new URL(url).searchParams.get("match") === "all")).toBe(true);
+  expect(evidenceRequests).toEqual([]);
+});
+
 test("exposes the saved reading shelf with type tabs and no phone overflow", async ({ page }) => {
   await authenticate(page);
   await page.goto("/read/saved-items");
