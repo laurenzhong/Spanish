@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { containsUnsupportedScript, requestedNonSpanishLanguage } from "@/src/modules/conversation/domain/language-purity";
+import { containsUnsupportedScript, requestedNonSpanishLanguage, translationesePhrase } from "@/src/modules/conversation/domain/language-purity";
 
 describe("language purity", () => {
   it("detects Chinese characters mixed into Spanish text", () => {
@@ -37,5 +37,27 @@ describe("language purity", () => {
     expect(requestedNonSpanishLanguage("Me gusta leer en español por la noche.")).toBe(false);
     expect(requestedNonSpanishLanguage("¿Estás en Madrid ahora?")).toBe(false);
     expect(requestedNonSpanishLanguage("")).toBe(false);
+  });
+
+  it("reports a greeting that was translated word by word", () => {
+    // The reported reply, 2026-10-12: "Buenas tardes 😊 Bienvenido al lunes."
+    expect(translationesePhrase("Buenas tardes 😊 Bienvenido al lunes. Mi plan es tranquilo.")).toBe("bienvenido al lunes");
+    expect(translationesePhrase("¡Bienvenida a la semana!")).toBe("bienvenido al lunes");
+    expect(translationesePhrase("bienvenidos al viernes")).toBe("bienvenido al lunes");
+    // "Bienvenido a casa" is ordinary Spanish and must not be flagged.
+    expect(translationesePhrase("Bienvenido a casa, aquí se está bien.")).toBeNull();
+    expect(translationesePhrase("Bienvenida al salón.")).toBeNull();
+  });
+
+  it("reports the documented calques and nothing that is correct Spanish", () => {
+    expect(translationesePhrase("Eso hace sentido para mí.")).toBe("hace sentido");
+    expect(translationesePhrase("Lo hicieron en orden de terminar antes.")).toBe("en orden de");
+    // "hacía" is the correct imperfect of "hacer": accent stripping makes it
+    // identical to the preposition, so it must stay out of the pattern.
+    expect(translationesePhrase("Antes hacía sentido, ahora ya no.")).toBeNull();
+    expect(translationesePhrase("Los colocaron en orden de llegada.")).toBeNull();
+    expect(translationesePhrase("Tiene sentido, y me gusta la idea.")).toBeNull();
+    expect(translationesePhrase("Vaya lunes, ánimo con la semana.")).toBeNull();
+    expect(translationesePhrase("")).toBeNull();
   });
 });

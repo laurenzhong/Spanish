@@ -12,7 +12,7 @@ import {
 } from "./generate-character-reply";
 import { deriveReplyOpenTopics, localDateInTimeZone, type ReplyContext } from "./build-reply-context";
 import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
-import { containsUnsupportedScript, requestedNonSpanishLanguage } from "../domain/language-purity";
+import { containsUnsupportedScript, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
 import { getConversationCharacter } from "../domain/character-catalog";
 
 export type StreamReplyProviderObservation = Readonly<{
@@ -149,6 +149,8 @@ export async function* streamReply(
         });
         const returnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && (commitment.status === "returned" || commitment.status === "completed"));
         const redundantGreeting = isRedundantGreetingReply(context, replyResult.text);
+        const recycledPhrase = isRecycledReplyPhrase(context, replyResult.text);
+        const translationese = translationesePhrase(replyResult.text);
         generationContext = {
           ...context,
           ...(returnedPlan || (context.questionPolicy && context.questionPolicy.maxQuestionPressure !== "none")
@@ -160,11 +162,7 @@ export async function* streamReply(
                   maxQuestionPressure: "none" as const,
                 },
               }),
-          continuityInstruction: returnedPlan
-            ? "La persona ya ha vuelto o ha terminado el plan mencionado. Responde desde después de la actividad: no uses deseos propios de antes de salir (por ejemplo, 'que lo pases bien' o 'espero que disfrutes'). Puedes preguntar una sola cosa concreta sobre cómo fue, o responder con calidez sin preguntar; no inventes el resultado."
-            : redundantGreeting
-              ? "Ya has saludado en un mensaje anterior de hoy y la persona no te ha saludado ahora. No vuelvas a abrir con un saludo (nada de 'hola', 'buenos días', 'buenas tardes' ni 'buenas noches'): continúa directamente con lo que acaba de decir."
-              : "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.",
+          continuityInstruction: retryInstruction({ returnedPlan, translationese, redundantGreeting, recycledPhrase }),
         };
       }
       await notifyProviderResult(input, {
@@ -322,6 +320,93 @@ function isRedundantGreetingReply(context: ReplyContext, text: string): boolean 
   return previousGreetingDate !== null && previousGreetingDate === context.currentLocalDate;
 }
 
+const recycledPhraseMinimumTokens = 4;
+const recycledPhraseMinimumCharacters = 18;
+
+/** Significant words: accent-free lowercase tokens long enough to carry meaning. */
+function significantReplyTokens(value: string): readonly string[] {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .split(/\s+/u)
+    .filter((token) => token.length >= 3);
+}
+
+function sharesPhrase(
+  previous: readonly string[],
+  generated: readonly string[],
+  size: number,
+  minimumCharacters: number,
+): boolean {
+  if (previous.length < size || generated.length < size) return false;
+  const phrases = new Set<string>();
+  for (let index = 0; index + size <= previous.length; index += 1) {
+    phrases.add(previous.slice(index, index + size).join(" "));
+  }
+  for (let index = 0; index + size <= generated.length; index += 1) {
+    const phrase = generated.slice(index, index + size).join(" ");
+    if (phrase.length >= minimumCharacters && phrases.has(phrase)) return true;
+  }
+  return false;
+}
+
+/**
+ * Reusing your own wording is the same defect as repeating a greeting, one
+ * level deeper. On 2026-10-12 Lucía closed a message with "A veces lo mejor que
+ * se puede hacer un lunes es no hacer nada" and opened the next with "A veces
+ * quedarse en casa, sin prisa, es lo mejor que se puede hacer".
+ *
+ * Whole-message token overlap cannot see that pair (0.43 against a threshold of
+ * 0.82) because rephrasing keeps most words different; what survives a rephrase
+ * is the distinctive contiguous phrase. So this gate looks for a shared run of
+ * at least four significant words, and for the two shortest sizes it also
+ * requires enough characters to be distinctive rather than incidental. A run of
+ * six words is always distinctive, which is why no character floor applies
+ * there. The worst case for a wrong call is one extra provider call, never a
+ * message the user would not have wanted.
+ */
+function isRecycledReplyPhrase(context: ReplyContext, text: string): boolean {
+  const previousCharacterMessage = [...context.recentMessages]
+    .reverse()
+    .find((message) => message.role === "character" && message.content.trim().length > 0);
+  if (!previousCharacterMessage) return false;
+  const previous = significantReplyTokens(previousCharacterMessage.content);
+  const generated = significantReplyTokens(text);
+  if (previous.length < recycledPhraseMinimumTokens || generated.length < recycledPhraseMinimumTokens) return false;
+  return sharesPhrase(previous, generated, 6, 0)
+    || sharesPhrase(previous, generated, 5, recycledPhraseMinimumCharacters)
+    || sharesPhrase(previous, generated, 4, recycledPhraseMinimumCharacters);
+}
+
+/**
+ * The single retry a rejected reply gets. The instruction names the defect that
+ * was actually detected, so the second attempt corrects it instead of guessing
+ * what went wrong. Strings here are asserted by tests; keep them stable.
+ */
+function retryInstruction(input: Readonly<{
+  returnedPlan: boolean;
+  translationese: string | null;
+  redundantGreeting: boolean;
+  recycledPhrase: boolean;
+}>): string {
+  if (input.returnedPlan) {
+    return "La persona ya ha vuelto o ha terminado el plan mencionado. Responde desde después de la actividad: no uses deseos propios de antes de salir (por ejemplo, 'que lo pases bien' o 'espero que disfrutes'). Puedes preguntar una sola cosa concreta sobre cómo fue, o responder con calidez sin preguntar; no inventes el resultado.";
+  }
+  if (input.translationese) {
+    return `La respuesta anterior usaba una expresión que no suena natural en español ("${input.translationese}"). Reformúlala con la fórmula corriente que usaría un hablante nativo, sin traducir literalmente del chino ni del inglés.`;
+  }
+  if (input.redundantGreeting) {
+    return "Ya has saludado en un mensaje anterior de hoy y la persona no te ha saludado ahora. No vuelvas a abrir con un saludo (nada de 'hola', 'buenos días', 'buenas tardes' ni 'buenas noches'): continúa directamente con lo que acaba de decir.";
+  }
+  if (input.recycledPhrase) {
+    return "La respuesta anterior reutilizaba casi literalmente una frase de tu mensaje anterior. Dilo con tus propias palabras de otra forma, o añade algo nuevo, en vez de repetir la misma frase.";
+  }
+  return "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.";
+}
+
 function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   const normalized = text
     .normalize("NFD")
@@ -351,6 +436,8 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   if (isPreReturnWishAfterReturn(context, text)) return false;
   if (isUnfoundedGreetingWish(context, text)) return false;
   if (isRedundantGreetingReply(context, text)) return false;
+  if (isRecycledReplyPhrase(context, text)) return false;
+  if (translationesePhrase(text)) return false;
   return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: context.userMessage }));
 }
 

@@ -609,6 +609,81 @@ describe("fake conversation reply", () => {
     expect(events.at(-1)).toMatchObject({ type: "done" });
   });
 
+  it("retries a reply that reuses its own previous phrase", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Eso es 😊 A veces quedarse en casa, sin prisa, es lo mejor que se puede hacer.", provider: "openai" as const, modelVersion: "test", providerRequestId: "recycle-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Perfecto: día de sofá y sin prisa. Yo salgo un rato a caminar si hay luz.", provider: "openai" as const, modelVersion: "test", providerRequestId: "recycle-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Tengo pensado quedarme en casa", clientMessageId: "client-recycle", generationId: "generation-recycle", messageId: "message-recycle",
+      replyContext: {
+        generationId: "generation-recycle", userId: "user-1", userMessage: "Tengo pensado quedarme en casa",
+        recentMessages: [
+          { role: "character", content: "Tranquilo total entonces, quédate en casa. A veces lo mejor que se puede hacer un lunes es no hacer nada.", sentAt: "2026-10-12T08:20:00.000Z" },
+        ],
+        rollingSummary: null, openTopics: [], characterClaims: [], openCommitments: [],
+        conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-10-12",
+        character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
+      },
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("reutilizaba casi literalmente") });
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).toContain("día de sofá");
+    expect(streamed).not.toContain("lo mejor que se puede hacer");
+  });
+
+  it("does not retry an ordinary reply that shares no phrase with the previous one", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "Voy a salir a caminar un rato si la luz aguanta.", provider: "openai" as const, modelVersion: "test", providerRequestId: "fresh-1", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Tengo pensado quedarme en casa", clientMessageId: "client-fresh", generationId: "generation-fresh", messageId: "message-fresh",
+      replyContext: {
+        generationId: "generation-fresh", userId: "user-1", userMessage: "Tengo pensado quedarme en casa",
+        recentMessages: [
+          { role: "character", content: "Me apetece un café con leche y tostadas.", sentAt: "2026-10-12T08:20:00.000Z" },
+        ],
+        rollingSummary: null, openTopics: [], characterClaims: [], openCommitments: [],
+        conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-10-12",
+        character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
+      },
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("retries a greeting that was translated word by word", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Buenas tardes 😊 Bienvenido al lunes. Mi plan es tranquilo.", provider: "openai" as const, modelVersion: "test", providerRequestId: "calque-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Vaya lunes, entonces. Yo voy a salir un rato a caminar.", provider: "openai" as const, modelVersion: "test", providerRequestId: "calque-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Hola, buenas", clientMessageId: "client-calque", generationId: "generation-calque", messageId: "message-calque",
+      replyContext: {
+        generationId: "generation-calque", userId: "user-1", userMessage: "Hola, buenas",
+        recentMessages: [], rollingSummary: null, openTopics: [], characterClaims: [], openCommitments: [],
+        conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-10-12",
+        character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
+      },
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("no suena natural") });
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).toContain("Vaya lunes");
+    expect(streamed).not.toContain("Bienvenido al lunes");
+  });
+
   it("answers a wellbeing question instead of using the generic greeting", async () => {
     const events = [];
     for await (const event of streamReply({
