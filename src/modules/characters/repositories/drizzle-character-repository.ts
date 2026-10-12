@@ -152,6 +152,10 @@ export function createDrizzleCharacterRepository<TResult extends PgQueryResultHK
         .limit(1);
       if (!current) throw new Error("CHARACTER_UNAVAILABLE");
       if (current.status === "published") {
+        // Idempotent repeat: the revision is already the one publish serves, so
+        // neither the row nor the identity pointer moves again. A repeated
+        // publish must not be able to pull the pointer back onto an old
+        // revision.
         const facts = await database
           .select()
           .from(schema.characterCanonFacts)
@@ -162,9 +166,10 @@ export function createDrizzleCharacterRepository<TResult extends PgQueryResultHK
       if (current.status !== "draft" && current.status !== "approved") {
         throw new Error("CHARACTER_STATUS_NOT_PUBLISHABLE");
       }
+      const now = new Date();
       const [updated] = await database
         .update(schema.characters)
-        .set({ status: "published", updatedAt: new Date() })
+        .set({ status: "published", updatedAt: now })
         .where(and(
           eq(schema.characters.id, current.id),
           eq(schema.characters.status, current.status),
@@ -182,6 +187,22 @@ export function createDrizzleCharacterRepository<TResult extends PgQueryResultHK
           reviewedAt: review.reviewedAt,
         })));
       }
+      // ADR 0014 / slice 3: publishing owns the identity pointer, and the write
+      // happens here — next to the status flip and the review rows — so that all
+      // of it commits or rolls back as one unit. Reached only after the revision
+      // above went from draft/approved to published, so the pointer can never
+      // land on an unpublished revision. One statement covers both cases: a
+      // character whose `stable_key` has no identity yet gets one (stable_key =
+      // the revision's stable key, pointer = this revision), and an existing one
+      // only has its pointer moved. No user-state table is touched: that is the
+      // entire point of the ADR.
+      await database
+        .insert(schema.characterIdentities)
+        .values({ stableKey: updated.stableKey, currentCharacterId: updated.id, updatedAt: now })
+        .onConflictDoUpdate({
+          target: schema.characterIdentities.stableKey,
+          set: { currentCharacterId: updated.id, updatedAt: now },
+        });
       const facts = await database
         .select()
         .from(schema.characterCanonFacts)
