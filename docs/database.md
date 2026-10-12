@@ -28,7 +28,7 @@ ALPHA-003 建立 Supabase PostgreSQL / Drizzle 基础；ALPHA-004 在第二版�
 - `src/shared/db/schema/media.ts`：视频/播客稳定身份、不可变版本、播放资产、定时片段和用户进度。
 - `src/shared/db/schema/training.ts`：训练会话、尝试、会话断点和有效活动事件。
 - `src/shared/db/schema/evidence.ts`：只追加证据与可重算画像快照。
-- `src/shared/db/schema/characters.ts`：人物设定、关系、对话、消息与记忆权限。
+- `src/shared/db/schema/characters.ts`：人物设定、跨修订身份、关系、对话、消息与记忆权限。
 - `src/shared/db/schema/infrastructure.ts`：音频、供应商调用、幂等键和隐私 Storage 清理任务。
 - `drizzle/`：版本化 SQL 迁移、快照和迁移日志。
 
@@ -53,6 +53,36 @@ ALPHA-005 新增 `content_bundle_imports` 作为服务端导入登记表，保�
 ALPHA-028 的 `relationship_memories.fact_key` 是用户与角色范围内的稳定事实键，用于在事务中判定重复与冲突；冲突候选追加为 `conflict`，不会覆盖旧记忆。`share_scope` 默认保持 `private`，跨角色读取必须同时存在用户明确授予的 `memory_sharing_permissions` 记录。
 
 ALPHA-030 的 `character_introduction_offers` 保存 Lucía 触发的好友介绍提议、可解释理由、用户决策和接受时明确授权的记忆 ID。提议以 `(user_id, offer_key)` 幂等；接受事务同时确保目标角色的 `character_relationships` 与 `conversations`，并只为通过服务端校验的非私密记忆写入目标角色共享权限。该表只向用户开放自己的 `SELECT`，创建、解决和授权必须经过服务端 application。隐私 UI 只读取服务端生成的非私密资料预览；撤销授权会关闭指定目标角色的权限，最后一条授权撤销后记忆恢复为 `private`。角色发布通过 `publishCharacterBibles` 事务完成，并在已有 `content_reviews` 中记录语言、教学和 canon 三项审核；个人 Alpha 暂时允许项目所有者授权 `codex-ai-temporary-review`，记录明确标注仍建议后续补充真人审核。
+
+### 角色身份与修订（CHAR-IDENTITY-001，ADR 0014）
+
+迁移 `0045_lumpy_medusa.sql` 引入 `character_identities` 作为**跨修订的稳定身份**：
+
+| 列 | 说明 |
+|---|---|
+| `id` uuid pk | 用户状态的外键目标 |
+| `stable_key` text unique | 与 `characters.stable_key` 同值；身份按它 upsert |
+| `current_character_id` uuid → `characters.id` (RESTRICT) | **当前修订指针**；发布事务把它移到新发布的修订行 |
+| `created_at` / `updated_at` | 时间戳 |
+
+同一迁移给 **9 个 `identity_id` 列**加上可空外键（均 RESTRICT）与普通索引：`conversations.identity_id`、`messages.identity_id`、`conversation_preferences.identity_id`、`proactive_message_candidates.identity_id`、`character_relationships.identity_id`、`relationship_memories.identity_id`、`memory_sharing_permissions.target_identity_id`、`character_introduction_offers.source_identity_id` 与 `.target_identity_id`。该迁移**没有删除或修改任何既有列、索引或约束**，因此可以安全地先上；回填由 `scripts/backfill-character-identities.ts` 完成（默认 dry-run，`--apply` 单事务且逐表核对行数，可重复执行）。
+
+归属划分是这张表的全部意义：
+
+- **用户状态挂身份**——上列 9 列覆盖的 8 张表。读路径先按 `stable_key` 解析身份，再由指针取当前修订；写路径在迁移窗口内双写 `identity_id` 与旧的 `character_id`（后者留到切片 4 才删）。身份和指针都不随用户数据变化，所以"改一行圣经"不再需要迁移用户状态。
+- **版本内容挂修订行**——`character_canon_facts.character_id` 和 `characters.profile.relationships`。它们本来就属于那一版，不是用户状态，保持指向 `characters.id`。
+- **`messages.character_id` 保留为审计来源**，回答"这条消息由哪一版生成"（实测：93 条消息中 5 条记 v1、88 条记 v2，与指针 `lucia→lucia@2` 的关系正是"谁生成的"而非"现在是谁"）。该列在 schema 里保留可空，因为身份与归属已由 `identity_id` 承担。`messages.identity_id` 才是归属与查询用的列。
+- **发布移动指针**：`publishCharacterBibles` 在同一事务内插入/更新修订行、写审核记录，并按 `stable_key` upsert 身份把 `current_character_id` 指向该修订；首次发布时创建身份。`importCharacterBible` **不创建也不移动指针**（`current_character_id` 是 `NOT NULL`，导入期创建的身份只能指向未发布草稿，属 ADR 明令禁止的状态）。
+
+**待办：切片 4（未开始，且被阻塞）**。本迁移只建了**非唯一**身份索引，因此当前写路径依赖"先按身份读、再插入"的显式 upsert 来维持唯一性。这一点有真实后果：多数写路径的 `onConflictDoNothing`/`onConflictDoUpdate` 仍以**旧的** `(user_id, character_id)` 唯一索引为冲突目标，而列表中的 `character_id` 已经写上"当前修订 id"。指针一旦移到新修订，插入时的 `character_id` 就和已存在行不同，**旧冲突目标不再匹配**——两个并发请求（或两个并发 accept）都可能在"读不到、插入"的窗口里各插一行。切片 2 的预读把窗口压得很窄，但只有数据库唯一约束能真正关掉它。所以切片 4 需要新 DDL：
+
+1. 为今天靠"显式按键 upsert"保证唯一性的表补 `(user_id, identity_id)` 唯一索引——`conversations`、`conversation_preferences`、`character_relationships`（对应现存的 `(user_id, character_id)` 唯一索引），以及 `memory_sharing_permissions`（现为 `(memory_id, target_character_id)`）。`proactive_message_candidates (user_id, dedupe_key)`、`character_introduction_offers (user_id, offer_key)`、`messages (conversation_id, client_message_id)` 本来就不含版本列，无需改。补上之后，各写路径的 `onConflict*` 目标应同步改为身份键。
+2. 把 9 个 `identity_id` 列置为 `NOT NULL`。
+3. 删除用户状态表上已被取代的 `character_id` / `source_character_id` / `target_character_id` 列与旧唯一索引，**`messages.character_id` 保留**为审计来源。
+
+**删列不可逆**，且 ADR 0014 的回滚方案是"在切片 4 验证通过前不删除 `character_id`"（回滚 = 读路径切回 `character_id`，旧列与双写都还在）。当前**不能**开始切片 4 的第二个具体阻碍是提交状态：`drizzle/meta/_journal.json` 还带着另一会话未提交的 `0044` 条目（`drizzle/0044_worried_the_executioner.sql` 与 `0044_snapshot.json` 仍是 untracked），此时再生成第二个迁移会让仓库出现"journal 有条目、文件未提交"的半提交状态——即 `PROJECT_STATUS.md` 记录的 `BUILD-INTEGRITY-001` 那类失败。要动切片 4 的 DDL，必须先把 0044 落地为一个完整提交（SQL + snapshot + journal 一起）。
+
+`character_identities` 是服务端表：`anon` / `authenticated` 对它没有 `SELECT`/`INSERT`/`UPDATE`/`DELETE` 授权（只有默认的 `REFERENCES`/`TRIGGER`/`TRUNCATE`），客户端无法经 PostgREST 读写。与其余 8 张表不同，它目前**未启用 RLS**（0045 未包含 `ENABLE ROW LEVEL SECURITY`），所以它此刻的保护来自"没有 DML 授权"而不是策略——切片 4 或后续迁移在收紧该表时应同时补 RLS。
 
 7.5a 在 `provider_calls` 中保存服务端生成或透传的 `request_id`，以及可选的学习会话、尝试、对话和 generation 关联 ID；`error_type` 只保存稳定错误码。`provider_calls` 仍没有客户端写策略，观测记录由服务端 repository 写入；调用记录不保存输入正文、音频内容、令牌或签名 URL。账号删除继续将其 `user_id` 置空并替换 metadata 为匿名标记，关联 ID 不用于恢复用户身份。
 
@@ -99,6 +129,8 @@ pnpm db:migrate
 - `drizzle-kit generate` 必须在同一 Schema 上得到“无变化”，避免代码与迁移漂移。
 - 第二版迁移同时从上一版本顺序执行；RLS 测试创建模拟 `anon` / `authenticated` 身份验证最小权限。
 
+上述流程只适用于 schema 变更。**人物圣经修订不是 schema 变更**：改内容走 `pnpm character:import` → `pnpm character:publish`，不生成迁移、也不迁移用户状态，步骤见 `docs/operations/character-revision-runbook.md`。
+
 ## 5. 数据不变量
 
 - 用户私有表包含 `user_id`、`created_at` 和 `updated_at`；`profiles.id` 本身就是用户 ID。
@@ -112,6 +144,7 @@ pnpm db:migrate
 - 尝试、证据和角色消息包含稳定客户端 ID、幂等键或 generation 标识，后续重试不能重复写入事实。
 - `practice_session_activity_events` 只保存服务端接收时间、客户端实例不透明 ID、序号和生命周期事件；`(session_id, client_instance_id, sequence)` 幂等，活动间隔由服务端领域函数保守聚合。
 - 内容和人物设定保存版本；已经产生学习证据的版本不得静默覆盖。
+- 角色**身份**（`character_identities`）与角色**修订**（`characters` 行）分离：用户状态按 `identity_id` 归属，版本内容（`character_canon_facts`、`characters.profile.relationships`）挂修订行 id，`messages.character_id` 只作审计来源。发布新修订 = 插入修订行 + 同一事务内翻转 `current_character_id`，**不写任何用户状态行**。迁移窗口内旧 `character_id` 列保留，切片 4 验证通过前不得删除。
 - 普通录音使用 `audio_assets.retention_policy` 表达生命周期，真正的存储删除流程在语音任务中实现。
 - 对话语音输入走一次性转写端点，不创建 `audio_assets` 或消息媒体记录；provider 输入按 `ephemeral` 生命周期处理，只有用户确认后的文本才进入 `messages`。
 - 关系记忆只保存抽取后的短事实值及来源 ID，不保存完整私聊正文；完整 `done` 消息轮之外不得创建记忆候选。
