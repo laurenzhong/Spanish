@@ -13,7 +13,7 @@ import {
 import { deriveReplyOpenTopics, localDateInTimeZone, type ReplyContext } from "./build-reply-context";
 import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 import { containsUnsupportedScript, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
-import { getConversationCharacter } from "../domain/character-catalog";
+import { getConversationCharacter, isKnownConversationVersion } from "../domain/character-catalog";
 
 export type StreamReplyProviderObservation = Readonly<{
   provider: ConversationProviderResult["provider"];
@@ -92,7 +92,7 @@ export async function* streamReply(
     yield errorEvent(input, "input-invalid", false);
     return;
   }
-  if (!getConversationCharacterSafe(input.characterKey) || input.characterVersion !== 1) {
+  if (!getConversationCharacterSafe(input.characterKey) || !isKnownConversationVersion(input.characterKey, input.characterVersion)) {
     yield errorEvent(input, "character-unavailable", false);
     return;
   }
@@ -105,7 +105,7 @@ export async function* streamReply(
     type: "meta",
     protocolVersion: "v1",
     characterKey: input.characterKey as "lucia" | "mateo" | "ines",
-    characterVersion: 1,
+    characterVersion: input.characterVersion,
     generationId: input.generationId,
     messageId: input.messageId,
   };

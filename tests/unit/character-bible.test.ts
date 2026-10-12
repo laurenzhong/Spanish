@@ -19,9 +19,9 @@ function codes(result: ReturnType<typeof checkCharacterRevision>): string[] {
 }
 
 describe("Lucía character bible", () => {
-  it("validates the initial draft identity and honesty boundary", () => {
+  it("validates the current draft identity and honesty boundary", () => {
     expect(lucia.status).toBe("draft");
-    expect(lucia.version).toBe(1);
+    expect(lucia.version).toBe(2);
     expect(lucia.identity).toMatchObject({
       age: 24,
       growthLocation: "Madrid",
@@ -68,10 +68,10 @@ describe("Lucía character bible", () => {
 
   it("accepts a versioned background fact addition", () => {
     const candidate = clone(lucia);
-    candidate.version = 2;
+    candidate.version = 3;
     candidate.changeLog = [{
-      version: 2,
-      supersedesVersion: 1,
+      version: 3,
+      supersedesVersion: 2,
       changeReason: "Add a reviewed family background detail.",
     }];
     candidate.facts.push({
@@ -79,7 +79,7 @@ describe("Lucía character bible", () => {
       category: "background",
       value: { country: "Italy" },
       sensitivity: "normal",
-      version: 2,
+      version: 3,
       isActive: true,
       reveal: {
         mode: "contextual",
@@ -145,7 +145,7 @@ describe("Lucía character bible", () => {
   });
 
   it("allows the initial version only after an approved review and publish status", () => {
-    const candidate = clone(lucia);
+    const candidate = { ...clone(lucia), version: 1, changeLog: [] };
     candidate.status = "published";
 
     expect(canPublishCharacterRevision(null, candidate, { approvedReview: true })).toEqual({ ok: true });

@@ -59,16 +59,21 @@ function temporaryReviews(reviewedAt: Date): readonly CharacterPublicationReview
   ];
 }
 
-function publishableCandidate(source: CharacterBible): CharacterBible {
+function publishableCandidate(source: CharacterBible, current: CharacterBible | null): CharacterBible {
   const candidate = { ...source, status: "published" as const };
-  const result = canPublishCharacterRevision(null, candidate, { approvedReview: true });
+  const result = canPublishCharacterRevision(current, candidate, { approvedReview: true });
   if (!result.ok) throw new CharacterPublishError("CHARACTER_REVIEW_INVALID");
   return candidate;
 }
 
-function parseCandidate(source: unknown): CharacterBible {
+/**
+ * The revision gate compares a candidate against the revision it supersedes, so
+ * a version above 1 has to be given that revision. Passing null means "no
+ * previous revision", which the gate only accepts for version 1.
+ */
+function parseCandidate(source: unknown, current: CharacterBible | null): CharacterBible {
   try {
-    return publishableCandidate(validateCharacterBible(source));
+    return publishableCandidate(validateCharacterBible(source), current);
   } catch (error) {
     if (error instanceof CharacterCanonValidationError) {
       throw new CharacterPublishError("CHARACTER_REVIEW_INVALID");
@@ -107,9 +112,11 @@ async function publishPreparedCharacter(
 export async function publishCharacterBible(input: Readonly<{
   repository: CharacterRepository;
   source: unknown;
+  /** The revision this candidate supersedes, required above version 1. */
+  current?: CharacterBible | null;
   reviewedAt?: Date;
 }>): Promise<PublishCharacterResult> {
-  const candidate = parseCandidate(input.source);
+  const candidate = parseCandidate(input.source, input.current ?? null);
   const reviews = temporaryReviews(input.reviewedAt ?? new Date());
   return input.repository.transaction((repository) => publishPreparedCharacter(repository, candidate, reviews));
 }
@@ -117,11 +124,13 @@ export async function publishCharacterBible(input: Readonly<{
 export async function publishCharacterBibles(input: Readonly<{
   repository: CharacterRepository;
   sources: readonly unknown[];
+  /** Superseded revisions, positionally matched to `sources`. */
+  currentRevisions?: readonly (CharacterBible | null)[];
   reviewedAt?: Date;
 }>): Promise<readonly PublishCharacterResult[]> {
   const reviewedAt = input.reviewedAt ?? new Date();
-  const prepared = input.sources.map((source) => ({
-    candidate: parseCandidate(source),
+  const prepared = input.sources.map((source, index) => ({
+    candidate: parseCandidate(source, input.currentRevisions?.[index] ?? null),
     reviews: temporaryReviews(reviewedAt),
   }));
   return input.repository.transaction((repository) =>

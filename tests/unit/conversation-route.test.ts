@@ -1,6 +1,12 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { conversationCharacterVersion } from "@/src/modules/conversation/domain/character-catalog";
+
+// The route serves the catalog's current revision; asking for a superseded one
+// is refused, so these requests follow the catalog instead of a literal.
+const luciaVersion = conversationCharacterVersion("lucia") ?? 1;
+
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { POST } from "@/app/api/v1/conversations/[characterId]/stream/route";
 import { GET } from "@/app/api/v1/conversations/[characterId]/route";
@@ -29,7 +35,7 @@ describe("conversation stream route authentication", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        characterVersion: 1,
+        characterVersion: luciaVersion,
         text: "hola",
         clientMessageId: "client-1",
         generationId: "generation-1",
@@ -42,6 +48,25 @@ describe("conversation stream route authentication", () => {
     expect(body).toContain('"type":"meta"');
     expect(body).toContain('"type":"done"');
     expect(mockedGetCurrentUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a superseded revision instead of opening a second conversation", async () => {
+    mockedVerifyRequestUser.mockResolvedValue(null);
+    mockedGetCurrentUser.mockResolvedValue({ id: "web-user", email: "web@example.test" });
+    const request = new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        characterVersion: luciaVersion - 1,
+        text: "hola",
+        clientMessageId: "client-superseded",
+        generationId: "generation-superseded",
+      }),
+    });
+
+    const response = await POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: { code: "CHARACTER_UNAVAILABLE" } });
   });
 
   it("requires authentication before reading conversation history", async () => {
@@ -104,7 +129,7 @@ describe("conversation stream route authentication", () => {
       const request = new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ characterVersion: 1, text: "hola", clientMessageId: "client-production", generationId: "generation-production" }),
+        body: JSON.stringify({ characterVersion: luciaVersion, text: "hola", clientMessageId: "client-production", generationId: "generation-production" }),
       });
       const response = await POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
       expect(response.status).toBe(503);

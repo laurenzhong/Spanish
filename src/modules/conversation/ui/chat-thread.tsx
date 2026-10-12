@@ -4,6 +4,8 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
+import { preferredScrollBehavior } from "@/src/shared/ui/motion";
+import { ConfirmActionDialog } from "@/src/shared/ui/confirm-action-dialog";
 import { createBrowserTextToSpeech, preferredSpanishVoice, readSpanishVoicePreference } from "@/src/modules/providers/tts";
 
 import {
@@ -29,7 +31,8 @@ type ChatThreadProps = Readonly<{
   characterKey: "lucia" | "mateo" | "ines";
   characterName: string;
   roleLabel?: string;
-  characterVersion: 1;
+  /** Current released revision from the catalog; the server refuses any other. */
+  characterVersion: number;
   avatarClassName?: string;
   initialMessageId?: string;
   initialMessages?: readonly ConversationState["messages"][number][];
@@ -169,7 +172,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     if (!container) return;
     shouldFollowRef.current = true;
     isNearBottomRef.current = true;
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    container.scrollTo({ top: container.scrollHeight, behavior: preferredScrollBehavior() });
     setIsNearBottom(true);
     setHasNewProactiveMessage(false);
   }
@@ -234,10 +237,20 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
 
   useEffect(() => {
     if (!contextMenuMessageId) return;
-    const focusTimer = window.setTimeout(() => messageMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus(), 0);
+    // The menu still takes focus when it opens, but it must never pull focus
+    // back out of something that opened from one of its items: the shared
+    // confirm dialog is rendered inside this menu and owns focus while it is
+    // open, so the deferred focus only runs when focus is still outside.
+    const focusTimer = window.setTimeout(() => {
+      const menu = messageMenuRef.current;
+      if (!menu || menu.contains(document.activeElement)) return;
+      menu.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+    }, 0);
     const close = () => setContextMenu(null);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      // An overlay opened from this menu (for example the confirm dialog)
+      // consumes Escape first and keeps the menu underneath it.
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       close();
       messageMenuTriggerRef.current?.focus();
     };
@@ -672,32 +685,57 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     }
   }
 
-  async function deleteMessage(message: ConversationState["messages"][number]) {
-    if (!window.confirm("删除后将从你的聊天记录中移除，是否继续？")) return;
+  /**
+   * The confirm dialog is rendered inside the message-menu portal so that the
+   * menu item can stay its trigger, which in turn means the menu stays mounted
+   * (behind the blocking overlay) until the server-backed action settles. Once
+   * it succeeds the menu is closed and focus is handed back on the next task,
+   * after the dialog has unmounted and can no longer claim it: to the message
+   * row when a withdraw keeps the row, and to the message list when a delete
+   * removed the row that focused the menu.
+   */
+  function releaseMessageMenuAfterAction(rowSurvives: boolean) {
+    const row = messageMenuTriggerRef.current;
     setContextMenu(null);
+    window.setTimeout(() => {
+      if (rowSurvives && row && document.contains(row)) {
+        row.focus();
+        return;
+      }
+      messagesRef.current?.focus();
+    }, 0);
+  }
+
+  async function deleteMessage(message: ConversationState["messages"][number]): Promise<boolean> {
     try {
       const response = await fetch(`/api/v1/conversations/${characterKey}/messages/${message.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error("delete-failed");
       apply({ type: "remove-message", messageId: message.id });
       setNotice("消息已删除");
+      releaseMessageMenuAfterAction(false);
+      return true;
     } catch {
-      setNotice("消息删除失败，请重试");
+      // The dialog owns the failure copy and stays open; the page never claims
+      // a deletion the server did not confirm.
+      return false;
     }
   }
 
-  async function withdrawMessage(message: ConversationState["messages"][number]) {
-    if (!window.confirm("撤回后对话中只会显示撤回提示，是否继续？")) return;
-    setContextMenu(null);
+  async function withdrawMessage(message: ConversationState["messages"][number]): Promise<boolean> {
     try {
       const response = await fetch(`/api/v1/conversations/${characterKey}/messages/${message.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "withdraw" }) });
       if (!response.ok) {
-        setNotice(response.status === 409 ? "这条消息已超过可撤回时间" : "消息撤回失败，请重试");
-        return;
+        // A 409 carries a reason the generic dialog copy cannot express, so the
+        // page still explains it while the dialog keeps the failure state.
+        if (response.status === 409) setNotice("这条消息已超过可撤回时间");
+        return false;
       }
       apply({ type: "withdraw-message", messageId: message.id });
       setNotice("消息已撤回，且不会用于记忆或学习数据");
+      releaseMessageMenuAfterAction(true);
+      return true;
     } catch {
-      setNotice("消息撤回失败，请重试");
+      return false;
     }
   }
 
@@ -757,7 +795,10 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         <ConversationContactRail activeCharacterKey={characterKey} cacheScope={cacheScope} />
       </div> : null}
 
-      <div ref={messagesRef} className="conversation-thread__messages" onScroll={handleMessagesScroll}>
+      {/* tabIndex -1 keeps the scrollable transcript programmatically focusable:
+          after a delete removes the row that opened the menu, the list is the
+          remaining element that can receive focus. */}
+      <div ref={messagesRef} className="conversation-thread__messages" tabIndex={-1} onScroll={handleMessagesScroll}>
         {persistenceStatus === "unavailable" ? (
           <div className="conversation-thread__persistence-notice" role="alert" data-testid="conversation-persistence-status">
             <span>暂时无法打开这段对话，请检查网络后重试。</span>
@@ -839,10 +880,31 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             return <button type="button" role="menuitem" disabled={translation?.status === "loading"} onClick={(event) => { event.stopPropagation(); if (translation?.status === "success") clearTranslation(selected.id); else void translateMessage(selected); }}>{translation?.status === "success" ? "取消翻译" : translation?.status === "loading" ? "正在翻译……" : "翻译"}</button>;
           })() : null}
           <button type="button" role="menuitem" onClick={() => quoteMessage(selectedMessage()!)}>引用回复</button>
-          {selectedMessage()?.role === "user" ? <>
-            <button type="button" role="menuitem" onClick={() => void withdrawMessage(selectedMessage()!)}>撤回</button>
-            <button className="conversation-message-menu__danger" type="button" role="menuitem" onClick={() => void deleteMessage(selectedMessage()!)}>删除</button>
-          </> : null}
+          {selectedMessage()?.role === "user" ? (() => {
+            const selected = selectedMessage()!;
+            // Both destructive actions ask for confirmation through the shared
+            // dialog. Its trigger stays the menu item, so the dialog lives in
+            // this portal and the menu stays mounted behind the blocking
+            // overlay until the request settles (see releaseMessageMenuAfterAction).
+            return <>
+              <ConfirmActionDialog
+                confirmLabel="确认撤回"
+                description="撤回后对话中只会显示撤回提示，这条消息也不会再用于记忆或学习数据。"
+                failureMessage="撤回没有完成，消息仍保留在对话中。"
+                onConfirm={() => withdrawMessage(selected)}
+                title="撤回这条消息？"
+                trigger={<button type="button" role="menuitem">撤回</button>}
+              />
+              <ConfirmActionDialog
+                confirmLabel="确认删除"
+                description="删除后这条消息将从你的聊天记录中移除，且无法恢复。"
+                failureMessage="删除没有完成，消息仍在聊天记录中。"
+                onConfirm={() => deleteMessage(selected)}
+                title="删除这条消息？"
+                trigger={<button className="conversation-message-menu__danger" type="button" role="menuitem">删除</button>}
+              />
+            </>;
+          })() : null}
         </div>,
         document.body,
       ) : null}

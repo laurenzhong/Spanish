@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
+import { conversationCharacterVersion } from "@/src/modules/conversation/domain/character-catalog";
 import { createDrizzleIntroductionRepository, createDrizzleLuciaContactRepository } from "@/src/modules/character-network";
 import { POST } from "@/app/api/v1/conversations/[characterId]/stream/route";
 
@@ -37,7 +38,7 @@ describe("Lucía conversation gate", () => {
     const response = await POST(new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ characterVersion: 1, text: "hola", clientMessageId: "c1", generationId: "g1" }),
+      body: JSON.stringify({ characterVersion: conversationCharacterVersion("lucia") ?? 1, text: "hola", clientMessageId: "c1", generationId: "g1" }),
     }), { params: Promise.resolve({ characterId: "lucia" }) });
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ error: { code: "CONTACT_REQUIRED" } });
@@ -47,7 +48,7 @@ describe("Lucía conversation gate", () => {
     const response = await POST(new NextRequest("http://localhost/api/v1/conversations/mateo/stream", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ characterVersion: 1, text: "hola", clientMessageId: "c2", generationId: "g2" }),
+      body: JSON.stringify({ characterVersion: conversationCharacterVersion("mateo") ?? 1, text: "hola", clientMessageId: "c2", generationId: "g2" }),
     }), { params: Promise.resolve({ characterId: "mateo" }) });
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ error: { code: "CHARACTER_UNAVAILABLE" } });

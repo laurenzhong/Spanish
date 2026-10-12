@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { conversationCharacterVersion } from "@/src/modules/conversation/domain/character-catalog";
+
 const mocks = vi.hoisted(() => {
   const userMessage = {
     id: "10000000-0000-4000-8000-000000000041",
@@ -109,7 +111,7 @@ describe("conversation stream persistence", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        characterVersion: 1,
+        characterVersion: conversationCharacterVersion("lucia") ?? 1,
         text: "Hola",
         clientMessageId: "client-1",
         generationId: "generation-1",
@@ -139,7 +141,7 @@ describe("conversation stream persistence", () => {
     const request = new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ characterVersion: 1, text: "Hola", clientMessageId: "client-context", generationId: "generation-context" }),
+      body: JSON.stringify({ characterVersion: conversationCharacterVersion("lucia") ?? 1, text: "Hola", clientMessageId: "client-context", generationId: "generation-context" }),
     });
 
     const response = await STREAM_POST(request, { params: Promise.resolve({ characterId: "lucia" }) });

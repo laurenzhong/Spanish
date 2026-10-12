@@ -8,7 +8,12 @@ export type ConversationCharacterKey = "lucia" | "mateo" | "ines";
 
 export type ConversationCharacter = Readonly<{
   key: ConversationCharacterKey;
-  version: 1;
+  /**
+   * The current released revision of this character. Routes serve this version
+   * and reject any other, so a stale client asking for a superseded revision
+   * gets CHARACTER_UNAVAILABLE instead of a second, empty conversation.
+   */
+  version: number;
   displayName: string;
   roleLabel: string;
   homeLocation: string;
@@ -19,14 +24,14 @@ export type ConversationCharacter = Readonly<{
 export const conversationCharacters: readonly ConversationCharacter[] = [
   {
     key: "lucia",
-    version: 1,
+    version: 2,
     displayName: "Lucía Martín",
     roleLabel: "主要好友",
     homeLocation: "Madrid",
     avatarClass: "avatar--lucia",
     snapshot: {
       characterKey: "lucia",
-      characterVersion: 1,
+      characterVersion: 2,
       displayName: "Lucía Martín",
       homeLocation: "Madrid",
       initiative: "balanced",
@@ -104,6 +109,20 @@ export function getConversationCharacter(key: string): ConversationCharacter {
   return character;
 }
 
+/** The revision the conversation routes must serve for this character. */
+export function conversationCharacterVersion(key: string): number | null {
+  return findConversationCharacter(key)?.version ?? null;
+}
+
+/**
+ * True when a requested revision is a released runtime definition. Superseded
+ * revisions stay valid here so history and fixtures still resolve; the routes
+ * are what restrict serving to the current one.
+ */
+export function isKnownConversationVersion(key: string, version: number): boolean {
+  return findCharacterRuntimeDefinition(key, version) !== null;
+}
+
 /**
  * Production discovery is intentionally narrower than the compatibility
  * catalog. Draft characters remain addressable for old fixtures and future
@@ -111,7 +130,7 @@ export function getConversationCharacter(key: string): ConversationCharacter {
  */
 export function isConversationCharacterDiscoverable(
   key: string,
-  version = 1,
+  version = conversationCharacterVersion(key) ?? 1,
 ): boolean {
   return isCharacterConversationEnabled(findCharacterRuntimeDefinition(key, version));
 }

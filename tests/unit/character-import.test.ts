@@ -7,6 +7,7 @@ import {
   CharacterImportConflictError,
   importCharacterBible,
   publishCharacterBible,
+  validateCharacterBible,
 } from "@/src/modules/characters";
 import type { CharacterRepository, PersistedCharacter } from "@/src/modules/characters";
 
@@ -64,7 +65,7 @@ function repository(existing: PersistedCharacter | null = null): CharacterReposi
 describe("importCharacterBible", () => {
   it("imports the validated draft with canon facts", async () => {
     const result = await importCharacterBible(repository(), luciaSource);
-    expect(result).toMatchObject({ stableKey: "lucia", version: 1, status: "imported" });
+    expect(result).toMatchObject({ stableKey: "lucia", version: luciaSource.version, status: "imported" });
   });
 
   it("is idempotent for the same character version", async () => {
@@ -105,5 +106,23 @@ describe("importCharacterBible", () => {
 
     const repeated = await publishCharacterBible({ repository: target, source: mateoSource });
     expect(repeated.status).toBe("unchanged");
+  });
+
+  it("publishes a revision above version 1 only against the revision it supersedes", async () => {
+    const target = repository();
+    const previous = { ...validateCharacterBible(structuredClone(luciaSource)), version: 1, changeLog: [] };
+    // The fake repository holds a single row, so only the candidate is imported;
+    // the gate takes the superseded revision as an explicit input.
+    await importCharacterBible(target, luciaSource);
+
+    // The revision gate compares the candidate with what it replaces, so a
+    // version above 1 without that revision must be refused rather than
+    // published unchecked.
+    await expect(publishCharacterBible({ repository: target, source: luciaSource }))
+      .rejects.toMatchObject({ code: "CHARACTER_REVIEW_INVALID" });
+
+    const result = await publishCharacterBible({ repository: target, source: luciaSource, current: previous });
+    expect(result.status).toBe("published");
+    expect(result.character.version).toBe(2);
   });
 });

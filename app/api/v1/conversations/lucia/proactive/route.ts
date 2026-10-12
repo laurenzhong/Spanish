@@ -8,6 +8,7 @@ import {
   createDrizzleProactiveMessageRepository,
   CharacterRuntimeError,
   resolveConversationCharacter,
+  findConversationCharacter,
 } from "@/src/modules/conversation";
 import { createDrizzleCharacterRepository } from "@/src/modules/characters";
 import { createDrizzleMemoryRepository } from "@/src/modules/memory";
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
     try {
       await resolveConversationCharacter({
         characterKey: "lucia",
-        characterVersion: 1,
+        characterVersion: findConversationCharacter("lucia")?.version ?? 1,
         requiredCapability: "proactiveMessages",
         repository: createDrizzleCharacterRepository(database),
       });

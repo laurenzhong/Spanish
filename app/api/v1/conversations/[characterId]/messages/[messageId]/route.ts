@@ -46,7 +46,7 @@ async function authorize(request: NextRequest, characterId: string, options: Rea
     const database = getDatabase();
     await resolveConversationCharacter({
       characterKey: characterId,
-      characterVersion: 1,
+      characterVersion: findConversationCharacter(characterId)?.version ?? 1,
       repository: process.env.NODE_ENV !== "test" ? createDrizzleCharacterRepository(database) : undefined,
       allowStaticFallback: isConversationStaticFallbackAllowed(),
     });

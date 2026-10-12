@@ -1,6 +1,6 @@
 {
   "stableKey": "lucia",
-  "version": 1,
+  "version": 2,
   "status": "draft",
   "displayName": "Lucía Martín",
   "homeLocation": "Madrid",
@@ -63,5 +63,11 @@
       "reveal": { "mode": "never", "audience": "any-user", "trigger": "Es una regla de comportamiento interna y no una historia para revelar." }
     }
   ],
-  "changeLog": []
+  "changeLog": [
+    {
+      "version": 2,
+      "supersedesVersion": 1,
+      "changeReason": "Añade dos reglas de expresión a personality.responseStyle: no repetir una expresión que ya usó, y no traducir saludos ni deseos palabra por palabra. Origen: defectos observados en conversaciones reales del 2026-10-12 (dos veces 'Buenas tardes' en mensajes consecutivos, 'Bienvenido al lunes', y una conclusión repetida con otras palabras). El resto del contenido no cambia."
+    }
+  ]
 }

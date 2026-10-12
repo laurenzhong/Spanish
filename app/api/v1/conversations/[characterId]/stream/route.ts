@@ -75,23 +75,27 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   const input = body as Record<string, unknown>;
   const text = typeof input.text === "string" ? input.text : "";
-  const characterVersion = input.characterVersion === undefined ? 1 : input.characterVersion;
+  // The catalog owns the current revision. A stale client that names a
+  // superseded version is refused instead of being given a second, empty
+  // conversation under the old character row.
+  const catalogCharacter = findConversationCharacter(characterId);
+  const characterVersion = input.characterVersion === undefined
+    ? catalogCharacter?.version ?? 1
+    : input.characterVersion;
+  const characterUnavailable = catalogCharacter === null || characterVersion !== catalogCharacter.version;
   const clientMessageId = typeof input.clientMessageId === "string" ? input.clientMessageId : "";
   const generationId = typeof input.generationId === "string" ? input.generationId : "";
   if (
-    !findConversationCharacter(characterId) ||
-    characterVersion !== 1 ||
+    characterUnavailable ||
     !text.trim() ||
     text.length > 2_000 ||
     !clientMessageId.trim() ||
     !generationId.trim()
   ) {
     return jsonError(
-      !findConversationCharacter(characterId) || characterVersion !== 1
-        ? "CHARACTER_UNAVAILABLE"
-        : "INPUT_INVALID",
+      characterUnavailable ? "CHARACTER_UNAVAILABLE" : "INPUT_INVALID",
       "This conversation request cannot be started.",
-      !findConversationCharacter(characterId) || characterVersion !== 1 ? 404 : 400,
+      characterUnavailable ? 404 : 400,
     );
   }
 
