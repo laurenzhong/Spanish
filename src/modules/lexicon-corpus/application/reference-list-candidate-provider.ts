@@ -34,7 +34,7 @@
  * needs a gloss to judge. Leaving it empty is honest about what this source knows.
  */
 import { contentFrequencyWords } from "../domain/frequency-word-list";
-import { normalizeSpanishSurface, tokenizeSpanish } from "../domain/spanish-token";
+import { tokenizeSpanish } from "../domain/spanish-token";
 import type {
   LexemeCandidateProvider,
   LexiconCandidateProposal,
@@ -42,9 +42,24 @@ import type {
   LexiconExtractionResult,
 } from "@/src/modules/providers/lexicon-extraction/lexicon-extraction";
 
-/** The forms the shelf holds, folded, as the tokenizer reports them. */
+/**
+ * The forms the shelf holds, keyed by **case-folded surface**, accents kept.
+ *
+ * Not accent-folded, and that is the correction of a real bug: this used to key on
+ * `normalizeSpanishSurface`, which maps `ñ` to `n`, so the list's `uña` produced
+ * the key `una` and the article `una` — which is **not** in the reference list, and
+ * is filtered as a function word — passed the membership test and inherited
+ * `uña`'s gloss 指甲. Five such candidates were stored before the reviewer caught
+ * it. Case folding alone still lets `Casi` find `casi`, which was the reason to
+ * normalise at all.
+ */
 export function referenceListForms(): ReadonlySet<string> {
-  return new Set(contentFrequencyWords().map((entry) => normalizeSpanishSurface(entry.word)));
+  return new Set(contentFrequencyWords().map((entry) => surfaceKey(entry.word)));
+}
+
+/** Case-folded surface form: the key both membership and glosses are matched on. */
+export function surfaceKey(surface: string): string {
+  return surface.trim().toLocaleLowerCase("es");
 }
 
 /**
@@ -55,9 +70,10 @@ export function referenceListForms(): ReadonlySet<string> {
  * propose candidates *without* glosses — which the teaching dimension then fails
  * visibly — rather than crashing the run or inventing a meaning.
  *
- * Keys are **folded** (`normalizeSpanishSurface`), because the asset is keyed by
- * the reference list's own spelling while a candidate's surface is whatever the
- * segment contains: `Casi` in a sentence has to find `casi` in the asset.
+ * Keys are **case-folded, not accent-folded** — see {@link referenceListForms}:
+ * accent folding made `uña` and `una` the same key, which attached a fingernail's
+ * gloss to an article. Folding case is all that is needed for `Casi` to find
+ * `casi`.
  *
  * Only the first gloss is used. The asset holds up to three and a candidate
  * carries one `meaningZh` — the same one the shelf's tile leads with, so the
@@ -72,7 +88,7 @@ export function parseReferenceMeanings(asset: unknown): ReadonlyMap<string, stri
     if (!Array.isArray(value)) continue;
     const first = value.find((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
     if (!first) continue;
-    meanings.set(normalizeSpanishSurface(word), first.trim());
+    meanings.set(surfaceKey(word), first.trim());
   }
   return meanings;
 }
@@ -80,7 +96,6 @@ export function parseReferenceMeanings(asset: unknown): ReadonlyMap<string, stri
 /**
  * Propose the reference-list forms that occur in this run's segments.
  *
- * One proposal per (form, segment) pair, in segment order, capped by
  * One proposal per **form**, not per (form, segment): the first occurrence in
  * document order wins, and a word occurring twice is not two entries. That is a
  * cost property, not tidiness — measured before the rule, `casa` appearing in
@@ -120,16 +135,21 @@ export function createReferenceListCandidateProvider(
         let proposedForSegment = 0;
         for (const token of tokenizeSpanish(segment.sourceText)) {
           if (proposedForSegment >= input.maxCandidatesPerSegment) break;
-          const normalized = token.normalized;
-          if (!forms.has(normalized) || proposedInRun.has(normalized)) continue;
-          proposedInRun.add(normalized);
+          // Membership is decided on the **surface**, not the folded token: the
+          // folded form of `uña` is `una`, which is how the article `una` used to
+          // slip through and take a fingernail's gloss.
+          const key = surfaceKey(token.surface);
+          if (!forms.has(key) || proposedInRun.has(key)) continue;
+          proposedInRun.add(key);
           proposals.push({
             kind: "lexeme",
             surfaceText: token.surface,
-            normalizedText: normalized,
+            // The pipeline's identity stays the folded form; only membership and
+            // the gloss lookup are surface-keyed.
+            normalizedText: token.normalized,
             lemma: null,
             partOfSpeech: null,
-            meaningZh: meanings.get(normalized) ?? null,
+            meaningZh: meanings.get(key) ?? null,
             segmentIndex: segment.segmentIndex,
             confidence: 1,
           });

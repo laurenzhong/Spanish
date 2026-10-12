@@ -27,7 +27,9 @@ function segment(index: number, sourceText: string): LexiconIndexingSegment {
   };
 }
 
-const forms = new Set(["casa", "madre", "dia"]);
+// Keyed by **surface** (case-folded, accents kept), which is how membership and
+// the gloss lookup work: `día` in the list must not be reachable from `dia`.
+const forms = new Set(["casa", "madre", "día"]);
 const meanings = new Map([["casa", "房子"], ["madre", "妈妈"]]);
 
 function provider(): ReturnType<typeof createReferenceListCandidateProvider> {
@@ -62,7 +64,8 @@ describe("reference-list candidate source", () => {
     });
 
     const casa = result.proposals.find((proposal) => proposal.normalizedText === "casa");
-    // The surface is the published spelling, the lookup is folded.
+    // The surface is the published spelling; membership and the lookup are keyed
+    // on the case-folded surface, so `Casa` finds `casa` without folding accents.
     expect(casa?.surfaceText).toBe("Casa");
     expect(casa?.meaningZh).toBe("房子");
     const madre = result.proposals.find((proposal) => proposal.normalizedText === "madre");
@@ -113,5 +116,53 @@ describe("parseReferenceMeanings", () => {
     for (const asset of [null, 42, "text", {}, { meanings: [] }, { meanings: { casa: "房子" } }, { meanings: { casa: [] } }]) {
       expect([...parseReferenceMeanings(asset)]).toEqual([]);
     }
+  });
+});
+
+/**
+ * Membership is a **surface** property.
+ *
+ * This block exists because it was not, and the failure reached the reviewer.
+ * `normalizeSpanishSurface` folds `ñ` to `n`, so the list's `uña` produced the key
+ * `una`; the article `una` — not in the reference list, and filtered as a function
+ * word — passed the membership test and was proposed with `uña`'s gloss 指甲. Five
+ * such candidates were stored before the reviewer said so.
+ */
+describe("reference-list membership is decided on the surface", () => {
+  const accented = new Set(["uña"]);
+  const accentedMeanings = new Map([["uña", "指甲"]]);
+
+  function accentedProvider(): ReturnType<typeof createReferenceListCandidateProvider> {
+    return createReferenceListCandidateProvider({ forms: accented, meanings: accentedMeanings });
+  }
+
+  it("never proposes a token that only matches after accent folding", async () => {
+    const result = await accentedProvider().extractCandidates({
+      language: "es",
+      // `una` is the article and is not in the list; `uña` is.
+      segments: [segment(0, "Me duele una uña del pie.")],
+      maxCandidatesPerSegment: 12,
+    });
+
+    expect(result.proposals.map((proposal) => proposal.surfaceText)).toEqual(["uña"]);
+    expect(result.proposals[0]?.meaningZh).toBe("指甲");
+    expect(result.proposals.some((proposal) => proposal.surfaceText === "una")).toBe(false);
+  });
+
+  it("proposes nothing at all when the segment holds no listed surface", async () => {
+    const result = await accentedProvider().extractCandidates({
+      language: "es",
+      segments: [segment(0, "Una casa, un coche, unos libros.")],
+      maxCandidatesPerSegment: 12,
+    });
+
+    expect(result.proposals).toEqual([]);
+  });
+
+  it("never merges two forms onto one folded key", () => {
+    const parsed = parseReferenceMeanings({ meanings: { uña: ["指甲"], una: ["一个"] } });
+    expect(parsed.get("uña")).toBe("指甲");
+    expect(parsed.get("una")).toBe("一个");
+    expect(parsed.size).toBe(2);
   });
 });
