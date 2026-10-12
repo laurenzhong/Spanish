@@ -94,6 +94,7 @@ import {
   type LexiconCandidateStatus,
   type LexiconReviewDimension,
 } from "../domain/lexicon-candidate";
+import { classifyFixedExpressionProposal, fixedExpressionPhraseProposals } from "../domain/fixed-expression";
 import type {
   LexiconCandidateApprovalAuditStore,
   LexiconCandidateApprovalRecord,
@@ -227,6 +228,14 @@ export type LexiconIndexingCounts = Readonly<{
   phrases: number;
   /** Reviewer calls made; two per fully reviewed candidate. */
   reviewCalls: number;
+  /**
+   * Member proposals the fixed-expression rule dropped before any paid call
+   * (see `domain/fixed-expression.ts`). They are not candidates, so they are not
+   * reviews, not rejections and not stored rows.
+   */
+  fixedExpressionMembersDropped: number;
+  /** Phrase proposals the rule added for expressions found in the segments. */
+  fixedExpressionPhrasesAdded: number;
 }>;
 
 export type LexiconIndexingProviderUsage = Readonly<{
@@ -287,6 +296,8 @@ const ZERO_COUNTS: LexiconIndexingCounts = {
   lexemes: 0,
   phrases: 0,
   reviewCalls: 0,
+  fixedExpressionMembersDropped: 0,
+  fixedExpressionPhrasesAdded: 0,
 };
 
 const NO_PROVIDER_USAGE: LexiconIndexingProviderUsage = {
@@ -862,8 +873,43 @@ export async function runLexiconIndexingPipeline(
   const seenIds = new Set<string>();
   let deduplicated = 0;
   let reviewCalls = 0;
+  let fixedExpressionMembersDropped = 0;
 
-  for (const proposal of extraction.proposals) {
+  // The fixed-expression rule, applied before anything is planned or paid for.
+  //
+  // A member with no independent meaning is not a candidate at all, and the
+  // expression it belongs to is: rule 2 in `domain/fixed-expression.ts` is what
+  // makes `phrase_entries` reachable, because extraction proposes lexemes only.
+  // The proposals below carry the surface the *segment* contains, so the frozen
+  // context and the reviewer see the published text rather than the list's
+  // spelling.
+  const proposals: LexiconCandidateProposal[] = [...extraction.proposals];
+  let fixedExpressionPhrasesAdded = 0;
+  for (const segment of input.segments) {
+    for (const occurrence of fixedExpressionPhraseProposals(segment.sourceText)) {
+      const normalizedText = occurrence.match.normalized;
+      const alreadyProposed = proposals.some((proposal) =>
+        proposal.segmentIndex === segment.segmentIndex
+        && proposal.kind === "phrase"
+        && proposal.normalizedText.trim().toLocaleLowerCase("es") === normalizedText);
+      if (alreadyProposed) continue;
+      proposals.push({
+        kind: "phrase",
+        surfaceText: occurrence.match.surface,
+        normalizedText,
+        lemma: null,
+        partOfSpeech: null,
+        meaningZh: null,
+        segmentIndex: segment.segmentIndex,
+        // Certainty that the expression occurs, verified by token match — not a
+        // model judgement, and never a publication gate.
+        confidence: 1,
+      });
+      fixedExpressionPhrasesAdded += 1;
+    }
+  }
+
+  for (const proposal of proposals) {
     if (input.signal?.aborted) return fail(mode, "INDEXING_RUN_CANCELLED", "Cancelled during planning.");
 
     const frozenSegment = planned.byIndex.get(proposal.segmentIndex);
@@ -873,6 +919,15 @@ export async function runLexiconIndexingPipeline(
         "INDEXING_PROPOSAL_INVALID",
         `Proposal references segment ${proposal.segmentIndex}, which is not part of this run.`,
       );
+    }
+    const fixedExpression = classifyFixedExpressionProposal({
+      kind: proposal.kind,
+      surfaceText: proposal.surfaceText,
+      segmentText: frozenSegment.segment.sourceText,
+    });
+    if (fixedExpression.action === "drop-member") {
+      fixedExpressionMembersDropped += 1;
+      continue;
     }
     const problem = proposalProblem(proposal);
     if (problem) return fail(mode, "INDEXING_PROPOSAL_INVALID", problem);
@@ -948,6 +1003,8 @@ export async function runLexiconIndexingPipeline(
     lexemes: outcomes.reduce((total, outcome) => total + outcome.lexemes, 0),
     phrases: outcomes.reduce((total, outcome) => total + outcome.phrases, 0),
     reviewCalls,
+    fixedExpressionMembersDropped,
+    fixedExpressionPhrasesAdded,
   };
 
   return {

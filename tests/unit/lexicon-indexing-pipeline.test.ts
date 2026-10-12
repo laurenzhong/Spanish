@@ -363,6 +363,8 @@ describe("the switch decides whether the pipeline runs at all (LEX-INDEX-001 sli
       lexemes: 0,
       phrases: 0,
       reviewCalls: 0,
+      fixedExpressionMembersDropped: 0,
+      fixedExpressionPhrasesAdded: 0,
     });
     expect(result.providerUsage).toEqual({
       called: false,
@@ -457,6 +459,10 @@ describe("only an approved candidate reaches the corpus (LEX-INDEX-001 slice 6)"
       lexemes: 3,
       phrases: 1,
       reviewCalls: 8,
+      // These segments contain none of the listed fixed expressions, so the rule
+      // neither drops a member nor adds a phrase here.
+      fixedExpressionMembersDropped: 0,
+      fixedExpressionPhrasesAdded: 0,
     });
     expect(result.providerUsage.called).toBe(true);
     expect(result.providerUsage.provider).toBe("fake");
@@ -1075,5 +1081,94 @@ describe("the pipeline cannot write ability evidence (LEX-INDEX-001 slice 6)", (
     for (const modulePath of importedModules) {
       expect(modulePath).not.toMatch(/evidence|assessment|server|minimax/iu);
     }
+  });
+});
+
+/**
+ * The fixed-expression rule, at the level where it has to hold: the pipeline.
+ *
+ * `repente` is the case that produced the rule — extraction proposed it as a
+ * NOUN, the reviewer failed it for being part of an adverbial phrase, and the
+ * candidate settled as `rejected`. Neither of those steps is wrong; the proposal
+ * should never have existed. These tests pin the two halves of the answer: the
+ * member is not a candidate at all, and the expression is one.
+ */
+describe("fixed expressions are candidates; their non-independent members are not", () => {
+  const REPENTE_SEGMENT: LexiconIndexingSegment = {
+    ...ARTICLE_SEGMENT,
+    sourceText: "De repente, un grupo de droides aparece al final del pasillo.",
+  };
+
+  function memberProvider(): LexemeCandidateProvider {
+    const base = createFakeLexemeCandidateProvider();
+    return {
+      extractCandidates: async (input, providerOptions) => {
+        const result = await base.extractCandidates(input, providerOptions);
+        return {
+          ...result,
+          proposals: [{
+            kind: "lexeme" as const,
+            surfaceText: "repente",
+            normalizedText: "repente",
+            lemma: "repente",
+            partOfSpeech: "NOUN",
+            meaningZh: "突然",
+            segmentIndex: 0,
+            confidence: 0.9,
+          }],
+        };
+      },
+    };
+  }
+
+  it("drops the member and proposes the expression instead, before any review call", async () => {
+    const testHarness = createHarness({ provider: memberProvider() });
+    const result = expectOk(await run(testHarness, {
+      mode: "review-only",
+      approvedBy: null,
+      segments: [REPENTE_SEGMENT],
+    }));
+
+    expect(result.counts.fixedExpressionMembersDropped).toBe(1);
+    expect(result.counts.fixedExpressionPhrasesAdded).toBe(1);
+    // One phrase candidate, so exactly two review calls — the dropped member was
+    // never reviewed, which is the point of deciding this before paying.
+    expect(result.counts.reviewCalls).toBe(2);
+
+    const stored = await storedCandidates(testHarness.store);
+    expect(stored.map((record) => `${record.candidate.kind}:${record.candidate.normalizedText}`)).toEqual([
+      "phrase:de repente",
+    ]);
+    // The expression carries the surface the published segment contains.
+    expect(stored[0]?.candidate.surfaceText).toBe("De repente");
+  });
+
+  it("still reaches review_ready without approving anything", async () => {
+    const testHarness = createHarness({ provider: memberProvider() });
+    const result = expectOk(await run(testHarness, {
+      mode: "review-only",
+      approvedBy: null,
+      segments: [REPENTE_SEGMENT],
+    }));
+
+    expect(result.candidates.map((candidate) => candidate.status)).toEqual(["review_ready"]);
+    expect(result.counts.approved).toBe(0);
+    expect(result.counts.indexed).toBe(0);
+  });
+
+  it("leaves a member proposal alone when the expression is not in the segment", async () => {
+    const testHarness = createHarness({ provider: memberProvider() });
+    const result = expectOk(await run(testHarness, {
+      mode: "review-only",
+      approvedBy: null,
+      segments: [{ ...ARTICLE_SEGMENT, sourceText: "El repente de la puerta asustó a todos." }],
+    }));
+
+    expect(result.counts.fixedExpressionMembersDropped).toBe(0);
+    expect(result.counts.fixedExpressionPhrasesAdded).toBe(0);
+    const stored = await storedCandidates(testHarness.store);
+    expect(stored.map((record) => `${record.candidate.kind}:${record.candidate.normalizedText}`)).toEqual([
+      "lexeme:repente",
+    ]);
   });
 });
