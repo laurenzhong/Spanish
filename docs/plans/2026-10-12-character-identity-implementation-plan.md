@@ -30,7 +30,7 @@
 
 ### 切片 3：发布流程维护指针
 - `publish-character-bible.ts`：发布成功后在同一事务内更新 `identity.current_character_id`；若该 `stable_key` 尚无 identity 则创建。
-- `import-character-bible.ts`：导入新修订时确保 identity 存在（但不移动指针——指针只由发布移动）。
+- `import-character-bible.ts`：**导入不创建也不移动指针**（2026-10-12 实现后修正原文）。原因：`character_identities.current_character_id` 是 `NOT NULL`，导入期创建的身份只能指向一个尚未发布的草稿——那正是 ADR 0014 禁止的状态；因此身份统一在**发布**时创建/更新（按 `stable_key` upsert），导入只写修订行。
 - 验收测试：发布 v3 后，`current_character_id` 指向 v3，且**没有任何用户状态行被写入**（用行数/时间戳断言）。
 
 ### 切片 4：去掉双写与旧列
