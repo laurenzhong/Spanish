@@ -80,7 +80,16 @@ export type LexiconExtractionResult = Readonly<{
     /** Always true: proposals are never publishable without owner approval. */
     needsOwnerApproval: true;
   }>;
-  provider: "minimax" | "fake";
+  /**
+   * Which source produced these proposals.
+   *
+   * `reference-list` is the deterministic source that proposes only the committed
+   * reference list's own forms and makes no vendor call at all
+   * (`application/reference-list-candidate-provider.ts`). It is listed here
+   * rather than reported as `fake`, because an audit trail that calls a real
+   * source "fake" is worse than one that names it.
+   */
+  provider: "minimax" | "fake" | "reference-list";
   modelVersion: string;
   providerRequestId: string | null;
   latencyMs: number;

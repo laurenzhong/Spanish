@@ -49,6 +49,15 @@ const readNumber = (name: string, fallback: number): number => {
 const documentCount = readNumber("documents", 3);
 const segmentsPerDocument = readNumber("segments", 6);
 const maxCandidatesPerSegment = readNumber("max-candidates", 12);
+/**
+ * Where proposals come from.
+ *
+ * `extraction` is the language-model extractor, which costs one paid call per
+ * document. `reference` proposes only the 7,922 forms of the committed reference
+ * list and makes no extraction call at all — the route the measured 147-day
+ * corpus sweep ruled out (see `application/reference-list-candidate-provider.ts`).
+ */
+const source = args.find((arg) => arg.startsWith("--source="))?.slice("--source=".length) ?? "extraction";
 
 const connection = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL;
 if (!connection) {
@@ -159,7 +168,12 @@ async function runDocument(article: { stableKey: string; versionId: string; vers
 
   const { createMiniMaxLexiconExtractionProvider } = await import("../src/modules/providers/lexicon-extraction/server");
   const { createMiniMaxCandidateReviewer } = await import("../src/modules/providers/lexicon-review/server");
-  const provider = createMiniMaxLexiconExtractionProvider();
+  const { createReferenceListCandidateProvider } = await import(
+    "../src/modules/lexicon-corpus/application/reference-list-candidate-provider"
+  );
+  const provider = source === "reference"
+    ? createReferenceListCandidateProvider()
+    : createMiniMaxLexiconExtractionProvider();
   const reviewer = createMiniMaxCandidateReviewer();
 
   const result = await runLexiconIndexingPipeline(
@@ -214,6 +228,7 @@ async function runDocument(article: { stableKey: string; versionId: string; vers
 }
 
 console.log("=== lexicon indexing batch (review-only) ===");
+console.log(`  source              ${source}`);
 console.log(`  documents           ${documentCount}`);
 console.log(`  segments/document   ${segmentsPerDocument}`);
 console.log(`  max candidates/seg  ${maxCandidatesPerSegment}\n`);
