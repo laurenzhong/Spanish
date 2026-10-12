@@ -9,6 +9,12 @@ export type ReplyCharacterSnapshot = Readonly<{
   homeLocation: string;
   initiative: "low" | "balanced" | "high";
   tone: readonly string[];
+  /**
+   * Expression rules from the character bible's `personality.responseStyle`:
+   * how this character phrases things, not topics to bring up. Optional because
+   * a character row imported before the field existed has none.
+   */
+  responseStyle?: readonly string[];
   topics: readonly string[];
   facts: readonly Readonly<{
     factKey: string;

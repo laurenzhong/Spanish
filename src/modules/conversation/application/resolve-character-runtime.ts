@@ -37,6 +37,7 @@ function persistedSnapshot(
   const personality = (persisted.profile?.personality ?? {}) as Partial<{
     initiative: ReplyCharacterSnapshot["initiative"];
     tone: readonly string[];
+    responseStyle: readonly string[];
     topicPreferences: readonly Readonly<{ topic: string }>[];
   }>;
   const initiative = personality.initiative && ["low", "balanced", "high"].includes(personality.initiative)
@@ -81,6 +82,12 @@ function persistedSnapshot(
     homeLocation: persisted.homeLocation,
     initiative,
     tone: personality.tone?.length ? personality.tone : fallback.snapshot.tone,
+    // The expression rules are what keeps a voice recognisable across replies.
+    // A row imported before the bible carried them falls back to the catalog
+    // the same way tone and topics already do.
+    responseStyle: personality.responseStyle?.length
+      ? personality.responseStyle
+      : fallback.snapshot.responseStyle,
     topics: topics.length > 0 ? topics : fallback.snapshot.topics,
     facts: safeFacts,
   };

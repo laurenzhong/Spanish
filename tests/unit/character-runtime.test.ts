@@ -180,4 +180,43 @@ describe("character runtime release gate", () => {
       requiredCapability: "proactiveMessages",
     })).rejects.toBeInstanceOf(CharacterRuntimeError);
   });
+
+  it("carries the character bible's expression rules into the provider snapshot", async () => {
+    const resolved = await resolveConversationCharacter({
+      characterKey: "lucia",
+      characterVersion: 1,
+      repository: repositoryReturning({
+        status: "published",
+        profile: {
+          identity: { age: 24, growthLocation: "Madrid", education: "Máster en Comunicación", occupation: "Comunicación digital" },
+          personality: {
+            traits: ["curiosa", "cálida"],
+            tone: ["cercana"],
+            initiative: "balanced",
+            responseStyle: ["no repite una expresión que ya usó"],
+            topicPreferences: [{ topic: "fotografía urbana", interest: "high", notes: "Le gusta Madrid." }],
+          },
+          relationships: [],
+          changeLog: [],
+        },
+      }),
+    });
+    expect(resolved.catalog.snapshot.responseStyle).toEqual(["no repite una expresión que ya usó"]);
+  });
+
+  it("falls back to the catalog expression rules when the published row predates the field", async () => {
+    const resolved = await resolveConversationCharacter({
+      characterKey: "lucia",
+      characterVersion: 1,
+      repository: repositoryReturning({ status: "published" }),
+    });
+    // The bible's rule has to reach a row imported before the field existed,
+    // otherwise "write it in the bible" would be inert for the live character.
+    expect(resolved.catalog.snapshot.responseStyle).toContain(
+      "no repite una expresión que ya usó: si ya dijo algo, lo dice con otras palabras o añade algo nuevo",
+    );
+    expect(resolved.catalog.snapshot.responseStyle).toContain(
+      "no traduce saludos ni deseos palabra por palabra; usa la fórmula corriente en español",
+    );
+  });
 });

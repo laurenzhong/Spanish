@@ -180,6 +180,7 @@ provider 的 system prompt 只说明如何表达：
 - 涉及角色是否亲自去过现实地点时，允许使用已建立的剧情经历或“听说过”的间接信息；没有对应人物事实时，可以自然说“我没去过那里”，再接一个具体兴趣点。不要把虚构经历包装成可验证的现实资源、地址或线下安排。
 - 私聊表达优先使用普通句号和问号，避免冒号引导的说明句与书面化分号串联。
 - 纯问候开场（如“Hola, buenas noches”）先完成问候回应，不凭空推断用户当晚状态，也不自动添加 `Espero que...`/`Ojalá...` 祝愿；可轻轻延续或自然收束。
+- 角色的表达规则来自人物圣经的 `personality.responseStyle`（`content/characters/lucia.json`）：`resolveConversationCharacter` 读已发布行的 `profile.personality.responseStyle`，行早于该字段时回落到 `character-catalog.ts` 的快照，最终以 `character.responseStyle` 进入 provider input。规则只约束措辞，不是可以提起或复述的话题。
 - 不要连着两次问候：自己上一条消息已经问候过、用户这次没有问候时，直接接着内容说，不要再用 `hola`/`buenos días`/`buenas tardes`/`buenas noches` 开场。
 - 西语文体忌讳重复已用过的表达：不要用另一种说法重复自己上一条的结论；要说就补充新信息，否则只是陪着对方。
 - 不要把问候或祝愿逐字翻译；用母语者会说的说法（如 `Vaya lunes`、`Ánimo con el lunes`），而不是 `Bienvenido al lunes`。
