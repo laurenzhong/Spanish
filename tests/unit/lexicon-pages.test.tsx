@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -9,24 +9,13 @@ vi.mock("@/src/modules/lexicon-corpus/repositories", async (importOriginal) => {
   return { ...original, createDrizzleLexiconCorpusRepository: vi.fn() };
 });
 
-import { PhraseLibrary, ReadSectionNavigation, VocabularyLibrary } from "@/src/modules/lexicon-corpus";
+import { PhraseLibrary, ReadSectionNavigation } from "@/src/modules/lexicon-corpus";
 
-const vocabulary = {
-  id: "10000000-0000-4000-8000-000000000001",
-  lemma: "comer",
-  normalizedLemma: "comer",
-  partOfSpeech: "verb",
-  lemmaStatus: "verified" as const,
-  meaningZh: "吃",
-  forms: ["comer", "comiendo"],
-  occurrenceCount: 2,
-  intent: null,
-  revision: 1,
-};
 const phrase = {
   id: "20000000-0000-4000-8000-000000000001",
   expression: "¿Qué tal?",
   normalizedExpression: "que tal",
+  scope: "public" as const,
   meaningZh: "怎么样？",
   pragmaticPurpose: "轻松问候",
   register: "neutral",
@@ -34,6 +23,18 @@ const phrase = {
   cefr: "A2",
   variants: ["Que tal"],
   occurrenceCount: 1,
+  representativeOccurrence: {
+    leftContext: "Hola,",
+    keyword: "¿Qué tal?",
+    rightContext: "hoy?",
+    sourceTitle: "Una conversación",
+    sourceKind: "article-rss",
+    document: { kind: "article" as const, stableKey: "article.one", version: 2 },
+    location: { kind: "text" as const, paragraphId: "p1", segmentIndex: 0 },
+    entryKind: "phrase" as const,
+    entryId: "20000000-0000-4000-8000-000000000001",
+    surfaceText: "¿Qué tal?",
+  },
   intent: null,
   revision: 1,
 };
@@ -41,34 +42,43 @@ const phrase = {
 describe("lexicon pages and controls", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-  it("renders vocabulary metadata and updates a personal intent", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: { revision: 2 } }), { status: 200 }));
-    const user = userEvent.setup();
-    render(<VocabularyLibrary items={[vocabulary]} />);
-    expect(screen.getByRole("heading", { name: "comer" })).toBeInTheDocument();
-    expect(screen.getByText("2 个出现")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "想复现" }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(vocabulary.id), expect.objectContaining({ method: "PUT" })));
-    expect(screen.getByRole("button", { name: "想复现" })).toHaveAttribute("aria-pressed", "true");
-  });
-
   it("renders phrase purpose and honest empty states", () => {
     render(<PhraseLibrary items={[phrase]} />);
     expect(screen.getByRole("heading", { name: "¿Qué tal?" })).toBeInTheDocument();
     expect(screen.getByText("轻松问候")).toBeInTheDocument();
-    render(<VocabularyLibrary items={[]} />);
-    expect(screen.getByRole("heading", { name: "还没有词汇" })).toBeInTheDocument();
+    expect(screen.getByText("公开")).toBeInTheDocument();
+    expect(screen.getByText("Una conversación")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开来源" })).toHaveAttribute("href", "/read/article/article.one#segment-0");
+    expect(screen.getByRole("link", { name: "在语料中查看全部用例" })).toHaveAttribute("href", "/read/corpus?entryKind=phrase&entryId=20000000-0000-4000-8000-000000000001");
+    cleanup();
+    // The empty state is the live phrase library's own (`VocabularyLibrary` and
+    // the `?view=lexicon` shelf it belonged to were removed with the view).
+    render(<PhraseLibrary items={[]} />);
+    expect(screen.getByRole("heading", { name: "还没有短语" })).toBeInTheDocument();
+  });
+
+  it("shows an honest empty state when no representative occurrence is visible", () => {
+    render(<PhraseLibrary items={[{ ...phrase, representativeOccurrence: null }]} />);
+    expect(screen.getByText("暂无可见代表例句")).toBeInTheDocument();
+  });
+
+  it("labels private phrase entries without exposing ownership details", () => {
+    render(<PhraseLibrary items={[{ ...phrase, scope: "private" }]} />);
+    expect(screen.getByText("私有")).toBeInTheDocument();
+    expect(screen.queryByText(/owner|userId/i)).not.toBeInTheDocument();
   });
 
   it("loads exact occurrence context and links back to the recorded position", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: { items: [{
-      leftContext: "Quiero", keyword: "comer", rightContext: "contigo.", sourceTitle: "Una historia", sourceKind: "article-rss",
+      leftContext: "Hola,", keyword: "¿Qué tal?", rightContext: "hoy?", sourceTitle: "Una historia", sourceKind: "article-rss",
       document: { kind: "article", stableKey: "article.one", version: 2 }, location: { kind: "text", paragraphId: "p2", segmentIndex: 1 },
-      entryKind: "lexeme", entryId: vocabulary.id, surfaceText: "comer",
+      entryKind: "phrase", entryId: phrase.id, surfaceText: "¿Qué tal?",
     }], page: 1, pageSize: 6, total: 1 } }), { status: 200 }));
-    render(<VocabularyLibrary items={[vocabulary]} total={1} />);
-    await user.click(screen.getByRole("button", { name: "查看 comer 的上下文" }));
+    // Through the live phrase library: `LexiconOccurrences` is shared with the
+    // removed `VocabularyLibrary`, so its one interactive path is covered here.
+    render(<PhraseLibrary items={[phrase]} total={1} />);
+    await user.click(screen.getByRole("button", { name: "查看 ¿Qué tal? 的上下文" }));
     expect(await screen.findByText("Una historia")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "回到原文" })).toHaveAttribute("href", "/read/article/article.one#segment-1");
   });
