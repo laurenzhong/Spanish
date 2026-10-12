@@ -81,9 +81,17 @@ export function parseReferenceMeanings(asset: unknown): ReadonlyMap<string, stri
  * Propose the reference-list forms that occur in this run's segments.
  *
  * One proposal per (form, segment) pair, in segment order, capped by
- * `maxCandidatesPerSegment` exactly as the extractor's proposals are — the cap is
- * the pipeline's bound on batch size, and this source respects it rather than
- * quietly exceeding it.
+ * One proposal per **form**, not per (form, segment): the first occurrence in
+ * document order wins, and a word occurring twice is not two entries. That is a
+ * cost property, not tidiness — measured before the rule, `casa` appearing in
+ * three of six segments produced three candidates, each costing two review calls,
+ * which quietly undoes the reason this source exists: one candidate per word is
+ * what replaced the 147-day corpus sweep. "First occurrence in document order" is
+ * also deterministic, so a re-run produces the same candidates, and the reviewer
+ * still sees a real context rather than a synthesised one.
+ *
+ * The per-segment cap still applies, exactly as it does to the extractor's
+ * proposals: it is the pipeline's bound on batch size.
  *
  * `confidence` is 1 for a reason that is not a model judgement: the form was
  * found as a token of the segment, which is a fact, not an estimate. It is
@@ -106,14 +114,15 @@ export function createReferenceListCandidateProvider(
   return {
     async extractCandidates(input: LexiconExtractionInput): Promise<LexiconExtractionResult> {
       const proposals: LexiconCandidateProposal[] = [];
+      // Run-wide, so the first occurrence in document order is the candidate.
+      const proposedInRun = new Set<string>();
       for (const segment of input.segments) {
-        const seen = new Set<string>();
         let proposedForSegment = 0;
         for (const token of tokenizeSpanish(segment.sourceText)) {
           if (proposedForSegment >= input.maxCandidatesPerSegment) break;
           const normalized = token.normalized;
-          if (!forms.has(normalized) || seen.has(normalized)) continue;
-          seen.add(normalized);
+          if (!forms.has(normalized) || proposedInRun.has(normalized)) continue;
+          proposedInRun.add(normalized);
           proposals.push({
             kind: "lexeme",
             surfaceText: token.surface,
