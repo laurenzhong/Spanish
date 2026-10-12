@@ -49,7 +49,17 @@ type RawRecord = Readonly<{
   listRank: number;
   fetchedAt: string;
   httpStatus: number | null;
-  outcome: "found" | "partial" | "miss" | "unexpected" | "error";
+  /**
+   * `throttled` is a real outcome, not a hypothetical: the scraper records it for
+   * HTTP 429 (see `classify` in `scrape-lr-dictionary.ts`), and both the
+   * first-real-answer-wins rule above and the `throttledWords` tally below branch
+   * on it. It was missing from this union, which made those two branches look
+   * like dead comparisons to the type checker even though they are live at
+   * runtime, because records arrive through `JSON.parse` and so were never
+   * narrowed. Adding it here is the fix; narrowing the comparisons would have
+   * deleted working behaviour to satisfy the compiler.
+   */
+  outcome: "found" | "partial" | "miss" | "unexpected" | "error" | "throttled";
   attempts: number;
   url: string;
   raw: string;
