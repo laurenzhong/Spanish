@@ -69,7 +69,9 @@ export function VocabularyShelfList({ items, ranked, total }: VocabularyShelfLis
 
   return <>{groupRanks(items, 1, total).map(({ band, items: bandItems }) => (
     <div className="vocabulary-shelf__band" data-band-start={band.start} key={band.start}>
-      <h2 className="vocabulary-rank-band" id={bandAnchorId(band.start)}>排名 {band.start} - {band.end}:</h2>
+      {/* A centred divider: the rules on either side do the separating the
+          trailing colon used to do. */}
+      <h2 className="vocabulary-rank-band" id={bandAnchorId(band.start)}>排名 {band.start} - {band.end}</h2>
       <ul className="vocabulary-study__grid" role="list" aria-labelledby={bandAnchorId(band.start)}>
         {bandItems.map((item, index) => tile(item, band.start + index))}
       </ul>

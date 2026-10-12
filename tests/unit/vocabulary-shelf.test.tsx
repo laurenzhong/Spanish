@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -130,10 +130,10 @@ describe("vocabulary shelf", () => {
   it("renders the whole shelf at once, split into its rank bands, with no paging and no count", () => {
     renderShelf("scope-whole", manyItems, { total: 105 });
 
-    expect(screen.getByRole("heading", { name: "排名 1 - 100:" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "排名 101 - 105:" })).toBeInTheDocument();
-    expect(within(screen.getByRole("list", { name: "排名 1 - 100:" })).getAllByRole("button")).toHaveLength(100);
-    expect(within(screen.getByRole("list", { name: "排名 101 - 105:" })).getAllByRole("button")).toHaveLength(5);
+    expect(screen.getByRole("heading", { name: "排名 1 - 100" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "排名 101 - 105" })).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "排名 1 - 100" })).getAllByRole("button")).toHaveLength(100);
+    expect(within(screen.getByRole("list", { name: "排名 101 - 105" })).getAllByRole("button")).toHaveLength(5);
     // Every word of the shelf is on the page: no pagination control anywhere.
     expect(screen.getAllByRole("button")).toHaveLength(105);
     expect(screen.queryByRole("navigation", { name: "词句分页" })).not.toBeInTheDocument();
@@ -144,7 +144,7 @@ describe("vocabulary shelf", () => {
   it("keeps the reference order it is given and the translation under each word", () => {
     renderShelf("scope-order");
 
-    const words = within(screen.getByRole("list", { name: "排名 1 - 100:" })).getAllByRole("button");
+    const words = within(screen.getByRole("list", { name: "排名 1 - 100" })).getAllByRole("button");
     expect(words.map((word) => word.querySelector(".vocabulary-study__word-text")?.textContent)).toEqual(["ser", "casa", "vez"]);
     expect(wordTile("casa")).toHaveTextContent("房子、家");
     expect(wordTile("ser")).toHaveTextContent("释义待补充");
@@ -294,6 +294,27 @@ describe("vocabulary shelf", () => {
     expect(translation()).not.toBeNull();
     await user.click(screen.getByRole("button", { name: /ser/u }));
     await waitFor(() => expect(translation()).toBeNull());
+  });
+
+  it("keeps the layer open when the pointer moves from the word onto its card", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-group");
+    const tile = wordTile("casa");
+    await user.hover(tile);
+    const layer = document.getElementById("vocabulary-translation-layer") as HTMLElement;
+    expect(layer).not.toBeNull();
+
+    // The word and its card sit in the same row, so a pointer moving onto the card
+    // has only left the *tile*. `relatedTarget` names the card, and the row
+    // contains it: the layer stays open no matter how slow the hand is.
+    const card = layer.querySelector(".vocabulary-shelf__translation") as HTMLElement;
+    fireEvent.mouseOut(tile, { relatedTarget: card });
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(translation()).not.toBeNull();
+
+    // Stepping out of the row to another word does close it, after the grace.
+    fireEvent.mouseOut(tile, { relatedTarget: wordTile("vez") });
+    await waitFor(() => expect(translation()).toBeNull(), { timeout: 1_500 });
   });
 
   it("reads no geometry while the page scrolls", async () => {

@@ -99,7 +99,7 @@ describe("vocabulary page", () => {
     const lists = screen.getAllByRole("list");
     expect(lists.map((list) => list.getAttribute("aria-labelledby"))).toEqual(["vocabulary-band-1", "vocabulary-band-101", "vocabulary-band-201"]);
     expect(tiles()).toHaveLength(250);
-    expect(screen.getByRole("heading", { name: "排名 201 - 250:" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "排名 201 - 250" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "词句分页" })).not.toBeInTheDocument();
     expect(screen.getByText(/按参考词频排序的 250 个内容词/u)).toBeInTheDocument();
   });

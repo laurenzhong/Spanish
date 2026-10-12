@@ -12,13 +12,28 @@ html:has(.vocabulary-shelf__body) {
   scroll-behavior: smooth;
 }
 
+/* A divider rather than a left-aligned label: the rule runs out to both sides and
+   the rank sits centred between them. The box and `scroll-margin-top` are what the
+   rail's jumps land on, so the height stays a single text line. */
 .vocabulary-rank-band {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   color: var(--muted);
   font-size: .7rem;
   font-weight: 850;
   letter-spacing: .06em;
+  text-align: center;
   scroll-margin-top: 16px;
+}
+
+.vocabulary-rank-band::before,
+.vocabulary-rank-band::after {
+  height: 1px;
+  flex: 1 1 0;
+  background: var(--border);
+  content: "";
 }
 
 .vocabulary-shelf__body {
@@ -200,28 +215,34 @@ main.product-content:has(.page-stack.read-page) {
 }
 
 /* The layer's own wrapper: positioned inside the word's row by CSS, and
-   click-through everywhere except its buttons, so it can never take a click
-   meant for a word. */
+   click-through everywhere except the bridge and the card box, so it can never
+   take a click meant for a word. `gap` is deliberately absent — every strip
+   between two `auto` regions is a strip where the pointer hits whatever is
+   underneath. */
 .vocabulary-shelf__translation-layer {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 40;
   display: grid;
-  gap: 4px;
-  width: max-content;
-  max-width: 264px;
+  /* As wide as the word's row, so the bridge below spans the whole path from the
+     word down to the card — however far to the side the hand travels. The card
+     itself stays a max-content box (`justify-items: start`). */
+  width: 100%;
+  justify-items: start;
   pointer-events: none;
 }
 
-/* The hover/focus translation card. No accent bar down the left: the meaning
-   list carries its own hierarchy. The card is a hit target — its own buttons are
-   the reason it exists — while the wrapper around it stays click-through, so the
-   layer only blocks where it is actually drawn. */
-.vocabulary-shelf__translation {
+/* One box for the meanings *and* the mark buttons: same background, same padding,
+   no gap between them. A separator there would be a dead zone — the pointer would
+   fall through to the row below and the card would re-target away exactly as the
+   hand reached the buttons. Language Reactor's popup keeps its controls in the
+   same box for the same reason. */
+.vocabulary-shelf__translation-card {
   pointer-events: auto;
   display: grid;
-  gap: 6px;
+  width: max-content;
+  max-width: 264px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -229,9 +250,16 @@ main.product-content:has(.page-stack.read-page) {
   box-shadow: var(--shadow);
 }
 
-/* An invisible bridge across the 6px between the word and the card: without it a
-   quick pointer move can jump the gap, land on the words underneath, and the
-   card re-targets away before the button is reached. */
+/* The described element is the meanings alone, so the description assistive tech
+   reads never grows button labels. */
+.vocabulary-shelf__translation {
+  display: grid;
+  gap: 6px;
+}
+
+/* An invisible bridge across the 6px between the word and the card, spanning the
+   whole row: it makes the layer's hit area abut the word (0px dead zone), so a
+   pointer leaving the word enters the layer rather than the row underneath. */
 .vocabulary-shelf__translation-layer::before {
   position: absolute;
   top: -6px;
@@ -242,11 +270,12 @@ main.product-content:has(.page-stack.read-page) {
   pointer-events: auto;
 }
 
-/* The layer's two marking shortcuts. They are the only clickable part of it. */
+/* The layer's two marking shortcuts, inside the card box: the space between the
+   meanings and them belongs to the card and is a hit target, not a gap. */
 .vocabulary-shelf__translation-actions {
-  pointer-events: auto;
   display: flex;
   gap: 4px;
+  margin-top: 10px;
 }
 
 .vocabulary-shelf__translation-actions button {
@@ -301,12 +330,12 @@ main.product-content:has(.page-stack.read-page) {
   background: var(--accent-soft);
 }
 
-/* The layer is wider than a tile, so in the last columns it has to open
-   leftwards instead of off the page. The frame measures its own rectangle once
-   per hover and adds this class; nothing here touches the scroll path. */
+/* The card is wider than a tile, so in the last columns it has to open leftwards
+   instead of off the page: aligning it to the row's right edge does that. The
+   frame measures the card once per hover and adds this class; nothing here
+   touches the scroll path. */
 .vocabulary-shelf__translation-layer.is-flipped {
-  left: auto;
-  right: 0;
+  justify-items: end;
 }
 
 /* The word is not repeated here: the reader is hovering it. */

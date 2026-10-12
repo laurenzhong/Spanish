@@ -122,7 +122,7 @@ try {
   // `textContent`, not `innerText`: a band the browser is skipping under
   // `content-visibility: auto` reports an empty `innerText` although its text is
   // in the DOM (find-in-page and screen readers read the DOM, not the paint).
-  check("last band heading is clipped to the shelf", (await page.locator(".vocabulary-rank-band").last().textContent()) === "排名 7901 - 7922:", await page.locator(".vocabulary-rank-band").last().textContent() ?? "none");
+  check("last band heading is clipped to the shelf", (await page.locator(".vocabulary-rank-band").last().textContent()) === "排名 7901 - 7922", await page.locator(".vocabulary-rank-band").last().textContent() ?? "none");
 
   // --- what the full render actually costs -----------------------------------
   const readPerf = () => page.evaluate(() => {
@@ -318,7 +318,7 @@ try {
   // card itself is a hit target. The neighbour-click check below still proves the
   // layer does not steal clicks meant for a visible word.
   const layerPointerEvents = await page.locator("#vocabulary-translation-layer").evaluate((node) => getComputedStyle(node).pointerEvents);
-  const cardPointerEvents = await page.locator("#vocabulary-translation").evaluate((node) => getComputedStyle(node).pointerEvents);
+  const cardPointerEvents = await page.locator(".vocabulary-shelf__translation-card").evaluate((node) => getComputedStyle(node).pointerEvents);
   check("the layer wrapper stays click-through while the card is clickable", layerPointerEvents === "none" && cardPointerEvents === "auto", `wrapper ${layerPointerEvents}, card ${cardPointerEvents}`);
   const heightAfter = await page.evaluate(() => document.body.scrollHeight);
   check("the translation does not shift the page", heightBefore === heightAfter, `${heightBefore} → ${heightAfter}`);
@@ -362,7 +362,7 @@ try {
   if (!crossing) throw new Error("no word in the last row of band 1 shows a translation layer");
   await page.waitForTimeout(200);
   const occlusion = await page.evaluate(() => {
-    const layer = document.getElementById("vocabulary-translation");
+    const layer = document.querySelector<HTMLElement>(".vocabulary-shelf__translation-card");
     if (!layer) return { present: false, crosses: false, onTop: false, hit: "absent", restored: false };
     const rect = layer.getBoundingClientRect();
     const next = document.querySelector('[data-band-start="101"]');
@@ -391,7 +391,7 @@ try {
   if (!rightMostTile) throw new Error("no word in the first row of band 1 shows a translation layer");
   await page.waitForTimeout(200);
   const inViewport = await page.evaluate(() => {
-    const layer = document.getElementById("vocabulary-translation-layer");
+    const layer = document.querySelector(".vocabulary-shelf__translation-card");
     if (!layer) return { flipped: false, left: 9_999, right: 9_999, viewport: window.innerWidth, overflow: 9_999 };
     const rect = layer.getBoundingClientRect();
     return {
@@ -482,6 +482,78 @@ try {
   console.log(`  marking walk (${markWord}): ${outcomes.join(" | ")}`);
   check("the pointer reaches the card without it vanishing", outcomes.every((entry) => entry.includes("alive=true")), outcomes.join(" | "));
   check("clicking the card's buttons changes the mark", marksAfter.marks !== marksBefore.marks && /familiar|learning/.test(marksAfter.marks), `${marksBefore.marks} → ${marksAfter.marks}`);
+
+  // ...and the same thing the way a hand does it. The walk above interpolates six
+  // points with no inter-step delay, so it traverses in ~0 ms and cannot see a
+  // hand's problem. This one moves point by point with real waiting time, arcs
+  // sideways past the card and pauses mid-path — and at *every* point asks the
+  // browser what is under the pointer, which is the dead-zone detector: if the
+  // answer is neither this word nor the layer, the pointer is over a strip with no
+  // hit target and the card is about to re-target away.
+  {
+    const humanTile = page.locator(`[data-word="${markWord}"]`).first();
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(200);
+    await humanTile.scrollIntoViewIfNeeded();
+    const humanBox = await humanTile.boundingBox();
+    if (!humanBox) throw new Error("no box for the human-path check");
+    await page.mouse.move(humanBox.x + humanBox.width / 2, humanBox.y + humanBox.height / 2);
+    await page.waitForTimeout(700); // dwell on the word, as a reader does
+    const humanButton = page.locator("#vocabulary-translation-layer .vocabulary-shelf__translation-actions button").first();
+    const humanButtonBox = await humanButton.boundingBox();
+    if (!humanButtonBox) throw new Error("no button box for the human-path check");
+    const from = { x: humanBox.x + humanBox.width / 2, y: humanBox.y + humanBox.height - 4 };
+    const to = { x: humanButtonBox.x + humanButtonBox.width / 2, y: humanButtonBox.y + humanButtonBox.height / 2 };
+    // A quadratic arc whose control point sits 34px to the side: the pointer
+    // overshoots past the card's edge and comes back, which is what a hand does.
+    const control = { x: (from.x + to.x) / 2 + 34, y: (from.y + to.y) / 2 };
+    const samples = 26;
+    const deadZones: number[] = [];
+    const reTargets: number[] = [];
+    for (let index = 0; index <= samples; index += 1) {
+      const t = index / samples;
+      const x = (1 - t) * (1 - t) * from.x + 2 * (1 - t) * t * control.x + t * t * to.x;
+      const y = (1 - t) * (1 - t) * from.y + 2 * (1 - t) * t * control.y + t * t * to.y;
+      await page.mouse.move(x, y);
+      await page.waitForTimeout(18); // 26 points × 18ms ≈ 470ms of travel
+      if (index === Math.round(samples * 0.45)) await page.waitForTimeout(200); // a pause mid-path
+      const probe = await page.evaluate(`(() => {
+        const hit = document.elementFromPoint(${x}, ${y});
+        const layer = document.getElementById("vocabulary-translation-layer");
+        const row = layer ? layer.closest("li") : null;
+        const word = (row ? row.querySelector("[data-word]") : null);
+        const meaningful = Boolean(hit && hit.closest("[data-word-key], #vocabulary-translation-layer"));
+        return { meaningful, word: word ? word.getAttribute("data-word") : "none" };
+      })()`) as Readonly<{ meaningful: boolean; word: string }>;
+      if (!probe.meaningful) deadZones.push(index);
+      if (probe.word !== markWord) reTargets.push(index);
+    }
+    const arrivalBox = await humanButton.boundingBox();
+    const arrival = arrivalBox ? { x: arrivalBox.x + arrivalBox.width / 2, y: arrivalBox.y + arrivalBox.height / 2 } : to;
+    await page.mouse.move(arrival.x, arrival.y);
+    // Wait longer than the close delay before clicking, so a pending close would
+    // have fired if the card were not held open by the pointer being on it.
+    await page.waitForTimeout(320);
+    const humanProbe = await page.evaluate(`(() => {
+      const layer = document.getElementById("vocabulary-translation-layer");
+      const row = layer ? layer.closest("li") : null;
+      const tile = row ? row.querySelector("[data-word]") : null;
+      const under = document.elementFromPoint(${arrival.x}, ${arrival.y});
+      return {
+        open: Boolean(layer),
+        word: tile ? tile.getAttribute("data-word") : "none",
+        underIsButton: Boolean(under && under.closest(".vocabulary-shelf__translation-actions")),
+      };
+    })()`) as Readonly<{ open: boolean; word: string; underIsButton: boolean }>;
+    const humanMarksBefore = await readMarks();
+    await page.mouse.click(arrival.x, arrival.y);
+    await page.waitForTimeout(250);
+    const humanMarksAfter = await readMarks();
+    console.log(`  slow wandering path: dead zones at [${deadZones.join(",")}] | re-targeted at [${reTargets.join(",")}] | arrived over the button: ${humanProbe.underIsButton}`);
+    check("no point on a hand's path is a dead zone", deadZones.length === 0, `dead zones at steps [${deadZones.join(",")}]`);
+    check("a hand's path keeps the card on the same word", humanProbe.open && humanProbe.word === markWord && humanProbe.underIsButton, `open ${humanProbe.open} | word ${humanProbe.word} | over button ${humanProbe.underIsButton} | re-targeted at [${reTargets.join(",")}]`);
+    check("a hand's click on the card's button changes the mark", humanMarksAfter.marks !== humanMarksBefore.marks && /familiar|learning/.test(humanMarksAfter.marks), `${humanMarksBefore.marks} → ${humanMarksAfter.marks}`);
+  }
 
   // The label is the button's accessible name whether or not it is shown, and
   // focus reveals it — not only hover. Focus is reached the way a keyboard
