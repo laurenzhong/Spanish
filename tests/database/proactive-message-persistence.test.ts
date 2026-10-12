@@ -25,7 +25,15 @@ describe("proactive message persistence", () => {
 
   beforeEach(async () => {
     client = new PGlite();
-    await client.exec((await migration("0000_big_phalanx.sql")) + (await migration("0016_proactive_messages.sql")));
+    await client.exec(`
+      create role anon nologin;
+      create role authenticated nologin;
+      create schema auth;
+      create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+      grant usage on schema auth to anon, authenticated;
+      grant execute on function auth.uid() to anon, authenticated;
+    `);
+    await client.exec((await migration("0000_big_phalanx.sql")) + (await migration("0005_kind_character_network.sql")) + (await migration("0016_proactive_messages.sql")) + (await migration("0017_sudden_betty_brant.sql")) + (await migration("0045_lumpy_medusa.sql")));
     database = drizzle(client, { schema });
     await client.exec(`insert into profiles (id, display_name) values ('${userId}', 'Test');`);
     // Follow the catalog instead of a literal: the proactive path resolves the
