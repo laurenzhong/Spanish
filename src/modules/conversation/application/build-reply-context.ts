@@ -156,7 +156,8 @@ function topicLabel(value: string): string {
   return value.replace(/\s+/gu, " ").trim().slice(0, 140);
 }
 
-function localDateFor(value: string | Date, timeZone: string): string | null {
+/** Calendar date of an instant in the conversation's local time zone (`en-CA` shape). */
+export function localDateInTimeZone(value: string | Date, timeZone: string): string | null {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -177,7 +178,7 @@ export function deriveReplyOpenTopics(
   options: Readonly<{ now?: Date; timeZone?: string }> = {},
 ): readonly ReplyOpenTopic[] {
   const timeZone = options.timeZone ?? luciaConversationTimeZone;
-  const currentLocalDate = localDateFor(options.now ?? new Date(), timeZone);
+  const currentLocalDate = localDateInTimeZone(options.now ?? new Date(), timeZone);
   const topics = new Map<string, ReplyOpenTopic>();
   for (let index = 0; index < messages.length; index += 1) {
     const message = messages[index];
@@ -195,7 +196,7 @@ export function deriveReplyOpenTopics(
       ...(message.sentAt ? { lastAskedAt: message.sentAt } : {}),
       ...(answer && messages[index + 1]?.sentAt ? { lastAnsweredAt: messages[index + 1]?.sentAt } : {}),
       ...(message.sentAt && currentLocalDate
-        ? { sameLocalDay: localDateFor(message.sentAt, timeZone) === currentLocalDate }
+        ? { sameLocalDay: localDateInTimeZone(message.sentAt, timeZone) === currentLocalDate }
         : {}),
     });
   }
@@ -208,7 +209,7 @@ export function deriveReplyCharacterClaims(
   options: Readonly<{ now?: Date; timeZone?: string }> = {},
 ): readonly ReplyCharacterClaim[] {
   const timeZone = options.timeZone ?? luciaConversationTimeZone;
-  const currentLocalDate = localDateFor(options.now ?? new Date(), timeZone);
+  const currentLocalDate = localDateInTimeZone(options.now ?? new Date(), timeZone);
   const claims = new Map<string, ReplyCharacterClaim>();
   for (const message of messages) {
     if (message.role !== "character" || !message.content.trim()) continue;
@@ -220,7 +221,7 @@ export function deriveReplyCharacterClaims(
       statement: message.content.trim().slice(0, 280),
       ...(message.sentAt ? { assertedAt: message.sentAt } : {}),
       ...(message.sentAt && currentLocalDate
-        ? { sameLocalDay: localDateFor(message.sentAt, timeZone) === currentLocalDate }
+        ? { sameLocalDay: localDateInTimeZone(message.sentAt, timeZone) === currentLocalDate }
         : {}),
       repeatableOnLaterDays: claimKey === "daily:meal" || claimKey === "daily:drink",
     });
@@ -270,8 +271,8 @@ function dueWindowElapsed(commitment: ReplyCommitment, now: Date, timeZone: stri
   if (Number.isNaN(madeAt.getTime())) return false;
   const nowMs = now.getTime();
   if (nowMs <= madeAt.getTime()) return false;
-  const madeDate = localDateFor(madeAt, timeZone);
-  const currentDate = localDateFor(now, timeZone);
+  const madeDate = localDateInTimeZone(madeAt, timeZone);
+  const currentDate = localDateInTimeZone(now, timeZone);
   if (!madeDate || !currentDate) return false;
   const elapsedHours = (nowMs - madeAt.getTime()) / 3_600_000;
   if (commitment.dueHint === "later-today") return currentDate !== madeDate || elapsedHours >= 12;
@@ -375,7 +376,7 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
   const now = input.now ?? new Date();
   const hasExplicitClock = input.now !== undefined;
   const conversationTimeZone = input.conversationTimeZone ?? luciaConversationTimeZone;
-  const currentLocalDate = localDateFor(now, conversationTimeZone) ?? now.toISOString().slice(0, 10);
+  const currentLocalDate = localDateInTimeZone(now, conversationTimeZone) ?? now.toISOString().slice(0, 10);
   const memories = input.memoryRepository
     ? await input.memoryRepository.listReadableMemories(input.userId, character.characterKey)
     : (input.memories ?? []);

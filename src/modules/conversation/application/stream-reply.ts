@@ -10,7 +10,7 @@ import { ConversationProviderError } from "@/src/modules/providers/conversation"
 import {
   generateCharacterReply,
 } from "./generate-character-reply";
-import { deriveReplyOpenTopics, type ReplyContext } from "./build-reply-context";
+import { deriveReplyOpenTopics, localDateInTimeZone, type ReplyContext } from "./build-reply-context";
 import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 import { containsUnsupportedScript, requestedNonSpanishLanguage } from "../domain/language-purity";
 import { getConversationCharacter } from "../domain/character-catalog";
@@ -148,6 +148,7 @@ export async function* streamReply(
           errorType: "safety-gate",
         });
         const returnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && (commitment.status === "returned" || commitment.status === "completed"));
+        const redundantGreeting = isRedundantGreetingReply(context, replyResult.text);
         generationContext = {
           ...context,
           ...(returnedPlan || (context.questionPolicy && context.questionPolicy.maxQuestionPressure !== "none")
@@ -161,7 +162,9 @@ export async function* streamReply(
               }),
           continuityInstruction: returnedPlan
             ? "La persona ya ha vuelto o ha terminado el plan mencionado. Responde desde después de la actividad: no uses deseos propios de antes de salir (por ejemplo, 'que lo pases bien' o 'espero que disfrutes'). Puedes preguntar una sola cosa concreta sobre cómo fue, o responder con calidez sin preguntar; no inventes el resultado."
-            : "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.",
+            : redundantGreeting
+              ? "Ya has saludado en un mensaje anterior de hoy y la persona no te ha saludado ahora. No vuelvas a abrir con un saludo (nada de 'hola', 'buenos días', 'buenas tardes' ni 'buenas noches'): continúa directamente con lo que acaba de decir."
+              : "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.",
         };
       }
       await notifyProviderResult(input, {
@@ -278,6 +281,47 @@ function deterministicResult(context: ReplyContext, signal?: AbortSignal): Conve
   };
 }
 
+/**
+ * The greeting that opens a message, normalized to accent-free lowercase form,
+ * or null when the message does not open with one. Leading emoji and
+ * punctuation are skipped, so "Buenas tardes 😊 …" counts as a greeting.
+ */
+function greetingOpener(value: string): string | null {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES")
+    .replace(/^[^\p{L}]+/u, "");
+  const timed = /^(?:buenos\s+dias|buenas\s+tardes|buenas\s+noches)/u.exec(normalized);
+  if (timed) return timed[0];
+  const generic = /^(?:hola|hey|buenas|que\s+tal)\b/u.exec(normalized);
+  if (!generic) return null;
+  // "Buenas noticias…" is not a greeting: a bare "buenas" only greets when
+  // nothing but punctuation follows it.
+  if (generic[0] === "buenas" && /^\s*\p{L}/u.test(normalized.slice(generic[0].length))) return null;
+  return generic[0];
+}
+
+/**
+ * A greeting opens a conversation; it is not a per-message decoration. Once the
+ * character has greeted the user on the current local day, a message that only
+ * continues the exchange must not greet again — "Buenas tardes" twice within
+ * minutes reads as a bot restarting the conversation instead of a person
+ * talking. Answering a greeting with a greeting stays allowed, and a new local
+ * day resets the rule. When the previous message's timestamp is unusable we
+ * cannot tell a same-day repeat from a new day, so we never block on a guess.
+ */
+function isRedundantGreetingReply(context: ReplyContext, text: string): boolean {
+  if (!greetingOpener(text)) return false;
+  if (greetingOpener(context.userMessage)) return false;
+  const previousCharacterMessage = [...context.recentMessages]
+    .reverse()
+    .find((message) => message.role === "character" && message.content.trim().length > 0);
+  if (!previousCharacterMessage || !greetingOpener(previousCharacterMessage.content)) return false;
+  const previousGreetingDate = localDateInTimeZone(previousCharacterMessage.sentAt ?? "", context.conversationTimeZone);
+  return previousGreetingDate !== null && previousGreetingDate === context.currentLocalDate;
+}
+
 function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   const normalized = text
     .normalize("NFD")
@@ -306,6 +350,7 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   if (isUnexplainedSameDayClaimChange(context, text)) return false;
   if (isPreReturnWishAfterReturn(context, text)) return false;
   if (isUnfoundedGreetingWish(context, text)) return false;
+  if (isRedundantGreetingReply(context, text)) return false;
   return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: context.userMessage }));
 }
 
