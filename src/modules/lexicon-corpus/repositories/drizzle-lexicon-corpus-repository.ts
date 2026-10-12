@@ -2,7 +2,7 @@ import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm
 
 import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type SourcePosition } from "../domain";
 import { searchContentFrequencyWords } from "../domain/frequency-word-list";
-import { loadFormFrequencyRows, type FormFrequencyRow } from "./corpus-form-frequency";
+import { FREQUENCY_CONTEXT_EDGE_CHARS, FREQUENCY_CONTEXT_MAX_CHARS, loadFormFrequencyRows, type FormFrequencyRow } from "./corpus-form-frequency";
 import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
 import { createDrizzleEvidenceRepository } from "@/src/modules/evidence/repositories";
 import type { Database } from "@/src/shared/db/client";
@@ -16,8 +16,9 @@ const FREQUENCY_TTL_MS = 10 * 60 * 1_000;
 // The frequency shelf shows one usage line per word form. Contexts are clipped
 // around the form itself so a detail panel can never render an unbounded
 // sentence pair, while the form always stays whole enough to be recognisable.
-const FREQUENCY_CONTEXT_MAX_CHARS = 180;
-const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
+// The two limits are defined in `corpus-form-frequency.ts`, because the SQL that
+// clips the example on the way out of the database has to respect them too: a
+// window that did not would change what this function renders.
 
 /**
  * Occurrence counts for the reference-list forms, keyed by the accent-folded
@@ -160,8 +161,14 @@ function joinContext(left: string, keyword: string, right: string): string {
  * Bounded keyword-in-context string for the frequency shelf. The surface form
  * is kept in the middle; only the surrounding segments are clipped, and the
  * total length never exceeds {@link FREQUENCY_CONTEXT_MAX_CHARS}.
+ *
+ * Exported with {@link locateFrequencyExample} so a verification run and the
+ * tests can render the *same* context from a SQL-clipped example and from the
+ * whole segment and assert the two are identical, character for character. That
+ * equality is what lets `corpus-form-frequency.ts` clip in the query without
+ * changing a single pixel of the shelf.
  */
-function buildFrequencyContext(occurrence: FrequencyOccurrence): string {
+export function buildFrequencyContext(occurrence: FrequencyOccurrence): string {
   const keyword = collapseWhitespace(occurrence.surfaceText);
   const left = normalizeContextText(occurrence.contextBefore);
   const right = normalizeContextText(occurrence.contextAfter);
@@ -180,8 +187,13 @@ function buildFrequencyContext(occurrence: FrequencyOccurrence): string {
  * report offsets; `tokenizeSpanish` already knows them, so the position is found
  * here instead of being recomputed in SQL. Returns `null` — never a guess — when
  * the text holds no token folding to the requested form.
+ *
+ * A text clipped by {@link clippedFrequencyExample} is deliberately a window
+ * around that same first token, so this function locates it unchanged; the
+ * export exists for the equality proof described on
+ * {@link buildFrequencyContext}.
  */
-function locateFrequencyExample(example: FrequencyExample, normalizedWord: string): FrequencyOccurrence | null {
+export function locateFrequencyExample(example: FrequencyExample, normalizedWord: string): FrequencyOccurrence | null {
   const token = tokenizeSpanish(example.text).find((candidate) => candidate.normalized === normalizedWord);
   if (!token) return null;
   return {
@@ -469,18 +481,54 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         userId ? database.select().from(schema.userLexicalIntents).where(eq(schema.userLexicalIntents.userId, userId)) : Promise.resolve([]),
       ]);
       const ids = idRows.map((row) => row.id);
-      const [phraseRows, variantRows, occurrenceRows] = ids.length === 0
-        ? [[], [], []] as const
+      const [phraseRows, variantRows, occurrenceRows, representativeRows] = ids.length === 0
+        ? [[], [], [], []] as const
         : await Promise.all([
           database.select().from(schema.phraseEntries).where(inArray(schema.phraseEntries.id, ids)),
           database.select({ phraseEntryId: schema.phraseVariants.phraseEntryId, expression: schema.phraseVariants.expression }).from(schema.phraseVariants).where(inArray(schema.phraseVariants.phraseEntryId, ids)),
           database.select({ phraseEntryId: schema.corpusOccurrences.phraseEntryId, count: sql<number>`count(*)` }).from(schema.corpusOccurrences).where(and(inArray(schema.corpusOccurrences.phraseEntryId, ids), visibleOccurrence)).groupBy(schema.corpusOccurrences.phraseEntryId),
+          database.selectDistinctOn([schema.corpusOccurrences.phraseEntryId], {
+            phraseEntryId: schema.corpusOccurrences.phraseEntryId,
+            surfaceText: schema.corpusOccurrences.surfaceText,
+            contextBefore: schema.corpusOccurrences.contextBefore,
+            contextAfter: schema.corpusOccurrences.contextAfter,
+            sourceTitle: schema.corpusOccurrences.sourceTitle,
+            sourceKind: schema.corpusOccurrences.sourceKind,
+            documentKind: schema.corpusOccurrences.documentKind,
+            documentStableKey: schema.corpusOccurrences.documentStableKey,
+            documentVersion: schema.corpusOccurrences.documentVersion,
+            sourcePosition: schema.corpusOccurrences.sourcePosition,
+          })
+            .from(schema.corpusOccurrences)
+            .where(and(inArray(schema.corpusOccurrences.phraseEntryId, ids), visibleOccurrence))
+            .orderBy(asc(schema.corpusOccurrences.phraseEntryId), asc(schema.corpusOccurrences.createdAt), asc(schema.corpusOccurrences.id)),
         ]);
       const intentByKey = intentMap(intents);
+      const representativeById = new Map(representativeRows.flatMap((row) => {
+        if (!row.phraseEntryId) return [];
+        return [[row.phraseEntryId, {
+          ...buildKwic({
+            surfaceText: row.surfaceText,
+            contextBefore: row.contextBefore,
+            contextAfter: row.contextAfter,
+            sourceTitle: row.sourceTitle,
+            sourceKind: row.sourceKind,
+            documentKind: row.documentKind as "article" | "media",
+            documentStableKey: row.documentStableKey,
+            documentVersion: row.documentVersion,
+            sourcePosition: row.sourcePosition as SourcePosition,
+          }),
+          entryKind: "phrase" as const,
+          entryId: row.phraseEntryId,
+          surfaceText: row.surfaceText,
+        }]] as const;
+      }));
       const byId = new Map<string, PhraseItem>(phraseRows.map((phrase) => [phrase.id, {
-        id: phrase.id, expression: phrase.expression, normalizedExpression: phrase.normalizedExpression, meaningZh: phrase.meaningZh,
+        id: phrase.id, expression: phrase.expression, normalizedExpression: phrase.normalizedExpression,
+        scope: phrase.ownerUserId ? "private" : "public",
+        meaningZh: phrase.meaningZh,
         pragmaticPurpose: phrase.pragmaticPurpose, register: phrase.register, region: phrase.region, cefr: phrase.cefr,
-        variants: [] as string[], occurrenceCount: 0, intent: null, revision: 1,
+        variants: [] as string[], occurrenceCount: 0, representativeOccurrence: representativeById.get(phrase.id) ?? null, intent: null, revision: 1,
       } satisfies PhraseItem]));
       for (const row of variantRows) {
         const current = byId.get(row.phraseEntryId);

@@ -45,7 +45,7 @@
  * empty result.
  */
 
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -79,6 +79,108 @@ export const DEFAULT_CORPUS_FREQUENCY_SOURCE: CorpusFrequencySource = "materiali
  * a slow-but-correct shelf plus a logged warning.
  */
 export const MATERIALISED_FREQUENCY_MAX_AGE_MS = 36 * 60 * 60 * 1_000;
+
+/**
+ * The display's own limits: how much of an example the shelf may render, and how
+ * much of each side it keeps when it clips.
+ *
+ * They live here rather than next to `buildFrequencyContext` because the query
+ * below has to respect them: the clip is only invisible while these two numbers
+ * hold, and one definition is what keeps them from drifting apart.
+ */
+export const FREQUENCY_CONTEXT_MAX_CHARS = 180;
+export const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
+
+/**
+ * How much raw text to keep on each side of the form when reading an example,
+ * and the floor under the window's total width.
+ *
+ * Both are set from the display's own limits rather than from a measurement that
+ * happened to pass:
+ *
+ * - {@link FREQUENCY_CONTEXT_EDGE_CHARS} is 60, so a side keeps its `…` only if
+ *   the window's side normalises to more than 60 characters. Collapsing a
+ *   whitespace run removes only the run's *extra* characters, so 120 raw
+ *   characters per side normalise to about that many — twice the budget.
+ * - The display renders a whole context when the joined text fits in
+ *   {@link FREQUENCY_CONTEXT_MAX_CHARS} (180) and clips it otherwise, so the
+ *   window must never come back shorter than 180 normalised characters.
+ *   {@link FREQUENCY_EXAMPLE_MIN_WINDOW_CHARS} guarantees that even when the form
+ *   is the last token in the segment and there is nothing to its right.
+ *
+ * Measured on the live corpus (the 6,296 rows the shelf reads): 3.80 MB of
+ * example text becomes 1.07 MB, and the cold read drops from 2.5-11.5 s to about
+ * 1-2.6 s. `tests/database/frequency-example-clip.test.ts` proves the equality on
+ * synthetic edges and, when a database is configured, over every shelf row.
+ */
+export const FREQUENCY_EXAMPLE_MARGIN_CHARS = 120;
+
+/**
+ * The narrowest window the clip returns for a segment that is itself longer than
+ * the window.
+ *
+ * Without a floor, a form near the end of a segment produced a window of only
+ * `margin + len(form)` characters, which could fall under
+ * {@link FREQUENCY_CONTEXT_MAX_CHARS} and send the display down its "render the
+ * whole context" branch — a different string from the clipped one the whole
+ * segment produces.
+ */
+export const FREQUENCY_EXAMPLE_MIN_WINDOW_CHARS = 220;
+
+/**
+ * The window of `text` the shelf can display, clipped in SQL around the first
+ * occurrence of `word` — so the bytes that would be thrown away are never
+ * transferred.
+ *
+ * `word` is the folded form the table and the live scan both key on, so the match
+ * is made against the folded text: `translate(lower(...))` here is the same fold
+ * as {@link visibleCorpusFormCtes} applies to its tokens (and as
+ * `normalizeSpanishSurface` applies in JS). The pattern's boundaries are `[^a-z]`,
+ * exactly the tokenizer's separator class after folding, and the position asked
+ * for is capture group 2 — the word itself, not the boundary character — so a
+ * substring that is not a token (`ser` inside `servir`) cannot anchor the window.
+ *
+ * Three details keep the window from inventing text the display would believe:
+ *
+ * - **A segment no longer than the window is returned whole.** Clipping one would
+ *   change which branch `buildFrequencyContext` takes and therefore the rendered
+ *   string: a 185-character segment whose window came back 131 characters wide
+ *   rendered without its `…`.
+ * - **The window starts on a word boundary.** Cutting at an arbitrary character
+ *   manufactures a token — a real row cut `hermoso` into a leading `oso`, and the
+ *   display anchored on that instead of on the actual occurrence 240 characters
+ *   in. Snapping the start back to the beginning of the word it landed in costs a
+ *   few characters and removes the failure mode outright.
+ * - **The window keeps a minimum width**, sliding left when the form sits near the
+ *   end of the segment, so it is never narrower than the display's own limit.
+ *
+ * A form with no token in the text yields position 0, and `substr(text, 1, n)`
+ * then returns a bounded prefix: the display finds no token in it either, so it
+ * renders `null` exactly as it does today rather than inventing a context.
+ */
+export function clippedFrequencyExample(
+  text: SQL,
+  word: SQL,
+  margin: number = FREQUENCY_EXAMPLE_MARGIN_CHARS,
+): SQL {
+  const folded = sql`translate(lower(${text}), 'áéíóúüñ', 'aeiouun')`;
+  const position = sql`regexp_instr(${folded}, '(^|[^a-z])(' || ${word} || ')([^a-z]|$)', 1, 1, 0, '', 2)`;
+  const anchor = sql`greatest(1, ${position} - ${margin})`;
+  // Slide left rather than return a window narrower than the display's limit, and
+  // never start mid-word: a window beginning inside a word manufactures a token
+  // at its edge, which the display would anchor on instead of the real occurrence.
+  const rawStart = sql`least(${anchor}, greatest(1, length(${text}) - ${FREQUENCY_EXAMPLE_MIN_WINDOW_CHARS}))`;
+  const start = sql`length(regexp_replace(substr(${folded}, 1, greatest(0, ${rawStart} - 1)), '[a-z]+$', '')) + 1`;
+  // The width is measured *from the form*, not from the snapped start: snapping
+  // back across a long unbroken run (`xxxx…` around the form) would otherwise
+  // spend the window's whole budget on that run and leave the form outside it,
+  // which is what `keeps whitespace runs from changing the rendering` caught.
+  const width = sql`greatest(${FREQUENCY_EXAMPLE_MIN_WINDOW_CHARS}, ${position} + length(${word}) + ${margin} - ${start} + 1)`;
+  return sql`case
+      when length(${text}) <= ${width} then ${text}
+      else substr(${text}, ${start}, ${width})
+    end`;
+}
 
 export function resolveCorpusFrequencySource(
   environment: Readonly<Record<string, string | undefined>> = process.env,
@@ -168,11 +270,15 @@ export function wantedFormList(): string {
 export async function loadLiveFormFrequencyRows(database: Database): Promise<readonly FormFrequencyRow[]> {
   const wantedForms = wantedFormList();
   return unwrapRows<FormFrequencyRow>(await database.execute(sql`
-    with ${visibleCorpusFormCtes}
-    select word, count(*)::int as n, min(array[text, title]) as example
-    from folded
-    where word = any(string_to_array(${wantedForms}, ' '))
-    group by word
+    with ${visibleCorpusFormCtes}, grouped as (
+      select word, count(*)::int as n, min(array[text, title]) as example
+      from folded
+      where word = any(string_to_array(${wantedForms}, ' '))
+      group by word
+    )
+    select word, n,
+           array[${clippedFrequencyExample(sql`(example)[1]`, sql`word`)}, (example)[2]] as example
+    from grouped
   `));
 }
 
@@ -215,7 +321,9 @@ export async function readMaterialisedFormFrequencyRows(
       select refreshed_at from ${schema.lexiconFormFrequencyState} where id = 'corpus'
     )
     select 'ok'::text as status, (select refreshed_at from state) as refreshed_at,
-           f.word, f.occurrence_count, f.example_text, f.example_title
+           f.word, f.occurrence_count,
+           ${clippedFrequencyExample(sql`f.example_text`, sql`f.word`)} as example_text,
+           f.example_title
     from ${schema.lexiconFormFrequencies} f
     where f.word = any(string_to_array(${wantedForms}, ' '))
     union all
