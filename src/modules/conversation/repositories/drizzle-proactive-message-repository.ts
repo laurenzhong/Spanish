@@ -7,6 +7,7 @@ import {
   isCharacterConversationEnabled,
   isPublishedCharacterStatus,
 } from "@/src/modules/characters";
+import { conversationCharacterVersion } from "../domain/character-catalog";
 import type { ProactiveEligibilityState, ProactiveMessageSource } from "../domain/proactive-message";
 import type { ConversationMessageRecord } from "./conversation-repository";
 import type { ProactiveMessageCandidateRecord, ProactiveMessageRepository, ProactiveCandidateStatus } from "./proactive-message-repository";
@@ -49,15 +50,19 @@ function toCandidate(row: typeof schema.proactiveMessageCandidates.$inferSelect)
 }
 
 async function findLucia<TResult extends PgQueryResultHKT>(database: ConversationDatabase<TResult>) {
+  // The revision comes from the catalog. Hardcoding 1 here kept the proactive
+  // dedupe reading the superseded row after the 2026-10-12 v1 -> v2 rollover,
+  // which would have re-sent a message that had already gone out that day.
+  const version = conversationCharacterVersion("lucia") ?? 1;
   const [character] = await database.select({ id: schema.characters.id, status: schema.characters.status })
     .from(schema.characters)
     .where(and(
       eq(schema.characters.stableKey, "lucia"),
-      eq(schema.characters.characterVersion, 1),
+      eq(schema.characters.characterVersion, version),
       eq(schema.characters.status, "published"),
     ))
     .limit(1);
-  const definition = findCharacterRuntimeDefinition("lucia", 1);
+  const definition = findCharacterRuntimeDefinition("lucia", version);
   if (!character || !definition || !isPublishedCharacterStatus(character.status) || !isCharacterConversationEnabled(definition) || !definition.policy.proactiveMessages) {
     throw new Error("CHARACTER_UNAVAILABLE");
   }

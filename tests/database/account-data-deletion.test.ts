@@ -259,6 +259,41 @@ describe("account data deletion", () => {
     ).resolves.toHaveLength(1);
   });
 
+  it("deletes Lucía data that sits on a newer revision too", async () => {
+    // The 2026-10-12 v1 -> v2 rollover moved the conversation to a new revision
+    // row. Resolving one hardcoded version made this deletion remove nothing.
+    const newerCharacterId = "10000000-0000-4000-0000-000000000092";
+    const newerConversationId = "40000000-0000-4000-0000-000000000092";
+    await database.insert(schema.characters).values({
+      id: newerCharacterId,
+      stableKey: "lucia",
+      characterVersion: 2,
+      displayName: "Lucía",
+      homeLocation: "Madrid",
+      profile: {},
+    });
+    await database.insert(schema.conversations).values({ id: newerConversationId, userId: userA, characterId: newerCharacterId });
+    await database.insert(schema.messages).values({
+      id: "70000000-0000-4000-0000-000000000093",
+      conversationId: newerConversationId,
+      userId: userA,
+      characterId: newerCharacterId,
+      clientMessageId: "client-lucia-v2",
+      generationId: "generation-lucia-v2",
+      role: "user",
+      status: "completed",
+      content: "Sigo aquí.",
+    });
+
+    const result = await deleteLuciaData(createDrizzlePrivacyRepository(database), userA);
+
+    expect(result.conversationsDeleted).toBe(2);
+    expect(result.messagesDeleted).toBe(3);
+    await expect(
+      database.select().from(schema.conversations).where(eq(schema.conversations.characterId, newerCharacterId)),
+    ).resolves.toHaveLength(0);
+  });
+
   it("deletes only Lucía conversation and relationship data", async () => {
     const result = await deleteLuciaData(
       createDrizzlePrivacyRepository(database),

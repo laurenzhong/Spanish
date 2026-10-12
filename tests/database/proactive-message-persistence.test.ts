@@ -8,6 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDrizzleProactiveMessageRepository } from "@/src/modules/conversation";
+import { conversationCharacterVersion } from "@/src/modules/conversation/domain/character-catalog";
 import * as schema from "@/src/shared/db/schema";
 
 const userId = "00000000-0000-4000-8000-000000000091";
@@ -27,7 +28,9 @@ describe("proactive message persistence", () => {
     await client.exec((await migration("0000_big_phalanx.sql")) + (await migration("0016_proactive_messages.sql")));
     database = drizzle(client, { schema });
     await client.exec(`insert into profiles (id, display_name) values ('${userId}', 'Test');`);
-    await database.insert(schema.characters).values({ id: characterId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "published" });
+    // Follow the catalog instead of a literal: the proactive path resolves the
+    // current revision, so a fixture pinned to v1 would not be found.
+    await database.insert(schema.characters).values({ id: characterId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: conversationCharacterVersion("lucia") ?? 1, status: "published" });
     await database.insert(schema.characterRelationships).values({ userId, characterId, status: "active", relationshipStage: "familiar", relationshipSummary: { es: "Fotografía urbana" } });
     await database.insert(schema.conversations).values({ id: conversationId, userId, characterId });
   });

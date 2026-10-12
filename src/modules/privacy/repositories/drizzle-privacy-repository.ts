@@ -154,19 +154,22 @@ export function createDrizzlePrivacyRepository<
     },
 
     async deleteCharacterData(userId, characterKey) {
-      const [character] = await database
+      // Every revision of the character, not one hardcoded version. After the
+      // 2026-10-12 v1 -> v2 rollover this resolved v1 while the conversations
+      // had moved to v2, so the deletion silently removed nothing.
+      const characterRows = await database
         .select({ id: schema.characters.id })
         .from(schema.characters)
-        .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.characterVersion, 1)))
-        .limit(1);
-      if (!character) throw new Error("CHARACTER_UNAVAILABLE");
+        .where(eq(schema.characters.stableKey, characterKey));
+      const characterIds = characterRows.map((row) => row.id);
+      if (characterIds.length === 0) throw new Error("CHARACTER_UNAVAILABLE");
 
       const conversationRows = await database
         .select({ id: schema.conversations.id })
         .from(schema.conversations)
         .where(and(
           eq(schema.conversations.userId, userId),
-          eq(schema.conversations.characterId, character.id),
+          inArray(schema.conversations.characterId, characterIds),
         ));
       const conversationIds = conversationRows.map((row) => row.id);
 
@@ -177,7 +180,7 @@ export function createDrizzlePrivacyRepository<
         .delete(schema.memorySharingPermissions)
         .where(and(
           eq(schema.memorySharingPermissions.userId, userId),
-          eq(schema.memorySharingPermissions.targetCharacterId, character.id),
+          inArray(schema.memorySharingPermissions.targetCharacterId, characterIds),
         ))
         .returning({ id: schema.memorySharingPermissions.id });
 
@@ -185,7 +188,7 @@ export function createDrizzlePrivacyRepository<
         .delete(schema.relationshipMemories)
         .where(and(
           eq(schema.relationshipMemories.userId, userId),
-          eq(schema.relationshipMemories.characterId, character.id),
+          inArray(schema.relationshipMemories.characterId, characterIds),
         ))
         .returning({ id: schema.relationshipMemories.id });
 
@@ -204,7 +207,7 @@ export function createDrizzlePrivacyRepository<
         .delete(schema.characterRelationships)
         .where(and(
           eq(schema.characterRelationships.userId, userId),
-          eq(schema.characterRelationships.characterId, character.id),
+          inArray(schema.characterRelationships.characterId, characterIds),
         ))
         .returning({ id: schema.characterRelationships.id });
 
@@ -212,7 +215,7 @@ export function createDrizzlePrivacyRepository<
         .delete(schema.conversations)
         .where(and(
           eq(schema.conversations.userId, userId),
-          eq(schema.conversations.characterId, character.id),
+          inArray(schema.conversations.characterId, characterIds),
         ))
         .returning({ id: schema.conversations.id });
 
