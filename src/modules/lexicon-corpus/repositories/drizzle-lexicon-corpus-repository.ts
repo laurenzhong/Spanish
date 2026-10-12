@@ -24,7 +24,7 @@ type DiscoveryFilters = Readonly<{ documentKind?: "article" | "media"; contentKi
 function discoverySourcePosition(segment: ContentDiscoverySegment): SourcePosition {
   return segment.documentKind === "article"
     ? { kind: "text", paragraphId: String(segment.segmentIndex), segmentIndex: segment.segmentIndex }
-    : { kind: "media", startMs: 0, endMs: 1, segmentIndex: segment.segmentIndex };
+    : { kind: "media", startMs: segment.startMs ?? 0, endMs: segment.endMs ?? Math.max(1, (segment.startMs ?? 0) + 1), segmentIndex: segment.segmentIndex };
 }
 
 function discoveryId(normalizedExpression: string, segment: ContentDiscoverySegment): string {
@@ -463,6 +463,8 @@ async function listPublishedContentSegments(database: Database, filters: Discove
     documentVersion: schema.mediaVersions.version,
     sourceText: schema.mediaSegments.sourceText,
     segmentIndex: schema.mediaSegments.segmentIndex,
+    startMs: schema.mediaSegments.startMs,
+    endMs: schema.mediaSegments.endMs,
     sourceTitle: schema.mediaVersions.title,
     sourceKind: schema.mediaVersions.sourceName,
     publishedAt: schema.mediaVersions.publishedAt,

@@ -6,6 +6,8 @@ export type ContentDiscoverySegment = Readonly<{
   documentStableKey: string;
   documentVersion: number;
   segmentIndex: number;
+  startMs?: number;
+  endMs?: number;
   sourceText: string;
   sourceTitle: string;
   sourceKind: string;

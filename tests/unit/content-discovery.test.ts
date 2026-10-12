@@ -8,6 +8,8 @@ const segment: ContentDiscoverySegment = {
   documentStableKey: "video-1",
   documentVersion: 1,
   segmentIndex: 4,
+  startMs: 12_000,
+  endMs: 15_000,
   sourceText: "A Peppa le gusta salpicar.",
   sourceTitle: "Peppa",
   sourceKind: "youtube",
