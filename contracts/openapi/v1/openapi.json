@@ -654,7 +654,9 @@
       "get": {
         "summary": "Search published article and media occurrences with KWIC context",
         "parameters": [
-          { "name": "query", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 120 } },
+          { "name": "q", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 120 }, "description": "Canonical browser URL parameter for a free-text query." },
+          { "name": "query", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 120 }, "description": "API-compatible alias for q." },
+          { "name": "match", "in": "query", "schema": { "enum": ["phrase", "all"], "default": "phrase" }, "description": "Whether multiple tokens must be contiguous and ordered or merely co-occur." },
           { "name": "entryKind", "in": "query", "schema": { "enum": ["lexeme", "phrase"] } },
           { "name": "entryId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
           { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },

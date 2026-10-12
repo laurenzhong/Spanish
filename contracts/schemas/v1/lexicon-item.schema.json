@@ -13,6 +13,7 @@
     "lemmaStatus": { "enum": ["verified", "pending"] },
     "expression": { "type": "string", "minLength": 1 },
     "normalizedExpression": { "type": "string", "minLength": 1 },
+    "scope": { "enum": ["public", "private"] },
     "meaningZh": { "type": ["string", "null"] },
     "pragmaticPurpose": { "type": ["string", "null"] },
     "register": { "type": ["string", "null"] },
@@ -21,6 +22,12 @@
     "forms": { "type": "array", "items": { "type": "string" } },
     "variants": { "type": "array", "items": { "type": "string" } },
     "occurrenceCount": { "type": "integer", "minimum": 0 },
+    "representativeOccurrence": {
+      "oneOf": [
+        { "$ref": "https://spanish.local/contracts/v1/corpus-item.schema.json" },
+        { "type": "null" }
+      ]
+    },
     "intent": { "enum": ["familiar", "revisit", "ignore", null] },
     "revision": { "type": "integer", "minimum": 1 }
   }

@@ -45,11 +45,19 @@ test("keeps vocabulary and phrase shelves directly reachable from reading", asyn
   await expect(page.getByLabel("语域")).toBeVisible();
   await expect(page.getByLabel("地区")).toBeVisible();
   await expect(page.getByLabel("CEFR")).toBeVisible();
+
+  await page.goto("/read/phrases?search=que+tal&intent=revisit&pragmaticPurpose=saludo&register=neutral&region=es-ES&cefr=A2&page=2");
+  await expect(page.locator('input[name="search"]')).toHaveValue("que tal");
+  await expect(page.locator('select[name="intent"]')).toHaveValue("revisit");
+  await expect(page.locator('input[name="pragmaticPurpose"]')).toHaveValue("saludo");
+  await expect(page.locator('input[name="register"]')).toHaveValue("neutral");
+  await expect(page.locator('input[name="region"]')).toHaveValue("es-ES");
+  await expect(page.locator('select[name="cefr"]')).toHaveValue("A2");
 });
 
-test("keeps the corpus placeholder explicit and layout usable on phone widths", async ({ page }) => {
+test("keeps the corpus placeholder explicit and layout usable across phone and desktop widths", async ({ page }) => {
   await authenticate(page);
-  for (const width of [320, 375, 414]) {
+  for (const width of [320, 375, 414, 1440]) {
     await page.setViewportSize({ width, height: 760 });
     for (const path of ["/read/vocabulary", "/read/phrases", "/read/corpus"]) {
       await page.goto(path);

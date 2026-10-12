@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import { buildKwic, contentSourceHref, matchesCorpusQuery, normalizeCorpusQuery } from "@/src/modules/lexicon-corpus/domain";
+import { corpusQuerySchema } from "@/src/modules/lexicon-corpus/schemas/lexicon";
 
 describe("corpus search", () => {
   it("normalizes accents and requires every query token", () => {
     expect(normalizeCorpusQuery("  Qué, tal  ")).toEqual(["que", "tal"]);
     expect(matchesCorpusQuery("¿Qué tal? Todo bien", ["que", "tal"])).toBe(true);
     expect(matchesCorpusQuery("Qué pasa", ["que", "tal"])).toBe(false);
+  });
+
+  it("keeps phrase matching contiguous and ordered", () => {
+    expect(matchesCorpusQuery("No me doy cuenta de nada", ["dar", "cuenta"], "phrase")).toBe(false);
+    expect(matchesCorpusQuery("No me doy cuenta de nada", ["doy", "cuenta"], "phrase")).toBe(true);
+    expect(matchesCorpusQuery("Cuenta, dar y volver", ["dar", "cuenta"], "phrase")).toBe(false);
+    expect(matchesCorpusQuery("Cuenta, dar y volver", ["dar", "cuenta"], "all")).toBe(true);
+  });
+
+  it("normalizes the browser q alias and defaults to phrase matching", () => {
+    expect(corpusQuerySchema.parse({ q: "dar cuenta" })).toMatchObject({ query: "dar cuenta", match: "phrase", page: 1, pageSize: 20 });
   });
 
   it("builds bounded KWIC context without leaking unrelated fields", () => {

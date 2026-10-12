@@ -1,6 +1,6 @@
 import type { PhraseQuery, VocabularyQuery, LexicalIntent, LexiconEntryKind } from "../schemas/lexicon";
 import type { ContentReference } from "../domain";
-import type { KwicResult, LexicalAssessmentPromptType } from "../domain";
+import type { CorpusMatchMode, KwicResult, LexicalAssessmentPromptType } from "../domain";
 
 export type VocabularyItem = Readonly<{
   id: string;
@@ -39,6 +39,7 @@ export type PhraseItem = Readonly<{
   id: string;
   expression: string;
   normalizedExpression: string;
+  scope: "public" | "private";
   meaningZh: string | null;
   pragmaticPurpose: string | null;
   register: string | null;
@@ -46,14 +47,22 @@ export type PhraseItem = Readonly<{
   cefr: string | null;
   variants: readonly string[];
   occurrenceCount: number;
+  representativeOccurrence: PhraseOccurrence | null;
   intent: LexicalIntent | null;
   revision: number;
+}>;
+
+export type PhraseOccurrence = KwicResult & Readonly<{
+  entryKind: "phrase";
+  entryId: string;
+  surfaceText: string;
 }>;
 
 export type PagedResult<T> = Readonly<{ items: readonly T[]; page: number; pageSize: number; total: number }>;
 
 export type CorpusQuery = Readonly<{
   query?: string;
+  match?: CorpusMatchMode;
   entryKind?: "lexeme" | "phrase";
   entryId?: string;
   documentKind?: "article" | "media";

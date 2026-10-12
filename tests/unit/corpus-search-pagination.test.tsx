@@ -55,8 +55,11 @@ describe("corpus search pagination", () => {
     const url = requestUrl(0);
     expect(url.pathname).toBe("/api/v1/corpus/search");
     expect(url.searchParams.get("query")).toBe("casa");
+    expect(url.searchParams.get("match")).toBe("phrase");
     expect(url.searchParams.get("page")).toBe("1");
     expect(url.searchParams.get("documentKind")).toBe("media");
+    expect(new URL(window.location.href).searchParams.get("q")).toBe("casa");
+    expect(new URL(window.location.href).searchParams.get("match")).toBe("phrase");
     expect(await screen.findByText("第 1 / 3 页")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "上一页" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "下一页" })).toBeEnabled();
@@ -101,7 +104,7 @@ describe("corpus search pagination", () => {
 
     await user.clear(screen.getByRole("textbox", { name: /搜索词或短语/ }));
     await user.type(screen.getByRole("textbox", { name: /搜索词或短语/ }), "parque");
-    await user.click(screen.getByRole("button", { name: "查询" }));
+    await user.click(screen.getByRole("button", { name: /查询/ }));
 
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
     expect(requestUrl(1).searchParams.get("page")).toBe("1");
@@ -126,5 +129,38 @@ describe("corpus search pagination", () => {
     await user.click(screen.getByRole("button", { name: "查询" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("语料库暂时不可用，请稍后再试。");
+  });
+
+  it("takes known entries back to their library instead of a no-op corpus URL", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({ data: {
+      items: [{ ...corpusItem(0), keyword: "dar cuenta", entryKind: "phrase", entryId: "20000000-0000-4000-8000-000000000001" }],
+      page: 1, pageSize: 20, total: 1,
+    } }), { status: 200, headers: { "content-type": "application/json" } }));
+    render(<CorpusSearch />);
+    await searchFor(user, "dar cuenta");
+    const link = await screen.findByRole("link", { name: "查看短语条目" });
+    expect(link).toHaveAttribute("href", "/read/phrases?search=dar%20cuenta");
+  });
+
+  it("does not let an older response replace a newer query", async () => {
+    const user = userEvent.setup();
+    const pending: Array<(response: Response) => void> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)) as Promise<Response>);
+    render(<CorpusSearch />);
+
+    await searchFor(user, "casa");
+    await user.clear(screen.getByRole("textbox", { name: /搜索词或短语/ }));
+    await user.type(screen.getByRole("textbox", { name: /搜索词或短语/ }), "parque");
+    await user.click(screen.getByRole("button", { name: /查询/ }));
+    expect(pending).toHaveLength(2);
+
+    const responseFor = (title: string) => new Response(JSON.stringify({ data: { items: [{ ...corpusItem(0), sourceTitle: title }], page: 1, pageSize: 20, total: 1 } }), { status: 200, headers: { "content-type": "application/json" } });
+    pending[1]!(responseFor("新查询"));
+    expect(await screen.findByText("新查询")).toBeInTheDocument();
+    pending[0]!(responseFor("旧查询"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByText("新查询")).toBeInTheDocument();
+    expect(screen.queryByText("旧查询")).not.toBeInTheDocument();
   });
 });

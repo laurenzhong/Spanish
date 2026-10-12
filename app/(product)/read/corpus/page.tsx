@@ -30,11 +30,11 @@ export default async function CorpusPage({ searchParams }: CorpusPageProps) {
   };
   const page = Math.max(1, Math.min(1000, Number.parseInt(one(params.page) || "1", 10) || 1));
   return <main className="lexicon-shelf corpus-page">
-    <header className="lexicon-shelf__header">
-      <div><p className="lexicon-shelf__eyebrow">真实用法</p><h1>语料</h1><p className="page-lede">在真实文章、视频和播客里比较一个词或短语的上下文。</p></div>
-      <p>浏览语料不会写入能力评分；只有完成文字考察才会产生词句证据。</p>
-    </header>
-    <CorpusSearch initialState={initialState} initialPage={page} />
-    {assessmentKey ? <LexicalAssessment assessmentKey={assessmentKey} /> : null}
+      <header className="lexicon-shelf__header">
+        <div><p className="lexicon-shelf__eyebrow">真实用法</p><h1>语料</h1><p className="page-lede">在真实文章、视频和播客里比较一个词或短语的上下文。</p></div>
+        <p>浏览语料不会写入能力评分；只有完成文字考察才会产生词句证据。</p>
+      </header>
+      <CorpusSearch initialState={initialState} initialPage={page} />
+      {assessmentKey ? <LexicalAssessment assessmentKey={assessmentKey} /> : null}
   </main>;
 }

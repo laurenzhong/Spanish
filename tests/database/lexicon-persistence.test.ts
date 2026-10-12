@@ -75,6 +75,25 @@ describe("lexicon persistence", () => {
     expect((await repository.listPhrases(userB, { page: 1, pageSize: 24 })).items.map((item) => item.expression)).toEqual(["frase pública"]);
   });
 
+  it("projects one visible representative occurrence without exposing hidden sources", async () => {
+    await repository.indexPhrase({ expression: "frase pública", normalizedExpression: "frase publica", reference }, "Public", "article");
+    await repository.indexPhrase({ expression: "mi frase", normalizedExpression: "mi frase", ownerUserId: userA, reference }, "Private", "manual");
+    const [item] = (await repository.listPhrases(userA, { page: 1, pageSize: 24 })).items;
+    expect(item).toMatchObject({
+      expression: "frase pública",
+      scope: "public",
+      occurrenceCount: 1,
+      representativeOccurrence: {
+        keyword: "frase pública",
+        sourceTitle: "Public",
+        document: { kind: "article", stableKey: "article.lexicon", version: 1 },
+        location: { kind: "text", paragraphId: "p1", segmentIndex: 0 },
+        entryKind: "phrase",
+      },
+    });
+    expect((await repository.listPhrases(userA, { page: 1, pageSize: 24 })).items.find((entry) => entry.expression === "mi frase")).toMatchObject({ scope: "private" });
+  });
+
   it("applies revision compare-and-set and keeps intent private", async () => {
     const id = await repository.indexLexeme({ lemma: "comer", normalizedLemma: "comer", lemmaStatus: "verified", partOfSpeech: "verb", form: "comer", normalizedForm: "comer", reference }, "Fixture", "article");
     await expect(repository.setIntent(userA, "lexeme", id, "revisit")).resolves.toMatchObject({ revision: 1 });

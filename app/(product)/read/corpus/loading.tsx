@@ -1,3 +1,3 @@
-import { RouteLoading } from "@/src/shared/ui/route-loading";
+import { CorpusShelfSkeleton } from "./corpus-shelf-skeleton";
 
-export default RouteLoading;
+export default CorpusShelfSkeleton;

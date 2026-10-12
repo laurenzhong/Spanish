@@ -592,9 +592,15 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
     async searchCorpus(userId, query: CorpusQuery) {
       const tokens = query.query ? normalizeCorpusQuery(query.query) : [];
       if (tokens.length === 0 && !(query.entryKind && query.entryId)) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+      const normalizedQuery = tokens.join(" ");
+      const matchCondition = tokens.length === 0
+        ? undefined
+        : (query.match ?? "phrase") === "phrase"
+          ? eq(schema.corpusOccurrences.normalizedText, normalizedQuery)
+          : and(...tokens.map((token) => ilike(schema.corpusOccurrences.normalizedText, `%${token}%`)));
       const where = and(
         corpusVisibility(userId),
-        ...tokens.map((token) => ilike(schema.corpusOccurrences.normalizedText, `%${token}%`)),
+        matchCondition,
         query.entryKind === "lexeme" && query.entryId ? eq(schema.corpusOccurrences.lexemeId, query.entryId) : undefined,
         query.entryKind === "phrase" && query.entryId ? eq(schema.corpusOccurrences.phraseEntryId, query.entryId) : undefined,
         query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,

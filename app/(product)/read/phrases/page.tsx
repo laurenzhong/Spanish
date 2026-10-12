@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { RouteLoading } from "@/src/shared/ui/route-loading";
+import { PhraseShelfSkeleton } from "./phrase-shelf-skeleton";
 
 import { PhraseShelfData } from "./phrase-shelf-data";
 
@@ -25,7 +25,7 @@ export default function PhrasesPage({ searchParams }: PhrasesPageProps) {
         </div>
         <p>浏览、保存和筛选不会形成口语证据。</p>
       </header>
-      <Suspense fallback={<RouteLoading />}>
+      <Suspense fallback={<PhraseShelfSkeleton />}>
         <PhraseShelfData searchParams={searchParams} />
       </Suspense>
     </main>

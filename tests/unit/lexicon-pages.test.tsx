@@ -10,6 +10,8 @@ vi.mock("@/src/modules/lexicon-corpus/repositories", async (importOriginal) => {
 });
 
 import { PhraseLibrary, ReadSectionNavigation } from "@/src/modules/lexicon-corpus";
+import { CorpusShelfSkeleton } from "@/app/(product)/read/corpus/corpus-shelf-skeleton";
+import { PhraseShelfSkeleton } from "@/app/(product)/read/phrases/phrase-shelf-skeleton";
 
 const phrase = {
   id: "20000000-0000-4000-8000-000000000001",
@@ -55,11 +57,22 @@ describe("lexicon pages and controls", () => {
     // the `?view=lexicon` shelf it belonged to were removed with the view).
     render(<PhraseLibrary items={[]} />);
     expect(screen.getByRole("heading", { name: "还没有短语" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "回到文章库" })).toHaveAttribute("href", "/read");
   });
 
   it("shows an honest empty state when no representative occurrence is visible", () => {
     render(<PhraseLibrary items={[{ ...phrase, representativeOccurrence: null }]} />);
     expect(screen.getByText("暂无可见代表例句")).toBeInTheDocument();
+  });
+
+  it("keeps phrase and corpus loading states shaped like their destinations", () => {
+    render(<PhraseShelfSkeleton />);
+    expect(screen.getByRole("status", { name: "正在载入短语库" })).toBeInTheDocument();
+    expect(document.querySelectorAll(".phrase-shelf-skeleton__card")).toHaveLength(6);
+    cleanup();
+    render(<CorpusShelfSkeleton />);
+    expect(screen.getByRole("status", { name: "正在载入语料页" })).toBeInTheDocument();
+    expect(document.querySelectorAll(".corpus-shelf-skeleton__results article")).toHaveLength(3);
   });
 
   it("labels private phrase entries without exposing ownership details", () => {

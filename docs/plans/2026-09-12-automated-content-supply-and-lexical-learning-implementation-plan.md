@@ -532,6 +532,8 @@ src/modules/providers/media-translation/
 
 建立跨文章和媒体的词元/词形、短语、出现位置与个人复习意图；在 `/read` 增加 `文章/词汇/短语/语料` 子导航。当前只实现词汇/短语浏览和上下文跳转，不写能力证据。
 
+页面设计以 [`2026-10-12 阅读页短语与语料页面设计`](../superpowers/specs/2026-10-12-reading-phrase-and-corpus-page-design.md) 和 ADR-0012 为准。短语页是表达库：每张卡默认展示一条真实代表例句，保留变体、语用和个人复习意图；公共条目与当前用户私有条目必须显示范围。语料比较与多词匹配属于 LEX-002，不在本任务中把 token AND 查询伪装成连续短语。
+
 ### 12.2 测试先行
 
 新增：
@@ -593,6 +595,14 @@ app/api/v1/lexicon/intents/[entryId]/route.ts
 
 修改阅读一级页和文章/媒体词句入口，共用 `ContentDocumentRef` 与 `SourcePosition`。`familiar/revisit/ignore` 只写个人意图，不写 evidence/profile。
 
+页面切片：
+
+- 短语卡增加一条可见来源的 `representativeOccurrence` 投影；其余例句继续使用有界懒加载。
+- 短语条目返回不暴露拥有者 ID 的 `scope`（`public`/`private`），卡片明确显示“公开/私有”范围。
+- 短语搜索与意图筛选保留 URL 状态；意图控件满足键盘和至少 44px 触摸命中区。
+- 短语卡提供“在语料中查看全部用例”和来源跳转；跳转使用版本化 `ContentDocumentRef`/`SourcePosition`。
+- 短语页的加载、错误、空结果和私有/公共范围文案必须与设计规格一致。
+
 ### 12.5 验证
 
 运行全部 lexicon 单元、合同、数据库、阅读/媒体 E2E 回归、lint、typecheck、`pnpm db:check`、build 和 `git diff --check`。
@@ -618,7 +628,7 @@ app/api/v1/lexicon/intents/[entryId]/route.ts
 - `tests/contracts/corpus-assessment-contract.test.ts`
 - `tests/e2e/corpus-assessment.spec.ts`
 
-覆盖表面词/verified lemma/完整短语、大小写/标点/重音、AND 多词、分页上限、撤下和跨用户泄漏；选择、判断、填空、少量完整输入；自然等价答案；题目版本冻结；重复提交不重复证据；浏览/收藏/跳过不写证据。
+覆盖表面词/verified lemma/完整短语、大小写/标点/重音、连续短语与 `all` 多词模式、分页上限、撤下和跨用户泄漏；选择、判断、填空、少量完整输入；自然等价答案；题目版本冻结；重复提交不重复证据；浏览/收藏/跳过不写证据。
 
 ### 13.3 实现
 
@@ -639,11 +649,18 @@ app/api/v1/lexicon/assessments/[assessmentId]/attempts/route.ts
 
 数据库增加 `lexical_assessment_items`、`lexical_assessment_attempts`。assessment application 创建/验证 `practice_attempts` 或明确的通用 attempt 引用，再调用 evidence application；客户端不能提交 outcomeScore、skillKey 或 confidence。
 
+语料页面切片：
+
+- `corpusQuerySchema` 增加 `match: "phrase" | "all"`，默认 `phrase`，并保留 `q/match/documentKind/sourceKind/stableKey/page` 的 URL 恢复语义。
+- `phrase` 模式按西语 token 边界和顺序匹配；`all` 模式沿用同片段包含全部 token 的查询语义。两者都必须先通过服务端可见性、发布状态、版权和用户所有权检查。
+- 语料结果 DTO 对客户端提供 `sourceKind`、`entryKind`、`entryId` 和位置；文章跳到段落，媒体跳到毫秒/片段。
+- 语料结果默认有界分页；查询中保留旧结果，取消或过期响应不能覆盖新查询；无结果和失败状态提供恢复动作。
+
 建议 skill key 使用版本化前缀：`lexical.recognition.*`、`lexical.context.*`、`lexical.collocation.*`、`lexical.retrieval.written.*`。完整输入只是文字主动提取，不映射发音/语流/口头反应。
 
 ### 13.4 验证
 
-运行 corpus/assessment 单元、合同、数据库、E2E、evidence/profile 回归、lint、typecheck、db:check、build 和 `git diff --check`。
+运行 corpus/assessment 单元、连续短语匹配与 URL 状态组件测试、合同、数据库、E2E、evidence/profile 回归、lint、typecheck、db:check、build 和 `git diff --check`。Playwright 至少覆盖 375px 与桌面视口、短语卡代表例句、`match=phrase`/`match=all`、来源跳转、分页恢复和浏览不写证据。
 
 建议提交：`feat: add corpus search and lexical assessment`
 

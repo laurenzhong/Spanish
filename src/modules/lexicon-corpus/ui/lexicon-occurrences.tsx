@@ -61,7 +61,7 @@ export function LexiconOccurrences({ entryId, entryKind, label, occurrenceCount 
 
   return <div className="lexicon-occurrences">
     <button type="button" className="lexicon-occurrences__trigger" aria-label={`查看 ${label} 的上下文`} aria-expanded={open} aria-controls={panelId} onClick={toggle}>
-      <span>{occurrenceCount} 个出现</span><span aria-hidden="true">{open ? "−" : "+"}</span>
+      <span>查看更多真实例句（{occurrenceCount}）</span><span aria-hidden="true">{open ? "−" : "+"}</span>
     </button>
     {open ? <section id={panelId} className="lexicon-occurrences__panel" aria-label={`${label} 的上下文`} aria-live="polite">
       {state === "loading" ? <p role="status">正在加载上下文…</p> : null}

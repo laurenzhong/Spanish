@@ -30,8 +30,9 @@ export const setLexicalIntentSchema = z.object({
   expectedRevision: z.number().int().positive().optional(),
 });
 
-export const corpusQuerySchema = z.object({
+const corpusQueryObjectSchema = z.object({
   query: z.string().trim().min(1).max(120).optional(),
+  match: z.enum(["phrase", "all"]).default("phrase"),
   entryKind: lexiconEntryKindSchema.optional(),
   entryId: z.string().uuid().optional(),
   documentKind: z.enum(["article", "media"]).optional(),
@@ -47,6 +48,15 @@ export const corpusQuerySchema = z.object({
     context.addIssue({ code: "custom", message: "A query or exact entry is required." });
   }
 });
+
+/** Accept the browser-facing `q` alias while keeping the application DTO named `query`. */
+export const corpusQuerySchema = z.preprocess((input) => {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const record = input as Record<string, unknown>;
+  if (record.query || !record.q) return input;
+  const { q, ...rest } = record;
+  return { ...rest, query: q };
+}, corpusQueryObjectSchema);
 
 export const lexicalAssessmentAnswerSchema = z.object({
   answer: z.string().trim().min(1).max(500),
