@@ -94,6 +94,7 @@ import {
   type LexiconCandidateStatus,
   type LexiconReviewDimension,
 } from "../domain/lexicon-candidate";
+import { caseFoldSurface } from "../domain/spanish-token";
 import { classifyFixedExpressionProposal, fixedExpressionPhraseProposals } from "../domain/fixed-expression";
 import type {
   LexiconCandidateApprovalAuditStore,
@@ -383,7 +384,12 @@ function assembleCandidate(
       stableKey: segment.documentStableKey,
       version: segment.documentVersion,
       segmentIndex: segment.segmentIndex,
-      normalizedText,
+      // The identity is keyed on the **accent-preserving** surface, not on
+      // `normalizedText`: folding accents makes `una` and `uña` one id, and they
+      // are different words. `makeCandidateId` keeps its six fields — only what
+      // this one carries changes. The stored `normalizedText` below stays folded
+      // because the corpus writer uses it as the matching key.
+      normalizedText: caseFoldSurface(surfaceText),
     }),
     kind: proposal.kind,
     surfaceText,
