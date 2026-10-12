@@ -96,19 +96,11 @@ html:has(.vocabulary-shelf__body) {
 }
 
 /* --- density ---------------------------------------------------------------
-   The owner's item 6: fewer boxes, more words per row, no dead space. The app
-   shell gives this page 72px of side padding and a centred measure; on a
-   7,922-word list that is most of the whitespace they saw. `:has()` keeps the
-   override to this page alone, so no other route inherits it. */
-main.product-content:has(.page-stack.read-page) {
-  width: auto;
-  margin-inline: 0;
-  /* The shell's 48px top padding plus the page's own 12px put the section nav
-     60px below the viewport top — the band of blank the owner reported. 12px
-     here leaves the nav at 24px and still clears the sticky chrome. */
-  padding-top: 12px;
-  padding-inline: 20px;
-}
+   The owner's item 6: fewer boxes, more words per row, no dead space. The shelf
+   itself is below; the shell spacing that belongs to the whole reading area now
+   ships with the read layout (`app/(product)/read/read-shell.css`) instead of
+   living here, because a rule for the layout inside a route's stylesheet made the
+   reading area look different depending on how you arrived. */
 
 /* --- search field ----------------------------------------------------------
    No frame and no buttons: the field is the control, and the icon inside it is a

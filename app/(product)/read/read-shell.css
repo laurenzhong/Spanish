@@ -1,0 +1,23 @@
+/**
+ * The reading section's own shell spacing.
+ *
+ * This rule lives here, next to the layout that renders `.page-stack.read-page`,
+ * because it is the *layout's* spacing and not the vocabulary page's. It used to
+ * sit in `vocabulary-shelf.css`, which only the vocabulary route loads: every
+ * other read page was then laid out with the app shell's original wide padding
+ * until a visit to the vocabulary page happened to put that stylesheet in the
+ * document — and the next reload took it away again. Shipping it with the layout
+ * makes the reading area look the same whichever read route you arrive on.
+ *
+ * `:has()` keeps it to the read section: the shell in `app/(product)/read/layout.tsx`
+ * is the only one that renders `.page-stack.read-page`.
+ *
+ * Measured, 1440px: the section navigation sits 24px below the top instead of 60,
+ * and the content starts at 108px instead of 269.
+ */
+main.product-content:has(.page-stack.read-page) {
+  width: auto;
+  margin-inline: 0;
+  padding-top: 12px;
+  padding-inline: 20px;
+}

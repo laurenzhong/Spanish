@@ -157,6 +157,35 @@ try {
   });
   page.on("pageerror", (error) => consoleErrors.push(String(error).slice(0, 160)));
 
+  // --- the reading shell's spacing must not depend on this route's stylesheet --
+  // A fresh context that has never seen the vocabulary page: its document must
+  // already carry the reading area's spacing. The rule that does it used to live
+  // in `vocabulary-shelf.css`, which only this route loads, so every other read
+  // page was laid out with the old, wide spacing until a visit to this page put
+  // the stylesheet in the document — and a reload took it away again.
+  {
+    const shellContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await shellContext.addCookies([
+      { name: "spanish-e2e-user", value: "00000000-0000-4000-8000-000000000001", domain: "127.0.0.1", path: "/" },
+    ]);
+    const shellPage = await shellContext.newPage();
+    await shellPage.goto(`${base}/read`, { waitUntil: "domcontentloaded", timeout: 180_000 });
+    await shellPage.waitForTimeout(600);
+    const shell = await shellPage.evaluate(() => {
+      const nav = document.querySelector("nav.read-section-navigation");
+      const stack = document.querySelector(".page-stack.read-page");
+      const main = document.querySelector("main.product-content");
+      return {
+        navTop: nav ? Math.round(nav.getBoundingClientRect().top) : -1,
+        stackLeft: stack ? Math.round(stack.getBoundingClientRect().left) : -1,
+        padTop: main ? getComputedStyle(main).paddingTop : "none",
+      };
+    });
+    console.log(`/read in a fresh context: navigation at ${shell.navTop}px, content at ${shell.stackLeft}px, shell padding-top ${shell.padTop}`);
+    check("the reading layout's spacing arrives with the reading layout", shell.navTop >= 0 && shell.navTop <= 32, `navigation ${shell.navTop}px from the top`);
+    await shellContext.close();
+  }
+
   const started = Date.now();
   const response = await page.goto(`${base}/read/vocabulary`, { waitUntil: "domcontentloaded", timeout: 120_000 });
   check("page loads", response?.status() === 200, `HTTP ${response?.status()}`);

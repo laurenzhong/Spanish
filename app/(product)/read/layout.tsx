@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import "./read-shell.css";
+
 import { ReadSectionNavHost } from "./read-section-nav-host";
 
 /**
