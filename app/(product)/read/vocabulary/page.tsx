@@ -8,7 +8,6 @@ import "./vocabulary-shelf.css";
 import {
   createDrizzleLexiconCorpusRepository,
   listFrequencyWords,
-  ReadSectionNavigation,
   VocabularyShelfControls,
   type FrequencyWordItem,
 } from "@/src/modules/lexicon-corpus";
@@ -190,23 +189,21 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
   const ranked = !query.search;
   const bands: readonly VocabularyRankBand[] = ranked && shelf.total ? groupRanks(items, 1, shelf.total).map((group) => group.band) : [];
 
-  return <div className="page-stack read-page">
-    <ReadSectionNavigation active="vocabulary" />
-    <main className="lexicon-shelf">
-      {/* Keep one page-level heading for assistive technology and the document
-          outline; it stays visually hidden so the shelf starts directly with the
-          search field and the word list. The section navigation already labels
-          this page, and there is no second navigation to label a view. */}
-      <h1 className="sr-only">词汇</h1>
+  return <main className="lexicon-shelf">
+    {/* Keep one page-level heading for assistive technology and the document
+        outline; it stays visually hidden so the shelf starts directly with the
+        search field and the word list. The section layout above already labels
+        this page with its navigation, and there is no second navigation to label
+        a view. */}
+    <h1 className="sr-only">词汇</h1>
 
-      <VocabularyShelfControls query={{ search: query.search }} total={shelf.total} />
+    <VocabularyShelfControls query={{ search: query.search }} total={shelf.total} />
 
-      {items.length ? <VocabularyShelf storageScope={user?.id ?? "anonymous"} glossary={glossary} dictionary={dictionary} bands={bands} total={shelf.total} ranked={ranked}>
-        <VocabularyShelfList items={items} ranked={ranked} total={shelf.total} />
-      </VocabularyShelf> : null}
+    {items.length ? <VocabularyShelf storageScope={user?.id ?? "anonymous"} glossary={glossary} dictionary={dictionary} bands={bands} total={shelf.total} ranked={ranked}>
+      <VocabularyShelfList items={items} ranked={ranked} total={shelf.total} />
+    </VocabularyShelf> : null}
 
-      {shelfUnavailable && !items.length ? <div className="lexicon-empty lexicon-empty--error" role="alert"><h2>词汇表暂时不可用</h2><p>已发布内容仍然安全保留，请稍后刷新。</p></div> : null}
-      {!shelfUnavailable && !items.length ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或<Link href="/read/vocabulary">回到完整词表</Link>。</p></div> : null}
-    </main>
-  </div>;
+    {shelfUnavailable && !items.length ? <div className="lexicon-empty lexicon-empty--error" role="alert"><h2>词汇表暂时不可用</h2><p>已发布内容仍然安全保留，请稍后刷新。</p></div> : null}
+    {!shelfUnavailable && !items.length ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或<Link href="/read/vocabulary">回到完整词表</Link>。</p></div> : null}
+  </main>;
 }

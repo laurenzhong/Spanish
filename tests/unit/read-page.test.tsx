@@ -52,16 +52,20 @@ describe("read page data loading", () => {
     else process.env.DATABASE_URL = originalDatabaseUrl;
   });
 
-  it("renders the reading navigation as the static shell and holds the shelf behind its own boundary", () => {
+  it("keeps the page's own content only, and holds the shelf behind its own boundary", () => {
     const rendered = ReadPage({ searchParams: Promise.resolve({}) });
-    const [heading, navigation, boundary] = elements(rendered.props.children);
+    const children = elements(rendered.props.children);
+    const [heading, boundary] = children;
 
     expect(heading.type).toBe("h1");
     expect(heading.props.className).toBe("sr-only");
-    expect(navigation.type).toBe(ReadSectionNavigation);
-    expect(navigation.props.active).toBe("articles");
-    // The shelf waits behind its own Suspense boundary, so the navigation above
-    // it is already on screen (at its real size) while articles load.
+    // The reading navigation is mounted by `app/(product)/read/layout.tsx` now.
+    // A copy here is what used to disappear during a transition, when this page
+    // was replaced by its loading state; `read-section-layout.test.tsx` asserts
+    // the mounted pair renders exactly one navigation.
+    expect(children.some((child) => child.type === ReadSectionNavigation)).toBe(false);
+    // The shelf waits behind its own Suspense boundary, so the heading above it
+    // is already on screen (at its real size) while articles load.
     expect(boundary.type).toBe(Suspense);
     expect((boundary.props as { fallback: ReactElement }).fallback.type).toBe(ReadShelfSkeleton);
     expect((boundary.props as { children: ReactElement }).children.type).toBe(ReadShelfData);

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { ReadSectionNavigation } from "@/src/modules/lexicon-corpus";
-
 import { ReadShelfData } from "./read-shelf-data";
 import { ReadShelfSkeleton } from "./read-shelf-skeleton";
 
@@ -25,12 +23,11 @@ type ReadPageProps = Readonly<{
  */
 export default function ReadPage({ searchParams }: ReadPageProps) {
   return (
-    <div className="page-stack read-page">
+    <>
       <h1 className="sr-only">阅读</h1>
-      <ReadSectionNavigation active="articles" />
       <Suspense fallback={<ReadShelfSkeleton />}>
         <ReadShelfData searchParams={searchParams} />
       </Suspense>
-    </div>
+    </>
   );
 }

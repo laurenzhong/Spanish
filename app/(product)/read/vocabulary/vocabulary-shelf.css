@@ -463,3 +463,64 @@ main.product-content:has(.page-stack.read-page) {
     contain-intrinsic-size: auto 2900px;
   }
 }
+
+/* The vocabulary route's loading state (see `vocabulary-shelf-skeleton.tsx`).
+   It draws the shelf's real boxes — the same grid, the same tile, the same band
+   heading — so it is sized by the rules above rather than by its own numbers.
+   Only the pulsing fills are defined here, and the pulse is the shared
+   `read-loading-pulse` keyframes so the whole reading area breathes together. */
+.vocabulary-shelf-skeleton {
+  /* Enough height that the navigation and the first rows do not jump when the
+     real shelf replaces this, and no more: the skeleton is a page, not a
+     full-screen overlay. */
+  min-height: 32rem;
+}
+
+.vocabulary-shelf-skeleton__status {
+  margin: 0;
+  color: var(--muted, #5c6660);
+  font-size: 0.95rem;
+}
+
+.vocabulary-shelf-skeleton__search,
+.vocabulary-shelf-skeleton__count {
+  display: block;
+  border-radius: var(--radius-control, 10px);
+  background: var(--surface-muted, #eef0ec);
+  animation: read-loading-pulse 1.5s ease-in-out infinite;
+}
+
+/* The field's own box: same height as the real search input, no icon, no text. */
+.vocabulary-shelf-skeleton__search {
+  width: min(22rem, 100%);
+  height: 46px;
+}
+
+.vocabulary-shelf-skeleton__count {
+  width: 18rem;
+  max-width: 100%;
+  height: 0.9rem;
+}
+
+.vocabulary-shelf-skeleton__tile {
+  /* The real tile is a button; this one is a box. It keeps the tile's border and
+     background from `.vocabulary-study__word`, and only stops behaving like a
+     control. */
+  cursor: default;
+}
+
+.vocabulary-shelf-skeleton__word,
+.vocabulary-shelf-skeleton__meaning {
+  width: 70%;
+  animation: read-loading-pulse 1.5s ease-in-out infinite;
+}
+
+.vocabulary-shelf-skeleton__word {
+  height: 0.85rem;
+}
+
+.vocabulary-shelf-skeleton__meaning {
+  width: 45%;
+  height: 0.6rem;
+}
+

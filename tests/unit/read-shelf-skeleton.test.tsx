@@ -61,14 +61,15 @@ describe("reading shelf loading state", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows the real reading navigation while the shelf loads", () => {
+  it("leaves the reading navigation to the section layout", () => {
     render(<ReadLoading />);
 
-    const navigation = screen.getByRole("navigation", { name: "阅读内容类型" });
-    expect(Array.from(navigation.querySelectorAll("a")).map((link) => link.textContent)).toEqual(["文章", "词汇", "短语", "语料", "已保存"]);
-    // The destination the user is on keeps its own underline, exactly like the
-    // rendered page, so the swap does not move the underline.
-    expect(navigation.querySelector('[aria-current="page"]')?.textContent).toBe("文章");
+    // The navigation used to be rendered here, which is exactly why it vanished
+    // during a transition: this fallback replaced the page, and the navigation
+    // went with it. It is mounted by `app/(product)/read/layout.tsx` now, above
+    // this fallback, so the loading state must not render a second copy —
+    // `read-section-layout.test.tsx` asserts the mounted pair renders exactly one.
+    expect(screen.queryByRole("navigation", { name: "阅读内容类型" })).toBeNull();
   });
 
   it("does not invent a heading or a placeholder tab row", () => {

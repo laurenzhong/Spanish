@@ -205,8 +205,12 @@ describe("vocabulary page", () => {
     for (const label of ["学习词表", "语料高频词", "正式词元"]) {
       expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument();
     }
-    // The reading section navigation stays the single page-level navigation.
-    expect(screen.getByRole("link", { name: "词汇" })).toHaveAttribute("aria-current", "page");
+    // The reading section navigation is not this page's to render any more: it is
+    // mounted once by `app/(product)/read/layout.tsx` and stays on screen through
+    // a transition. `read-section-layout.test.tsx` asserts that the mounted pair
+    // renders exactly one navigation and that 词汇 is the current tab there. (The
+    // page's own rank rail is still a navigation, and still not this one.)
+    expect(screen.queryByRole("navigation", { name: "阅读内容类型" })).not.toBeInTheDocument();
   });
 
   it("ignores ?view= instead of leaving a second behaviour reachable by URL", async () => {
