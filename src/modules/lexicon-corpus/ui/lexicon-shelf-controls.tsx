@@ -43,18 +43,20 @@ export function VocabularyShelfControls({ query, total }: Readonly<{ query: Read
   </div>;
 }
 
-export function PhraseShelfControls({ query, total }: Readonly<{ query: PhraseQuery; total: number }>) {
+export function PhraseShelfControls({ query, total, discovery = false }: Readonly<{ query: PhraseQuery; total: number; discovery?: boolean }>) {
   return <div className="lexicon-shelf-controls">
     <form action="/read/phrases" className="lexicon-filter-form lexicon-filter-form--phrases" method="get" role="search">
-      <label className="lexicon-filter-form__search"><span>可选：筛选短语</span><input defaultValue={query.search ?? ""} maxLength={120} name="search" placeholder="可选：输入短语筛选" /></label>
-      <label><span>学习状态</span><select defaultValue={query.intent ?? ""} name="intent">{intentOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
-      <label><span>语用目的</span><input defaultValue={query.pragmaticPurpose ?? ""} maxLength={80} name="pragmaticPurpose" placeholder="例如：saludo" /></label>
-      <label><span>语域</span><input defaultValue={query.register ?? ""} maxLength={40} name="register" placeholder="neutral" /></label>
-      <label><span>地区</span><input defaultValue={query.region ?? ""} maxLength={40} name="region" placeholder="es-ES" /></label>
-      <label><span>CEFR</span><select defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部级别</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
+      <label className="lexicon-filter-form__search"><span>{discovery ? "可选：筛选片段" : "可选：筛选短语"}</span><input defaultValue={query.search ?? ""} maxLength={120} name="search" placeholder={discovery ? "可选：输入片段筛选" : "可选：输入短语筛选"} /></label>
+      {!discovery ? <>
+        <label><span>学习状态</span><select defaultValue={query.intent ?? ""} name="intent">{intentOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
+        <label><span>语用目的</span><input defaultValue={query.pragmaticPurpose ?? ""} maxLength={80} name="pragmaticPurpose" placeholder="例如：saludo" /></label>
+        <label><span>语域</span><input defaultValue={query.register ?? ""} maxLength={40} name="register" placeholder="neutral" /></label>
+        <label><span>地区</span><input defaultValue={query.region ?? ""} maxLength={40} name="region" placeholder="es-ES" /></label>
+        <label><span>CEFR</span><select defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部级别</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
+      </> : null}
       <button type="submit">应用筛选</button><Link href="/read/phrases">重置</Link>
     </form>
-    <p className="lexicon-result-count" aria-live="polite">正在浏览来自文章、视频和播客的 {total} 条短语与语料片段</p>
+    <p className="lexicon-result-count" aria-live="polite">正在浏览来自文章、视频和播客的 {total} 条{discovery ? "语料片段" : "短语"}</p>
   </div>;
 }
 

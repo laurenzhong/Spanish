@@ -6,6 +6,7 @@ import {
   phraseQuerySchema,
   PhraseShelfControls,
 } from "@/src/modules/lexicon-corpus";
+import type { PagedResult, PhraseItem } from "@/src/modules/lexicon-corpus/repositories/lexicon-corpus-repository";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -22,6 +23,11 @@ import { getDatabase } from "@/src/shared/db/client";
  */
 const LEXICON_LOAD_TIMEOUT_MS = 8_000;
 
+/** A successful zero-result read has already taken the discovery fallback path. */
+export function isPhraseDiscoveryPage(result: Pick<PagedResult<PhraseItem>, "items" | "total">, unavailable: boolean): boolean {
+  return !unavailable && (result.items.some((item) => item.isContentDiscovery) || result.total === 0);
+}
+
 function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
@@ -36,7 +42,7 @@ export async function PhraseShelfData({
   const parsed = phraseQuerySchema.safeParse(await searchParams);
   const query = parsed.success ? parsed.data : phraseQuerySchema.parse({});
   let result: Awaited<ReturnType<typeof listPhrases>> = { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
-  let unavailable = false;
+  let unavailable = !process.env.DATABASE_URL;
   if (process.env.DATABASE_URL) {
     try {
       result = await withTimeout((async () => {
@@ -48,7 +54,7 @@ export async function PhraseShelfData({
   const filtered = Boolean(query.search || query.intent || query.pragmaticPurpose || query.register || query.region || query.cefr);
   const resultKey = [query.search, query.intent, query.pragmaticPurpose, query.register, query.region, query.cefr, query.page, query.pageSize].join(":");
   return <>
-    <PhraseShelfControls query={query} total={result.total} />
+    <PhraseShelfControls query={query} total={result.total} discovery={isPhraseDiscoveryPage(result, unavailable)} />
     <PhraseLibrary key={resultKey} filtered={filtered} items={result.items} total={result.total} unavailable={unavailable} />
     <LexiconPagination basePath="/read/phrases" page={result.page} pageSize={result.pageSize} total={result.total} query={{ search: query.search, intent: query.intent, pragmaticPurpose: query.pragmaticPurpose, register: query.register, region: query.region, cefr: query.cefr, pageSize: query.pageSize }} />
   </>;

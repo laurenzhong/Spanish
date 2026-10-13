@@ -38,7 +38,7 @@ test("keeps vocabulary and phrase shelves directly reachable from reading", asyn
   await page.goto("/read/phrases");
   await expect(page).toHaveTitle(/短语/u);
   await expect(page.getByRole("heading", { name: "短语", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "还没有短语" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "短语库暂时不可用" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "阅读内容类型" })).toBeVisible();
   await expect(page.getByLabel("学习状态")).toBeVisible();
   await expect(page.getByLabel("语用目的")).toBeVisible();

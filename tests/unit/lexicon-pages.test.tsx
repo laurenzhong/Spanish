@@ -9,8 +9,9 @@ vi.mock("@/src/modules/lexicon-corpus/repositories", async (importOriginal) => {
   return { ...original, createDrizzleLexiconCorpusRepository: vi.fn() };
 });
 
-import { PhraseLibrary, ReadSectionNavigation } from "@/src/modules/lexicon-corpus";
+import { PhraseLibrary, PhraseShelfControls, ReadSectionNavigation, phraseQuerySchema } from "@/src/modules/lexicon-corpus";
 import { CorpusShelfSkeleton } from "@/app/(product)/read/corpus/corpus-shelf-skeleton";
+import { isPhraseDiscoveryPage } from "@/app/(product)/read/phrases/phrase-shelf-data";
 import { PhraseShelfSkeleton } from "@/app/(product)/read/phrases/phrase-shelf-skeleton";
 
 const phrase = {
@@ -90,6 +91,25 @@ describe("lexicon pages and controls", () => {
     expect(screen.queryByLabelText("¿Qué tal? 复习意图")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "在语料中查看全部用例" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "打开来源" })).toBeInTheDocument();
+  });
+
+  it("does not offer formal-entry filters for discovered excerpts", () => {
+    render(<PhraseShelfControls query={phraseQuerySchema.parse({})} total={1_695} discovery />);
+    expect(screen.getByRole("textbox", { name: "可选：筛选片段" })).toBeInTheDocument();
+    expect(screen.getByText("正在浏览来自文章、视频和播客的 1695 条语料片段")).toBeInTheDocument();
+    for (const label of ["学习状态", "语用目的", "语域", "地区", "CEFR"]) {
+      expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+    }
+    cleanup();
+    render(<PhraseShelfControls query={phraseQuerySchema.parse({})} total={3} discovery={false} />);
+    expect(screen.getByLabelText("学习状态")).toBeInTheDocument();
+    expect(screen.getByLabelText("语用目的")).toBeInTheDocument();
+  });
+
+  it("keeps the discovery controls when a successful filter has no matches", () => {
+    expect(isPhraseDiscoveryPage({ items: [], total: 0 }, false)).toBe(true);
+    expect(isPhraseDiscoveryPage({ items: [], total: 0 }, true)).toBe(false);
+    expect(isPhraseDiscoveryPage({ items: [phrase], total: 1 }, false)).toBe(false);
   });
 
   it("loads exact occurrence context and links back to the recorded position", async () => {
