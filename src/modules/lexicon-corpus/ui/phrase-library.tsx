@@ -20,11 +20,12 @@ function locationLabel(item: NonNullable<PhraseItem["representativeOccurrence"]>
   return `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`;
 }
 
-export function PhraseLibrary({ items, total = items.length, filtered = false, unavailable = false }: Readonly<{
+export function PhraseLibrary({ items, total = items.length, filtered = false, unavailable = false, discovery = false }: Readonly<{
   items: readonly PhraseItem[];
   total?: number;
   filtered?: boolean;
   unavailable?: boolean;
+  discovery?: boolean;
 }>) {
   const [rows, setRows] = useState(items);
   const [busy, setBusy] = useState<string | null>(null);
@@ -51,7 +52,11 @@ export function PhraseLibrary({ items, total = items.length, filtered = false, u
   }
 
   if (unavailable) return <div className="lexicon-empty lexicon-empty--error" role="alert"><h2>短语库暂时不可用</h2><p>筛选条件和已有状态没有丢失，请稍后重试。</p><button type="button" onClick={() => window.location.reload()}>重试</button></div>;
-  if (!rows.length) return <div className="lexicon-empty"><h2>{filtered ? "没有匹配的短语" : "还没有短语"}</h2><p>{filtered ? "试试减少筛选条件，或重置后查看全部短语。" : "通过已发布文章或媒体中的上下文保存正式短语后，会在这里集中整理。"}</p>{filtered ? <Link href="/read/phrases">清除筛选</Link> : <Link href="/read">回到文章库</Link>}</div>;
+  if (!rows.length && total > 0) return <div className="lexicon-empty"><h2>这一页没有内容</h2><p>内容仍在，当前页码可能已超出范围。</p><Link href="/read/phrases">返回短语首页</Link></div>;
+  if (!rows.length) {
+    const contentName = discovery ? "语料片段" : "短语";
+    return <div className="lexicon-empty"><h2>{filtered ? `没有匹配的${contentName}` : discovery ? "暂无可浏览的语料片段" : "还没有短语"}</h2><p>{filtered ? `试试减少筛选条件，或重置后查看全部${contentName}。` : discovery ? "已发布内容暂时没有可展示的片段。" : "通过已发布文章或媒体中的上下文保存正式短语后，会在这里集中整理。"}</p>{filtered ? <Link href="/read/phrases">清除筛选</Link> : <Link href="/read">回到文章库</Link>}</div>;
+  }
   return <section className="lexicon-library" aria-label="短语列表">
     <p className="sr-only">当前显示 {rows.length} 条，共 {total} 条内容。</p>
     {rows.some((item) => item.isContentDiscovery) ? <p className="page-lede" role="note">语料片段来自已发布内容，但尚未经过短语审核；请打开来源查看完整上下文。</p> : null}

@@ -52,10 +52,11 @@ export async function PhraseShelfData({
     } catch { unavailable = true; }
   }
   const filtered = Boolean(query.search || query.intent || query.pragmaticPurpose || query.register || query.region || query.cefr);
+  const discovery = isPhraseDiscoveryPage(result, unavailable);
   const resultKey = [query.search, query.intent, query.pragmaticPurpose, query.register, query.region, query.cefr, query.page, query.pageSize].join(":");
   return <>
-    <PhraseShelfControls query={query} total={result.total} discovery={isPhraseDiscoveryPage(result, unavailable)} />
-    <PhraseLibrary key={resultKey} filtered={filtered} items={result.items} total={result.total} unavailable={unavailable} />
+    <PhraseShelfControls query={query} total={result.total} discovery={discovery} />
+    <PhraseLibrary key={resultKey} filtered={filtered} items={result.items} total={result.total} unavailable={unavailable} discovery={discovery} />
     <LexiconPagination basePath="/read/phrases" page={result.page} pageSize={result.pageSize} total={result.total} query={{ search: query.search, intent: query.intent, pragmaticPurpose: query.pragmaticPurpose, register: query.register, region: query.region, cefr: query.cefr, pageSize: query.pageSize }} />
   </>;
 }

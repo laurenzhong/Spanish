@@ -93,6 +93,23 @@ describe("lexicon pages and controls", () => {
     expect(screen.getByRole("link", { name: "打开来源" })).toBeInTheDocument();
   });
 
+  it("does not call an out-of-range page an empty phrase library", () => {
+    render(<PhraseLibrary items={[]} total={1_695} />);
+    expect(screen.getByRole("heading", { name: "这一页没有内容" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "返回短语首页" })).toHaveAttribute("href", "/read/phrases");
+    expect(screen.queryByRole("heading", { name: "还没有短语" })).not.toBeInTheDocument();
+  });
+
+  it("names empty discovery results as excerpts, not reviewed phrases", () => {
+    render(<PhraseLibrary items={[]} total={0} filtered discovery />);
+    expect(screen.getByRole("heading", { name: "没有匹配的语料片段" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "清除筛选" })).toHaveAttribute("href", "/read/phrases");
+    expect(screen.queryByRole("heading", { name: "没有匹配的短语" })).not.toBeInTheDocument();
+    cleanup();
+    render(<PhraseLibrary items={[]} total={0} discovery />);
+    expect(screen.getByRole("heading", { name: "暂无可浏览的语料片段" })).toBeInTheDocument();
+  });
+
   it("does not offer formal-entry filters for discovered excerpts", () => {
     render(<PhraseShelfControls query={phraseQuerySchema.parse({})} total={1_695} discovery />);
     expect(screen.getByRole("textbox", { name: "可选：筛选片段" })).toBeInTheDocument();
