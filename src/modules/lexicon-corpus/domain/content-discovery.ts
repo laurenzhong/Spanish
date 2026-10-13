@@ -76,6 +76,37 @@ export function extractContentExpressions(segment: ContentDiscoverySegment): rea
   return expressions;
 }
 
+function interleaveQueues<T>(queues: readonly (readonly T[])[]): T[] {
+  let active = queues.filter((queue) => queue.length > 0).map((items) => ({ items, index: 0 }));
+  const ordered: T[] = [];
+  while (active.length > 0) {
+    const next: typeof active = [];
+    for (const queue of active) {
+      ordered.push(queue.items[queue.index]);
+      queue.index += 1;
+      if (queue.index < queue.items.length) next.push(queue);
+    }
+    active = next;
+  }
+  return ordered;
+}
+
+/** Keep a recent source's many segments from occupying whole browse pages. */
+export function interleaveContentDiscoveryExpressions(expressions: readonly ContentDiscoveryExpression[]): readonly ContentDiscoveryExpression[] {
+  const kinds = ["article", "video", "podcast"] as const;
+  const byKind = new Map<(typeof kinds)[number], Map<string, ContentDiscoveryExpression[]>>();
+  for (const expression of expressions) {
+    const kind = expression.segment.contentKind;
+    const sources = byKind.get(kind) ?? new Map<string, ContentDiscoveryExpression[]>();
+    const sourceKey = JSON.stringify([expression.segment.documentStableKey, expression.segment.documentVersion]);
+    const sourceExpressions = sources.get(sourceKey) ?? [];
+    sourceExpressions.push(expression);
+    sources.set(sourceKey, sourceExpressions);
+    byKind.set(kind, sources);
+  }
+  return interleaveQueues(kinds.map((kind) => interleaveQueues([...(byKind.get(kind)?.values() ?? [])])));
+}
+
 export function discoveryContext(expression: ContentDiscoveryExpression): Readonly<{ contextBefore: string; contextAfter: string }> {
   return {
     contextBefore: expression.segment.sourceText.slice(0, expression.start).trim(),

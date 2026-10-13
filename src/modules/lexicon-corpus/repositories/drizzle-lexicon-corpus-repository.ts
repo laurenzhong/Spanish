@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
-import { buildKwic, discoveryContext, evaluateLexicalAnswer, buildLexicalEvidenceDraft, extractContentExpression, extractContentExpressions, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type ContentDiscoveryExpression, type ContentDiscoverySegment, type SourcePosition } from "../domain";
+import { buildKwic, discoveryContext, evaluateLexicalAnswer, buildLexicalEvidenceDraft, extractContentExpression, extractContentExpressions, interleaveContentDiscoveryExpressions, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type ContentDiscoveryExpression, type ContentDiscoverySegment, type SourcePosition } from "../domain";
 import { searchContentFrequencyWords } from "../domain/frequency-word-list";
 import { FREQUENCY_CONTEXT_EDGE_CHARS, FREQUENCY_CONTEXT_MAX_CHARS, loadFormFrequencyRows, type FormFrequencyRow } from "./corpus-form-frequency";
 import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
@@ -546,8 +546,9 @@ async function listContentDiscoveryPhrases(database: Database, query: PhraseQuer
     seen.add(expression.normalizedExpression);
     expressions.push(expression);
   }
+  const ordered = interleaveContentDiscoveryExpressions(expressions);
   const offset = (query.page - 1) * query.pageSize;
-  return { items: expressions.slice(offset, offset + query.pageSize).map(toDiscoveryPhrase), page: query.page, pageSize: query.pageSize, total: expressions.length };
+  return { items: ordered.slice(offset, offset + query.pageSize).map(toDiscoveryPhrase), page: query.page, pageSize: query.pageSize, total: ordered.length };
 }
 
 async function listContentDiscoveryClusters(database: Database, query: CorpusBrowseQuery): Promise<PagedResult<CorpusCluster>> {
