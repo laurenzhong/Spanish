@@ -441,11 +441,35 @@ function intentFilter(userId: string | undefined, entryKind: "lexeme" | "phrase"
 }
 
 function corpusVisibility(userId: string | undefined) {
-  const publicArticle = sql`exists (select 1 from ${schema.articles} a inner join ${schema.articleVersions} av on av.article_id = a.id where a.stable_key = ${schema.corpusOccurrences.documentStableKey} and av.version = ${schema.corpusOccurrences.documentVersion} and av.status = 'published')`;
+  const publicArticle = sql`exists (
+    select 1 from ${schema.articles} a
+    inner join ${schema.articleVersions} av on av.article_id = a.id
+    inner join ${schema.articleSources} src on src.id = av.source_id
+    where a.stable_key = ${schema.corpusOccurrences.documentStableKey}
+      and av.version = ${schema.corpusOccurrences.documentVersion}
+      and av.status = 'published'
+      and src.copyright_status = 'cleared'
+      and not exists (select 1 from ${schema.userGeneratedArticles} generated where generated.article_version_id = av.id)
+  )`;
+  const ownGeneratedArticle = userId ? sql`exists (
+    select 1 from ${schema.articles} a
+    inner join ${schema.articleVersions} av on av.article_id = a.id
+    inner join ${schema.articleSources} src on src.id = av.source_id
+    inner join ${schema.userGeneratedArticles} generated on generated.article_version_id = av.id
+    where a.stable_key = ${schema.corpusOccurrences.documentStableKey}
+      and av.version = ${schema.corpusOccurrences.documentVersion}
+      and av.status = 'published'
+      and src.copyright_status = 'cleared'
+      and generated.user_id = ${userId}
+  )` : undefined;
   const publicMedia = sql`exists (select 1 from ${schema.mediaItems} mi inner join ${schema.mediaVersions} mv on mv.media_item_id = mi.id where mi.stable_key = ${schema.corpusOccurrences.documentStableKey} and mv.version = ${schema.corpusOccurrences.documentVersion} and mv.status = 'published' and mv.copyright_status = 'cleared')`;
+  const publicSource = or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia));
   return userId
-    ? or(eq(schema.corpusOccurrences.ownerUserId, userId), and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia))))
-    : and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia)));
+    ? or(
+      and(isNull(schema.corpusOccurrences.ownerUserId), publicSource),
+      and(eq(schema.corpusOccurrences.ownerUserId, userId), or(publicSource, and(eq(schema.corpusOccurrences.documentKind, "article"), ownGeneratedArticle))),
+    )
+    : and(isNull(schema.corpusOccurrences.ownerUserId), publicSource);
 }
 
 function phraseVisibility(userId: string | undefined) {
