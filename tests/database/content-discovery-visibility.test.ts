@@ -93,4 +93,19 @@ describe("content discovery visibility", () => {
     ]);
     expect(page.items.every((item) => item.contentKinds.includes("article"))).toBe(true);
   });
+
+  it("reports a failed segment read instead of claiming the content library is empty", async () => {
+    await client.exec("drop table article_segments");
+    const repository = createDrizzleLexiconCorpusRepository(database as unknown as Database);
+    await expect(repository.listCorpusClusters(undefined, {
+      documentKind: "article",
+      contentKind: "article",
+      page: 1,
+      pageSize: 8,
+    })).rejects.toThrow();
+    await expect(repository.listPhrases(undefined, {
+      page: 1,
+      pageSize: 24,
+    })).rejects.toThrow();
+  });
 });

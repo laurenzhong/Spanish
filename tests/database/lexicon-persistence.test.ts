@@ -38,10 +38,12 @@ describe("lexicon persistence", () => {
     await client.exec(`
       create table articles (id uuid primary key, stable_key text not null unique);
       create table article_sources (id uuid primary key, copyright_status text not null);
-      create table article_versions (id uuid primary key, article_id uuid not null, source_id uuid not null, version integer not null, status text not null);
-      create table user_generated_articles (article_version_id uuid primary key, user_id uuid not null);
+      create table article_versions (id uuid primary key, article_id uuid not null, source_id uuid not null, version integer not null, status text not null, title text not null default 'Fixture', published_at timestamptz);
+      create table article_segments (article_version_id uuid not null, position integer not null, source_text text not null);
+      create table user_generated_articles (id uuid primary key, article_version_id uuid not null unique, user_id uuid not null);
       create table media_items (id uuid primary key, stable_key text not null unique, kind text not null);
-      create table media_versions (media_item_id uuid not null, version integer not null, status text not null, copyright_status text not null);
+      create table media_versions (id uuid primary key default gen_random_uuid(), media_item_id uuid not null, version integer not null, status text not null, copyright_status text not null, title text not null default 'Fixture', source_name text, published_at timestamptz);
+      create table media_segments (media_version_id uuid not null, segment_index integer not null, source_text text not null, start_ms integer not null, end_ms integer not null, review_status text not null);
       insert into articles (id, stable_key) values ('${articleId}', 'article.lexicon');
       insert into article_sources (id, copyright_status) values ('40000000-0000-4000-8000-000000000001', 'cleared');
       insert into article_versions (id, article_id, source_id, version, status) values ('50000000-0000-4000-8000-000000000001', '${articleId}', '40000000-0000-4000-8000-000000000001', 1, 'published');
@@ -158,8 +160,8 @@ describe("lexicon persistence", () => {
       insert into article_versions (id, article_id, source_id, version, status) values
         ('50000000-0000-4000-8000-000000000005', '${restrictedArticleId}', '40000000-0000-4000-8000-000000000005', 1, 'published'),
         ('50000000-0000-4000-8000-000000000006', '${generatedArticleId}', '40000000-0000-4000-8000-000000000006', 1, 'published');
-      insert into user_generated_articles (article_version_id, user_id) values
-        ('50000000-0000-4000-8000-000000000006', '${userA}');
+      insert into user_generated_articles (id, article_version_id, user_id) values
+        ('60000000-0000-4000-8000-000000000006', '50000000-0000-4000-8000-000000000006', '${userA}');
     `);
     await repository.indexPhrase({ expression: "fuente restringida", normalizedExpression: "fuente restringida", reference: { ...reference, document: { kind: "article", stableKey: "article.restricted", version: 1 } } }, "Restricted", "article");
     await repository.indexPhrase({ expression: "historia privada", normalizedExpression: "historia privada", ownerUserId: userA, reference: { ...reference, document: { kind: "article", stableKey: "article.generated", version: 1 } } }, "Private", "article");

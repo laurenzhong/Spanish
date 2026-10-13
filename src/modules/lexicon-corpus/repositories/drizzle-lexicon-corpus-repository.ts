@@ -533,15 +533,10 @@ async function listPublishedContentSegments(database: Database, filters: Discove
 
 async function listContentDiscoveryPhrases(database: Database, query: PhraseQuery): Promise<PagedResult<PhraseItem>> {
   if (query.intent || query.pragmaticPurpose || query.register || query.region || query.cefr) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
-  let segments: readonly ContentDiscoverySegment[];
-  try {
-    segments = await listPublishedContentSegments(database);
-  } catch {
-    // Older test fixtures and partially migrated local databases may not have
-    // the published segment projections yet; keep the formal shelf empty
-    // rather than turning a browse into a 500.
-    return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
-  }
+  // A failed content read is not an empty library. Let the page render its
+  // unavailable/retry state so a schema or connection error cannot masquerade
+  // as "there are no phrases".
+  const segments = await listPublishedContentSegments(database);
   const seen = new Set<string>();
   const expressions: ContentDiscoveryExpression[] = [];
   for (const segment of segments) {
@@ -556,12 +551,7 @@ async function listContentDiscoveryPhrases(database: Database, query: PhraseQuer
 }
 
 async function listContentDiscoveryClusters(database: Database, query: CorpusBrowseQuery): Promise<PagedResult<CorpusCluster>> {
-  let segments: readonly ContentDiscoverySegment[];
-  try {
-    segments = await listPublishedContentSegments(database, { documentKind: query.documentKind, contentKind: query.contentKind });
-  } catch {
-    return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
-  }
+  const segments = await listPublishedContentSegments(database, { documentKind: query.documentKind, contentKind: query.contentKind });
   const byExpression = new Map<string, ContentDiscoveryExpression[]>();
   for (const segment of segments) {
     const seenInSegment = new Set<string>();
