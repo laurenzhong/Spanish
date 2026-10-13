@@ -21,7 +21,7 @@ export default function PhrasesPage({ searchParams }: PhrasesPageProps) {
       <header className="lexicon-shelf__header">
         <div>
           <h1>短语</h1>
-          <p className="page-lede">从真实文章、视频和播客中发现正式表达、自然变体与实际语用。</p>
+          <p className="page-lede">从真实文章、视频和播客中浏览语料片段与已审核短语。</p>
         </div>
         <p>浏览、保存和筛选不会形成口语证据。</p>
       </header>

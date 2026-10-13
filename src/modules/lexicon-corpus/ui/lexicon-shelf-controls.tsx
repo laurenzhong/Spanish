@@ -54,7 +54,7 @@ export function PhraseShelfControls({ query, total }: Readonly<{ query: PhraseQu
       <label><span>CEFR</span><select defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部级别</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
       <button type="submit">应用筛选</button><Link href="/read/phrases">重置</Link>
     </form>
-    <p className="lexicon-result-count" aria-live="polite">正在浏览来自文章、视频和播客的 {total} 个短语</p>
+    <p className="lexicon-result-count" aria-live="polite">正在浏览来自文章、视频和播客的 {total} 条短语与语料片段</p>
   </div>;
 }
 

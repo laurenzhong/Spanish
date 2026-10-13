@@ -81,6 +81,17 @@ describe("lexicon pages and controls", () => {
     expect(screen.queryByText(/owner|userId/i)).not.toBeInTheDocument();
   });
 
+  it("does not present mechanically discovered excerpts as reviewed phrase entries", () => {
+    render(<PhraseLibrary items={[{ ...phrase, id: "content:example", isContentDiscovery: true, meaningZh: null, pragmaticPurpose: null, variants: [] }]} />);
+    expect(screen.getByRole("note")).toHaveTextContent("尚未经过短语审核");
+    expect(screen.getByText("语料片段")).toBeInTheDocument();
+    expect(screen.getByText("释义与用法尚未审核")).toBeInTheDocument();
+    expect(screen.queryByText("公开")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("¿Qué tal? 复习意图")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "在语料中查看全部用例" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开来源" })).toBeInTheDocument();
+  });
+
   it("loads exact occurrence context and links back to the recorded position", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: { items: [{

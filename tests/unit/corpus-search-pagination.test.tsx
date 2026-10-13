@@ -31,7 +31,7 @@ function browseResponse() {
   return new Response(JSON.stringify({ data: { items: [], page: 1, pageSize: 8, total: 0 } }), { status: 200, headers: { "content-type": "application/json" } });
 }
 
-function browseClusterResponse() {
+function browseClusterResponse(discovery = false) {
   const context = (contentKind: "article" | "video" | "podcast", index: number) => ({
     leftContext: "En",
     keyword: "por favor",
@@ -46,7 +46,7 @@ function browseClusterResponse() {
     location: contentKind === "article" ? { kind: "text" as const, paragraphId: "p-1", segmentIndex: index } : { kind: "media" as const, startMs: 1_000, endMs: 2_000, segmentIndex: index },
   });
   return new Response(JSON.stringify({ data: {
-    items: [{ entryKind: "phrase", entryId: "20000000-0000-4000-8000-000000000001", expression: "por favor", meaningZh: "请", pragmaticPurpose: "请求", contentKinds: ["article", "video", "podcast"], contexts: [context("article", 0), context("video", 1), context("podcast", 2)] }],
+    items: [{ entryKind: "phrase", entryId: "20000000-0000-4000-8000-000000000001", expression: "por favor", meaningZh: discovery ? null : "请", pragmaticPurpose: discovery ? null : "请求", isContentDiscovery: discovery, contentKinds: ["article", "video", "podcast"], contexts: [context("article", 0), context("video", 1), context("podcast", 2)] }],
     page: 1, pageSize: 8, total: 1,
   } }), { status: 200, headers: { "content-type": "application/json" } });
 }
@@ -79,6 +79,14 @@ describe("corpus search pagination", () => {
     expect(screen.getAllByText("文章").length).toBeGreaterThan(0);
     expect(screen.getAllByText("视频").length).toBeGreaterThan(0);
     expect(screen.getAllByText("播客").length).toBeGreaterThan(0);
+  });
+
+  it("labels automatically clustered excerpts without implying phrase approval", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(browseClusterResponse(true));
+    render(<CorpusSearch />);
+    expect(await screen.findByRole("heading", { name: "por favor" })).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("尚未经过短语审核");
+    expect(screen.queryByText("请")).not.toBeInTheDocument();
   });
 
   it("sends the first page with the query and the selected filter", async () => {
