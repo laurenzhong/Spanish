@@ -491,7 +491,13 @@ async function listPublishedContentSegments(database: Database, filters: Discove
     .from(schema.articleSegments)
     .innerJoin(schema.articleVersions, eq(schema.articleSegments.articleVersionId, schema.articleVersions.id))
     .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
-    .where(eq(schema.articleVersions.status, "published"))
+    .innerJoin(schema.articleSources, eq(schema.articleVersions.sourceId, schema.articleSources.id))
+    .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
+    .where(and(
+      eq(schema.articleVersions.status, "published"),
+      eq(schema.articleSources.copyrightStatus, "cleared"),
+      isNull(schema.userGeneratedArticles.id),
+    ))
     .limit(CONTENT_DISCOVERY_SEGMENT_LIMIT);
   const segments: ContentDiscoverySegment[] = [
     ...mediaRows.map((row) => ({ ...row, documentKind: "media" as const, contentKind: row.contentKind as "video" | "podcast", sourceKind: row.sourceKind || row.contentKind, publishedAt: row.publishedAt ?? null })),
