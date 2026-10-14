@@ -53,6 +53,8 @@
 
 ## 3. 测试层级
 
+字幕居中跟随 `MEDIA-TRANSCRIPT-001`：`segment-transcript.test.tsx` 先复现当前句贴底，验证换句居中、首尾限制、关闭/恢复跟随、同句逐词刷新不拉回和字幕模式变化；`video-learning.spec.ts` 用非生产专用 30 句媒体 fixture，在桌面/手机 Chromium 验证真实 DOM 居中几何、跟随开关、双语/隐藏恢复，桌面同时检查页面位置不动。媒体使用 fake，不访问收费 provider，不代表真实解码、音画同步或 iPhone Safari 真机验收。
+
 ### 3.1 领域单元测试
 
 覆盖纯 TypeScript：
