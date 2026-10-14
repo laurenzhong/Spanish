@@ -107,6 +107,51 @@ test("keeps a licensed native video in the shared learning workbench", async ({ 
   await expect(page.getByText("早上好。")).toBeVisible();
 });
 
+test("follows long subtitles in the center and respects the follow switch", async ({ page }, testInfo) => {
+  await page.goto("/learn/media/video.e2e-long-transcript");
+  await expect(page.getByText("播放器已就绪")).toBeVisible();
+  const transcript = page.locator(".segment-transcript");
+  await expect(transcript.locator("li")).toHaveCount(30);
+  const position = async (seconds: number) => page.evaluate((value) => {
+    const video = document.querySelector<HTMLVideoElement>(".media-detail__player video")!;
+    video.currentTime = value;
+    video.dispatchEvent(new Event("timeupdate"));
+  }, seconds);
+  const geometry = () => transcript.evaluate((list) => {
+    const row = list.querySelector(".is-active")!.getBoundingClientRect();
+    const pane = list.getBoundingClientRect();
+    const scrollable = list.scrollHeight > list.clientHeight;
+    return {
+      activeId: list.querySelector(".is-active")!.id,
+      centerError: Math.abs(row.top + row.height / 2 - (scrollable ? pane.top + list.clientHeight / 2 : innerHeight / 2)),
+      scrollTop: list.scrollTop, pageTop: scrollY,
+    };
+  });
+  const initialPageTop = await page.evaluate(() => scrollY);
+  await position(24);
+  await expect(transcript.locator(".is-active")).toHaveAttribute("id", "segment-12");
+  await expect.poll(async () => (await geometry()).centerError).toBeLessThan(2);
+  if (testInfo.project.name === "desktop-chromium") expect((await geometry()).pageTop).toBe(initialPageTop);
+
+  const follow = page.getByRole("button", { name: "自动滚动到当前句" });
+  await follow.click();
+  await expect(follow).toHaveAttribute("aria-pressed", "false");
+  const paused = await geometry();
+  await position(36);
+  await expect(transcript.locator(".is-active")).toHaveAttribute("id", "segment-18");
+  expect((await geometry()).scrollTop).toBe(paused.scrollTop);
+  expect((await geometry()).pageTop).toBe(paused.pageTop);
+  await follow.click();
+  await expect.poll(async () => (await geometry()).centerError).toBeLessThan(2);
+
+  await page.getByRole("button", { name: "双语", exact: true }).click();
+  await expect.poll(async () => (await geometry()).centerError).toBeLessThan(2);
+  await page.getByRole("button", { name: "隐藏", exact: true }).click();
+  await expect(transcript).toHaveCount(0);
+  await page.getByRole("button", { name: "西语", exact: true }).click();
+  await expect.poll(async () => (await geometry()).centerError).toBeLessThan(2);
+});
+
 test("learns from a reviewed YouTube video with sentence controls, captions, words and progress", async ({ page }, testInfo) => {
   await page.goto(`/learn/media/${encodeURIComponent(fixtureStableKey)}`);
 

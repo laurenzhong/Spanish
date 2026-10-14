@@ -2,10 +2,12 @@ import type { MediaPlayback } from "../domain";
 
 export const videoLearningE2eStableKey = "youtube.e2e-cafe";
 export const nativeVideoLearningE2eStableKey = "video.e2e-native";
+export const longTranscriptE2eStableKey = "video.e2e-long-transcript";
 
 export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | null {
   const isYoutubeFixture = stableKey === videoLearningE2eStableKey;
-  const isNativeFixture = stableKey === nativeVideoLearningE2eStableKey;
+  const isLongTranscriptFixture = stableKey === longTranscriptE2eStableKey;
+  const isNativeFixture = stableKey === nativeVideoLearningE2eStableKey || isLongTranscriptFixture;
   if (process.env.NODE_ENV === "production" || process.env.AUTH_E2E_ENABLED !== "1" || (!isYoutubeFixture && !isNativeFixture)) {
     return null;
   }
@@ -22,7 +24,7 @@ export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | n
       region: "es-ES",
       cefr: "A2",
       topics: ["topic.daily-life"],
-      durationMs: 6_000,
+      durationMs: isLongTranscriptFixture ? 60_000 : 6_000,
       publishedAt: "2026-09-13T08:00:00.000Z",
       curatedAt: "2026-09-13T12:00:00.000Z",
       contentHash: "a".repeat(64),
@@ -33,7 +35,11 @@ export function getVideoLearningE2eFixture(stableKey: string): MediaPlayback | n
       url: isNativeFixture ? "https://media.example.test/video/sample.mp4" : "https://www.youtube-nocookie.com/embed/e2eCafe1234?enablejsapi=1",
       expiresAt: null,
     },
-    segments: [
+    segments: isLongTranscriptFixture ? Array.from({ length: 30 }, (_, index) => ({
+      id: `e2e-long-${index}`, index, startMs: index * 2_000, endMs: (index + 1) * 2_000,
+      sourceText: `Esta es la frase número ${index} para seguir el vídeo y leer el contexto.`,
+      translation: `这是第 ${index} 句，用来跟随视频并阅读上下文。`, speaker: null,
+    })) : [
       { id: "e2e-segment-0", index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, words: [
         { startMs: 0, endMs: 700, startOffset: 0, endOffset: 6, text: "Buenos" },
         { startMs: 700, endMs: 1_800, startOffset: 7, endOffset: 11, text: "días" },

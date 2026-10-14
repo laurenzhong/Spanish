@@ -74,13 +74,27 @@ export function SegmentTranscript({ segments, activeIndex, captionMode, currentP
   onSeek: (index: number) => void; onWord: (word: string, sentence: string, trigger: HTMLButtonElement) => void;
 }>) {
   const activeSegmentRef = useRef<HTMLLIElement | null>(null);
+  const transcriptRef = useRef<HTMLOListElement | null>(null);
   useEffect(() => {
-    if (!follow) return;
-    activeSegmentRef.current?.scrollIntoView?.({ block: "nearest" });
-  }, [activeIndex, follow]);
+    if (!follow || captionMode === "hidden") return;
+    const row = activeSegmentRef.current;
+    const transcript = transcriptRef.current;
+    if (!row || !transcript) return;
+    if (transcript.scrollHeight > transcript.clientHeight) {
+      // Scroll only the transcript pane so following cannot move the player.
+      // Keep upcoming lines visible instead of pinning each new line to the bottom.
+      const rowBounds = row.getBoundingClientRect();
+      const top = transcript.scrollTop + rowBounds.top - transcript.getBoundingClientRect().top - transcript.clientTop;
+      const centeredTop = top - Math.max(0, (transcript.clientHeight - rowBounds.height) / 2);
+      transcript.scrollTop = Math.max(0, Math.min(centeredTop, transcript.scrollHeight - transcript.clientHeight));
+    } else {
+      // Narrow layouts let the full transcript participate in page scrolling.
+      row.scrollIntoView?.({ block: "center", inline: "nearest" });
+    }
+  }, [activeIndex, follow, captionMode, segments]);
   if (segments.length === 0) return <p className="media-transcript__empty">{mediaKind === "podcast" ? "这期播客可以播放，但目前没有已审核的逐句文本。" : "这项视频可以播放，但目前没有已审核的逐句字幕。"}</p>;
   if (captionMode === "hidden") return <p className="media-transcript__empty">字幕已隐藏，仍可使用上/重播/下一句控制。</p>;
-  return <ol className="segment-transcript">{segments.map((segment) => {
+  return <ol className="segment-transcript" ref={transcriptRef}>{segments.map((segment) => {
     const isActiveSegment = segment.index === activeIndex;
     // Word timing is only resolved for the line being spoken, so the other lines
     // receive a stable `null` and their memoised render is skipped entirely.
