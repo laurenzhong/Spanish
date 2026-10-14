@@ -1,5 +1,9 @@
 # PROJECT_STATUS.md
 
+- 2026-10-14 `LUCIA-CI-001`（`review`，用户指定只准备 Lucía 定时任务独立修复 PR；分支 `codex/lucia-ci-001-runtime-pin`，负责人本会话）：实现 Commit `35caace` 已推送。run `38568949457`、`38529585597`、`38499598884` 在 main `eeb26bd` 返回 `CONVERSATION_UNAVAILABLE`；只读核验确认历史 v1 有 active 关系但 0 会话，v2 有 1 会话，identity 指向 v2；main 仍固定读 v1。唯一运行变更是 `.github/workflows/lucia-proactive-daily.yml` checkout 固定为已含稳定身份实现的 `b6bfaae837e428b8e5c31f955d773392fecf085d`；完整提交/lockfile 一起运行，保留现有 schedule/配置/门禁/失败告警。说明文件 `docs/operations/lucia-proactive-runbook.md`；不合并完整开发分支、不部署网站、不迁移或写生产数据。
+  - 验证：固定 runtime 的独立 checkout Vitest **4 files / 13 tests**、全仓 `tsc --noEmit`、定向 ESLint 通过；额外 v1 关系/v2 会话回归在旧 main repository 报同一错误、固定 runtime 通过，并验证跨用户拒绝/零候选与消息写入。PR 自身 workflow 单测 **1/1**、PyYAML 解析及 SHA/Environment/permissions/concurrency/失败策略、限定 diff check 通过。真实 SELECT 首次成功，后续复测遇到本机 DNS `getaddrinfo ENOENT`，不记为通过。初选 `6ddb335` 的 16 条无关词句类型错误已通过选择更早的 `b6bfaae` 避开；两者主动消息相关代码/schema 相同。回归新增保留在共享树的 `tests/database/proactive-message-persistence.test.ts`，main 缺 identity schema，未混入此运行配置 PR。
+  - 限制/用户验证：未跑全量 lint/Vitest/E2E/build，PR 仅运行配置与文档，采用固定 runtime 全仓类型与领域/数据库专项；node_modules junction 复用本机依赖，GitHub 按固定 lockfile 安装。未调用收费 provider、写生产消息或手动 dispatch；固定提交仍采用原 Asia/Shanghai 时段，本机未提交 Madrid 时区修复不在范围。下一步：复核并合并独立 PR，观察正常 schedule 的 checkout SHA 与生成结果；当前仅 PR 准备完成，不宣称线上恢复。main 正式包含 CHAR-IDENTITY-001 及依赖并通过验证后移除 pin。
+
 这是项目的实时状态与模型交接入口。它回答四个问题：现在处于哪个阶段、当前要做什么、谁在哪个分支负责、完成后下一步是什么。
 
 - 最后更新：2026-10-11
