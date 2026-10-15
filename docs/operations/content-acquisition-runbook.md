@@ -112,6 +112,28 @@ Readlang 入口目前由客户端渲染，适配器在先读取入口 HTML 后�
 
 ## 日志与隐私
 
+### 2026-10-15：Bunny 上传 401 的区域配置纠正（OPS-CI-001）
+
+run `38704586687`（北京时间 16:17）在播客自动发布阶段两次报告
+`bunny-storage-upload-401`，发布 0。它来自 Daily content acquisition，
+并非 Lucía 主动消息 workflow。
+
+GitHub `content-production` 的 `BUNNY_STORAGE_REGION` 当时为 `storage`，
+而项目本机配置为新加坡 `sg`。用相同本机 zone/password 对官方端点做只读
+GET 对照：`storage.bunnycdn.com` 返回 401，`sg.storage.bunnycdn.com`
+返回 200；没有读取或输出目录内容。北京时间 **16:54** 已将该 GitHub
+Environment 变量更新为 `sg`，并回读确认。没有更换 secrets、上传文件或
+手动重跑收费媒体流程；没有修改产品代码或数据库。
+
+此验证不能证明不可读取的 GitHub secrets 与本机相同，也不能代替远端 PUT
+上传验证。下一次自然调度应核对 401 是否消失与实际发布结果；若仍报 401，
+需再核对同一 Environment 的 `BUNNY_STORAGE_ZONE_NAME` 和
+`BUNNY_STORAGE_PASSWORD`，不能把账户 API key 与 Storage zone password
+混用。不要在日志或聊天里输出密钥。
+
+该 run 同时记录 ASR 不符合资格、审核响应无效和音频获取失败；本次只修
+区域配置，其他错误仍需分别定位，不可将配置修正报告为完整流程恢复。
+
 报告只允许包含 `runId`、来源 stable key、步骤、状态、数量、耗时、稳定错误码和估算成本。禁止输出数据库 URL、API key、完整媒体 URL、正文、字幕、音频或长期签名播放地址。诊断记录使用内部 ID 和脱敏 metadata。
 
 ## 发布门禁

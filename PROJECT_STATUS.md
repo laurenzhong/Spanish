@@ -1,5 +1,9 @@
 # PROJECT_STATUS.md
 
+- 2026-10-15 `OPS-CI-001`（`review`，配置已修正，等待真实调度）：新失败邮件对应 **16:17** 的 Daily content acquisition run `38704586687`（main `c23ad2e`），非 Lucía。媒体报告含两次 `bunny-storage-upload-401`，发布 0；GitHub Environment `content-production.BUNNY_STORAGE_REGION` 错为 `storage`，本机为 `sg`。相同本机凭据的官方端点只读 GET：默认区 **401**、新加坡区 **200**。**16:54** 已将 GitHub 区域变量改为 `sg` 并回读确认，未更换 secrets、上传文件或手动触发采集。
+  - 修改：GitHub 非密钥区域配置、本页与 `docs/operations/content-acquisition-runbook.md`。验证：只读 HTTP 对照、远端配置回读、文档 diff check；无产品代码变更，未跑全量 lint/typecheck/Vitest/E2E/build，未执行迁移或写生产数据。GitHub secret 不可读，未核对其内容，不把本机 GET 称为远端上传成功。
+  - 下一步/限制：下一次自然调度核对 401 是否消失及实际发布；若仍 401，再核对该 Environment 的 zone/password。此 run 还含 `MEDIA_ASR_NOT_ELIGIBLE`、`MEDIA_REVIEW_PROVIDER_RESPONSE_INVALID`、`MEDIA_AUDIO_REQUEST_FAILED`，本次未修改这些独立处理/审核路径，不宣称完整采集恢复。Lucía 合并后仍无新 run，保持待验证。禁止通过忽略退出码或关通知掩盖故障。
+
 - 2026-10-15 `LUCIA-CI-001` 合并交接（`review`，配置已合入，等待正常调度验收）：用户明确授权将 PR #77 转就绪并合并；北京时间 **13:23** 合并至 main，Merge Commit `118b350196489de40240e1ef9ad29e6eda7dd9e8`（实现 `35caace`、前置文档 `ea59edf`）。远端 main workflow 已只读核验 checkout 固定为 `b6bfaae837e428b8e5c31f955d773392fecf085d`；三个文件范围不变，仅 Lucía workflow、运行手册与本页。合并前 GitHub 显示 CLEAN/MERGEABLE，PR 检查通过。
   - 本轮验证：最新失败 run `38682503024`（北京时间 12:38）仍使用旧 main `eeb26bd` 并返回 `CONVERSATION_UNAVAILABLE`；合并后尚无新 run，因此不宣称实际生成恢复。既有固定 runtime 13/13、全仓 tsc、定向 lint 和 workflow/YAML 检查见前条；本轮仅合并与文档同步，不重复全量 lint/Vitest/E2E/build。未手动 dispatch、调用收费 provider、执行迁移或额外写消息，用户共享工作树保留。
   - 用户验证/下一步：下一次正常 schedule 须核对 workflow 使用合并后的 main、checkout 为上述固定 SHA，再核对非空生成/正常 suppressed 结果及退出码；空 results 不证明完整生成可用。GitHub schedule 可能延迟，不承诺下一刻钟完成。实际运行确认后再结束恢复验收；main 正式包含稳定身份代码及依赖后另行移除临时 pin。运行手册已追加合并记录。
