@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # LUCIA-CI-001: main still reads user state from Lucía v1, while the
+          # production conversation uses v2. Pin the identity-aware CLI until
+          # main includes CHAR-IDENTITY-001; see the dedicated runbook.
+          ref: b6bfaae837e428b8e5c31f955d773392fecf085d
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
