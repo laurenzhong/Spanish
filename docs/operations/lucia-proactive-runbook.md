@@ -79,6 +79,9 @@ Lucía workflow 的 checkout 固定到本仓库完整提交
 
 ## 2026-10-15 合并记录
 
+> 更新：下方是 13:23 合并当时的历史核验，后续 17:26/22:19 的运行已使用
+> 修复提交并进入 provider 阶段。新的接口空值故障见文末，不再是会话版本问题。
+
 用户授权后，PR #77 已转就绪并于北京时间 **13:23** 合并至 main；
 Merge Commit `118b350196489de40240e1ef9ad29e6eda7dd9e8`。
 合并后经 GitHub contents API 核对，main workflow 的 checkout ref 为
@@ -89,3 +92,28 @@ Merge Commit `118b350196489de40240e1ef9ad29e6eda7dd9e8`。
 本次只确认配置已合入，实际生成/事务仍等待正常 schedule 验收。
 没有手动 dispatch，也没有额外调用收费 provider 或写消息；不以旧任务的
 成功空结果代替新配置验收。GitHub 调度存在延迟，不能承诺下个刻钟就有结果。
+
+## 2026-10-15 22:40：MiniMax 接口空值配置纠正
+
+22:21 收到的邮件对应 run `38750360953`（北京时间 22:19–22:20），
+更早的 run `38713003738`（17:26）也有相同错误。checkout 已使用
+`b6bfaae837e428b8e5c31f955d773392fecf085d`，依赖安装成功；最新运行三个
+时段均返回 `provider-unavailable`，不再出现旧 `CONVERSATION_UNAVAILABLE`。
+
+GitHub Environment 未配置 `MINIMAX_API_ENDPOINT`。workflow 显式把这个变量
+传入进程时，值是空字符串；MiniMax factory 使用
+`options.endpoint ?? process.env.MINIMAX_API_ENDPOINT ?? defaultEndpoint`，
+空字符串不会触发默认值，最终 fetch 收到空 URL。URL 解析失败被 adapter
+包装为 `provider-unavailable`，因此日志看起来像供应商不可用。
+
+本机用 fake key 与 fake fetch 对照（不联网、不读取对话、不写消息）：
+空字符串复现 `provider-unavailable`；显式使用代码既有默认接口后，请求能
+正常构造且 fake 响应解析成功。北京时间 **22:40** 已把
+`content-production.MINIMAX_API_ENDPOINT` 显式设置为
+`https://api.minimaxi.com/anthropic/v1/messages`，并回读确认。
+没有更换 API key、供应商或模型，没有手动 dispatch 或额外生成消息。
+
+后续正常运行应确认不再因空 URL 失败，并检查完整生成或正常抑制结果。
+fake 对照不能代替 GitHub 网络、真实凭据与真实回复验证，因此尚不宣称
+生产生成恢复。本次仅修配置，不重跑全量代码测试。通用 factory 对空白
+配置的防御仍待独立代码修复；目前这个非密钥 Environment 变量必须保留。

@@ -1,5 +1,9 @@
 # PROJECT_STATUS.md
 
+- 2026-10-15 `LUCIA-CI-001` 空接口配置续修（`review`，等待自然调度验收）：用户 **22:21** 邮件对应 Lucía run `38750360953`（22:19–22:20），17:26 的 `38713003738` 也失败；已 checkout `b6bfaae`，新错误为 `provider-unavailable`（最新三个时段均失败），旧会话版本错误未再出现。GitHub 缺少 `MINIMAX_API_ENDPOINT`，workflow 注入空字符串，provider factory 的 nullish 回退未处理空字符串，最终对空 URL 请求并将 URL 解析失败包装为 provider 不可用。
+  - 修复/验证：**22:40** 为 `content-production.MINIMAX_API_ENDPOINT` 配置代码原有默认 `https://api.minimaxi.com/anthropic/v1/messages`，远端回读确认。fake key/fake fetch 零联网对照：空值复现同一错误，显式正确值构造请求并成功解析 fake 响应；没有读取私密对话、调用真实 provider、写候选/消息或手动 dispatch。未修改 model/密钥/安全门禁/调度/退出码，固定提交保持。
+  - 范围：仅 GitHub 非密钥接口配置、本页与 Lucía 运行手册；无产品代码变更，本轮未跑全量 lint/typecheck/Vitest/E2E/build。fake 不能证明 GitHub 出网、真实凭据或真实生成成功；下一次自然调度还须核对完整结果。通用 factory 空白值防御留待独立代码修复，不扩张本次配置修复。
+
 - 2026-10-15 `OPS-CI-001`（`review`，配置已修正，等待真实调度）：新失败邮件对应 **16:17** 的 Daily content acquisition run `38704586687`（main `c23ad2e`），非 Lucía。媒体报告含两次 `bunny-storage-upload-401`，发布 0；GitHub Environment `content-production.BUNNY_STORAGE_REGION` 错为 `storage`，本机为 `sg`。相同本机凭据的官方端点只读 GET：默认区 **401**、新加坡区 **200**。**16:54** 已将 GitHub 区域变量改为 `sg` 并回读确认，未更换 secrets、上传文件或手动触发采集。
   - 修改：GitHub 非密钥区域配置、本页与 `docs/operations/content-acquisition-runbook.md`。验证：只读 HTTP 对照、远端配置回读、文档 diff check；无产品代码变更，未跑全量 lint/typecheck/Vitest/E2E/build，未执行迁移或写生产数据。GitHub secret 不可读，未核对其内容，不把本机 GET 称为远端上传成功。
   - 下一步/限制：下一次自然调度核对 401 是否消失及实际发布；若仍 401，再核对该 Environment 的 zone/password。此 run 还含 `MEDIA_ASR_NOT_ELIGIBLE`、`MEDIA_REVIEW_PROVIDER_RESPONSE_INVALID`、`MEDIA_AUDIO_REQUEST_FAILED`，本次未修改这些独立处理/审核路径，不宣称完整采集恢复。Lucía 合并后仍无新 run，保持待验证。禁止通过忽略退出码或关通知掩盖故障。
