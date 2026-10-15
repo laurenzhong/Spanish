@@ -76,3 +76,16 @@ Lucía workflow 的 checkout 固定到本仓库完整提交
   `tests/database/proactive-message-persistence.test.ts`，没有混入 main PR，
   因为 main 尚无 identity schema。它在固定 runtime 的独立 checkout 实跑，
   随后应由 `CHAR-IDENTITY-001` 合并者纳入对应代码分支。
+
+## 2026-10-15 合并记录
+
+用户授权后，PR #77 已转就绪并于北京时间 **13:23** 合并至 main；
+Merge Commit `118b350196489de40240e1ef9ad29e6eda7dd9e8`。
+合并后经 GitHub contents API 核对，main workflow 的 checkout ref 为
+`b6bfaae837e428b8e5c31f955d773392fecf085d`。
+
+截至合并后核验，最近的 run 仍为 `38682503024`（北京时间 12:38），
+运行旧 `eeb26bd` 并报 `CONVERSATION_UNAVAILABLE`；尚无合并后的新运行。
+本次只确认配置已合入，实际生成/事务仍等待正常 schedule 验收。
+没有手动 dispatch，也没有额外调用收费 provider 或写消息；不以旧任务的
+成功空结果代替新配置验收。GitHub 调度存在延迟，不能承诺下个刻钟就有结果。
