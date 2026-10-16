@@ -153,6 +153,15 @@ export type PhraseIndexInput = Readonly<{
 
 export interface LexiconCorpusRepository {
   listFrequencyWords(query: Readonly<{ search?: string; page: number; pageSize: number }>): Promise<PagedResult<FrequencyWordItem>>;
+  /**
+   * The same row for a single word, without reading the whole shelf.
+   *
+   * The lookup cannot page: the reader typed a word and either it is on the shelf or
+   * it is not. Loading all 7,892 rows and their snapshot to answer that would put a
+   * multi-second read behind one form submit, so this asks the corpus about exactly
+   * the word in hand and returns null when the reference list does not carry it.
+   */
+  readFrequencyWord(word: string): Promise<FrequencyWordItem | null>;
   findCorpusExample(word: string): Promise<CorpusExample | null>;
   listVocabulary(userId: string | undefined, query: VocabularyQuery): Promise<PagedResult<VocabularyItem>>;
   listPhrases(userId: string | undefined, query: PhraseQuery): Promise<PagedResult<PhraseItem>>;

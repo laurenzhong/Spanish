@@ -133,6 +133,12 @@ function createRecordingCorpus(
       methodCalls.push("listFrequencyWords");
       return { items: [], page: 1, pageSize: 20, total: 0 };
     },
+    // Added to the interface for the word lookup, which reads one row instead of the whole
+    // shelf. This fake records the calls it cares about; an unasked method answers "none".
+    readFrequencyWord: async () => {
+      methodCalls.push("readFrequencyWord");
+      return null;
+    },
     findCorpusExample: async () => {
       methodCalls.push("findCorpusExample");
       return null;

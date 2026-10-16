@@ -150,6 +150,7 @@ function createRecordingRepository(): RecordingRepository {
   const calls: ({ kind: "lexeme"; input: LexemeIndexInput } | { kind: "phrase"; input: PhraseIndexInput })[] = [];
   const repository: LexiconCorpusRepository = {
     listFrequencyWords: async () => ({ items: [], page: 1, pageSize: 20, total: 0 }),
+    readFrequencyWord: async () => null,
     findCorpusExample: async () => null,
     listVocabulary: async () => ({ items: [], page: 1, pageSize: 20, total: 0 }),
     listPhrases: async () => ({ items: [], page: 1, pageSize: 20, total: 0 }),
