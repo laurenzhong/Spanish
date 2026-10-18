@@ -1,5 +1,10 @@
 # PROJECT_STATUS.md
 
+- 2026-10-18 `LUCIA-CI-002`（`review`，等待合并后的新调度/dispatch 验收）：用户下午与晚上再次收到 Lucía 定时任务失败邮件，对应 run `39102100304`（13:53）、`39119266872`（18:26）、`39134486134`（22:06），结果均为 `CHARACTER_UNAVAILABLE` 且退出码 1。根因：workflow 固定 checkout `b6bfaae`，其运行时能力清单只登记 `lucia@1/v2`；生产库已于 **10-16 22:05** 发布 `lucia@3` 并把身份指针指向 v3，`findLucia` 按身份取到 v3 后查不到能力定义即整体失败。未到期的调度返回空 `results`，所以此前只有进入到期时段才暴露。
+  - 修复 Commit：`3bd7f4bcd5b71d98fae58cd91268cb8bda2af0f4`（分支 `codex/lucia-proactive-v3-runtime`，tag `lucia-runtime-v3`）。在固定 runtime 基线上登记 `lucia@3`、把静态目录投影升到 v3（8 条 `responseStyle`）、runner 与手动 proactive route 经服务端 resolver 取已发布快照并显式传入生成（缺快照失败关闭），并抑制首次用户回复前的主动消息；workflow checkout ref 更新为该提交，运行手册追加根因与后续约定。
+  - 验证：独立 worktree 全仓 `tsc --noEmit` exit 0；主动消息/人物运行时/人物 bible/import/conversation 等 8 文件 **84 项**通过，唯一失败 `lucia-data-route` 认证用例在未改动的同一 checkout 上也失败（本机 Next request scope 基线，非本次回归）；只读生产探针确认 catalog v3 → resolved v3（8 条规则）、关系 active、三个时段到期、无 `CHARACTER_UNAVAILABLE`。未部署网站、未迁移或写生产库；手动 dispatch 与真实生成留到合并后验证。
+  - 下一步：合并后核对新 run 的 checkout SHA 与实际 `generated`/`suppressed`/退出码。后续每发布一个新人物修订，都必须同步运行时能力清单并更新本 pin，否则会再次以同一个错误失败；main 正式包含 `CHAR-IDENTITY-001` 及依赖后移除临时 pin。
+
 - 2026-10-15 `LUCIA-CI-001` 空接口配置续修（`review`，等待自然调度验收）：用户 **22:21** 邮件对应 Lucía run `38750360953`（22:19–22:20），17:26 的 `38713003738` 也失败；已 checkout `b6bfaae`，新错误为 `provider-unavailable`（最新三个时段均失败），旧会话版本错误未再出现。GitHub 缺少 `MINIMAX_API_ENDPOINT`，workflow 注入空字符串，provider factory 的 nullish 回退未处理空字符串，最终对空 URL 请求并将 URL 解析失败包装为 provider 不可用。
   - 修复/验证：**22:40** 为 `content-production.MINIMAX_API_ENDPOINT` 配置代码原有默认 `https://api.minimaxi.com/anthropic/v1/messages`，远端回读确认。fake key/fake fetch 零联网对照：空值复现同一错误，显式正确值构造请求并成功解析 fake 响应；没有读取私密对话、调用真实 provider、写候选/消息或手动 dispatch。未修改 model/密钥/安全门禁/调度/退出码，固定提交保持。
   - 范围：仅 GitHub 非密钥接口配置、本页与 Lucía 运行手册；无产品代码变更，本轮未跑全量 lint/typecheck/Vitest/E2E/build。fake 不能证明 GitHub 出网、真实凭据或真实生成成功；下一次自然调度还须核对完整结果。通用 factory 空白值防御留待独立代码修复，不扩张本次配置修复。
