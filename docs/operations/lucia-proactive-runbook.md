@@ -117,3 +117,39 @@ GitHub Environment 未配置 `MINIMAX_API_ENDPOINT`。workflow 显式把这个�
 fake 对照不能代替 GitHub 网络、真实凭据与真实回复验证，因此尚不宣称
 生产生成恢复。本次仅修配置，不重跑全量代码测试。通用 factory 对空白
 配置的防御仍待独立代码修复；目前这个非密钥 Environment 变量必须保留。
+
+## 2026-10-18：发布 lucia@3 后固定 runtime 能力清单过期
+
+用户下午与晚上再次收到失败邮件：run `39102100304`（13:53）、
+`39119266872`（18:26）、`39134486134`（22:06）均以 `CHARACTER_UNAVAILABLE`
+退出 1。未到期的调度仍返回 `{"results":[]}` 并显示成功，所以邮件只在进入
+三个到期时段后出现。
+
+根因不是数据库或 provider：固定提交 `b6bfaae` 的运行时能力清单只登记
+`lucia@1/v2`，而生产库已于 **2026-10-16 22:05** 发布 `lucia@3` 并翻转身份
+指针；`findLucia` 先按身份读取当前修订，再用静态清单校验能力，查不到 v3
+就整体失败。也就是说，**发布新人物修订不只要写库，还必须让运行时代码
+认识该修订**。
+
+修复 Commit `3bd7f4bcd5b71d98fae58cd91268cb8bda2af0f4`（分支
+`codex/lucia-proactive-v3-runtime`，tag `lucia-runtime-v3`），在固定 runtime
+基线上：
+
+- 在 `characterRuntimeDefinitions` 登记 `lucia@3`（published、proactive）；
+- 静态目录投影升到 v3，携带已发布修订的 8 条 `responseStyle`；
+- runner 与手动 proactive route 经服务端 resolver 取已发布快照并显式传给
+  生成/预览，缺少快照时失败关闭，不再静默使用静态人物；
+- 首次用户回复前返回 `awaiting-first-user-message`，不让调度器抢在
+  authored opening 之后继续发消息。
+
+验证：独立 worktree 全仓 `tsc --noEmit` exit 0；相关单测 8 文件 84 项通过
+（唯一失败的 `lucia-data-route` 认证用例在未改动的同一 checkout 也失败，
+属本机 Next request scope 基线）；只读生产探针得到 catalog v3 →
+resolved v3（8 条规则）、关系 active、三个时段到期，且不再抛
+`CHARACTER_UNAVAILABLE`。未部署网站、未迁移或写生产库、未提交应用代码到
+main。
+
+**后续约定**：每次发布新的人物修订后，必须同时把该修订登记进运行时代码
+的能力清单、更新静态目录回退，并把本 workflow 的 `ref` 指到包含这些改动的
+提交；否则定时任务会以同一个 `CHARACTER_UNAVAILABLE` 失败。main 正式接入
+身份实现后移除本 pin，改回跟随 main。
