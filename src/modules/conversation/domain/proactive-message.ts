@@ -33,6 +33,7 @@ export type ProactiveEligibilityDecision = Readonly<{
     | "character-disabled"
     | "relationship-inactive"
     | "proactive-paused"
+    | "awaiting-first-user-message"
     | "daily-limit"
     | "weekly-limit"
     | "cooldown";
@@ -54,6 +55,9 @@ export function evaluateProactiveEligibility(
 ): ProactiveEligibilityDecision {
   if (state.relationshipStatus !== "active") return { allowed: false, reason: "relationship-inactive" };
   if (!state.proactiveEnabled) return { allowed: false, reason: "proactive-paused" };
+  // The authored contact opening owns first contact. Wait for an actual user
+  // reply before a scheduler can add unsolicited messages to that new thread.
+  if (state.lastInteractionAt === null) return { allowed: false, reason: "awaiting-first-user-message" };
   if (state.proactiveCount24h >= proactiveLimits.maxPer24Hours) return { allowed: false, reason: "daily-limit" };
   if (state.proactiveCount7d >= proactiveLimits.maxPer7Days) return { allowed: false, reason: "weekly-limit" };
   if (state.lastProactiveMessageAt && now.getTime() - state.lastProactiveMessageAt.getTime() < proactiveLimits.minIntervalMs) {

@@ -213,10 +213,10 @@ describe("character runtime release gate", () => {
     // The bible's rule has to reach a row imported before the field existed,
     // otherwise "write it in the bible" would be inert for the live character.
     expect(resolved.catalog.snapshot.responseStyle).toContain(
-      "no repite una expresión que ya usó: si ya dijo algo, lo dice con otras palabras o añade algo nuevo",
+      "no recicla preguntas ni frases; si le piden repetir o retomar un tema, lo hace con naturalidad",
     );
     expect(resolved.catalog.snapshot.responseStyle).toContain(
-      "no traduce saludos ni deseos palabra por palabra; usa la fórmula corriente en español",
+      "usa es-ES cotidiano, breve y claro; evita traducciones literales, moralejas y saludos en cada mensaje",
     );
   });
 });

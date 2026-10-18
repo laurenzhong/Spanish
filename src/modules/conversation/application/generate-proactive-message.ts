@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { CharacterReplyProvider } from "@/src/modules/providers/conversation";
-import { getConversationCharacter } from "../domain/character-catalog";
+import type { ReplyCharacterSnapshot } from "./build-reply-context";
 import {
   evaluateProactiveEligibility,
   isProactiveMessageSafe,
@@ -33,6 +33,8 @@ export async function previewLuciaProactiveMessage(input: Readonly<{
   dailyState?: ProactiveDailyState;
   repository: ProactiveMessageRepository;
   provider?: CharacterReplyProvider;
+  /** Published server-resolved projection; tests explicitly inject their fixture. */
+  character?: ReplyCharacterSnapshot;
   memories?: readonly Readonly<{
     factKey: string;
     category: string;
@@ -44,6 +46,7 @@ export async function previewLuciaProactiveMessage(input: Readonly<{
 }>): Promise<PreviewProactiveMessageResult> {
   const state = await input.repository.getEligibilityState(input.userId, new Date());
   if (state.relationshipStatus !== "active") return { status: "failed", reason: "relationship-inactive", text: null };
+  if (!input.character || input.character.characterKey !== "lucia") return { status: "failed", reason: "character-runtime-unavailable", text: null };
   if (!input.provider) return { status: "failed", reason: "provider-unavailable", text: null };
   const plan = proactiveReplyPlan(input.source, state.relationshipStage, input.dailyState);
   try {
@@ -53,7 +56,7 @@ export async function previewLuciaProactiveMessage(input: Readonly<{
       recentMessages: [],
       rollingSummary: null,
       openTopics: [],
-      character: getConversationCharacter("lucia").snapshot,
+      character: input.character,
       relationshipStage: state.relationshipStage,
       relationshipSummary: state.relationshipSummary,
       relationshipSignalsSummary: state.relationshipSummary,
@@ -81,6 +84,8 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
   now?: Date;
   repository: ProactiveMessageRepository;
   provider?: CharacterReplyProvider;
+  /** Published server-resolved projection; tests explicitly inject their fixture. */
+  character?: ReplyCharacterSnapshot;
   memories?: readonly Readonly<{
     factKey: string;
     category: string;
@@ -94,6 +99,7 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
   const state = await input.repository.getEligibilityState(input.userId, now);
   const eligibility = evaluateProactiveEligibility(state, now);
   if (!eligibility.allowed) return { status: "suppressed", reason: eligibility.reason, candidate: null, message: null };
+  if (!input.character || input.character.characterKey !== "lucia") return { status: "failed", reason: "character-runtime-unavailable", candidate: null, message: null };
 
   const conversationId = await input.repository.getConversationId(input.userId);
   const dedupeKey = proactiveDedupeKey({
@@ -123,7 +129,7 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
     return { status: "failed", reason: "provider-unavailable", candidate, message: null };
   }
   try {
-    const character = getConversationCharacter("lucia").snapshot;
+    const character = input.character;
     const result = await input.provider.generate({
       inputKind: "proactive",
       userMessage: "",

@@ -1,7 +1,8 @@
 import "dotenv/config";
 
 import { pathToFileURL } from "node:url";
-import { generateLuciaProactiveMessage, createDrizzleProactiveMessageRepository } from "../src/modules/conversation";
+import { generateLuciaProactiveMessage, createDrizzleProactiveMessageRepository, resolveConversationCharacter, getConversationCharacter } from "../src/modules/conversation";
+import { createDrizzleCharacterRepository } from "../src/modules/characters";
 import { formatNaturalDate, getDueLuciaProactiveSlots, parseLuciaProactiveUserIds } from "../src/modules/conversation/application/proactive-runner-utils";
 import { createDrizzleMemoryRepository } from "../src/modules/memory";
 import { createMiniMaxConversationProvider } from "../src/modules/providers/conversation/minimax-conversation";
@@ -32,6 +33,12 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
         ? createMiniMaxConversationProvider()
         : undefined;
     if (!provider) throw new Error("A conversation provider API key is required.");
+    const runtimeCharacter = await resolveConversationCharacter({
+      characterKey: "lucia",
+      characterVersion: getConversationCharacter("lucia").version,
+      repository: createDrizzleCharacterRepository(connection.db),
+      requiredCapability: "proactiveMessages",
+    });
 
     const results: Array<LuciaProactiveRunResult["results"][number]> = [];
     for (const userId of userIds) {
@@ -48,6 +55,7 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
             now,
             repository: createDrizzleProactiveMessageRepository(connection.db),
             provider,
+            character: runtimeCharacter.catalog.snapshot,
             memories,
           });
           for (let attempt = 1; attempt < 3 && result.status === "failed" && result.reason === "provider-unavailable"; attempt += 1) {
@@ -59,6 +67,7 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
               now,
               repository: createDrizzleProactiveMessageRepository(connection.db),
               provider,
+              character: runtimeCharacter.catalog.snapshot,
               memories,
             });
           }

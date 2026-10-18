@@ -9,6 +9,7 @@ import {
   type ProactiveMessageCandidateRecord,
   type ProactiveMessageRepository,
 } from "@/src/modules/conversation";
+import { getConversationCharacter } from "@/src/modules/conversation/domain/character-catalog";
 
 const now = new Date("2026-08-29T10:00:00.000Z");
 
@@ -28,6 +29,15 @@ function state(overrides: Partial<Parameters<typeof evaluateProactiveEligibility
 }
 
 describe("proactive message policy", () => {
+  it("waits for the first completed user message after the contact opening", () => {
+    expect(evaluateProactiveEligibility(state({ relationshipStage: "new_contact", lastInteractionAt: null }), now))
+      .toEqual({ allowed: false, reason: "awaiting-first-user-message" });
+    expect(evaluateProactiveEligibility(state({ lastInteractionAt: null }), now))
+      .toEqual({ allowed: false, reason: "awaiting-first-user-message" });
+    expect(evaluateProactiveEligibility(state({ relationshipStage: "new_contact" }), now))
+      .toEqual({ allowed: true, reason: "eligible" });
+  });
+
   it("enforces relationship, cooldown and frequency limits", () => {
     expect(evaluateProactiveEligibility(state({ relationshipStatus: "inactive" }), now)).toMatchObject({ allowed: false, reason: "relationship-inactive" });
     expect(evaluateProactiveEligibility(state({ proactiveCount24h: 3 }), now)).toMatchObject({ allowed: false, reason: "daily-limit" });
@@ -64,6 +74,50 @@ describe("proactive message policy", () => {
 });
 
 describe("generateLuciaProactiveMessage", () => {
+  it("does not create a candidate or call a provider before the first user reply", async () => {
+    const repository: ProactiveMessageRepository = {
+      getConversationId: vi.fn(),
+      getEligibilityState: vi.fn().mockResolvedValue(state({ relationshipStage: "new_contact", lastInteractionAt: null })),
+      createCandidate: vi.fn(),
+      completeCandidate: vi.fn(),
+      failCandidate: vi.fn(),
+    };
+    const provider = { generate: vi.fn() };
+    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", now, repository, provider, character: getConversationCharacter("lucia").snapshot });
+    expect(result).toMatchObject({ status: "suppressed", reason: "awaiting-first-user-message", message: null });
+    expect(repository.getConversationId).not.toHaveBeenCalled();
+    expect(repository.createCandidate).not.toHaveBeenCalled();
+    expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  it.each(["preview", "generate"] as const)("uses the supplied published snapshot for %s instead of the static catalog", async (mode) => {
+    const character = { ...getConversationCharacter("lucia").snapshot, characterVersion: 3, tone: ["voz de la revisión publicada"], topics: ["cine"] };
+    const repository: ProactiveMessageRepository = {
+      getConversationId: vi.fn().mockResolvedValue("conversation-1"),
+      getEligibilityState: vi.fn().mockResolvedValue(state()),
+      createCandidate: vi.fn().mockImplementation(async (candidate) => ({ ...candidate, id: "candidate-1", status: "generating" })),
+      completeCandidate: vi.fn().mockResolvedValue({ candidate: {}, message: {} }),
+      failCandidate: vi.fn(),
+    };
+    const provider = { generate: vi.fn().mockResolvedValue({ text: "Me apetecía compartir una pequeña alegría contigo.", provider: "minimax", modelVersion: "fake", providerRequestId: null, latencyMs: 1, estimatedCostMicros: null }) };
+    const input = { userId: "user-1", source: "quiet_presence" as const, repository, provider, character, now };
+    await (mode === "preview" ? previewLuciaProactiveMessage(input) : generateLuciaProactiveMessage(input));
+    expect(provider.generate).toHaveBeenCalledWith(expect.objectContaining({ character }));
+  });
+
+  it.each(["preview", "generate"] as const)("fails closed without a runtime snapshot for %s", async (mode) => {
+    const repository: ProactiveMessageRepository = {
+      getConversationId: vi.fn(), getEligibilityState: vi.fn().mockResolvedValue(state()),
+      createCandidate: vi.fn(), completeCandidate: vi.fn(), failCandidate: vi.fn(),
+    };
+    const provider = { generate: vi.fn() };
+    const input = { userId: "user-1", source: "quiet_presence" as const, repository, provider, now };
+    const result = await (mode === "preview" ? previewLuciaProactiveMessage(input) : generateLuciaProactiveMessage(input));
+    expect(result).toMatchObject({ status: "failed", reason: "character-runtime-unavailable" });
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(repository.createCandidate).not.toHaveBeenCalled();
+  });
+
   it("supports a non-persisting preview for development voice checks", async () => {
     const repository: ProactiveMessageRepository = {
       getConversationId: vi.fn(),
@@ -73,7 +127,7 @@ describe("generateLuciaProactiveMessage", () => {
       failCandidate: vi.fn(),
     };
     const provider = { generate: vi.fn().mockResolvedValue({ text: "Te echo de menos.", provider: "openai", modelVersion: "gpt-5.6-sol", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }) };
-    const result = await previewLuciaProactiveMessage({ userId: "user-1", source: "spontaneous_affection", dailyState: "waking", repository, provider });
+    const result = await previewLuciaProactiveMessage({ userId: "user-1", source: "spontaneous_affection", dailyState: "waking", repository, provider, character: getConversationCharacter("lucia").snapshot });
     expect(result).toEqual({ status: "preview", text: "Te echo de menos." });
     expect(repository.createCandidate).not.toHaveBeenCalled();
     expect(repository.completeCandidate).not.toHaveBeenCalled();
@@ -112,7 +166,7 @@ describe("generateLuciaProactiveMessage", () => {
     const provider = {
       generate: vi.fn().mockResolvedValue({ text: "Me acordé de ti esta mañana.", provider: "openai", modelVersion: "gpt-5.6-sol", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }),
     };
-    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "spontaneous_affection", dailyState: "waking", now, repository, provider });
+    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "spontaneous_affection", dailyState: "waking", now, repository, provider, character: getConversationCharacter("lucia").snapshot });
     expect(result.status).toBe("generated");
     expect(provider.generate).toHaveBeenCalledWith(expect.objectContaining({ inputKind: "proactive", userMessage: "", dailyState: "waking", preferredLength: "one-line", proactiveMessageSource: "spontaneous_affection", questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" } }));
     expect(repository.completeCandidate).toHaveBeenCalledTimes(1);
@@ -134,7 +188,7 @@ describe("generateLuciaProactiveMessage", () => {
     const provider = {
       generate: vi.fn().mockResolvedValue({ text: "Me apetecía saludarte随机.", provider: "minimax", modelVersion: "MiniMax-M3", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }),
     };
-    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", now, repository, provider });
+    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", now, repository, provider, character: getConversationCharacter("lucia").snapshot });
     expect(result).toMatchObject({ status: "failed", reason: "safety-gate", message: null });
     expect(repository.completeCandidate).not.toHaveBeenCalled();
     expect(repository.failCandidate).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "safety-gate" }));
