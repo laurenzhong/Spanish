@@ -153,3 +153,28 @@ main。
 的能力清单、更新静态目录回退，并把本 workflow 的 `ref` 指到包含这些改动的
 提交；否则定时任务会以同一个 `CHARACTER_UNAVAILABLE` 失败。main 正式接入
 身份实现后移除本 pin，改回跟随 main。
+
+## 2026-10-18 22:29：合并后 dispatch 验证
+
+PR [#78](https://github.com/laurenzhong/Spanish/pull/78) 已合入 main
+（merge `707a79b238af46eb9f5ddeb3cbadfa79af16fd98`，workflow 更新提交
+`e380325`，checkout ref 为 `3bd7f4bcd5b71d98fae58cd91268cb8bda2af0f4`）。
+北京时间 **22:29** 手动 dispatch run
+[`39136141749`](https://github.com/laurenzhong/Spanish/actions/runs/39136141749)
+成功，耗时约 45 秒，`pnpm install` 与生成步骤均成功：
+
+```json
+{"date":"2026-10-18","generated":1,"suppressed":2,"failed":0,
+ "results":[{"status":"generated","messageId":"cd6d715d-9f97-4782-bdbc-1402b500d4f8"},
+            {"status":"suppressed","reason":"cooldown"},
+            {"status":"suppressed","reason":"cooldown"}]}
+```
+
+三个到期时段中第一个真实生成，其余两个按 4 小时冷却正常抑制，退出码 0。
+只读核对：`messages` 行为 `role=character`、`status=completed`、
+`source_type=proactive`，关联角色修订 v3；候选为 `generated` 且无错误码。
+未部署网站、未迁移，也没有额外写其他用户数据。
+
+下一次自然 schedule 仍需按惯例核对 checkout SHA 与结果；同一 workflow 与
+同一命令已完成真实 provider 生成的端到端验证，因此不再等待空 `results`
+作为恢复证据。
