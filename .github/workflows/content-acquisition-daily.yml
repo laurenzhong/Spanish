@@ -218,9 +218,12 @@ jobs:
           } else {
             const counts = result.counts ?? {};
             const failures = Array.isArray(result.failures) ? result.failures.length : 0;
+            const sourceFailures = Array.isArray(result.failures)
+              ? result.failures.filter((failure) => failure.scope === "source").length
+              : 0;
             const publishedByType = result.publishedByType ?? {};
             const targetDeficitByType = result.targetDeficitByType ?? {};
-            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, approved=${counts.approved ?? 0}, published=${counts.published ?? 0}, videoPublished=${publishedByType.video ?? 0}, podcastPublished=${publishedByType.podcast ?? 0}, videoDeficit=${targetDeficitByType.video ?? 0}, podcastDeficit=${targetDeficitByType.podcast ?? 0}, failures=${failures}`);
+            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, reviewed=${counts.reviewed ?? 0}, approved=${counts.approved ?? 0}, changesRequested=${counts.changesRequested ?? 0}, rejected=${counts.rejected ?? 0}, published=${counts.published ?? 0}, videoPublished=${publishedByType.video ?? 0}, podcastPublished=${publishedByType.podcast ?? 0}, videoDeficit=${targetDeficitByType.video ?? 0}, podcastDeficit=${targetDeficitByType.podcast ?? 0}, failures=${failures}, sourceFailures=${sourceFailures}`);
           }
           NODE
           }
