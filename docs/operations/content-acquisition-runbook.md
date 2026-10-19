@@ -158,6 +158,14 @@ run `39225780831`（北京时间 16:51 开始，约 30 分钟）；同日 Lucía
 权利、provider 或存储配置。本次只改退出码与可观测性，未改每日配额、
 来源白名单、审核维度或发布门禁，也未手动 dispatch 媒体流水线。
 
+合并与回放复核：实现 Commit `d42ff1e`，PR
+[#79](https://github.com/laurenzhong/Spanish/pull/79) 于北京时间 **22:19**
+合入 main（merge `7d4fc7b`）。用失败 run `39225780831` 的真实 auto-publish
+JSON 负载回放合并后的 `dailyMediaRunFails`：7 reviewed / 2 published /
+4 changesRequested / 1 rejected / 6 candidate failures / 0 source failures
+→ `false`，即同一运行在新约定下不再以失败退出。下一次自然调度仍需核对
+退出码 0 与 summary 中的 `podcastDeficit`。
+
 ## 发布门禁
 
 发布前必须重新校验 candidate revision/hash、来源权利、审核维度、内容版本和播放/阅读资产有效期。任何自动化成功都不等于发布成功；撤下必须移除公开投影和语料索引，保留必要审计记录。
