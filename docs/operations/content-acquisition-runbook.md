@@ -136,6 +136,28 @@ Environment 变量更新为 `sg`，并回读确认。没有更换 secrets、上�
 
 报告只允许包含 `runId`、来源 stable key、步骤、状态、数量、耗时、稳定错误码和估算成本。禁止输出数据库 URL、API key、完整媒体 URL、正文、字幕、音频或长期签名播放地址。诊断记录使用内部 ID 和脱敏 metadata。
 
+### 2026-10-19：每日流水线退出码约定（OPS-CI-002）
+
+用户收到 main `68e2b0f` 的失败邮件，对应 **Daily content acquisition**
+run `39225780831`（北京时间 16:51 开始，约 30 分钟）；同日 Lucía 定时任务
+6 次调度全部成功，并不是 Lucía 故障。该 run 的媒体 auto-publish 阶段实际
+发布 2 条播客，但 `changesRequested=4`、`rejected=1`；旧逻辑把审核结果也
+算作运维失败（`mediaOperationalFailure`），自 10-12 起每天以同样方式失败。
+
+新约定：`media-daily` 的 auto-publish 只在两类运维信号下退出 1：出现
+`scope="source"` 的失败（来源不可读、已发布数量无法统计等），或本次运行
+确实审核了候选但当天一条都没有发布（审核/provider/发布链路整体失效）。
+目标缺口、`changes_requested`、`rejected` 和候选级可重试错误只保留为
+`status="partial"`，并写入步骤 summary（现在同时输出
+`reviewed / approved / changesRequested / rejected / … / sourceFailures`），
+由下一次运行重试或补充来源。判定理集中在纯函数 `dailyMediaRunFails`
+（`run-daily-media-pipeline.ts`）并由单测锁定。
+
+不得把该约定理解为“内容已达标”：缺口仍然存在（当前播客约 2/10）。
+若连续多天 `published` 为 0，或 `sourceFailures > 0`，仍需人工排查来源、
+权利、provider 或存储配置。本次只改退出码与可观测性，未改每日配额、
+来源白名单、审核维度或发布门禁，也未手动 dispatch 媒体流水线。
+
 ## 发布门禁
 
 发布前必须重新校验 candidate revision/hash、来源权利、审核维度、内容版本和播放/阅读资产有效期。任何自动化成功都不等于发布成功；撤下必须移除公开投影和语料索引，保留必要审计记录。

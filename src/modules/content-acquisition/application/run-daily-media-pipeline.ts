@@ -72,6 +72,36 @@ export type RunDailyMediaPipelineDependencies = Readonly<{
   now?: () => Date;
 }>;
 
+/**
+ * Exit contract of the scheduled `media-daily` run.
+ *
+ * A target shortfall, a `changes_requested`/`rejected` review decision or a
+ * candidate-scoped processing error is a content-supply outcome: the next
+ * daily run retries the candidate or discovers new material, and the operator
+ * reads `targetDeficitByType`, the review counters and the workflow summary.
+ * Those outcomes stay visible as `status: "partial"` but must not fail the
+ * workflow every day—otherwise the failure email becomes background noise and
+ * hides real breakage.
+ *
+ * An auto-publish run fails only for operational signals:
+ * - a `source`-scoped failure (a source could not be read, or the run could
+ *   not even count what was already published), or
+ * - the run reviewed candidates but nothing was published for the day at all,
+ *   which means the review/provider/publisher chain is broken rather than
+ *   merely selective.
+ */
+export function dailyMediaRunFails(
+  result: Readonly<Pick<
+    DailyMediaPipelineResult,
+    "mode" | "failures" | "reviewed" | "publishedByType"
+  >>,
+): boolean {
+  if (result.mode !== "auto-publish") return false;
+  if (result.failures.some((failure) => failure.scope === "source")) return true;
+  const publishedToday = result.publishedByType.video + result.publishedByType.podcast;
+  return result.reviewed > 0 && publishedToday === 0;
+}
+
 const DEFAULT_MEDIA_SOURCE_TIMEOUT_MS = 180_000;
 const DEFAULT_MEDIA_CANDIDATE_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_MEDIA_REVIEW_CONCURRENCY = 2;
