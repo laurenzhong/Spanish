@@ -9,6 +9,7 @@ import {
   type VideoCandidateDraft,
 } from "../normalizers";
 import { parseProviderJsonCandidates } from "./parse-provider-json";
+import { projectMediaDraftForModel } from "./media-review";
 
 export type MediaRevisionInput = Readonly<{
   candidateId: string;
@@ -65,6 +66,9 @@ export class MiniMaxMediaRevisionProvider implements MediaRevisionProvider {
 
   async revise(input: MediaRevisionInput): Promise<MediaRevisionPayload> {
     if (!this.options.apiKey.trim()) throw new Error("MEDIA_REVISION_MINIMAX_NOT_CONFIGURED");
+    // Word timings are playback data, not editorial input. Strip them even if
+    // a caller passes the raw draft so the request payload stays bounded.
+    const revisionInput = { ...input, draft: projectMediaDraftForModel(input.draft) };
     let lastError: Error | null = null;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
       const controller = new AbortController();
@@ -87,7 +91,7 @@ export class MiniMaxMediaRevisionProvider implements MediaRevisionProvider {
             "Do not modify stableKey, platform IDs, canonical URLs, enclosure URLs, hashes, license fields, copyright fields, or segment data.",
             ...(attempt > 1 ? ["This is a format retry. Return exactly one JSON object with at least one mutable field and no markdown, prose, or nested wrapper."] : []),
           ].join(" "),
-          messages: [{ role: "user", content: [{ type: "text", text: JSON.stringify(input) }] }],
+          messages: [{ role: "user", content: [{ type: "text", text: JSON.stringify(revisionInput) }] }],
         }),
         signal: controller.signal,
         });

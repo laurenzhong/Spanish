@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { podcastCandidateDraftSchema, videoCandidateDraftSchema } from "../normalizers";
+import { projectMediaDraftForModel } from "../providers/media-review";
 import type { MediaRevisionProvider } from "../providers/media-revision";
 import { mergeMediaRevision } from "../providers/media-revision";
 import type { ContentWorkflowRepository } from "../repositories";
@@ -25,7 +26,9 @@ export async function reviseMediaCandidateAfterReview(
     candidateId: candidate.id,
     candidateRevision: candidate.revision,
     contentType: candidate.contentType,
-    draft,
+    // The revision model edits mutable metadata only; keep word timings out of
+    // its payload while retaining them in the merged draft written back.
+    draft: projectMediaDraftForModel(draft),
     feedback,
   }));
   if (revised.stableKey !== draft.stableKey || revised.canonicalUrl !== draft.canonicalUrl || revised.language !== draft.language || revised.license !== draft.license || revised.licenseEvidence !== draft.licenseEvidence || revised.copyrightStatus !== draft.copyrightStatus) {

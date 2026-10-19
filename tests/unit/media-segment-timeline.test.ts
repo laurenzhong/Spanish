@@ -40,6 +40,51 @@ describe("media segment timeline", () => {
     expect(() => validateSegmentTimeline(segments, 501_000)).not.toThrow();
   });
 
+  it("accepts exact word timings inside a sentence cue", () => {
+    const words = [
+      { startMs: 0, endMs: 700, startOffset: 0, endOffset: 4, text: "Hola" },
+      { startMs: 700, endMs: 1_500, startOffset: 5, endOffset: 10, text: "mundo" },
+    ] as const;
+    expect(() => validateSegmentTimeline([
+      { index: 0, startMs: 0, endMs: 1_500, sourceText: "Hola mundo.", translation: "你好，世界。", speaker: null, confidence: null, sourceKind: "asr", words },
+    ], 1_500)).not.toThrow();
+  });
+
+  it("rejects malformed, mismatched, or out-of-window word timings", () => {
+    const base = { index: 0, startMs: 0, endMs: 2_000, sourceText: "Hola mundo.", translation: null, speaker: null, confidence: null, sourceKind: "asr" as const };
+    expect(() => validateSegmentTimeline([{
+      ...base,
+      words: [
+        { startMs: 0, endMs: 900, startOffset: 0, endOffset: 4 },
+        { startMs: 900, endMs: 2_000, startOffset: 4, endOffset: 10 },
+      ],
+    }], 2_000)).toThrow("MEDIA_SEGMENT_TIMELINE_INVALID");
+    expect(() => validateSegmentTimeline([{
+      ...base,
+      words: [{ startMs: 0, endMs: 900, startOffset: 0, endOffset: 4 }],
+    }], 2_000)).toThrow("MEDIA_SEGMENT_TIMELINE_INVALID");
+    expect(() => validateSegmentTimeline([{
+      ...base,
+      words: [
+        { startMs: 0, endMs: 900, startOffset: 0, endOffset: 4 },
+        { startMs: 900, endMs: 2_500, startOffset: 5, endOffset: 10 },
+      ],
+    }], 2_000)).toThrow("MEDIA_SEGMENT_TIMELINE_INVALID");
+    expect(() => validateSegmentTimeline([{
+      ...base,
+      words: [
+        { startMs: 0, endMs: 900, startOffset: 0, endOffset: 4, text: "Adiós" },
+        { startMs: 900, endMs: 2_000, startOffset: 5, endOffset: 10, text: "mundo" },
+      ],
+    }], 2_000)).toThrow("MEDIA_SEGMENT_TIMELINE_INVALID");
+  });
+
+  it("keeps accepting legacy timelines without word timings", () => {
+    expect(() => validateSegmentTimeline([
+      { index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, confidence: null, sourceKind: "platform_manual" },
+    ], 1_800)).not.toThrow();
+  });
+
   it("finds the active segment at exact boundaries", () => {
     const timeline = [
       { index: 0, startMs: 0, endMs: 1_000 },
