@@ -3,7 +3,7 @@ import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { generateLuciaProactiveMessage, createDrizzleProactiveMessageRepository, resolveConversationCharacter, getConversationCharacter } from "../src/modules/conversation";
 import { createDrizzleCharacterRepository } from "../src/modules/characters";
-import { formatNaturalDate, getDueLuciaProactiveSlots, parseLuciaProactiveUserIds } from "../src/modules/conversation/application/proactive-runner-utils";
+import { formatNaturalDate, getDueLuciaProactiveSlots, luciaProactiveGenerationAttempts, parseLuciaProactiveUserIds, shouldRetryLuciaProactiveGeneration } from "../src/modules/conversation/application/proactive-runner-utils";
 import { createDrizzleMemoryRepository } from "../src/modules/memory";
 import { createMiniMaxConversationProvider } from "../src/modules/providers/conversation/minimax-conversation";
 import { createOpenAIConversationProvider } from "../src/modules/providers/conversation/openai-conversation";
@@ -58,7 +58,7 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
             character: runtimeCharacter.catalog.snapshot,
             memories,
           });
-          for (let attempt = 1; attempt < 3 && result.status === "failed" && result.reason === "provider-unavailable"; attempt += 1) {
+          for (let attempt = 1; attempt < luciaProactiveGenerationAttempts && result.status === "failed" && shouldRetryLuciaProactiveGeneration(result.reason); attempt += 1) {
             result = await generateLuciaProactiveMessage({
               userId,
               source: "daily_share",

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { formatNaturalDate, getDueLuciaProactiveSlots, getLuciaProactiveSlots, parseLuciaProactiveUserIds } from "@/src/modules/conversation/application/proactive-runner-utils";
+import {
+  formatNaturalDate,
+  getDueLuciaProactiveSlots,
+  getLuciaProactiveSlots,
+  luciaProactiveGenerationAttempts,
+  parseLuciaProactiveUserIds,
+  shouldRetryLuciaProactiveGeneration,
+} from "@/src/modules/conversation/application/proactive-runner-utils";
 
 describe("Lucía proactive daily runner", () => {
   it("requires an explicit UUID allowlist and removes duplicate ids", () => {
@@ -22,5 +29,15 @@ describe("Lucía proactive daily runner", () => {
     expect(slots).toEqual(getLuciaProactiveSlots("00000000-0000-4000-8000-000000000001", "2026-09-24"));
     expect(slots.map((slot) => slot.sourceEventId)).toEqual(["2026-09-24:slot-1", "2026-09-24:slot-2", "2026-09-24:slot-3"]);
     expect(getDueLuciaProactiveSlots({ userId: "00000000-0000-4000-8000-000000000001", now: new Date("2026-09-24T02:00:00.000Z") }).length).toBe(1);
+  });
+
+  it("retries provider outages and rejected output samples, not deterministic failures", () => {
+    expect(luciaProactiveGenerationAttempts).toBe(3);
+    expect(shouldRetryLuciaProactiveGeneration("provider-unavailable")).toBe(true);
+    expect(shouldRetryLuciaProactiveGeneration("safety-gate-unsupported-script")).toBe(true);
+    expect(shouldRetryLuciaProactiveGeneration("safety-gate-question-policy")).toBe(true);
+    expect(shouldRetryLuciaProactiveGeneration("character-runtime-unavailable")).toBe(false);
+    expect(shouldRetryLuciaProactiveGeneration("relationship-inactive")).toBe(false);
+    expect(shouldRetryLuciaProactiveGeneration(null)).toBe(false);
   });
 });

@@ -124,27 +124,50 @@ export function proactiveReplyPlan(
   };
 }
 
+/**
+ * Stable, content-free reason why a generated proactive message was rejected.
+ * The code is persisted on the candidate and printed by the scheduler so a
+ * failure can be diagnosed without logging the message text.
+ */
+export type ProactiveSafetyViolation =
+  | "empty-or-too-long"
+  | "markdown"
+  | "unsupported-script"
+  | "internal-vocabulary"
+  | "banned-cliche"
+  | "ai-self-reference"
+  | "question-policy"
+  | "quiet-too-long"
+  | "one-line-too-long";
+
 /** Hard checks for text generated for an already-qualified proactive message. */
-export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): boolean {
+export function proactiveMessageSafetyViolation(
+  text: string,
+  plan: ProactiveReplyPlan,
+): ProactiveSafetyViolation | null {
   const normalized = text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/gu, "")
     .toLocaleLowerCase("es-ES")
     .trim();
-  if (!normalized || normalized.length > 480) return false;
-  if (/[*_`#<>]/u.test(text)) return false;
+  if (!normalized || normalized.length > 480) return "empty-or-too-long";
+  if (/[*_`#<>]/u.test(text)) return "markdown";
   // An unsolicited message has no user turn that could justify another
   // language, so it must be pure Spanish. A Spanish sentence carrying a stray
   // "随机" is the reported defect; the provider prompt alone did not prevent it.
-  if (containsUnsupportedScript(text)) return false;
-  if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return false;
-  if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return false;
-  if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
+  if (containsUnsupportedScript(text)) return "unsupported-script";
+  if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return "internal-vocabulary";
+  if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return "banned-cliche";
+  if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return "ai-self-reference";
   const questionCount = (text.match(/[¿?]/gu) ?? []).length;
-  if (questionCount > 2 || (questionCount > 0 && !plan.questionPolicy.allowReciprocalQuestion)) return false;
-  if (plan.interactionMode === "quiet" && normalized.length > 240) return false;
-  if (plan.preferredLength === "one-line" && (text.includes("\n") || text.length > 96)) return false;
-  return true;
+  if (questionCount > 2 || (questionCount > 0 && !plan.questionPolicy.allowReciprocalQuestion)) return "question-policy";
+  if (plan.interactionMode === "quiet" && normalized.length > 240) return "quiet-too-long";
+  if (plan.preferredLength === "one-line" && (text.includes("\n") || text.length > 96)) return "one-line-too-long";
+  return null;
+}
+
+export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): boolean {
+  return proactiveMessageSafetyViolation(text, plan) === null;
 }
 
 export function proactiveDedupeKey(input: Readonly<{

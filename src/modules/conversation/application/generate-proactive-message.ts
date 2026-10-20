@@ -4,8 +4,8 @@ import type { CharacterReplyProvider } from "@/src/modules/providers/conversatio
 import type { ReplyCharacterSnapshot } from "./build-reply-context";
 import {
   evaluateProactiveEligibility,
-  isProactiveMessageSafe,
   proactiveDedupeKey,
+  proactiveMessageSafetyViolation,
   proactiveReplyPlan,
   type ProactiveDailyState,
   type ProactiveMessageSource,
@@ -69,7 +69,8 @@ export async function previewLuciaProactiveMessage(input: Readonly<{
       dailyState: input.dailyState ?? "available",
       preferredLength: plan.preferredLength,
     });
-    if (!isProactiveMessageSafe(result.text, plan)) return { status: "failed", reason: "safety-gate", text: null };
+    const violation = proactiveMessageSafetyViolation(result.text, plan);
+    if (violation) return { status: "failed", reason: `safety-gate-${violation}`, text: null };
     return { status: "preview", text: result.text.trim() };
   } catch (error) {
     return { status: "failed", reason: error instanceof Error ? error.message : "provider-unavailable", text: null };
@@ -149,9 +150,11 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
       dailyState: input.dailyState ?? "available",
       preferredLength: plan.preferredLength,
     });
-    if (!isProactiveMessageSafe(result.text, plan)) {
-      await input.repository.failCandidate({ userId: input.userId, candidateId: candidate.id, errorCode: "safety-gate" });
-      return { status: "failed", reason: "safety-gate", candidate, message: null };
+    const violation = proactiveMessageSafetyViolation(result.text, plan);
+    if (violation) {
+      const errorCode = `safety-gate-${violation}`;
+      await input.repository.failCandidate({ userId: input.userId, candidateId: candidate.id, errorCode });
+      return { status: "failed", reason: errorCode, candidate, message: null };
     }
     const completed = await input.repository.completeCandidate({
       userId: input.userId,

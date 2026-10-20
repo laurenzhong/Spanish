@@ -5,6 +5,7 @@ import {
   generateLuciaProactiveMessage,
   previewLuciaProactiveMessage,
   isProactiveMessageSafe,
+  proactiveMessageSafetyViolation,
   proactiveReplyPlan,
   type ProactiveMessageCandidateRecord,
   type ProactiveMessageRepository,
@@ -189,9 +190,9 @@ describe("generateLuciaProactiveMessage", () => {
       generate: vi.fn().mockResolvedValue({ text: "Me apetecía saludarte随机.", provider: "minimax", modelVersion: "MiniMax-M3", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }),
     };
     const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", now, repository, provider, character: getConversationCharacter("lucia").snapshot });
-    expect(result).toMatchObject({ status: "failed", reason: "safety-gate", message: null });
+    expect(result).toMatchObject({ status: "failed", reason: "safety-gate-unsupported-script", message: null });
     expect(repository.completeCandidate).not.toHaveBeenCalled();
-    expect(repository.failCandidate).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "safety-gate" }));
+    expect(repository.failCandidate).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "safety-gate-unsupported-script" }));
   });
 
   it("does not call a provider when policy suppresses the message", async () => {
@@ -209,4 +210,21 @@ describe("generateLuciaProactiveMessage", () => {
     expect(provider.generate).not.toHaveBeenCalled();
   });
 });
+
+describe("proactiveMessageSafetyViolation", () => {
+  const plan = proactiveReplyPlan("daily_share", "familiar");
+
+  it("returns a stable code for every rejection reason", () => {
+    expect(proactiveMessageSafetyViolation("", plan)).toBe("empty-or-too-long");
+    expect(proactiveMessageSafetyViolation("Hola *Lucía*.", plan)).toBe("markdown");
+    expect(proactiveMessageSafetyViolation("Me apetecía saludarte随机.", plan)).toBe("unsupported-script");
+    expect(proactiveMessageSafetyViolation("Te comparto una foto de la app.", plan)).toBe("internal-vocabulary");
+    expect(proactiveMessageSafetyViolation("¿Qué tal? ¿Y tú? ¿Y el finde?", plan)).toBe("question-policy");
+  });
+
+  it("returns null for a safe everyday message", () => {
+    expect(proactiveMessageSafetyViolation("Me apetecía compartir una pequeña alegría contigo.", plan)).toBeNull();
+  });
+});
+
 

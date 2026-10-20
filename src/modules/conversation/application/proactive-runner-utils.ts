@@ -62,3 +62,21 @@ export function getDueLuciaProactiveSlots(input: Readonly<{ userId: string; now:
   const minutes = naturalMinutes(input.now, timeZone);
   return getLuciaProactiveSlots(input.userId, date).filter((slot) => slot.targetMinutes <= minutes);
 }
+
+/**
+ * How many generation attempts one due slot gets in a single scheduled run.
+ * A failed candidate is re-armed by `createCandidate`, so each retry asks the
+ * provider for a fresh sample instead of replaying the stored error.
+ */
+export const luciaProactiveGenerationAttempts = 3;
+
+/**
+ * Only transient or output-sample failures are worth another provider call.
+ * Provider outages and safety-gate rejections (for example a stray Han
+ * character in an otherwise Spanish message) can differ on resampling;
+ * deterministic data/configuration failures are not retried.
+ */
+export function shouldRetryLuciaProactiveGeneration(reason: string | null | undefined): boolean {
+  if (!reason) return false;
+  return reason === "provider-unavailable" || reason.startsWith("safety-gate-");
+}
