@@ -47,7 +47,11 @@ jobs:
   daily:
     runs-on: ${{ fromJSON(vars.CONTENT_MEDIA_RUNNER_LABELS || '["ubuntu-latest"]') }}
     environment: content-production
-    timeout-minutes: 60
+    # Review-only and auto-publish run sequentially in this job. On 2026-10-20 the
+    # review-only stage alone prepared 9 candidates and took 45 minutes, so the old
+    # 60-minute cap cancelled the run before auto-publish could publish anything.
+    # Keep headroom for days closer to the 20-candidate daily limit.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
