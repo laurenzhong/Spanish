@@ -1,5 +1,10 @@
 # PROJECT_STATUS.md
 
+- 2026-10-20 `MERGE-RECONCILE-001`（`review`，只读盘点与试合并，未执行合并）：用户授权自主决定后，为解决 `origin/main`（76 个提交、77 个文件）与共享分支（193 个提交、819 个文件）的长期分叉，在干净 worktree 从 `origin/main` 试合并共享分支并立即 `merge --abort`，未污染任何分支。试合并共 **32 个冲突文件**（57 个双方都改过的文件）；冲突集中在词级时间轴/STT、播客源解析/下载/封面、每日媒体管线、Lucía 主动消息、媒体/聊天 UI、依赖契约与文档状态。main 侧已有 Plyr、播客源解析、封面自托管、精确词时、PR #80、Lucía safety-gate 重试、每日退出码与 180 分钟超时；分支侧有 main 缺的 TTS、短语 v3、语料、词汇 Tatoeba/朗读、媒体系列与四板块画像。合入后 main 将增加约 830 文件、236,099 行（含 Tatoeba 数据资产）。
+  - 交付：[MERGE-RECONCILE-2026-10-20.md](docs/tasks/MERGE-RECONCILE-2026-10-20.md)，含冲突清单、A–G 分组解决策略、执行步骤、功能存在性清单、迁移/回滚风险和上一轮 `2c3ece1`/`fdc3f78` 静默丢功能的防复发措施。结论：分叉可合并，但必须逐文件语义解决，禁止整树取一边。
+  - 限制：只做试合并，未解决冲突、未提交合并、未推送 main、未跑迁移/provider/部署；main 与分支仍未对齐。
+  - 下一步：明天 `OPS-CI-003` 自然调度验证后，经所有者确认“一次性整合发布”范围，按方案在独立 worktree 执行合并 + 全量门禁 + PR；合并完成后冻结共享分支，所有新任务从 main 切分支。
+
 - 2026-10-20 `WORKSPACE-CHECKPOINT-001`（`review`，用户选择“按 P0→P2 顺序开始”后执行）：只读核对发现共享工作区自 2026-10-16 16:55 之后的所有 review 任务都没有提交，本地分支 `codex/disable-legacy-readlang` 落后 `origin/main` 71 个提交、领先 188 个，且 `origin/main` 缺 TTS 朗读、媒体系列 0046、短语 v3、语料 API、播放 overview 等核心文件——工作区是这些成果的唯一副本。本轮按配置/工具/数据（`7a6fbea`，32 文件）、产品代码与测试（`5b06a6d`，431 文件）、设计文档（`9f6fd08`，88 文件）三个 checkpoint 提交并推送到共享分支，保留各任务切片与历史记录；未合并到 main、未改写任何历史提交。
   - 工作区整理：`tsconfig.json` 中被历次验证会话追加的 `.next/*` 临时 include 已还原；`.gitignore` 增加 `.tmp-*`、`.pnpm-store/`、`node_modules.incomplete/` 忽略，根目录临时文件不再出现在 `git status`；根目录散落的 `scenario-mobile.png` 仍未跟踪、未提交。
   - 验证：全树 `tsc --noEmit` exit 0；聚焦 Vitest 6 文件 **120 项**通过（vocabulary-shelf 68、media-detail-experience 9、learn-page 7、conversation-bubbles 14、proactive-message 17、read-aloud-service 5）。未重跑全量 lint/Vitest/E2E/build（共享树既有 OOM 与基线失败记录，各切片已单独报告）；本提交不改变运行时行为。
