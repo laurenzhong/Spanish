@@ -120,6 +120,8 @@
 
 ## 7. 语音、AI 与供应商
 
+- Web/PWA 所有现有及新增合成朗读统一使用 `providers/tts` 的 `createReadAloud` / `useReadAloud` 与鉴权 `/api/v1/tts`，固定 MiniMax `speech-2.8-turbo` / `Spanish_SereneWoman` 女声（ADR-0019）。不得直接调用浏览器 `speechSynthesis`、自行选择其他声音或静默回退。真实媒体与有许可的真人录音保留各自原声；朗读不产生学习能力证据。
+
 - 业务模块只依赖内部 provider 接口。
 - API 密钥只存在服务端。
 - 供应商响应必须转换为内部类型并通过 Zod 校验。

@@ -1,0 +1,960 @@
+{
+  "schemaVersion": 1,
+  "catalogueKey": "alpha-series-v1",
+  "entries": [
+    {
+      "seriesKey": "series.peppa-pig-es-latino",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.peppa-pig-es-latino",
+        "expectedRevision": 0,
+        "title": "Peppa Pig en Español Latino",
+        "summary": "Vídeos, clips y recopilaciones de Peppa Pig en español latino.",
+        "kind": "video",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.youtube.com/channel/UCrreHSUa5rnuCVDeO8dX4eA",
+          "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+          "Published source_channel_id: UCrreHSUa5rnuCVDeO8dX4eA"
+        ],
+        "members": [
+          {
+            "stableKey": "youtube.language-reactor.0f655eb709f7de01ec09f51b",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=zcykUnmnHa4",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig en Español Latino: Un largo viaje en tren"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.169ce859154c22c2a38abe8d",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=KAiyT_ua_T4",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa va al dentista (clip) | Peppa Pig en Español | Pepa la cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.1b8dead97d73ec570e42b3b9",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=doPS18DtqLU",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: ¡Peppa y la gran aventura de pintar! 🎨 | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.3c1b7c7e9538bea68e02b987",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=9UU-MVXg41s",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig en Español: Peppa celebra el Carnaval con disfraces"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.40f3d8811da3256beff5e573",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=EVBbTLWqJ64",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Días de juego con Peppa | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.4b03445db0bfdbefb291ded6",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=TO2yEJgJKRw",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: ¡El Bebé Guarro llega a la familia! 🐷👶 | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.5b33771134f7671906118547",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=YNGVzu7aGIA",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig en Español Episodios completos | Pequeñilandia | Pepa la cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.5fc903ff3fafb301288b3a8b",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=vtePahYwfQM",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa visita el hospital | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.637f0118672a0f9b3d58cd22",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=v3qW03aZOT0",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: ¡Peppa juega con los niños! 🐷 | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.64f9b9ffeab385852e941863",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=PfWVG7FFIbw",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: ¡Peppa en la playa, el sol y la nieve navideña! ☀️❄️ | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.6fe9f2b9f1ecf2b86c04a21a",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=1qYgqfDD-DY",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: El bulto de Mamá Rabbit | Peppa Pig en Español Latino"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.74cf6ec47411960a44c7974d",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=yw5EhfOU2iE",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: ¡Peppa se va de acampada y vuelve al colegio! 🏕️🎒 | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.7e66387dc3167d77fc379f15",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=8Vegtx0gybI",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: ¡Cocinando con Peppa! 🍳 | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.7edb2352504d8388d63c8a76",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=VW1rpazHzb4",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: ¡Peppa hace cerámica! 🏺 | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.ad09ca1bf27a93e33e190b62",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=sSdgJRK46wc",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: ¡Buenas noches, Peppa! 🌙 ¿Podrá dormirse? | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.ad72efd1c4aaa7fb69056ff1",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=f1LeTG21CCY",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig Español Capitulos Completos - La Navidad de Peppa - Episodios de Navidad- Pepa la cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.b0f0d131fff1f8331a13e732",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=pxuvcMqzZFw",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig En Español | Videos De Peppa Pig Capitulos Completos | Pepa la Cerdita | Pepa la cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.b85f2e3c4d3f8b85a2e5b2c5",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=gV7pV8XNPxg",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: La casa nueva | Peppa Pig en Español Latino"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.bd35be11c23130f396e9b544",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=DR34aGVJRU8",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig en Español Latino | Jugar y trabajar – Compilación 2019"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.bf2b3a27b939ede0875ef1db",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=Az68e53le8M",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig en Español Capitulos Completos -  ¡Fiesta de cumpleaños de Peppa! - Pepa la cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.c7f96252872ccbee859347dc",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=5E6pFYqL_es",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig Español Latino - Helado (clip)"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.cf319f98a972f8fc4d5b6dc9",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=SuZvwKzwLbo",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa va a tener un bebé | Los Cuentos de Peppa la Cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.d877540d6f039fbffe1a2506",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=K2_qZ2TKt9s",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig en Español | Lava-jato (clip) | Pepa la cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.f40620ebdd85832804a879db",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=XyuhfzmF2Ck",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig en Español Episodios completos ⚡️La tormenta 🌧Pepa la cerdita"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.fb0e8cc9436f764f81369218",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=Eog6R528OMo",
+              "Published source_name: Peppa Pig Español Latino - Canal Oficial",
+              "Published item title: Peppa Pig en Español 🍼 Niños"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    },
+    {
+      "seriesKey": "series.31-minutos",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.31-minutos",
+        "expectedRevision": 0,
+        "title": "31 minutos",
+        "summary": "Vídeos musicales de 31 minutos.",
+        "kind": "video",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.youtube.com/channel/UCrVhY_d0L0qayRhMsRlPBOA",
+          "Published source_name: 31 minutos",
+          "Published source_channel_id: UCrVhY_d0L0qayRhMsRlPBOA"
+        ],
+        "members": [
+          {
+            "stableKey": "youtube.language-reactor.2ed7b5a8401b017dc7153bba",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=0HoxZKSD-_c",
+              "Published source_name: 31 minutos",
+              "Published item title: 31 minutos - Pepe Lota - Señora, devuélvame la pelota o si no, no sé lo que haré"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.47c7cbd6ee81c2e97f83f05f",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=ziB9IZ21dVA",
+              "Published source_name: 31 minutos",
+              "Published item title: 31 minutos - La Corchetis - Son pololos"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.952691fad0fcdeca0e2af5cf",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=VXTq_5H2WSI",
+              "Published source_name: 31 minutos",
+              "Published item title: 31 minutos - LLUEHHHB - Bailan sin cesar"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    },
+    {
+      "seriesKey": "series.caso-cerrado",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.caso-cerrado",
+        "expectedRevision": 0,
+        "title": "Caso Cerrado",
+        "summary": "Vídeos del programa Caso Cerrado de Telemundo.",
+        "kind": "video",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.youtube.com/channel/UCGbofRROopWrumVob5w61OA",
+          "Published source_name: Caso Cerrado",
+          "Published source_channel_id: UCGbofRROopWrumVob5w61OA"
+        ],
+        "members": [
+          {
+            "stableKey": "youtube.language-reactor.03d6caf3025d5d4ff7173b98",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=CP2W-2RKizY",
+              "Published source_name: Caso Cerrado",
+              "Published item title: Esposo peligroso, Casos Completos | Caso Cerrado | Telemundo"
+            ]
+          },
+          {
+            "stableKey": "youtube.language-reactor.78ab2ff16039f05619953aec",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.youtube.com/watch?v=7q3ubroqaQA",
+              "Published source_name: Caso Cerrado",
+              "Published item title: Pene que espanta | Caso Cerrado | Telemundo"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    },
+    {
+      "seriesKey": "series.a-hombros-de-gigantes",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.a-hombros-de-gigantes",
+        "expectedRevision": 0,
+        "title": "A hombros de gigantes",
+        "summary": "Episodios de A hombros de gigantes.",
+        "kind": "podcast",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.languagereactor.com/c/es/pd/t_pd_mix_es",
+          "Published source_name: A hombros de gigantes",
+          "Language Reactor aggregate catalogue; this URL is not an independently verified programme RSS feed."
+        ],
+        "members": [
+          {
+            "stableKey": "podcast.language-reactor.it_1e54ea384f81",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_1e54ea384f81",
+              "Published source_name: A hombros de gigantes",
+              "Published item title: A hombros de gigantes - La Tierra no tiembla más de lo normal - 06/09/2026"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_fc6519ca9068",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_fc6519ca9068",
+              "Published source_name: A hombros de gigantes",
+              "Published item title: A hombros de gigantes - Matemáticos españoles detrás de la solución de uno de los Problemas del Milenio - 20/09/2026"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    },
+    {
+      "seriesKey": "series.acontece-que-no-es-poco",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.acontece-que-no-es-poco",
+        "expectedRevision": 0,
+        "title": "Acontece que no es poco con Nieves Concostrina",
+        "summary": "Episodios de Acontece que no es poco con Nieves Concostrina.",
+        "kind": "podcast",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.languagereactor.com/c/es/pd/t_pd_mix_es",
+          "Published source_name: Acontece que no es poco con Nieves Concostrina",
+          "Language Reactor aggregate catalogue; this URL is not an independently verified programme RSS feed."
+        ],
+        "members": [
+          {
+            "stableKey": "podcast.language-reactor.it_180dd44fec02",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_180dd44fec02",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | 27 de julio de 1854: El regreso de Espartero y el cerco a los Borbones"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_2507e3a9deec",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_2507e3a9deec",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | 30 de junio de 1854: La Vicalvarada que llevó a la expulsión de Cristina de Borbón… otra vez"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_4a2bbf6e88ce",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_4a2bbf6e88ce",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | 17 de julio de 1854: Arde Madrid… la otra revolución francesa"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_7cfd728323bc",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_7cfd728323bc",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | 16 de septiembre de 1920: Las injurias al rey de Unamuno"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_7e8b5c0dbf12",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_7e8b5c0dbf12",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | 10 de septiembre de 1586: El papa que le robó el obelisco al Dios Ra"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_90ba7546eceb",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_90ba7546eceb",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | 17 de septiembre de 1497: Castilla conquista Melilla"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_acf9a12f5c86",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_acf9a12f5c86",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | Julio de 1854: el cerco a los Borbones y la negociación para traer de vuelta a Espartero"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_e33ba0c155ed",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_e33ba0c155ed",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | 15 septiembre de 1897: El obispo de Palma excomulga al ministro de Hacienda"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_e6e5117db1e4",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_e6e5117db1e4",
+              "Published source_name: Acontece que no es poco con Nieves Concostrina",
+              "Published item title: Acontece que no es poco | María Calderón, el capricho de Felipe IV"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    },
+    {
+      "seriesKey": "series.cheleando-con-mextalki",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.cheleando-con-mextalki",
+        "expectedRevision": 0,
+        "title": "Cheleando con Mextalki",
+        "summary": "Episodios del podcast Cheleando con Mextalki.",
+        "kind": "podcast",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.languagereactor.com/c/es/pd/t_pd_mix_es",
+          "Published source_name: Cheleando con Mextalki",
+          "Language Reactor aggregate catalogue; this URL is not an independently verified programme RSS feed."
+        ],
+        "members": [
+          {
+            "stableKey": "podcast.language-reactor.it_0bc4697d9627",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": 186,
+            "episodeLabel": "#186",
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_0bc4697d9627",
+              "Published source_name: Cheleando con Mextalki",
+              "Published item title: PODCAST \"cheleando con Mextalki\": #186 - Las PEREGRINACIONES a la basílica y a Chalma"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    },
+    {
+      "seriesKey": "series.cnn-5-cosas",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.cnn-5-cosas",
+        "expectedRevision": 0,
+        "title": "CNN 5 Cosas",
+        "summary": "Episodios informativos de CNN 5 Cosas.",
+        "kind": "podcast",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.languagereactor.com/c/es/pd/t_pd_mix_es",
+          "Published source_name: CNN 5 Cosas",
+          "Language Reactor aggregate catalogue; this URL is not an independently verified programme RSS feed."
+        ],
+        "members": [
+          {
+            "stableKey": "podcast.language-reactor.it_017bd0dfe8fc",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_017bd0dfe8fc",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas: huracán en Baja California Sur, turismo de parto, caso en Cornell, aranceles EE.UU.–China y Starship"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_13becc04a3a3",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_13becc04a3a3",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas 09/06/26"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_1cb2713f1c8e",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_1cb2713f1c8e",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas 10/02/26 6pm"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_1decf0b9f4d6",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_1decf0b9f4d6",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas 09/04/26 6pm"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_2f13c5a713fb",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_2f13c5a713fb",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN en Español: 5 Cosas — Hutíes en Yemen, sanciones a Rusia, derechos humanos en Venezuela y más"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_3bff0cfe91cd",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_3bff0cfe91cd",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 Cosas: noticias del 4 de septiembre de 2026"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_4a54ee69569b",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_4a54ee69569b",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 Cosas - 18 de septiembre de 2026"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_8f7182cc7eca",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_8f7182cc7eca",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas: accidente aéreo en Miami, explosión en México, tensión en Líbano, elecciones en Alemania y caso del USPS ante la Corte Suprema"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_921b6e8fc4de",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_921b6e8fc4de",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas 09/03/26 6am"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_dfe9b6aef5fa",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_dfe9b6aef5fa",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 Cosas — noticias del 7 de septiembre"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_e3457c2dec74",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_e3457c2dec74",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 Cosas: cinco noticias del 21 de septiembre de 2026"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_e4cf100bce5a",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_e4cf100bce5a",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas: cinco noticias internacionales del 5 de septiembre de 2026"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_e643a1683670",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_e643a1683670",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 Cosas: cinco noticias del 9 de agosto de 2026"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_ec8fd82f63ff",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_ec8fd82f63ff",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas: noticias del 9 de agosto de 2026 (6 pm)"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_ede54fc47675",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_ede54fc47675",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 Cosas: cinco noticias del 10 de enero de 2026"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_f8b3b4c328e0",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": null,
+            "episodeLabel": null,
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_f8b3b4c328e0",
+              "Published source_name: CNN 5 Cosas",
+              "Published item title: CNN 5 cosas 09/03/26 6pm"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    },
+    {
+      "seriesKey": "series.fallo-de-sistema",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.fallo-de-sistema",
+        "expectedRevision": 0,
+        "title": "Fallo de sistema",
+        "summary": "Episodios de Fallo de sistema.",
+        "kind": "podcast",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.languagereactor.com/c/es/pd/t_pd_mix_es",
+          "Published source_name: Fallo de sistema",
+          "Language Reactor aggregate catalogue; this URL is not an independently verified programme RSS feed."
+        ],
+        "members": [
+          {
+            "stableKey": "podcast.language-reactor.it_3f48f786ba34",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": 885,
+            "episodeLabel": "885",
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_3f48f786ba34",
+              "Published source_name: Fallo de sistema",
+              "Published item title: Fallo de sistema - 885: ¿Adios al formato físico de los videojuegos? - 05/09/26"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_a790fe7fb425",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": 886,
+            "episodeLabel": "886",
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_a790fe7fb425",
+              "Published source_name: Fallo de sistema",
+              "Published item title: Fallo de sistema - 886: Sembrar futuros con Eurídice Cabañes - 12/09/26"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    },
+    {
+      "seriesKey": "series.news-in-slow-spanish-latino",
+      "command": {
+        "idempotencyKey": "alpha-series-v1:series.news-in-slow-spanish-latino",
+        "expectedRevision": 0,
+        "title": "News in Slow Spanish Latino (Intermediate)",
+        "summary": "Episodios de News in Slow Spanish Latino (Intermediate).",
+        "kind": "podcast",
+        "orderMode": "episodic",
+        "status": "active",
+        "reason": "MEDIA-SERIES-002: match published source metadata and explicit programme title; upload dates do not establish official episode order.",
+        "evidence": [
+          "https://www.languagereactor.com/c/es/pd/t_pd_mix_es",
+          "Published source_name: News in Slow Spanish Latino (Intermediate)",
+          "Language Reactor aggregate catalogue; this URL is not an independently verified programme RSS feed."
+        ],
+        "members": [
+          {
+            "stableKey": "podcast.language-reactor.it_0f4ad6d5a475",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": 693,
+            "episodeLabel": "#693",
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_0f4ad6d5a475",
+              "Published source_name: News in Slow Spanish Latino (Intermediate)",
+              "Published item title: News In Slow Spanish Latino #693- Easy Spanish Podcast"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_476e9a104e5f",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": 692,
+            "episodeLabel": "#692",
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_476e9a104e5f",
+              "Published source_name: News in Slow Spanish Latino (Intermediate)",
+              "Published item title: News In Slow Spanish Latino #692- Easy Spanish Podcast"
+            ]
+          },
+          {
+            "stableKey": "podcast.language-reactor.it_9137a8f1cd50",
+            "position": null,
+            "seasonNumber": null,
+            "episodeNumber": 691,
+            "episodeLabel": "#691",
+            "evidence": [
+              "https://www.languagereactor.com/c/es/pd/t_pd_mix_es?doc=it_9137a8f1cd50",
+              "Published source_name: News in Slow Spanish Latino (Intermediate)",
+              "Published item title: News In Slow Spanish Latino #691- News Spanish Podcast"
+            ]
+          }
+        ],
+        "removeStableKeys": [],
+        "fromSeriesRevisions": {}
+      }
+    }
+  ]
+}

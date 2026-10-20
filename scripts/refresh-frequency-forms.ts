@@ -36,6 +36,23 @@ if (!connection) {
 
 const { client, db } = createDatabaseConnection(connection);
 
+/**
+ * The aggregate reads 109k published segments and resolves each form's example
+ * (its text, title and, since `0044`, the media version and segment it came
+ * from). Measured on the real corpus that statement runs in about two minutes,
+ * which is past the database's global `statement_timeout` of 120 s — the first
+ * run of this script failed with `canceling statement due to statement timeout`
+ * while a plain group-by over the same corpus took 6 s, so the bound is what
+ * stopped it, not an unbounded query.
+ *
+ * The limit is raised for this session only, and only for this job: a nightly
+ * batch refresh may take minutes, while every request-serving query keeps the
+ * server's own bound. `SET LOCAL` is deliberately not used because the refresh
+ * runs its own transaction, which would end the setting with it.
+ */
+const REFRESH_STATEMENT_TIMEOUT_MS = 300_000;
+await client.unsafe(`set statement_timeout = ${REFRESH_STATEMENT_TIMEOUT_MS}`);
+
 try {
   const previous = await readCorpusFormFrequencyState(db);
   console.log("=== refresh lexicon form frequencies ===");
