@@ -178,3 +178,27 @@ PR [#78](https://github.com/laurenzhong/Spanish/pull/78) 已合入 main
 下一次自然 schedule 仍需按惯例核对 checkout SHA 与结果；同一 workflow 与
 同一命令已完成真实 provider 生成的端到端验证，因此不再等待空 `results`
 作为恢复证据。
+
+## 2026-10-20：安全门拒绝的重试与原因码（LUCIA-CI-003）
+
+2026-10-20 13:07（北京时间）的定时 run `39373158863` 结果为
+`{"generated":0,"suppressed":0,"failed":1,"reason":"safety-gate"}`：
+provider 返回的样本被 `isProactiveMessageSafe` 拦截（该门禁是设计内的
+防御，不是基础设施故障），但旧实现只记录笼统的 `safety-gate` 且不再重采样，
+workflow 因此失败并发送邮件。相邻三次调度（16:29Z、21:12Z、00:23Z）均成功。
+
+修复 Commit `d4962811e6c245db2e9f490a1e3598cdd8f41e39`（分支
+`codex/lucia-proactive-v3-runtime`，tag `lucia-runtime-v3.1`）：
+
+- `proactiveMessageSafetyViolation` 为每条规则返回稳定原因码
+  （`unsupported-script`、`question-policy`、`markdown` 等），
+  `isProactiveMessageSafe` 只是它的布尔包装；生成/预览把
+  `safety-gate-<code>` 写入候选与运行结果，不记录消息正文。
+- 定时 runner 对单个时段最多尝试 3 次生成，只在 `provider-unavailable`
+  或 `safety-gate-*` 时重试；候选由 repository 重新置为 generating，
+  因此每次重试都会向 provider 重新采样。
+- 3 次仍被拒绝仍会失败，保留对持续提示词/模型回归的告警；不接受把安全
+  门禁降级为静默通过。
+
+验证：全仓 `tsc --noEmit` exit 0；4 个相关测试文件 **32 项**通过；定向
+ESLint exit 0。workflow 的 checkout ref 同时更新为本提交。
