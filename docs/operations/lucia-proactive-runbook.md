@@ -202,3 +202,19 @@ workflow 因此失败并发送邮件。相邻三次调度（16:29Z、21:12Z、00
 
 验证：全仓 `tsc --noEmit` exit 0；4 个相关测试文件 **32 项**通过；定向
 ESLint exit 0。workflow 的 checkout ref 同时更新为本提交。
+
+合并与真实运行：PR [#81](https://github.com/laurenzhong/Spanish/pull/81)
+于北京时间 **14:47** 合入 main（merge `a8eaff9`，workflow 更新提交
+`3fbeb97`）。**14:48** 手动 dispatch run
+[`39382437757`](https://github.com/laurenzhong/Spanish/actions/runs/39382437757)
+成功（约 50 秒）：
+
+```json
+{"date":"2026-10-20","generated":1,"suppressed":1,"failed":0,
+ "results":[{"status":"generated","messageId":"cb265178-09ea-4b7a-adb0-ba20b27e4a26"},
+            {"status":"suppressed","reason":"cooldown"}]}
+```
+
+今早被安全门禁拦截的时段在重采样后真实生成；第二个到期时段按 4 小时冷却
+正常抑制，退出码 0。后续若再次出现 `safety-gate-<code>`，应按原因码排查
+提示词或模型，连续两次以上同类拒绝需要另立修复，而不是继续增加重试次数。
