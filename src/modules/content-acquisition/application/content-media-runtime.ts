@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { groupProviderWordsIntoSentences, MediaWordTimelineError } from "@/src/modules/media/domain";
 import { createMiniMaxTranscriptionProvider, createOpenAITranscriptionProvider } from "@/src/modules/providers/stt/server";
 import { isSpeechToTextError, maxTranscriptionAudioBytes, SpeechToTextError } from "@/src/modules/providers/stt/transcription";
 import type { SpeechToTextProvider } from "@/src/modules/providers/stt/transcription";
@@ -14,6 +15,7 @@ import {
   type MediaTranscriptionEvent,
   type MediaTranscriptionProvider,
   type MediaTranslationProvider,
+  type RawTranscriptSegment,
 } from "@/src/modules/media-processing";
 import { languageReactorRightsPolicySchema } from "../adapters/language-reactor/language-reactor-adapter";
 import { podcastRightsPolicySchema } from "../adapters/podcast/podcast-policy";
@@ -58,7 +60,7 @@ export type ContentMediaRuntime = Readonly<{
   createArtifactStore: (candidate: ContentCandidateRecord, source: ContentSourceRecord) => MediaProcessingArtifactStore;
 }>;
 
-class SpeechToMediaTranscriptionProvider implements RuntimeTranscriber {
+export class SpeechToMediaTranscriptionProvider implements RuntimeTranscriber {
   readonly providerName: string;
   readonly modelVersion: string;
 
@@ -93,10 +95,12 @@ class SpeechToMediaTranscriptionProvider implements RuntimeTranscriber {
     } finally {
       bytes.fill(0);
     }
-    const text = result.text.trim();
-    const segments = splitTranscriptText(text, input.durationMs);
+    const providerSegments = result.segments ?? [];
+    const segments = providerSegments.length > 0
+      ? this.providerWordSegments(providerSegments, input.durationMs, result)
+      : splitTranscriptText(result.text.trim(), input.durationMs).map((segment) => ({ ...segment, confidence: result.confidence }));
     for (const segment of segments) {
-      yield { type: "segment", segment: { ...segment, confidence: result.confidence } };
+      yield { type: "segment", segment };
     }
     yield {
       type: "done",
@@ -104,6 +108,59 @@ class SpeechToMediaTranscriptionProvider implements RuntimeTranscriber {
       modelVersion: result.modelVersion,
       estimatedCostMicros: result.estimatedCostMicros ?? 0,
     };
+  }
+
+  /**
+   * Requirements for real word-level playback: only provider word timestamps
+   * are accepted. A provider that returned a non-word-level timeline (or
+   * timings outside the candidate duration) fails closed instead of producing
+   * an estimated sentence timeline.
+   */
+  private providerWordSegments(
+    providerSegments: NonNullable<Awaited<ReturnType<SpeechToTextProvider["transcribe"]>>["segments"]>,
+    durationMs: number,
+    result: Awaited<ReturnType<SpeechToTextProvider["transcribe"]>>,
+  ): Array<{ startMs: number; endMs: number; text: string; confidence: number | null; words: NonNullable<RawTranscriptSegment["words"]> }> {
+    // Some adapters (the MiniMax one on the daily pipeline) already group
+    // provider word units into sentence segments and keep exact per-word
+    // offsets. Reuse that timeline instead of feeding sentence-level units to
+    // the word grouping API, which correctly rejects multi-token units.
+    const preGrouped = providerSegments.every((segment) => Array.isArray(segment.words) && segment.words.length > 0);
+    try {
+      if (preGrouped) {
+        return providerSegments.map((segment) => {
+          const words = segment.words ?? [];
+          if (segment.startMs < 0 || segment.endMs <= segment.startMs || segment.endMs > durationMs || words.length === 0) {
+            throw new MediaWordTimelineError("A grouped provider sentence is outside the media duration.");
+          }
+          return {
+            startMs: segment.startMs,
+            endMs: segment.endMs,
+            text: segment.text,
+            confidence: result.confidence,
+            words: words.map((word) => ({
+              startMs: word.startMs,
+              endMs: word.endMs,
+              startOffset: word.startOffset,
+              endOffset: word.endOffset,
+              text: segment.text.slice(word.startOffset, word.endOffset),
+            })),
+          };
+        });
+      }
+      return groupProviderWordsIntoSentences(providerSegments, { durationMs }).map((sentence) => ({
+        startMs: sentence.startMs,
+        endMs: sentence.endMs,
+        text: sentence.sourceText,
+        confidence: result.confidence,
+        words: sentence.words,
+      }));
+    } catch (error) {
+      if (error instanceof MediaWordTimelineError) {
+        throw new SpeechToTextError("provider-response-invalid", `The ASR provider did not return a usable word-level timeline: ${error.message}`, false);
+      }
+      throw error;
+    }
   }
 }
 
@@ -413,7 +470,14 @@ export function createContentMediaRuntime(environment: NodeJS.ProcessEnv = proce
   const minimaxTranscriptionModel = environment.MINIMAX_TRANSCRIPTION_MODEL?.trim() || "asr-1.0";
   const translationModel = environment.MINIMAX_TRANSLATION_MODEL?.trim() || "MiniMax-M3";
   const transcriptionProvider = sttProvider === "minimax"
-    ? new SpeechToMediaTranscriptionProvider(createMiniMaxTranscriptionProvider({ apiKey: miniMaxKey, model: minimaxTranscriptionModel, endpoint: environment.MINIMAX_TRANSCRIPTION_API_ENDPOINT }), { provider: "minimax", modelVersion: minimaxTranscriptionModel })
+    ? new SpeechToMediaTranscriptionProvider(createMiniMaxTranscriptionProvider({
+      apiKey: miniMaxKey,
+      model: minimaxTranscriptionModel,
+      endpoint: environment.MINIMAX_TRANSCRIPTION_API_ENDPOINT,
+      // Daily live media publication requires real word timings; do not rely
+      // on the optional provider environment variable for this path.
+      timestampLevel: "word",
+    }), { provider: "minimax", modelVersion: minimaxTranscriptionModel })
     : new SpeechToMediaTranscriptionProvider(createOpenAITranscriptionProvider({ apiKey: openAiKey ?? "", model: transcriptionModel, endpoint: environment.OPENAI_TRANSCRIPTION_ENDPOINT }), { provider: "openai", modelVersion: transcriptionModel });
   return {
     transcriptionProvider,

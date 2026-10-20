@@ -100,10 +100,15 @@ export async function processMediaCandidate(
   const nextMetadata = { ...candidate.metadata } as Record<string, unknown>;
   if (podcast) {
     const nextDraft = { ...podcast.draft, transcriptStatus: result.provider ? "asr" as const : podcast.draft.transcriptStatus, transcriptUrl: result.provider ? null : podcast.draft.transcriptUrl, segments: [...result.segments] };
-    nextMetadata.podcastDraft = { ...nextDraft, contentHash: calculatePodcastCandidateContentHash(nextDraft) };
+    // Hash the schema-normalized draft: zod reorders optional keys (notably
+    // `words` comes first), and the immutable content hash must equal what a
+    // later schema parse recomputes before review and publication.
+    const normalizedDraft = podcastCandidateDraftSchema.parse({ ...nextDraft, contentHash: "0".repeat(64) });
+    nextMetadata.podcastDraft = { ...normalizedDraft, contentHash: calculatePodcastCandidateContentHash(normalizedDraft) };
   } else {
     const nextDraft = { ...video!.draft, captionStatus: video!.draft.captionStatus === "unavailable" ? "asr" as const : video!.draft.captionStatus, segments: [...result.segments] };
-    nextMetadata.videoDraft = { ...nextDraft, contentHash: calculateVideoCandidateContentHash(nextDraft) };
+    const normalizedDraft = videoCandidateDraftSchema.parse({ ...nextDraft, contentHash: "0".repeat(64) });
+    nextMetadata.videoDraft = { ...normalizedDraft, contentHash: calculateVideoCandidateContentHash(normalizedDraft) };
   }
   nextMetadata.mediaProcessingReview = result.review;
   const now = (dependencies.now ?? (() => new Date()))();
