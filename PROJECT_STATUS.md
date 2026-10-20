@@ -1,5 +1,10 @@
 # PROJECT_STATUS.md
 
+- 2026-10-20 `LUCIA-CI-003`（`review`，修复待合并，等待 dispatch 验证）：用户收到 main `f89868e` 的失败邮件，对应 Lucía run `39373158863`（北京时间 13:07），结果为 `{"generated":0,"suppressed":0,"failed":1,"reason":"safety-gate"}`。相邻三次调度（16:29Z、21:12Z、00:23Z）均成功；这次是 provider 样本被设计内的安全门禁拦截（不记录正文），不是基础设施或人物运行时故障。旧实现只写笼统 `safety-gate`、不重采样，把一次坏样本升级成 workflow 失败邮件。
+  - 修复 Commit `d4962811e6c245db2e9f490a1e3598cdd8f41e39`（分支 `codex/lucia-proactive-v3-runtime`，tag `lucia-runtime-v3.1`）：新增 `proactiveMessageSafetyViolation` 稳定原因码并写入候选/运行结果；runner 对单个时段最多 3 次生成，只对 `provider-unavailable` 与 `safety-gate-*` 重试（候选重新置 generating，每次重新采样）；全部被拒仍失败，保留持续回归告警。workflow checkout ref 更新为该提交。
+  - 验证：全仓 `tsc --noEmit` exit 0；`proactive-message`、`lucia-proactive-runner`、`character-runtime`、`lucia-proactive-workflow` 4 文件 **32 项**通过；定向 ESLint exit 0。
+  - 下一步：合并后手动 dispatch 一次验证真实生成并补发今早被拦截的时段；若再次出现 `safety-gate-<code>`，需按具体规则排查提示词，不能只靠重试。
+
 - 2026-10-19 `OPS-CI-002`（`review`，修复已合并，等待下一次自然调度验证）：用户收到 main `68e2b0f` 的失败邮件，对应 **Daily content acquisition** run `39225780831`（北京时间 16:51 开始，约 30 分钟），**不是 Lucía**——同日 Lucía 定时任务 6 次调度全部成功（最新 run `39228244487` 生成 2 条消息）。该 run 媒体 auto-publish 阶段实际发布 2 条播客，但 `changesRequested=4`、`rejected=1`、候选级 failures 6 条；旧 `mediaOperationalFailure` 把审核结果也计入运维失败而退出 1，自 10-12 起每天同因失败，失败邮件成为噪音并掩盖真正的 Lucía 故障。
   - 修复：新增纯函数 `dailyMediaRunFails`（`run-daily-media-pipeline.ts`），auto-publish 只在两类运维信号下退出 1：出现 `scope="source"` 失败，或本次审核了候选但当天发布数为 0（审核/provider/发布链路整体失效）；目标缺口、审核结果和候选级可重试错误保持 `status="partial"` 并在 summary 可见。`scripts/acquire-content.ts` 改用它；workflow summary 增加 `reviewed/approved/changesRequested/rejected/sourceFailures`；运行手册追加退出码约定。
   - 验证：新增 `tests/unit/daily-media-failure-policy.test.ts` 6 项（按今日真实负载 2 published / 4 changesRequested / 1 rejected / 6 candidate failures → 不失败；source 失败 → 失败；审核了候选但 0 发布 → 失败；未审核且 0 发布 → 不失败；非 auto-publish 永不失败；干净运行 → 通过）；全仓 `tsc --noEmit`、相关单测与定向 ESLint 通过，workflow YAML 可解析。未手动 dispatch 媒体流水线（避免额外 provider 计费和内容写入），下一次自然调度为最终验证。

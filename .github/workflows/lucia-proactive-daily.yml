@@ -22,15 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # LUCIA-CI-001/002: main still reads user state through character_id,
-          # so the scheduler stays pinned to the identity-aware runtime until
-          # main includes CHAR-IDENTITY-001. The pinned commit must also list
-          # every published character revision in its runtime capability
-          # manifest; production currently serves lucia@3, and a pin that does
-          # not know that revision fails due slots with CHARACTER_UNAVAILABLE.
+          # LUCIA-CI-001/002/003: main still reads user state through
+          # character_id, so the scheduler stays pinned to the identity-aware
+          # runtime until main includes CHAR-IDENTITY-001. The pinned commit
+          # must also list every published character revision in its runtime
+          # capability manifest; production currently serves lucia@3, and a pin
+          # that does not know that revision fails due slots with
+          # CHARACTER_UNAVAILABLE. It also labels safety-gate rejections and
+          # retries provider outages or rejected samples up to 3 times per slot.
           # Update this ref whenever the production character revision changes;
           # see docs/operations/lucia-proactive-runbook.md.
-          ref: 3bd7f4bcd5b71d98fae58cd91268cb8bda2af0f4
+          ref: d4962811e6c245db2e9f490a1e3598cdd8f41e39
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
