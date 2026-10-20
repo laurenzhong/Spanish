@@ -1,5 +1,55 @@
 # 个人 Alpha Web/PWA 架构边界
 
+`CHAT-RHYTHM-001`（2026-10-17）：文字聊天以一个逻辑助手消息保存整轮回复，空行表示语义气泡边界，单换行留在气泡内；服务端先完成全文安全检查，再逐个完整气泡发送 NDJSON delta，气泡间约450ms且可取消。共享 provider 规则要求简短回应、按意思选择1/2/3/更多条，禁止把分条变成逐条追问。客户端120ms合并连续提交；`pendingMessages` 保留较早用户消息的独立ID和辅助来源，顶层正文是最新消息。应用层在事务认领代次后读取历史，将完整验证批次另以 `unansweredUserMessages` 交给 provider，避免8000字符历史预算吞掉尚未回应的内容。最新更正优先，独立话题保留有用意思，相关话题试探连接；这些自然度规则仍依赖模型，不能视为确定性事实校验。
+
+同会话的短事务锁与现有 `messages.status` 提供持久代次所有权：claim批次幂等、取消旧streaming占位；每个气泡先保存仅能追加的前缀，完成时CAS核验当前代次及用户消息仍有效后才允许done和记忆。`supersedes`只提供旧代次ID及可见气泡数，能够裁短本用户的未完成服务端前缀，不能提交角色正文或改写completed消息；未知旧代次写空取消标记，拒绝晚到旧请求重新认领。取消、错误、断流保留非空前缀但不产生完整轮次记忆；重放完成代次不再次调用provider或提取记忆。有序来源表 `conversation_reply_sources` 将每个助手消息关联到完整批次，严格匹配重试并支撑撤回/删除来源时只清理依赖回复，留下取消标记防止复活；RLS及部署条件见[ADR-0020](adr/0020-durable-conversation-reply-sources.md)。客户端撤回/删除成功后强制重新读取本会话权威历史，取消受影响的活流，清理关联回复而保留无关正在显示的前缀、草稿及待回复消息；刷新失败明确提示，角色切换后的晚到结果失效。客户端按transport和generation隔离所有回调与finally，保留已显示气泡，取消reader/controller/timer；同一逻辑消息的复制、翻译、引用和搜索仍作用于整条正文。不新增学习评分或用户对话诊断日志；浏览器收到内容与屏幕绘制之间仍存在网络确认边界。详见[专项设计](superpowers/specs/2026-10-17-conversation-bubbles-and-followups-design.md)。
+
+`MEDIA-WORD-003`（2026-10-18）：每日媒体采集的 live ASR 现在要求 MiniMax 返回 `timestamp_level=word`，由 media 纯领域 `groupProviderWordsIntoSentences` 仅用 provider 词时间戳生成句子级字幕与精确 UTF-16 词级 offsets（句末标点、>1000ms 间隔或 240 字符切句）；非词级单元、多词元单元、重叠/越界时间必须 fail-closed（`MEDIA_WORD_TIMELINE_INVALID`），不得用平均分配等估算补齐播放时间轴。`media-processing` 以独立小 DTO 透传 words 并做结构校验，`validateSegmentTimeline` 在候选准备、内容审核和发布三处用 `validWordTimings` 严格校验非空时间轴；纯文本 provider 的平均回退保留原有行为但不产生 words。评审与修订 provider 只接收投影掉 `segment.words` 的模型输入（`mediaReviewInputHash` 同步），发布草稿与 contentHash 仍覆盖完整词级时间轴，避免请求体随字幕词数膨胀。历史已发布版本不改写；CLI 修复走 `media_transcript_backfills` 草稿、三维 AI 审核和版本化发布。词级时间轴只在精确 provider 词数据上生成，不能视为对音频内容的独立听审。每日管线发布的外部 signed/动态广告音频仍可能导致播放 rendition 与时间轴漂移，托管到自有 CDN 是后续独立切片。
+
+`LUCIA-BIBLE-RESET-001`（2026-10-16）：Lucía v3 作为新的版本化人物候选保留已发布 Martín 身份，修订完整回应风格；v1/v2 与历史审核不原地覆盖。新修订的 `profile.canonPolicies` 保存按事实键和事实版本绑定的 category/reveal/audience/trigger，不新增表或修改旧事实行。resolver 校验后将公开 identity、traits 及事实策略投影为内部 DTO，旧记录无策略仍按 `never` 处理。两个 provider 的共享 `characterContextForProvider` 在指令和序列化正文前移除 never/敏感事实：contextual 需当前消息匹配已编写主题，gradual 与 relationship audience 需熟悉阶段；这是一项保守的有界规则，不等于理解任意 trigger 或已向用户披露。普通聊天、主动消息生成、预览和定时 runner 统一消费服务端解析的已发布快照，主动消息缺少快照时失败关闭。初识阶段的共享提示禁止亲昵称呼、预设共同回忆或线下见面，角色兴趣不强制成为话题。新发布审核使用明确 AI 身份 `dsh-ai-owner-authorized-review`，保留旧审核身份。初识 authored opening 保留原幂等键，事务锁定会话后仅在没有任何消息时补写自然介绍；已有聊天缺少开场标记也不追加。首次用户消息完成前不发送日常主动消息。真实发布、指定用户重置和首条消息到达必须分别核验，见[交接](reviews/LUCIA-BIBLE-RESET-001.md)。
+
+`READ-LOAD-001`（2026-10-16）：公共文章目录的 `ReadShelfData` 将 repository 创建、首次列表读取和页码收敛后的第二次读取故障转换为独立不可用界面，不伪装成功零结果、不回退本地 bundle、不把底层 SQL 错误传给客户端。客户端重试在 transition 中刷新当前 URL，保留搜索、筛选与页码并禁用重复点击；阅读布局导航保留。成功读取、公开/私人可见性、服务端缓存及数据库连接策略不变。界面恢复能力不代表数据库连通，真实故障需分别核验。
+
+`CHAT-CONTINUITY-001`（2026-10-16）：两个聊天 provider 共用的 system 规则明确当前 `userMessage` 优先于旧话题和角色兴趣；模糊肯定不构成选项选择，“去上班”不等于“已下班”，角色提议不是用户已完成的经历。纯 TypeScript `conversation/domain/reply-continuity.ts` 独立检查角色在当前当地日已问过的泛化当日安排与散步/居家选择，补足原 `openTopics` 只投影用户提问的覆盖缺口，不更改该 DTO 的含义。追问可继承用户明确的新时段；主动重问/求建议有受限豁免，相关问题预算允许一个实质问题，身份/困扰/告别等严格规则仍优先。重问时短语复用检查仅豁免问句，未知时间戳不猜测为同日。另外检查有限的“咖啡提议变成用户已喝”及“未指定周末工作变成周六/周日”断言，不能视为通用事实验证。命中时沿用一次有界 provider 重生成和既有观测，仍失败则不发送回复正文或 done。规则只覆盖明确西语模式，不能保证任意回复都语义贴合。已发布人物圣经、角色身份/记忆/证据、公共契约与数据库不变，日志不新增正文。详见 [交接](reviews/CHAT-CONTINUITY-001.md)。
+
+`CHAT-ASSIST-003`（2026-10-16）：002单输入框方案已批准并实现。`VoiceComposer`复用当前草稿，在同一输入栏内放置「译」，结果以输入框上方的局部预览按需展示，只有「使用」才替换草稿并恢复输入焦点，仍须显式发送；移除独立中文输入、常驻入口行、标题及说明，继续不显示辅助标注。生成中的原入口显示可取消状态；失败保留原稿并局部重试。源文/角色/版本/可用性变化在layout cleanup取消请求和朗读，结果绑定本次原稿，关闭后恢复原文也不能复活旧预览。输入框使用可释放的ResizeObserver按宽度重算高度（上限120px），避免窄屏换行截字；翻译/发送/停止回复共用末尾操作组。复用001服务端门禁、统一TTS、来源/队列/重试与隐私边界，无API/provider/数据库/评分变更。当前交互与验证见[003交接](reviews/CHAT-ASSIST-003.md)，下文001/002为先前阶段记录。
+
+`CHAT-ASSIST-002`（2026-10-16）：依用户要求，输入区及发送/历史消息不再显示“翻译辅助”标注；内部来源、队列/重试和无能力证据边界保留。单输入框加临时预览的简化方向已形成[调研提案](reviews/CHAT-ASSIST-002.md)，尚未替换001面板，无API/provider/数据模型变更。
+
+`CHAT-ASSIST-001`（2026-10-16）：聊天输入区「这句怎么说」调用鉴权 `POST /api/v1/conversations/:characterId/expression-assist`，application 重验当前已发布角色版本与有效联系人，仅通过只读 repository 读取本用户本角色最近6条已完成且未撤回消息（每条最多2000字符，并排除被撤回消息的回复），不读取关系记忆。内部 translation provider 新增中文/混输→es-ES，保留原西→中能力；草稿与预览不写消息、记忆、能力证据或普通日志。文本及这段上下文会发送至 MiniMax；点击「听一遍」经统一鉴权朗读再发送西语文本。供应商调用仅记录请求关联、模型、状态、延迟与费用等元数据。
+
+辅助接口严格校验DTO、16KiB流式请求体与30秒总截止，成功/失败均 `private, no-store`。鉴权与门禁后使用HMAC用户/角色/版本/attempt隔离的进程内singleflight，成功结果最多保留30秒、128项/512KiB；同attempt异文409、满载429，失败清除，最后等待者取消底层调用。该机制不保证跨进程/重启幂等，取消不能撤回已发生的供应商费用。客户端独立30秒截止并隔离旧generation；改源文、关闭、发送/录音、切角色/账户、隐藏或离开页面时取消并清除预览/朗读。仅显式填入可编辑草稿，显式发送才保存消息；有效预览后本轮即保留辅助来源，关闭后口述、排队和重试也不丢失，以既有 `source_type=translation_assisted` 保存，无迁移。当前普通聊天不产生学习证据，缺失客户端辅助声明不能作为独立能力的证明。验证及隐私/部署限制见[交接](reviews/CHAT-ASSIST-001.md)。
+
+`MEDIA-SERIES-006`（2026-10-16，采集建议）：`content-acquisition` 仅取 RSS/LR 现有播客结构字段，经 `media` 同步 application/schema 生成确定性 key、仅 unconfirmed 的建议并放入候选 `metadata.mediaSeriesSuggestions`；与 draft 分离，不进入正式内容 hash 或系列目录。feed/playlist 不自动证明系列，缺 ID/title 为空、冲突保留 warning，未知季集 null/0合法；LR 混合目录只作证据，合法 itunesId 才供节目身份。无新抓取请求、来源、公开API或迁移；内部 owner-workflow JSON Schema可选描述此metadata，完整URL/文本语义由media验证。原source事务、candidate revision/generation与审核发布门禁继续适用；确认走既有所有者media用例/CAS/审计。历史重复候选不自动回填。验证及范围见[006交接](reviews/MEDIA-SERIES-006.md)。
+
+`MEDIA-SERIES-005`（2026-10-16，换批多样性）：仅 `browse` 以 repository 私有来源身份进入纯领域双层轮换，来源间轮换、来源内系列轮换，组耗尽后继续补齐所有合法媒体；无系列每项独立。合法 YouTube channel ID、规范化且 hash 的 HTTPS RSS、已登记 LR 混合目录构成来源键，缺失/无效/凭据来源按稳定媒体 ID 独立回退，不按显示名称归组。游标明确绑定来源、seriesKey 和目录 revision（含 exclude 成员），不绑定私人进度；无新增公开 DTO/API 字段或迁移。普通 list 排序、系列页/选集顺序不经过此分散。样例和验证边界见[005交接](reviews/MEDIA-SERIES-005.md)。
+
+`MEDIA-SERIES-004`（2026-10-16，视频播后推荐）：工作台以本次播放器 ended 维护独立完成状态，不从历史进度推导；主列播放器下方、字幕区外挂载只读推荐，最多六条同系列其他视频及“查看全部”，点击才切集。同步 failure ref 清除失败时的完成状态并拒绝恢复前迟到 ended；重播/seek 回内容区、媒体版本/资产/播放器实例变更及卸载清除展示并取消请求，adapter generation 拒绝旧 SDK 回调。请求经既有鉴权窄 API 与 Zod 复核，20 秒截止、局部失败重试、纯 reducer generation 隔离；microtask 前检查取消，StrictMode 同步卸载不创建重复网络请求。推荐不依赖进度保存，不写完成/能力证据；无系列/空结果隐藏，播客只保留选集。后端按既定 ordered/episodic 顺序读取当前可见版本，不按观看记录改序。专项验证与边界见[004交接](reviews/MEDIA-SERIES-004.md)。
+
+`MEDIA-SERIES-003`（2026-10-16，导航集成）：单集卡片保留原播放入口，另以相邻链接进入 `/learn/series/[seriesKey]`；系列页和视频/播客选集通过已有窄 API 读取可见数量、分页、当前集 anchor 与前后邻接，不读取字幕。桌面局部面板、手机有焦点限制/恢复和安全区的抽屉；首次按当前稳定 ID 定位晚页，点击才切集，无自动连播。客户端 Zod 保留列表的可选/可空系列摘要；专用读取校验系列/类型、去重与分页一致性，20 秒截止、取消、generation 隔离和游标失效重读均局部恢复，不阻塞原播放。原媒体 repository 对列表/换批/详情/播放批量查询 active 系列摘要，放在原目录缓存之外；目录 revision 不修改媒体内容版本、字幕、进度或证据。E2E 内存仓库仅限非生产且显式 AUTH_E2E_ENABLED，窄卡片不调用字幕/播放读取，fake 写入恒定拒绝。验证与边界见 [003交接](reviews/MEDIA-SERIES-003.md)；浏览多样性和采集建议继续按005–006推进。
+
+003 手机选集的 portal 挂在触发按钮所属 `.product-shell` 下继承主题变量，避免脱离产品壳后出现错误配色；关闭后以 `focus({ preventScroll: true })` 恢复原按钮焦点，选集定位只滚动自身容器。
+
+`TTS-READALOUD-001`（2026-10-16）：当前全站合成朗读标准由 [ADR-0019](adr/0019-unified-minimax-read-aloud.md) 取代下文历史任务中的浏览器TTS选择。统一 `createReadAloud` / `useReadAloud` → 鉴权 `/api/v1/tts` → application → 内部 MiniMax provider；固定 Serene Woman / speech-2.8-turbo / 合成速度1，播放速率可调。客户端串行分段、playing确认、取消和资源释放；服务端 HMAC 用户隔离的128项/32MiB内存缓存，成功10分钟、失败30秒定时释放，不持久化文本或音频、无公共缓存。停止只取消等待，不撤回已发送的付费任务；进程间/重启后不保证去重。请求文本含私人内容时也发送供应商，隐私和费用限制见ADR。真实媒体/Tatoeba原声保留，不写学习证据。
+
+`TTS-LATENCY-001`：超过300字符的合成文本先请求最多180字符首段，之后保持1000字符上限，无预生成。每个共享客户端控制器仅保留成功完整播放的最多8段/4MiB音频，最后播完后60秒定时清除；同控制器短期重播省去HTTP/鉴权/下载。内存不跨控制器共享、不持久化；stop/卸载、隐藏/pagehide、退出和后续Supabase会话事件清空并取消，闲置过期后释放会话订阅/监听器。首次与不同文本仍受网络和供应商影响，长文段间仍按需等待；播放速率不改变缓存音色。详见[性能交接](reviews/TTS-LATENCY-001.md)。
+
+`MEDIA-SERIES-001`（2026-10-16，基础代码已实现，未应用真实迁移）：[ADR-0018](adr/0018-media-series-directory.md) 与[系列规格](superpowers/specs/2026-10-15-media-series-and-episode-navigation-design.md)的系列目录由 `media` 所有，三表为独立目录、稳定媒体ID成员关系和追加审计；目录 revision 不重写不可变媒体版本、字幕、审核、进度或证据。纯领域规则和严格 Zod 命令经 application 进入专用 repository，所有者 allowlist 在 HTTP/application/repository 重验；单事务目录锁、双方 revision 与幂等哈希处理创建、改序和显式跨系列移动。三表 RLS 默认拒绝客户端访问，写审计禁止更新、删除和清空。
+
+已实现鉴权 `GET /api/v1/media-series/:seriesKey`、`GET /api/v1/media-series/:seriesKey/episodes`、`GET /api/v1/media/:stableKey/series-recommendations` 及所有者 `PUT /api/v1/internal/content-workflow/media-series/:seriesKey`，同步 DTO、JSON Schema、OpenAPI 和稳定错误码；成功及失败均 `private, no-store`，显式无效 Authorization 不回退 cookie。请求仅携带目录元数据，写 body 有 1MiB 上限；原媒体 DTO 增加可省略/可空系列摘要，以兼容旧响应。
+
+窄 SQL 同一快照计算当前可见数量、最多50条分页、anchor 与前后集，不读取字幕；重验 currentVersion、发布、清权与有效资产，用户进度只按本次 UUID 关联，不放入全局系列缓存。cursor 绑定目录 revision、页大小和可见当前版本集合；推荐最多6条同系列其他 video，有序后续集优先。无归属可播放媒体返回成功空推荐，当前媒体不可见404，读取失败503。归档仅隐藏系列入口，不撤下单集。库存归类/导入、卡片系列入口、系列页/选集与当前视频有效 ended 后的下方推荐 UI 尚未实现，分别按[实施计划](plans/2026-10-15-media-series-implementation-plan.md)继续002–004；浏览多样性和采集建议仍为后续切片。验证与限制见 [001交接](reviews/MEDIA-SERIES-001.md)。
+
+语料长段显示规则（同 `CORPUS-REDESIGN-001`）：API仍返回完整原段及同版本前后文；UI纯函数 `corpusArticleExcerpt` 对超过360字符且无译文的文章按西语句界显示完整命中句，多个命中保留连续跨度，默认浏览显示前两句。朗读/临时对照使用显示句，展开使用原段；已有段落译文、单句或不支持分句时全文保留，不创建或改写内容版本。
+
+`CORPUS-REDESIGN-001`（2026-10-15，ADR-0017）：`/read/corpus` 以完整原段/字幕为主体，独立 `CorpusWorkbench` 调用鉴权只读 `/api/v1/corpus/examples`，application + 专用repository直接检索当前可见原文，不依赖旧出现索引。单条SQL重验发布/版权/字幕审核/私人文章所有权，文章最新已发布版本、媒体currentVersion，窗口函数取得同版本可见前后文；按片段轮次、各类型文档轮次、类型交错分页，计数与内容同一快照。参数/DTO/JSON Schema版本化，private/no-store；旧search/browse API保持兼容。媒体已有译文可隐藏，浏览器合成朗读与临时最多三条对照无存储/证据写入。文章来源URL包含 `stableKey@version`，显式段落锚点与媒体时间/稳定字幕index优先旧进度。真实库约49,247条，分页允许至100,000页而非旧1,000页上限；无需迁移或新增provider。
+
+`PHRASE-CONTENT-003`（2026-10-15）：当前短语UI明确读取 `lexicon-corpus/content/phrasebook-v3.ts` 的120条，六主题各20条，新增60条经过独立双维AI复核并绑定7个内容依赖哈希。历史v1/v2及其审核保持原值；`phrasebook.ts` 已被v2审计绑定，保留为v2兼容入口。对话逐句、主表达和自测共用一个浏览器TTS实例；仅播放当前西语，条目因取消收藏或外部存储变化离开可见列表时也停止。仍不访问数据库或写入能力证据。
+
+`PHRASE-CONTENT-002`（2026-10-15）：当前短语手册通过稳定入口 `lexicon-corpus/content/phrasebook.ts` 读取 v2 的60条；v1的24条及审核冻结，新增36条独立双维复核并绑定全部内容依赖哈希。主题计数由内容派生，收藏继续使用原v1存储键和稳定ID。自测参考句与核心句分别调用已有浏览器TTS，切题/退出/收起正在朗读的核心句时停止；不新增API、数据库或评分证据。
+
+`PHRASE-REDESIGN-001`（2026-10-15）：`/read/phrases` 依照 ADR-0016 改读 `lexicon-corpus/content/phrasebook-v1.ts` 的 24 条原创、双维度独立审核内容，通过 domain Zod 与审计哈希校验。SSR 仅取得当前用户和初始搜索，不发起语料数据库扫描；客户端提供主题、搜索、渐进展开、本地收藏和无评分回想。收藏 localStorage key 按服务端用户 ID 隔离，无云同步；它是个人偏好，不是能力事实。朗读复用现有浏览器 TTS。旧 `PhraseLibrary`/`PhraseShelfData` 仅为旧协议兼容代码，不再挂载于当前路由；真实来源比较仍属于 `/read/corpus`。公共 API、DB、RLS、内容索引和评分边界保持。见 `docs/adr/0016-practical-phrasebook.md`。
+
 - 状态：实施基线
 - 适用范围：个人 Alpha
 - 详细产品要求：[设计规范](superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
@@ -133,6 +183,10 @@ UI / Route Handler → Application → Domain
 
 ## 5. 模块所有权
 
+`MEDIA-PLAYER-002`：媒体适配器由 React 持有稳定宿主节点，Plyr 输入及其克隆/包装节点由单次资源生命周期管理。来源切换创建新输入；状态、位置、错误和端口通知使用最新回调，不因 callback identity 或刷新后的进度 DTO 重建播放器。generation、取消和卸载清理继续隔离旧事件；播放器内置自动暂停是唯一可见入口，不再依据控件挂载状态恢复旧复选框。
+
+`MEDIA-WORD-001` / `MEDIA-WORD-002`：字幕点词 UI 复用 `reading` 审核词表与 `lexicon-corpus` 的既有鉴权词典 DTO，通过 `request-word-lookup.ts` 做客户端 Zod 协议校验；不从媒体组件直接读取数据库。`request-word-explanation.ts` 复用既有阅读语境解释端点；按 2026-10-15 用户要求，点词立即并行请求词典和公开字幕语境解析，无二次生成操作，相同选择重渲染不重复请求。NDJSON 必须收到合法 done，取消释放流 reader。选择以词/原句为生命周期边界，词典/解释分别 20/30 秒截止；失败仅手动重试，旧请求与 TTS 回调不改变新选择。保留朗读按钮、字幕原句及 AI 例句身份，去掉闲置朗读、缺词和按需生成提示；自动结果通过礼貌播报呈现，不移动键盘焦点。词音复用浏览器 es-ES TTS，不创建音频文件，原句和临时解释不写普通日志、个人状态或能力证据。语料查询复用 `/read/corpus?q=…&match=surface`；本任务无新公共接口、数据模型或供应商。
+
 | 模块 | 拥有的规则 | 主要数据 |
 |---|---|---|
 | content | 内容版本、审核、图谱和发布 | expressions、tags、scenarios、content_packs |
@@ -146,7 +200,7 @@ UI / Route Handler → Application → Domain
 | evidence | 尝试评估和证据强度 | evidence_events |
 | profile | 技能快照、场景状态和四板块能力解释 | user_skill_states、user_scene_states |
 | recommendation | 候选排序与下一动作 | 默认不拥有持久表，读取其他模块投影 |
-| characters | 人物圣经、固定事实和揭示策略 | characters、character_canon_facts |
+| characters | 人物圣经、固定事实、揭示策略和跨修订身份 | characters、character_canon_facts、character_identities |
 | memory | 关系记忆、共享权限和冲突 | relationships、memories、permissions |
 | conversation | 会话、消息和回复生命周期 | conversations、messages |
 | providers | 供应商适配、用户能力偏好和统一错误 | provider_calls、user_provider_preferences、audio_assets |
@@ -154,6 +208,14 @@ UI / Route Handler → Application → Domain
 ## 6. 关键领域边界
 
 ### 6.0 内容采集、正式内容与语料隔离
+
+`YOUTUBE-EXACT-001`：YouTube来源可选`rightsPolicy.allowedVideoIds`将同一适配器切到精确ID元数据模式（1–2条），直接访问官方videos.list，完全不依赖最新feed或发布时间。共享原有频道/公开/嵌入/语言/地区/时长/许可门禁；返回ID必须属于本次请求页且不得重复。中间游标绑定mode/version/sourceStableKey/channelId/有序ID列表/offset，末页null用于下轮重验；模式或配置失配在网络前拒绝，不自行扩大或重置范围。`runAcquisitionSource`在外部await后重验取消再调用原有原子候选/游标提交，source revision CAS仍由repository持有；不新增DB边界、公共DTO或处理授权。兼容和继承的稳定key大小写限制见[精确发现交接](reviews/YOUTUBE-EXACT-001.md)。
+
+`MEDIA-RIGHTS-001`：`media-processing` 的纯领域授权判定与Zod边界共用显式 `rightsPolicy.mediaProcessing`；来源verified不代表允许音频取得、ASR或翻译。`processMediaCandidate` 固定要求 `shared-learning` 受众，逐次重读来源/候选，校验候选自身权利、sourceId、revision/generation和来源revision，再由编排器预检实际操作链，并在每次外部处理前后及临时音频删除后重验授权/截止/取消。旧来源缺字段只暂停新增处理；不回填授权、不改变已发布播放。沿用候选CAS防止旧generation回写；来源复验与候选CAS尚非跨表原子事务，最后一次观察之后的撤权存在竞态窗口，不声称实现原子撤权。详细字段、兼容与验证见[处理权利交接](reviews/MEDIA-RIGHTS-001.md)。
+
+`LEARN-BROWSE-001` 的 `POST /api/v1/media/browse` 是鉴权只读查询。Route 校验 `mediaBrowseQuerySchema`，application 调用 media repository；repository 从完整已发布、版权清晰、当前可播放目录投影候选并保留全部筛选，绕过普通目录的十分钟缓存，再交纯 TypeScript `selectMediaBrowsePage` 按固定 seed 来源轮换、排除最近展示 ID 与生成绑定候选集合的游标。只对本页版本读取当前用户进度，公共候选不缓存私人进度。目录成员/版本变化后返回既有 `VALIDATION_FAILED`，客户端提示换批；无写入、事务或新表。该能力不依赖 recommendation、content-acquisition 或供应商。
+
+浏览模式由页面 `view=browse` 标识，正常时间排序 API 不变。可取消客户端编排以 generation 隔离换批、频道、翻页、预取及恢复；浏览器历史仅存最多 1000 个公开稳定 ID、seed、筛选、页数（最多恢复 100 页）和位置，返回时重新请求并鉴权，不存私人卡片进度。显示状态不作为学习证据。`topic` 在页面和普通列表 API 也完整转发，避免保存的筛选在换批/搜索后丢失。
 
 `content-acquisition` 只负责白名单来源、增量游标、发现、去重、初筛、处理编排、成本门禁和候选审核状态。它不能直接把候选标为正式文章或媒体，也不能写学习证据。每日自动化最多推进到候选审核库；正式 publisher 必须调用 `content`/article 或 `media` 的 application，并再次验证权利、两个审核维度、结构、哈希和 revision。`content_candidates.publication_status` 与采集状态独立，只保存正式模块返回的版本引用、发布时的候选 revision/hash 和撤下时间；正式内容实体仍由 article/media 模块拥有。
 
@@ -179,9 +241,31 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 
 ### 6.1 学习、阅读与能力入口
 
+`VOCAB-SHELF-001` 加载故障续修：参考词表与释义来自已保存内容资产，语料例句是可选附加数据。`load-vocabulary-shelf` application 对例句加载限制为 1500ms，异常/超时/无 DB 时返回同一参考表的完整词架及搜索结果，context/sourceTitle 为 null，展示例句不可用提示；展示 DTO 不编造 occurrenceCount。快速成功保留真实例句，真实搜索空结果保持空态；词频统计的 36h 时效门禁、语料可见性和已有查询缓存生命周期不变。该边界只保证词表与本机默写可用，不把本地展示或标记变成能力事实。
+
+`VOCAB-RECALL-001` 的词架默写是临时自查：进入时从当前渲染词表冻结本浏览器 `familiar` 词及现有释义，以纯 TypeScript `vocabulary-recall` 编排器隔离两种模式的输入、批改、提示、自行确认和重练。React 仅在练习词原行挂载 portal，不把整份词架改成逐词 hydration；退出/卸载恢复原按钮，搜索/用户范围切换重建词架。中文答案只匹配完整释义或明确并列项，未匹配不猜测语义，交给用户对照参考释义确认；自行确认与独立匹配分开显示。查看答案或反馈后修改答案都保留提示依赖。练习时关闭悬浮解释、词卡和自动发音并取消旧声音。答案和反馈只在当前内存会话中存在，退出/刷新即清除；不写 API、用户意图、`evidence_events`、`user_skill_states` 或画像，不自动改变「已知」标记。服务端可信文字考察仍使用 LEX-002 的版本化 assessment/attempt 契约。
+
+词架默写的 Enter 导航使用纯函数选择当前模式/轮次的下一空答案，跳过已填写项并回到前面的漏填项；只检查当前词，空答案或待确认不移动。UI 使用挂载输入框引用同步聚焦，不排队异步焦点回调，模式切换、重练、退出和卸载会释放原输入引用。输入法组合阶段不提交或移动。
+
 `/learn` 是视频/播客目录和媒体学习器，不再读取推荐器生成“开始/继续”任务。`/read` 在文章之外提供词汇、短语、语料和文字考察。`training` 继续提供 attempt、录音、状态机和证据编排，但不再拥有任务式学习首页。
 
-`media` 的公开列表和详情只投影当前 `published + cleared + playable` 版本，稳定引用为 `stableKey@version`。播放接口要求用户会话，只返回 HTTPS 播放信息和最多 500 个已审核片段；临时播放地址过期、资产撤下或版本不可用时失败关闭。旧播客 CDN 地址由鉴权的 Range 代理转发，并在跳转后再次校验允许主机。正式视频和播客详情统一由 `Plyr` 渲染；YouTube、托管视频和播客只把各自的 iframe/HTML5 media node 作为 Plyr 的底层媒体源。它们都通过 play/pause/seek/currentTime/destroy 小型端口驱动同一工作台，并用 generation 隔离旧播放器回调。工作台提供 A/S/D 逐句控制、Q 自动暂停、西语/双语/隐藏字幕和保留上下文的词句抽屉；无已审核 transcript 的播客仍可播放，但逐句控制禁用并明确提示。词义与保存仍由后续词句任务负责。
+词汇页单词发音遵循 ADR-0013 的 2026-10-13 修订与 ADR-0019 的统一合成朗读：手动朗读和点词自动发音均只读显示词本身，不请求媒体 word-audio/切片。准备可取消，start 后确认朗读，结束复位，错误/超时可重试；generation 隔离，切词/关闭/Escape/隐藏/卸载停止，例句与词音互斥。2026-10-20 所有者要求词卡不再显示“合成音 · 准备中…”/“合成音”状态行：加载、播放与停止只由按钮的停止标签、`aria-busy` 与 `aria-pressed` 表达，失败仍在词卡内显示可重试提示；不把合成声音称为真人、母语者或标准发音。旧服务端解析接口保留兼容；本修订无供应商、DB 或能力证据变更。
+
+词汇侧栏的 Tatoeba 例句录音遵循 ADR-0015：官方导出预先按 sentence ID/audio ID 配对，独立元数据资产保存各录音作者、许可及署名；查词 DTO 补充可空 `audio`，运行时不请求外部元数据。点击才流播官方完整录音（`api.tatoeba.org/v1/audios/{id}/file`），未知/空许可不复用该录音。缺少可用授权录音时提供按钮标注“合成朗读例句”的浏览器西语 TTS，例句旁不单列“暂无录音”提示（2026-10-18 所有者要求移除该行）；原声播放失败不自动改用合成音。点击播放按钮不显示准备/加载/播放状态文案（2026-10-18 所有者要求），状态只由按钮图标、停止标签、aria-busy 与 aria-pressed 表达；原声只有实际媒体进度才确认播放中，加载或中途停滞均有 20 秒无进度超时。TTS 复用 `useBrowserSpeech`，可选 start/end/error 回调按 generation 隔离，例句错误落在对应行；只有确认 start 才把合成朗读按钮视为正在播放。失败重试与复制反馈仍可见。词音与两种例句音互斥，共用词架取消生命周期；切词、关闭、隐藏或卸载均取消并释放事件/计时器/src。播放或复制不写学习证据；没有新供应商或录音存储，元数据构建无需数据库写入。
+
+`media` 的公开列表和详情只投影当前 `published + cleared + playable` 版本，稳定引用为 `stableKey@version`。播放接口要求用户会话，只返回 HTTPS 播放信息和当前版本的全部已审核片段；临时播放地址过期、资产撤下或版本不可用时失败关闭。旧播客 CDN 地址由鉴权的 Range 代理转发，并在跳转后再次校验允许主机。正式视频和播客详情统一由 `Plyr` 渲染；YouTube、托管视频和播客只把各自的 iframe/HTML5 media node 作为 Plyr 的底层媒体源。它们都通过 play/pause/seek/currentTime/destroy 小型端口驱动同一工作台，并用 generation 隔离旧播放器回调。工作台提供 A/S/D 逐句控制、Q 自动暂停、西语/双语/隐藏字幕和保留上下文的词句抽屉；无已审核 transcript 的播客仍可播放，但逐句控制禁用并明确提示。词义与保存仍由后续词句任务负责。
+
+`MEDIA-SEGMENT-CAP-001`：完整字幕用单次有序查询读取，SQL 限定当前 `mediaVersionId` 与 `approved`，显式选择播放 DTO 所需字段，保留原片段 index、翻译和可空 words；领域层再次过滤审核状态。移除播放查询、领域投影、JSON Schema 三处 500 条截断，不添加字幕分页或静默丢弃词时间轴。进度读取仍与字幕并行并按用户隔离，不缓存私人进度。该修复无需迁移、重新发布或付费转写；未审核尾段不会提前交付。
+
+`MEDIA-SPEAKER-LABEL-001`：导入字幕（`youtube.language-reactor.*`、`podcast.language-reactor.*`）在 `media_segments.speaker` 保存的是 `S1`/`S2` 这类只相对于该份转写的机器编号，对学习者没有含义。播放领域投影 `projectSpeakerLabel` 把它归一为 `null`，字幕行也只渲染归一后的真实姓名，所以客户端 DTO 和任何字幕界面都不会把编号当成说话人。数据库现状保留原值：`speaker` 属于候选内容哈希覆盖的已发布版本内容，本任务不改写历史版本、不新增版本、不要求迁移；真实姓名（若未来来源提供）仍照常显示。
+
+`MEDIA-LOAD-001` 骨架等待续修：完整播放 DTO 仍一次取得且不缓存私人进度；`SegmentTranscript` 首屏只挂载 32 句及当前句前后附近的真实行，余下行以可取消的短任务逐批挂载，完成后全部可读，不截断或分页字幕数据。尚未完成时明确 `aria-busy` 与加载状态，恢复/跳句即使在末尾也立即显示并高亮；隐藏、换版本或卸载取消旧批次。服务端首屏不为全部词生成按钮，播放器无需等待所有字幕行挂载；跟随与逐词刷新语义保留。运行时配置与诊断配置须保持同一环境文件优先级，见数据库连接文档；本机修正不改变托管部署配置。
+
+`MEDIA-LOAD-001`：音视频 Range 代理在鉴权后调用 `getMediaStreamSource`，只用一次无缓存查询解析当前公开可播放版本，返回稳定身份、版本、类型、标题、来源与已校验资产；不访问 `media_segments` 或 `user_media_progress`。每个分段请求重新校验发布、版权、撤下与过期，沿用上游主机/重定向白名单与 Range 协议。完整详情/播放接口仍加载全部已审核字幕和当前用户的进度。卡片不再把封面图片 priority 映射为整页强制预取，使用 Next 默认部分预取与现有详情 loading 边界，减少未选择内容的完整字幕请求。无新公共协议、迁移或证据语义。
+
+`MEDIA-DETAIL-PROGRESSIVE-001`：媒体详情页（`/learn/media/[stableKey]`）不再在返回 JSX 前 `await` 整个 `getPlayback`。页面只 `await params`、校验 stableKey 后立即返回 `<Suspense fallback={<MediaDetailLoading/>}>`，因此直访和客户端导航都会先得到既有详情骨架；真实媒体路径先在服务端读取轻量 overview（当前发布版本/版权/可用/过期/鉴权门禁、卡片、已校验播放资产、当前用户进度、系列摘要与已审核句数，不读 `source_text`/`words`），据此渲染标题、信息与播放器。完整字幕随后由客户端两阶段取得：先 `GET /api/v1/media/:stableKey/playback?include=text` 只取逐句文本（`words` 为 null，Word 时间轴不进入首屏路径），文本可读后再取默认 `/playback` 并只合并 `words`。两阶段都校验 `stableKey`+`version` 与 overview 一致，不一致则报错重试而不是混版本；请求有取消、45 秒超时、StrictMode 去重与旧响应隔离；词级阶段失败不移除已显示文本，只显示可重试提示。播放器的 `hasSegments` 使用 overview 的已审核句数这一稳定值，字幕后到不会重建/中断播放器；`?t=` 深链优先，只有 `?segment=` 时在字幕到达后按其 `startMs` 定位一次。E2E fixture 路径继续在服务端使用完整 playback，不经过后台 fetch。`include` 是可选 query，默认响应与既有契约不变，非法值返回 400；OpenAPI 已同步。无迁移、供应商、评分或证据变更。
+
+`LEARN-NAV-PERF-001`：`/learn` 的完整 24 卡自适应网格骨架从路由级 `loading.tsx` 移入页面内 `<Suspense>`，所以直访与同段筛选/搜索导航仍会流式输出真实资料库骨架；`/learn/loading.tsx` 只保留顶栏占位与“正在打开…”中性壳，仍作为 `/learn` 及其子路由（含 `/learn/media/*`）的已挂载兜底边界，但不再在进入媒体详情时闪出“资料库正在加载”的网格。加载边界保留也意味着 `/learn` 仍可被 Next 预取。资料库卡片保留 `Link` 默认预取，并在 hover（约 100ms 延迟）/focus/touchstart 时调用 `router.prefetch(href)` 做意图预热；使用默认 `auto` 策略只取到详情 loading 边界，不把带用户进度的完整 RSC 缓存进 5 分钟静态窗口；同一 href 去重、离开取消、`onInvalidate` 复位，`useLinkStatus` 在卡片上显示 pending 指示。Next 开发模式的 `createPrefetchURL` 直接关闭预取，因此意图预取的实际效果只能在生产构建验证；开发模式只能验证中性壳/骨架结构与单测调用链。
 
 用户进度绑定具体媒体版本，以 revision/CAS 保存位置并允许相同旧请求幂等重放，不能把过期版本、未审核片段或越界位置写入进度。客户端串行同步最新位置，切换媒体或卸载时取消旧请求，并忽略旧 generation 响应；409 必须要求刷新，普通同步失败只提示可重试，均不写学习证据。`/learn` 在没有正式媒体时显示真实空状态，不用 fixture 或 AI 示例内容冒充已发布素材；视频与播客 E2E fixture 只在非生产且 `AUTH_E2E_ENABLED=1`、命中各自固定 stable key 时可用。旧 `/learn/practice` 保留为兼容 route，但不再从学习首页暴露。
 
@@ -217,11 +301,11 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 
 角色对话通过 `CharacterReplyProvider` 走同一服务端 provider 边界。`POST /api/v1/conversations/:characterId/stream` 只把服务端隐私过滤后的角色事实、关系摘要、可读记忆、最近消息和当前用户消息交给所选 provider；内部输入 DTO、输出 DTO、错误码和观测字段不随供应商变化。默认仍使用已配置的 MiniMax adapter；只有显式设置 `CONVERSATION_PROVIDER=openai` 且存在服务端 `OPENAI_API_KEY` 时才启用 OpenAI Responses adapter，模型由 `OPENAI_CONVERSATION_MODEL` 指定。模型只返回自然语言消息，应用层继续负责 NDJSON `meta/delta/done`、generation 竞态、取消、完整消息持久化和记忆提取。超时、限流、鉴权、响应损坏或网络失败使用统一错误分类并写入脱敏观测，只发送失败事件，不生成 fallback 角色文本，也不提交完整助手消息或关系记忆；安全门禁拒绝时最多进行一次更严格的 provider 重生成，第二次仍越界则发送失败事件。语言纯度属于安全门禁：回复含汉字、假名或谚文时走同一条拒绝路径，只有用户本轮显式要求其他语言才放行；主动消息没有用户请求可以证明切换，因此由 `isProactiveMessageSafe` 强制纯西语，命中即整条候选失败并记录 `safety-gate`。只有完全没有配置真实 provider 的本地/测试环境才使用确定性回复。供应商不会写入证据、画像或关系记忆，日志不保存 prompt、原始响应或私密正文。角色是否可进入该流程由已发布人物版本和 `CharacterRuntimePolicy` 决定，不能由静态角色目录或客户端 `characterKey` 绕过。
 
-对话工作区通过 `GET /api/v1/conversations` 返回当前用户实际拥有的会话摘要（角色、最后一条已完成消息和时间），不再用角色目录冒充历史。无会话、数据库未配置和请求失败分别呈现为空状态或可重试状态；未读数没有可靠数据来源时不展示。语音消息使用 `POST /api/v1/transcriptions` 一次性转写为可编辑草稿，音频仅在 provider 请求生命周期内使用并以 `ephemeral` 策略处理，确认发送后仍复用文字对话流，不产生学习证据。
+对话工作区通过 `GET /api/v1/conversations` 返回当前用户实际拥有的会话摘要（角色、最后一条已完成消息和时间），不再用角色目录冒充历史。无会话、数据库未配置和请求失败分别呈现为空状态或可重试状态；未读数没有可靠数据来源时不展示。未读以服务端 `conversation_preferences.last_read_at` 为唯一游标：线程加载或轮询成功即确认已读，回执失败重试一次，只有服务端确认后才刷新列表；导航徽标按当前用户所有会话未读之和渲染，并在挂载、`focus`、`visibilitychange` 和每 60 秒重新读取一次（页面隐藏时跳过），所以已读后的红点不会滞留在旧快照上，新生成的主动消息也不必等整页刷新才出现。语音消息使用 `POST /api/v1/transcriptions` 一次性转写为可编辑草稿，音频仅在 provider 请求生命周期内使用并以 `ephemeral` 策略处理，确认发送后仍复用文字对话流，不产生学习证据。
 
 Lucía 的好友申请通过 `GET/POST /api/v1/character-network/lucia-contact` 管理，不新增关系表：没有当前用户关系记录时返回 `pending` 及固定的虚构初识来源（Lucía 故事里的马德里文化活动、城市摄影；不代表真实活动或线下见面）；接受在同一事务内将 `character_relationships.status` 设为 `active`、幂等创建会话并写入唯一的 authored opening message，拒绝记录为 `declined` 且不创建新会话。好友侧栏只显示真实存在的会话，并以申请状态显示红点/入口。`POST /api/v1/conversations/lucia/stream` 在读取历史、写入用户消息或调用 provider 前再次检查该关系必须为 `active`，否则返回稳定错误 `CONTACT_REQUIRED`；其他角色同样走通用 published/capability 门禁，当前 draft 不可生产聊天。
 
-Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/proactive` 供受控手动触发，`.github/workflows/lucia-proactive-daily.yml` 每 15 分钟调用 `scripts/run-lucia-proactive.ts`；脚本按 Lucía 的 `Europe/Madrid` 时区为每个白名单用户计算每日三个稳定但错开的随机时间槽（上午、下午和晚间），只在到达时间槽后尝试生成。服务端先按关系 active 状态、暂停开关、每日 3 条上限、每周 12 条上限和 4 小时冷却判断资格；用户未回应不再阻止后续自然分享或轻量追问。每个时间槽使用独立 `(user_id, dedupe_key)`，重复调度仍幂等；provider 只收到 `inputKind=proactive`、主动消息来源、关系摘要、情绪上限、日常状态和零问题预算，不能决定发送资格或关系升级。报备型日常分享是默认形式；关系达到 `familiar` 且日常状态为 `waking` 时，允许单句 `Te echo de menos.` 这类低压力想念表达。通过 `isProactiveMessageSafe` 后，候选与 `messages.source_type=proactive` 在同一事务内完成；provider 失败、取消或门禁失败只标记候选失败，不写入半条用户可见消息，也不使用真实运行时 fallback。候选和消息都按用户所有权隔离；当前仍不接 Web Push/APNs/FCM，用户打开聊天页后由现有历史刷新机制看到已生成消息。
+Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/proactive` 供受控手动触发，`.github/workflows/lucia-proactive-daily.yml` 每 15 分钟调用 `scripts/run-lucia-proactive.ts`；脚本按 Lucía 的 `Europe/Madrid` 时区为每个白名单用户计算每日三个稳定但错开的随机时间槽（上午、下午和晚间），只在到达时间槽后尝试生成。服务端先按关系 active 状态、暂停开关、每日 3 条上限、每周 12 条上限和 4 小时冷却判断资格；用户未回应不再阻止后续自然分享或轻量追问。每个时间槽使用独立 `(user_id, dedupe_key)`，重复调度仍幂等。provider 收到 `inputKind=proactive`、主动消息来源、关系摘要、情绪上限、日常状态、问题预算，以及服务端隐私过滤后的可读记忆、最近已完成消息和由此派生的 `openTopics`/`characterClaims`/`openCommitments`/`currentLocalDate`/会话时区；它不能决定发送资格或关系升级。`daily_share` 允许最多一个低压力问题，其他来源为零问题预算。除 `isProactiveMessageSafe` 的文本门禁外，服务端还执行 `repeatsAnsweredQuestion`：若主动消息的选择问句重问用户已在近期对话中给出的两个选项，或近乎逐字重复已问已答的问题，则最多重生成一次；第二次仍命中时整条候选失败并记录 `safety-gate`，不写入任何用户可见消息。报备型日常分享是默认形式；关系达到 `familiar` 且日常状态为 `waking` 时，允许单句 `Te echo de menos.` 这类低压力想念表达。通过门禁后，候选与 `messages.source_type=proactive` 在同一事务内完成；provider 失败、取消或门禁失败只标记候选失败，不写入半条用户可见消息，也不使用真实运行时 fallback。候选和消息都按用户所有权隔离；当前仍不接 Web Push/APNs/FCM，用户打开聊天页后由现有历史刷新机制看到已生成消息。
 开发环境可传 `preview: true` 进行不落库的声音检查；预览仍调用真实 provider 并执行同一安全门禁，但不创建候选、不消耗每日额度，生产环境忽略该字段。
 
 已发送用户消息的上下文操作通过 `DELETE/PATCH /api/v1/conversations/:characterId/messages/:messageId` 进入 conversation repository，并再次执行用户所有权、角色和消息状态校验。删除只移除用户历史；撤回将消息置为 `withdrawn`，历史正文不再进入搜索或角色回复上下文，并删除其来源关系记忆。流式回复完成时还会重新检查用户消息状态，防止回复期间撤回的消息产生介绍候选或记忆；撤回不会生成学习证据。
@@ -234,6 +318,7 @@ Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/p
 - `/read/vocabulary` 默认视图是可直接学习的词表：条目来自 `content/glossary/es-zh-common-v1.json` 中 `reviewStatus: reviewed` 的已审核常用词条（词目、词性、CEFR、中文释义、用法、搭配、例句和用于语料匹配的词形），因此不依赖数据库是否已索引 lexeme，也不受用户是否收藏过词语影响。其余视图分别是：`?view=frequency` 的**参考词频内容词表**和 `?view=lexicon` 的正式词元词库；已保存词句不再在此页重复呈现，统一由 `/read/saved-items` 承担。**频次视图的排序基准是参考词表 `content/word-lists/es-frequency-v1.json`**（8000 个西语词元、按词频名次排列；来源与授权见同目录 provenance 清单），而非本项目语料自身的词频统计 —— 后者会把 `que`/`los`/`por`/`con` 这类**功能词**顶到最前，而那正是学习者最不需要背的词。因此该视图：① 先从参考词表中**滤除封闭类功能词**（冠词、介词、连词、代词、限定词、纯程度/否定助词；清单与收录标准见 `content/word-lists/es-function-words-v1.json`，**所有动词一律不滤**，`ser`/`estar`/`haber`/`tener`/`ir`/`hacer` 等 15 个必需动词由 `neverFilter` 显式保护并被测试遍历）；② **保持参考表自身的词频名次**，不再按本语料频次重排（客户端也不得重排：`VocabularyWordGrid` 按收到的顺序渲染）；③ 每个词仍附上**本语料中的出现次数**与一条真实例句（复用 `corpus_occurrences` 的可见性谓词与 180 字符截断）。当前规模为参考表 8000 词、词架 7922 词（滤除 78）。**已知限制**：出现次数按词元拼写的**表层形**统计，而语料未做词形还原，故 `estar` 尚不覆盖 `está`/`estoy`；例句上下文在 LEX-INDEX-001 以 `index` 模式运行前为 `null`（`corpus_occurrences` 仍为空），但次数可用；搜索只覆盖参考词表，故 `george`/`pablo` 这类表外词形不再出现。该视图声明自己是**学习骨架**而非全部词形清单。
 - 学习卡片按需调用 `GET /api/v1/read/vocabulary-example?word=<词目>`，服务端只在已发布、版权清晰且字幕审核通过的媒体段落中按词边界匹配，命中不到时回退到已发布版权清晰的文章段落，返回一条真实例句、可用的中文翻译和 `stableKey@version` 来源；结果按词形缓存一小时。查询词形只允许字母、重音符号和撇号，不进入正则以外语义。列表与卡片都不把自动统计的 surface text 伪称为 verified lemma。
 - 词表的“已熟悉 / 想复现 / 暂不学习”标记保存在浏览器本地（按用户 scope 隔离），不写入 `evidence_events`、`user_skill_states`、`mastery`、`confidence` 或角色记忆；向量表写入需要新的 schema 决策。
+- `VOCAB-PANEL-002` 详情布局试版：1200px 起使用 350–400px 右侧分栏，首次开关以选中词为纵向锚点并在有界渲染帧内补偿 `content-visibility` 高度变化；不注册滚动测量监听。901–1199px 为右侧抽屉，900px 以下保留底部抽屉，均通过 body portal 呈现，背景 inert、焦点限制和关闭恢复具有明确生命周期。详情按词目/发音、释义、个人标记、带署名例句、完整的已有变位/形式、默认折叠用法/搭配、查词排序；变形独立展示，不折叠或截断，仍为既有词形数据而非完整变位表。切词复位详情滚动与折叠。临时历史项在关闭/返回/卸载时释放，并恢复先前的 scrollRestoration；内容、音源、标记存储与证据语义不变。
 - 阅读、TTS、词语查询、笔记和保存操作不会写入 `evidence_events`、`mastery` 或 `confidence`；只有显式口语迁移才进入 training/evidence 链路。
 
 Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。`POST /api/v1/read/generated-stories` 要求当前会话和 `Idempotency-Key`，输入经 Zod 校验后生成私有 AI draft；文章正文写入内部 `article_*` 版本载体，并由 `user_generated_articles` 按用户所有权关联。`GET/DELETE /api/v1/read/generated-stories/:articleId` 只返回或删除当前用户的记录，公共内容列表与公开内容 API 永不包含这些文章。生成文章可以复用阅读器的版本哈希、断点、标注和 TTS，但这些操作仍不会写入口语证据、画像或角色记忆。供应商请求只记录模型、延迟、请求 ID 等脱敏元数据，不保存 prompt 或原始响应。
@@ -310,6 +395,18 @@ Generate Story 通过 `StoryGenerationProvider` 在服务端调用 MiniMax M3。
 `buildReplyContext` 只消费当前发布版本、`CharacterRuntimePolicy`、`getCharacterRelationship(userId, characterKey, characterVersion)` 返回的关系快照、当前用户可读记忆和已完成消息。不得为非 Lucía 复用 Lucía 的时区、恋爱、主动消息或 claims/commitments 分支。provider 只能生成候选表面文本，不能直接写人物事实、关系阶段、记忆共享权限或主动消息资格。
 
 只有带有明确 `done`、通过 Schema/安全门禁且幂等落库的完整回合，才能触发关系事件候选、开放话题、摘要和长期记忆。旧 generation、取消、断流、删除/撤回和低置信度/技术失败不得更新这些派生状态。场景练习的人物快照继续由 `scenario-practice` 独立拥有，不能进入长期联系人或角色关系。
+
+### 6.11 角色身份与修订的分离
+
+`characters` 每一行是**一个修订**（`stable_key` + `character_version`），行 id 只代表那一版内容；`character_identities` 是**跨修订的稳定身份**（`stable_key` unique + `current_character_id` 指针）。两者职责严格分开（ADR 0014）：
+
+- **身份拥有用户状态**。`conversations`、`messages`、`conversation_preferences`、`proactive_message_candidates`、`character_relationships`、`relationship_memories`、`memory_sharing_permissions.target_identity_id`、`character_introduction_offers.source_identity_id`/`target_identity_id` 都按 `identity_id` 归属和查询。读路径先按 `stable_key` 解析身份，再由指针拿到当前修订；写路径在迁移窗口内双写 `identity_id` 与旧的 `character_id`（切片 4 验证后才删旧列）。
+- **修订行拥有版本内容**。`character_canon_facts` 和 `characters.profile.relationships` 属于那一版本身，继续挂修订行 id；它们不是用户状态，不需要也不应该跟着身份走。
+- **`messages.character_id` 保留为审计来源**：它回答"这条消息由哪一版生成"。历史消息因此永远能解析回生成它的修订，即使当前指针已经前移。
+- **发布即翻转指针**。`publishCharacterBibles` 在同一事务内插入/更新修订行、写入审核记录，并按 `stable_key` upsert 身份把 `current_character_id` 指向该修订（首次发布时创建身份）；导入只写修订行，不创建也不移动指针，否则指针只能指向未发布草稿，正是该 ADR 禁止的状态。**用户状态零迁移**，这也是"改一行圣经"不再需要重排生产数据的原因。
+- **回滚是指针回退**，不是数据回退：把 `current_character_id` 指回上一版已发布修订即可，用户状态不受影响（步骤见 `docs/operations/character-revision-runbook.md`）。
+
+因此"人物设定存在"与"已经向当前用户透露"的区分不受修订切换影响：关系状态、揭示集合和记忆都挂在身份上，新修订上线不会重置它们。
 
 ## 7. 训练状态机
 
@@ -487,6 +584,10 @@ Web 与 Flutter 上层功能只依赖内部端口：
 Web 使用浏览器适配器。Flutter 优先使用成熟插件；插件不能可靠满足 AVAudioSession、通知、文件生命周期或商店能力时，再增加单一职责的 Swift/Kotlin/Windows 桥接。平台原始异常必须转换为稳定内部错误。
 
 训练 Alpha 的 Web 适配器位于 `src/modules/providers/speech/browser-recorder.ts` 和 `src/modules/providers/tts/browser-tts.ts`。录音适配器只在内存中返回当前尝试的音频 Blob 与 `mimeType`/`sizeBytes` 元数据，不创建长期媒体资产。麦克风权限拒绝、格式不支持、录音失败和 TTS 不可用分别映射为稳定能力错误；麦克风启动失败直接把当前输出方式切换为文字，不产生能力证据。
+
+`READ-TTS-002`：浏览器 TTS 在用户点击的同步调用中先 `speak()` 排入，再 `resume()` 恢复；Chrome 曾暂停的引擎可能将 `paused` 清为 false，却仍不开始朗读，不能只根据该标志跳过恢复。文章划词按钮显示当前播放状态，再点停止；朗读、试听与停止通过 generation 隔离过期回调，卸载时停止并使旧 generation 失效。保留启动/结束看门狗及可重试错误，不增加供应商调用、录音保留或学习证据。
+
+2026-10-13 同任务续修：`speaking/pending` 仅代表队列活动，只有 utterance 的 start 才通知 UI 播放开始。默认音色尊重已保存西语偏好，其后优先本地 es-ES/本地西语。未开始的音色超时或报告语言/合成/网络不可用时，在取消原请求后尝试其他列出的西语音色，本地优先、最多三次；已经开始、用户取消或权限拒绝不触发自动回放。没有其他列出音色时保留一次同音色重试和指定 `lang` 的引擎兜底。启动总预算为本地 4 秒/在线 12 秒（无队列活动时分别在 2/6 秒先判失败）；已开始的长文保留原运行预算。适配器自己的 generation 防止旧失败在下一次点击/停止后发起回退。缺失 start 但实际已有音频的引擎仍可能被预算取消，不能把队列标志当作实际听感验证。
 
 Flutter 的 `AudioRecorder` 和 `TextToSpeech` 端口继续位于 `apps/mobile/lib/core/platform/`，训练 fake 通过依赖注入验证成功、权限失败和资源释放路径。未安装平台插件或能力不可用时必须返回同一类稳定错误，并降级到文字输入。
 

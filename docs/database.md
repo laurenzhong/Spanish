@@ -1,5 +1,7 @@
 # 数据库与迁移
 
+`CHAT-RHYTHM-001`新增 `conversation_reply_sources`，归conversation模块所有，用有序助手/用户消息关联保护整批回复的幂等与撤回边界。关联在claim事务内与消息一同创建；保存/完成以持久来源检查，删除任一来源会清理直接依赖回复并留下空取消代次，原消息与来源关联均用FK级联清理。RLS仅允许用户读取自己的关联，客户端无写权限，不参与评分或跨角色记忆共享。迁移 `0047_conversation_reply_sources.sql` 仅回填可信的历史replyTo单来源，不猜测更多批次成员；已通过标准迁移流程应用到当前配置的远端库，消息/人物/记忆全行聚合hash保持一致，authenticated本人可读、其他身份不可读，anon读权限拒绝。决策、替代方案与部署条件见[ADR-0020](adr/0020-durable-conversation-reply-sources.md)；最终迁移执行/验证记录见[交接](reviews/CHAT-RHYTHM-001.md)。
+
 本文描述个人 Alpha 的 PostgreSQL 数据基础。PostgreSQL 是学习证据、画像、内容版本、角色关系和记忆权限的权威来源；Web 与 Flutter 客户端都不能把本地状态当作能力事实。
 
 ## 1. 当前边界
@@ -88,6 +90,24 @@ ALPHA-030 的 `character_introduction_offers` 保存 Lucía 触发的好友介�
 
 7.5b 新增 `diagnostic_events` 作为不可变业务诊断事件表。`dedupe_key` 唯一约束抑制重复告警；`event_type`、`severity` 和 `status` 通过数据库 CHECK 限定；`request_id`/session/attempt/conversation/generation 只作为关联线索。该表启用 RLS 并撤销 `anon`/`authenticated` 的全部权限，只有服务端 repository 可以写入和查询。用户删除时 `user_id` 置空，事件保留为不含身份的运维事实。
 
+### 媒体系列目录（MEDIA-SERIES-001）
+
+`src/shared/db/schema/media-series.ts` 与迁移 `0046_media_series_directory.sql` 新增目录基础，归 `media` 模块所有。代码和隔离 PGlite 验证已完成，尚未在真实项目应用迁移；库存归属导入、系列页面和播后推荐 UI 分属后续任务。详见 [ADR-0018](adr/0018-media-series-directory.md) 和 [001 交接](reviews/MEDIA-SERIES-001.md)。
+
+| 表 | 职责与约束 |
+| --- | --- |
+| `media_series` | 稳定 `series_key`、名称、简介、单一 video/podcast 类型、ordered/episodic、active/archived 和独立正整数 revision；目录修订不改变媒体内容版本。 |
+| `media_series_memberships` | 挂接稳定 `media_items.id`，每个媒体最多一个系列；非空 position 为系列内唯一正整数，ordered 必须有 position，允许间隔。季/集号未知为 null，来源确有第零季/集时保留 0；保存确认者、时间与证据引用。 |
+| `media_series_changes` | 追加式前后值、原因、证据、操作者、请求哈希及 expectedRevision；`(series_id, idempotency_key)` 唯一。触发器拒绝 UPDATE、DELETE 与 TRUNCATE；目录及媒体外键 RESTRICT，审计操作者 UUID 不随 profile 删除级联丢失。 |
+
+三表启用 RLS，撤销 `anon` / `authenticated` 直接访问且不建立客户端策略。普通用户通过已鉴权服务端窄投影读取；所有者写入在 HTTP、application 与 repository 重新检查 allowlist，不以表 RLS 代替服务端身份校验。数据库触发器同时约束成员类型、ordered 非空位置，以及父系列或媒体 kind 变更后的关系一致性。
+
+写入先完整校验有界命令，再在单事务中对目录表取得 `SHARE ROW EXCLUSIVE` 锁，串行化创建、改序与跨系列移动。目标 revision 必须匹配，跨系列移动必须显式提供所有原系列 revision，并同时递增双方 revision、追加双方审计；相同幂等键和输入回放原结果，不同输入拒绝。成员冲突或任何写入错误回滚全部目录改动。这里只维护目录关系，不修改媒体版本、字幕、审核、用户进度或学习证据。
+
+系列简介、可见计数、分页、邻接与推荐在同一 SQL 快照内按 `current_version`、发布、版权及有效资产重新计算，不读取字幕。ordered 按 position 升序，episodic 按发布日期降序、缺日期排后，稳定键打破平局；分页默认 20、最多 50，可按当前媒体 anchor 定位。cursor 绑定系列 revision、页大小和当前可见版本集合，目录或可见性改变后拒绝旧 cursor。推荐最多 6 条同系列 video，排除当前稳定 ID，有序系列先后续集再补之前集；各卡进度仅按本次用户 UUID 查询。归档隐藏系列投影，不撤下仍可播放的单集。
+
+PGlite 的 7 项迁移约束/RLS 与 9 项实际 repository SQL 测试通过；测试加载媒体所需前置迁移，并非从空库执行仓库全部迁移链。真实 Supabase 迁移、双连接并发与目标项目角色验收尚未执行，不能由这些隔离测试替代。
+
 ## 3. 连接配置
 
 复制 `.env.example` 为本地 `.env`，不要提交真实值：
@@ -100,6 +120,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
 - `DATABASE_URL` 用于应用运行时；托管 Supabase 环境优先使用 transaction pooler。
+- 本机 Next 会优先使用 `.env.local`，而普通 `dotenv/config` 脚本默认只读 `.env`；诊断必须采用相同配置优先级并确认同一项目，不能用直连测量代表 pooler 的大字幕读取速度。IPv6/直连实际可达时本机可使用已配置且验证过的直连；IPv4-only 网络仍需 pooler。修改本机运行时连接后重启开发服务，避免进程级连接池继续使用旧端点；不要修改迁移连接或提交真实值。
 - `DIRECT_DATABASE_URL` 用于迁移；应使用直接 PostgreSQL 连接。
 - Drizzle 命令在没有环境变量时只回退到 Supabase CLI 的本机默认端口 `127.0.0.1:54322`，不会回退到任何远程环境。
 - 浏览器和 Flutter 代码不得读取这两个变量；它们不能使用 `NEXT_PUBLIC_` 前缀。

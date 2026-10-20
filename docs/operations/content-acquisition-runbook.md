@@ -1,5 +1,23 @@
 # 内容供应运行手册
 
+## 仅指定YouTube视频的元数据发现（YOUTUBE-EXACT-001）
+
+已配置YouTube来源可在`rightsPolicy`中增加`allowedVideoIds`，仅支持1–2个互异的11字符视频ID，`externalSourceId`仍为官方频道ID。无此字段沿用最新feed；有此字段直接调用官方videos.list，绝不先抓整频道再过滤，非法值不会回退feed。每次请求最多当前页limit与剩余配置ID中的较小数量，异常/重复返回ID拒整页，频道不符或不满足原门禁的指定条目不生成候选，也不替换成其他视频。
+
+当前runner一次提交一页。limit=1时下一次运行从持久游标继续第二ID，末页重置为null，后续可重新核验。源配置/有序ID列表或发现模式更换后，旧游标会在网络前报错；在明确核验并保存新配置时显式重置该来源cursor，不删除历史候选来绕过冲突，不手工改生产库。通过既有所有者配置流程处理；本任务未提供自动配置脚本或执行真实重置。
+
+缺失/下架/非公开的指定元数据可返回空页并推进进度，下一轮仍可重试，不表示已核实删除原因。实际API请求需服务端Data API key并消耗平台配额；`estimatedCostMicros=0`仅沿用本适配器的现金成本字段，不表示无API配额消耗。测试全部fake，未使用真实key或配额。
+
+精确ID不是处理/发布授权。只验证元数据时使用现有dry-run或discover-only入口并保留其他门禁，不切换自动处理/发布模式。将真实来源设为enabled/verified之前仍须落实具体取得渠道、署名、操作与受众范围；不得把本实现当作VideoEle两条已获准接入。不同CEFR需单项审核；历史稳定key为小写，单份列表拒大小写碰撞，跨来源既有身份需在实际导入前另查。
+
+## 待确认系列建议（MEDIA-SERIES-006）
+
+既有白名单 RSS/LR 播客发现结果可在候选详情的结构化 `metadata.mediaSeriesSuggestions` 保存最多一条 `unconfirmed` 提示；缺少可靠结构 ID/title 时为 `[]`。RSS 使用真实 feed/channel 元数据，LR 必须有合法 itunesId+feedTitle，混合目录仅作来源证据。视频 channel 或相似标题不会自动形成系列，当前不新增 playlist 抓取。建议生成不新增网络请求、抓取范围或费用，也不写 draft/contentHash、媒体目录、字幕或学习证据。
+
+检查 `sourceStableKey`、`mediaStableKey`、外部身份、public HTTPS证据、季集和 warnings；`feed_may_be_mixed`、`playlist_may_be_curated` 或 `metadata_conflict` 均需人工核实。未知季集为 null，0 是有效值，不推断全季/完结。确认后才使用现有所有者 media 系列写入流程：核对证据，先审阅/dry-run，再按 expectedRevision/幂等键受控写入；跨系列移动同时提供双方 revision。不能把候选 status 直接改成 confirmed 来绕过应用用例。
+
+重复发现仍按原候选身份去重，不为旧候选自动回填/替换建议；历史回填需要独立受控任务。取消、source cursor/revision 冲突或旧 candidate generation 不得提交迟到结果。新建议不授予审核/发布资格，原权利、内容/教学/结构审核、hash/revision 与资产门禁仍独立执行。本轮验证只用fake和本地PGlite；无真实采集或生产目录写入。工程记录见[006交接](../reviews/MEDIA-SERIES-006.md)。
+
 ## 范围
 
 每日任务只从已启用且权利状态为 `verified` 的白名单来源发现候选，并推进到审核库。文章和媒体都按受保护的分阶段策略运行；视频和播客可在 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true` 且当前版本通过内容、西语教学和结构三维审核时进入 `auto-publish`，否则最多停在 `review_ready`。自动发布仍不能绕过来源权利、结构校验、审核记录、revision/hash CAS 或资产可播放性门禁。
@@ -25,6 +43,10 @@ pnpm content:pipeline -- report --limit 100
 
 生产媒体转写配置使用受保护的 GitHub Environment 变量/secret：`CONTENT_MEDIA_PROVIDER_MODE=live`、`CONTENT_MEDIA_STT_PROVIDER=minimax|openai`、`CONTENT_MEDIA_TRANSLATION_PROVIDER=minimax`，默认使用 MiniMax ASR；只有显式设置 `CONTENT_MEDIA_STT_PROVIDER=openai` 时才切换到 OpenAI。默认 provider 需要 `MINIMAX_API_KEY`，显式切换 OpenAI 时需要 `OPENAI_API_KEY`。OpenAI 使用 `OPENAI_TRANSCRIPTION_ENDPOINT` 与 `OPENAI_TRANSCRIPTION_MODEL`；MiniMax ASR 使用 `MINIMAX_TRANSCRIPTION_API_ENDPOINT`（默认 `https://api.minimax.cn/v1/speech_to_text`）和 `MINIMAX_TRANSCRIPTION_MODEL=asr-1.0`。`CONTENT_MEDIA_ASR_MAX_DURATION_MS`、`CONTENT_MEDIA_ASR_MAX_ASSET_BYTES`、`CONTENT_MEDIA_ASR_MAX_COST_MICROS` 和 `CONTENT_MEDIA_ASR_MIN_CONFIDENCE` 控制单条媒体的时长、临时文件大小、预算和最低置信度，默认时长上限与 Language Reactor 播客策略一致为 60 分钟。默认临时媒体上限为 50 MB；超过转写 provider 输入限制的音频会在临时目录内转换为 48 kbps 单声道 MP3，转换后的文件仍必须不超过 25 MB。默认测试使用 `CONTENT_MEDIA_PROVIDER_MODE=fake`，不会请求收费 Provider。缺少 live provider 凭据时 `auto-publish` fail closed，不会把候选或审核通过计为正式发布。
 
+已托管的 Bunny 视频在字幕回填时使用带 ETag 校验的分块 Range 下载，避免长视频单次下载中断；每个分片仍需通过响应范围、大小和媒体类型校验后才会合并，失败时不会生成或发布不完整音频。
+
+播客迁移到 Bunny 时，`scripts/migrate-podcasts-to-bunny.ts` 会先按节目名称从固定的官方公开 RSS 解析并匹配当前集数，再使用新 enclosure；Charlas Hispanas 与 Hoy Hablamos 的 Blubrry enclosure 通过各自官网公开下载代理，LearnCraft Spanish 使用官方 Libsyn feed，A hombros de gigantes 使用 RTVE feed，No Hay Tos 与 El Dollop 使用各自 Simplecast feed。候选必须通过 source host allowlist、HTTPS、MIME、大小、解码时长、Bunny 内容哈希和浏览器播放/seek 校验；无法从标题或文件名证明是同一集时会回退到现有 Language Reactor URL，仍失败则保留失败状态。该迁移仍要求 `MEDIA_AUDIO_HOSTING_CONFIRM=I_HAVE_AUTHORIZATION`，并支持 `MEDIA_AUDIO_STABLE_KEY` 单条 canary，不会因 feed fallback 绕过来源权利或直接发布。
+
 该命令只选择 `youtube`、`podcast-rss` 或已登记的 `language-reactor` 的 `enabled=true`、`rights_status=verified` 来源，并在报告中显式列出因权利未验证而跳过的媒体来源。媒体来源的配额顺序固定为 Language Reactor YouTube mix（`t_yt_mix_es`）→其他视频→Language Reactor podcast mix（`t_pd_mix_es`）→其他播客；`t_pd_mix_es` 的 API 返回类型是 `AUDIO_FILE`，因此只能生成播客候选，不能伪装为视频。`language-reactor` 只允许已验证的西语视频/播客目录和其来源策略中指定的 API、媒体主机；适配器不会从页面或 API 响应扩大 allowlist。音频资源会逐跳校验 HTTPS、重定向目标 host、MIME 和大小；失败会记录稳定的脱敏原因码（例如 `RESOURCE_HOST_NOT_ALLOWLISTED`、`RESOURCE_CONTENT_TYPE_UNSUPPORTED`、`RESOURCE_REQUEST_FAILED`），不会记录完整媒体 URL。若授权目录使用 CDN/跟踪重定向，必须先在来源策略中明确登记所有预期跳转 host，并重新运行来源策略校验。
 
 每个媒体来源的 discovery 请求有 180 秒硬超时（包含授权音频的大小/MIME 探测和播客 artwork 查询）；超时会在报告中记录 `MEDIA_SOURCE_TIMEOUT` 并继续后续已授权来源，保留该来源游标，不会把未完成 discovery 当作成功或发布。候选下载、ASR、翻译和审核不共用 discovery 超时；每个候选默认有 15 分钟处理超时，可由受保护变量 `CONTENT_MEDIA_CANDIDATE_TIMEOUT_MS` 调整。媒体候选审核默认以 2 个候选并发运行，可由受保护变量 `CONTENT_MEDIA_REVIEW_CONCURRENCY` 调整（限制为 1-10）；每个候选仍独立完成内容、教学、结构审核和 CAS。分类 `daily-limit` 是本次运行的处理上限，不是保证可发现或可发布的数量；视频还必须先完成 Bunny MP4 托管门禁和双语字幕门禁。
@@ -34,6 +56,10 @@ pnpm content:pipeline -- report --limit 100
 新视频发布时，YouTube URL 仅保存为来源与 provenance；公开播放资产必须先经 yt-dlp/ffmpeg 处理、上传 Bunny Storage + Pull Zone，并通过 MP4、SHA-256、字节数、CDN HEAD 与浏览器播放/seek 校验。没有 `bunnyVideoAsset` 的视频候选只能停留在审核或托管准备阶段，不能通过媒体 publisher；已存在的旧 official embed 不因迁移脚本成功而自动宣称已转为 Bunny。
 
 媒体自动发布的托管步骤会先按 Asia/Shanghai 自然日统计正式 `published` 视频，再从所有当前 revision 已通过三维审核、仍为 draft 且没有 `bunnyVideoAsset` 的视频候选中按 `last_activity_at` 只取当天剩余缺口。审核前已存在的候选仍可在本次运行中托管；不能用运行开始时间排除它们。仅在人工单次回填需要限制时间窗口时，才显式设置 `MEDIA_VIDEO_HOSTING_SINCE`。
+
+词级选框回填使用 MiniMax 的 `timestamp_level=word`，只接受 provider 返回的真实词级时间片，并要求词面与字幕偏移逐词匹配；匹配失败时保持无自动选框，不使用均分时间估算。
+
+`MEDIA-WORD-003`（2026-10-18）：每日 live 媒体管线现在对 MiniMax ASR 显式请求 `timestamp_level=word`，由 media 纯领域分组函数把 provider 词时间戳转成句子级字幕和精确词级 offsets，随候选草稿进入审核/发布门禁；非词级/多词元/重叠/越界响应会让该候选 fail closed（`MEDIA_TRANSCRIPTION_FAILED`/`provider-response-invalid`），不再发布平均分配的估算时间轴。纯文本 provider（如 OpenAI）仍走原文本回退但不会产生词级时间轴。评审/修订模型输入投影掉 words，发布草稿与 contentHash 仍覆盖完整词级时间轴。另注意：当前每日管线发布的播客播放资产仍可能引用外部 signed/动态广告 URL（与库内历史播客已托管 Bunny 不一致），签名过期、网络不可达或 rendition 变化会导致播放失败或与词级时间轴漂移；修复流程是先用 `scripts/backfill-media-word-timings.ts` 生成词级回填草稿（`media_transcript_backfills`）、独立复核后 `scripts/publish-media-subtitle-backfill.ts --stable-key` 版本化发布；若元数据时长与实际音频不符，再用 `scripts/correct-media-duration.ts --duration-ms` 发布时长修正版本；最后把同一份精确音频上传自有 Bunny CDN 并 CAS 更新当前版本 audio asset（参照 `scripts/migrate-podcasts-to-bunny.ts` 的托管门禁）。2026-10-18 已按此流程修复 5 条播客（详见 [`MEDIA-WORD-003` 交接](../reviews/MEDIA-WORD-003.md)）。
 
 ### YouTube PO Token provider（每日 workflow 默认）
 

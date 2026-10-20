@@ -32,7 +32,7 @@ Alpha 当前计划包含：
 - 可持续扩充的视频、播客和西语文章库，以及每日白名单候选供应链。
 - 文章、媒体共用的词汇/短语出现索引、语料查询和纯文字词句考察。
 - 听说核心训练、静默读写替代和抽样口语复核。
-- Web 浏览器 TTS、录音、转写和基础评估。
+- Web MiniMax 女声合成朗读、浏览器录音、转写和基础评估。全站朗读共用 `createReadAloud` / `useReadAloud`，固定 Serene Woman，服务端需 `MINIMAX_API_KEY`；详见 [ADR-0019](docs/adr/0019-unified-minimax-read-aloud.md)。
 - 四板块学习画像和有效学习热力图。
 - 计划中的 Lucía 及未来角色；当前 Alpha 只正式开放 Lucía，其他角色在独立人物包和发布审核完成前保持 coming-soon。
 - 长期关系记忆、好友介绍和隐私控制。
@@ -59,6 +59,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [完整产品设计](docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
 - [Web 优先的个人学习产品与场景实战设计](docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
 - [自动内容供应与词句学习重构设计](docs/superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md)
+- [阅读页短语与语料页面设计](docs/superpowers/specs/2026-10-12-reading-phrase-and-corpus-page-design.md)
 - [自动内容供应与词句学习重构实施计划](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)
 - [Web/PWA 场景学习闭环实施计划](docs/plans/2026-09-11-web-first-scenario-practice-implementation-plan.md)
 - [阅读库与西语文章内容体系设计](docs/superpowers/specs/2026-08-26-reading-library-and-article-content-design.md)
@@ -77,6 +78,7 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [跨客户端 API 契约](contracts/README.md)
 - [ADR-0002：个人 Alpha 改为 Web/PWA 优先](docs/adr/0002-web-pwa-first-personal-alpha.md)
 - [ADR-0008：内容驱动学习入口与自动采集审核链路](docs/adr/0008-content-led-learning-and-automated-ingestion.md)
+- [ADR-0012：阅读区短语与语料工作区分工及查询语义](docs/adr/0012-reading-phrase-and-corpus-workspace.md)
 - [历史 ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
 - [内容制作与审核规范](docs/content-authoring.md)
 - [测试与质量策略](docs/testing-strategy.md)

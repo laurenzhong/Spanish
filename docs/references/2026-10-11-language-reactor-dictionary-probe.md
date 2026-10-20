@@ -466,3 +466,9 @@ $txt = Get-Content "D:\workspace\.tmp-lr-research\assets\assets__index-B2o7oYbu.
 - `D:\workspace\content\glossary\es-zh-common-v1.json` —— 现有 80 条人工/已审核词汇表（对照基线）
 
 > `.tmp-lr-research/` 已被 `.gitignore` 的 `.tmp-*/` 规则忽略，其中的抓取产物不会进入版本库。本文引用的原始响应体均为本次实测逐字复制。
+
+---
+
+## 11. 后续：hover 交互机制已补测（2026-10-12）
+
+本文 §1.2 与 §9.7 记为「未做浏览器 hover 观察」。该项已由 `docs/references/2026-10-12-language-reactor-hover-interaction.md` 补齐：在视频页 `文本` 标签的逐句字幕列表上（**未登录**）用真实指针实测了弹层的打开/关闭生命周期、100 ms 关闭延迟（实测 109.6 / 116.9 ms）、朝锚点一侧的 12 px 内边距（死区实测 0 px）、以及弹层内部的 `lln-stage-known` / `lln-stage-learning` 两个按钮。本文的端点与译文数据结论不受影响；两文合并即可覆盖"数据"与"交互"两面。
