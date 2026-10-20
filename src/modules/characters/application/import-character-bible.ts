@@ -30,6 +30,9 @@ export function profileFor(character: CharacterBible): PersistedCharacter["profi
     personality: character.personality,
     relationships: character.relationships,
     changeLog: character.changeLog,
+    canonPolicies: Object.fromEntries(character.facts.filter((fact) => fact.isActive).map((fact) => [fact.factKey, {
+      version: fact.version, category: fact.category, reveal: fact.reveal,
+    }])),
   };
 }
 

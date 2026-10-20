@@ -2,6 +2,7 @@ import { getArticles } from "@/src/modules/content/application";
 import { createRuntimeArticleRepository } from "@/src/modules/content/repositories";
 
 import { ReadShelf } from "./read-shelf";
+import { ReadShelfUnavailable } from "./read-shelf-unavailable";
 import { ARTICLE_PAGE_SIZE } from "./shelf-constants";
 
 type ReadSort = "hot" | "newest" | "shortest";
@@ -35,7 +36,6 @@ export async function ReadShelfData({
   const sort: ReadSort = sortParam === "newest" || sortParam === "shortest" ? sortParam : "hot";
   const parsedPage = Number.parseInt(first(params.page) ?? "1", 10);
   const requestedPage = Number.isSafeInteger(parsedPage) ? Math.max(parsedPage, 1) : 1;
-  const repository = createRuntimeArticleRepository();
 
   const query = {
     search,
@@ -47,11 +47,20 @@ export async function ReadShelfData({
     pageSize: ARTICLE_PAGE_SIZE,
     cursor: String((requestedPage - 1) * ARTICLE_PAGE_SIZE),
   };
-  let result = await getArticles(repository, query);
-  const totalPages = Math.max(Math.ceil(result.totalCount / ARTICLE_PAGE_SIZE), 1);
-  const page = Math.min(requestedPage, totalPages);
-  if (page !== requestedPage) {
-    result = await getArticles(repository, { ...query, cursor: String((page - 1) * ARTICLE_PAGE_SIZE) });
+  let result: Awaited<ReturnType<typeof getArticles>>;
+  let page = requestedPage;
+  try {
+    const repository = createRuntimeArticleRepository();
+    result = await getArticles(repository, query);
+    const totalPages = Math.max(Math.ceil(result.totalCount / ARTICLE_PAGE_SIZE), 1);
+    page = Math.min(requestedPage, totalPages);
+    if (page !== requestedPage) {
+      result = await getArticles(repository, { ...query, cursor: String((page - 1) * ARTICLE_PAGE_SIZE) });
+    }
+  } catch {
+    // A failed database read is not an empty catalogue. Leave the URL intact
+    // so an explicit refresh retries the same filters and requested page.
+    return <ReadShelfUnavailable />;
   }
 
   return (

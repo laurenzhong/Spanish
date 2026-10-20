@@ -50,6 +50,22 @@ afterEach(() => {
 });
 
 describe("podcast audio player", () => {
+  it("shows the current sentence only in the transcript, including after navigation and hiding captions", () => {
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={playback()} />);
+    act(() => player.lifecycle().onReady());
+
+    expect(screen.queryByRole("group", { name: "当前片段" })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(screen.getByRole("button", { name: "查看词语 Quería" }).closest("li")).toHaveClass("is-active");
+    expect(screen.queryByRole("group", { name: "当前片段" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "隐藏" }));
+    expect(screen.queryByRole("button", { name: "查看词语 Quería" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "当前片段" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Una mañana en el mercado 播放器")).toBeVisible();
+  });
+
   it("forwards native seek and timeupdate events while removing them on destroy", () => {
     const element = document.createElement("audio");
     const load = vi.spyOn(element, "load").mockImplementation(() => undefined);
@@ -101,7 +117,7 @@ describe("podcast audio player", () => {
     const first = fakePlayer();
     const view = render(<MediaLearningWorkbench audioPlayerFactory={first.factory} playback={playback()} />);
     act(() => first.lifecycle().onReady());
-    fireEvent.click(screen.getByRole("checkbox", { name: "自动暂停" }));
+    fireEvent.keyDown(window, { key: "q" });
     first.setCurrentTime(2_200);
     act(() => first.lifecycle().onStateChange("playing"));
     act(() => vi.advanceTimersByTime(300));
@@ -134,5 +150,33 @@ describe("podcast audio player", () => {
     act(() => player.lifecycle().onError("播客音频暂时无法播放，请检查网络后重试。"));
 
     expect(screen.getByRole("alert")).toHaveTextContent("播客音频暂时无法播放，请检查网络后重试。");
+  });
+
+  it("keeps the audio player mounted and playing while the transcript arrives in two phases", async () => {
+    const player = fakePlayer();
+    const source = playback();
+    const empty = { ...source, segments: [] };
+    const view = render(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={empty} transcriptExpectedSegments={3} transcriptState={{ status: "loading" }} />);
+    expect(player.factory).toHaveBeenCalledTimes(1);
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onStateChange("playing"));
+    player.setCurrentTime(3_000);
+    act(() => player.lifecycle().onPositionChange?.());
+    expect(screen.getByText("正在播放")).toBeVisible();
+
+    view.rerender(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={source} transcriptExpectedSegments={3} transcriptState={{ status: "text_ready", segments: source.segments, words: "loading" }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(player.factory).toHaveBeenCalledTimes(1);
+    expect(player.port.destroy).not.toHaveBeenCalled();
+    expect(player.port.currentTime()).toBe(3_000);
+    expect(screen.getByText("正在播放")).toBeVisible();
+    expect(screen.getByText("字幕已加载，逐词高亮准备中…")).toBeVisible();
+    expect(view.container.querySelector("#segment-1")).toHaveClass("is-active");
+
+    view.rerender(<MediaLearningWorkbench audioPlayerFactory={player.factory} playback={source} transcriptExpectedSegments={3} transcriptState={{ status: "ready", segments: source.segments }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(player.factory).toHaveBeenCalledTimes(1);
+    expect(player.port.destroy).not.toHaveBeenCalled();
+    expect(screen.queryByText("字幕已加载，逐词高亮准备中…")).not.toBeInTheDocument();
   });
 });

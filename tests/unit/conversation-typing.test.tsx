@@ -71,12 +71,16 @@ describe("conversation typing status", () => {
     expect(screen.getByRole("status")).toHaveTextContent("正在回复");
     expect(screen.queryByText("主要好友")).not.toBeInTheDocument();
 
+    await waitFor(() => {
+      expect(streamController).toBeDefined();
+      expect(sentGenerationId).not.toBe("");
+    });
     const events = [
       { type: "meta", protocolVersion: "v1", characterKey: "lucia", characterVersion: 1, generationId: sentGenerationId, messageId: "assistant-1" },
       { type: "done", generationId: sentGenerationId, messageId: "assistant-1" },
     ].map((event) => `${JSON.stringify(event)}\n`).join("");
-    streamController?.enqueue(new TextEncoder().encode(events));
-    streamController?.close();
+    streamController!.enqueue(new TextEncoder().encode(events));
+    streamController!.close();
 
     await waitFor(() => expect(screen.queryByText("Typing")).not.toBeInTheDocument());
     expect(screen.getByText("主要好友")).toBeInTheDocument();

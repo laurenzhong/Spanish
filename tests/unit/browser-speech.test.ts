@@ -118,6 +118,24 @@ describe("browser speech capabilities", () => {  it("maps denied microphone perm
     expect(utterances[0].voice).toBe(voice);
   });
 
+  it("resumes a previously paused engine after queuing the utterance", async () => {
+    const { factory } = createUtteranceFactory();
+    let queued: FakeUtterance | null = null;
+    const resume = vi.fn(() => {
+      if (queued) finish(queued);
+    });
+    const tts = new BrowserTextToSpeech({
+      getVoices: () => [],
+      cancel: vi.fn(),
+      speak: (value: SpeechSynthesisUtterance) => { queued = value as unknown as FakeUtterance; },
+      resume,
+    }, factory);
+
+    const spoken = tts.speak("Hola", { languageTag: "es-ES" });
+    expect(resume).toHaveBeenCalledOnce();
+    await expect(spoken).resolves.toBeUndefined();
+  });
+
   it("prefers a local voice over a remote one for the same language", async () => {
     const remote = { name: "Remote Spanish", lang: "es-ES", localService: false } as SpeechSynthesisVoice;
     const local = { name: "Local Spanish", lang: "es-ES", localService: true } as SpeechSynthesisVoice;
@@ -134,6 +152,35 @@ describe("browser speech capabilities", () => {  it("maps denied microphone perm
     await tts.speak("Hola", { languageTag: "es-ES" });
 
     expect(utterances[0].voice).toBe(local);
+  });
+
+  it("switches to another Spanish voice when Chrome claims to speak without starting", async () => {
+    vi.useFakeTimers();
+    const dead = { name: "Dead Spanish", lang: "es-ES", localService: true, voiceURI: "dead" } as SpeechSynthesisVoice;
+    const working = { name: "Working Spanish", lang: "es-ES", localService: true, voiceURI: "working" } as SpeechSynthesisVoice;
+    const chinese = { name: "Chinese default", lang: "zh-CN", localService: true, voiceURI: "chinese" } as SpeechSynthesisVoice;
+    const { utterances, factory } = createUtteranceFactory();
+    const onStart = vi.fn();
+    const tts = new BrowserTextToSpeech({
+      getVoices: () => [chinese, dead, working],
+      cancel: vi.fn(),
+      speaking: true,
+      pending: false,
+      speak: (value) => { if (value.voice === working) finish(value as unknown as FakeUtterance); },
+    }, factory);
+    const spoken = tts.speak("Hola", { languageTag: "es-ES", voiceURI: "dead", startupTimeoutMs: 60, onStart });
+    const completed = expect(spoken).resolves.toBeUndefined();
+    await vi.advanceTimersByTimeAsync(12_000);
+    await completed;
+    expect(utterances.map((item) => item.voice)).toEqual([dead, working]);
+    expect(onStart).toHaveBeenCalledOnce();
+  });
+
+  it("uses a local Spanish voice before an online default while honoring a saved voice", () => {
+    const online = { name: defaultSpanishVoiceName, lang: "es-ES", localService: false, voiceURI: "online" } as SpeechSynthesisVoice;
+    const local = { name: "Local Spanish", lang: "es-ES", localService: true, voiceURI: "local" } as SpeechSynthesisVoice;
+    expect(preferredSpanishVoice([online, local])).toBe(local);
+    expect(preferredSpanishVoice([online, local], "online")).toBe(online);
   });
 
   it("reports silence instead of hanging when the engine drops the utterance", async () => {
@@ -225,22 +272,20 @@ describe("browser speech capabilities", () => {  it("maps denied microphone perm
     expect(cancel).not.toHaveBeenCalled();
   });
 
-  it("reports an interruption when the engine keeps claiming to speak but never starts", async () => {
+  it("reports startup failure when the engine keeps claiming to speak but never starts", async () => {
     const cancel = vi.fn();
     const { utterances, factory } = createUtteranceFactory();
     // Chrome sets `speaking` synchronously even for an utterance it later drops,
     // so the engine's own state may only postpone the verdict, never remove it.
-    // The total budget (60 + 8000ms here) must still fire, and because the engine
-    // still claims to speak the honest verdict is "interrupted", not "no sound".
+    // Without a start, queue flags cannot prevent a bounded startup failure.
     const tts = new BrowserTextToSpeech(
       { getVoices: () => [], cancel, speak: vi.fn(), speaking: true, pending: false } as unknown as SpeechSynthesis,
       factory,
     );
 
-    await expect(tts.speak("Hola", { languageTag: "es-ES", startupTimeoutMs: 60 })).rejects.toMatchObject({ code: "tts-stalled" });
+    await expect(tts.speak("Hola", { languageTag: "es-ES", startupTimeoutMs: 60 })).rejects.toMatchObject({ code: "tts-no-audio" });
     expect(cancel).toHaveBeenCalledTimes(1);
-    // No replay: the engine claimed to be playing, so a second utterance could
-    // duplicate audio the user already heard.
+    // No listed voice means there is no alternative voice to retry.
     expect(utterances).toHaveLength(1);
   }, 60_000);
 
@@ -297,6 +342,49 @@ describe("browser speech capabilities", () => {  it("maps denied microphone perm
     expect(utterances).toHaveLength(1);
   });
 
+  it("falls back on an unavailable voice but never replays audio that already started", async () => {
+    const first = { name: "First Spanish", lang: "es-ES", voiceURI: "first", localService: true } as SpeechSynthesisVoice;
+    const second = { name: "Second Spanish", lang: "es-ES", voiceURI: "second", localService: true } as SpeechSynthesisVoice;
+    for (const started of [false, true]) {
+      const { utterances, factory } = createUtteranceFactory();
+      const tts = new BrowserTextToSpeech({
+        getVoices: () => [first, second],
+        cancel: vi.fn(),
+        speak: (utterance) => {
+          if (utterance.voice === second) { finish(utterance as unknown as FakeUtterance); return; }
+          if (started) utterance.onstart?.(new Event("start") as SpeechSynthesisEvent);
+          utterance.onerror?.({ error: "network" } as SpeechSynthesisErrorEvent);
+        },
+      }, factory);
+      if (started) {
+        await expect(tts.speak("Hola", { languageTag: "es-ES", voiceURI: "first" })).rejects.toMatchObject({ code: "tts-failed" });
+        expect(utterances).toHaveLength(1);
+      } else {
+        await expect(tts.speak("Hola", { languageTag: "es-ES", voiceURI: "first" })).resolves.toBeUndefined();
+        expect(utterances.map((item) => item.voice)).toEqual([first, second]);
+      }
+    }
+  });
+
+  it("does not revive a failed voice after a newer click or stop", async () => {
+    const first = { name: "First Spanish", lang: "es-ES", voiceURI: "first", localService: true } as SpeechSynthesisVoice;
+    const second = { name: "Second Spanish", lang: "es-ES", voiceURI: "second", localService: true } as SpeechSynthesisVoice;
+    const { utterances, factory } = createUtteranceFactory();
+    const tts = new BrowserTextToSpeech({
+      getVoices: () => [first, second],
+      cancel: vi.fn(),
+      speak: (utterance) => {
+        if (utterance.text === "old") utterance.onerror?.({ error: "language-unavailable" } as SpeechSynthesisErrorEvent);
+      },
+    }, factory);
+    const old = tts.speak("old", { languageTag: "es-ES", voiceURI: "first" });
+    const current = tts.speak("new", { languageTag: "es-ES", voiceURI: "second" });
+    await old;
+    expect(utterances.map((item) => item.text)).toEqual(["old", "new"]);
+    tts.stop();
+    await current;
+  });
+
   it("fails with tts-stalled when the engine never stops speaking", async () => {
     const cancel = vi.fn();
     const { factory } = createUtteranceFactory();
@@ -309,7 +397,7 @@ describe("browser speech capabilities", () => {  it("maps denied microphone perm
     };
     const tts = new BrowserTextToSpeech(synthesis as unknown as SpeechSynthesis, factory);
 
-    // The runtime bound is deliberately generous (120s floor) so a legitimately
+    // The runtime bound is deliberately generous (30s floor) so a legitimately
     // long reading is never cut short; a permanently "speaking" engine is still
     // released instead of holding the UI forever.
     await expect(tts.speak("Hola", { languageTag: "es-ES", maxRuntimeMs: 2_000 })).rejects.toMatchObject({ code: "tts-stalled" });

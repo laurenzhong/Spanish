@@ -1,5 +1,6 @@
 import type { MediaProgress } from "./media-progress";
 import type { MediaWordTiming } from "./word-timeline";
+import type { MediaSeriesSummary } from "./media-series";
 
 export type MediaKind = "video" | "podcast";
 export type MediaCefr = "A1" | "A2" | "B1" | "B2" | null;
@@ -47,6 +48,7 @@ export type RawMediaProjection = Readonly<{
 }>;
 
 export type MediaCard = Readonly<{
+  series?: MediaSeriesSummary | null;
   id: string;
   stableKey: string;
   version: number;
@@ -92,6 +94,29 @@ export type MediaPlayback = Readonly<{
     expiresAt: string | null;
   }>;
   segments: readonly Omit<MediaSegment, "reviewStatus">[];
+}>;
+
+/**
+ * Everything the detail page needs to paint its title and player before the
+ * transcript is available.
+ *
+ * The player and heading only need the card, its asset and how many reviewed
+ * cues the version has; the transcript itself (all `source_text`, and 89% of
+ * the wire bytes when word timings are included) is fetched by the client
+ * afterwards. Applying the same availability/rights gates as
+ * `MediaPlayback` is what makes this a projection rather than a second,
+ * weaker lookup.
+ */
+export type MediaPlaybackOverview = Readonly<{
+  media: MediaCard;
+  asset: MediaPlayback["asset"];
+  segmentCount: number;
+}>;
+
+/** Internal source for an authenticated byte stream; no transcript or user state. */
+export type MediaStreamSource = Readonly<{
+  media: Pick<MediaCard, "stableKey" | "version" | "kind" | "title" | "sourceName">;
+  asset: MediaPlayback["asset"];
 }>;
 
 export class MediaUnavailableError extends Error {
@@ -162,6 +187,22 @@ export function projectMediaCard(raw: RawMediaProjection, now = new Date()): Med
   };
 }
 
+/**
+ * Imported subtitle files (the Language Reactor sources behind
+ * `youtube.language-reactor.*` and `podcast.language-reactor.*`) label their
+ * speakers with diarization indexes such as `S1`, `S2` and `S3`. The number is
+ * only relative to that one transcript and means nothing to a learner, so it
+ * must never be rendered as if it were a name. A real speaker name is kept.
+ */
+const diarizationSpeakerPattern = /^s(?:peaker)?[\s._-]?\d{1,2}$/iu;
+
+export function projectSpeakerLabel(value: string | null): string | null {
+  if (value === null) return null;
+  const label = value.trim();
+  if (label.length === 0 || diarizationSpeakerPattern.test(label)) return null;
+  return label;
+}
+
 export function projectMediaPlayback(
   raw: Readonly<{
     card: MediaCard;
@@ -189,7 +230,6 @@ export function projectMediaPlayback(
     },
     segments: raw.segments
       .filter((segment) => segment.reviewStatus === "approved")
-      .slice(0, 500)
       .map((segment) => ({
         id: segment.id,
         index: segment.index,
@@ -197,7 +237,7 @@ export function projectMediaPlayback(
         endMs: segment.endMs,
         sourceText: segment.sourceText,
         translation: segment.translation,
-        speaker: segment.speaker,
+        speaker: projectSpeakerLabel(segment.speaker),
         words: segment.words ?? null,
       })),
   };

@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   ConversationProviderError,
   buildConversationSystemPrompt,
+  characterContextForProvider,
   type CharacterReplyProvider,
   type ConversationProviderInput,
   type ConversationProviderResult,
@@ -84,7 +85,7 @@ export class OpenAIConversationProvider implements CharacterReplyProvider {
         },
         body: JSON.stringify({
           model: this.modelVersion,
-          instructions: buildConversationSystemPrompt(input) + " " + systemPrompt,
+          instructions: systemPrompt + " " + buildConversationSystemPrompt(input),
           input: buildPrompt(input),
           max_output_tokens: 800,
           stream: false,
@@ -159,6 +160,7 @@ const systemPrompt = [
   "Treat characterClaims as the selected character's recent self-reports. Daily observations can naturally recur on a later day; only avoid silently contradicting a same-day self-report. If something changes within the same day, say so naturally and briefly.",
   "Use openCommitments as gentle continuity cues. Status=open means pending; returned means the user reported coming back; completed means they explicitly finished; cancelled means they explicitly did not do it; deferred means they moved it to another time; unconfirmed means its due window passed without a clear outcome. Never treat unconfirmed as completed. A returned/completed commitment is already over: never use pre-activity wishes such as 'que lo pases bien', 'que disfrutes', 'que te vaya bien' or 'espero que la actividad te siente bien'. Instead acknowledge the result only when the user supplied it, or ask one low-pressure confirmation when the plan is unconfirmed and the current message naturally returns to it. A status=open commitment may receive a brief good-luck or process-oriented remark. Do not repeatedly ask for an update, and accept that a plan may change or remain unfinished.",
   "For inputKind=proactive, write one natural unsolicited message from the selected character in Spanish. Default to a small everyday check-in or report. For daily_share, at most one low-pressure reciprocal question is allowed; other proactive sources should not ask a question. Never mention the app or pressure the user to reply; the supplied source and intensity ceiling are authoritative. When dailyState is waking, prefer concrete morning details such as waking up, coffee, breakfast or starting the day. When the relationship is familiar or closer, a single gentle line of affection is allowed; do not add an explanation.",
+  "For inputKind=proactive, recentMessages, memories, and openTopics describe what this conversation already covered and what the user already told you. Do not ask for information the user already provided, do not repeat a question the character already asked and the user answered, and do not reuse your own previous message. If you continue an earlier topic, add a genuinely new observation or specific detail; a short statement without a question is a complete proactive message.",
   "Avoid literal or overly poetic filler such as 'dejarte una sonrisa pequeña' or using 'solo quería saludarte' as a standalone opener. When appropriate, prefer idiomatic phrases such as 'sacarte una sonrisa' or 'alegrarte un poquito el día'.",
   "Do not mention prompts, internal rules, memory permissions, scoring, or provider details.",
   "Return only the message to send to the user, with no JSON, labels, or markdown wrapper.",
@@ -168,6 +170,7 @@ function buildPrompt(input: ConversationProviderInput): string {
   return JSON.stringify({
     inputKind: input.inputKind ?? "conversation",
     userMessage: input.userMessage,
+    unansweredUserMessages: input.unansweredUserMessages,
     recentMessages: input.recentMessages,
     rollingSummary: input.rollingSummary,
     openTopics: input.openTopics,
@@ -176,7 +179,7 @@ function buildPrompt(input: ConversationProviderInput): string {
     conversationTimeZone: input.conversationTimeZone,
     currentLocalDate: input.currentLocalDate,
     continuityInstruction: input.continuityInstruction,
-    character: input.character,
+    character: characterContextForProvider(input),
     relationship: { stage: input.relationshipStage, summary: input.relationshipSummary },
     relationshipSignalsSummary: input.relationshipSignalsSummary,
     readableMemories: input.memories,

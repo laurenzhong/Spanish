@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-series-episodes-query.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "pageSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 20
+    },
+    "anchorMediaKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$"
+    }
+  },
+  "not": {
+    "properties": {
+      "cursor": {},
+      "anchorMediaKey": {}
+    },
+    "required": [
+      "cursor",
+      "anchorMediaKey"
+    ]
+  }
+}

@@ -1,4 +1,5 @@
 import type { ReplyCharacterSnapshot } from "../application/build-reply-context";
+import luciaBible from "@/content/characters/lucia.json";
 import {
   findCharacterRuntimeDefinition,
   isCharacterConversationEnabled,
@@ -24,28 +25,23 @@ export type ConversationCharacter = Readonly<{
 export const conversationCharacters: readonly ConversationCharacter[] = [
   {
     key: "lucia",
-    version: 2,
+    version: luciaBible.version,
     displayName: "Lucía Martín",
     roleLabel: "主要好友",
     homeLocation: "Madrid",
     avatarClass: "avatar--lucia",
     snapshot: {
       characterKey: "lucia",
-      characterVersion: 2,
+      characterVersion: luciaBible.version,
       displayName: "Lucía Martín",
       homeLocation: "Madrid",
+      identity: luciaBible.identity,
+      traits: luciaBible.personality.traits,
       initiative: "balanced",
       tone: ["cercana", "natural", "con humor suave"],
-      // Mirrors content/characters/lucia.json: personality.responseStyle. It is
-      // the fallback for a published row imported before the bible carried the
-      // field, so the rules take effect without a re-import.
-      responseStyle: [
-        "responde primero a lo que la otra persona quiso decir",
-        "hace una pregunta de seguimiento cuando encaja",
-        "comparte una experiencia breve sin monopolizar la conversación",
-        "no repite una expresión que ya usó: si ya dijo algo, lo dice con otras palabras o añade algo nuevo",
-        "no traduce saludos ni deseos palabra por palabra; usa la fórmula corriente en español",
-      ],
+      // Explicit test/dev projection of the authored source. Published rows
+      // remain authoritative in the real runtime.
+      responseStyle: luciaBible.personality.responseStyle,
       topics: ["fotografía urbana", "comida local", "Madrid", "café", "cultura digital"],
       facts: [
         { factKey: "boundary.ai-identity", statement: "Soy un personaje de IA, y me gusta hablar contigo con honestidad.", sensitivity: "normal", reveal: "direct" },

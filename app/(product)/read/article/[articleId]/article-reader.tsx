@@ -6,16 +6,12 @@ import type { ArticleReaderProjection, ArticleReaderSegment, ArticleTransferType
 import { articleTransferTask, articleTransferTypes, recommendedArticleTransferType } from "@/src/modules/content/domain";
 import { readingStatePatchSchema } from "@/src/modules/reading/domain/reading-state";
 import {
-  createBrowserTextToSpeech,
-  listBrowserVoices,
-  preferredSpanishVoice,
-  readSpanishVoicePreference,
-  subscribeToBrowserVoices,
-  textToSpeechErrorMessage,
-  writeSpanishVoicePreference,
+  createReadAloud,
+  readAloudErrorMessage,
 } from "@/src/modules/providers/tts";
 import type { WordExplanation } from "@/src/modules/providers/word-explanation";
 import { getCommonGlossaryEntry, type CommonGlossaryEntry } from "@/src/modules/reading/domain/common-glossary";
+import { speechCapabilityErrorCode } from "@/src/modules/providers/speech";
 
 type SavedPhrase = Readonly<{ id: string; text: string; position: number }>;
 type Highlight = Readonly<{ id: string; text: string; position: number }>;
@@ -29,7 +25,7 @@ type ReaderTool = "listen" | "explain" | "saved" | "settings";
 type ArticleReaderProps = Readonly<{ article: ArticleReaderProjection }>;
 
 const readerStoragePrefix = "reading-reader:v1:";
-const defaultSettings: ReaderSettings = { fontSize: "default", lineHeight: "default", width: "narrow", theme: "light", ttsRate: 0.88 };
+const defaultSettings: ReaderSettings = { fontSize: "default", lineHeight: "default", width: "narrow", theme: "light", ttsRate: 1 };
 function initialState(article: ArticleReaderProjection): ReaderState {
   return { stableKey: article.stableKey, version: article.version, contentHash: article.contentHash, position: 0, savedPhrases: [], highlights: [], note: "", saved: false, settings: defaultSettings, transferDraft: "", transferType: null };
 }
@@ -50,7 +46,8 @@ function remoteState(value: unknown) {
 function normalizeToken(value: string): string { return value.toLocaleLowerCase().replace(/^[^\p{L}¿¡]+|[^\p{L}¿¡]+$/gu, ""); }
 function clampTranslatorPosition(left: number, top: number, width: number, height: number): TranslatorPosition {
   const edge = 8;
-  const topEdge = 72;
+  const toolbarBottom = document.querySelector(".article-reader__topbar")?.getBoundingClientRect().bottom;
+  const topEdge = (toolbarBottom || 64) + edge;
   return {
     left: Math.min(Math.max(edge, left), Math.max(edge, window.innerWidth - width - edge)),
     top: Math.min(Math.max(topEdge, top), Math.max(topEdge, window.innerHeight - height - edge)),
@@ -210,8 +207,9 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const [draggingTranslator, setDraggingTranslator] = useState(false);
   const [keyboardNavigation, setKeyboardNavigation] = useState(false);
   const [speakingPosition, setSpeakingPosition] = useState<number | "full" | "voice-preview" | null>(null);
-  const [spanishVoices, setSpanishVoices] = useState<readonly SpeechSynthesisVoice[]>([]);
-  const [selectedSpanishVoiceURI, setSelectedSpanishVoiceURI] = useState<string | null>(() => readSpanishVoicePreference());
+  const [speakingText, setSpeakingText] = useState<string | null>(null);
+  const [speechStarted, setSpeechStarted] = useState(false);
+  const speechGenerationRef = useRef(0);
   const [ttsError, setTtsError] = useState(false);
   const [ttsErrorMessage, setTtsErrorMessage] = useState("");
   const [online, setOnline] = useState(true);
@@ -256,17 +254,8 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     pendingPreviewRef.current = null;
     if (pending) setStreamPreview((previous) => ({ ...previous, ...pending }));
   }, []);
-  const tts = useMemo(() => createBrowserTextToSpeech(), []);
+  const tts = useMemo(() => createReadAloud(), []);
   const settings = state.settings ?? defaultSettings;
-  useEffect(() => {
-    const refreshVoices = () => {
-      const voices = listBrowserVoices(article.locale);
-      setSpanishVoices(voices);
-      setSelectedSpanishVoiceURI((current) => preferredSpanishVoice(voices, current)?.voiceURI ?? current);
-    };
-    refreshVoices();
-    return subscribeToBrowserVoices(refreshVoices);
-  }, [article.locale]);
   const closeTools = useCallback(() => {
     explanationRequestRef.current?.controller.abort();
     cancelStreamPreview();
@@ -293,7 +282,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setToolsOpenState(true);
   }, [activeTool, closeTools, toolsOpen]);
 
-  useEffect(() => () => tts.stop(), [tts]);
+  useEffect(() => () => { speechGenerationRef.current += 1; tts.stop(); }, [tts]);
   useEffect(() => () => explanationRequestRef.current?.controller.abort(), []);
   useEffect(() => () => cancelStreamPreview(), [cancelStreamPreview]);
   useEffect(() => {
@@ -438,7 +427,19 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     };
   }, [draggingTranslator]);
   useEffect(() => { restoredPositionRef.current = null; }, [article]);
-  useEffect(() => { if (!hydrated || state.position <= 0 || restoredPositionRef.current !== null) return; restoredPositionRef.current = state.position; requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-reader-position=\"" + state.position + "\"]")?.scrollIntoView({ block: "center" })); }, [hydrated, state.position]);
+  useEffect(() => {
+    if (!hydrated || restoredPositionRef.current !== null) return;
+    const anchor = /^#segment-(\d+)$/u.exec(window.location.hash);
+    const anchorPosition = anchor ? Number(anchor[1]) : null;
+    const validAnchor = anchorPosition !== null && article.segments.some((segment) => segment.position === anchorPosition);
+    if (!validAnchor && state.position <= 0) return;
+    const position = validAnchor ? anchorPosition : state.position;
+    const frame = requestAnimationFrame(() => {
+      restoredPositionRef.current = position;
+      document.querySelector<HTMLElement>(`[data-reader-position="${position}"]`)?.scrollIntoView({ block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [article.segments, hydrated, state.position]);
   const selectionVisible = toolsOpen && activeTool === "explain";
   const activePositionRef = useRef(0);
   const updatePosition = useCallback(() => {
@@ -451,24 +452,32 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setState((previous) => previous.position === current ? previous : { ...previous, position: current });
   }, []);
   useEffect(() => { let frame = 0; const onScroll = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(updatePosition); }; window.addEventListener("scroll", onScroll, { passive: true }); return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", onScroll); }; }, [updatePosition]);
-  const selectedSpanishVoice = preferredSpanishVoice(spanishVoices, selectedSpanishVoiceURI);
-  const speak = useCallback(async (text: string, position: number | "full") => { if (!tts.isSupported) { setTtsError(true); setTtsErrorMessage("当前浏览器不支持语音合成，正文阅读不受影响。"); return; } setSpeakingPosition(position); setTtsError(false); setTtsErrorMessage(""); try { await tts.speak(text, { languageTag: article.locale, rate: settings.ttsRate, voiceName: selectedSpanishVoice?.name, voiceURI: selectedSpanishVoice?.voiceURI }); } catch (error) { // A silent engine (listed voice that cannot synthesize) keeps the text
-      // otherwise unreadable with no feedback at all.
-      setTtsErrorMessage(textToSpeechErrorMessage(error, "浏览器暂时无法朗读，正文阅读不受影响。")); setTtsError(true); } finally { setSpeakingPosition(null); } }, [article.locale, selectedSpanishVoice, settings.ttsRate, tts]);
-  const previewSpanishVoice = useCallback(async (voice: SpeechSynthesisVoice) => {
-    if (!tts.isSupported || speakingPosition !== null) return;
-    setSpeakingPosition("voice-preview");
+  const stopSpeech = useCallback(() => {
+    speechGenerationRef.current += 1;
+    tts.stop();
+    setSpeakingPosition(null);
+    setSpeakingText(null);
+    setSpeechStarted(false);
+  }, [tts]);
+  const speak = useCallback(async (text: string, position: number | "full" | "voice-preview") => {
+    if (!tts.isSupported) { setTtsError(true); setTtsErrorMessage("当前浏览器不支持音频播放，正文阅读不受影响。"); return; }
+    const generation = ++speechGenerationRef.current;
+    setSpeakingPosition(position);
+    setSpeakingText(text);
+    setSpeechStarted(false);
     setTtsError(false);
     setTtsErrorMessage("");
     try {
-      await tts.speak("Hola, esta es una muestra de la voz seleccionada.", { languageTag: article.locale, rate: settings.ttsRate, voiceName: voice.name, voiceURI: voice.voiceURI });
-    } catch (error) { setTtsErrorMessage(textToSpeechErrorMessage(error, "浏览器暂时无法朗读，正文阅读不受影响。")); setTtsError(true); }
-    finally { setSpeakingPosition(null); }
-  }, [article.locale, settings.ttsRate, speakingPosition, tts]);
-  const selectSpanishVoice = (voice: SpeechSynthesisVoice) => {
-    setSelectedSpanishVoiceURI(voice.voiceURI || voice.name);
-    writeSpanishVoicePreference(voice.voiceURI || voice.name);
-  };
+      await tts.speak(text, { languageTag: article.locale, rate: settings.ttsRate, onStart: () => { if (speechGenerationRef.current === generation) setSpeechStarted(true); } });
+    } catch (error) {
+      if (speechGenerationRef.current !== generation) return;
+      if (speechCapabilityErrorCode(error, "tts-failed") === "tts-cancelled") return;
+      setTtsErrorMessage(readAloudErrorMessage(error));
+      setTtsError(true);
+    } finally {
+      if (speechGenerationRef.current === generation) { setSpeakingPosition(null); setSpeakingText(null); setSpeechStarted(false); }
+    }
+  }, [article.locale, settings.ttsRate, tts]);
   const transferTask = activeTransfer ? articleTransferTask(article, activeTransfer) : null;
   const recommendedTransfer = recommendedArticleTransferType(article.oralTransferType);
   const fullText = useMemo(() => article.segments.map((segment) => segment.text).join(" "), [article.segments]);
@@ -643,7 +652,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     if (activeTool === "listen") {
       const paragraphNumber = (currentSegment?.position ?? 0) + 1;
       const preview = currentSegment ? currentSegment.text.slice(0, 56) + (currentSegment.text.length > 56 ? "…" : "") : "";
-      return <><div className="article-reader__listen-target"><strong>当前：第 {paragraphNumber} 段</strong><p>{preview}</p></div><div className="article-reader__tool-actions"><button className="secondary-action" type="button" onClick={() => { if (currentSegment) void speak(currentSegment.text, currentSegment.position); }} disabled={speakingPosition !== null}>{speakingPosition === currentSegment?.position ? `正在朗读第 ${paragraphNumber} 段` : `朗读第 ${paragraphNumber} 段`}</button><button className="secondary-action" type="button" onClick={() => void speak(fullText, "full")} disabled={speakingPosition !== null}>{speakingPosition === "full" ? "正在朗读全文" : "朗读全文"}</button></div>{speakingPosition !== null ? <button className="text-link" type="button" onClick={() => { tts.stop(); setSpeakingPosition(null); }}>停止朗读</button> : null}{ttsError ? <p className="article-reader__tool-error" role="status">{ttsErrorMessage || "浏览器暂时无法朗读，正文阅读不受影响。"}</p> : null}</>;
+      return <><div className="article-reader__listen-target"><strong>当前：第 {paragraphNumber} 段</strong><p>{preview}</p></div><div className="article-reader__tool-actions"><button className="secondary-action" type="button" onClick={() => { if (currentSegment) void speak(currentSegment.text, currentSegment.position); }} disabled={speakingPosition !== null}>{speakingPosition === currentSegment?.position ? `正在朗读第 ${paragraphNumber} 段` : `朗读第 ${paragraphNumber} 段`}</button><button className="secondary-action" type="button" onClick={() => void speak(fullText, "full")} disabled={speakingPosition !== null}>{speakingPosition === "full" ? "正在朗读全文" : "朗读全文"}</button></div>{speakingPosition !== null ? <button className="text-link" type="button" onClick={stopSpeech}>停止朗读</button> : null}{ttsError ? <p className="article-reader__tool-error" role="status">{ttsErrorMessage || "暂时无法朗读，正文阅读不受影响。"}</p> : null}</>;
     }
     if (activeTool === "explain") {
       if (!selectedToken) return <div className="article-reader__tool-empty"><p>点击正文中的词语查看语境解释。</p><p>拖选两个以上词语可以解析整句。</p></div>;
@@ -651,6 +660,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       const phraseSaved = state.savedPhrases.some((item) => item.id === id);
       const highlighted = state.highlights.some((item) => item.id === id);
       const isSentence = selectedToken.selectionType === "sentence";
+      const selectedSpeechActive = speakingPosition === selectedToken.position && speakingText === selectedToken.text;
       const localMeaning = commonEntry?.meanings.map((item) => item.meaning).join("；");
       const localUsage = commonEntry?.meanings.map((item) => item.usage).join("；");
       const localExample = commonEntry?.examples.join(" / ");
@@ -659,8 +669,9 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       const example = wordExplanation?.example ?? streamPreview.example ?? (isSentence ? undefined : localExample);
       const contextualMeaning = wordExplanation?.contextualMeaning ?? streamPreview.contextualMeaning ?? (isSentence ? undefined : localUsage);
       return <>
-        <div className="article-reader__selected-word"><span>{selectedToken.text}</span><button type="button" aria-label={"朗读 " + selectedToken.text} onClick={() => void speak(selectedToken.text, selectedToken.position)}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6l-5 4H5zm12-1.5a5 5 0 0 1 0 7" /></svg></button></div>
-        {ttsError ? <p className="article-reader__tool-error" role="status">{ttsErrorMessage || "浏览器暂时无法朗读，正文阅读不受影响。"}</p> : null}
+        <div className="article-reader__selected-word"><span>{selectedToken.text}</span><button type="button" aria-label={"朗读 " + selectedToken.text} aria-pressed={selectedSpeechActive} title={selectedSpeechActive ? "停止朗读" : "朗读"} onClick={() => { if (selectedSpeechActive) stopSpeech(); else void speak(selectedToken.text, selectedToken.position); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d={selectedSpeechActive ? "M7 7h10v10H7z" : "M5 10v4h4l5 4V6l-5 4H5zm12-1.5a5 5 0 0 1 0 7"} /></svg></button></div>
+        {selectedSpeechActive ? <p className="article-reader__tool-note" role="status">{speechStarted ? "正在朗读，再点一次停止。" : "正在准备语音，再点一次取消。"}</p> : null}
+        {ttsError ? <p className="article-reader__tool-error" role="status">{ttsErrorMessage || "暂时无法朗读，正文阅读不受影响。"}</p> : null}
         <div className="article-reader__explanation-fields">
           {isSentence ? <>
             <div><p className="article-reader__tool-kicker">中文翻译</p><p>{meaning ?? (wordExplanationStatus === "loading" ? "正在生成翻译……" : "点击下方按钮解析")}</p></div>
@@ -684,7 +695,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       const items = [...state.savedPhrases, ...state.highlights.map((item) => ({ ...item, id: "highlight-" + item.id, text: item.text + "（高亮）" }))];
       return <><button className="article-reader__save-article" type="button" aria-pressed={state.saved} onClick={() => { setState((previous) => ({ ...previous, saved: !previous.saved })); setStatus(state.saved ? "已取消收藏本文。" : "已收藏本文。"); }}>{state.saved ? "已收藏本文" : "收藏本文"}</button>{items.length ? <ul className="article-reader__saved-list">{items.map((item) => <li key={item.id}><span>{item.text}</span><button type="button" onClick={() => document.querySelector<HTMLElement>("[data-reader-position=\"" + item.position + "\"]")?.scrollIntoView({ block: "center" })}>跳转</button></li>)}</ul> : <p className="article-reader__tool-note">尚未保存词语或高亮。</p>}<Link className="text-link article-reader__saved-library-link" href="/read/saved-items">打开已保存词句书架 <span aria-hidden="true">→</span></Link><label className="article-reader__note-field"><span>个人笔记</span><textarea value={state.note} onChange={(event) => setState((previous) => ({ ...previous, note: event.target.value.slice(0, 2_000) }))} placeholder="可以写中文或西语……" aria-label="文章个人笔记" /></label><button className="secondary-action" type="button" onClick={() => setStatus("笔记已保存在阅读状态中。")}>保存笔记</button></>;
     }
-    return <><section className="article-reader__voice-settings" aria-labelledby="spanish-voices-title"><div className="article-reader__voice-settings-heading"><div><p className="article-reader__tool-kicker">语音</p><h3 id="spanish-voices-title">Spanish voices</h3></div><span className="article-reader__voice-settings-current">{selectedSpanishVoice?.name ?? "未选择"}</span></div>{!tts.isSupported ? <p className="article-reader__tool-error" role="status">当前浏览器不支持语音合成。</p> : spanishVoices.length === 0 ? <p className="article-reader__tool-note" role="status">正在加载浏览器语音……</p> : <ul className="article-reader__voice-list" aria-label="Spanish voices">{spanishVoices.map((voice) => { const selected = selectedSpanishVoice?.voiceURI === voice.voiceURI || selectedSpanishVoice?.name === voice.name; return <li className={selected ? "is-selected" : undefined} key={voice.voiceURI || voice.name}><button type="button" className="article-reader__voice-option" aria-pressed={selected} onClick={() => selectSpanishVoice(voice)}><span>{voice.name}</span><small>{voice.lang}</small></button><button type="button" className="article-reader__voice-preview" aria-label={`试听 ${voice.name}`} disabled={speakingPosition !== null} onClick={() => void previewSpanishVoice(voice)}>试听</button></li>; })}</ul>}</section><label className="article-reader__setting"><span>字号</span><select aria-label="字号" value={settings.fontSize} onChange={(event) => updateSetting("fontSize", event.target.value as ReaderSettings["fontSize"])}><option value="default">标准</option><option value="large">大字</option></select></label><label className="article-reader__setting"><span>行距</span><select aria-label="行距" value={settings.lineHeight} onChange={(event) => updateSetting("lineHeight", event.target.value as ReaderSettings["lineHeight"])}><option value="default">舒适</option><option value="relaxed">宽松</option></select></label><label className="article-reader__setting"><span>正文宽度</span><select aria-label="正文宽度" value={settings.width} onChange={(event) => updateSetting("width", event.target.value as ReaderSettings["width"])}><option value="narrow">专注</option><option value="wide">宽屏</option></select></label><label className="article-reader__setting"><span>背景</span><select aria-label="阅读背景" value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as ReaderSettings["theme"])}><option value="light">浅色</option><option value="dim">柔和</option></select></label><label className="article-reader__setting"><span>朗读速度</span><select aria-label="TTS 速度" value={settings.ttsRate} onChange={(event) => updateSetting("ttsRate", Number(event.target.value))}><option value="0.7">慢速</option><option value="0.88">标准</option><option value="1.05">稍快</option></select></label></>;
+    return <><section className="article-reader__voice-settings" aria-labelledby="read-aloud-voice-title"><div className="article-reader__voice-settings-heading"><div><p className="article-reader__tool-kicker">朗读声音</p><h3 id="read-aloud-voice-title">Serene Woman 女声</h3></div><span className="article-reader__voice-settings-current">Serene Woman</span></div><button type="button" className="article-reader__voice-preview" aria-label="试听 Serene Woman 女声" disabled={speakingPosition !== null} onClick={() => void speak("Hola, esta es una muestra de la voz seleccionada.", "voice-preview")}>试听</button></section><label className="article-reader__setting"><span>字号</span><select aria-label="字号" value={settings.fontSize} onChange={(event) => updateSetting("fontSize", event.target.value as ReaderSettings["fontSize"])}><option value="default">标准</option><option value="large">大字</option></select></label><label className="article-reader__setting"><span>行距</span><select aria-label="行距" value={settings.lineHeight} onChange={(event) => updateSetting("lineHeight", event.target.value as ReaderSettings["lineHeight"])}><option value="default">舒适</option><option value="relaxed">宽松</option></select></label><label className="article-reader__setting"><span>正文宽度</span><select aria-label="正文宽度" value={settings.width} onChange={(event) => updateSetting("width", event.target.value as ReaderSettings["width"])}><option value="narrow">专注</option><option value="wide">宽屏</option></select></label><label className="article-reader__setting"><span>背景</span><select aria-label="阅读背景" value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as ReaderSettings["theme"])}><option value="light">浅色</option><option value="dim">柔和</option></select></label><label className="article-reader__setting"><span>朗读速度</span><select aria-label="TTS 速度" value={settings.ttsRate} onChange={(event) => updateSetting("ttsRate", Number(event.target.value))}><option value="0.7">慢速</option><option value="0.88">较慢</option><option value="1">标准</option><option value="1.05">稍快</option></select></label></>;
   };
   const toolLabels: Readonly<Record<ReaderTool, string>> = { listen: "朗读", explain: "解释", saved: "收藏", settings: "设置" };
   const toolbarTools = ["listen", "saved", "settings"] as const;

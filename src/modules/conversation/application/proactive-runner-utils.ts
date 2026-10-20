@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const userIdSchema = z.uuid();
+export const luciaProactiveTimeZone = "Europe/Madrid";
 
 export function parseLuciaProactiveUserIds(raw = process.env.LUCIA_PROACTIVE_USER_IDS): readonly string[] {
   if (!raw?.trim()) throw new Error("LUCIA_PROACTIVE_USER_IDS is required.");
@@ -10,7 +11,7 @@ export function parseLuciaProactiveUserIds(raw = process.env.LUCIA_PROACTIVE_USE
   return [...new Set(parsed.data.map((value) => value.toLowerCase()))];
 }
 
-export function formatNaturalDate(value: Date, timeZone = "Asia/Shanghai"): string {
+export function formatNaturalDate(value: Date, timeZone = luciaProactiveTimeZone): string {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value;
   const year = part("year");
@@ -57,7 +58,7 @@ export function getLuciaProactiveSlots(userId: string, date: string): readonly L
 }
 
 export function getDueLuciaProactiveSlots(input: Readonly<{ userId: string; now: Date; timeZone?: string }>): readonly LuciaProactiveSlot[] {
-  const timeZone = input.timeZone ?? "Asia/Shanghai";
+  const timeZone = input.timeZone ?? luciaProactiveTimeZone;
   const date = formatNaturalDate(input.now, timeZone);
   const minutes = naturalMinutes(input.now, timeZone);
   return getLuciaProactiveSlots(input.userId, date).filter((slot) => slot.targetMinutes <= minutes);

@@ -34,7 +34,32 @@ export interface MediaReviewProvider {
   review(input: MediaReviewInput): Promise<MediaReviewResult>;
 }
 
+/**
+ * Provider word timings are playback data, not review material: a full
+ * transcript can add thousands of per-word objects to a review request and
+ * push the model payload far past its useful size. Reviews and revisions still
+ * validate the real draft (including words) with the deterministic timeline
+ * gate and keep the published contentHash over the full draft, but the model
+ * only receives sentence text and metadata.
+ */
+export function projectMediaDraftForModel(draft: MediaCandidateDraft): MediaCandidateDraft {
+  return {
+    ...draft,
+    segments: draft.segments.map((segment) => {
+      const projected: Record<string, unknown> = { ...segment };
+      // `words` is playback evidence, not model input.
+      delete projected.words;
+      return projected;
+    }),
+  } as MediaCandidateDraft;
+}
+
+export function projectMediaReviewInput(input: MediaReviewInput): MediaReviewInput {
+  return { ...input, draft: projectMediaDraftForModel(input.draft) };
+}
+
 export function mediaReviewInputHash(input: MediaReviewInput): string {
+  const draft = projectMediaDraftForModel(input.draft);
   return createHash("sha256").update(JSON.stringify({
     candidateId: input.candidateId,
     candidateRevision: input.candidateRevision,
@@ -42,7 +67,7 @@ export function mediaReviewInputHash(input: MediaReviewInput): string {
     contentType: input.contentType,
     title: input.title,
     summary: input.summary,
-    draft: input.draft,
+    draft,
   })).digest("hex");
 }
 
@@ -118,6 +143,9 @@ export class MiniMaxMediaReviewProvider implements MediaReviewProvider {
 
   async review(input: MediaReviewInput): Promise<MediaReviewResult> {
     if (!this.options.apiKey.trim()) throw new Error("MEDIA_REVIEW_MINIMAX_NOT_CONFIGURED");
+    // Never serialize word timings into a review request, even if a caller
+    // passes the raw draft instead of the projected review input.
+    const reviewInput = projectMediaReviewInput(input);
     const controller = new AbortController();
     let timedOut = false;
     const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, this.timeoutMs);
@@ -132,13 +160,13 @@ export class MiniMaxMediaReviewProvider implements MediaReviewProvider {
           stream: false,
           system: systemPrompt(this.dimension),
           messages: [{ role: "user", content: [{ type: "text", text: JSON.stringify({
-            candidateId: input.candidateId,
-            candidateRevision: input.candidateRevision,
-            contentHash: input.contentHash,
-            contentType: input.contentType,
-            title: input.title,
-            summary: input.summary,
-            draft: input.draft,
+            candidateId: reviewInput.candidateId,
+            candidateRevision: reviewInput.candidateRevision,
+            contentHash: reviewInput.contentHash,
+            contentType: reviewInput.contentType,
+            title: reviewInput.title,
+            summary: reviewInput.summary,
+            draft: reviewInput.draft,
           }) }] }],
         }),
         signal: controller.signal,
@@ -155,7 +183,7 @@ export class MiniMaxMediaReviewProvider implements MediaReviewProvider {
             decision: payload.data.decision,
             notes: payload.data.notes.trim().slice(0, 4_000),
             modelVersion: this.modelVersion,
-            inputHash: mediaReviewInputHash(input),
+            inputHash: mediaReviewInputHash(reviewInput),
           };
         }
       }

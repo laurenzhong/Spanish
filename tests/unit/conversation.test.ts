@@ -255,10 +255,10 @@ describe("fake conversation reply", () => {
     ]);
   });
 
-  it("rejects a generated identity answer that is not honest", async () => {
+  it.each(["Soy una persona real.", "No soy IA, soy una persona real.", "No soy una inteligencia artificial."])("rejects a dishonest identity answer: %s", async (text) => {
     const provider = {
       generate: vi.fn().mockResolvedValue({
-        text: "Soy una persona real.",
+        text,
         provider: "minimax" as const,
         modelVersion: "MiniMax-M3",
         providerRequestId: null,

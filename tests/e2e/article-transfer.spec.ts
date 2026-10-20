@@ -22,6 +22,29 @@ test("keeps the translator pin available at the desktop threshold", async ({ pag
   await expect(page.getByRole("button", { name: "固定翻译器" })).toBeVisible();
 });
 
+test("keeps the desktop translator beside the article at maximized viewport widths", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium");
+  await authenticate(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/read/article/article.sueno-first-cafe@1");
+  await page.getByRole("button", { name: /^cafetería/ }).click();
+  const tools = page.getByRole("dialog", { name: "解释" });
+  await expect(tools).toBeVisible();
+
+  for (const width of [960, 1024, 1280, 1600, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const boxes = await Promise.all([
+      page.locator(".article-reader__content").boundingBox(),
+      tools.boundingBox(),
+    ]);
+    expect(boxes[0], `article content should render at ${width}px`).not.toBeNull();
+    expect(boxes[1], `translator should render at ${width}px`).not.toBeNull();
+    if (!boxes[0] || !boxes[1]) continue;
+    expect(boxes[0].x + boxes[0].width, `article must end before translator at ${width}px`).toBeLessThanOrEqual(boxes[1].x);
+    expect(boxes[1].x + boxes[1].width, `translator must stay inside viewport at ${width}px`).toBeLessThanOrEqual(width);
+  }
+});
+
 test("moves an explicit article transfer into the oral practice context", async ({ page }) => {
   await authenticate(page);
   await page.goto("/read/article/article.sueno-first-cafe@1");
@@ -60,7 +83,7 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
   const topbar = page.locator(".article-reader__topbar");
   const title = page.locator(".article-reader__topbar-title");
   const actions = page.locator(".article-reader__topbar-actions");
-  await expect(topbar).toHaveCSS("position", "fixed");
+  await expect(topbar).toHaveCSS("position", "sticky");
   await expect(topbar).toHaveCSS("top", "0px");
   await expect(topbar).toHaveCSS("min-height", "64px");
   await expect(title).toContainText("Una conversación que empieza con un café");
@@ -146,8 +169,8 @@ test("opens reader tools on demand and explains a selected word", async ({ page 
 
   await page.getByRole("button", { name: "设置" }).click();
   const settings = page.getByRole("dialog", { name: "设置" });
-  await expect(settings.getByRole("heading", { name: "Spanish voices" })).toBeVisible();
-  await expect(settings.getByRole("region", { name: "Spanish voices" })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Serene Woman 女声" })).toBeVisible();
+  await expect(settings.getByText("Serene Woman", { exact: true })).toBeVisible();
 
   if (wideDesktop) await page.getByRole("heading", { name: "Una conversación que empieza con un café" }).click();
   else await page.locator(".article-reader__scrim").click({ position: { x: 8, y: 8 } });

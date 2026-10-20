@@ -20,6 +20,7 @@
     "publishedAt": { "type": ["string", "null"], "format": "date-time" },
     "curatedAt": { "type": "string", "format": "date-time" },
     "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "series": { "oneOf": [{ "type": "null" }, { "$ref": "media-series-summary.schema.json" }] },
     "progress": {
       "oneOf": [
         { "type": "null" },

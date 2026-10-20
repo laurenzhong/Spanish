@@ -1,3 +1,4 @@
+import { installCorpusExamples } from "./fixtures/corpus-examples";
 import { expect, test, type Page } from "@playwright/test";
 
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3101"}`;
@@ -22,14 +23,19 @@ test("keeps vocabulary and phrase shelves directly reachable from reading", asyn
     await expect(page.getByRole("link", { name: label })).toHaveCount(0);
   }
   await expect(page.getByLabel("搜索词表")).toBeVisible();
-  // This server runs without DATABASE_URL, so the shelf must report itself
-  // rather than invent rows.
-  await expect(page.getByRole("heading", { name: "词汇表暂时不可用" })).toBeVisible();
+  await expect(page.getByLabel("搜索词表")).toHaveAttribute("placeholder", "搜索单词");
+  await expect(page.getByText("7,922 词", { exact: true })).toBeVisible();
+  await expect(page.getByText(/已过滤功能词|换设备不会同步|已标记 0 个/u)).toHaveCount(0);
+  // The committed reference list remains real even when optional corpus examples are unavailable.
+  await expect(page.locator(".vocabulary-study__word")).toHaveCount(7922);
+  await expect(page.locator(".vocabulary-study__word").first()).toHaveAttribute("data-word", "ser");
+  await expect(page.getByText("部分例句暂时不可用，词表和默写可以继续使用。")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "词汇表暂时不可用" })).toHaveCount(0);
 
   // `?view=` can no longer select behaviour: the same single shelf answers, and
   // the lexicon-only filters are gone with the lexicon view.
   await page.goto("/read/vocabulary?view=lexicon");
-  await expect(page.getByRole("heading", { name: "词汇表暂时不可用" })).toBeVisible();
+  await expect(page.locator(".vocabulary-study__word")).toHaveCount(7922);
   await expect(page.getByLabel("搜索词表")).toBeVisible();
   await expect(page.getByLabel("词元状态")).toHaveCount(0);
   await expect(page.getByLabel("学习状态")).toHaveCount(0);
@@ -38,21 +44,42 @@ test("keeps vocabulary and phrase shelves directly reachable from reading", asyn
   await page.goto("/read/phrases");
   await expect(page).toHaveTitle(/短语/u);
   await expect(page.getByRole("heading", { name: "短语", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "短语库暂时不可用" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "¿Qué tal te va?" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "阅读内容类型" })).toBeVisible();
-  await expect(page.getByLabel("学习状态")).toBeVisible();
-  await expect(page.getByLabel("语用目的")).toBeVisible();
-  await expect(page.getByLabel("语域")).toBeVisible();
-  await expect(page.getByLabel("地区")).toBeVisible();
-  await expect(page.getByLabel("CEFR")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "短语交际主题" })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "搜索短语" })).toBeVisible();
+  await expect(page.getByText("打开来源", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".phrasebook-entry")).toHaveCount(120);
 
   await page.goto("/read/phrases?search=que+tal&intent=revisit&pragmaticPurpose=saludo&register=neutral&region=es-ES&cefr=A2&page=2");
-  await expect(page.locator('input[name="search"]')).toHaveValue("que tal");
-  await expect(page.locator('select[name="intent"]')).toHaveValue("revisit");
-  await expect(page.locator('input[name="pragmaticPurpose"]')).toHaveValue("saludo");
-  await expect(page.locator('input[name="register"]')).toHaveValue("neutral");
-  await expect(page.locator('input[name="region"]')).toHaveValue("es-ES");
-  await expect(page.locator('select[name="cefr"]')).toHaveValue("A2");
+  await expect(page.getByRole("searchbox", { name: "搜索短语" })).toHaveValue("que tal");
+  await expect(page.getByRole("heading", { name: "¿Qué tal te va?" })).toBeVisible();
+  // Legacy database filters no longer turn the phrasebook into an empty shelf.
+  await expect(page.locator('select[name="intent"]')).toHaveCount(0);
+});
+
+test("supports local marks and recall without corpus data and keeps search emptiness honest", async ({ page }) => {
+  await authenticate(page);
+  await page.addInitScript({ content: `localStorage.setItem("sueno:vocabulary-status:v1:00000000-0000-4000-8000-000000000001", JSON.stringify({casa:"familiar"})); localStorage.setItem("sueno:vocabulary-autoplay:v1:00000000-0000-4000-8000-000000000001", "off");` });
+  const writes: string[] = [];
+  page.on("request", (request) => { if (request.url().includes("/api/") && request.method() !== "GET") writes.push(request.method()); });
+  await page.goto("/read/vocabulary?search=casa");
+  const tile = page.locator('.vocabulary-study__word[data-word="casa"]');
+  await expect(tile).toBeVisible();
+  await expect(tile).not.toHaveAttribute("data-example");
+  await expect(page.locator(".vocabulary-study__summary")).toHaveText("已标记 1 个");
+  await page.locator(".vocabulary-recall").getByRole("button", { name: "看释义写单词" }).click();
+  const row = tile.locator("..");
+  await row.locator("input").fill("casa");
+  await row.locator("input").press("Enter");
+  await expect(row.getByText("答对了！", { exact: true })).toBeVisible();
+  await page.locator(".vocabulary-recall").getByRole("button", { name: "退出默写" }).click();
+  await expect(tile).toBeVisible();
+  await page.goto("/read/vocabulary?search=zzzz");
+  await expect(page.getByRole("heading", { name: "没有匹配的词" })).toBeVisible();
+  await expect(page.locator(".vocabulary-study__word")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "词汇表暂时不可用" })).toHaveCount(0);
+  expect(writes).toEqual([]);
 });
 
 test("keeps the content-first corpus shelf usable across phone and desktop widths", async ({ page }) => {
@@ -69,89 +96,32 @@ test("keeps the content-first corpus shelf usable across phone and desktop width
 
 test("restores corpus matching modes and pagination without recording browsing as evidence", async ({ page }) => {
   await authenticate(page);
+  await installCorpusExamples(page);
   const requests: string[] = [];
-  const browseRequests: string[] = [];
   const evidenceRequests: string[] = [];
-  await page.on("request", (request) => {
-    const url = request.url();
-    if (url.includes("/api/v1/corpus/search")) requests.push(url);
-    if (url.includes("/api/v1/corpus/browse")) browseRequests.push(url);
-    if (url.includes("/api/v1/evidence")) evidenceRequests.push(url);
+  page.on("request", (request) => {
+    if (request.url().includes("/api/v1/corpus/examples")) requests.push(request.url());
+    if (request.url().includes("/api/v1/evidence")) evidenceRequests.push(request.url());
   });
-  await page.route("**/api/v1/corpus/browse*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ apiVersion: "v1", data: {
-        items: [{
-          entryKind: "phrase",
-          entryId: "20000000-0000-4000-8000-000000000001",
-          expression: "dar cuenta",
-          meaningZh: "说明",
-          pragmaticPurpose: "表达说明",
-          contentKinds: ["article", "video", "podcast"],
-          contexts: [],
-        }],
-        page: 1,
-        pageSize: 8,
-        total: 1,
-      } }),
-    });
-  });
-  await page.route("**/api/v1/corpus/search*", async (route) => {
-    const url = new URL(route.request().url());
-    const match = url.searchParams.get("match") ?? "phrase";
-    const pageNumber = Number(url.searchParams.get("page") ?? "1");
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        apiVersion: "v1",
-        data: {
-          items: [{
-            leftContext: pageNumber === 1 ? "No" : "Ya",
-            keyword: "dar cuenta",
-            rightContext: "de lo ocurrido",
-            sourceTitle: `${match === "phrase" ? "Phrase" : "All"} source ${pageNumber}`,
-            sourceKind: "article-rss",
-            entryKind: "phrase",
-            entryId: "20000000-0000-4000-8000-000000000001",
-            surfaceText: "dar cuenta",
-            document: { kind: "article", stableKey: "article.corpus", version: 2 },
-            location: { kind: "text", paragraphId: "p1", segmentIndex: pageNumber - 1 },
-          }],
-          page: pageNumber,
-          pageSize: 1,
-          total: 2,
-        },
-      }),
-    });
-  });
-
   await page.goto("/read/corpus");
-  await expect(page.getByRole("heading", { name: "dar cuenta" })).toBeVisible();
-  expect(browseRequests.some((url) => !new URL(url).searchParams.has("query"))).toBe(true);
-  await page.getByRole("textbox", { name: "可选：筛选短语或来源" }).fill("dar cuenta");
-  await page.getByRole("combobox", { name: "匹配方式" }).selectOption("phrase");
-  await page.getByRole("button", { name: /筛选/ }).click();
-  await expect(page.getByText("Phrase source 1")).toBeVisible();
-  expect(new URL(page.url()).searchParams.get("q")).toBe("dar cuenta");
+  await expect(page.locator(".corpus-example")).toHaveCount(3);
+  expect(requests.some((url) => !new URL(url).searchParams.has("query"))).toBe(true);
+  await page.getByRole("searchbox", { name: "搜索西语单词或短语" }).fill("cafe");
+  await page.getByRole("button", { name: "查用法" }).click();
+  await expect(page.getByText("第 1 / 2 页")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("q")).toBe("cafe");
   expect(new URL(page.url()).searchParams.get("match")).toBe("phrase");
-  await expect(page.getByRole("link", { name: "打开来源" })).toHaveAttribute("href", "/read/article/article.corpus#segment-0");
+  await expect(page.locator(".corpus-example").first().getByRole("link", { name: /读原文：/ })).toHaveAttribute("href", "/read/article/article.sueno-first-cafe%401#segment-1");
   await page.getByRole("button", { name: "下一页" }).click();
   await expect(page).toHaveURL(/page=2/);
-  await expect(page.getByText("Phrase source 2")).toBeVisible();
-
+  await expect(page.getByText("第 2 / 2 页")).toBeVisible();
   await page.goBack();
+  await expect(page.getByText("第 1 / 2 页")).toBeVisible();
   expect(new URL(page.url()).searchParams.get("page")).toBeNull();
-  await expect(page.getByText("Phrase source 1")).toBeVisible();
-
-  await page.getByRole("combobox", { name: "匹配方式" }).selectOption("all");
-  await page.getByRole("button", { name: /筛选/ }).click();
-  await expect(page.getByText("All source 1")).toBeVisible();
-  expect(new URL(page.url()).searchParams.get("match")).toBe("all");
+  await page.getByRole("button", { name: "同段包含全部词" }).click();
+  await expect(page).toHaveURL(/match=all/);
+  await expect.poll(() => requests.some((url) => new URL(url).searchParams.get("match") === "all")).toBe(true);
   expect(requests.some((url) => new URL(url).searchParams.get("match") === "phrase")).toBe(true);
-  expect(requests.some((url) => new URL(url).searchParams.get("match") === "all")).toBe(true);
   expect(evidenceRequests).toEqual([]);
 });
 

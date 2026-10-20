@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -179,6 +179,78 @@ describe("ConversationContactRail", () => {
 
     expect(screen.queryByRole("menu", { name: "Lucía Martín 的好友操作" })).not.toBeInTheDocument();
     vi.useRealTimers();
+  });
+
+  it("keeps waiting for a slow conversation list read instead of reporting an unavailable rail", async () => {
+    // The list is a read of a remote pooled database: measured against the
+    // running app it answers in 0.9-4.9s, and 7.6s when the rail's own
+    // concurrent readers are in flight. Crossing a client bound must not be
+    // mistaken for an outage, because that state replaces the contacts with
+    // "暂时无法加载会话列表。" even though the server still answers 200.
+    vi.useFakeTimers();
+    try {
+      let releaseServer: (() => void) | undefined;
+      const serverResponds = new Promise<void>((resolve) => { releaseServer = resolve; });
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url !== "/api/v1/conversations") return { ok: true, json: async () => ({ data: {} }) } as Response;
+        // Stay in flight until the server answers, but honour the request
+        // signal so a client-side timeout really does reject the read.
+        const signal = (init as RequestInit | undefined)?.signal ?? undefined;
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => reject(Object.assign(new Error("The operation was aborted."), { name: "AbortError" }));
+          if (signal?.aborted) { abort(); return; }
+          signal?.addEventListener("abort", abort, { once: true });
+          void serverResponds.then(() => resolve());
+        });
+        return { ok: true, json: async () => ({ data: { conversations: [{ conversationId: "c1", characterKey: "lucia", characterName: "Lucía Martín", avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null }] } }) } as Response;
+      });
+
+      render(<ConversationContactRail activeCharacterKey="lucia" />);
+      expect(screen.getByText("正在加载会话……")).toBeInTheDocument();
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
+      expect(screen.queryByText("暂时无法加载会话列表。")).not.toBeInTheDocument();
+      expect(screen.getByText("正在加载会话……")).toBeInTheDocument();
+
+      releaseServer?.();
+      // The slow read is still a success: hand back to real timers and let the
+      // contacts render instead of the unavailable notice.
+      vi.useRealTimers();
+      expect(await screen.findByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument();
+      expect(screen.queryByText("暂时无法加载会话列表。")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the contacts the server handed down when a background refresh fails", async () => {
+    const preview = {
+      conversationId: "c-lucia",
+      characterKey: "lucia",
+      characterName: "Lucía Martín",
+      avatarUrl: null,
+      avatarClass: "avatar--lucia",
+      roleLabel: "主要好友",
+      lastMessageAt: null,
+      lastMessage: null,
+      isPinned: true,
+      isMuted: false,
+      sortRank: null,
+    };
+    render(<ConversationContactRail activeCharacterKey="lucia" initialConversations={[preview]} />);
+    expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument();
+
+    // The server-rendered list is already on screen; a dropped refresh must not
+    // replace it with the rail's error state.
+    vi.mocked(fetch).mockRejectedValue(new Error("CONTACT_REQUEST_FAILED"));
+    await act(async () => {
+      window.dispatchEvent(new Event("conversation-list-updated"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(screen.queryByText("暂时无法加载会话列表。")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Lucía Martín/ })).toBeInTheDocument();
   });
 
 });

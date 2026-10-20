@@ -48,7 +48,7 @@ describe("corpus search", () => {
     expect(contentSourceHref(
       { kind: "article", stableKey: "article.one", version: 2 },
       { kind: "text", paragraphId: "p-7", segmentIndex: 6 },
-    )).toBe("/read/article/article.one#segment-6");
+    )).toBe("/read/article/article.one%402#segment-6");
     expect(contentSourceHref(
       { kind: "media", stableKey: "media.one", version: 3 },
       { kind: "media", startMs: 12_340, endMs: 14_000, segmentIndex: 4 },

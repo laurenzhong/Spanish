@@ -22,6 +22,12 @@ export type PersistedCharacter = Readonly<{
     personality: CharacterBible["personality"];
     relationships: CharacterBible["relationships"];
     changeLog: CharacterBible["changeLog"];
+    /** Versioned with the revision; older rows have no disclosure metadata. */
+    canonPolicies?: Readonly<Record<string, Readonly<{
+      version: number;
+      category: CharacterCanonFact["category"];
+      reveal: CharacterCanonFact["reveal"];
+    }>>>;
   }>;
   facts: readonly PersistedCanonFact[];
 }>;

@@ -51,7 +51,7 @@ describe("lexicon pages and controls", () => {
     expect(screen.getByText("轻松问候")).toBeInTheDocument();
     expect(screen.getByText("公开")).toBeInTheDocument();
     expect(screen.getByText("Una conversación")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "打开来源" })).toHaveAttribute("href", "/read/article/article.one#segment-0");
+    expect(screen.getByRole("link", { name: "打开来源" })).toHaveAttribute("href", "/read/article/article.one%402#segment-0");
     expect(screen.getByRole("link", { name: "在语料中查看全部用例" })).toHaveAttribute("href", "/read/corpus?entryKind=phrase&entryId=20000000-0000-4000-8000-000000000001");
     cleanup();
     // The empty state is the live phrase library's own (`VocabularyLibrary` and
@@ -73,7 +73,7 @@ describe("lexicon pages and controls", () => {
     cleanup();
     render(<CorpusShelfSkeleton />);
     expect(screen.getByRole("status", { name: "正在载入语料页" })).toBeInTheDocument();
-    expect(document.querySelectorAll(".corpus-shelf-skeleton__results article")).toHaveLength(3);
+    expect(document.querySelectorAll(".corpus-initial-placeholder > div")).toHaveLength(3);
   });
 
   it("labels private phrase entries without exposing ownership details", () => {
@@ -141,7 +141,7 @@ describe("lexicon pages and controls", () => {
     render(<PhraseLibrary items={[phrase]} total={1} />);
     await user.click(screen.getByRole("button", { name: "查看 ¿Qué tal? 的上下文" }));
     expect(await screen.findByText("Una historia")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "回到原文" })).toHaveAttribute("href", "/read/article/article.one#segment-1");
+    expect(screen.getByRole("link", { name: "回到原文" })).toHaveAttribute("href", "/read/article/article.one%402#segment-1");
   });
 
   it("keeps the reading destinations visible", () => {

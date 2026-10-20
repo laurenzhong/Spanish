@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/expression-assist-request.schema.json",
+  "title": "Private conversation expression assistance request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text", "characterVersion", "attemptId"],
+  "properties": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S" },
+    "characterVersion": { "type": "integer", "minimum": 1 },
+    "attemptId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\S" }
+  }
+}

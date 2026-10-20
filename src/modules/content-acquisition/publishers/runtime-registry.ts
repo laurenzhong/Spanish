@@ -5,6 +5,7 @@ import { AcquiredVideoPublisher } from "./acquired-video-publisher";
 import { createDrizzleArticleRepository } from "@/src/modules/content/repositories";
 import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
 import { getDatabase } from "@/src/shared/db/client";
+import { createSupabaseMediaArtworkStorage } from "@/src/modules/media/storage/artwork-storage";
 
 const lazyArticleRepository = {
   publishAcquired: (...args: Parameters<ReturnType<typeof createDrizzleArticleRepository>["publishAcquired"]>) =>
@@ -26,6 +27,6 @@ const lazyMediaRepository = {
 
 export const contentWorkflowPublishers = new CandidatePublisherRegistry([
   new AcquiredArticlePublisher(lazyArticleRepository),
-  new AcquiredPodcastPublisher(lazyMediaRepository),
-  new AcquiredVideoPublisher(lazyMediaRepository),
+  new AcquiredPodcastPublisher(lazyMediaRepository, { artworkStorage: createSupabaseMediaArtworkStorage() ?? undefined }),
+  new AcquiredVideoPublisher(lazyMediaRepository, { artworkStorage: createSupabaseMediaArtworkStorage() ?? undefined }),
 ]);

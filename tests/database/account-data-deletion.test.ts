@@ -79,6 +79,8 @@ describe("account data deletion", () => {
       "0015_flaky_havok.sql",
       "0016_proactive_messages.sql",
       "0017_sudden_betty_brant.sql",
+      "0018_dusty_sue_storm.sql",
+      "0040_happy_wolverine.sql",
       "0045_lumpy_medusa.sql",
     ]) {
       const migrationName = name.includes("*")
@@ -361,5 +363,48 @@ describe("account data deletion", () => {
     await expect(
       database.select().from(schema.characters).where(eq(schema.characters.id, characterId)),
     ).resolves.toHaveLength(1);
+  });
+
+  it("clears Lucía preferences and introductions across revisions while preserving other users and characters", async () => {
+    const currentRevision = "10000000-0000-4000-0000-000000000094";
+    const otherCharacter = "10000000-0000-4000-0000-000000000095";
+    const otherIdentity = "15000000-0000-4000-0000-000000000095";
+    await database.insert(schema.characters).values([
+      { id: currentRevision, stableKey: "lucia", characterVersion: 2, displayName: "Lucía", homeLocation: "Madrid", profile: {} },
+      { id: otherCharacter, stableKey: "mateo", displayName: "Mateo", homeLocation: "Madrid", profile: {} },
+    ]);
+    await database.update(schema.characterIdentities).set({ currentCharacterId: currentRevision }).where(eq(schema.characterIdentities.id, identityId));
+    await database.insert(schema.characterIdentities).values({ id: otherIdentity, stableKey: "mateo", currentCharacterId: otherCharacter });
+    await database.insert(schema.conversationPreferences).values([
+      { userId: userA, characterId, identityId, isMuted: true, lastReadAt: new Date() },
+      { userId: userA, characterId: currentRevision, identityId, isMuted: true, lastReadAt: new Date() },
+      { userId: userB, characterId, identityId, isMuted: true },
+      { userId: userA, characterId: otherCharacter, identityId: otherIdentity, isMuted: true },
+    ]);
+    const offer = { reasonCode: "shared-interest", reasonText: "Fotografía" };
+    await database.insert(schema.characterIntroductionOffers).values([
+      { ...offer, userId: userA, offerKey: "old-source", sourceCharacterId: characterId, sourceIdentityId: identityId, targetCharacterId: otherCharacter, targetIdentityId: otherIdentity },
+      { ...offer, userId: userA, offerKey: "current-source", sourceCharacterId: currentRevision, sourceIdentityId: identityId, targetCharacterId: otherCharacter, targetIdentityId: otherIdentity },
+      { ...offer, userId: userA, offerKey: "lucia-target", sourceCharacterId: otherCharacter, sourceIdentityId: otherIdentity, targetCharacterId: characterId, targetIdentityId: identityId },
+      { ...offer, userId: userB, offerKey: "other-user", sourceCharacterId: characterId, sourceIdentityId: identityId, targetCharacterId: otherCharacter, targetIdentityId: otherIdentity },
+      { ...offer, userId: userA, offerKey: "other-character", sourceCharacterId: otherCharacter, sourceIdentityId: otherIdentity, targetCharacterId: otherCharacter, targetIdentityId: otherIdentity },
+    ]);
+    await database.insert(schema.characterRelationships).values({ userId: userA, characterId: otherCharacter, identityId: otherIdentity, relationshipStage: "familiar" });
+
+    await deleteLuciaData(createDrizzlePrivacyRepository(database), userA);
+
+    const preferences = await database.select().from(schema.conversationPreferences);
+    expect(preferences).toHaveLength(2);
+    expect(preferences).toEqual(expect.arrayContaining([
+      expect.objectContaining({ userId: userB, identityId, isMuted: true }),
+      expect.objectContaining({ userId: userA, identityId: otherIdentity, isMuted: true }),
+    ]));
+    const introductions = await database.select().from(schema.characterIntroductionOffers);
+    expect(introductions.map((row) => row.offerKey).sort()).toEqual(["other-character", "other-user"]);
+    expect(await database.select().from(schema.characterRelationships)).toEqual([
+      expect.objectContaining({ userId: userA, identityId: otherIdentity, relationshipStage: "familiar" }),
+    ]);
+    expect(await database.select().from(schema.evidenceEvents)).toHaveLength(1);
+    expect(await database.select().from(schema.practiceAttempts)).toHaveLength(1);
   });
 });

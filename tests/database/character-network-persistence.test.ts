@@ -190,12 +190,25 @@ describe("character network persistence", () => {
     expect((await database.select().from(schema.characterRelationships))).toHaveLength(1);
     expect((await database.select().from(schema.conversations))).toHaveLength(1);
     const [opening] = await database.select().from(schema.messages).where(eq(schema.messages.conversationId, accepted.conversationId!));
-    expect(opening).toMatchObject({ role: "character", clientMessageId: "lucia-authored-opening-v1", content: "En la historia ficticia de Lucía, aquella conversación sobre fotografía urbana se quedó como un recuerdo bonito. Me dio curiosidad seguir hablando contigo por aquí." });
+    expect(opening).toMatchObject({ role: "character", clientMessageId: "lucia-authored-opening-v1", content: "¡Hola! Soy Lucía, de Madrid. Me gusta fijarme en los pequeños detalles de la ciudad. ¿Qué te gusta hacer en tu tiempo libre?" });
     await repository.transaction((tx) => tx.respond(userId, "accept").then(() => tx.ensureAuthoredOpeningMessage(userId)));
     expect((await database.select().from(schema.messages))).toHaveLength(1);
     await database.delete(schema.messages).where(eq(schema.messages.clientMessageId, "lucia-authored-opening-v1"));
     await getLuciaContact({ repository, userId });
     expect((await database.select().from(schema.messages))).toHaveLength(1);
+  });
+
+  it("does not append an initial acquaintance message to an existing conversation without an opening marker", async () => {
+    await database.insert(schema.messages).values({
+      userId, conversationId, characterId: luciaId, identityId: luciaIdentityId,
+      clientMessageId: "existing-user-turn", generationId: "existing-turn", role: "user", status: "completed", content: "Hoy he trabajado.",
+    });
+    const repository = createDrizzleLuciaContactRepository(database);
+    await getLuciaContact({ repository, userId });
+    await repository.transaction((tx) => tx.respond(userId, "accept"));
+    const messages = await database.select().from(schema.messages).where(eq(schema.messages.conversationId, conversationId));
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.clientMessageId).toBe("existing-user-turn");
   });
 
   it("records a declined Lucía request without creating a conversation", async () => {
@@ -221,7 +234,7 @@ describe("character network persistence", () => {
     expect(character?.status).toBe("published");
     const reviews = await database.select().from(schema.contentReviews).where(eq(schema.contentReviews.entityType, "character"));
     expect(reviews).toHaveLength(3);
-    expect(reviews.every((review) => review.reviewerReference?.startsWith("codex-ai-temporary-review:") === true)).toBe(true);
+    expect(reviews.every((review) => review.reviewerReference?.startsWith("dsh-ai-owner-authorized-review:") === true)).toBe(true);
   });
 
   it("publishes the identity pointer onto the new revision and writes no user state", async () => {

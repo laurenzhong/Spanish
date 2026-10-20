@@ -11,6 +11,7 @@ import {
 
 const input: ConversationProviderInput = {
   userMessage: "Hoy he tenido un día difícil.",
+  unansweredUserMessages: ["Me gusta leer.", "Hoy he tenido un día difícil."],
   recentMessages: [{ role: "character", content: "¿Cómo te ha ido?" }],
   rollingSummary: "Hablamos de fotografía y de los planes de esta semana.",
   openTopics: [{ topicKey: "daily:meal", label: "¿Qué comiste?", status: "answered", lastMentionedBy: "user", lastAnswer: "Una ensalada." }],
@@ -59,10 +60,31 @@ describe("OpenAIConversationProvider", () => {
     expect(body.model).toBe("gpt-5.6-sol");
     expect(body.stream).toBe(false);
     expect(JSON.stringify(body)).toContain(input.userMessage);
+    expect(JSON.parse(body.input as string).unansweredUserMessages).toEqual(input.unansweredUserMessages);
     expect(JSON.stringify(body)).toContain("la fotografía");
     expect(JSON.stringify(body)).toContain("daily:meal");
     expect(JSON.stringify(body)).toContain("puerto");
     expect(JSON.stringify(body)).not.toContain("test-openai-key");
+  });
+
+  it("keeps the latest declarative update and chronological history distinct from character rules", async () => {
+    let body: Record<string, unknown> = {};
+    const latest = "Por la tarde me fui a currar.";
+    const history = [
+      { role: "character" as const, content: "¿Prefieres pasear o tomar un café?", sentAt: "2026-10-16T08:18:00Z" },
+      { role: "user" as const, content: "Sí, hoy es fin de semana.", sentAt: "2026-10-16T08:24:00Z" },
+    ];
+    const character = { ...input.character, responseStyle: ["responde primero a lo que la otra persona quiso decir"] };
+    const provider = new OpenAIConversationProvider({ apiKey: "test-key", fetchImplementation: vi.fn(async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return response({ output_text: "Vaya, currando en finde." });
+    }) });
+    await provider.generate({ ...input, userMessage: latest, recentMessages: history, character });
+    const sent = JSON.parse(body.input as string);
+    expect(sent.userMessage).toBe(latest);
+    expect(sent.recentMessages).toEqual(history);
+    expect(sent.character).toEqual(character);
+    expect(sent.openCommitments).toEqual(input.openCommitments);
   });
 
   it("extracts text blocks when output_text is absent", async () => {

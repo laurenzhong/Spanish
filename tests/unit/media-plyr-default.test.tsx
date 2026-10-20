@@ -1,11 +1,13 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MediaLearningWorkbench } from "@/src/modules/media";
 import { disableNativeMediaControls } from "@/src/modules/media/ui/media-plyr";
+import { HostedVideoPlayerAdapter, VideoPlayerAdapter } from "@/src/modules/media/ui/video-player-adapter";
+import { AudioPlayerAdapter } from "@/src/modules/media/ui/audio-player-adapter";
 
 const plyrMock = vi.hoisted(() => ({
-  instances: [] as Array<{ target: HTMLElement; options: Readonly<Record<string, unknown>> }>,
+  instances: [] as Array<{ target: HTMLElement; options: Readonly<Record<string, unknown>>; emit: (event: string) => void; destroy: ReturnType<typeof vi.fn> }>,
 }));
 
 vi.mock("plyr", () => ({
@@ -23,7 +25,12 @@ vi.mock("plyr", () => ({
       this.elements.container.className = "plyr";
       target.parentElement?.appendChild(this.elements.container);
       this.elements.container.append(target, this.elements.controls);
-      plyrMock.instances.push({ target, options });
+      const original = target.cloneNode(true);
+      this.destroy = vi.fn(() => {
+        this.callbacks.clear();
+        this.elements.container.replaceWith(original);
+      });
+      plyrMock.instances.push({ target, options, emit: (event) => this.callbacks.get(event)?.forEach((callback) => callback()), destroy: this.destroy });
     }
 
     on(event: string, callback: () => void) {
@@ -38,7 +45,7 @@ vi.mock("plyr", () => ({
 
     play() { return Promise.resolve(); }
     pause() {}
-    destroy() { this.callbacks.clear(); this.elements.container.remove(); }
+    destroy = vi.fn();
   },
 }));
 
@@ -62,9 +69,80 @@ afterEach(() => {
   cleanup();
   plyrMock.instances.length = 0;
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("default media player", () => {
+  it.each(["hosted", "youtube", "podcast"] as const)("creates a connected fresh %s input on source replacement and ignores old events", async (kind) => {
+    const onStateChange = vi.fn();
+    const onPortChange = vi.fn();
+    const props = { title: "Media", autoPause: false, hasSegments: true, onToggleAutoPause: vi.fn(), onPortChange, onStateChange, onPositionChange: vi.fn(), onError: vi.fn() };
+    const adapter = (second: boolean) => kind === "youtube"
+      ? <VideoPlayerAdapter {...props} embedUrl={`https://www.youtube-nocookie.com/embed/${second ? "secondVideo" : "firstVideo"}`} />
+      : kind === "hosted" ? <HostedVideoPlayerAdapter {...props} videoUrl={`https://media.example.test/${second ? "second" : "first"}.mp4`} />
+        : <AudioPlayerAdapter {...props} audioUrl={`https://media.example.test/${second ? "second" : "first"}.mp3`} />;
+    const view = render(adapter(false));
+    await waitFor(() => expect(plyrMock.instances).toHaveLength(1));
+    const first = plyrMock.instances[0]!;
+    const latestState = vi.fn();
+    props.onStateChange = latestState;
+    view.rerender(adapter(false));
+    act(() => {
+      if (kind === "youtube") first.emit("playing");
+      else first.target.dispatchEvent(new Event("playing"));
+    });
+    expect(first.destroy).not.toHaveBeenCalled();
+    expect(latestState).toHaveBeenCalledWith("playing");
+    expect(onStateChange).not.toHaveBeenCalled();
+    view.rerender(adapter(true));
+    await waitFor(() => expect(plyrMock.instances).toHaveLength(2));
+    const second = plyrMock.instances[1]!;
+    expect(first.destroy).toHaveBeenCalledOnce();
+    expect(first.target.isConnected).toBe(false);
+    expect(second.target).not.toBe(first.target);
+    expect(second.target.isConnected).toBe(true);
+    latestState.mockClear();
+    act(() => {
+      first.emit("playing");
+      first.target.dispatchEvent(new Event("playing"));
+    });
+    expect(latestState).not.toHaveBeenCalled();
+    act(() => {
+      if (kind === "youtube") second.emit("playing");
+      else second.target.dispatchEvent(new Event("playing"));
+    });
+    expect(latestState).toHaveBeenCalledWith("playing");
+    view.unmount();
+    expect(second.destroy).toHaveBeenCalledOnce();
+  });
+
+  it.each(["hosted", "youtube", "podcast"] as const)("keeps the %s player attached while refreshed playback data updates callbacks", async (kind) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { progress: { revision: 3 } } }))));
+    const playback = kind === "podcast" ? media("podcast") : {
+      ...media("video"),
+      asset: kind === "youtube"
+        ? { kind: "official_embed" as const, url: "https://www.youtube-nocookie.com/embed/abc12345678", expiresAt: null }
+        : media("video").asset,
+    };
+    const view = render(<MediaLearningWorkbench playback={playback} />);
+    await waitFor(() => expect(plyrMock.instances).toHaveLength(1));
+    const first = plyrMock.instances[0]!;
+    act(() => first.emit("playing"));
+    view.rerender(<MediaLearningWorkbench playback={{ ...playback, segments: [...playback.segments], media: { ...playback.media, progress: { lastPositionMs: 4_000, lastSegmentIndex: null, status: "in_progress", revision: 2 } } }} />);
+    await act(async () => {});
+    expect(first.destroy).not.toHaveBeenCalled();
+    expect(plyrMock.instances).toHaveLength(1);
+    expect(first.target.isConnected).toBe(true);
+    expect(screen.queryByRole("checkbox", { name: "自动暂停" })).not.toBeInTheDocument();
+    view.unmount();
+    expect(first.destroy).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
+  it("never shows the retired checkbox while Plyr is loading", () => {
+    render(<MediaLearningWorkbench playback={media("video")} />);
+    expect(screen.queryByRole("checkbox", { name: "自动暂停" })).not.toBeInTheDocument();
+  });
   it("mounts Plyr for podcasts instead of leaving native audio controls as the player", async () => {
     render(<MediaLearningWorkbench playback={media("podcast")} />);
     await waitFor(() => expect(plyrMock.instances).toHaveLength(1));

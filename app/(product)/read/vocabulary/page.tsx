@@ -9,20 +9,20 @@ import {
   createDrizzleLexiconCorpusRepository,
   listFrequencyWords,
   VocabularyShelfControls,
-  type FrequencyWordItem,
 } from "@/src/modules/lexicon-corpus";
 // Deep import, like `@/src/modules/reading/domain/common-glossary` below: the
 // domain module owns the reference list's size, which is the shelf's capacity.
 import { contentFrequencyWords } from "@/src/modules/lexicon-corpus/domain/frequency-word-list";
 import { VocabularyShelf, type VocabularyShelfGlossary } from "@/src/modules/lexicon-corpus/ui/vocabulary-shelf";
-import { VocabularyShelfList, type VocabularyShelfItem } from "@/src/modules/lexicon-corpus/ui/vocabulary-shelf-list";
-import { displayMeanings } from "@/src/modules/lexicon-corpus/ui/vocabulary-meanings";
+import { VocabularyShelfList } from "@/src/modules/lexicon-corpus/ui/vocabulary-shelf-list";
+// The row builder is shared with the word lookup, so the two cannot disagree about
+// what a word's tile and panel say.
+import { shelfItem } from "@/src/modules/lexicon-corpus/ui/word-entry";
 import { bandAnchorId, groupRanks, rankBandStart, type VocabularyRankBand } from "@/src/modules/lexicon-corpus/ui/vocabulary-rank";
-import { findCommonGlossaryEntry, normalizeGlossarySurface } from "@/src/modules/reading/domain/common-glossary";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
-
-import { loadLrMeaningAsset } from "./lr-meanings";
+import { loadLrMeaningAsset } from "@/src/modules/lexicon-corpus/application/lr-meaning-asset";
+import { loadVocabularyShelf } from "@/src/modules/lexicon-corpus/application/load-vocabulary-shelf";
 
 export const metadata: Metadata = { title: "词汇" };
 
@@ -63,7 +63,6 @@ function legacyPagingTarget(params: Record<string, string | string[] | undefined
   return `/read/vocabulary#${bandAnchorId(rankBandStart(rank))}`;
 }
 
-const SHELF_LOAD_TIMEOUT_MS = 30_000;
 const SESSION_LOAD_TIMEOUT_MS = 1_500;
 
 /** How many rows the shelf can ever hold: the committed reference list's size. */
@@ -77,51 +76,6 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   ]).finally(() => { if (timeout) clearTimeout(timeout); });
 }
 
-/**
- * One shelf row: the ranked reference word with our corpus facts, joined to
- * Language Reactor's dictionary entry and to the reviewed glossary when either
- * has the word.
- *
- * `markKey` stays the accent-folded headword — the identity the study shelf's
- * browser-local marks were stored under — so a mark made there still lands on
- * this word.
- *
- * The tile's meaning and the hover list both come from `displayMeanings`, so
- * they can never disagree: LR's translations when the asset has the word,
- * otherwise the reviewed entry's own meanings, otherwise nothing (「释义待补充」).
- * The order is always the source's own — LR returns no frequency field and the
- * glossary file has none — so no position is presented as commonness.
- */
-function toShelfItem(
-  item: FrequencyWordItem,
-  glossary: Record<string, VocabularyShelfGlossary>,
-  /** The asset's map, keyed by the reference list's own surface form. */
-  assetMeanings: Readonly<Record<string, readonly string[]>>,
-): VocabularyShelfItem {
-  const entry = findCommonGlossaryEntry(item.word);
-  const markKey = entry ? normalizeGlossarySurface(entry.headword) : normalizeGlossarySurface(item.word);
-  const reviewed = entry?.meanings.map((meaning) => ({ meaning: meaning.meaning, usage: meaning.usage }));
-  if (entry && !glossary[markKey]) {
-    glossary[markKey] = {
-      cefr: entry.cefr,
-      partOfSpeech: entry.partOfSpeech,
-      meanings: reviewed ?? [],
-      collocations: entry.collocations,
-      examples: entry.examples,
-      forms: entry.forms ?? [],
-    };
-  }
-  const display = displayMeanings({ languageReactor: assetMeanings[item.word], glossary: reviewed });
-  return {
-    id: item.id,
-    markKey,
-    text: item.word,
-    context: item.context,
-    source: item.sourceTitle,
-    meaning: display.meanings[0]?.meaning ?? null,
-  };
-}
-
 export default async function VocabularyPage({ searchParams }: VocabularyPageProps) {
   const params = await searchParams;
   const parsed = shelfQuerySchema.safeParse(params);
@@ -131,42 +85,23 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
 
   const databaseUrlConfigured = Boolean(process.env.DATABASE_URL);
 
-  let shelf: Awaited<ReturnType<typeof listFrequencyWords>> = { items: [], page: 1, pageSize: 0, total: 0 };
-  let shelfUnavailable = !databaseUrlConfigured;
-
   // The shelf never needs the session, but the local mark scope does. Both start
   // together and the session is capped, so a slow account lookup can neither
   // delay the cold shelf nor fail the page.
-  const [user, loaded] = await Promise.all([
+  const [user, shelf] = await Promise.all([
     withTimeout(getCurrentUser(), SESSION_LOAD_TIMEOUT_MS).catch(() => null),
-    (async () => {
-      if (!databaseUrlConfigured) return null;
-      try {
+    loadVocabularyShelf({
+      search: query.search,
+      load: databaseUrlConfigured ? () => {
         const repository = createDrizzleLexiconCorpusRepository(getDatabase());
         // The shelf is one page now, so it is read whole. Its capacity is the
         // committed reference list's own length — no query is needed to learn
         // it, and one call means one corpus snapshot per request instead of two.
         // A search can only ever return fewer rows than that.
-        return await withTimeout(
-          listFrequencyWords(repository, { search: query.search, page: 1, pageSize: shelfCapacity }),
-          SHELF_LOAD_TIMEOUT_MS,
-        );
-      } catch {
-        // A configured database that cannot be read is an outage, not an empty
-        // shelf: keep it distinguishable so the page says so instead of
-        // claiming nothing matched.
-        return { ok: false as const };
-      }
-    })(),
+        return listFrequencyWords(repository, { search: query.search, page: 1, pageSize: shelfCapacity });
+      } : undefined,
+    }),
   ]);
-  if (loaded) {
-    if ("ok" in loaded) {
-      shelfUnavailable = true;
-    } else {
-      shelf = loaded;
-      shelfUnavailable = false;
-    }
-  }
 
   // The dictionaries are read once per process and never fetched inside the
   // request: an absent asset (the scrape has not landed) still renders the whole
@@ -178,8 +113,15 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
   // shape measured 241 bytes a word against 40 for this one, and the page must
   // not get heavier than the scroll fix left it.
   const dictionary: Record<string, readonly string[]> = {};
+  // The whole shelf renders into the document. An earlier attempt rendered only its first
+  // bands and fetched the rest while scrolling, which made the page fast but the shelf feel
+  // segmented; the owner rejected that, so the work moved to making one full document
+  // cheaper instead: the tiles are one HTML string rather than 7,922 serialised elements, and
+  // Tatoeba's examples are fetched per opened word (`?fields=tatoeba`) instead of travelling
+  // for all of them — together 9.42 MB and 17.0 s to first interaction, down to 7.86 MB and
+  // 0.62 s to first paint.
   const items = shelf.items.map((item) => {
-    const row = toShelfItem(item, glossary, meaningAsset.meanings);
+    const row = shelfItem(item, glossary, meaningAsset.meanings);
     const translated = meaningAsset.meanings[item.word];
     if (translated?.length && !dictionary[row.markKey]) dictionary[row.markKey] = translated;
     return row;
@@ -197,13 +139,11 @@ export default async function VocabularyPage({ searchParams }: VocabularyPagePro
         a view. */}
     <h1 className="sr-only">词汇</h1>
 
-    <VocabularyShelfControls query={{ search: query.search }} total={shelf.total} />
-
-    {items.length ? <VocabularyShelf storageScope={user?.id ?? "anonymous"} glossary={glossary} dictionary={dictionary} bands={bands} total={shelf.total} ranked={ranked}>
+    {items.length ? <VocabularyShelf key={`${user?.id ?? "anonymous"}:${query.search ?? ""}`} controls={<VocabularyShelfControls query={{ search: query.search }} total={shelf.total} />} storageScope={user?.id ?? "anonymous"} glossary={glossary} dictionary={dictionary} bands={bands} total={shelf.total} ranked={ranked}>
       <VocabularyShelfList items={items} ranked={ranked} total={shelf.total} />
-    </VocabularyShelf> : null}
+    </VocabularyShelf> : <VocabularyShelfControls query={{ search: query.search }} total={shelf.total} />}
 
-    {shelfUnavailable && !items.length ? <div className="lexicon-empty lexicon-empty--error" role="alert"><h2>词汇表暂时不可用</h2><p>已发布内容仍然安全保留，请稍后刷新。</p></div> : null}
-    {!shelfUnavailable && !items.length ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或<Link href="/read/vocabulary">回到完整词表</Link>。</p></div> : null}
+    {shelf.examplesUnavailable && items.length ? <p className="vocabulary-recall__help" role="status">部分例句暂时不可用，词表和默写可以继续使用。</p> : null}
+    {!items.length ? <div className="lexicon-empty"><h2>没有匹配的词</h2><p>换一个搜索词，或<Link href="/read/vocabulary">回到完整词表</Link>。</p></div> : null}
   </main>;
 }

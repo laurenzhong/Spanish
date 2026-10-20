@@ -69,6 +69,22 @@ export const characterRuntimeDefinitions: readonly CharacterRuntimeDefinition[] 
     },
   },
   {
+    // Revised voice and complete public identity projection. Historic
+    // revisions retain their capability definitions for message audits.
+    stableKey: "lucia",
+    version: 3,
+    lifecycle: "published",
+    policy: {
+      conversation: "full",
+      proactiveMessages: true,
+      romanticSubtext: false,
+      introductions: true,
+      persistentMemory: "private",
+      maxRelationshipStage: "close_friend",
+      voiceInput: false,
+    },
+  },
+  {
     stableKey: "mateo",
     version: 1,
     lifecycle: "draft",

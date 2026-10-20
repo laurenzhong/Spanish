@@ -44,6 +44,8 @@ describe("language purity", () => {
     expect(translationesePhrase("Buenas tardes 😊 Bienvenido al lunes. Mi plan es tranquilo.")).toBe("bienvenido al lunes");
     expect(translationesePhrase("¡Bienvenida a la semana!")).toBe("bienvenido al lunes");
     expect(translationesePhrase("bienvenidos al viernes")).toBe("bienvenido al lunes");
+    expect(translationesePhrase("¡Bienvenido al finde! 😊")).toBe("bienvenido al lunes");
+    expect(translationesePhrase("Bienvenida al fin de semana.")).toBe("bienvenido al lunes");
     // "Bienvenido a casa" is ordinary Spanish and must not be flagged.
     expect(translationesePhrase("Bienvenido a casa, aquí se está bien.")).toBeNull();
     expect(translationesePhrase("Bienvenida al salón.")).toBeNull();

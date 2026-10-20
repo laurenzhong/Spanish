@@ -16,6 +16,7 @@ import {
 // New expression, article, and media reviews use the current owner-authorized
 // reference from `content-acquisition/domain/review-identity`.
 export const TEMPORARY_AI_REVIEWER_REFERENCE = "codex-ai-temporary-review";
+export const OWNER_AUTHORIZED_CHARACTER_REVIEWER_REFERENCE = "dsh-ai-owner-authorized-review";
 
 export class CharacterPublishError extends Error {
   constructor(
@@ -40,20 +41,20 @@ function temporaryReviews(reviewedAt: Date): readonly CharacterPublicationReview
   return [
     {
       locale: "es-ES",
-      reviewerReference: `${TEMPORARY_AI_REVIEWER_REFERENCE}:language`,
-      notes: "Temporary AI language review authorized by the project owner; native-speaker review remains recommended.",
+      reviewerReference: `${OWNER_AUTHORIZED_CHARACTER_REVIEWER_REFERENCE}:language`,
+      notes: "Owner-authorized AI language review for the personal Alpha; this is not a human native-speaker signature.",
       reviewedAt,
     },
     {
       locale: "zh-CN",
-      reviewerReference: `${TEMPORARY_AI_REVIEWER_REFERENCE}:pedagogy`,
-      notes: "Temporary AI pedagogy-risk review authorized by the project owner; teaching-expert review remains recommended.",
+      reviewerReference: `${OWNER_AUTHORIZED_CHARACTER_REVIEWER_REFERENCE}:pedagogy`,
+      notes: "Owner-authorized AI pedagogy-risk review for the personal Alpha; this is not a human teaching-expert signature.",
       reviewedAt,
     },
     {
       locale: "es-ES",
-      reviewerReference: `${TEMPORARY_AI_REVIEWER_REFERENCE}:canon`,
-      notes: "Temporary AI canon, privacy, and character-boundary review authorized by the project owner.",
+      reviewerReference: `${OWNER_AUTHORIZED_CHARACTER_REVIEWER_REFERENCE}:canon`,
+      notes: "Owner-authorized AI canon, privacy, and character-boundary review for the personal Alpha.",
       reviewedAt,
     },
   ];

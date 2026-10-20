@@ -35,6 +35,7 @@ vi.mock("@/app/(product)/read/read-shelf", () => ({ ReadShelf: mocks.ReadShelf }
 
 import ReadPage from "@/app/(product)/read/page";
 import { ReadShelfData } from "@/app/(product)/read/read-shelf-data";
+import { ReadShelfUnavailable } from "@/app/(product)/read/read-shelf-unavailable";
 import { ReadShelfSkeleton } from "@/app/(product)/read/read-shelf-skeleton";
 import { ReadSectionNavigation } from "@/src/modules/lexicon-corpus";
 
@@ -143,5 +144,28 @@ describe("read page data loading", () => {
     expect(mocks.getArticles).toHaveBeenCalledTimes(2);
     expect(mocks.getArticles).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ cursor: "0" }));
     expect(rendered.props.page).toBe(1);
+  });
+
+  it("shows a recoverable failure when the database query rejects, then reads again on retry", async () => {
+    const params = { search: "casa", cefr: "A2", page: "3" };
+    mocks.getArticles.mockRejectedValueOnce(new Error("Failed query", { cause: Object.assign(new Error("DNS unavailable"), { code: "ENOTFOUND" }) }));
+
+    const failed = await ReadShelfData({ searchParams: Promise.resolve(params) });
+
+    expect(failed.type).toBe(ReadShelfUnavailable);
+    mocks.getArticles.mockResolvedValueOnce({ ...listResult, totalCount: 40 });
+    const recovered = await ReadShelfData({ searchParams: Promise.resolve(params) });
+
+    expect(recovered.type).toBe(mocks.ReadShelf);
+    expect(recovered.props.page).toBe(3);
+    expect(mocks.getArticles).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ search: "casa", cefr: "A2", cursor: "24" }));
+  });
+
+  it("handles connection setup failures and a failure reading the clamped page", async () => {
+    mocks.createRuntimeArticleRepository.mockImplementationOnce(() => { throw new Error("connection setup failed"); });
+    expect((await ReadShelfData({ searchParams: Promise.resolve({}) })).type).toBe(ReadShelfUnavailable);
+
+    mocks.getArticles.mockResolvedValueOnce({ ...listResult, totalCount: 12 }).mockRejectedValueOnce(new Error("connection closed"));
+    expect((await ReadShelfData({ searchParams: Promise.resolve({ page: "9" }) })).type).toBe(ReadShelfUnavailable);
   });
 });

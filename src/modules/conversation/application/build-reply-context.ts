@@ -7,6 +7,9 @@ export type ReplyCharacterSnapshot = Readonly<{
   characterVersion: number;
   displayName: string;
   homeLocation: string;
+  /** Authored public identity; its presence does not mean the user was told it. */
+  identity?: Readonly<{ age: number; growthLocation: string; education: string; occupation: string }>;
+  traits?: readonly string[];
   initiative: "low" | "balanced" | "high";
   tone: readonly string[];
   /**
@@ -21,6 +24,9 @@ export type ReplyCharacterSnapshot = Readonly<{
     statement: string;
     sensitivity: "normal" | "sensitive" | "private";
     reveal: "never" | "contextual" | "gradual" | "direct";
+    audience?: "any-user" | "relationship";
+    trigger?: string;
+    topic?: string;
   }>[];
 }>;
 
@@ -71,6 +77,8 @@ export type ReplyContext = Readonly<{
   generationId: string;
   userId: string;
   userMessage: string;
+  /** Validated, still-unanswered submissions in order, including the latest. */
+  unansweredUserMessages?: readonly string[];
   recentMessages: readonly ReplyContextMessage[];
   rollingSummary: string | null;
   openTopics: readonly ReplyOpenTopic[];
@@ -94,6 +102,7 @@ export type BuildReplyContextInput = Readonly<{
   generationId: string;
   userId: string;
   userMessage: string;
+  unansweredUserMessages?: readonly string[];
   character?: ReplyCharacterSnapshot;
   relationshipStage?: ReplyContext["relationshipStage"];
   relationshipSummary?: string | null;
@@ -386,11 +395,14 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
   const memories = input.memoryRepository
     ? await input.memoryRepository.listReadableMemories(input.userId, character.characterKey)
     : (input.memories ?? []);
+  const unansweredUserMessages = input.unansweredUserMessages?.map((message) => message.trim()).filter(Boolean);
+  const unansweredText = unansweredUserMessages?.length ? unansweredUserMessages.join("\n\n") : input.userMessage;
 
   return {
     generationId: input.generationId,
     userId: input.userId,
     userMessage: input.userMessage.trim(),
+    ...(unansweredUserMessages?.length ? { unansweredUserMessages } : {}),
     recentMessages: budgetRecentMessages(input.recentMessages ?? [], input.recentMessageCharBudget ?? defaultRecentMessageCharBudget),
     rollingSummary: input.rollingSummary?.trim() || null,
     openTopics: input.openTopics ?? deriveReplyOpenTopics(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
@@ -410,11 +422,14 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
         ),
     conversationTimeZone,
     currentLocalDate,
+    ...(unansweredUserMessages && unansweredUserMessages.length > 1 ? {
+      continuityInstruction: "Han llegado varios mensajes antes de terminar tu respuesta. Responde al conjunto de unansweredUserMessages y a lo que ya dijiste, no solo a userMessage. Busca primero la conexión entre sus temas: si el último introduce un objeto que podría relacionarse con el interés anterior, formula esa conexión como una posibilidad concreta, sin darla por hecha, en vez de una pregunta genérica sobre el objeto. Un prefijo visible que solo reconoce un interés compartido no cierra ese tema: úsalo para conectar la nueva información sin volver a expresarlo. Si son temas independientes, conserva una breve respuesta útil a ambos. Omite preguntas ya respondidas, corregidas o cerradas; no repitas el prefijo visible. Usa mensajes breves separados por una línea en blanco cuando resulte natural.",
+    } : {}),
     character,
     relationshipStage: input.relationshipStage ?? "new_contact",
     relationshipSummary: input.relationshipSummary ?? null,
     memories: readableMemories(memories, character.characterKey),
     teachingOpportunity: input.teachingOpportunity ?? null,
-    questionPolicy: questionPolicyForReply({ userMessage: input.userMessage }),
+    questionPolicy: questionPolicyForReply({ userMessage: unansweredText }),
   };
 }

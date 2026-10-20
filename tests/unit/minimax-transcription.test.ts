@@ -54,12 +54,60 @@ describe("MiniMaxTranscriptionProvider", () => {
     expect(form.get("file")).toBeInstanceOf(Blob);
   });
 
+  it("preserves provider word timestamps when word mode is requested", async () => {
+    const fetchImplementation = vi.fn(async () => response({
+      text: "Buenos días.",
+      segments: [
+        { id: 0, start: 0.2, end: 0.7, text: "Buenos" },
+        { id: 1, start: 0.7, end: 1.8, text: "días." },
+      ],
+    }));
+    const provider = new MiniMaxTranscriptionProvider({ apiKey: "test-key", timestampLevel: "word", fetchImplementation });
+    await expect(provider.transcribe(input)).resolves.toMatchObject({
+      segments: [
+        { startMs: 200, endMs: 700, text: "Buenos" },
+        { startMs: 700, endMs: 1_800, text: "días." },
+      ],
+    });
+    const request = (fetchImplementation as unknown as { mock: { calls: Array<[RequestInfo | URL, RequestInit?]> } }).mock.calls[0]?.[1];
+    expect((request?.body as FormData).get("timestamp_level")).toBe("word");
+  });
+
   it("maps provider status errors and validates the existing 25 MB input gate", async () => {
     const fetchImplementation = vi.fn(async () => response({ error: "rate limited" }, 429));
     const provider = new MiniMaxTranscriptionProvider({ apiKey: "test-key", fetchImplementation });
     await expect(provider.transcribe(input)).rejects.toMatchObject({ code: "provider-rate-limited", retryable: true });
     await expect(provider.transcribe({ ...input, audioBytes: new Uint8Array(maxTranscriptionAudioBytes + 1) })).rejects.toMatchObject({ code: "audio-too-large", retryable: false });
     expect(fetchImplementation).toHaveBeenCalledOnce();
+  });
+
+  it("skips a silent tail chunk while preserving other provider failures", async () => {
+    const assetDirectory = await mkdtemp(path.join(tmpdir(), "sueno-minimax-silent-test-"));
+    const assetPath = path.join(assetDirectory, "episode.mp3");
+    await writeFile(assetPath, new Uint8Array([1, 2, 3]));
+    try {
+      spawnMock.mockImplementation((_command: string, args: readonly string[]) => {
+        const outputPattern = String(args.at(-1));
+        const child = new EventEmitter() as EventEmitter & { kill: () => void };
+        child.kill = vi.fn();
+        queueMicrotask(() => {
+          writeFileSync(outputPattern.replace("%03d", "000"), new Uint8Array([4, 5, 6]));
+          writeFileSync(outputPattern.replace("%03d", "001"), new Uint8Array([7, 8, 9]));
+          child.emit("close", 0);
+        });
+        return child;
+      });
+      const fetchImplementation = vi.fn()
+        .mockResolvedValueOnce(response({ text: "Hola.", segments: [{ start: 0, end: 1, text: "Hola." }] }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "No clear speaker was detected. Please check the audio." } }), { status: 422 }))
+        .mockResolvedValueOnce(response({ error: "unprocessable" }, 422));
+      const provider = new MiniMaxTranscriptionProvider({ apiKey: "test-key", fetchImplementation });
+      await expect(provider.transcribe({ ...input, assetPath, durationMs: 500_001 })).resolves.toMatchObject({ text: "Hola." });
+      await expect(provider.transcribe({ ...input, assetPath, durationMs: 500_001 })).rejects.toMatchObject({ code: "provider-response-invalid" });
+    } finally {
+      spawnMock.mockReset();
+      await rm(assetDirectory, { recursive: true, force: true });
+    }
   });
 
   it("reports its own timeout separately from caller cancellation", async () => {

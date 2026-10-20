@@ -313,8 +313,8 @@ describe("ExplorePageContent owned-data lifecycle", () => {
     expect(screen.getByRole("link", { name: /校园办事/u })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "场景" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText("没有匹配的场景")).not.toBeInTheDocument();
-    expect(screen.getByText(/私人内容加载中/u)).toBeInTheDocument();
-    expect(screen.queryByText("私人内容暂不可用，当前显示公共内容。")).not.toBeInTheDocument();
+    // An owned read in flight is silent: the catalogue is not announced as partial.
+    expect(screen.queryByText(/私人内容/u)).not.toBeInTheDocument();
   });
 
   it("does not claim 我的收藏 is empty while the owned read is in flight", () => {
@@ -324,7 +324,7 @@ describe("ExplorePageContent owned-data lifecycle", () => {
 
     expect(screen.getByText("正在加载你的收藏与阅读来源…")).toBeInTheDocument();
     expect(screen.queryByText("没有匹配的表达")).not.toBeInTheDocument();
-    expect(screen.getByText(/私人内容加载中/u)).toBeInTheDocument();
+    expect(screen.queryByText(/私人内容/u)).not.toBeInTheDocument();
   });
 
   it("has not read anything owned when no viewer is supplied", () => {
@@ -342,7 +342,7 @@ describe("ExplorePageContent owned-data lifecycle", () => {
     const { container } = render(<ExplorePageContent dashboard={dashboard} library={publicLibrary} userId="user-1" />);
 
     expect(await screen.findByText("药店沟通")).toBeInTheDocument();
-    expect(screen.queryByText(/私人内容加载中/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(/私人内容/u)).not.toBeInTheDocument();
     expect(container.querySelectorAll(".explore-scenario-grid > a")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("tab", { name: "表达" }));

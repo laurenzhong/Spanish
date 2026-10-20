@@ -25,6 +25,41 @@ type VocabularyShelfListProps = Readonly<{
   total: number;
 }>;
 
+/** Attribute and text escaping for the tile markup, which is emitted as HTML. */
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/**
+ * One tile's markup, as a string.
+ *
+ * A string rather than JSX because of what the document costs. The shelf renders 7,922 words
+ * inside a client component, and every element passed across that boundary is serialised into
+ * the RSC payload **in addition to** the HTML it renders — measured on the real page, 6.45 MB
+ * of a 9.42 MB document was that payload, against 2.97 MB of markup. Emitting the tiles as one
+ * HTML string lets the server render them without serialising 7,922 elements, and the frame
+ * already reads everything it needs from `data-*` attributes on a single delegated listener,
+ * so nothing about the interaction depends on those elements being React nodes.
+ */
+export function shelfTileHtml(item: VocabularyShelfItem): string {
+  const context = item.context === null ? "" : ` data-example="${escapeHtml(item.context)}"`;
+  const source = item.source === null ? "" : ` data-source="${escapeHtml(item.source)}"`;
+  return `<li><button type="button" lang="es" class="vocabulary-study__word"`
+    + ` data-word-key="${escapeHtml(item.markKey)}" data-word="${escapeHtml(item.text)}"${context}${source}>`
+    + `<span class="vocabulary-study__word-text">${escapeHtml(item.text)}</span>`
+    + `<span class="vocabulary-study__word-meaning">${escapeHtml(item.meaning ?? "释义待补充")}</span>`
+    + "</button></li>";
+}
+
+/** A grid of tiles, as one HTML string. See {@link shelfTileHtml} for why this is a string. */
+function gridHtml(items: readonly VocabularyShelfItem[]): string {
+  return items.map((item) => shelfTileHtml(item)).join("");
+}
+
 /**
  * The shelf itself, rendered on the server: every word of the list at once, in
  * reference-rank order, grouped under its rank band (`排名 1 - 100:`).
@@ -40,31 +75,13 @@ type VocabularyShelfListProps = Readonly<{
  * example path.
  */
 export function VocabularyShelfList({ items, ranked, total }: VocabularyShelfListProps) {
-  /**
-   * The shelf rank is the identity here, not the row id: the id is the
-   * accent-folded word (`word:solo`), and the reference list deliberately keeps
-   * `solo`/`sólo` and `te`/`té` as separate rows, so ids repeat. The rank is
-   * unique and stable for a server-rendered shelf.
-   */
-  function tile(item: VocabularyShelfItem, rank: number) {
-    return <li key={rank}>
-      <button
-        type="button"
-        lang="es"
-        className="vocabulary-study__word"
-        data-word-key={item.markKey}
-        data-word={item.text}
-        data-example={item.context ?? undefined}
-        data-source={item.source ?? undefined}
-      >
-        <span className="vocabulary-study__word-text">{item.text}</span>
-        <span className="vocabulary-study__word-meaning">{item.meaning ?? "释义待补充"}</span>
-      </button>
-    </li>;
-  }
-
   if (!ranked) {
-    return <ul className="vocabulary-study__grid" role="list" aria-label="词汇列表">{items.map((item, index) => tile(item, index))}</ul>;
+    return <ul
+      className="vocabulary-study__grid"
+      role="list"
+      aria-label="词汇列表"
+      dangerouslySetInnerHTML={{ __html: gridHtml(items) }}
+    />;
   }
 
   return <>{groupRanks(items, 1, total).map(({ band, items: bandItems }) => (
@@ -72,9 +89,12 @@ export function VocabularyShelfList({ items, ranked, total }: VocabularyShelfLis
       {/* A centred divider: the rules on either side do the separating the
           trailing colon used to do. */}
       <h2 className="vocabulary-rank-band" id={bandAnchorId(band.start)}>排名 {band.start} - {band.end}</h2>
-      <ul className="vocabulary-study__grid" role="list" aria-labelledby={bandAnchorId(band.start)}>
-        {bandItems.map((item, index) => tile(item, band.start + index))}
-      </ul>
+      <ul
+        className="vocabulary-study__grid"
+        role="list"
+        aria-labelledby={bandAnchorId(band.start)}
+        dangerouslySetInnerHTML={{ __html: gridHtml(bandItems) }}
+      />
     </div>
   ))}</>;
 }

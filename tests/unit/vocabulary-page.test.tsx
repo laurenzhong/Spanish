@@ -20,8 +20,9 @@ vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser: mocks.getCurrentUse
 vi.mock("@/src/shared/db/client", () => ({ getDatabase: mocks.getDatabase }));
 // The real loader reads the Language Reactor asset off disk; these tests hand it
 // the meanings directly, including the empty case the asset is in until the
-// scrape lands.
-vi.mock("@/app/(product)/read/vocabulary/lr-meanings", () => ({
+// scrape lands. The loader lives in the lexicon-corpus module because the word
+// lookup answers from the same asset, so that is the path mocked here.
+vi.mock("@/src/modules/lexicon-corpus/application/lr-meaning-asset", () => ({
   loadLrMeaningAsset: () => ({ available: true, order: "language-reactor-hover-dictionary", meanings: mocks.languageReactor.current }),
 }));
 vi.mock("@/src/modules/lexicon-corpus/repositories", async (importOriginal) => {
@@ -96,12 +97,18 @@ describe("vocabulary page", () => {
     expect(mocks.repository.listFrequencyWords).toHaveBeenCalledTimes(1);
     expect(mocks.repository.listFrequencyWords).toHaveBeenCalledWith({ search: undefined, page: 1, pageSize: 7_922 });
 
+    // Every word of the shelf is in the one document — an earlier attempt rendered only its
+    // first bands and fetched the rest while scrolling, and the owner rejected that.
     const lists = screen.getAllByRole("list");
     expect(lists.map((list) => list.getAttribute("aria-labelledby"))).toEqual(["vocabulary-band-1", "vocabulary-band-101", "vocabulary-band-201"]);
     expect(tiles()).toHaveLength(250);
     expect(screen.getByRole("heading", { name: "排名 201 - 250" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "词句分页" })).not.toBeInTheDocument();
-    expect(screen.getByText(/按参考词频排序的 250 个内容词/u)).toBeInTheDocument();
+    expect(screen.getByText("250 词")).toBeInTheDocument();
+    const toolbar = document.querySelector(".vocabulary-toolbar") as HTMLElement;
+    expect(within(toolbar).getByRole("textbox", { name: "搜索词表" })).toBeInTheDocument();
+    expect(within(toolbar).getByRole("checkbox", { name: "点词自动发音" })).toBeInTheDocument();
+    expect(screen.queryByText(/已过滤功能词|换设备不会同步|已标记 0 个/u)).not.toBeInTheDocument();
   });
 
   it("keeps the reviewed meaning under the word and the honest placeholder elsewhere", async () => {
@@ -166,8 +173,14 @@ describe("vocabulary page", () => {
     const card = screen.getByRole("complementary", { name: "casa 词汇卡片" });
     expect(within(card).getByRole("heading", { name: "词表用法" })).toBeInTheDocument();
     expect(card).toHaveTextContent("en casa 表示在家");
-    // The meaning list itself is LR's, exactly three entries, in LR's order.
-    expect(within(card).getAllByRole("listitem").slice(0, 3).map((item) => item.textContent)).toEqual(["家", "房子", "住宅"]);
+    // The meaning list itself is LR's, exactly three entries, in LR's order. Read
+    // per meaning, not per row: the panel puts one main meaning on its own and the
+    // rest on a single row of inline terms, so rows are the layout, not the
+    // meanings. Scoped to the meanings list because the panel has other lists (the
+    // marks, the examples), and the `·` separators are drawn by CSS, not elements.
+    expect([...card.querySelectorAll<HTMLElement>(
+      ".vocabulary-study__meaning-main strong, .vocabulary-study__meaning-terms li",
+    )].map((item) => item.textContent)).toEqual(["家", "房子", "住宅"]);
   });
 
   it("offers the rail as fragment jumps to the bands, with no page in sight", async () => {
@@ -219,6 +232,7 @@ describe("vocabulary page", () => {
       cleanup();
       await renderPage({ view });
 
+      // `?view=` selects nothing: the same shelf renders whatever it says.
       expect(tiles()).toHaveLength(250);
       expect(screen.queryByRole("navigation", { name: "词汇视图" })).not.toBeInTheDocument();
       expect(screen.queryByText(/共 80 个已审核单词/u)).not.toBeInTheDocument();
@@ -264,10 +278,14 @@ describe("vocabulary page", () => {
     expect(screen.queryByRole("link", { name: /清除搜索/u })).not.toBeInTheDocument();
   });
 
-  it("states honestly when the shelf cannot be read", async () => {
-    await renderPage({ view: "frequency" });
+  it("keeps the real local vocabulary usable without a database and marks missing examples honestly", async () => {
+    await renderPage({ view: "frequency", search: "casa" });
 
-    expect(screen.getByRole("heading", { name: "词汇表暂时不可用" })).toBeInTheDocument();
+    expect(tiles().some((tile) => tile.dataset.word === "casa")).toBe(true);
+    expect(screen.getByText("部分例句暂时不可用，词表和默写可以继续使用。")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "词汇表暂时不可用" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "看释义写单词" })).toBeInTheDocument();
+    expect(tiles().every((tile) => !tile.hasAttribute("data-example") && !tile.hasAttribute("data-source"))).toBe(true);
     expect(screen.queryByRole("navigation", { name: "按名次跳转" })).not.toBeInTheDocument();
     expect(mocks.repository.listFrequencyWords).not.toHaveBeenCalled();
   });
@@ -276,10 +294,12 @@ describe("vocabulary page", () => {
     openWithDatabase();
     mocks.repository.listFrequencyWords.mockRejectedValue(new Error("SHELF_LOAD_TIMEOUT"));
 
-    await renderPage();
+    await renderPage({ search: "casa" });
 
     expect(mocks.repository.listFrequencyWords).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("heading", { name: "词汇表暂时不可用" })).toBeInTheDocument();
+    expect(tiles().some((tile) => tile.dataset.word === "casa")).toBe(true);
+    expect(screen.getByText("部分例句暂时不可用，词表和默写可以继续使用。")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "词汇表暂时不可用" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "没有匹配的词" })).not.toBeInTheDocument();
   });
 

@@ -82,6 +82,8 @@ describe("Language Reactor adapter", () => {
         }] },
       }), { status: 200, headers: { "content-type": "application/json" } }))
       .mockRejectedValueOnce(new TypeError("socket closed"))
+      .mockRejectedValueOnce(new TypeError("socket closed"))
+      .mockRejectedValueOnce(new TypeError("socket closed"))
       .mockResolvedValueOnce(new Response(null, { status: 200, headers: { "content-type": "audio/mpeg", "content-length": "1000" } }));
     const adapter = new LanguageReactorAdapter({
       fetch: fetchImpl,
@@ -92,6 +94,7 @@ describe("Language Reactor adapter", () => {
 
     expect(page.items).toHaveLength(1);
     expect(page.items[0]).toMatchObject({ contentType: "podcast", externalItemId: "it_available" });
+    expect(fetchImpl).toHaveBeenCalledTimes(5);
   });
 
   it("follows the authorized multi-hop CDN redirect chain for podcast audio", async () => {

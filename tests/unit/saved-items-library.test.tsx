@@ -1,3 +1,10 @@
+import { readAloudFake as speech } from "../helpers/read-aloud-fake";
+vi.mock("@/src/modules/providers/tts/read-aloud", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/modules/providers/tts/read-aloud")>();
+  const { readAloudFake } = await import("../helpers/read-aloud-fake");
+  return { ...actual, createReadAloud: readAloudFake.create };
+});
+
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -116,27 +123,16 @@ describe("saved reading items library", () => {
     expect(screen.getByRole("heading", { name: "de repente" })).toBeInTheDocument();
   });
 
-  it("uses browser speech synthesis without making an evidence request", async () => {
-    const speak = vi.fn((utterance: { onstart?: (() => void) | null; onend?: (() => void) | null }) => {
-      utterance.onstart?.();
-      utterance.onend?.();
-    });
-    const cancel = vi.fn();
-    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: { speak, cancel, getVoices: () => [] } });
-    class FakeUtterance {
-      lang = "";
-      onstart: (() => void) | null = null;
-      onend: (() => void) | null = null;
-      onerror: (() => void) | null = null;
-      constructor(public readonly text: string) {}
-    }
-    Object.defineProperty(globalThis, "SpeechSynthesisUtterance", { configurable: true, value: FakeUtterance });
+  it("uses shared read-aloud without making an evidence request", async () => {
+    speech.reset();
+    speech.state.completeImmediately = true;
+    const speak = speech.speak;
     const fetchMock = vi.spyOn(globalThis, "fetch");
     const user = userEvent.setup();
     render(<SavedItemsLibrary items={[item]} total={1} page={1} pageSize={24} search="" />);
     await user.click(screen.getByRole("button", { name: "朗读 de repente" }));
     expect(speak).toHaveBeenCalledOnce();
-    expect((speak.mock.calls[0]?.[0] as FakeUtterance).text).toBe("de repente");
+    expect(speak.mock.calls[0]?.[0].text).toBe("de repente");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

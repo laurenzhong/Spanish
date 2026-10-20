@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { MediaLibrary } from "@/src/modules/media";
@@ -30,8 +30,26 @@ describe("media library", () => {
 
   it("offers the four media CEFR levels in the filter fields", () => {
     render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{}} />);
+    // The fields exist once, inside the panel the trigger opens; there is no
+    // second, invisible copy of them sitting in the tab order.
+    expect(screen.queryByRole("combobox", { name: "难度" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
     const levels = Array.from(screen.getByRole("combobox", { name: "难度" }).querySelectorAll("option")).map((option) => option.value);
     expect(levels).toEqual(["", "A1", "A2", "B1", "B2"]);
+  });
+
+  it("keeps the filter and sort controls on the header line, not in a band of their own", () => {
+    const { container } = render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{}} />);
+    const header = container.querySelector(".media-library__topbar");
+    const toolbar = container.querySelector(".media-library__toolbar");
+    expect(header).not.toBeNull();
+    expect(toolbar?.parentElement).toBe(header);
+    // The previous arrangement parked the toolbar in a full-width row between
+    // the header and the grid.
+    expect(header?.nextElementSibling).not.toBe(toolbar);
+    expect(header?.contains(screen.getByRole("button", { name: "筛选" }))).toBe(true);
+    expect(header?.contains(screen.getByRole("combobox", { name: "排序" }))).toBe(true);
+    expect(container.querySelector(".media-library__toolbar-row")).toBeNull();
   });
 
   it("renders equal-weight direct content links and real resume state", () => {
@@ -47,6 +65,6 @@ describe("media library", () => {
     }} query={{ kind: "podcast" }} />);
     expect(screen.getByRole("link", { name: /Café de cada día/ })).toHaveAttribute("href", "/learn/media/media.fixture.cafe");
     expect(screen.getByText("继续 · 02:00")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "加载更多" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "加载更多" })).toBeInTheDocument();
   });
 });

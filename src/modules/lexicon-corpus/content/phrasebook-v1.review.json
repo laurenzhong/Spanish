@@ -1,0 +1,16 @@
+{
+  "contentVersion": "2026-10-15.v1",
+  "contentFile": "phrasebook-v1.ts",
+  "sha256": "3997d51f3d97d2a746f23b2414548f4a3bb9f62c406b358cc989216ba3d810f5",
+  "entryCount": 24,
+  "scope": "Owner-only, original non-scoring phrasebook teaching examples; no corpus quotations or database publication.",
+  "authorizationDate": "2026-10-15",
+  "reviewerId": "dsh-ai-owner-authorized-review",
+  "reviewerKind": "ai",
+  "executedBy": "Codex AI independent review agent; the reviewerId follows the repository identifier convention and does not describe the executing platform.",
+  "reviews": [
+    { "locale": "es-ES", "status": "approved", "entryCount": 24, "revision": 2, "reviewedOn": "2026-10-15" },
+    { "locale": "zh-CN", "status": "approved", "entryCount": 24, "revision": 2, "reviewedOn": "2026-10-15" }
+  ],
+  "report": "docs/reviews/PHRASE-REDESIGN-001.md"
+}

@@ -13,7 +13,9 @@ import {
 import { deriveReplyOpenTopics, localDateInTimeZone, type ReplyContext } from "./build-reply-context";
 import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 import { containsUnsupportedScript, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
+import { attributesUnconfirmedCoffee, narrowsUnspecifiedWeekendWork, repeatsDailyActivityQuestion, requestsQuestionRepeat } from "../domain/reply-continuity";
 import { getConversationCharacter, isKnownConversationVersion } from "../domain/character-catalog";
+import { replyBubbleIntervalMs, splitReplyBubbles } from "../domain/reply-bubbles";
 
 export type StreamReplyProviderObservation = Readonly<{
   provider: ConversationProviderResult["provider"];
@@ -39,6 +41,8 @@ export type StreamReplyInput = Readonly<{
   onProviderResult?: (observation: StreamReplyProviderObservation) => Promise<void> | void;
   signal?: AbortSignal;
   wait?: (milliseconds: number) => Promise<void>;
+  /** Persist a complete, validated prefix while this generation still owns delivery. */
+  onBubble?: (bubble: Readonly<{ text: string; prefix: string; index: number }>) => Promise<boolean>;
 }>;
 
 export class StreamReplyError extends Error {
@@ -63,10 +67,13 @@ class ReplySafetyGateError extends ConversationProviderError {
     this.name = "ReplySafetyGateError";
   }
 }
-function splitReply(text: string): readonly string[] {
-  return text.match(/.{1,18}(?:\s+|$)/gu)?.map((part) =>
-    /\s$/u.test(part) ? part.replace(/\s+$/u, " ") : part,
-  ).filter(Boolean) ?? [text];
+function waitForBubble(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  if (!milliseconds || signal?.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const finish = () => { clearTimeout(timer); signal?.removeEventListener("abort", finish); resolve(); };
+    const timer = setTimeout(finish, milliseconds);
+    signal?.addEventListener("abort", finish, { once: true });
+  });
 }
 
 function errorEvent(
@@ -86,7 +93,7 @@ function errorEvent(
 export async function* streamReply(
   input: StreamReplyInput,
 ): AsyncGenerator<ConversationStreamEvent> {
-  const wait = input.wait ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  const wait = input.wait ?? ((milliseconds: number) => waitForBubble(milliseconds, input.signal));
   const trimmed = input.text.trim();
   if (!trimmed || trimmed.length > 2_000 || !input.clientMessageId || !input.generationId) {
     yield errorEvent(input, "input-invalid", false);
@@ -151,6 +158,9 @@ export async function* streamReply(
         const redundantGreeting = isRedundantGreetingReply(context, replyResult.text);
         const recycledPhrase = isRecycledReplyPhrase(context, replyResult.text);
         const translationese = translationesePhrase(replyResult.text);
+        const repeatedActivityQuestion = repeatsDailyActivityQuestion(context, replyResult.text);
+        const unconfirmedCoffee = attributesUnconfirmedCoffee(context, replyResult.text);
+        const narrowedWeekend = narrowsUnspecifiedWeekendWork(context, replyResult.text);
         generationContext = {
           ...context,
           ...(returnedPlan || (context.questionPolicy && context.questionPolicy.maxQuestionPressure !== "none")
@@ -162,7 +172,7 @@ export async function* streamReply(
                   maxQuestionPressure: "none" as const,
                 },
               }),
-          continuityInstruction: retryInstruction({ returnedPlan, translationese, redundantGreeting, recycledPhrase }),
+          continuityInstruction: retryInstruction({ dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, translationese, redundantGreeting, recycledPhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend }),
         };
       }
       await notifyProviderResult(input, {
@@ -211,13 +221,31 @@ export async function* streamReply(
       estimatedCostMicros: replyResult.estimatedCostMicros,
     });
   }
-  const reply = replyResult.text;
-  for (const chunk of splitReply(reply)) {
+  const bubbles = splitReplyBubbles(replyResult.text);
+  let prefix = "";
+  for (const [index, bubble] of bubbles.entries()) {
     if (input.signal?.aborted) {
       yield errorEvent(input, "stream-aborted", true);
       return;
     }
-    await wait(45);
+    await wait(index === 0 ? 0 : replyBubbleIntervalMs);
+    if (input.signal?.aborted) {
+      yield errorEvent(input, "stream-aborted", true);
+      return;
+    }
+    const chunk = `${index ? "\n\n" : ""}${bubble}`;
+    prefix += chunk;
+    if (input.onBubble) {
+      try {
+        if (!await input.onBubble({ text: bubble, prefix, index })) {
+          yield errorEvent(input, "stream-aborted", true);
+          return;
+        }
+      } catch {
+        yield errorEvent(input, "stream-failed", true);
+        return;
+      }
+    }
     if (input.signal?.aborted) {
       yield errorEvent(input, "stream-aborted", true);
       return;
@@ -373,8 +401,14 @@ function isRecycledReplyPhrase(context: ReplyContext, text: string): boolean {
     .reverse()
     .find((message) => message.role === "character" && message.content.trim().length > 0);
   if (!previousCharacterMessage) return false;
-  const previous = significantReplyTokens(previousCharacterMessage.content);
-  const generated = significantReplyTokens(text);
+  // Repeating a question is the requested action in this turn. Keep checking
+  // the surrounding statements, so this does not permit replaying an entire
+  // previous reply or dropping other safety checks.
+  const comparable = requestsQuestionRepeat(context.userMessage)
+    ? (value: string) => value.replace(/¿[^?]*\?/gu, "")
+    : (value: string) => value;
+  const previous = significantReplyTokens(comparable(previousCharacterMessage.content));
+  const generated = significantReplyTokens(comparable(text));
   if (previous.length < recycledPhraseMinimumTokens || generated.length < recycledPhraseMinimumTokens) return false;
   return sharesPhrase(previous, generated, 6, 0)
     || sharesPhrase(previous, generated, 5, recycledPhraseMinimumCharacters)
@@ -387,11 +421,27 @@ function isRecycledReplyPhrase(context: ReplyContext, text: string): boolean {
  * what went wrong. Strings here are asserted by tests; keep them stable.
  */
 function retryInstruction(input: Readonly<{
+  dishonestIdentity: boolean;
   returnedPlan: boolean;
   translationese: string | null;
   redundantGreeting: boolean;
   recycledPhrase: boolean;
+  repeatedActivityQuestion: boolean;
+  unconfirmedCoffee: boolean;
+  narrowedWeekend: boolean;
 }>): string {
+  if (input.dishonestIdentity) {
+    return "Responde con honestidad: eres un personaje de IA, no una persona real. No niegues ser una IA ni afirmes ser humana. Contesta de forma breve y directa a la pregunta.";
+  }
+  if (input.narrowedWeekend) {
+    return "La persona solo dijo fin de semana: no confirmó sábado ni domingo para su trabajo. Mantén su expresión sin inventar el día ni corregirla por el calendario. Responde al último mensaje sin atribuirle otras actividades, emociones o resultados no confirmados.";
+  }
+  if (input.unconfirmedCoffee) {
+    return "Has atribuido a la persona haber tomado café, pero solo tú habías mencionado esa opción; la persona no la ha confirmado. Responde al último mensaje sobre el trabajo sin convertir tus propuestas o tus propias experiencias en actividades de la persona. No inventes que ha terminado ni cómo se siente.";
+  }
+  if (input.repeatedActivityQuestion) {
+    return "Tu respuesta volvía a preguntar por los planes del día, aunque ya lo habías preguntado. Responde primero al último mensaje de la persona; no reinicies la elección entre salir o quedarse en casa. Respeta lo que cuenta que ocurrió sin inventar un resultado o un final que no ha confirmado. Puedes reconocer lo que dijo sin preguntar o hacer una pregunta concreta sobre ese dato. No uses saludos como 'bienvenido al finde'.";
+  }
   if (input.returnedPlan) {
     return "La persona ya ha vuelto o ha terminado el plan mencionado. Responde desde después de la actividad: no uses deseos propios de antes de salir (por ejemplo, 'que lo pases bien' o 'espero que disfrutes'). Puedes preguntar una sola cosa concreta sobre cómo fue, o responder con calidez sin preguntar; no inventes el resultado.";
   }
@@ -407,7 +457,16 @@ function retryInstruction(input: Readonly<{
   return "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.";
 }
 
+function hasDishonestIdentity(text: string): boolean {
+  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLocaleLowerCase("es-ES");
+  const deniesAi = /\bno\s+soy\s+(?:un(?:a)?\s+)?(?:personaje\s+de\s+)?(?:ia|inteligencia artificial)\b/u.test(normalized);
+  // Remove explicit human denials before looking for affirmative claims.
+  const withoutDenials = normalized.replace(/\bno\s+soy\s+(?:un(?:a)?\s+)?(?:persona\s+(?:real|humana)|humana?|ser\s+humano)\b/gu, "");
+  return deniesAi || /\bsoy\s+(?:un(?:a)?\s+)?(?:persona\s+(?:real|humana)|humana?|ser\s+humano)\b/u.test(withoutDenials);
+}
+
 function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
+  const unansweredText = context.unansweredUserMessages?.length ? context.unansweredUserMessages.join("\n\n") : context.userMessage;
   const normalized = text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/gu, "")
@@ -417,9 +476,10 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   }
   // Spanish is the default; a stray Chinese fragment is the reported defect and
   // must not reach the user. Only an explicit in-conversation request unlocks it.
-  if (containsUnsupportedScript(text) && !requestedNonSpanishLanguage(context.userMessage)) return false;
+  if (containsUnsupportedScript(text) && !requestedNonSpanishLanguage(unansweredText)) return false;
+  if (hasDishonestIdentity(text)) return false;
   const plan = planReply({
-    userMessage: context.userMessage,
+    userMessage: unansweredText,
     relationshipStage: context.relationshipStage,
     characterInitiative: context.character.initiative,
     characterTopics: context.character.topics,
@@ -432,13 +492,16 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
       || /\bcomo\s+personaje\s+de\s+ia\b/iu.test(normalized))
   ) return false;
   if (isRepeatedSameDayTopicReply(context, text)) return false;
+  if (repeatsDailyActivityQuestion(context, text)) return false;
+  if (attributesUnconfirmedCoffee(context, text)) return false;
+  if (narrowsUnspecifiedWeekendWork(context, text)) return false;
   if (isUnexplainedSameDayClaimChange(context, text)) return false;
   if (isPreReturnWishAfterReturn(context, text)) return false;
   if (isUnfoundedGreetingWish(context, text)) return false;
   if (isRedundantGreetingReply(context, text)) return false;
   if (isRecycledReplyPhrase(context, text)) return false;
   if (translationesePhrase(text)) return false;
-  return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: context.userMessage }));
+  return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: unansweredText }));
 }
 
 function isUnfoundedGreetingWish(context: ReplyContext, text: string): boolean {

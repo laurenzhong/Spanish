@@ -108,8 +108,9 @@ describe("materialised form frequencies", () => {
     `);
 
     // The materialised tables arrive the way they arrived in production: the
-    // migration artifact, executed statement by statement.
+    // migration artifacts, executed statement by statement.
     for (const statement of await migrationStatements("0043_curious_magdalene.sql")) await client.exec(statement);
+    for (const statement of await migrationStatements("0044_worried_the_executioner.sql")) await client.exec(statement);
   }
 
   async function seedCorpus(): Promise<void> {
@@ -121,7 +122,7 @@ describe("materialised form frequencies", () => {
         ('${publishedMediaVersion}', '71000000-0000-4000-8000-000000000001', 1, 'published', 'cleared', 'Podcast publicado'),
         ('${draftMediaVersion}', '71000000-0000-4000-8000-000000000002', 1, 'draft', 'unverified', 'Podcast en borrador');
       insert into media_segments (id, media_version_id, segment_index, source_text, translation, review_status) values
-        ('72000000-0000-4000-8000-000000000001', '${publishedMediaVersion}', 0, 'Casa con parque.', null, 'approved'),
+        ('72000000-0000-4000-8000-000000000001', '${publishedMediaVersion}', 0, 'Casa con mediodía.', null, 'approved'),
         ('72000000-0000-4000-8000-000000000002', '${publishedMediaVersion}', 1, 'La casa es grande.', null, 'approved'),
         ('72000000-0000-4000-8000-000000000003', '${publishedMediaVersion}', 2, 'Pendiente secreto.', null, 'pending'),
         ('72000000-0000-4000-8000-000000000004', '${draftMediaVersion}', 0, 'Secreto del borrador.', null, 'approved');
@@ -182,7 +183,10 @@ describe("materialised form frequencies", () => {
     const checks = await client.query<{ conname: string }>(
       `select conname from pg_constraint where contype = 'c' and conname like 'lexicon_form_frequenc%' order by conname`,
     );
-    expect(checks.rows).toHaveLength(4);
+    // word/count on the table, the example-identity pairing, and the state row's
+    // `id = 'corpus'` / count checks. The identity check is what keeps a stored
+    // example addressable instead of half-written.
+    expect(checks.rows).toHaveLength(5);
   });
 
   it("materialises exactly the counts and examples the live scan produces", async () => {
@@ -207,7 +211,7 @@ describe("materialised form frequencies", () => {
     // And the corpus facts themselves are the expected ones, so equality is not
     // two equally-wrong paths.
     expect(countsOf(live, "casa")).toBe(3);
-    expect(countsOf(live, "parque")).toBe(1);
+    expect(countsOf(live, "mediodia")).toBe(1);
 
     const state = await readCorpusFormFrequencyState(database);
     expect(state?.formCount).toBe(refresh.forms);
@@ -249,10 +253,114 @@ describe("materialised form frequencies", () => {
       expect(countsOf(live, word), `${word} must be invisible to the live scan too`).toBe(0);
     }
 
-    // The example the shelf renders comes from the same visible set.
+    // The example the shelf renders comes from the same visible set. `casa`
+    // occurs in both an included media segment and an included article segment;
+    // the pick is `min` over `(text, title)`, and "Casa con mediodía." sorts
+    // before "Casa del artículo feliz." ('c' < 'd' at the fourth character).
+    // Which source wins is not the point of this test — that both paths pick the
+    // same one is.
     const casa = materialised.rows.find((row) => row.word === "casa");
-    expect(casa?.example[0]).toBe("Casa con parque.");
+    expect(casa?.example[0]).toBe("Casa con mediodía.");
     expect(casa?.example[1]).toBe("Podcast publicado");
+  });
+
+  it("stores each example's own address, not just its text and title", async () => {
+    // Read-aloud has to find the word inside the published segment an example
+    // was counted in, and a materialised row has no aggregate left to ask. The
+    // text and its address must therefore be picked from one row and stored
+    // together — a stored text with a missing or wrong address plays audio that
+    // does not match what the shelf renders.
+    await refreshCorpusFormFrequency(database, NOW);
+    const live = await loadLiveFormFrequencyRows(database);
+    const materialised = await readMaterialisedFormFrequencyRows(database, wantedFormList());
+    expect(materialised.status).toBe("ok");
+    if (materialised.status !== "ok") return;
+
+    // The segment number is the source's own, checked against the source row
+    // rather than against a literal. It is deliberately *not* converted: the
+    // column is what read-aloud compares with the playback segments, and an
+    // off-by-one here would play the neighbouring sentence. PGlite hands integer
+    // columns back as strings, so the source value is coerced.
+    const [{ segment_index: mediaSegmentIndex }] = (
+      await client.query<{ segment_index: number | string }>(
+        `select segment_index from media_segments where source_text = 'Casa con mediodía.'`,
+      )
+    ).rows;
+    const expectedSegmentNumber = Number(mediaSegmentIndex);
+
+    // `mediodía` occurs only in the published, cleared media segment, so its
+    // example is the one the address must resolve to. Both paths agree.
+    for (const rows of [live, materialised.rows]) {
+      const mediodia = rows.find((row) => row.word === "mediodia");
+      expect(mediodia?.example[0]).toBe("Casa con mediodía.");
+      expect(mediodia?.example[1]).toBe("Podcast publicado");
+      expect(mediodia?.example[2]).toBe("media");
+      expect(mediodia?.example[3]).toBe("media.published");
+      expect(mediodia?.example[4]).toBe(1);
+      expect(mediodia?.example[5]).toBe(expectedSegmentNumber);
+    }
+
+    // A form in both a media and an article segment exposes which source the
+    // pick settled on, and the address must follow that same pick instead of
+    // being filled from the other one.
+    for (const rows of [live, materialised.rows]) {
+      const casa = rows.find((row) => row.word === "casa");
+      expect(casa?.example[0]).toBe("Casa con mediodía.");
+      expect(casa?.example[1]).toBe("Podcast publicado");
+      expect(casa?.example[2]).toBe("media");
+      expect(casa?.example[3]).toBe("media.published");
+    }
+
+    // The stored columns are the same facts, read straight from the table: the
+    // projection could be right while the refresh wrote something else.
+    const stored = await client.query<{
+      word: string;
+      example_text: string;
+      example_title: string;
+      example_document_kind: string;
+      example_document_stable_key: string | null;
+      example_document_version: number | null;
+      example_segment_index: number | null;
+    }>(`select word, example_text, example_title, example_document_kind,
+               example_document_stable_key, example_document_version, example_segment_index
+        from lexicon_form_frequencies where word in ('mediodia','casa') order by word`);
+    expect(stored.rows).toEqual([
+      {
+        word: "casa",
+        example_text: "Casa con mediodía.",
+        example_title: "Podcast publicado",
+        example_document_kind: "media",
+        example_document_stable_key: "media.published",
+        example_document_version: 1,
+        example_segment_index: expectedSegmentNumber,
+      },
+      {
+        word: "mediodia",
+        example_text: "Casa con mediodía.",
+        example_title: "Podcast publicado",
+        example_document_kind: "media",
+        example_document_stable_key: "media.published",
+        example_document_version: 1,
+        example_segment_index: expectedSegmentNumber,
+      },
+    ]);
+
+    // An article example has no audio path, so its address stays all-null rather
+    // than half-filled; the check constraint enforces exactly this pairing. Which
+    // forms those are is not asserted — only the shape, so this stays a test of
+    // the address rather than a second copy of the seed.
+    const article = await client.query<{ word: string; example_document_stable_key: string | null; example_segment_index: number | string | null }>(
+      `select word, example_document_stable_key, example_segment_index
+         from lexicon_form_frequencies where example_document_kind = 'article' order by word`,
+    );
+    expect(article.rows.length).toBeGreaterThan(0);
+    for (const row of article.rows) {
+      expect(row.example_document_stable_key, `address for ${row.word}`).toBeNull();
+      expect(row.example_segment_index, `segment for ${row.word}`).toBeNull();
+    }
+    await expect(client.exec(
+      `update lexicon_form_frequencies set example_document_kind = 'media' where word = 'articulo'`,
+    )).rejects.toThrow(/lexicon_form_frequencies_example_identity_check/u);
   });
 
   it("serves the fast path with exactly one statement that never scans the corpus", async () => {

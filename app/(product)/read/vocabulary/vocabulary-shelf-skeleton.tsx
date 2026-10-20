@@ -28,8 +28,8 @@ export function VocabularyShelfSkeleton() {
 
       <p className="vocabulary-shelf-skeleton__status">正在载入词汇表…</p>
 
-      {/* The search row and the count line, in the shelf's own containers. */}
-      <div className="lexicon-shelf-controls" aria-hidden="true">
+      {/* The same compact toolbar as the loaded shelf. */}
+      <div className="vocabulary-toolbar" aria-hidden="true">
         <span className="vocabulary-search vocabulary-shelf-skeleton__search" />
         <span className="vocabulary-shelf-skeleton__count" />
       </div>

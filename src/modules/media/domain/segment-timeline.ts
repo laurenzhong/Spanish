@@ -1,4 +1,5 @@
 import type { MediaWordTiming } from "./word-timeline";
+import { validWordTimings } from "./word-timeline";
 
 export const mediaSegmentSourceKinds = ["platform_manual", "platform_auto", "asr"] as const;
 export const maxMediaSegments = 2_000;
@@ -80,6 +81,25 @@ export function validateSegmentTimeline(
       throw new MediaSegmentTimelineError(`Segment ${index} is invalid or overlaps another cue.`);
     }
     previousEnd = segment.endMs;
+    // Word-level timelines are optional (older drafts and platform captions
+    // have none), but when a provider timeline is present it must describe the
+    // exact immutable sourceText. Never accept an offset list that does not
+    // line up with the lexical tokens spoken in the cue.
+    const words = segment.words;
+    if (Array.isArray(words) && words.length > 0) {
+      if (typeof segment.sourceText !== "string") {
+        throw new MediaSegmentTimelineError(`Segment ${index} has word timings without source text.`);
+      }
+      const validated = validWordTimings({
+        sourceText: segment.sourceText,
+        startMs: segment.startMs,
+        endMs: segment.endMs,
+        words: words as readonly MediaWordTiming[],
+      });
+      if (validated.length === 0 || validated.length !== words.length) {
+        throw new MediaSegmentTimelineError(`Segment ${index} has word timings that do not match its source text.`);
+      }
+    }
   }
 }
 

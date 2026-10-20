@@ -36,5 +36,8 @@ export function activeReadSection(pathname: string): ReadSectionKey {
  * where a tab points.
  */
 export function ReadSectionNavHost() {
-  return <ReadSectionNavigation active={activeReadSection(usePathname())} />;
+  const pathname = usePathname();
+  // Readers provide their own return link and toolbar, including while loading.
+  if (pathname.startsWith("/read/article/")) return null;
+  return <ReadSectionNavigation active={activeReadSection(pathname)} />;
 }

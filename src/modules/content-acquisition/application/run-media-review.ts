@@ -5,7 +5,7 @@ import { validateSegmentTimeline } from "@/src/modules/media/domain";
 import { calculatePodcastCandidateContentHash, calculateVideoCandidateContentHash, podcastCandidateDraftSchema, videoCandidateDraftSchema } from "../normalizers";
 import { OWNER_AUTHORIZED_REVIEWER_REFERENCE } from "../domain";
 import type { ContentCandidateRecord, ContentWorkflowRepository } from "../repositories";
-import { mediaReviewInputHash, mediaReviewResultSchema, type MediaReviewProvider, type MediaReviewResult } from "../providers/media-review";
+import { mediaReviewInputHash, mediaReviewResultSchema, projectMediaDraftForModel, type MediaReviewProvider, type MediaReviewResult } from "../providers/media-review";
 
 const REVIEWER_REFERENCE = OWNER_AUTHORIZED_REVIEWER_REFERENCE;
 
@@ -53,7 +53,10 @@ export async function runMediaReview(repository: ContentWorkflowRepository, inpu
     const paths = parsed.error.issues.map((issue) => `${issue.path.join(".") || "root"}:${issue.code}`).slice(0, 8).join(",");
     return { status: "failed", candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, reviewsWritten: 0, reason: `INVALID_MEDIA_DRAFT:${paths || "schema"}`, providerResults: {} };
   }
-  const reviewInput = { candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, contentType: candidate.contentType, title: candidate.title, summary: parsed.data.summary, draft: parsed.data } as const;
+  // Review providers only need sentence text and metadata; word timings would
+  // multiply the payload size for no review value. The published draft and its
+  // contentHash still cover the full word timeline.
+  const reviewInput = { candidateId: candidate.id, candidateRevision: candidate.revision, contentHash: candidate.contentHash, contentType: candidate.contentType, title: candidate.title, summary: parsed.data.summary, draft: projectMediaDraftForModel(parsed.data) } as const;
   const expectedInputHash = mediaReviewInputHash(reviewInput);
   const providerResults: Record<string, MediaReviewResult | null> = {};
   const timeoutMs = input.timeoutMs ?? 60_000;

@@ -25,6 +25,19 @@ const item = {
 };
 
 describe("media v1 contracts", () => {
+  it("accepts a complete long-form playback transcript beyond 500 cues", () => {
+    const validate = validator("media-playback-response.schema.json");
+    const segments = Array.from({ length: 848 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      index, startMs: index * 1000, endMs: (index + 1) * 1000,
+      sourceText: "Sí.", translation: "是。", speaker: null,
+      words: index % 2 === 0 ? null : [{ text: "Sí", startOffset: 0, endOffset: 2, startMs: index * 1000, endMs: (index + 1) * 1000 }],
+    }));
+    const response = { apiVersion: "v1", data: { media: { ...item, durationMs: 848_000 }, asset: { kind: "video", url: "https://fixture.test/video.mp4", expiresAt: null }, segments } };
+    expect(validate(response), JSON.stringify(validate.errors)).toBe(true);
+    expect(validate({ ...response, data: { ...response.data, segments: [{ ...segments[847], internalLocator: "private/path" }] } })).toBe(false);
+    expect(validate({ ...response, data: { ...response.data, segments: [{ ...segments[847], words: [{ startMs: 847_000, endMs: 848_000, startOffset: 0, endOffset: 2, internalLocator: "private/path" }] }] } })).toBe(false);
+  });
   it("validates bounded list and playback responses without internal locators", () => {
     const list = validator("media-list-response.schema.json");
     expect(list({ apiVersion: "v1", data: { items: [item] }, page: { nextCursor: null, hasMore: false } }), JSON.stringify(list.errors)).toBe(true);
@@ -53,5 +66,15 @@ describe("media v1 contracts", () => {
     }
     expect(openapi.paths["/media/{stableKey}"].get.responses["200"].content["application/json"].schema.$ref).toContain("media-detail-response");
     expect(openapi.paths["/media/{stableKey}/progress"].put.responses["200"].content["application/json"].schema.$ref).toContain("media-progress-response");
+    expect(openapi.paths["/media/browse"].post.requestBody.content["application/json"].schema.$ref).toContain("media-browse-request");
+  });
+
+  it("bounds browse requests and rejects private or publication fields", () => {
+    const browse = validator("media-browse-request.schema.json");
+    const value = { filters: { kind: "podcast", topic: "travel-city", cefr: "B1" }, seed: "00000000-0000-4000-8000-000000000001", exclude: ["media.fixture.cafe"], pageSize: 24 };
+    expect(browse(value), JSON.stringify(browse.errors)).toBe(true);
+    expect(browse({ ...value, pageSize: 51 })).toBe(false);
+    expect(browse({ ...value, filters: { userId: "another-user" } })).toBe(false);
+    expect(browse({ ...value, exclude: Array(1001).fill("media.fixture.cafe") })).toBe(false);
   });
 });

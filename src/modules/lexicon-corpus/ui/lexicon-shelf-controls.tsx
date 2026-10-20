@@ -11,7 +11,7 @@ const intentOptions = [
 ] as const;
 
 /**
- * The single vocabulary shelf's search field and count line.
+ * The single vocabulary shelf's search field and compact count.
  *
  * There is no view selector: the page has one shelf, so the form submits only the
  * reader's search. The lexicon variant (`intent` / `lemmaStatus` against
@@ -19,27 +19,25 @@ const intentOptions = [
  * browser-local, and the corpus holds no lexeme rows to filter yet.
  *
  * The field is the control: no card around it, no submit button, no reset link.
- * The icon inside it is a magnifier until a search is active, and the same slot
- * becomes the clear control afterwards. The label is real but visually hidden, so
+ * The magnifier stays on the left; an active search gets a clear control on the
+ * right. The label is real but visually hidden, so
  * the input keeps its accessible name without adding a visible caption, and Enter
  * still submits the form. `PhraseShelfControls` keeps the framed layout it shares
  * with the other library pages.
  */
 export function VocabularyShelfControls({ query, total }: Readonly<{ query: Readonly<{ search?: string }>; total: number }>) {
   const search = query.search ?? "";
-  return <div className="lexicon-shelf-controls">
+  return <div className="lexicon-shelf-controls vocabulary-controls">
     <form action="/read/vocabulary" className="vocabulary-search" method="get" role="search">
       <label className="sr-only" htmlFor="vocabulary-search">搜索词表</label>
-      {search
-        // The same slot, now the way back to the unfiltered shelf. A link, so it
-        // is reachable by keyboard, and 44px on touch.
-        ? <Link className="vocabulary-search__clear" href="/read/vocabulary" aria-label={`清除搜索：${search}`}>
+      <svg className="vocabulary-search__icon" aria-hidden="true" focusable="false" viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.5" /><path d="M13.2 13.2L17 17" /></svg>
+      {search ? <Link className="vocabulary-search__clear" href="/read/vocabulary" aria-label={`清除搜索：${search}`}>
           <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20"><path d="M6 6l8 8M14 6l-8 8" /></svg>
         </Link>
-        : <svg className="vocabulary-search__icon" aria-hidden="true" focusable="false" viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.5" /><path d="M13.2 13.2L17 17" /></svg>}
-      <input id="vocabulary-search" defaultValue={search} maxLength={80} name="search" placeholder="搜索词表，例如 casa" />
+        : null}
+      <input id="vocabulary-search" defaultValue={search} maxLength={80} name="search" placeholder="搜索单词" />
     </form>
-    <p className="lexicon-result-count" aria-live="polite">按参考词频排序的 {total} 个内容词（已过滤功能词；出现次数与例句来自已发布文章与已审核媒体字幕）</p>
+    <p className="lexicon-result-count" aria-live="polite" title="按参考词频排序">{total.toLocaleString("zh-CN")} 词</p>
   </div>;
 }
 

@@ -197,7 +197,8 @@ export function resolveCorpusFrequencySource(
 export type FormFrequencyRow = Readonly<{
   word: string;
   n: number;
-  example: readonly string[];
+  /** `[text, title, documentKind, documentStableKey, documentVersion, segmentIndex]`. */
+  example: readonly [string, string, "media" | "article", string | null, number | null, number | null];
 }>;
 
 /**
@@ -212,6 +213,34 @@ function unwrapRows<T>(result: unknown): readonly T[] {
   if (Array.isArray(result)) return result as readonly T[];
   const rows = (result as { rows?: unknown }).rows;
   return Array.isArray(rows) ? (rows as readonly T[]) : [];
+}
+
+/**
+ * One `example` array as the live scan returns it, typed.
+ *
+ * The statement builds `array[…]` over text, a case expression and two casts, and
+ * the driver does not guarantee one element type across columns: the casts come
+ * back as strings while `mv.version` can arrive as a number. The materialised
+ * read returns its own columns already typed (`number | null`), so both paths are
+ * normalised here rather than at each call site; without this the two paths would
+ * compare unequal for reasons that have nothing to do with the corpus, and a
+ * numeric version would be dropped as if it were missing.
+ */
+export function normalizeExampleArray(value: unknown): FormFrequencyRow["example"] {
+  const parts = Array.isArray(value) ? value : [];
+  const text = (index: number): string => (typeof parts[index] === "string" ? parts[index] : "");
+  const nullableText = (index: number): string | null => {
+    const raw = parts[index];
+    if (typeof raw === "string") return raw;
+    return typeof raw === "number" ? String(raw) : null;
+  };
+  const nullableNumber = (index: number): number | null => {
+    const raw = parts[index];
+    if (raw === null || raw === undefined || raw === "") return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  return [text(0), text(1), parts[2] === "media" ? "media" : "article", nullableText(3), nullableNumber(4), nullableNumber(5)];
 }
 
 /**
@@ -230,24 +259,93 @@ function unwrapRows<T>(result: unknown): readonly T[] {
  * `áéíóúü` to `aeiou` and `ñ` to `n`.
  */
 export const visibleCorpusFormCtes = sql`source_texts as (
-      select ms.source_text as text, mv.title as title
+      select ms.source_text as text, mv.title as title, mv.id as version_id, ms.segment_index as segment_index
       from ${schema.mediaSegments} ms
       inner join ${schema.mediaVersions} mv on mv.id = ms.media_version_id
       where ms.review_status = 'approved' and mv.status = 'published' and mv.copyright_status = 'cleared'
       union all
-      select seg.source_text, av.title
+      select seg.source_text, av.title, av.id, null
       from ${schema.articleSegments} seg
       inner join ${schema.articleVersions} av on av.id = seg.article_version_id
       inner join ${schema.articleSources} src on src.id = av.source_id
       where av.status = 'published' and src.copyright_status = 'cleared'
         and not exists (select 1 from ${schema.userGeneratedArticles} uga where uga.article_version_id = av.id)
     ), tokens as (
-      select regexp_split_to_table(lower(text), '[^a-záéíóúüñ]+') as word, text, title
+      select regexp_split_to_table(lower(text), '[^a-záéíóúüñ]+') as word, text, title, version_id, segment_index
       from source_texts
     ), folded as (
-      select translate(word, 'áéíóúüñ', 'aeiouun') as word, text, title
+      select translate(word, 'áéíóúüñ', 'aeiouun') as word, text, title, version_id, segment_index
       from tokens
     )`;
+
+/**
+ * The one row an aggregate group settled on: the text and title the shelf
+ * renders, plus the version uuid and segment index they came from.
+ *
+ * Resolved by {@link pickedExampleCtes} as a single ordered pass per form, then
+ * read by both the live scan and the refresh through this projection, so the two
+ * paths cannot disagree about which row won. Two alternative shapes were tried on
+ * the real corpus and both are recorded as dead ends, because each looks like the
+ * obvious answer:
+ *
+ * - **A mixed-type array literal** (`array[text, title, version_id, …]`) does not
+ *   type-check at all: `ARRAY types text and uuid cannot be matched`.
+ * - **Independent aggregates** (`min(text)`, `min(title)`, `min(version_id)`,
+ *   `max(segment_index)`) type-check and then pair the media text with the
+ *   article title — observed live on the materialisation fixture.
+ * - **Four correlated picks per group** is correct but far too slow as a batch:
+ *   it re-scans the token set per form and exceeded the database's 300 s bound.
+ *
+ * The ordering is `(text, title)`, unchanged from the original
+ * `min(array[text, title])`: the materialised example clips around the first
+ * occurrence of the form inside that text, so "the occurrence with the best
+ * audio" must never become the pick.
+ *
+ * `version_id` is the uuid of the version the example came from — a media version
+ * or an article version, which is what {@link visibleCorpusFormCtes} carries; it
+ * is `null` for the article branch on purpose. `segment_index` is stored exactly
+ * as the source has it (`media_segments.segment_index`, which counts from zero),
+ * so a reader can compare it with the playback segments without a conversion
+ * step. A one-based display number belongs to whoever renders it, not to this
+ * column: an off-by-one applied here would make read-aloud play the neighbouring
+ * sentence, which is exactly the class of bug this address exists to prevent.
+ */
+export function pickedExampleColumns(): SQL {
+  return sql`picked.example_text, picked.example_title, picked.example_version_id, picked.example_segment_index`;
+}
+
+/**
+ * The CTEs that reduce the corpus to one example row per form.
+ *
+ * `folded_forms` is materialised because it is read three times (the pick, the
+ * count and the join); without that the corpus scan — 109k segments, 1.5M tokens
+ * — is repeated for each reader. `picked` resolves each form's winner in a single
+ * ordered pass (`distinct on (word) … order by word, text, title`, which is the
+ * same `(text, title)` rule the original `min(array[text, title])` used), and
+ * `example_counts` is the old `count(*) … group by word`.
+ *
+ * The shape matters for the batch refresh, which is where it was measured: four
+ * correlated picks per group (one per column) re-scan the token set per group and
+ * blew past the database's 300 s bound on the real corpus, while this one-pass
+ * form completes the same aggregate in about 40 s. The two paths must agree row
+ * for row, so they share these CTEs verbatim.
+ */
+export function pickedExampleCtes(): SQL {
+  return sql`folded_forms as materialized (
+      select word, text, title, version_id, segment_index
+      from folded
+      where length(word) >= 2
+    ), picked as materialized (
+      select distinct on (word) word as word, text as example_text, title as example_title,
+             version_id as example_version_id, segment_index as example_segment_index
+      from folded_forms
+      order by word, text, title
+    ), example_counts as materialized (
+      select word as word, count(*)::int as n
+      from folded_forms
+      group by word
+    )`;
+}
 
 /**
  * The reference-list forms, folded and space-joined into the one parameter the
@@ -269,17 +367,24 @@ export function wantedFormList(): string {
  */
 export async function loadLiveFormFrequencyRows(database: Database): Promise<readonly FormFrequencyRow[]> {
   const wantedForms = wantedFormList();
-  return unwrapRows<FormFrequencyRow>(await database.execute(sql`
-    with ${visibleCorpusFormCtes}, grouped as (
-      select word, count(*)::int as n, min(array[text, title]) as example
-      from folded
-      where word = any(string_to_array(${wantedForms}, ' '))
-      group by word
-    )
-    select word, n,
-           array[${clippedFrequencyExample(sql`(example)[1]`, sql`word`)}, (example)[2]] as example
-    from grouped
+  const rows = unwrapRows<{ word: string; n: number; example: unknown }>(await database.execute(sql`
+    with ${visibleCorpusFormCtes}, ${pickedExampleCtes()}
+    select example_counts.word, example_counts.n,
+           array[
+             ${clippedFrequencyExample(sql`picked.example_text`, sql`example_counts.word`)},
+             picked.example_title,
+             case when mv.id is null then 'article' else 'media' end,
+             mi.stable_key,
+             mv.version::text,
+             picked.example_segment_index::text
+           ] as example
+    from example_counts
+    join picked on picked.word = example_counts.word
+    left join ${schema.mediaVersions} mv on mv.id = picked.example_version_id
+    left join ${schema.mediaItems} mi on mi.id = mv.media_item_id
+    where example_counts.word = any(string_to_array(${wantedForms}, ' '))
   `));
+  return rows.map((row) => ({ word: row.word, n: Number(row.n), example: normalizeExampleArray(row.example) }));
 }
 
 /** Why the materialised table could not be used, or `ok` when it could. */
@@ -316,6 +421,10 @@ export async function readMaterialisedFormFrequencyRows(
     occurrence_count: number | null;
     example_text: string | null;
     example_title: string | null;
+    example_document_kind: string | null;
+    example_document_stable_key: string | null;
+    example_document_version: number | null;
+    example_segment_index: number | null;
   }>(await database.execute(sql`
     with state as (
       select refreshed_at from ${schema.lexiconFormFrequencyState} where id = 'corpus'
@@ -323,7 +432,8 @@ export async function readMaterialisedFormFrequencyRows(
     select 'ok'::text as status, (select refreshed_at from state) as refreshed_at,
            f.word, f.occurrence_count,
            ${clippedFrequencyExample(sql`f.example_text`, sql`f.word`)} as example_text,
-           f.example_title
+           f.example_title, f.example_document_kind, f.example_document_stable_key,
+           f.example_document_version, f.example_segment_index
     from ${schema.lexiconFormFrequencies} f
     where f.word = any(string_to_array(${wantedForms}, ' '))
     union all
@@ -334,7 +444,7 @@ export async function readMaterialisedFormFrequencyRows(
         else 'ok'
       end,
       (select refreshed_at from state),
-      null::text, null::int, null::text, null::text
+      null::text, null::int, null::text, null::text, null::text, null::text, null::int, null::int
   `));
 
   const sentinel = rows.find((row) => row.word === null);
@@ -358,6 +468,10 @@ export async function readMaterialisedFormFrequencyRows(
       example: [
         typeof row.example_text === "string" ? row.example_text : "",
         typeof row.example_title === "string" ? row.example_title : "",
+        row.example_document_kind === "media" ? "media" : "article",
+        typeof row.example_document_stable_key === "string" ? row.example_document_stable_key : null,
+        row.example_document_version === null ? null : Number(row.example_document_version),
+        row.example_segment_index === null ? null : Number(row.example_segment_index),
       ],
     });
   }
@@ -379,14 +493,17 @@ export async function refreshCorpusFormFrequency(
   return database.transaction(async (transaction) => {
     await transaction.execute(sql`delete from ${schema.lexiconFormFrequencies}`);
     const written = unwrapRows<{ forms: number }>(await transaction.execute(sql`
-      with ${visibleCorpusFormCtes}, grouped as (
-        select word, count(*)::int as n, min(array[text, title]) as example
-        from folded
-        where length(word) >= 2
-        group by word
-      ), inserted as (
-        insert into ${schema.lexiconFormFrequencies} (word, occurrence_count, example_title, example_text)
-        select word, n, (example)[2], (example)[1] from grouped
+      with ${visibleCorpusFormCtes}, ${pickedExampleCtes()}, inserted as (
+        insert into ${schema.lexiconFormFrequencies}
+          (word, occurrence_count, example_title, example_text,
+           example_document_kind, example_document_stable_key, example_document_version, example_segment_index)
+        select example_counts.word, example_counts.n, picked.example_title, picked.example_text,
+               case when mv.id is null then 'article' else 'media' end,
+               mi.stable_key, mv.version, picked.example_segment_index
+        from example_counts
+        join picked on picked.word = example_counts.word
+        left join ${schema.mediaVersions} mv on mv.id = picked.example_version_id
+        left join ${schema.mediaItems} mi on mi.id = mv.media_item_id
         returning 1
       )
       select count(*)::int as forms from inserted

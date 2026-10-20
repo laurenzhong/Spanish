@@ -64,6 +64,17 @@ describe("reading section layout", () => {
     expect(currentTab()).toBe("文章");
   });
 
+  it("hides section navigation throughout an article route, including loading", () => {
+    usePathname.mockReturnValue("/read/article/article.one%401");
+    const rendered = render(<ReadSectionLayout><p>正在载入文章</p></ReadSectionLayout>);
+    expect(screen.queryByRole("navigation", { name: "阅读内容类型" })).toBeNull();
+    rendered.rerender(<ReadSectionLayout><p>文章正文</p></ReadSectionLayout>);
+    expect(screen.queryByRole("navigation", { name: "阅读内容类型" })).toBeNull();
+    usePathname.mockReturnValue("/read");
+    rendered.rerender(<ReadSectionLayout><ReadLoading /></ReadSectionLayout>);
+    expect(currentTab()).toBe("文章");
+  });
+
   it("marks the tab the URL belongs to", () => {
     const cases: readonly (readonly [string, ReadSectionKey])[] = [
       ["/read", "articles"],
@@ -96,7 +107,11 @@ describe("reading section layout", () => {
         corpus: "语料",
         "saved-items": "已保存",
       };
-      expect(currentTab()).toBe(labels[key]);
+      if (pathname.startsWith("/read/article/")) {
+        expect(screen.queryByRole("navigation", { name: "阅读内容类型" })).toBeNull();
+      } else {
+        expect(currentTab()).toBe(labels[key]);
+      }
       rendered.unmount();
     }
   });

@@ -26,6 +26,15 @@ export const mediaListQuerySchema = z.strictObject({
 
 export const mediaStableKeySchema = stableKeySchema;
 
+export const mediaBrowseQuerySchema = z.strictObject({
+  filters: mediaListQuerySchema.omit({ sort: true, cursor: true, pageSize: true }),
+  seed: z.uuid(),
+  exclude: z.array(stableKeySchema).max(1000).default([]),
+  cursor: z.string().min(1).max(500).optional(),
+  pageSize: z.number().int().min(1).max(50).default(24),
+});
+export type MediaBrowseQuery = z.infer<typeof mediaBrowseQuerySchema>;
+
 export const mediaArtworkSchema = z.strictObject({
   url: z.url().startsWith("https://"),
   alt: z.string().trim().min(1).max(300),

@@ -35,9 +35,9 @@ const translationesePatterns: readonly Readonly<{ phrase: string; pattern: RegEx
     // Reported on 2026-10-12: "Buenas tardes 😊 Bienvenido al lunes." Spanish
     // says "Vaya lunes" or "Ánimo con el lunes"; "bienvenido al lunes" is
     // "welcome to Monday" rendered word by word. "Bienvenido a casa" stays
-    // untouched because the pattern requires a day or the week after it.
+    // untouched because the pattern requires a day, week or weekend after it.
     phrase: "bienvenido al lunes",
-    pattern: /\bbienvenid[oa]s?\s+(?:a\s+la\s+|al\s+|a\s+)?(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo|semana)\b/u,
+    pattern: /\bbienvenid[oa]s?\s+(?:a\s+la\s+|al\s+|a\s+)?(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo|semana|finde|fin\s+de\s+semana)\b/u,
   },
   {
     // Anglicism for "make sense"; es-ES uses "tiene sentido". "Hacia sentido"

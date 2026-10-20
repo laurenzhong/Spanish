@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
@@ -164,18 +166,17 @@ describe("the materialised read clips without changing what is rendered", () => 
   it("returns a bounded example that renders identically, and a short one untouched", async () => {
     const client = new PGlite();
     try {
+      // The table comes from the real migration artifacts, as the materialisation
+      // suite already does. A hand-written copy of this table silently drifted
+      // when `0044` added the example's address columns, and the read then failed
+      // on a column the test's own DDL had never heard of.
+      for (const name of ["0043_curious_magdalene.sql", "0044_worried_the_executioner.sql"]) {
+        const raw = await readFile(path.join(process.cwd(), "drizzle", name), "utf8");
+        for (const statement of raw.split("--> statement-breakpoint").map((part) => part.trim()).filter(Boolean)) {
+          await client.exec(statement);
+        }
+      }
       await client.exec(`
-        create table lexicon_form_frequencies (
-          word text primary key,
-          occurrence_count integer not null,
-          example_title text not null,
-          example_text text not null
-        );
-        create table lexicon_form_frequency_state (
-          id text primary key,
-          refreshed_at timestamptz not null,
-          form_count integer not null
-        );
         insert into lexicon_form_frequency_state (id, refreshed_at, form_count)
         values ('corpus', '2026-10-12T00:00:00Z', 2);
       `);

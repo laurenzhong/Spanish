@@ -1,6 +1,7 @@
 import type { CandidateStatus } from "@/src/modules/content-acquisition/domain";
 
 export const mediaProcessingErrorCodes = [
+  "MEDIA_PROCESSING_NOT_AUTHORIZED",
   "MEDIA_ASR_NOT_ELIGIBLE",
   "MEDIA_ASR_BUDGET_EXCEEDED",
   "MEDIA_TRANSCRIPTION_FAILED",
@@ -26,6 +27,20 @@ export class MediaProcessingError extends Error {
 
 export type MediaCaptionSource = "platform_manual" | "platform_auto" | "asr";
 
+/**
+ * Explicit small DTO for provider word timestamps. It intentionally mirrors
+ * the media module's playback timings without importing that module, so the
+ * processing module stays independent from media domain code.
+ */
+export type MediaTranscriptWordTiming = Readonly<{
+  startMs: number;
+  endMs: number;
+  startOffset: number;
+  endOffset: number;
+  /** Exact provider lexical token when available. */
+  text?: string;
+}>;
+
 export type MediaTranscriptSegment = Readonly<{
   index: number;
   startMs: number;
@@ -35,6 +50,7 @@ export type MediaTranscriptSegment = Readonly<{
   speaker: string | null;
   confidence: number | null;
   sourceKind: MediaCaptionSource;
+  words?: readonly MediaTranscriptWordTiming[];
 }>;
 
 export type MediaAsrPolicy = Readonly<{
@@ -92,7 +108,44 @@ export type RawTranscriptSegment = Readonly<{
   text: string;
   confidence: number | null;
   speaker?: string | null;
+  /** Provider word timestamps relative to `text` (before trimming). */
+  words?: readonly MediaTranscriptWordTiming[];
 }>;
+
+function normalizeTranscriptWordTimings(
+  words: readonly MediaTranscriptWordTiming[] | undefined,
+  segment: Readonly<{ startMs: number; endMs: number; sourceText: string }>,
+): readonly MediaTranscriptWordTiming[] | undefined {
+  if (words === undefined || words === null) return undefined;
+  if (!Array.isArray(words)) throw new MediaProcessingError("MEDIA_TRANSCRIPTION_FAILED", "The transcript word timeline is invalid.");
+  if (words.length === 0) return undefined;
+  const normalized: MediaTranscriptWordTiming[] = [];
+  let previousTime = segment.startMs;
+  let previousOffset = 0;
+  for (const word of words) {
+    if (!word || typeof word !== "object"
+      || !Number.isInteger(word.startMs) || !Number.isInteger(word.endMs)
+      || !Number.isInteger(word.startOffset) || !Number.isInteger(word.endOffset)
+      || word.startMs < previousTime || word.endMs <= word.startMs || word.endMs > segment.endMs
+      || word.startOffset < previousOffset || word.endOffset <= word.startOffset || word.endOffset > segment.sourceText.length) {
+      throw new MediaProcessingError("MEDIA_TRANSCRIPTION_FAILED", "The transcript word timeline is invalid.");
+    }
+    const slice = segment.sourceText.slice(word.startOffset, word.endOffset);
+    if (!/[\p{L}\p{M}\p{N}]/u.test(slice) || (word.text !== undefined && (typeof word.text !== "string" || word.text !== slice))) {
+      throw new MediaProcessingError("MEDIA_TRANSCRIPTION_FAILED", "The transcript word timeline does not match its source text.");
+    }
+    previousTime = word.endMs;
+    previousOffset = word.endOffset;
+    normalized.push({
+      startMs: word.startMs,
+      endMs: word.endMs,
+      startOffset: word.startOffset,
+      endOffset: word.endOffset,
+      ...(typeof word.text === "string" ? { text: word.text } : {}),
+    });
+  }
+  return normalized;
+}
 
 export function segmentMediaTranscript(
   rawSegments: readonly RawTranscriptSegment[],
@@ -108,6 +161,7 @@ export function segmentMediaTranscript(
     const sourceText = raw.text.trim();
     if (!sourceText) throw new MediaProcessingError("MEDIA_TRANSCRIPTION_FAILED", "The transcript contains an empty segment.");
     if (raw.confidence !== null && (raw.confidence < 0 || raw.confidence > 1)) throw new MediaProcessingError("MEDIA_TRANSCRIPTION_FAILED", "The transcript confidence is invalid.");
+    const words = normalizeTranscriptWordTimings(raw.words, { startMs: raw.startMs, endMs: raw.endMs, sourceText });
     previousEnd = raw.endMs;
     return {
       index,
@@ -118,6 +172,7 @@ export function segmentMediaTranscript(
       speaker: raw.speaker ?? null,
       confidence: raw.confidence,
       sourceKind: "asr",
+      ...(words ? { words } : {}),
     };
   });
 }

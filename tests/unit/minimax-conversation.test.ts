@@ -11,6 +11,7 @@ import {
 
 const input: ConversationProviderInput = {
   userMessage: "Hoy he tenido un día difícil.",
+  unansweredUserMessages: ["Me gusta leer.", "Hoy he tenido un día difícil."],
   recentMessages: [{ role: "character", content: "¿Cómo te ha ido?" }],
   rollingSummary: "Hablamos de fotografía y de los planes de esta semana.",
   openTopics: [{ topicKey: "daily:meal", label: "¿Qué comiste?", status: "answered", lastMentionedBy: "user", lastAnswer: "Una ensalada." }],
@@ -76,10 +77,33 @@ describe("MiniMaxConversationProvider", () => {
     expect(body.model).toBe("MiniMax-M3");
     expect(body.stream).toBe(false);
     expect(JSON.stringify(body)).toContain(input.userMessage);
+    const serializedContext = JSON.parse((body.messages as { content: { text: string }[] }[])[0]!.content[0]!.text);
+    expect(serializedContext.unansweredUserMessages).toEqual(input.unansweredUserMessages);
     expect(JSON.stringify(body)).toContain("la fotografía");
     expect(JSON.stringify(body)).toContain("daily:meal");
     expect(JSON.stringify(body)).toContain("puerto");
     expect(JSON.stringify(body)).not.toContain("test-minimax-key");
+  });
+
+  it("keeps the latest declarative update and chronological history distinct from character rules", async () => {
+    let body: Record<string, unknown> = {};
+    const latest = "Por la tarde me fui a currar.";
+    const history = [
+      { role: "character" as const, content: "¿Prefieres pasear o tomar un café?", sentAt: "2026-10-16T08:18:00Z" },
+      { role: "user" as const, content: "Sí, hoy es fin de semana.", sentAt: "2026-10-16T08:24:00Z" },
+    ];
+    const character = { ...input.character, responseStyle: ["responde primero a lo que la otra persona quiso decir"] };
+    const provider = new MiniMaxConversationProvider({ apiKey: "test-key", fetchImplementation: vi.fn(async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return response({ content: [{ type: "text", text: "Vaya, currando en finde." }] });
+    }) });
+    await provider.generate({ ...input, userMessage: latest, recentMessages: history, character });
+    const messages = body.messages as { role: string; content: { type: string; text: string }[] }[];
+    const sent = JSON.parse(messages[0]!.content[0]!.text);
+    expect(sent.userMessage).toBe(latest);
+    expect(sent.recentMessages).toEqual(history);
+    expect(sent.character).toEqual(character);
+    expect(sent.openCommitments).toEqual(input.openCommitments);
   });
 
   it("rejects missing configuration and malformed output", async () => {

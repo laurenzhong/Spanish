@@ -17,6 +17,7 @@ export async function listConversationHistory(
       .map((message) => message.id),
   );
   return messages
+    .filter((message) => message.role === "user" || (message.content.trim().length > 0 && ["completed", "cancelled", "streaming"].includes(message.status)))
     .filter((message) => !(
       message.role === "character"
       && message.replyToMessageId
@@ -28,8 +29,8 @@ export async function listConversationHistory(
       generationId: message.generationId ?? undefined,
       role: message.role,
       text: message.status === "withdrawn" ? "" : message.content,
-      complete: message.status === "completed" || message.status === "withdrawn",
-      status: message.status === "withdrawn" ? "withdrawn" : "completed",
+      complete: message.status === "completed" || message.status === "withdrawn" || message.status === "cancelled",
+      status: message.status === "withdrawn" ? "withdrawn" : message.status === "cancelled" ? "cancelled" : message.status === "streaming" ? "streaming" : "completed",
       withdrawn: message.status === "withdrawn",
       createdAt: message.createdAt.toISOString(),
       sourceType: message.sourceType,

@@ -7,7 +7,7 @@ import { ScenarioExpressionList, type ScenarioExpressionGoal } from "./scenario-
 export function ScenarioDetail({ scenario }: Readonly<{ scenario: ScenarioDetailDto }>) {
   const practiceHref = `/explore/scenarios/${encodeURIComponent(scenario.stableKey)}/practice`;
   const fictionalNotice = scenario.fictionalContext
-    ? `这是一个虚构练习场景，不代表真实地点或现实安排${scenario.stableKey === "scenario.rental-conversation" ? "；其中的房源与看房时间也并非真实信息" : ""}。`
+    ? "这是一个虚构练习场景；其中的地点、人物、价格、政策、预约和现实安排均为练习设定，不代表真实信息或专业建议。"
     : null;
   const goalsByExpression: Readonly<Record<string, readonly ScenarioExpressionGoal[]>> = Object.fromEntries(
     scenario.expressions.map((expression) => [

@@ -206,7 +206,7 @@ describe("content bundle importer", () => {
     expect(importCount?.value).toBe(2);
   });
 
-  it("imports the reviewed v2 bundles after v1 without rewriting historical versions", async () => {
+  it("imports reviewed bundle successors after v1 without rewriting historical versions", async () => {
     const coreV1 = await readBundle("alpha-core-v1.json");
     coreV1.scenarios = [];
     coreV1.characters = [];
@@ -223,6 +223,8 @@ describe("content bundle importer", () => {
       await readBundle("scenario-practice-alpha-v1.json"),
       await readBundle("alpha-core-v2.json"),
       await readBundle("scenario-practice-alpha-v2.json"),
+      await readBundle("scenario-practice-alpha-v3.json"),
+      await readBundle("scenario-practice-alpha-v4.json"),
     ]) {
       await expect(importContentBundle(database, bundle)).resolves.toMatchObject({
         status: "imported",
@@ -254,7 +256,7 @@ describe("content bundle importer", () => {
       .select({ value: count() })
       .from(schema.contentBundleImports);
 
-    expect(expressionRows).toHaveLength(37);
+    expect(expressionRows).toHaveLength(46);
     expect(expressionRows).toEqual(
       expect.arrayContaining([
         {
@@ -286,14 +288,58 @@ describe("content bundle importer", () => {
           version: 2,
           status: "published",
         },
+        {
+          stableKey: "scenario.restaurant-takeaway",
+          version: 1,
+          status: "published",
+        },
+        {
+          stableKey: "scenario.campus-student-card",
+          version: 1,
+          status: "published",
+        },
+        {
+          stableKey: "scenario.rental-viewing",
+          version: 1,
+          status: "published",
+        },
+        {
+          stableKey: "scenario.transport-ticket",
+          version: 1,
+          status: "published",
+        },
+        {
+          stableKey: "scenario.post-office",
+          version: 1,
+          status: "published",
+        },
+        {
+          stableKey: "scenario.hotel-checkin",
+          version: 1,
+          status: "published",
+        },
       ]),
     );
+    expect(scenarioRows).toHaveLength(12);
     expect(pack).toEqual({
       stableKey: "immersive.first-cafe-conversation",
       version: 1,
       status: "published",
     });
-    expect(importCount?.value).toBe(4);
+    expect(importCount?.value).toBe(6);
+
+    await expect(
+      importContentBundle(database, await readBundle("scenario-practice-alpha-v4.json")),
+    ).resolves.toMatchObject({
+      status: "unchanged",
+      bundleKey: "alpha.scenario-practice",
+      bundleVersion: 4,
+    });
+
+    const [retryImportCount] = await database
+      .select({ value: count() })
+      .from(schema.contentBundleImports);
+    expect(retryImportCount?.value).toBe(6);
   });
 
   it("advances existing content statuses when immutable fields match", async () => {

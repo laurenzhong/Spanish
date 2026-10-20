@@ -9,12 +9,13 @@ import {
   createDrizzleConversationRepository,
   findConversationCharacter,
   isConversationStaticFallbackAllowed,
-  persistCompletedAssistantMessage,
-  persistUserMessage,
+  prepareReplyGeneration,
   resolveConversationCharacter,
   streamReply,
+  type ConversationMessageRecord,
   type StreamReplyInput,
 } from "@/src/modules/conversation";
+import { conversationStreamRequestSchema } from "@/src/modules/conversation/schemas/conversation-stream-request";
 import { createDrizzleCharacterRepository } from "@/src/modules/characters";
 import {
   commitMemories,
@@ -70,34 +71,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return jsonError("INPUT_INVALID", "The conversation request is not valid JSON.", 400);
   }
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return jsonError("INPUT_INVALID", "The conversation request is invalid.", 400);
+  const parsed = conversationStreamRequestSchema.safeParse(body);
+  const catalogCharacter = findConversationCharacter(characterId);
+  const requestedVersion = body && typeof body === "object" ? (body as Record<string, unknown>).characterVersion : undefined;
+  if (catalogCharacter === null || (requestedVersion !== undefined && requestedVersion !== catalogCharacter.version)) {
+    return jsonError("CHARACTER_UNAVAILABLE", "This conversation request cannot be started.", 404);
   }
-  const input = body as Record<string, unknown>;
-  const text = typeof input.text === "string" ? input.text : "";
+  if (!parsed.success) return jsonError("INPUT_INVALID", "This conversation request cannot be started.", 400);
+  const input = parsed.data;
+  const { text, clientMessageId, generationId } = input;
   // The catalog owns the current revision. A stale client that names a
   // superseded version is refused instead of being given a second, empty
   // conversation under the old character row.
-  const catalogCharacter = findConversationCharacter(characterId);
-  const characterVersion = input.characterVersion === undefined
-    ? catalogCharacter?.version ?? 1
-    : input.characterVersion;
-  const characterUnavailable = catalogCharacter === null || characterVersion !== catalogCharacter.version;
-  const clientMessageId = typeof input.clientMessageId === "string" ? input.clientMessageId : "";
-  const generationId = typeof input.generationId === "string" ? input.generationId : "";
-  if (
-    characterUnavailable ||
-    !text.trim() ||
-    text.length > 2_000 ||
-    !clientMessageId.trim() ||
-    !generationId.trim()
-  ) {
-    return jsonError(
-      characterUnavailable ? "CHARACTER_UNAVAILABLE" : "INPUT_INVALID",
-      "This conversation request cannot be started.",
-      characterUnavailable ? 404 : 400,
-    );
-  }
+  const characterVersion = input.characterVersion ?? catalogCharacter.version;
 
   let database: ReturnType<typeof getDatabase> | null = null;
   try {
@@ -153,16 +139,33 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const readableMemoryRepository = memoryRepository && typeof memoryRepository.listReadableMemories === "function"
     ? memoryRepository
     : undefined;
-  let recentMessages: readonly Readonly<{ role: "user" | "character"; content: string }>[] = [];
+  const messageId = randomUUID();
+  let conversationId: string | null = null;
+  let userMessageId: string | null = null;
+  let userMessageIds: readonly string[] = [];
+  let claimedUserMessages: readonly ConversationMessageRecord[] = [];
+  let recentMessages: readonly Readonly<{ role: "user" | "character"; content: string; sentAt?: string }>[] = (input.pendingMessages ?? []).map((message) => ({ role: "user", content: message.text }));
   if (repository) {
     try {
-      const history = await repository.listMessages(user.id, characterId, 100);
-      const withdrawnIds = new Set(history.filter((message) => message.status === "withdrawn").map((message) => message.id));
-      recentMessages = history
-        .filter((message) => message.status !== "withdrawn" && !(message.role === "character" && message.replyToMessageId && withdrawnIds.has(message.replyToMessageId)))
-        .map((message) => ({ role: message.role, content: message.content, sentAt: message.createdAt.toISOString() }));
-    } catch {
-      // Conversation history is helpful context, but a read failure must not block a reply.
+      const prepared = await prepareReplyGeneration({ repository, userId: user.id, characterKey: characterId, characterVersion, messageId, request: input });
+      conversationId = prepared.conversationId;
+      userMessageId = prepared.userMessageId;
+      userMessageIds = prepared.claim.userMessages.map((message) => message.id);
+      claimedUserMessages = prepared.claim.userMessages;
+      recentMessages = prepared.recentMessages;
+      if (prepared.claim.status === "completed") {
+        const stored = prepared.claim.assistant;
+        const meta = { type: "meta" as const, protocolVersion: "v1" as const, characterKey: catalogCharacter.key, characterVersion, generationId, messageId: stored.id, createdAt: stored.createdAt.toISOString() };
+        return new Response([
+          encodeConversationEvent(meta),
+          encodeConversationEvent({ type: "delta", generationId, messageId: stored.id, text: stored.content }),
+          encodeConversationEvent({ type: "done", generationId, messageId: stored.id }),
+        ].join(""), { headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-conversation-persistence": "available" } });
+      }
+      if (prepared.claim.status !== "claimed") return jsonError("CONFLICT", "This generation is already running or has been cancelled; retry with a new generation.", 409);
+    } catch (error) {
+      if (error instanceof Error && error.message === "MESSAGE_CONFLICT") return jsonError("CONFLICT", "A retry must preserve every message and assistance declaration.", 409);
+      return jsonError("CONVERSATION_UNAVAILABLE", "The conversation could not be saved.", 503);
     }
   }
   let replyContext;
@@ -171,6 +174,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       generationId,
       userId: user.id,
       userMessage: text.trim(),
+      unansweredUserMessages: [...(input.pendingMessages ?? []).map((message) => message.text), text],
       character: runtimeCharacter.catalog.snapshot,
       recentMessages,
       relationshipStage,
@@ -184,6 +188,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       generationId,
       userId: user.id,
       userMessage: text.trim(),
+      unansweredUserMessages: [...(input.pendingMessages ?? []).map((message) => message.text), text],
       character: runtimeCharacter.catalog.snapshot,
       recentMessages,
       relationshipStage,
@@ -200,46 +205,39 @@ export async function POST(request: NextRequest, context: RouteContext) {
       ? createMiniMaxConversationProvider()
       : undefined;
   if (!replyProvider && !isConversationStaticFallbackAllowed()) {
+    if (repository?.cancelReplyGeneration && conversationId) await repository.cancelReplyGeneration({ userId: user.id, conversationId, generationId });
     return jsonError("CONVERSATION_UNAVAILABLE", "A conversation provider is not configured.", 503);
   }
+  const transportAbort = new AbortController();
+  const forwardAbort = () => transportAbort.abort();
+  request.signal.addEventListener("abort", forwardAbort, { once: true });
+  if (request.signal.aborted) transportAbort.abort();
   const replyInput: StreamReplyInput = {
     characterKey: characterId,
     characterVersion,
     text,
     clientMessageId,
     generationId,
-    messageId: randomUUID(),
+    messageId,
     replyContext,
     replyProvider,
     providerName: useOpenAI ? "openai" : useMiniMax ? "minimax" : "deterministic-fake",
     providerModelVersion: useOpenAI
       ? (process.env.OPENAI_CONVERSATION_MODEL?.trim() || "gpt-5.6sol")
       : "MiniMax-M3",
-    signal: request.signal,
+    signal: transportAbort.signal,
   };
-  let conversationId: string | null = null;
-  let userMessageId: string | null = null;
-  if (repository) {
-    try {
-      conversationId = await repository.getOrCreateConversation(user.id, characterId, characterVersion);
-      const userMessage = await persistUserMessage(repository, {
-        userId: user.id,
-        conversationId,
-        characterKey: characterId,
-        clientMessageId,
-        generationId,
-        content: text.trim(),
-      });
-      // reply_to_message_id is a database UUID, not the client-generated id.
-      userMessageId = userMessage.id;
-    } catch {
-      return jsonError("CONVERSATION_UNAVAILABLE", "The conversation could not be saved.", 503);
-    }
-  }
   const correlation = createCorrelationIds({ requestId, generationId });
   const streamStartedAt = Date.now();
   const iterator = streamReply({
     ...replyInput,
+    onBubble: async ({ prefix }) => {
+      if (transportAbort.signal.aborted) return false;
+      if (!repository || !conversationId) return true;
+      const saved = await repository.saveReplyPrefix?.({ userId: user.id, conversationId, generationId, prefix, userMessageIds });
+      if (!saved) transportAbort.abort();
+      return Boolean(saved) && !transportAbort.signal.aborted;
+    },
     onProviderResult: async (observation) => {
       await recordProviderCallSafely(providerCallObserver, {
         userId: user.id,
@@ -260,23 +258,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
     },
   });
   const encoder = new TextEncoder();
+  let readerCancelled = false;
+  let completed = false;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let assistantText = "";
       try {
         for await (const event of iterator) {
+          if (readerCancelled) break;
           if (event.type === "delta") assistantText += event.text;
           if (event.type === "done" && repository && conversationId && userMessageId) {
-            const assistantMessage = await persistCompletedAssistantMessage(repository, {
-              userId: user.id,
-              conversationId,
-              characterKey: characterId,
-              messageId: event.messageId,
-              generationId,
-              clientMessageId: `assistant-${generationId}`,
-              content: assistantText,
-              replyToMessageId: userMessageId,
-            });
+            const assistantMessage = transportAbort.signal.aborted ? null : await repository.finishReplyGeneration?.({ userId: user.id, conversationId, generationId, content: assistantText, userMessageIds });
+            if (!assistantMessage) {
+              controller.enqueue(encoder.encode(encodeConversationEvent({ type: "error", generationId, messageId, code: "stream-aborted", retryable: true })));
+              break;
+            }
+            completed = true;
             const userMessageWithdrawn = repository.isMessageWithdrawn
               ? await repository.isMessageWithdrawn(user.id, userMessageId)
               : false;
@@ -311,31 +308,33 @@ export async function POST(request: NextRequest, context: RouteContext) {
               }
             }
             if (memoryRepository) {
-              const candidates = extractMemories({
-                userId: user.id,
-                characterKey: characterId,
-                characterVersion,
-                conversationId,
-                turn: {
-                  status: "done",
-                  userMessage: {
-                    id: userMessageId,
-                    role: "user",
-                    status: "completed",
-                    content: text.trim(),
+              try {
+                const memorySources: ConversationMessageRecord[] = [];
+                for (const source of claimedUserMessages) {
+                  if (source.status === "completed" && !(await repository.isMessageWithdrawn?.(user.id, source.id))) memorySources.push(source);
+                }
+                const candidates = memorySources.flatMap((source) => extractMemories({
+                  userId: user.id,
+                  characterKey: characterId,
+                  characterVersion,
+                  conversationId,
+                  turn: {
+                    status: "done",
+                    userMessage: {
+                      id: source.id,
+                      role: "user",
+                      status: "completed",
+                      content: source.content,
+                    },
+                    assistantMessage: {
+                      id: assistantMessage.id,
+                      role: "character",
+                      status: "completed",
+                      content: assistantMessage.content,
+                    },
                   },
-                  assistantMessage: {
-                    id: assistantMessage.id,
-                    role: "character",
-                    status: "completed",
-                    content: assistantMessage.content,
-                  },
-                },
-              });
-              if (candidates.length > 0) {
-                // Memory extraction is best-effort after the durable message write.
-                // A memory failure must not turn a completed chat reply into a failed one.
-                try {
+                }));
+                if (candidates.length > 0) {
                   await commitMemories({
                     repository: memoryRepository,
                     completed: true,
@@ -343,15 +342,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
                     diagnostics,
                     requestId,
                   });
-                } catch {
-                  // Do not log candidate text or private conversation content.
                 }
+              } catch {
+                // Source checks and extraction are best-effort after completion; never log private payloads.
               }
             }
           }
-          controller.enqueue(encoder.encode(encodeConversationEvent(event)));
+          if (!readerCancelled) controller.enqueue(encoder.encode(encodeConversationEvent(event)));
         }
-        controller.close();
+        if (!readerCancelled) controller.close();
       } catch {
         await recordDiagnosticEventSafely(diagnostics, {
           userId: user.id,
@@ -363,7 +362,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             conversationId: conversationId ?? undefined,
             generationId,
           },
-          errorType: request.signal.aborted ? "provider-cancelled" : "stream-failed",
+          errorType: transportAbort.signal.aborted ? "provider-cancelled" : "stream-failed",
         });
         await recordProviderCallSafely(providerCallObserver, {
           userId: user.id,
@@ -374,11 +373,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
           providerType: "conversation",
           provider: "conversation-stream",
           modelVersion: "protocol-v1",
-          status: request.signal.aborted ? "cancelled" : "failed",
+          status: transportAbort.signal.aborted ? "cancelled" : "failed",
           latencyMs: Date.now() - streamStartedAt,
-          errorType: request.signal.aborted ? "provider-cancelled" : "stream-failed",
+          errorType: transportAbort.signal.aborted ? "provider-cancelled" : "stream-failed",
         });
-        controller.enqueue(
+        if (!readerCancelled) controller.enqueue(
           encoder.encode(
             encodeConversationEvent({
               type: "error",
@@ -389,11 +388,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
             }),
           ),
         );
-        controller.close();
+        if (!readerCancelled) controller.close();
+      } finally {
+        request.signal.removeEventListener("abort", forwardAbort);
+        if (!completed && repository?.cancelReplyGeneration && conversationId) {
+          try { await repository.cancelReplyGeneration({ userId: user.id, conversationId, generationId }); } catch { /* Retain durable prefixes; no private payload logging. */ }
+        }
       }
     },
-    cancel() {
-      // The request signal is owned by Next; streamReply observes it between chunks.
+    async cancel() {
+      readerCancelled = true;
+      transportAbort.abort();
+      request.signal.removeEventListener("abort", forwardAbort);
+      if (repository?.cancelReplyGeneration && conversationId) await repository.cancelReplyGeneration({ userId: user.id, conversationId, generationId });
     },
   });
 

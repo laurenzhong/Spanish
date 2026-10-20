@@ -74,3 +74,29 @@ export function searchContentFrequencyWords(search: string): readonly RankedCont
   if (!needle) return ranked;
   return ranked.filter((entry) => normalizeSpanishSurface(entry.word).includes(needle));
 }
+
+/**
+ * The shelf's capacity: the committed reference list's own length.
+ *
+ * It is a property of the list, not of the request, so nothing has to query for it.
+ * Named once here because more than one caller needs the same number and they must
+ * not drift: the page reads the shelf whole, the word lookup decides whether a word
+ * is on the shelf at all, and the boot warm-up fills the same cache entry the page
+ * will read.
+ */
+export function shelfCapacity(): number {
+  return contentFrequencyWords().length;
+}
+
+/**
+ * The one reference-list entry for a word, or null when the list does not carry it.
+ *
+ * Matched the way the rest of the shelf matches (`normalizeSpanishSurface`), so the
+ * lookup answers about the same words the shelf renders and refuses the same ones.
+ * The list's own surface form is returned, because that is what the tiles say.
+ */
+export function findContentFrequencyWord(word: string): RankedContentWord | null {
+  const needle = normalizeSpanishSurface(word);
+  if (!needle) return null;
+  return contentFrequencyWords().find((entry) => normalizeSpanishSurface(entry.word) === needle) ?? null;
+}

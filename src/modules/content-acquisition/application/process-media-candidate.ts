@@ -17,6 +17,7 @@ export type ProcessMediaCandidateDependencies = Readonly<{
   now?: () => Date;
   resolveArtifactStore?: (input: Readonly<{ candidate: ContentCandidateRecord; source: ContentSourceRecord }>) => MediaProcessingArtifactStore;
   signal?: AbortSignal;
+  timeoutMs?: number;
 }>;
 
 export class MediaCandidateProcessingError extends Error {
@@ -45,6 +46,19 @@ export async function processMediaCandidate(
   const sourceUrl = podcast ? podcast.draft.enclosureUrl : String((candidate.metadata as Record<string, unknown>).processingAssetUrl ?? video?.draft.canonicalUrl ?? "");
   if (!sourceUrl) throw new MediaCandidateProcessingError("no downloadable processing asset is available.");
   const startedAt = (dependencies.now ?? (() => new Date()))();
+  const revalidate = async () => {
+    const [current, currentSource] = await Promise.all([
+      repository.findCandidateById(candidate.id),
+      repository.findSourceById?.(candidate.sourceId) ?? repository.findSourceByStableKey(candidate.sourceId),
+    ]);
+    if (!current || current.revision !== candidate.revision || current.generationId !== candidate.generationId || current.sourceId !== candidate.sourceId || !isMediaCandidateProcessable(current.status)) {
+      throw new MediaProcessingError("MEDIA_PROCESSING_CANCELLED", "Media candidate generation is no longer current.");
+    }
+    if (!currentSource || currentSource.id !== candidate.sourceId || currentSource.revision !== source.revision || current.rightsStatus !== "verified") {
+      throw new MediaProcessingError("MEDIA_PROCESSING_NOT_AUTHORIZED", "Media candidate or source authorization is no longer current.");
+    }
+    return { sourceEnabled: currentSource.enabled, rightsStatus: currentSource.rightsStatus, processingAuthorization: currentSource.rightsPolicy?.mediaProcessing };
+  };
   let result;
   try {
     result = await processMediaTranscript({
@@ -54,6 +68,9 @@ export async function processMediaCandidate(
         sourceUrl,
         sourceEnabled: source.enabled,
         rightsStatus: source.rightsStatus,
+        processingAuthorization: source.rightsPolicy?.mediaProcessing,
+        // Candidates feed the general learning library, not a private notes store.
+        processingAudience: "shared-learning",
         language: candidate.language,
         durationMs: draft.durationMs,
         assetBytes: podcast ? podcast.draft.enclosureByteSize : Number((candidate.metadata as Record<string, unknown>).processingAssetBytes ?? 0),
@@ -68,6 +85,9 @@ export async function processMediaCandidate(
         ? dependencies.resolveArtifactStore({ candidate, source: source })
         : dependencies.artifactStore,
       signal: dependencies.signal,
+      timeoutMs: dependencies.timeoutMs ?? 15 * 60 * 1000,
+      now: dependencies.now,
+      revalidate,
     });
   } catch (error) {
     const completedAt = (dependencies.now ?? (() => new Date()))();
@@ -100,10 +120,15 @@ export async function processMediaCandidate(
   const nextMetadata = { ...candidate.metadata } as Record<string, unknown>;
   if (podcast) {
     const nextDraft = { ...podcast.draft, transcriptStatus: result.provider ? "asr" as const : podcast.draft.transcriptStatus, transcriptUrl: result.provider ? null : podcast.draft.transcriptUrl, segments: [...result.segments] };
-    nextMetadata.podcastDraft = { ...nextDraft, contentHash: calculatePodcastCandidateContentHash(nextDraft) };
+    // Hash the schema-normalized draft: zod reorders optional keys (notably
+    // `words` comes first), and the immutable content hash must equal what a
+    // later schema parse recomputes before review and publication.
+    const normalizedDraft = podcastCandidateDraftSchema.parse({ ...nextDraft, contentHash: "0".repeat(64) });
+    nextMetadata.podcastDraft = { ...normalizedDraft, contentHash: calculatePodcastCandidateContentHash(normalizedDraft) };
   } else {
     const nextDraft = { ...video!.draft, captionStatus: video!.draft.captionStatus === "unavailable" ? "asr" as const : video!.draft.captionStatus, segments: [...result.segments] };
-    nextMetadata.videoDraft = { ...nextDraft, contentHash: calculateVideoCandidateContentHash(nextDraft) };
+    const normalizedDraft = videoCandidateDraftSchema.parse({ ...nextDraft, contentHash: "0".repeat(64) });
+    nextMetadata.videoDraft = { ...normalizedDraft, contentHash: calculateVideoCandidateContentHash(normalizedDraft) };
   }
   nextMetadata.mediaProcessingReview = result.review;
   const now = (dependencies.now ?? (() => new Date()))();

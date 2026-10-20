@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 
-import { CorpusSearch, LexicalAssessment } from "@/src/modules/lexicon-corpus";
+import { LexicalAssessment } from "@/src/modules/lexicon-corpus";
+import { CorpusWorkbench } from "@/src/modules/lexicon-corpus/ui/corpus-workbench";
+import { corpusExamplesQuerySchema } from "@/src/modules/lexicon-corpus/schemas/corpus-examples";
+import "./corpus-workbench.css";
 
 export const metadata: Metadata = { title: "语料" };
 
@@ -14,9 +17,6 @@ export default async function CorpusPage({ searchParams }: CorpusPageProps) {
   const params = await searchParams;
   const query = one(params.q) || one(params.query);
   const entryKind = one(params.entryKind);
-  // Annotated, not inferred: the object below is passed to a `Partial<EntryKind>`
-  // slot, and without the annotation TypeScript widens the narrowed ternary back
-  // to `string` and the production build stops on the type check.
   const entryKindFilter: "lexeme" | "phrase" | undefined = entryKind === "lexeme" || entryKind === "phrase" ? entryKind : undefined;
   const assessmentKey = one(params.assessment).trim();
   const contentKind = one(params.contentKind);
@@ -31,13 +31,14 @@ export default async function CorpusPage({ searchParams }: CorpusPageProps) {
     entryKind: entryKindFilter,
     entryId: one(params.entryId) || undefined,
   };
-  const page = Math.max(1, Math.min(1000, Number.parseInt(one(params.page) || "1", 10) || 1));
-  return <main className="lexicon-shelf corpus-page">
-      <header className="lexicon-shelf__header">
-        <div><p className="lexicon-shelf__eyebrow">真实用法</p><h1>语料</h1><p className="page-lede">按短语聚类比较文章、视频和播客里的真实上下文。</p></div>
-        <p>浏览语料不会写入能力评分；只有完成文字考察才会产生词句证据。</p>
+  const page = Math.max(1, Math.min(100000, Number.parseInt(one(params.page) || "1", 10) || 1));
+  const parsed = corpusExamplesQuerySchema.safeParse({ ...initialState, documentKind: initialState.documentKind || undefined, contentKind: contentKindFilter || undefined, sourceKind: initialState.sourceKind || undefined, stableKey: initialState.stableKey || undefined, page });
+  return <main className="corpus-lab">
+      <header className="corpus-lab-header">
+        <div><p className="corpus-lab-header__eyebrow">PALABRAS EN CONTEXTO</p><h1>语料</h1><p className="corpus-lab-header__description">在真实内容里，查清一个词怎么用。</p></div>
+        <span className="corpus-lab-header__index" lang="es">Leer. Escuchar. Comparar.</span>
       </header>
-      <CorpusSearch initialState={initialState} initialPage={page} />
+      <CorpusWorkbench initialState={parsed.success ? parsed.data : corpusExamplesQuerySchema.parse({})} />
       {assessmentKey ? <LexicalAssessment assessmentKey={assessmentKey} /> : null}
   </main>;
 }

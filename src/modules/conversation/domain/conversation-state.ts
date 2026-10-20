@@ -12,7 +12,7 @@ export type ConversationMessage = Readonly<{
   text: string;
   generationId?: string;
   complete: boolean;
-  status?: "completed" | "withdrawn";
+  status?: "streaming" | "completed" | "cancelled" | "withdrawn";
   withdrawn?: boolean;
   createdAt?: string;
   sourceType?: "conversation" | "authored_opening" | "proactive" | string;
@@ -29,11 +29,12 @@ export type ConversationState = Readonly<{
 export type ConversationAction =
   | Readonly<{ type: "hydrate"; messages: readonly ConversationMessage[] }>
   | Readonly<{ type: "replace-hydrate"; messages: readonly ConversationMessage[]; staleMessageKeys: readonly string[] }>
-  | Readonly<{ type: "submit"; text: string; clientMessageId: string; generationId: string; createdAt?: string }>
-  | Readonly<{ type: "queue"; text: string; clientMessageId: string; createdAt?: string }>
+  | Readonly<{ type: "submit"; text: string; clientMessageId: string; generationId: string; createdAt?: string; sourceType?: "translation_assisted" }>
+  | Readonly<{ type: "queue"; text: string; clientMessageId: string; createdAt?: string; sourceType?: "translation_assisted" }>
   | Readonly<{ type: "retry"; userMessageId: string; generationId: string }>
   | Readonly<{ type: "stream-event"; event: ConversationStreamEvent }>
   | Readonly<{ type: "cancel"; generationId: string }>
+  | Readonly<{ type: "recover-pending"; generationId: string | null; messageId: string | null }>
   | Readonly<{ type: "remove-message"; messageId: string }>
   | Readonly<{ type: "withdraw-message"; messageId: string }>
   | Readonly<{ type: "reset" }>;
@@ -72,14 +73,31 @@ function dedupeMessages(messages: readonly ConversationMessage[]): readonly Conv
   return [...byKey.values()];
 }
 
+function preserveVisiblePrefixes(state: ConversationState, persisted: readonly ConversationMessage[]): readonly ConversationMessage[] {
+  return persisted.map((message) => {
+    if (message.status === "cancelled" && !message.text.trim()) return message;
+    const local = state.messages.find((candidate) => (candidate.clientMessageId ?? candidate.id) === (message.clientMessageId ?? message.id));
+    if (local?.role === "character" && !local.withdrawn && !message.withdrawn
+      && (!local.complete || local.status === "cancelled")
+      && local.text.length > message.text.length && local.text.startsWith(message.text)) {
+      return { ...message, text: local.text, complete: local.complete, status: local.status, generationId: local.generationId ?? message.generationId };
+    }
+    return message;
+  });
+}
+
 export function transitionConversationState(
   state: ConversationState,
   action: ConversationAction,
 ): ConversationState {
   if (action.type === "reset") return createConversationState();
+  if (action.type === "recover-pending") {
+    if (state.status !== "idle") return state;
+    return { ...state, status: "cancelled", activeGenerationId: action.generationId, activeMessageId: action.messageId, error: null };
+  }
 
   if (action.type === "hydrate") {
-    const persistedMessages = dedupeMessages(action.messages);
+    const persistedMessages = preserveVisiblePrefixes(state, dedupeMessages(action.messages));
     const persistedKeys = new Set(
       persistedMessages.map((message) => message.clientMessageId ?? message.id),
     );
@@ -97,10 +115,11 @@ export function transitionConversationState(
   }
 
   if (action.type === "replace-hydrate") {
-    const persistedMessages = dedupeMessages(action.messages);
+    const persistedMessages = preserveVisiblePrefixes(state, dedupeMessages(action.messages));
     const staleKeys = new Set(action.staleMessageKeys);
+    const persistedKeys = new Set(persistedMessages.map((message) => message.clientMessageId ?? message.id));
     const currentOnly = state.messages.filter(
-      (message) => !staleKeys.has(message.clientMessageId ?? message.id),
+      (message) => !staleKeys.has(message.clientMessageId ?? message.id) && !persistedKeys.has(message.clientMessageId ?? message.id),
     );
     return {
       ...state,
@@ -130,6 +149,7 @@ export function transitionConversationState(
               text: action.text,
               complete: true,
               createdAt: action.createdAt,
+              ...(action.sourceType ? { sourceType: action.sourceType } : {}),
             },
           ],
       activeGenerationId: action.generationId,
@@ -149,6 +169,7 @@ export function transitionConversationState(
         text: action.text,
         complete: true,
         createdAt: action.createdAt,
+        ...(action.sourceType ? { sourceType: action.sourceType } : {}),
       }],
     };
   }
@@ -168,7 +189,12 @@ export function transitionConversationState(
 
   if (action.type === "cancel") {
     if (!isCurrent(state, action.generationId)) return state;
-    return { ...state, status: "cancelled", error: null };
+    return {
+      ...state, status: "cancelled", error: null,
+      messages: state.messages.filter((message) => message.role !== "character" || message.generationId !== action.generationId || message.text.trim())
+        .map((message) => message.role === "character" && message.generationId === action.generationId && !message.complete
+          ? { ...message, status: "cancelled" as const } : message),
+    };
   }
 
   if (action.type === "remove-message") {
@@ -189,7 +215,7 @@ export function transitionConversationState(
   }
 
   const event = action.event;
-  if (!isCurrent(state, event.generationId)) return state;
+  if (!isCurrent(state, event.generationId) || state.status !== "streaming") return state;
 
   if (event.type === "meta") {
     const existing = state.messages.some((message) => message.id === event.messageId);

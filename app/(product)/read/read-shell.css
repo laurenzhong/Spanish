@@ -21,3 +21,66 @@ main.product-content:has(.page-stack.read-page) {
   padding-top: 12px;
   padding-inline: 20px;
 }
+
+/* The reader owns its surface; shelf padding must not inset its chrome. */
+main.product-content:has(.page-stack.read-page):has(.article-reader) {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.product-shell:has(.article-reader) .mobile-product-header {
+  display: none;
+}
+
+.read-page:has(> .article-reader) {
+  --reader-chrome-height: 64px;
+  display: block;
+  padding-top: 0;
+  /* A retained transform makes the fixed translator relative to this page. */
+  animation: none;
+}
+
+.product-content .read-page > .article-reader {
+  width: 100%;
+  margin: 0;
+  padding-top: 0;
+}
+
+/* Sticky positioning follows the actual rail width instead of viewport offsets. */
+.product-content .read-page > .article-reader .article-reader__topbar {
+  position: sticky;
+  top: 0;
+  right: auto;
+  left: auto;
+  width: 100%;
+  padding-left: 18px;
+}
+
+.read-page > .article-reader .article-reader__notice {
+  top: calc(var(--reader-chrome-height) + 12px);
+}
+
+.read-page > .article-reader .article-reader__scrim {
+  top: var(--reader-chrome-height);
+}
+
+@media (min-width: 960px) {
+  main.product-content .read-page > .article-reader .article-reader__tools.is-open {
+    top: calc(var(--reader-chrome-height) + 16px);
+    max-height: calc(100dvh - var(--reader-chrome-height) - 40px);
+  }
+}
+
+@media (min-width: 1200px) {
+  main.product-content .read-page > .article-reader--tools-pinned .article-reader__tools.is-open {
+    top: var(--reader-chrome-height);
+    max-height: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .product-content .read-page > .article-reader .article-reader__topbar {
+    padding-inline: 8px;
+  }
+}

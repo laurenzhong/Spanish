@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNull, isNotNull, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, isNotNull, ne, or, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
@@ -175,6 +175,20 @@ export function createDrizzlePrivacyRepository<
           eq(schema.conversations.identityId, identity.id),
         ));
       const conversationIds = conversationRows.map((row) => row.id);
+
+      // A fresh contact must not inherit old mute/read state or introduction
+      // offers whose reason/context was derived from the previous relationship.
+      await database.delete(schema.conversationPreferences).where(and(
+        eq(schema.conversationPreferences.userId, userId),
+        eq(schema.conversationPreferences.identityId, identity.id),
+      ));
+      await database.delete(schema.characterIntroductionOffers).where(and(
+        eq(schema.characterIntroductionOffers.userId, userId),
+        or(
+          eq(schema.characterIntroductionOffers.sourceIdentityId, identity.id),
+          eq(schema.characterIntroductionOffers.targetIdentityId, identity.id),
+        ),
+      ));
 
       // Resetting a relationship must revoke inbound sharing grants to Lucía;
       // the source memories themselves remain untouched when they belong to

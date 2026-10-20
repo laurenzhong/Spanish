@@ -96,3 +96,152 @@ export function wordTimingsForPlayback(segment: Readonly<{
   // but no automatic speaking box is shown until an exact timeline exists.
   return [];
 }
+
+/** One provider-reported word (or punctuation mark) with absolute media time. */
+export type MediaProviderWordUnit = Readonly<{
+  startMs: number;
+  endMs: number;
+  text: string;
+}>;
+
+/**
+ * A sentence-level transcript cue built only from provider word timestamps.
+ * `words` always indexes exact UTF-16 slices of `sourceText`.
+ */
+export type MediaTranscriptSentence = Readonly<{
+  startMs: number;
+  endMs: number;
+  sourceText: string;
+  words: readonly MediaWordTiming[];
+}>;
+
+export const mediaSentenceMaxLength = 240;
+export const mediaSentenceMaxGapMs = 1_000;
+
+export type MediaSentenceGroupingOptions = Readonly<{
+  /** Candidate media duration; provider timestamps after it are rejected. */
+  durationMs?: number;
+  maxSentenceLength?: number;
+  maxGapMs?: number;
+}>;
+
+export class MediaWordTimelineError extends Error {
+  readonly code = "MEDIA_WORD_TIMELINE_INVALID" as const;
+
+  constructor(message: string) {
+    super(`MEDIA_WORD_TIMELINE_INVALID: ${message}`);
+    this.name = "MediaWordTimelineError";
+  }
+}
+
+// Terminal punctuation can be followed by closing quotes/brackets that belong
+// to the same sentence, for example `«Hola.»`.
+const sentenceTerminalPattern = /[.!?。！？…]["'»”’)\]}]*$/u;
+// Characters that close a phrase must not receive a preceding space.
+const closingLeadingPattern = /^[.,;:!?…%)\]}»”’"']/u;
+// Characters that open a phrase must not receive a following space.
+const openingTrailingPattern = /[¿¡([{«“‘"']$/u;
+const closingPunctuationOnlyPattern = /^[.,;:!?…%)\]}»”’"']+$/u;
+
+function separatorBefore(text: string, next: string): string {
+  if (!text) return "";
+  if (closingLeadingPattern.test(next)) return "";
+  if (openingTrailingPattern.test(text)) return "";
+  return " ";
+}
+
+function validateGroupedSentence(candidate: MediaTranscriptSentence): MediaTranscriptSentence {
+  const validated = validWordTimings(candidate);
+  if (validated.length === 0 || validated.length !== candidate.words.length) {
+    throw new MediaWordTimelineError("Grouped provider words do not match their sentence text offsets.");
+  }
+  const exact: MediaTranscriptSentence = { ...candidate, words: validated };
+  if (!hasExactWordLexemes(exact)) {
+    throw new MediaWordTimelineError("Grouped provider words are missing their exact lexical text.");
+  }
+  return exact;
+}
+
+/**
+ * Splits provider word timestamps into sentence cues without estimating any
+ * position. Every returned word is an exact UTF-16 slice of `sourceText` and
+ * inherits the provider's start/end milliseconds. The function fails closed
+ * when the provider did not return word-level units: publishing a guessed
+ * timeline is never acceptable for automatic word-selection evidence.
+ */
+export function groupProviderWordsIntoSentences(
+  units: readonly MediaProviderWordUnit[],
+  options: MediaSentenceGroupingOptions = {},
+): MediaTranscriptSentence[] {
+  const maxSentenceLength = options.maxSentenceLength ?? mediaSentenceMaxLength;
+  const maxGapMs = options.maxGapMs ?? mediaSentenceMaxGapMs;
+  if (!Number.isSafeInteger(maxSentenceLength) || maxSentenceLength <= 0) throw new MediaWordTimelineError("maxSentenceLength must be a positive safe integer.");
+  if (!Number.isSafeInteger(maxGapMs) || maxGapMs < 0) throw new MediaWordTimelineError("maxGapMs must be a non-negative safe integer.");
+  if (options.durationMs !== undefined && (!Number.isSafeInteger(options.durationMs) || options.durationMs <= 0)) {
+    throw new MediaWordTimelineError("durationMs must be a positive safe integer.");
+  }
+  if (units.length === 0) return [];
+
+  const normalized: Array<Readonly<{ startMs: number; endMs: number; text: string; token: string | null }>> = [];
+  let previousEnd: number | null = null;
+  for (const unit of units) {
+    if (!unit || typeof unit.text !== "string") throw new MediaWordTimelineError("A provider timing unit is malformed.");
+    const text = unit.text.trim();
+    if (!text) throw new MediaWordTimelineError("A provider timing unit contains no text.");
+    if (!Number.isInteger(unit.startMs) || !Number.isInteger(unit.endMs) || unit.startMs < 0 || unit.endMs <= unit.startMs) {
+      throw new MediaWordTimelineError("Provider word timestamps must be integers with a positive duration.");
+    }
+    if (previousEnd !== null && unit.startMs < previousEnd) {
+      throw new MediaWordTimelineError("Provider word timestamps overlap or are not monotonic.");
+    }
+    if (options.durationMs !== undefined && unit.endMs > options.durationMs) {
+      throw new MediaWordTimelineError("A provider word timestamp ends after the media duration.");
+    }
+    const matches = mediaWordMatches(text);
+    if (matches.length > 1) {
+      throw new MediaWordTimelineError(`Provider timestamps are not word-level: "${text}" contains multiple lexical tokens.`);
+    }
+    previousEnd = unit.endMs;
+    normalized.push({ startMs: unit.startMs, endMs: unit.endMs, text, token: matches[0]?.[0] ?? null });
+  }
+
+  const sentences: MediaTranscriptSentence[] = [];
+  let current: { startMs: number; endMs: number; text: string; words: MediaWordTiming[]; terminal: boolean } | null = null;
+  const flush = () => {
+    if (!current || current.words.length === 0) {
+      current = null;
+      return;
+    }
+    sentences.push(validateGroupedSentence({ startMs: current.startMs, endMs: current.endMs, sourceText: current.text, words: current.words }));
+    current = null;
+  };
+
+  for (const unit of normalized) {
+    // A finished sentence may still receive its closing quote/bracket units.
+    if (current?.terminal) {
+      if (!closingPunctuationOnlyPattern.test(unit.text)) flush();
+    }
+    if (current && current.words.length > 0 && unit.startMs - current.endMs > maxGapMs) flush();
+    if (!current) {
+      current = { startMs: unit.startMs, endMs: unit.endMs, text: "", words: [], terminal: false };
+    }
+    const separator = separatorBefore(current.text, unit.text);
+    const unitStart = current.text.length + separator.length;
+    current.text += separator + unit.text;
+    current.endMs = unit.endMs;
+    if (unit.token !== null) {
+      const match = mediaWordMatches(unit.text)[0]!;
+      const localStart = match.index ?? 0;
+      const startOffset = unitStart + localStart;
+      const endOffset = startOffset + match[0].length;
+      current.words.push({ startMs: unit.startMs, endMs: unit.endMs, startOffset, endOffset, text: unit.text.slice(localStart, localStart + match[0].length) });
+    }
+    if (current.words.length > 0) {
+      if (sentenceTerminalPattern.test(current.text)) current.terminal = true;
+      if (current.text.length >= maxSentenceLength) flush();
+    }
+  }
+  flush();
+  return sentences;
+}
+

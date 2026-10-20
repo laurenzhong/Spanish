@@ -14,6 +14,7 @@ import {
   persistUserMessage,
 } from "@/src/modules/conversation";
 import * as schema from "@/src/shared/db/schema";
+import { createDrizzleExpressionAssistRepository } from "@/src/modules/conversation/repositories/expression-assist-repository";
 
 const userId = "00000000-0000-4000-8000-000000000031";
 const characterId = "10000000-0000-4000-8000-000000000031";
@@ -40,7 +41,7 @@ describe("conversation persistence", () => {
       grant usage on schema auth to anon, authenticated;
       grant execute on function auth.uid() to anon, authenticated;
     `);
-    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0005_kind_character_network.sql", "0013_smart_stick.sql", "0016_proactive_messages.sql", "0017_sudden_betty_brant.sql", "0018_dusty_sue_storm.sql", "0040_happy_wolverine.sql", "0045_lumpy_medusa.sql"]) await client.exec(await migration(name));
+    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0005_kind_character_network.sql", "0013_smart_stick.sql", "0016_proactive_messages.sql", "0017_sudden_betty_brant.sql", "0018_dusty_sue_storm.sql", "0040_happy_wolverine.sql", "0045_lumpy_medusa.sql", "0047_conversation_reply_sources.sql"]) await client.exec(await migration(name));
     database = drizzle(client, { schema });
     await client.exec(`insert into auth.users (id, email) values ('${userId}', 'conversation@example.test');`);
     await database.insert(schema.characters).values({ id: characterId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "published" });
@@ -54,6 +55,57 @@ describe("conversation persistence", () => {
   });
 
   afterEach(async () => { await client.close(); });
+
+  it("preserves translation assistance across retries and refuses changed content", async () => {
+    const repository = createDrizzleConversationRepository(database);
+    const conversationId = await repository.getOrCreateConversation(userId, "lucia", 1);
+    const input = { userId, conversationId, characterKey: "lucia", clientMessageId: "assisted-1", generationId: "assisted-gen-1", content: "¿Quedamos otro día?", sourceType: "translation_assisted" as const };
+    const original = await persistUserMessage(repository, input);
+    expect(original.sourceType).toBe("translation_assisted");
+    const retried = await persistUserMessage(repository, { ...input, generationId: "retry", sourceType: undefined });
+    expect(retried).toEqual(original);
+    await expect(persistUserMessage(repository, { ...input, content: "Another draft" })).rejects.toThrow("MESSAGE_CONFLICT");
+    const [stored] = await database.select().from(schema.messages).where(eq(schema.messages.id, original.id));
+    expect(stored).toMatchObject({ sourceType: "translation_assisted", content: input.content, generationId: input.generationId });
+    const independent = await persistUserMessage(repository, { ...input, clientMessageId: "ordinary-1", sourceType: undefined });
+    const repeated = await persistUserMessage(repository, { ...input, clientMessageId: "ordinary-1" });
+    expect(repeated).toEqual(independent); expect(repeated.sourceType).toBe("conversation");
+  });
+
+  it("expression assistance reads only six completed messages for this owner and character", async () => {
+    const repository = createDrizzleConversationRepository(database);
+    const conversationId = await repository.getOrCreateConversation(userId, "lucia", 1);
+    const otherUser = "00000000-0000-4000-8000-000000000032";
+    await client.exec(`insert into auth.users (id, email) values ('${otherUser}', 'other@example.test');`);
+    const otherConversation = await repository.getOrCreateConversation(otherUser, "lucia", 1);
+    const otherCharacterConversation = "40000000-0000-4000-8000-000000000039";
+    await database.insert(schema.conversations).values({ id: otherCharacterConversation, userId, characterId: draftCharacterId, identityId: mateoIdentityId });
+    const now = Date.now();
+    await database.insert(schema.messages).values(Array.from({ length: 9 }, (_, i) => ({
+      userId, conversationId, characterId, identityId: luciaIdentityId,
+      clientMessageId: `context-${i}`, role: i % 2 ? "character" as const : "user" as const, status: "completed" as const,
+      content: `${i}${"x".repeat(2500)}`, createdAt: new Date(now + i), completedAt: new Date(now + i),
+    })));
+    const withdrawnParent = "40000000-0000-4000-8000-000000000038";
+    await database.insert(schema.messages).values([
+      { id: withdrawnParent, userId, conversationId, characterId, identityId: luciaIdentityId, clientMessageId: "withdrawn-parent", role: "user", status: "withdrawn", content: "private withdrawn", createdAt: new Date(now - 10000) },
+      { userId, conversationId, characterId, identityId: luciaIdentityId, clientMessageId: "withdrawn-child", replyToMessageId: withdrawnParent, role: "character", status: "completed", content: "withdrawn reply", createdAt: new Date(now + 100) },
+      { userId, conversationId, characterId, identityId: luciaIdentityId, clientMessageId: "streaming", role: "character", status: "streaming", content: "unfinished", createdAt: new Date(now + 200) },
+      { userId, conversationId, characterId, identityId: luciaIdentityId, clientMessageId: "failed", role: "character", status: "failed", content: "failed", createdAt: new Date(now + 300) },
+      { userId: otherUser, conversationId: otherConversation, characterId, identityId: luciaIdentityId, clientMessageId: "other-owner", role: "user", status: "completed", content: "other owner private", createdAt: new Date(now + 400) },
+      { userId, conversationId: otherCharacterConversation, characterId: draftCharacterId, identityId: mateoIdentityId, clientMessageId: "other-character", role: "user", status: "completed", content: "other character private", createdAt: new Date(now + 500) },
+    ]);
+    const before = await database.select({ id: schema.messages.id }).from(schema.messages);
+    const assistance = createDrizzleExpressionAssistRepository(database);
+    expect(await assistance.getCurrentPublishedVersion("lucia")).toBe(1);
+    expect(await assistance.getCurrentPublishedVersion("mateo")).toBeNull();
+    const context = await assistance.listContext(userId, "lucia");
+    expect(context.map((message) => message.text[0])).toEqual(["3", "4", "5", "6", "7", "8"]);
+    expect(context.map((message) => message.role)).toEqual(["assistant", "user", "assistant", "user", "assistant", "user"]);
+    expect(context.every((message) => message.text.length === 2000)).toBe(true);
+    expect(await database.select({ id: schema.messages.id }).from(schema.messages)).toHaveLength(before.length);
+    expect(await assistance.listContext(otherUser, "lucia")).toEqual([{ role: "user", text: "other owner private" }]);
+  });
 
   it("creates one conversation and deduplicates the user message", async () => {
     const repository = createDrizzleConversationRepository(database);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
 import {
   applyPlyrSpeed,
@@ -74,7 +74,7 @@ export const youtubeIframePlayerFactory: VideoPlayerFactory = (target, input) =>
   };
 };
 
-export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_MEDIA_PLAYBACK_SPEED, autoPause, hasSegments, onToggleAutoPause, onAutoPauseControlReady, onPortChange, onPositionChange, onStateChange, onError }: Readonly<{
+export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_MEDIA_PLAYBACK_SPEED, autoPause, hasSegments, onToggleAutoPause, onPortChange: onPortChangeCallback, onPositionChange: onPositionChangeCallback, onStateChange: onStateChangeCallback, onError: onErrorCallback }: Readonly<{
   embedUrl: string;
   title: string;
   factory?: VideoPlayerFactory;
@@ -83,12 +83,15 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_M
   autoPause: boolean;
   hasSegments: boolean;
   onToggleAutoPause: () => void;
-  onAutoPauseControlReady: (ready: boolean) => void;
   onPortChange: (port: VideoPlayerPort | null) => void;
   onPositionChange?: () => void;
   onStateChange: (state: VideoPlayerState) => void;
   onError: (message: string | null) => void;
 }>) {
+  const onPortChange = useEffectEvent(onPortChangeCallback);
+  const onPositionChange = useEffectEvent(onPositionChangeCallback ?? (() => undefined));
+  const onStateChange = useEffectEvent(onStateChangeCallback);
+  const onError = useEffectEvent(onErrorCallback);
   const targetRef = useRef<HTMLDivElement>(null);
   const generationRef = useRef(0);
   const autoPauseControlRef = useRef<MountedAutoPauseControl | null>(null);
@@ -105,8 +108,16 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_M
   }, [autoPause, onToggleAutoPause, speed]);
 
   useEffect(() => {
-    const target = targetRef.current;
-    if (!target || !videoId) return;
+    const host = targetRef.current;
+    if (!host || !videoId) return;
+    // Plyr replaces its input with a clone on destroy. React owns the host;
+    // each resource mount owns a fresh input so it can never reuse a detached node.
+    const target = document.createElement("div");
+    target.setAttribute("aria-label", title);
+    target.dataset.plyrEmbedId = videoId;
+    if (!factory) target.dataset.plyrProvider = "youtube";
+    target.dataset.videoId = videoId;
+    host.replaceChildren(target);
     const generation = generationRef.current + 1;
     generationRef.current = generation;
     const current = () => generationRef.current === generation;
@@ -128,7 +139,6 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_M
       });
       if (autoPauseControl) {
         autoPauseControlRef.current = autoPauseControl;
-        onAutoPauseControlReady(true);
       } else if (autoPauseMountAttempts < 20) {
         autoPauseMountAttempts += 1;
         autoPauseMountTimer = window.setTimeout(mountAutoPauseControl, 25);
@@ -173,7 +183,6 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_M
       onError(youtubeErrorMessage(code));
     };
     onError(null);
-    onAutoPauseControlReady(false);
     target.dataset.mediaPlayerState = "loading";
     if (factory) {
       try {
@@ -225,7 +234,7 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_M
         port = {
           play: () => {
             if (!plyrInstance) return;
-            void Promise.resolve(plyrInstance.play()).catch(() => onError("浏览器阻止了视频播放，请再次点击播放。"));
+            void Promise.resolve(plyrInstance.play()).catch(() => { if (current()) onError("浏览器阻止了视频播放，请再次点击播放。"); });
           },
           pause: () => {
             plyrInstance?.pause();
@@ -253,7 +262,6 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_M
       window.clearTimeout(readyTimeout);
       if (autoPauseMountTimer !== null) window.clearTimeout(autoPauseMountTimer);
       if (generationRef.current === generation) generationRef.current += 1;
-      onAutoPauseControlReady(false);
       autoPauseControl?.destroy();
       if (autoPauseControlRef.current === autoPauseControl) autoPauseControlRef.current = null;
       if (player) {
@@ -271,24 +279,24 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_M
       onPortChange(null);
       if (port) port.destroy();
       destroyPlayer();
+      host.replaceChildren();
     };
-  }, [embedUrl, factory, hasSegments, onAutoPauseControlReady, onError, onPortChange, onPositionChange, onStateChange, title, videoId]);
+  }, [embedUrl, factory, hasSegments, title, videoId]);
 
   useEffect(() => {
     autoPauseControlRef.current?.setAutoPause(autoPause);
   }, [autoPause]);
 
   useEffect(() => {
-    // Re-apply the workbench-selected speed after a remount and whenever the
-    // user changes it, so Plyr's settings menu and the visible control agree.
-    // `onPortChange` re-runs this once a mount hands over its new port.
+    // Mounting applies speedRef to the new port. Later speed changes update
+    // the existing port without restarting playback.
     speedRef.current = speed;
     portRef.current?.setSpeed?.(speed);
-  }, [onPortChange, speed]);
+  }, [speed]);
 
   const watchUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
   return <div className="video-player-adapter">
-    <div aria-label={title} data-plyr-embed-id={videoId ?? undefined} data-plyr-provider={factory ? undefined : "youtube"} data-video-id={videoId ?? undefined} ref={targetRef} />
+    <div ref={targetRef} />
     {!videoId ? <p role="alert">播放地址无效。</p> : null}
     <div className="video-player-adapter__help">
       {watchUrl ? <a href={watchUrl} rel="noopener noreferrer" target="_blank">在 YouTube 打开</a> : null}
@@ -296,7 +304,7 @@ export function VideoPlayerAdapter({ embedUrl, title, factory, speed = DEFAULT_M
   </div>;
 }
 
-export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEFAULT_MEDIA_PLAYBACK_SPEED, autoPause, hasSegments, onToggleAutoPause, onAutoPauseControlReady, onPortChange, onPositionChange, onStateChange, onError }: Readonly<{
+export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEFAULT_MEDIA_PLAYBACK_SPEED, autoPause, hasSegments, onToggleAutoPause, onPortChange: onPortChangeCallback, onPositionChange: onPositionChangeCallback, onStateChange: onStateChangeCallback, onError: onErrorCallback }: Readonly<{
   videoUrl: string;
   title: string;
   factory?: NativeVideoPlayerFactory;
@@ -305,12 +313,16 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
   autoPause: boolean;
   hasSegments: boolean;
   onToggleAutoPause: () => void;
-  onAutoPauseControlReady: (ready: boolean) => void;
   onPortChange: (port: VideoPlayerPort | null) => void;
   onPositionChange?: () => void;
   onStateChange: (state: VideoPlayerState) => void;
   onError: (message: string | null) => void;
 }>) {
+  const onPortChange = useEffectEvent(onPortChangeCallback);
+  const onPositionChange = useEffectEvent(onPositionChangeCallback ?? (() => undefined));
+  const onStateChange = useEffectEvent(onStateChangeCallback);
+  const onError = useEffectEvent(onErrorCallback);
+  const hostRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const generationRef = useRef(0);
   const portRef = useRef<VideoPlayerPort | null>(null);
@@ -324,8 +336,13 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
   }, [autoPause, onToggleAutoPause, speed]);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    const host = hostRef.current;
+    if (!host) return;
+    const video = document.createElement("video");
+    video.setAttribute("aria-label", title);
+    video.playsInline = true;
+    videoRef.current = video;
+    host.replaceChildren(video);
     const generation = generationRef.current + 1;
     generationRef.current = generation;
     const current = () => generationRef.current === generation;
@@ -355,8 +372,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
         disabled: !hasSegments,
         onToggleAutoPause: () => toggleAutoPauseRef.current(),
       });
-      if (autoPauseControl) onAutoPauseControlReady(true);
-      else if (autoPauseMountAttempts < 20) {
+      if (!autoPauseControl && autoPauseMountAttempts < 20) {
         autoPauseMountAttempts += 1;
         autoPauseMountTimer = window.setTimeout(mountAutoPause, 25);
       }
@@ -367,7 +383,6 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
     video.src = videoUrl;
     video.dataset.source = videoUrl;
     video.preload = "metadata";
-    onAutoPauseControlReady(false);
     if (factory) {
       try {
         video.dataset.mediaPlayerState = "test-factory";
@@ -419,7 +434,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
         port = {
           play: () => {
             if (!plyrInstance) return;
-            void Promise.resolve(plyrInstance.play()).catch(() => onError("浏览器阻止了视频播放，请再次点击播放。"));
+            void Promise.resolve(plyrInstance.play()).catch(() => { if (current()) onError("浏览器阻止了视频播放，请再次点击播放。"); });
           },
           pause: () => {
             plyrInstance?.pause();
@@ -450,7 +465,6 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
       cancelled = true;
       if (generationRef.current === generation) generationRef.current += 1;
       if (autoPauseMountTimer !== null) window.clearTimeout(autoPauseMountTimer);
-      onAutoPauseControlReady(false);
       autoPauseControl?.destroy();
       if (player) {
         player.off("ready", ready);
@@ -469,16 +483,17 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
       onPortChange(null);
       if (port) port.destroy();
       destroyPlayer();
+      if (videoRef.current === video) videoRef.current = null;
+      host.replaceChildren();
     };
-  }, [factory, hasSegments, onAutoPauseControlReady, onError, onPortChange, onPositionChange, onStateChange, title, videoUrl]);
+  }, [factory, hasSegments, title, videoUrl]);
 
   useEffect(() => {
-    // Re-apply the workbench-selected speed after a remount and whenever the
-    // user changes it, so Plyr's settings menu and the visible control agree.
-    // `onPortChange` re-runs this once a mount hands over its new port.
+    // Mounting applies speedRef to the new port. Later speed changes update
+    // the existing port without restarting playback.
     speedRef.current = speed;
     portRef.current?.setSpeed?.(speed);
-  }, [onPortChange, speed]);
+  }, [speed]);
 
   useEffect(() => {
     const controls = videoRef.current?.closest(".plyr")?.querySelector<HTMLButtonElement>("[data-media-auto-pause-control]");
@@ -490,7 +505,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
     }
   }, [autoPause, hasSegments]);
 
-  return <div className="video-player-adapter"><video aria-label={title} playsInline preload="metadata" ref={videoRef} src={videoUrl}>当前浏览器无法播放视频。</video></div>;
+  return <div className="video-player-adapter" ref={hostRef} />;
 }
 
 /** @deprecated This is retained as an explicit test seam. The default path is HostedVideoPlayerAdapter + Plyr. */
@@ -550,5 +565,5 @@ export function NativeVideoPlayerAdapter({ videoUrl, title, factory, onPortChang
   onStateChange: (state: VideoPlayerState) => void;
   onError: (message: string | null) => void;
 }>) {
-  return <HostedVideoPlayerAdapter autoPause={false} factory={factory} hasSegments={false} onAutoPauseControlReady={() => undefined} onError={onError} onPortChange={onPortChange} onPositionChange={onPositionChange ?? (() => undefined)} onStateChange={onStateChange} onToggleAutoPause={() => undefined} title={title} videoUrl={videoUrl} />;
+  return <HostedVideoPlayerAdapter autoPause={false} factory={factory} hasSegments={false} onError={onError} onPortChange={onPortChange} onPositionChange={onPositionChange ?? (() => undefined)} onStateChange={onStateChange} onToggleAutoPause={() => undefined} title={title} videoUrl={videoUrl} />;
 }

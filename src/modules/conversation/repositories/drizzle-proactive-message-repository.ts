@@ -96,6 +96,17 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
       if (!conversation) throw new Error("CONVERSATION_UNAVAILABLE");
       return conversation.id;
     },
+    async listRecentMessages(userId, limit = 100) {
+      const character = await findLucia(database);
+      const conversation = await findLuciaConversation(database, userId, character.identityId);
+      if (!conversation) return [];
+      const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 100) : 100;
+      const rows = await database.select().from(schema.messages)
+        .where(and(eq(schema.messages.conversationId, conversation.id), eq(schema.messages.status, "completed")))
+        .orderBy(desc(schema.messages.createdAt))
+        .limit(safeLimit);
+      return rows.reverse().map(toMessage);
+    },
     async getEligibilityState(userId, now): Promise<ProactiveEligibilityState> {
       const character = await findLucia(database);
       const [relationship] = await database.select({

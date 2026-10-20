@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { getMediaPlayback } from "@/src/modules/media/application";
+import { getMediaStreamSource } from "@/src/modules/media/application";
 import { MediaUnavailableError } from "@/src/modules/media/domain";
 import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
 import { resolveOfficialPodcastSource } from "@/src/modules/media/storage/podcast-source-resolver";
@@ -188,10 +188,9 @@ export async function GET(request: NextRequest, { params }: Context) {
   if (!process.env.DATABASE_URL) return errorResponse(requestId, "MEDIA_NOT_AVAILABLE", 503, "媒体播放信息暂时不可用。");
 
   try {
-    const playback = await getMediaPlayback(
+    const playback = await getMediaStreamSource(
       createDrizzleMediaRepository(getDatabase()),
       decodeURIComponent((await params).stableKey),
-      user.id,
     );
     const expectedAssetKind = playback.media.kind === "podcast" ? "audio" : "video";
     if (playback.asset.kind !== expectedAssetKind) {

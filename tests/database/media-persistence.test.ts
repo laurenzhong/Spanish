@@ -34,12 +34,20 @@ describe("media persistence", () => {
   let repository: ReturnType<typeof createDrizzleMediaRepository>;
 
   beforeEach(async () => {
+    // Each case owns a separate database; do not reuse rows from a closed fixture.
+    const caches = globalThis as typeof globalThis & {
+      spanishMediaCatalogueCache?: Map<string, unknown>;
+      spanishMediaCatalogueInFlight?: Map<string, unknown>;
+    };
+    caches.spanishMediaCatalogueCache?.clear();
+    caches.spanishMediaCatalogueInFlight?.clear();
     client = new PGlite();
     await client.exec("create role anon nologin; create role authenticated nologin; create schema auth; create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}'::jsonb); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth, public to anon, authenticated; grant execute on function auth.uid() to anon, authenticated;");
     await client.exec(await migration("0000_big_phalanx.sql"));
     await client.exec(await migration("0024_media_library_foundation.sql"));
     await client.exec(await migration("0025_youtube_video_publication.sql"));
     await client.exec(await migration("0026_brief_toro.sql"));
+    for (const name of ["0027_pale_colossus.sql", "0032_bunny_storage_video_expiry.sql", "0033_bunny_storage_audio_expiry.sql", "0034_media_word_timings.sql", "0041_media_cefr_four_levels.sql", "0046_media_series_directory.sql"]) await client.exec(await migration(name));
     database = drizzle(client, { schema });
     await client.exec("insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000e1', 'a@example.test'), ('00000000-0000-4000-8000-0000000000e2', 'b@example.test'); insert into profiles (id) values ('00000000-0000-4000-8000-0000000000e1'), ('00000000-0000-4000-8000-0000000000e2')");
     await database.insert(schema.mediaItems).values({ id: itemId, stableKey: "media.fixture.cafe", kind: "podcast", currentVersion: 1 });
@@ -100,6 +108,9 @@ describe("media persistence", () => {
     await expect(repository.list(mediaListQuerySchema.parse({ topic: "current-events" }))).resolves.toMatchObject({ items: [] });
 
     await database.update(schema.mediaVersions).set({ topics: ["topic.news"] }).where(eq(schema.mediaVersions.id, versionId));
+    // This case verifies topic aliases after direct fixture mutation, rather
+    // than waiting for the separate public catalogue cache refresh policy.
+    (globalThis as typeof globalThis & { spanishMediaCatalogueCache?: Map<string, unknown> }).spanishMediaCatalogueCache?.clear();
     await expect(repository.list(mediaListQuerySchema.parse({ topic: "current-events" }))).resolves.toMatchObject({
       items: [{ stableKey: "media.fixture.cafe" }],
     });
@@ -130,7 +141,7 @@ describe("media persistence", () => {
       contentHash: "b".repeat(64), status: "published", license: "licensed", attribution: "Canal ejemplo",
       licenseEvidence: "https://video.example.test/license", copyrightStatus: "cleared",
     });
-    await database.insert(schema.mediaAssets).values({ mediaVersionId: secondVersionId, kind: "official_embed", providerKey: "fixture", playbackUrl: "https://player.example.test/embed/2" });
+    await database.insert(schema.mediaAssets).values({ mediaVersionId: secondVersionId, kind: "video", providerKey: "bunny-storage", playbackUrl: "https://fixture.b-cdn.net/media/news.mp4" });
     await repository.saveProgress(userA, "media.fixture.cafe", 1, { expectedRevision: 0, lastPositionMs: 2_000, lastSegmentIndex: 0, status: "in_progress" }, new Date("2026-09-13T10:00:00.000Z"));
     await repository.saveProgress(userA, "media.fixture.news", 1, { expectedRevision: 0, lastPositionMs: 1_000, lastSegmentIndex: null, status: "in_progress" }, new Date("2026-09-13T11:00:00.000Z"));
 

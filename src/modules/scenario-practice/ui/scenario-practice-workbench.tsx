@@ -42,6 +42,9 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
   const endRef = useRef<HTMLDivElement | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement | null>(null);
   const expressionsToggleRef = useRef<HTMLButtonElement | null>(null);
+  const expressionsCloseRef = useRef<HTMLButtonElement | null>(null);
+  const transcriptTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const transcriptDraftActiveRef = useRef(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -84,6 +87,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
 
   useEffect(() => {
     if (!expressionsOpen) return;
+    expressionsCloseRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       expressionsToggleRef.current?.focus();
@@ -93,6 +97,12 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [expressionsOpen]);
 
+  useEffect(() => {
+    const wasActive = transcriptDraftActiveRef.current;
+    transcriptDraftActiveRef.current = transcriptDraft !== null;
+    if (!wasActive && transcriptDraft) transcriptTextRef.current?.focus();
+  }, [transcriptDraft]);
+
   // Learning activity only for an account-persisted, unfinished session: a
   // device-only practice has no practice_sessions row to attach events to.
   useScenarioPracticeActivityHeartbeat(
@@ -101,6 +111,8 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
 
   const userTurnCount = saved.turns.filter((turn) => turn.speaker === "user").length;
   const currentTask = scenario.tasks[Math.min(userTurnCount, scenario.tasks.length - 1)]!;
+  const composerStatus = busy ? "处理中…" : inputMode === "speech" ? "松开后确认转写" : "Enter 发送 · Shift + Enter 换行";
+  const composerStatusShort = busy ? "处理中…" : inputMode === "speech" ? "松开确认" : "Enter 发送";
   const displayedTurns = useMemo<Turn[]>(() => [
     { id: "opening", speaker: "temporary-character", modality: "system", text: scenario.openingLine },
     ...saved.turns,
@@ -287,7 +299,7 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
           <strong>{Math.min(userTurnCount, scenario.tasks.length)}</strong><span>/ {scenario.tasks.length} 轮</span>
         </div>
       </header>
-      {scenario.fictionalContext ? <p className="scenario-fiction-notice scenario-fiction-notice--compact"><InfoIcon /><span>虚构练习，不代表真实地点或现实安排{scenario.stableKey === "scenario.rental-conversation" ? "；房源和看房时间均为练习设定" : ""}。</span></p> : null}
+      {scenario.fictionalContext ? <p className="scenario-fiction-notice scenario-fiction-notice--compact"><InfoIcon /><span>虚构练习；地点、人物、价格、政策、预约和现实安排均为练习设定，不代表真实信息或专业建议。</span></p> : null}
       <section className="scenario-goal-strip" aria-labelledby="scenario-current-goal">
         <div className="scenario-goal-strip__copy">
           <span className="scenario-goal-strip__eyebrow">当前目标 · {Math.min(userTurnCount + 1, scenario.tasks.length)}/{scenario.tasks.length}</span>
@@ -296,27 +308,29 @@ export function ScenarioPracticeWorkbench({ scenario, retryText = null, repetiti
         </div>
         <button type="button" aria-label="提示" title={hintLevel === 3 ? "已查看全部提示" : "获取下一条提示"} disabled={hintLevel === 3} onClick={() => setHintLevel((level) => Math.min(3, level + 1) as 1 | 2 | 3)}><LightbulbIcon /><span>提示{hintLevel ? ` ${hintLevel}` : ""}</span></button>
       </section>
-      <section className="scenario-transcript" aria-label="练习对话" aria-busy={busy}>
-        {displayedTurns.map((turn) => (
-          <article className={`scenario-turn scenario-turn--${turn.speaker}`} key={turn.id}>
-            <div className="scenario-turn__meta"><span className="scenario-turn__avatar" aria-hidden="true">{turn.speaker === "user" ? "你" : turn.speaker === "condition" ? "!" : scenario.temporaryCharacter.displayName.slice(0, 1)}</span><small>{turn.speaker === "user" ? "你" : turn.speaker === "condition" ? "条件变化" : scenario.temporaryCharacter.displayName}</small></div>
-            <p lang={turn.speaker === "condition" ? "zh-CN" : "es"}>{turn.text}</p>
-          </article>
-        ))}
-        {busy ? <p className="scenario-typing" role="status" aria-live="polite"><span className="scenario-typing__dots" aria-hidden="true"><i /><i /><i /></span><span>{scenario.temporaryCharacter.displayName} 正在回应…</span></p> : null}
-        <div ref={endRef} />
-      </section>
-      {notice ? <p className="scenario-notice" role="status" aria-live="polite"><InfoIcon /><span>{notice}</span></p> : null}
-      {retryText ? <aside className="scenario-hint"><strong>重新说这一句</strong><p><span lang="es">{retryText}</span> — 保留原意，换一种更自然的表达；这会创建新尝试，不覆盖原记录。</p></aside> : null}
-      {repetitionGoal ? <aside className="scenario-hint"><strong>变式复现目标</strong><p>{repetitionGoal}。请根据当前人物和条件自然完成，不必照读原句。</p></aside> : null}
-      {hintLevel > 0 ? <aside className="scenario-hint" aria-live="polite"><strong>提示 {hintLevel}</strong><p>{hintLevel === 1 ? currentTask.hints.level1 : hintLevel === 2 ? currentTask.hints.level2 : currentTask.hints.level3}</p></aside> : null}
-      {transcriptDraft ? <section className="scenario-transcript-confirm" aria-labelledby="scenario-transcript-confirm-title"><div className="scenario-transcript-confirm__heading"><span className="scenario-transcript-confirm__eyebrow">转写待确认</span><strong id="scenario-transcript-confirm-title">确认或编辑后再发送</strong><p>低置信度转写不会自动提交，也不会产生负面评价。</p></div><label htmlFor="scenario-transcript-text">转写内容<textarea id="scenario-transcript-text" lang="es" value={transcriptDraft.text} onChange={(event) => setTranscriptDraft({ ...transcriptDraft, text: event.target.value })} /></label><div><button type="button" onClick={() => setTranscriptDraft(null)}>取消</button><button className="scenario-transcript-confirm__primary" type="button" onClick={() => void submit(transcriptDraft.text, "speech", transcriptDraft.confidence)}>确认并发送</button></div></section> : null}
-      {expressionsOpen ? <section id="scenario-expression-drawer" className="scenario-expression-drawer" role="region" aria-labelledby="scenario-expression-drawer-title"><div className="scenario-expression-drawer__heading"><div><span className="scenario-expression-drawer__eyebrow">快速填入</span><h2 id="scenario-expression-drawer-title">常用表达</h2></div><button type="button" className="scenario-expression-drawer__close" aria-label="关闭常用表达" title="关闭常用表达" onClick={() => { expressionsToggleRef.current?.focus(); setExpressionsOpen(false); }}><CloseIcon /></button></div><div className="scenario-expression-drawer__list">{scenario.expressions.map((expression) => <button type="button" key={expression.stableKey} onClick={() => chooseExpression(expression.text)}><strong lang="es">{expression.text}</strong><span>{expression.translation}</span></button>)}</div></section> : null}
-      <section className="scenario-composer" aria-labelledby="scenario-composer-title" data-input-mode={inputMode}>
-        <div className="scenario-composer__heading"><div><span className="scenario-composer__eyebrow">轮到你</span><h2 id="scenario-composer-title">用西班牙语回应</h2></div><span className="scenario-composer__status" aria-live="polite">{busy ? "正在处理…" : inputMode === "speech" ? "按住录音，松开后确认转写" : "Enter 发送 · Shift + Enter 换行"}</span></div>
-        {inputMode === "typing" ? <div className="scenario-composer__input"><div className="scenario-composer__field"><label className="sr-only" htmlFor="scenario-response">用西班牙语完成你的表达</label><textarea id="scenario-response" ref={textInputRef} lang="es" value={text} disabled={busy} aria-describedby="scenario-composer-title" onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(text, "typing"); } }} placeholder="用西班牙语完成你的表达…" /><button className="scenario-composer__mode" type="button" aria-label="切换到语音输入" title="切换到语音输入" disabled={busy} onClick={() => setInputMode("speech")}><MicrophoneIcon /><span className="sr-only">切换到语音输入</span></button></div><button className="scenario-composer__send" type="button" aria-label="发送" disabled={!text.trim() || busy} onClick={() => void submit(text, "typing")}><SendIcon /><span>发送</span></button></div> : <div className="scenario-composer__voice"><div className="scenario-composer__voice-copy"><span className="scenario-composer__eyebrow">语音输入</span><span>{recording ? "正在录音…松开后确认" : "按住说话，完整表达后松开"}</span></div><button className={`scenario-composer__record ${recording ? "is-recording" : ""}`} type="button" aria-label={recording ? "松开发送" : "按住说话"} aria-pressed={recording} disabled={busy} onContextMenu={(event) => event.preventDefault()} onPointerDown={(event) => { recordingGestureActive.current = true; event.currentTarget.setPointerCapture?.(event.pointerId); void startRecording(); }} onPointerUp={() => void stopRecording()} onPointerCancel={() => void cancelRecording()} onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !event.repeat) { event.preventDefault(); recordingGestureActive.current = true; void startRecording(); } }} onKeyUp={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void stopRecording(); } }} onBlur={() => { if (recording) void cancelRecording(); }}><MicrophoneIcon /><span>{recording ? "松开发送" : "按住说话"}</span></button><button className="scenario-composer__keyboard" type="button" disabled={busy} onClick={() => { setInputMode("typing"); window.requestAnimationFrame(() => textInputRef.current?.focus()); }}><KeyboardIcon /><span>切换到文字输入</span></button></div>}
-        <div className="scenario-composer__secondary"><button ref={expressionsToggleRef} type="button" aria-label="常用表达" aria-expanded={expressionsOpen} aria-controls="scenario-expression-drawer" onClick={() => setExpressionsOpen((value) => !value)}>常用表达 <span aria-hidden="true">{scenario.expressions.length}</span></button>{userTurnCount >= 2 ? <button className="scenario-complete" type="button" disabled={busy} onClick={() => void complete()}><CheckIcon /><span>完成练习</span></button> : null}</div>
-      </section>
+      <div className="scenario-workbench__body">
+        <section className="scenario-transcript" aria-label="练习对话" aria-busy={busy}>
+          {displayedTurns.map((turn) => (
+            <article className={`scenario-turn scenario-turn--${turn.speaker}`} key={turn.id}>
+              <div className="scenario-turn__meta"><span className="scenario-turn__avatar" aria-hidden="true">{turn.speaker === "user" ? "你" : turn.speaker === "condition" ? "!" : scenario.temporaryCharacter.displayName.slice(0, 1)}</span><small>{turn.speaker === "user" ? "你" : turn.speaker === "condition" ? "条件变化" : scenario.temporaryCharacter.displayName}</small></div>
+              <p lang={turn.speaker === "condition" ? "zh-CN" : "es"}>{turn.text}</p>
+            </article>
+          ))}
+          {busy ? <p className="scenario-typing" role="status" aria-live="polite"><span className="scenario-typing__dots" aria-hidden="true"><i /><i /><i /></span><span>{scenario.temporaryCharacter.displayName} 正在回应…</span></p> : null}
+          <div ref={endRef} />
+        </section>
+        {notice ? <p className="scenario-notice" role="status" aria-live="polite"><InfoIcon /><span>{notice}</span></p> : null}
+        {retryText ? <aside className="scenario-hint"><strong>重新说这一句</strong><p><span lang="es">{retryText}</span> — 保留原意，换一种更自然的表达；这会创建新尝试，不覆盖原记录。</p></aside> : null}
+        {repetitionGoal ? <aside className="scenario-hint"><strong>变式复现目标</strong><p>{repetitionGoal}。请根据当前人物和条件自然完成，不必照读原句。</p></aside> : null}
+        {hintLevel > 0 ? <aside className="scenario-hint" aria-live="polite"><strong>提示 {hintLevel}</strong><p>{hintLevel === 1 ? currentTask.hints.level1 : hintLevel === 2 ? currentTask.hints.level2 : currentTask.hints.level3}</p></aside> : null}
+        {transcriptDraft ? <section className="scenario-transcript-confirm" aria-labelledby="scenario-transcript-confirm-title"><div className="scenario-transcript-confirm__heading"><span className="scenario-transcript-confirm__eyebrow">转写待确认</span><strong id="scenario-transcript-confirm-title">确认或编辑后再发送</strong><p>低置信度转写不会自动提交，也不会产生负面评价。</p></div><label htmlFor="scenario-transcript-text">转写内容<textarea id="scenario-transcript-text" ref={transcriptTextRef} lang="es" value={transcriptDraft.text} onChange={(event) => setTranscriptDraft({ ...transcriptDraft, text: event.target.value })} /></label><div><button type="button" onClick={() => setTranscriptDraft(null)}>取消</button><button className="scenario-transcript-confirm__primary" type="button" onClick={() => void submit(transcriptDraft.text, "speech", transcriptDraft.confidence)}>确认并发送</button></div></section> : null}
+        {expressionsOpen ? <section id="scenario-expression-drawer" className="scenario-expression-drawer" role="region" aria-labelledby="scenario-expression-drawer-title"><div className="scenario-expression-drawer__heading"><div><span className="scenario-expression-drawer__eyebrow">快速填入</span><h2 id="scenario-expression-drawer-title">常用表达</h2></div><button ref={expressionsCloseRef} type="button" className="scenario-expression-drawer__close" aria-label="关闭常用表达" title="关闭常用表达" onClick={() => { expressionsToggleRef.current?.focus(); setExpressionsOpen(false); }}><CloseIcon /></button></div><div className="scenario-expression-drawer__list">{scenario.expressions.map((expression) => <button type="button" key={expression.stableKey} onClick={() => chooseExpression(expression.text)}><strong lang="es">{expression.text}</strong><span>{expression.translation}</span></button>)}</div></section> : null}
+        <section className="scenario-composer" aria-labelledby="scenario-composer-title" data-input-mode={inputMode}>
+          <div className="scenario-composer__heading"><div><span className="scenario-composer__eyebrow">轮到你</span><h2 id="scenario-composer-title">用西班牙语回应</h2></div><span className="scenario-composer__status" aria-live="polite"><span className="scenario-composer__status-full">{composerStatus}</span><span className="scenario-composer__status-short">{composerStatusShort}</span></span></div>
+        {inputMode === "typing" ? <div className="scenario-composer__input"><div className="scenario-composer__field"><label className="sr-only" htmlFor="scenario-response">用西班牙语完成你的表达</label><textarea id="scenario-response" ref={textInputRef} lang="es" rows={1} value={text} disabled={busy} aria-describedby="scenario-composer-title" onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(text, "typing"); } }} placeholder="用西班牙语完成你的表达…" /><button className="scenario-composer__mode" type="button" aria-label="切换到语音输入" title="切换到语音输入" disabled={busy} onClick={() => setInputMode("speech")}><MicrophoneIcon /><span className="sr-only">切换到语音输入</span></button></div><button className="scenario-composer__send" type="button" aria-label="发送" title="发送" disabled={!text.trim() || busy} onClick={() => void submit(text, "typing")}><SendIcon /><span>发送</span></button></div> : <div className="scenario-composer__voice"><div className="scenario-composer__voice-copy"><span className="scenario-composer__eyebrow">语音输入</span><span>{recording ? "正在录音…松开后确认" : "按住说话，完整表达后松开"}</span></div><button className={`scenario-composer__record ${recording ? "is-recording" : ""}`} type="button" aria-label={recording ? "松开发送" : "按住说话"} aria-pressed={recording} disabled={busy} onContextMenu={(event) => event.preventDefault()} onPointerDown={(event) => { recordingGestureActive.current = true; event.currentTarget.setPointerCapture?.(event.pointerId); void startRecording(); }} onPointerUp={() => void stopRecording()} onPointerCancel={() => void cancelRecording()} onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !event.repeat) { event.preventDefault(); recordingGestureActive.current = true; void startRecording(); } }} onKeyUp={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void stopRecording(); } }} onBlur={() => { if (recording) void cancelRecording(); }}><MicrophoneIcon /><span>{recording ? "松开发送" : "按住说话"}</span></button><button className="scenario-composer__keyboard" type="button" disabled={busy} onClick={() => { setInputMode("typing"); window.requestAnimationFrame(() => textInputRef.current?.focus()); }}><KeyboardIcon /><span>切换到文字输入</span></button></div>}
+          <div className="scenario-composer__secondary"><button ref={expressionsToggleRef} type="button" aria-label="常用表达" aria-expanded={expressionsOpen} aria-controls="scenario-expression-drawer" onClick={() => setExpressionsOpen((value) => !value)}>常用表达 <span aria-hidden="true">{scenario.expressions.length}</span></button>{userTurnCount >= 2 ? <button className="scenario-complete" type="button" disabled={busy} onClick={() => void complete()}><CheckIcon /><span>完成练习</span></button> : null}</div>
+        </section>
+      </div>
     </main>
   );
 }

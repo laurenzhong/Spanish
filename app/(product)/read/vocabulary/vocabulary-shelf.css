@@ -38,9 +38,31 @@ html:has(.vocabulary-shelf__body) {
 
 .vocabulary-shelf__body {
   display: grid;
+  overflow-anchor: none;
+  /* The word panel is a real column, not an overlay: the shelf keeps its own
+     scroll position and the panel is sticky beside it, which is what makes
+     clicking a word feel like opening a dictionary drawer instead of jumping to
+     a card somewhere below 7,922 tiles. The rail is inside `__main`, so this
+     stays a two-column decision regardless of whether a panel is open. */
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 16px;
+  align-items: start;
+}
+
+/* Without a panel the second column is empty, so the shelf takes the width back
+   instead of leaving a 260px gutter. `:has()` is already used by this stylesheet. */
+.vocabulary-shelf__body:not(:has(.vocabulary-study__card)) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* The shelf plus its rank rail: the rail stays a narrow strip on the right of
+   this column, and the panel is the next column of the outer grid. */
+.vocabulary-shelf__main {
+  display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
   align-items: start;
+  min-width: 0;
 }
 
 .vocabulary-shelf__bands {
@@ -103,24 +125,57 @@ html:has(.vocabulary-shelf__body) {
    reading area look different depending on how you arrived. */
 
 /* --- search field ----------------------------------------------------------
-   No frame and no buttons: the field is the control, and the icon inside it is a
-   magnifier until a search is active, when the same slot becomes the clear
-   control. The label is visually hidden but real, so the input keeps its name. */
+   Give the navigation its own space. The same inset applies to the loaded
+   shelf, the empty state and the skeleton so the search never touches the tabs. */
+.lexicon-shelf:has(.vocabulary-search) {
+  padding-top: 24px;
+}
+
+.vocabulary-toolbar,
+.vocabulary-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.vocabulary-toolbar > .vocabulary-controls {
+  display: contents;
+}
+
+.vocabulary-controls .lexicon-result-count,
+.vocabulary-toolbar .vocabulary-study__summary {
+  font-size: .75rem;
+  white-space: nowrap;
+}
+
 .vocabulary-search {
   position: relative;
   display: block;
-  max-width: 420px;
+  max-width: 320px;
+  flex: 1 1 240px;
+  min-width: 0;
 }
 
 .vocabulary-search input {
   width: 100%;
   min-height: 44px;
-  padding: 0 14px 0 44px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  padding: 0 44px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   color: var(--foreground);
-  background: var(--surface);
+  background: var(--surface-soft);
   font-size: .88rem;
+}
+
+.vocabulary-search input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.vocabulary-search input:hover {
+  border-color: var(--border);
 }
 
 .vocabulary-search input:focus-visible {
@@ -133,7 +188,6 @@ html:has(.vocabulary-shelf__body) {
 .vocabulary-search__clear {
   position: absolute;
   top: 50%;
-  left: 0;
   display: inline-flex;
   width: 44px;
   height: 44px;
@@ -155,8 +209,14 @@ html:has(.vocabulary-shelf__body) {
   stroke-width: 1.7;
 }
 
+.vocabulary-search__icon {
+  left: 16px;
+  pointer-events: none;
+}
+
 .vocabulary-search__clear {
-  border-radius: 10px 0 0 10px;
+  right: 0;
+  border-radius: 50%;
 }
 
 .vocabulary-search__clear:hover,
@@ -172,9 +232,263 @@ html:has(.vocabulary-shelf__body) {
   gap: 2px 8px;
 }
 
+/* Practice replaces only marked words in their existing list rows. */
+.vocabulary-shelf__bands .vocabulary-study__word[hidden] {
+  display: none;
+}
+
+.vocabulary-recall {
+  margin: 12px 0 16px;
+  min-width: 0;
+}
+
+.vocabulary-recall__toolbar,
+.vocabulary-recall__modes,
+.vocabulary-recall__actions,
+.vocabulary-recall__item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.vocabulary-recall__toolbar {
+  gap: 8px 16px;
+}
+
+.vocabulary-recall button,
+.vocabulary-recall__item button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: .8rem;
+  cursor: pointer;
+}
+
+.vocabulary-recall button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.vocabulary-recall button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.vocabulary-recall button:focus-visible,
+.vocabulary-recall__item button:focus-visible,
+.vocabulary-recall__item input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.vocabulary-recall__help,
+.vocabulary-recall__summary {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.vocabulary-recall__item {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.vocabulary-recall__item input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--foreground);
+  /* Keep iPhone Safari from zooming the page when focusing an answer. */
+  font-size: 16px;
+}
+
+/* Adjacent faces of a mechanical wheel, rotating around a horizontal axle. */
+.vocabulary-recall__roller {
+  position: relative;
+  height: 44px;
+  perspective: 380px;
+  isolation: isolate;
+}
+
+.vocabulary-recall__roller-front,
+.vocabulary-recall__roller-back {
+  transform-origin: 50% 50% -22px;
+  backface-visibility: hidden;
+}
+
+.vocabulary-recall__roller-front {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--foreground);
+  pointer-events: none;
+  overflow: hidden;
+  animation: vocabulary-wheel-front-out 420ms cubic-bezier(.22,.68,.2,1) both;
+}
+
+.vocabulary-recall__roller-back {
+  position: relative;
+  animation: vocabulary-wheel-back-in 420ms cubic-bezier(.22,.68,.2,1) both;
+}
+
+.vocabulary-recall__roller.is-exiting .vocabulary-recall__roller-front {
+  animation: vocabulary-wheel-back-in 420ms cubic-bezier(.22,.68,.2,1) both;
+}
+
+.vocabulary-recall__roller.is-exiting .vocabulary-recall__roller-back {
+  animation: vocabulary-wheel-front-out 420ms cubic-bezier(.22,.68,.2,1) both;
+}
+
+@keyframes vocabulary-wheel-front-out {
+  from { transform: rotateX(0); opacity: 1; visibility: visible; }
+  to { transform: rotateX(90deg); opacity: 0; visibility: hidden; }
+}
+
+@keyframes vocabulary-wheel-back-in {
+  from { transform: rotateX(-90deg); opacity: 0; }
+  to { transform: rotateX(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vocabulary-recall__roller-front { display: none; }
+  .vocabulary-recall__roller-back { animation: none; transform: none; }
+}
+
+.vocabulary-recall__cue,
+.vocabulary-recall__feedback {
+  font-size: .78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.vocabulary-recall__feedback {
+  display: grid;
+  gap: 2px;
+  color: var(--muted);
+}
+
+.vocabulary-recall__item[data-result="correct"] input {
+  border-color: var(--success);
+  background: var(--success-soft);
+  box-shadow: inset 0 0 0 1px var(--success);
+}
+
+.vocabulary-recall__result {
+  display: inline-flex;
+  justify-self: center;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.vocabulary-recall__result-icon {
+  display: inline-flex;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.vocabulary-recall__item[data-result="correct"] .vocabulary-recall__result {
+  color: color-mix(in srgb, var(--success) 85%, var(--foreground));
+  background: var(--success-soft);
+}
+
+.vocabulary-recall__item .vocabulary-recall__result.is-celebrating {
+  padding: 6px 11px;
+  background: var(--success);
+  color: var(--surface);
+  font-size: .88rem;
+  animation: vocabulary-answer-celebrate 260ms cubic-bezier(.2,.8,.3,1) both;
+}
+
+.vocabulary-recall__sparkles {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+}
+
+@keyframes vocabulary-answer-celebrate {
+  0% { transform: scale(.9); }
+  65% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vocabulary-recall__item .vocabulary-recall__result.is-celebrating { animation: none; }
+}
+
+.vocabulary-recall__item[data-result="incorrect"] input {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+}
+
+.vocabulary-recall__item[data-result="incorrect"] .vocabulary-recall__result {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+.vocabulary-recall__item:is([data-result="accent"], [data-result="pending"]) input {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.vocabulary-recall__item:is([data-result="accent"], [data-result="pending"]) .vocabulary-recall__result {
+  color: color-mix(in srgb, var(--warning) 75%, var(--foreground));
+  background: var(--warning-soft);
+}
+
+.vocabulary-recall__reference {
+  color: var(--foreground);
+}
+
+.vocabulary-recall__reference mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--warning-soft);
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.vocabulary-recall__item-actions {
+  justify-content: center;
+}
+
 .vocabulary-shelf__bands .vocabulary-study__word {
   min-height: 44px;
   padding: 5px 7px;
+  text-align: center;
   border: 0;
   border-radius: 6px;
   background: none;
@@ -322,12 +636,658 @@ html:has(.vocabulary-shelf__body) {
   background: var(--accent-soft);
 }
 
+/* --- read aloud ------------------------------------------------------------
+   Reading lives on the word panel (the sidebar), not in the hover card: the
+   hover layer answers "what does this word mean", and clicking a word is what
+   opens the panel where the recording is played. The panel keeps its word,
+   meanings and marks in one place, so the reader never has to hold the pointer
+   still inside a tooltip to reach a second control. */
+
+/* The shelf's continuation: the loader sits where the bands end, so a reader who reaches
+   it gets the next words without a page change. */
+.vocabulary-shelf__more {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 22px 0 8px;
+}
+
+.vocabulary-shelf__more button {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: .84rem;
+  font-weight: 620;
+}
+
+.vocabulary-shelf__more button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.vocabulary-shelf__more button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.vocabulary-shelf__more-error,
+.vocabulary-shelf__end {
+  margin: 0;
+  color: var(--muted);
+  font-size: .76rem;
+}
+
+.vocabulary-shelf__end {
+  padding: 22px 0 8px;
+  text-align: center;
+}
+
+/* The sound's switch: the label is the whole hit area, so the box is easy to hit
+   as well as read. */
+.vocabulary-study__autoplay {
+  position: relative;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  margin-left: auto;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .75rem;
+  white-space: nowrap;
+}
+
+.vocabulary-study__autoplay input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.vocabulary-study__autoplay-track {
+  display: inline-flex;
+  align-items: center;
+  width: 30px;
+  height: 18px;
+  padding: 2px;
+  border: 1px solid var(--muted);
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.vocabulary-study__autoplay-track::after {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  content: "";
+}
+
+.vocabulary-study__autoplay input:checked + .vocabulary-study__autoplay-track {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.vocabulary-study__autoplay input:checked + .vocabulary-study__autoplay-track::after {
+  transform: translateX(12px);
+  background: var(--accent);
+}
+
+.vocabulary-study__autoplay input:focus-visible + .vocabulary-study__autoplay-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .vocabulary-toolbar,
+  .vocabulary-controls {
+    gap: 0 12px;
+  }
+
+  .vocabulary-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .vocabulary-search input {
+    font-size: 1rem;
+  }
+}
+
+/* --- translations, compact ------------------------------------------------   The panel's own meanings list, overriding the shared three-line-per-meaning
+   shape: one main meaning with its usage note, then every other meaning as a
+   term on a single wrapping line. At 350-440px wide the shared shape spent most
+   of the panel on the part a reader consults last. The usage notes of the
+   secondary meanings are not dropped from the data, only from this compact row. */
+.vocabulary-study__meanings {
+  gap: 6px;
+}
+
+.vocabulary-study__meaning-main {
+  gap: 2px;
+  padding: 7px 10px;
+}
+
+.vocabulary-study__meaning-rest {
+  padding: 7px 11px;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+
+/* The remaining meanings as one wrapping line of terms. Inline list items wrap
+   like a sentence, and the `·` is drawn *between* them by CSS, so no separator can
+   end up alone on a line — which is exactly what a flex row of terms produced in
+   the rendered panel. */
+.vocabulary-study__meaning-terms {
+  display: block;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vocabulary-study__meaning-terms li {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.vocabulary-study__meaning-terms li + li::before {
+  margin: 0 7px;
+  color: var(--border-strong);
+  content: "·";
+}
+
+/* The panel's height and stickiness are set by the sidebar rule further down, where
+   `position: sticky` already lives — one rule for one element's box. */
+
+/* Tatoeba's examples. The credit is part of the block, not a footnote somewhere else:
+   CC BY 2.0 FR requires naming the author and the licence, and the panel is the only
+   place this sentence appears. */
+.vocabulary-study__tatoeba {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vocabulary-study__tatoeba li {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  background: none;
+}
+
+.vocabulary-study__tatoeba-text {
+  margin: 0;
+  font-size: .88rem;
+  line-height: 1.45;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vocabulary-study__tatoeba-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.vocabulary-study__tatoeba-row > p { flex: 1; padding-top: 10px; }
+.vocabulary-study__tatoeba-actions { display: flex; flex-shrink: 0; }
+.vocabulary-study__tatoeba-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.vocabulary-study__tatoeba-actions button:hover { background: var(--surface-soft); }
+.vocabulary-study__tatoeba-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.vocabulary-study__tatoeba-actions button:disabled { opacity: .35; cursor: default; }
+.vocabulary-study__tatoeba-feedback { margin: 2px 0; color: var(--muted); font-size: .75rem; }
+
+.vocabulary-study__tatoeba-translation {
+  margin: 0;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.45;
+}
+
+.vocabulary-study__tatoeba-credit,
+.vocabulary-study__tatoeba-audio-credit,
+.vocabulary-study__tatoeba-source {
+  margin: 0;
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1.5;
+}
+
+.vocabulary-study__tatoeba-source {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.vocabulary-study__tatoeba-credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.vocabulary-study__tatoeba-audio-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
+.vocabulary-study__tatoeba-credit a:hover {
+  color: var(--accent);
+}
+
+/* --- the word panel's own look --------------------------------------------
+   The shared `.vocabulary-study__card` in `globals.css` is styled as a foot-of-page
+   card: a 3px accent stripe down its left edge (which reads as a quote), every
+   meaning in its own filled block, and pill buttons with hard borders. Beside the
+   shelf at 350-440px that arrives cluttered — an accent bar competing with the
+   word, three nested boxes for two meanings, and controls as heavy as the content.
+   These rules re-state it as a reference panel: one surface, hairline separation,
+   the word as the single focal point, and a small control row. Colours all come
+   from the route's existing tokens, so light and dark follow the rest of the app. */
+.vocabulary-study__card {
+  gap: 0;
+  color: var(--foreground);
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  /* The sheet has a definite height (88vh on a phone, 900px in the sidebar), and
+     a grid distributes free height across its auto rows by default — which put
+     100px of air inside a one-word row and separated the panel's parts by a
+     screenful. Content is packed from the top instead; the panel is a list of
+     sections, not a set of stretched cells. Every child also sits at its own
+     natural height rather than filling its row. */
+  align-content: start;
+}
+
+.vocabulary-study__card > * {
+  align-self: start;
+}
+
+/* Head: a quiet attribution line, the word, then the controls. The rule under it
+   does the separating that the stripe used to do, without adding a colour of its
+   own to compete with the word. */
+.vocabulary-study__card-head {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.vocabulary-study__card-head > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vocabulary-study__card .vocabulary-study__eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: none;
+}
+
+.vocabulary-study__card-head h3 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 640;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.vocabulary-study__card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* One primary action, one quiet exit: the read button is what the reader came for,
+   and closing is not a peer of it. Both keep a 44px target. */
+.vocabulary-study__card-actions button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 620;
+}
+
+.vocabulary-study__card-actions button:first-child {
+  border-color: var(--accent);
+  color: var(--surface);
+  background: var(--accent);
+}
+
+.vocabulary-study__card-actions button:first-child:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.vocabulary-study__card-actions button:last-child {
+  border-color: transparent;
+  color: var(--muted);
+  background: transparent;
+}
+
+.vocabulary-study__card-actions button:last-child:hover {
+  color: var(--foreground);
+  background: var(--surface-soft);
+}
+
+/* The sentence the original recording says, shown while it plays. It sits with the
+   sound label because it explains that label, not beside the word's own meanings. */
+.vocabulary-study__card-sentence {
+  margin: 4px 0 0;
+  color: var(--foreground);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+/* The lookup form: a compact field and one action, directly under the head. */
+.vocabulary-study__lookup {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.vocabulary-study__lookup input {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  background: var(--surface);
+  font-size: .82rem;
+}
+
+.vocabulary-study__lookup input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 1px;
+}
+
+.vocabulary-study__lookup button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 600;
+}
+
+.vocabulary-study__lookup button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: .7;
+}
+
+.vocabulary-study__lookup-notice {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: .74rem;
+}
+
+/* Meanings as text with air between them, not as filled boxes: at this width the
+   boxes were most of the panel and the reading order got lost between them. */
+.vocabulary-study__card .vocabulary-study__meanings {
+  gap: 0;
+  margin-top: 12px;
+}
+
+.vocabulary-study__card .vocabulary-study__meaning-main {
+  padding: 0;
+  background: none;
+}
+
+.vocabulary-study__card .vocabulary-study__meaning-main strong {
+  font-size: 1.02rem;
+  font-weight: 620;
+  line-height: 1.35;
+}
+
+.vocabulary-study__card .vocabulary-study__meaning-main span {
+  margin-top: 1px;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
+.vocabulary-study__card .vocabulary-study__meaning-rest {
+  margin-top: 6px;
+  padding: 0;
+  font-size: .82rem;
+  line-height: 1.5;
+}
+
+/* Sections: a heading that reads as a label, above content that starts right
+   below it. No card-in-card. */
+.vocabulary-study__card .vocabulary-study__block {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  gap: 6px;
+}
+
+.vocabulary-study__card .vocabulary-study__block h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+
+/* The marks: outlined chips that wrap cleanly, with the current one filled. */
+.vocabulary-study__card .vocabulary-study__marking {
+  gap: 6px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.vocabulary-study__card .vocabulary-study__marking button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--foreground);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: .78rem;
+  font-weight: 600;
+}
+
+.vocabulary-study__card .vocabulary-study__marking button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.vocabulary-study__card .vocabulary-study__marking button.is-active {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.vocabulary-study__card .vocabulary-study__marking .vocabulary-study__muted {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: .72rem;
+}
+
+/* Related examples share one section, while secondary reference material is
+   available through a native, keyboard-operable disclosure. */
+.vocabulary-study__card .vocabulary-study__example-section > .vocabulary-study__block {
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.vocabulary-study__details {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.vocabulary-study__details > summary {
+  min-height: 44px;
+  padding-block: 12px;
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vocabulary-study__details[open] > summary {
+  color: var(--foreground);
+}
+
+.vocabulary-study__details > .vocabulary-study__block:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.vocabulary-study__card .vocabulary-study__lookup {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.vocabulary-study__card-actions button,
+.vocabulary-study__card .vocabulary-study__marking button,
+.vocabulary-study__lookup input,
+.vocabulary-study__lookup button {
+  min-height: 44px;
+}
+
+/* The word panel is a sidebar, not a card below the grid: it sticks beside the
+   shelf while the reader scrolls, so clicking word after word keeps one panel in
+   the same place instead of hunting for a card that moved. Its own scroll keeps a
+   long entry (many meanings, examples and forms) from pushing the page height
+   around, and `align-self: start` is what lets it stick at all inside a grid.
+   The height is content-driven up to what the viewport allows: measuring showed a
+   fixed floor (tried at `min(64vh, 520px)`) left a one-meaning word sitting above a
+   large empty box, and the empty part was inside a bordered surface, so it read as
+   missing content rather than as room. A long entry is still capped and scrolls.
+   `100dvh` rather than `100vh` because a phone's collapsing address bar changes what
+   is actually visible. Below the breakpoint the sheet's own 88vh rule takes over. */
+.vocabulary-study__card {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* Below the two-column breakpoint the panel cannot be a sidebar any more, and
+   leaving it after the shelf in flow made it effectively invisible: tapping a
+   word on a phone scrolled nothing, so the meanings were thousands of pixels
+   below the tile that was tapped. It becomes a bottom sheet instead — the shape
+   Language Reactor uses on phones (`anchor="bottom"`, 88% height, rounded top
+   corners, safe-area padding) — so the tapped word's entry appears over the
+   shelf, where the finger already is. */
+@media (max-width: 900px) {
+  .vocabulary-study__card {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 40;
+    max-height: 88vh;
+    height: 88vh;
+    border-radius: 12px 12px 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 28px rgb(0 0 0 / 28%);
+  }
+
+  .vocabulary-study__lookup input {
+    font-size: 16px;
+  }
+
+  /* Tapping outside the sheet dismisses it, which is what a bottom sheet on a
+     phone is expected to do. It exists only at this width, because on a desktop
+     the panel is a column the reader keeps working beside. */
+  .vocabulary-study__card-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgb(12 18 15 / 45%);
+  }
+}
+
+/* The panel column width, close to Language Reactor's tiers (`>=1440 → 440`,
+   `>=1200 → 400`, else 350) but expressed as one fluid rule: the same numbers at
+   the same viewports without three breakpoints to keep in sync. */
+@media (min-width: 1200px) {
+  .vocabulary-shelf__body {
+    grid-template-columns: minmax(0, 1fr) clamp(350px, 28vw, 400px);
+  }
+
+  /* The no-panel rule above has equal specificity and sits earlier in the file, so
+     it has to be restated here: without this the shelf keeps a 350px gutter when
+     no word is open, which is exactly what that rule exists to prevent. */
+  .vocabulary-shelf__body:not(:has(.vocabulary-study__card)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1199px) {
+  .vocabulary-study__card--overlay {
+    position: fixed;
+    inset: 16px 16px 16px auto;
+    z-index: 40;
+    width: 360px;
+    max-height: calc(100dvh - 32px);
+    box-shadow: 0 12px 40px rgb(0 0 0 / 20%);
+  }
+
+  .vocabulary-study__card-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgb(12 18 15 / 35%);
+  }
+}
+
 /* The card is wider than a tile, so in the last columns it has to open leftwards
    instead of off the page: aligning it to the row's right edge does that. The
    frame measures the card once per hover and adds this class; nothing here
-   touches the scroll path. */
+   touches the scroll path. A flipped card is pinned to the width it is capped at
+   anyway, so the labels that appear while the reader is on the card cannot widen
+   it leftwards and drag its own buttons away from the pointer. */
 .vocabulary-shelf__translation-layer.is-flipped {
   justify-items: end;
+}
+
+.vocabulary-shelf__translation-layer.is-flipped .vocabulary-shelf__translation-card {
+  width: 264px;
 }
 
 /* The word is not repeated here: the reader is hovering it. */
@@ -346,6 +1306,7 @@ html:has(.vocabulary-shelf__body) {
 }
 
 .vocabulary-shelf__translation-meanings strong {
+  text-align: center;
   font-size: .84rem;
   font-weight: 720;
 }
@@ -415,21 +1376,29 @@ html:has(.vocabulary-shelf__body) {
 }
 
 @media (max-width: 900px) {
-  .vocabulary-shelf__body {
+  .vocabulary-shelf__body,
+  .vocabulary-shelf__body:not(:has(.vocabulary-study__card)),
+  .vocabulary-shelf__main {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .vocabulary-rank-rail {
+    grid-row: 1;
     position: static;
     display: flex;
     align-items: center;
     gap: 4px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    text-align: left;
   }
 
   .vocabulary-rank-rail a {
+    flex: 0 0 auto;
     min-width: 44px;
-    min-height: 34px;
+    min-height: 44px;
+    justify-content: center;
   }
 }
 

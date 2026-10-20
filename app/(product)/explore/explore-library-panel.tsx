@@ -43,10 +43,13 @@ const packFilterChoices = [
   { value: "saved", label: "已收藏", owned: true },
 ] as const;
 
-const privateNotice: Readonly<Record<ExplorePrivateState, string>> = {
-  loading: "私人内容加载中，当前显示公共场景与表达；我的收藏、阅读来源和近期难点会在加载完成后出现。",
+/**
+ * Only a failed owned-read is worth a notice. While those rows are still in
+ * flight the public catalogue stands on its own without an announcement, and
+ * the filters that cannot be answered yet show `privateFilterPending` instead.
+ */
+const privateNotice: Readonly<Partial<Record<ExplorePrivateState, string>>> = {
   unavailable: "私人内容暂不可用，当前显示公共内容。",
-  available: "",
 };
 
 /** The placeholder shown when the active filter needs rows that have not arrived. */

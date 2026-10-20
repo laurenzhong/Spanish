@@ -314,17 +314,43 @@ export const lexiconCandidateApprovals = pgTable("lexicon_candidate_approvals", 
  * lookup use — and `example_text`/`example_title` are the segment the live scan
  * would have picked (`min(array[text, title])`), so a materialised page renders
  * exactly what the live scan rendered.
+ *
+ * The four `example_document_*`/`example_segment_index` columns are that same
+ * segment's address. They exist because a materialised row is otherwise an
+ * orphan string: read-aloud has to find the word inside the published media
+ * segment it was counted in, and after materialisation there is no aggregate
+ * left to ask. They are written by the same `min(array[...])` pick, so the text
+ * and its address cannot drift apart.
  */
 export const lexiconFormFrequencies = pgTable("lexicon_form_frequencies", {
   word: text("word").primaryKey(),
   occurrenceCount: integer("occurrence_count").notNull(),
   exampleTitle: text("example_title").notNull(),
   exampleText: text("example_text").notNull(),
+  /**
+   * Where the example came from — the shelf's read-aloud needs this to locate
+   * the word's real audio, and the materialised row has no aggregate to fall
+   * back on. `media` rows must carry all three of the rest; an article example
+   * has no audio path at all, so its identity stays `null` rather than being
+   * half-filled.
+   */
+  exampleDocumentKind: text("example_document_kind", { enum: ["media", "article"] }),
+  exampleDocumentStableKey: text("example_document_stable_key"),
+  exampleDocumentVersion: integer("example_document_version"),
+  exampleSegmentIndex: integer("example_segment_index"),
 }, (table) => [
   // Single-character forms are dropped by the live scan before they are counted;
   // keeping them out of the table keeps the two paths equivalent.
   check("lexicon_form_frequencies_word_check", sql`length(${table.word}) >= 2`),
   check("lexicon_form_frequencies_count_check", sql`${table.occurrenceCount} > 0`),
+  // A media example without an addressable segment is the one combination that
+  // cannot be read aloud, so it must not be representable. Article examples are
+  // the deliberate all-null case.
+  check(
+    "lexicon_form_frequencies_example_identity_check",
+    sql`(${table.exampleDocumentKind} = 'article' and ${table.exampleDocumentStableKey} is null and ${table.exampleDocumentVersion} is null and ${table.exampleSegmentIndex} is null)
+      or (${table.exampleDocumentKind} = 'media' and ${table.exampleDocumentStableKey} is not null and ${table.exampleDocumentVersion} is not null and ${table.exampleSegmentIndex} is not null)`,
+  ),
 ]);
 
 /**
