@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import type { ExploreDashboardDto } from "@/src/modules/explore/domain";
-import type { ExploreLibraryDto, ExploreLibraryFilter } from "@/src/modules/explore/domain/explore-library";
+import type { ExploreLibraryDto, ExploreLibraryFilter, ExplorePrivateState } from "@/src/modules/explore/domain/explore-library";
 
 import { ExploreLibraryPanel } from "./explore-library-panel";
 import { ScenarioSuggestionPanel } from "./scenario-suggestion-panel";
@@ -13,6 +13,12 @@ const emptyLibrary: ExploreLibraryDto = { scenarios: [], expressions: [], privat
 type ExplorePageContentProps = Readonly<{
   dashboard: ExploreDashboardDto;
   library?: ExploreLibraryDto;
+  /**
+   * The signed-in user, used only to fetch the owned part of the library after
+   * paint. Without it (unit tests, or a caller that already owns the merge) this
+   * component makes no request.
+   */
+  userId?: string;
   initialView?: ExploreView;
   initialQuery?: string;
   initialPack?: string | null;
@@ -22,6 +28,65 @@ type ExplorePageContentProps = Readonly<{
 }>;
 
 export type ExploreView = "scenarios" | "expressions" | "packs";
+
+type ExplorePrivatePayload = Readonly<{ dashboard: ExploreDashboardDto; library: ExploreLibraryDto }>;
+
+/** The route spreads the dashboard fields beside `library`, so both live at `data`. */
+type ExplorePrivateResponse = Readonly<{
+  library?: ExploreLibraryDto;
+  goals?: ExploreDashboardDto["goals"];
+  packs?: ExploreDashboardDto["packs"];
+  resume?: ExploreDashboardDto["resume"];
+  userState?: ExploreDashboardDto["userState"];
+}>;
+
+/**
+ * The owned part of the explore page, read by the browser after paint.
+ *
+ * This is the payload `/api/v1/explore/dashboard` already served (the route
+ * spreads the dashboard fields beside `library`), so the DTO shape is
+ * unchanged; what changed is that the public tree no longer waits for it. The
+ * server sends the bundle-backed catalogue (`privateState: "loading"`), and
+ * this request supplies the personal scenarios, saved expressions, highlights
+ * and recent errors when they are ready. Against the remote pooler, the
+ * per-user reads it defers are the 250-600 ms round trip that used to sit in
+ * front of the first paint.
+ */
+async function fetchPrivateExploreData(): Promise<ExplorePrivatePayload> {
+  const response = await fetch("/api/v1/explore/dashboard", { credentials: "same-origin" });
+  if (!response.ok) throw new Error("explore-private-unavailable");
+  const payload = (await response.json()) as { data?: ExplorePrivateResponse };
+  const { library, goals, packs, resume, userState } = payload.data ?? {};
+  if (
+    !library
+    || !Array.isArray(library.scenarios)
+    || !Array.isArray(library.expressions)
+    || !Array.isArray(goals)
+    || !Array.isArray(packs)
+    || !Array.isArray(resume)
+  ) {
+    throw new Error("explore-private-invalid");
+  }
+  return {
+    dashboard: { goals, packs, resume, userState: userState === "available" ? "available" : "unavailable" },
+    library,
+  };
+}
+
+/**
+ * A failed owned-read is a different fact from a read that has not finished:
+ * the saved and available filters ("我的收藏", "可打开") and the notice copy are
+ * only true once we know the read is over.
+ */
+type PrivateLoader =
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "failed" }>
+  | Readonly<{ status: "loaded"; data: ExplorePrivatePayload }>;
+
+function privateStateOf(loader: PrivateLoader): ExplorePrivateState {
+  if (loader.status === "loaded") return "available";
+  return loader.status === "failed" ? "unavailable" : "loading";
+}
 
 const views: readonly Readonly<{ value: ExploreView; label: string }>[] = [
   { value: "scenarios", label: "场景" },
@@ -50,13 +115,34 @@ function filterForView(view: ExploreView, filter: ExploreLibraryFilter): Explore
   return filter === "saved" || filter === "available" ? filter : "all";
 }
 
-export function ExplorePageContent({ dashboard, library = emptyLibrary, initialView, initialQuery = "", initialPack = null, initialSaved = false, initialFilter = "all" }: ExplorePageContentProps) {
+export function ExplorePageContent({ dashboard, library = emptyLibrary, userId, initialView, initialQuery = "", initialPack = null, initialSaved = false, initialFilter = "all" }: ExplorePageContentProps) {
   const resolvedInitialView = viewForLegacyState(initialView, initialPack, initialSaved, initialFilter);
   const resolvedInitialFilter = filterForView(resolvedInitialView, resolvedInitialView === "expressions" && initialSaved ? "saved" : initialFilter);
   const [view, setView] = useState<ExploreView>(resolvedInitialView);
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<ExploreLibraryFilter>(resolvedInitialFilter);
   const [selectedPack, setSelectedPack] = useState<string | null>(resolvedInitialView === "packs" ? initialPack : null);
+  const [privateLoader, setPrivateLoader] = useState<PrivateLoader>({ status: "loading" });
+
+  useEffect(() => {
+    // Without a viewer there is nothing owned to read. With one, the request
+    // starts after the public tree has painted; a late response from an
+    // unmounted or replaced page is dropped.
+    if (!userId) return;
+    let cancelled = false;
+    void fetchPrivateExploreData()
+      .then((data) => { if (!cancelled) setPrivateLoader({ status: "loaded", data }); })
+      .catch(() => { if (!cancelled) setPrivateLoader({ status: "failed" }); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const privateState = privateStateOf(privateLoader);
+  // The owned payload replaces the shell's bundle-only copy wholesale; a failed
+  // read keeps the public catalogue exactly as the server sent it.
+  const activeLibrary: ExploreLibraryDto = privateLoader.status === "loaded"
+    ? privateLoader.data.library
+    : { ...library, privateState };
+  const activeDashboard = privateLoader.status === "loaded" ? privateLoader.data.dashboard : dashboard;
 
   function updateUrl(next: Readonly<{ query?: string; view?: ExploreView; filter?: ExploreLibraryFilter; pack?: string | null }> = {}) {
     const nextQuery = next.query ?? query;
@@ -136,8 +222,8 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, initialV
       </div>
 
       <ExploreLibraryPanel
-        dashboard={dashboard}
-        library={library}
+        dashboard={activeDashboard}
+        library={activeLibrary}
         view={view}
         query={query}
         filter={filter}

@@ -1,0 +1,298 @@
+{
+  "format": "editorial-selection-pack",
+  "formatVersion": 1,
+  "taskId": "CONTENT-SELECT-002",
+  "status": "review-with-fragment-leads-and-gaps",
+  "dbSnapshot": {
+    "as_of": "2026-10-16T05:11:57.438Z",
+    "read_only": "on"
+  },
+  "detailSnapshot": {
+    "as_of": "2026-10-16T05:20:18.213Z",
+    "read_only": "on"
+  },
+  "directoryWindow": {
+    "from": "2026-10-16T05:13:14.666Z",
+    "to": "2026-10-16T05:14:07.983Z",
+    "requests": 14,
+    "uniqueVideo": 400,
+    "uniquePodcast": 200,
+    "scope": "Current registered mixed-directory pages only; not the entire channels, historical catalogue or all Spanish media."
+  },
+  "inputs": {
+    "directory": {
+      "file": "select002-directory.json",
+      "sha256": "bf63a707282ee05f67daff6a5b55dfc8e4127610f7ede746636f5d9f49f64696"
+    },
+    "db": {
+      "file": "select002-db.json",
+      "sha256": "b1864cc8a6fc2fe9f640f42d75bae62230ffc377c9432693f4ab70c243d8ee02"
+    },
+    "details": {
+      "file": "select002-details.json",
+      "sha256": "6993ecb4c11274cbf895d23abc2106187df51cde8a9568595f50bd195b9c1338"
+    },
+    "captionEvidence": {
+      "file": "select002-captions-evidence.json",
+      "sha256": "7e520075cb45cfd462278ba91ed8f152a3baec1f659beb70e2e29478a7d4b274"
+    },
+    "independentAISelectionReview": {
+      "file": "select002-independent-review.json",
+      "sha256": "baf7ec98e39e449897283d69bf9bfb9b07a17e184087fedd079ba166953f5829"
+    }
+  },
+  "screening": {
+    "shortRows": 202,
+    "eligibleRows": 146,
+    "eligibleProgrammeCounts": {
+      "HolaSoyGerman.": 54,
+      "enchufetv": 33,
+      "elrubiusOMG": 15,
+      "JuegaGerman": 6,
+      "31 minutos": 1,
+      "TikTak Draw": 1,
+      "CNN 5 Cosas": 23,
+      "A hombros de gigantes": 3,
+      "Español a la mexicana": 3,
+      "Chill Spanish Listening Practice": 3,
+      "Charlas Hispanas: Aprende Español | Learn Spanish": 1,
+      "News in Slow Spanish Latino (Intermediate)": 1,
+      "Language Transfer": 2
+    },
+    "excludePriorUnsuitableCoreIds": [
+      "WYkgAPfoCZ8",
+      "boVmqMPXomQ"
+    ],
+    "notAllRowsSubtitleReviewed": true,
+    "newScreeningRows": 145,
+    "newScreeningCounts": {
+      "video": 109,
+      "podcast": 36
+    }
+  },
+  "summary": {
+    "fragmentLeads": 2,
+    "captionFilesRead": 2,
+    "captionsRead": 284,
+    "fullVideosConfirmedForCore": 0,
+    "newPublishedItems": 0,
+    "pendingSuitabilitySlots": 2,
+    "unfilledSlots": 10,
+    "readyForPublication": 0
+  },
+  "leads": [
+    {
+      "source": "language-reactor.youtube-mix-es",
+      "externalId": "Lr08OBSIMv0",
+      "title": "Hacer Amigos | Hola Soy German",
+      "programme": "HolaSoyGerman.",
+      "canonicalUrl": "https://www.youtube.com/watch?v=Lr08OBSIMv0",
+      "durationMs": 303000,
+      "candidate": {
+        "id": "34118e21-f9dc-4c55-9add-2907bb593576",
+        "revision": 5,
+        "contentHash": "21f413b284439cc0261d9ebaacdfa3892edbb0d0bbbff32721cde6df2ec92f38",
+        "status": "review_ready",
+        "publicationStatus": "draft",
+        "rightsStatus": "verified",
+        "storedCefr": "A2",
+        "storedRegion": "es-ES",
+        "labelsRevalidated": false,
+        "segments": 0,
+        "hasHostingMetadata": false,
+        "currentFormalReviews": []
+      },
+      "caption": {
+        "file": "select002-Lr08OBSIMv0-captions.json",
+        "sha256": "787dab63ffa7e96380b93cd84df33da90963b13b3754be38c193376303a1181d",
+        "rawFile": "select002-Lr08OBSIMv0-captions.raw.json",
+        "rawSha256": "bc4c947a467d33e57ffe849641b54602dc79ee1d1a2fe9203f025e786b4a6120",
+        "sourceKind": "platform_manual",
+        "language": "es",
+        "cueCount": 119,
+        "containsEditorialAnnotations": true,
+        "notAudioGroundTruth": true
+      },
+      "decision": "retain-fragment-lead-not-core-slot",
+      "reason": "主线为交友难处的单人讲述和夸张段子；有共同兴趣、邀请与介绍片段，但未形成完整时间/地点协商。",
+      "clips": [
+        {
+          "cueIndices": [
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36
+          ],
+          "purpose": "共同兴趣、加入活动的邀请与接受",
+          "limitation": "假想情景，后接反转；不能当真实社交记录。",
+          "startMs": 52660,
+          "endMs": 60300,
+          "source": "platform_manual_text_only",
+          "audioVerified": false,
+          "countsTowardTargetSlot": false
+        },
+        {
+          "cueIndices": [
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61
+          ],
+          "purpose": "再次见面、回应与忘记姓名后的修复线索",
+          "limitation": "猜名字和表情/音效梗，须听辨并确认说话轮次。",
+          "startMs": 89500,
+          "endMs": 100700,
+          "source": "platform_manual_text_only",
+          "audioVerified": false,
+          "countsTowardTargetSlot": false
+        },
+        {
+          "cueIndices": [
+            105,
+            106
+          ],
+          "purpose": "把朋友介绍给一群人、问聚会体验与回应",
+          "limitation": "假想理想情景；字幕大小写/重音/说话边界未校对。",
+          "startMs": 212500,
+          "endMs": 222140,
+          "source": "platform_manual_text_only",
+          "audioVerified": false,
+          "countsTowardTargetSlot": false
+        }
+      ],
+      "rights": {
+        "sourceRegistration": "enabled/verified",
+        "individualThirdPartyGrantReobtained": false,
+        "knownEvidenceUrlMismatch": "video source licenseEvidence points to podcast directory; does not by itself establish permission for this video",
+        "requiredBeforePublication": "Verify actual per-item scope, attribution, permitted caption/media processing and takedown duties."
+      },
+      "formalApproval": false,
+      "releaseEligible": false
+    },
+    {
+      "source": "language-reactor.youtube-mix-es",
+      "externalId": "zWtUmw6Ib0Y",
+      "title": "Tipos De Amigos | Hola Soy German",
+      "programme": "HolaSoyGerman.",
+      "canonicalUrl": "https://www.youtube.com/watch?v=zWtUmw6Ib0Y",
+      "durationMs": 308000,
+      "candidate": {
+        "id": "e2ed8191-91bd-499e-ad9b-6473f95e34ab",
+        "revision": 5,
+        "contentHash": "eb12d52efc07bea682738698c5ede1202a8f502b42045b7a3c84be1288b6a0c8",
+        "status": "review_ready",
+        "publicationStatus": "draft",
+        "rightsStatus": "verified",
+        "storedCefr": "A2",
+        "storedRegion": "es-ES",
+        "labelsRevalidated": false,
+        "segments": 0,
+        "hasHostingMetadata": false,
+        "currentFormalReviews": []
+      },
+      "caption": {
+        "file": "select002-zWtUmw6Ib0Y-captions.json",
+        "sha256": "7dde5072fdc9604361273d232fd839dd7ce8bf5a89dc5baad5328105b8d4c167",
+        "rawFile": "select002-zWtUmw6Ib0Y-captions.raw.json",
+        "rawSha256": "ed7e9a11fefb529f92625f0ba50a90fd05102706c31150e3ea2b48ff1460a784",
+        "sourceKind": "platform_manual",
+        "language": "es",
+        "cueCount": 165,
+        "containsEditorialAnnotations": true,
+        "notAudioGroundTruth": true
+      },
+      "decision": "retain-fragment-lead-not-core-slot",
+      "reason": "主线为朋友类型的喜剧合集；邀请和澄清较集中，但反复插入伴侣与夸张冲突，未确认完整可模仿的日常协商。",
+      "clips": [
+        {
+          "cueIndices": [
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33
+          ],
+          "purpose": "发起出门邀请、拒绝与劝说",
+          "limitation": "反复施压和酒精承诺不是尊重拒绝的标准范本；不直接推荐模仿。",
+          "startMs": 45660,
+          "endMs": 54200,
+          "source": "platform_manual_text_only",
+          "audioVerified": false,
+          "countsTowardTargetSlot": false
+        },
+        {
+          "cueIndices": [
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102
+          ],
+          "purpose": "音乐会/活动邀请、确认人数与澄清对象",
+          "limitation": "重复带上伴侣构成笑点，末尾有攻击/音效；没有确定具体时间地点的完整共识。",
+          "startMs": 147900,
+          "endMs": 174620,
+          "source": "platform_manual_text_only",
+          "audioVerified": false,
+          "countsTowardTargetSlot": false
+        }
+      ],
+      "rights": {
+        "sourceRegistration": "enabled/verified",
+        "individualThirdPartyGrantReobtained": false,
+        "knownEvidenceUrlMismatch": "video source licenseEvidence points to podcast directory; does not by itself establish permission for this video",
+        "requiredBeforePublication": "Verify actual per-item scope, attribution, permitted caption/media processing and takedown duties."
+      },
+      "formalApproval": false,
+      "releaseEligible": false
+    }
+  ],
+  "limitations": [
+    "Platform manual tracks contain subtitle-author additions, emoticons and sound-effect text; they are not author approval or verified speech.",
+    "No audio/visual/speaker/timing review or formal CEFR/region reassessment.",
+    "No podcast in the screened short window was confirmed as a suitable practical negotiation dialogue. Metadata screening alone does not prove none exists.",
+    "Fragment leads do not fill the original 3–8 minute full-video or 4–10 minute podcast slots."
+  ],
+  "recoveryNote": "First caption runner stopped when third historical lead was missing from the updated directory. Resume reused both successful caption files and recorded a skip; no request sent to that missing item.",
+  "nextSuggestedTask": {
+    "name": "New practical-dialogue source proposal",
+    "requiredBeforeEnabling": [
+      "Concrete official channel/feed and limited initial items",
+      "Public sample dialogue/transcript and actual time/place agreement",
+      "Per-item permission or applicable licence, attribution and caption processing terms",
+      "Owner confirmation of source whitelist scope; then existing draft/review/publish gates"
+    ],
+    "alreadyEnabled": false
+  },
+  "operations": {
+    "databaseWritten": false,
+    "sourceAdded": false,
+    "formalReviewWritten": false,
+    "mediaDownloaded": false,
+    "paidProviderCalled": false,
+    "published": false
+  }
+}

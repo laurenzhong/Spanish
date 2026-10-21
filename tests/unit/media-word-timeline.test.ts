@@ -46,4 +46,16 @@ describe("media playback word timeline", () => {
     ] as const;
     expect(wordTimingsForPlayback({ ...base, words })).toEqual(words);
   });
+
+  it("treats a decimal comma as one spoken token", () => {
+    const sourceText = "Un total de 1,6 kilómetros.";
+    const words = [
+      { startMs: 0, endMs: 100, startOffset: 0, endOffset: 2, text: "Un" },
+      { startMs: 100, endMs: 200, startOffset: 3, endOffset: 8, text: "total" },
+      { startMs: 200, endMs: 300, startOffset: 9, endOffset: 11, text: "de" },
+      { startMs: 300, endMs: 500, startOffset: 12, endOffset: 15, text: "1,6" },
+      { startMs: 500, endMs: 1_000, startOffset: 16, endOffset: 26, text: "kilómetros" },
+    ] as const;
+    expect(wordTimingsForPlayback({ sourceText, startMs: 0, endMs: 1_000, words })).toEqual(words);
+  });
 });

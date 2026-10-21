@@ -7,7 +7,6 @@ import {
 } from "@/src/modules/reading";
 import { createDrizzleReadingRepository } from "@/src/modules/reading/repositories";
 import { SavedItemsLibrary } from "@/src/modules/reading/ui/saved-items-library";
-import { ReadSectionNavigation } from "@/src/modules/lexicon-corpus";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
@@ -73,5 +72,5 @@ export default async function SavedItemsPage({ searchParams }: SavedItemsPagePro
       : `${item.id}:${item.createdAt.getTime()}`).join(","),
     unavailable,
   ].join(":");
-  return <div className="page-stack read-page"><ReadSectionNavigation active="saved-items" /><SavedItemsLibrary key={resultKey} items={result.items.map(projectSavedShelfItem)} total={result.total} page={result.page} pageSize={result.pageSize} search={query.search ?? ""} itemType={query.itemType} unavailable={unavailable} /></div>;
+  return <SavedItemsLibrary key={resultKey} items={result.items.map(projectSavedShelfItem)} total={result.total} page={result.page} pageSize={result.pageSize} search={query.search ?? ""} itemType={query.itemType} unavailable={unavailable} />;
 }

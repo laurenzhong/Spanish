@@ -104,9 +104,9 @@ export function BottomNavigation() {
                   >
                     <span className="navigation-icon">
                       <NavigationIcon name={item.icon} />
+                      {item.icon === "chat" ? <ConversationUnreadBadge /> : null}
                     </span>
                     <span className="navigation-link__label">{item.label}</span>
-                    {item.icon === "chat" ? <ConversationUnreadBadge /> : null}
                   </NavigationLink>
                 );
               })}

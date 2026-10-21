@@ -12,7 +12,8 @@ import {
   type ContentPackProgress,
   type ContentPackProjection,
 } from "../domain";
-import { createBrowserTextToSpeech } from "@/src/modules/providers/tts";
+import { createReadAloud } from "@/src/modules/providers/tts";
+import { speechCapabilityErrorCode } from "@/src/modules/providers/speech";
 
 const progressKeyPrefix = "content-pack-progress:v1:";
 
@@ -48,12 +49,14 @@ function localized(value: Readonly<Record<string, string>>, locale: string): str
 export function ContentPackExperience({ pack }: ContentPackExperienceProps) {
   const [progress, setProgress] = useState<ContentPackProgress>(() => createContentPackProgress(pack));
   const [expandedSegments, setExpandedSegments] = useState<ReadonlySet<number>>(new Set());
-  const tts = useMemo(() => createBrowserTextToSpeech(), []);
+  const tts = useMemo(() => createReadAloud(), []);
   const [speakingActivityId, setSpeakingActivityId] = useState<string | null>(null);
+  const [speechStarted, setSpeechStarted] = useState(false);
   const [speechFallback, setSpeechFallback] = useState(false);
   const didHydrate = useRef(false);
+  const speechGenerationRef = useRef(0);
 
-  useEffect(() => () => tts.stop(), [tts]);
+  useEffect(() => () => { speechGenerationRef.current += 1; tts.stop(); }, [tts]);
 
   useEffect(() => {
     try {
@@ -106,21 +109,25 @@ export function ContentPackExperience({ pack }: ContentPackExperienceProps) {
 
   const speak = useCallback(
     async (activity: ContentPackActivity, text: string) => {
+      const generation = ++speechGenerationRef.current;
+      setSpeechStarted(false);
       if (!tts?.isSupported) {
         setSpeechFallback(true);
-        complete(activity.id);
         return;
       }
       setSpeakingActivityId(activity.id);
       setSpeechFallback(false);
       try {
-        await tts.speak(text, { languageTag: "es-ES", rate: 0.88 });
-        complete(activity.id);
-      } catch {
-        setSpeechFallback(true);
-        complete(activity.id);
+        await tts.speak(text, { languageTag: "es-ES", rate: 1, onStart: () => {
+          if (speechGenerationRef.current === generation) setSpeechStarted(true);
+        } });
+        if (speechGenerationRef.current === generation) complete(activity.id);
+      } catch (error) {
+        if (speechGenerationRef.current === generation && speechCapabilityErrorCode(error, "tts-failed") !== "tts-cancelled") {
+          setSpeechFallback(true);
+        }
       } finally {
-        setSpeakingActivityId(null);
+        if (speechGenerationRef.current === generation) { setSpeakingActivityId(null); setSpeechStarted(false); }
       }
     },
     [complete, tts],
@@ -170,7 +177,7 @@ export function ContentPackExperience({ pack }: ContentPackExperienceProps) {
 
       {speechFallback ? (
         <aside className="content-pack-notice" role="status">
-          <strong>浏览器暂时无法朗读。</strong>
+          <strong>暂时无法朗读。</strong>
           <span>你仍然可以展开西语文本，完成阅读和口语复核。</span>
         </aside>
       ) : null}
@@ -190,7 +197,7 @@ export function ContentPackExperience({ pack }: ContentPackExperienceProps) {
                 </div>
                 <p>{instruction}</p>
                 <button className="primary-link content-pack-speak" type="button" onClick={() => void speak(activity, fullText)} disabled={speakingActivityId === activity.id}>
-                  {speakingActivityId === activity.id ? "正在朗读" : "播放全文"}
+                  {speakingActivityId === activity.id ? (speechStarted ? "正在朗读" : "正在准备朗读") : "播放全文"}
                 </button>
               </article>
             );

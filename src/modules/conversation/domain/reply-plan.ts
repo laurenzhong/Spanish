@@ -1,3 +1,5 @@
+import { requestsActivityAdvice, requestsQuestionRepeat } from "./reply-continuity";
+
 export const replyIntents = [
   "greeting",
   "answer-and-follow-up",
@@ -36,6 +38,12 @@ export function questionPolicyForReply(input: Readonly<{ userMessage: string }>)
   }
   if (/\b(?:me gustas|me encantas|creo que me gustas|me he enamorado|me estoy enamorando)\b/iu.test(text)) {
     return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
+  }
+  // An explicit request to repeat a question, or help choosing an activity,
+  // permits one relevant clarification even though the user used a question
+  // mark. Ordinary factual questions still retain the reciprocal-only budget.
+  if (requestsQuestionRepeat(input.userMessage) || requestsActivityAdvice(input.userMessage)) {
+    return { maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" };
   }
   if (text.includes("?") || /^(?:hola|hey|buenas)\b/iu.test(text)) {
     return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: true, maxQuestionPressure: "low" };

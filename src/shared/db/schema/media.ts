@@ -71,7 +71,7 @@ export const mediaVersions = pgTable("media_versions", {
   check("media_versions_version_positive_check", sql`${table.version} > 0`),
   check("media_versions_duration_positive_check", sql`${table.durationMs} > 0`),
   check("media_versions_hash_check", sql`${table.contentHash} ~ '^[a-f0-9]{64}$'`),
-  check("media_versions_cefr_check", sql`${table.cefr} is null or ${table.cefr} in ('A2', 'B1')`),
+  check("media_versions_cefr_check", sql`${table.cefr} is null or ${table.cefr} in ('A1', 'A2', 'B1', 'B2')`),
   check("media_versions_copyright_check", sql`${table.copyrightStatus} in ('unverified', 'cleared', 'restricted')`),
   check("media_versions_source_feed_url_check", sql`${table.sourceFeedUrl} is null or ${table.sourceFeedUrl} ~ '^https://'`),
   check("media_versions_enclosure_url_hash_check", sql`${table.enclosureUrlHash} is null or ${table.enclosureUrlHash} ~ '^[a-f0-9]{64}$'`),

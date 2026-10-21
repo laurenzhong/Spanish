@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-series-suggestion.schema.json",
+  "title": "Unconfirmed owner-workflow media series suggestion",
+  "description": "Internal candidate metadata only; this never confirms catalogue membership or content publication. Semantic URL and audit-text checks remain in the media application schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["suggestionKey", "sourceStableKey", "mediaStableKey", "kind", "basis", "externalSeriesId", "title", "sourceUrl", "seasonNumber", "episodeNumber", "status", "warnings"],
+  "properties": {
+    "suggestionKey": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceStableKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$" },
+    "mediaStableKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$" },
+    "kind": { "enum": ["video", "podcast"] },
+    "basis": { "enum": ["podcast_feed", "structured_programme", "playlist"] },
+    "externalSeriesId": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "sourceUrl": { "type": "string", "minLength": 1, "maxLength": 2000, "format": "uri", "pattern": "^https://", "description": "Public HTTPS evidence URL. Runtime rejects private hosts, credentials and signed or secret query/hash parameters; this structural schema is not the URL security boundary." },
+    "seasonNumber": { "type": ["integer", "null"], "minimum": 0, "maximum": 2147483647 },
+    "episodeNumber": { "type": ["integer", "null"], "minimum": 0, "maximum": 2147483647 },
+    "status": { "const": "unconfirmed" },
+    "warnings": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "enum": ["feed_may_be_mixed", "playlist_may_be_curated", "metadata_conflict"] } }
+  },
+  "allOf": [
+    { "if": { "properties": { "basis": { "const": "podcast_feed" } }, "required": ["basis"] }, "then": { "properties": { "kind": { "const": "podcast" } } } }
+  ]
+}

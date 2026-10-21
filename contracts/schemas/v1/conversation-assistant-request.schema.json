@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/conversation-assistant-request.schema.json",
+  "title": "Private conversation AI assistant request v1",
+  "description": "A learning question or draft checked by the in-chat assistant. The client sends only what the learner chose to ask or check; conversation context is read server-side.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["intent", "characterVersion", "attemptId"],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": ["reply", "grammar", "structure", "question"]
+    },
+    "characterVersion": { "type": "integer", "minimum": 1 },
+    "attemptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "question": {
+      "type": "string",
+      "maxLength": 800
+    },
+    "targetText": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["intent"],
+        "properties": { "intent": { "const": "question" } }
+      },
+      "then": {
+        "required": ["question"],
+        "properties": {
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 800,
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["intent"],
+        "properties": { "intent": { "const": "grammar" } }
+      },
+      "then": {
+        "required": ["targetText"],
+        "properties": {
+          "targetText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "\\S"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import {
   createDrizzleProactiveMessageRepository,
   CharacterRuntimeError,
   resolveConversationCharacter,
+  findConversationCharacter,
 } from "@/src/modules/conversation";
 import { createDrizzleCharacterRepository } from "@/src/modules/characters";
 import { createDrizzleMemoryRepository } from "@/src/modules/memory";
@@ -81,10 +82,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const database = getDatabase();
+    let runtimeCharacter: Awaited<ReturnType<typeof resolveConversationCharacter>>;
     try {
-      await resolveConversationCharacter({
+      runtimeCharacter = await resolveConversationCharacter({
         characterKey: "lucia",
-        characterVersion: 1,
+        characterVersion: findConversationCharacter("lucia")?.version ?? 1,
         requiredCapability: "proactiveMessages",
         repository: createDrizzleCharacterRepository(database),
       });
@@ -112,6 +114,7 @@ export async function POST(request: NextRequest) {
         dailyState: dailyState as (typeof proactiveDailyStates)[number],
         repository: createDrizzleProactiveMessageRepository(database),
         provider,
+        character: runtimeCharacter.catalog.snapshot,
         memories,
       });
       return NextResponse.json({ apiVersion: API_VERSION, data: preview }, { status: preview.status === "preview" ? 200 : 422, headers: { "cache-control": "no-store" } });
@@ -124,6 +127,7 @@ export async function POST(request: NextRequest) {
       now: testNow,
       repository: createDrizzleProactiveMessageRepository(database),
       provider,
+      character: runtimeCharacter.catalog.snapshot,
       memories,
     });
     return NextResponse.json({ apiVersion: API_VERSION,

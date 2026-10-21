@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mediaProcessingAuthorizationSchema } from "@/src/modules/media-processing/schemas/processing-authorization";
 
 import type { ContentSourceRecord } from "../../repositories";
 import { ContentSourceAdapterError } from "../content-source-adapter";
@@ -8,6 +9,7 @@ const topicSchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 const hostSchema = z.string().trim().min(1).max(253);
 
 export const podcastRightsPolicySchema = z.strictObject({
+  mediaProcessing: mediaProcessingAuthorizationSchema.optional(),
   contentMode: z.literal("enclosure_playback"),
   license: z.enum(["original", "public_domain", "creative_commons", "licensed"]),
   attribution: z.string().trim().min(1).max(1_000),
@@ -19,7 +21,7 @@ export const podcastRightsPolicySchema = z.strictObject({
   allowedAudioMimeTypes: z.array(z.enum(["audio/mpeg", "audio/mp4", "audio/aac", "audio/ogg", "audio/webm", "application/ogg"]))
     .min(1).max(6).default(["audio/mpeg", "audio/mp4", "audio/aac", "audio/ogg", "audio/webm", "application/ogg"]),
   transcriptSourceKind: z.enum(["platform_manual", "platform_auto"]).default("platform_auto"),
-  cefr: z.enum(["A2", "B1"]),
+  cefr: z.enum(["A1", "A2", "B1", "B2"]),
   topics: z.array(topicSchema).min(1).max(20),
   minDurationMs: z.number().int().min(1_000).max(3_600_000).default(15_000),
   maxDurationMs: z.number().int().min(15_000).max(43_200_000).default(3_600_000),

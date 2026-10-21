@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -22,6 +22,7 @@ const allowedHosts = new Set([
   "rtve-mediavod-lote3.rtve.es", "ztnr.rtve.es",
 ]);
 const tokenPattern = /[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}]+)?(?:[/:.-][\p{N}]+)*/gu;
+const maxDownloadBytes = 512 * 1024 * 1024;
 
 function isAllowedHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
@@ -40,17 +41,169 @@ function tokenOffsets(text: string) {
   return Array.from(text.matchAll(tokenPattern)).map((match) => ({ text: match[0], startOffset: match.index ?? 0, endOffset: (match.index ?? 0) + match[0].length }));
 }
 
+async function downloadBunnyWithPowerShell(url: URL, output: string): Promise<void> {
+  const child = spawn("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command",
+    "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -UseBasicParsing -Uri $env:SUENO_MEDIA_URL -OutFile $env:SUENO_MEDIA_OUTPUT",
+  ], {
+    windowsHide: true,
+    stdio: "ignore",
+    env: { ...process.env, SUENO_MEDIA_URL: url.toString(), SUENO_MEDIA_OUTPUT: output },
+  });
+  await new Promise<void>((resolve, reject) => {
+    child.once("error", () => reject(new Error("WORD_TIMING_POWERSHELL_UNAVAILABLE")));
+    child.once("close", (code) => code === 0 ? resolve() : reject(new Error("WORD_TIMING_POWERSHELL_DOWNLOAD_FAILED")));
+  });
+  const downloaded = await stat(output);
+  if (!downloaded.size || downloaded.size > maxDownloadBytes) throw new Error("WORD_TIMING_SOURCE_SIZE_INVALID");
+}
+
+/**
+ * The public Bunny pull zone can reject data-centre requests with 403 even
+ * when the object is present. The storage API is the authorized origin for
+ * our own uploaded assets; use it only for the bounded server-side backfill
+ * job and never expose its AccessKey to the browser or logs.
+ */
+async function downloadBunnyFromStorageApi(url: URL, output: string, maxBytes = maxDownloadBytes): Promise<void> {
+  const zone = process.env.BUNNY_STORAGE_ZONE_NAME?.trim();
+  const password = process.env.BUNNY_STORAGE_PASSWORD?.trim();
+  const region = process.env.BUNNY_STORAGE_REGION?.trim() || "storage";
+  if (!zone || !password) throw new Error("WORD_TIMING_BUNNY_STORAGE_NOT_CONFIGURED");
+  const host = region === "storage" || region === "de" ? "storage.bunnycdn.com" : `${region}.storage.bunnycdn.com`;
+  if (!/^[a-z0-9-]+$/u.test(zone) || !/^[a-z0-9-]+\.storage\.bunnycdn\.com$/u.test(host)) throw new Error("WORD_TIMING_BUNNY_STORAGE_CONFIG_INVALID");
+  const target = `https://${host}/${encodeURIComponent(zone)}${url.pathname}`;
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("curl.exe", [
+      "-4", "--fail", "--location", "--proto", "=https", "--proto-redir", "=https",
+      "--retry", "4", "--retry-delay", "2", "--retry-all-errors", "--connect-timeout", "30",
+      "--max-time", "7200", "--max-filesize", String(maxBytes), "-H", `AccessKey: ${password}`,
+      "--output", output, target,
+    ], { windowsHide: true, stdio: "ignore" });
+    child.once("error", () => reject(new Error("WORD_TIMING_BUNNY_STORAGE_CURL_UNAVAILABLE")));
+    child.once("close", (code) => code === 0 ? resolve() : reject(new Error("WORD_TIMING_BUNNY_STORAGE_DOWNLOAD_FAILED")));
+  });
+  const downloaded = await stat(output);
+  if (!downloaded.size || downloaded.size > maxBytes) throw new Error("WORD_TIMING_SOURCE_SIZE_INVALID");
+}
+
+async function extractBunnyVideoAudio(source: string, output: string): Promise<void> {
+  const run = (args: readonly string[], stdio: "ignore" | ["ignore", "pipe", "ignore"] = "ignore") => new Promise<string>((resolve, reject) => {
+    const child = spawn(process.env.FFMPEG_BIN?.trim() || "ffmpeg", args, { windowsHide: true, stdio });
+    let stdout = "";
+    if (stdio !== "ignore") child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    child.once("error", () => reject(new Error("WORD_TIMING_BUNNY_FFMPEG_UNAVAILABLE")));
+    child.once("close", (code) => code === 0 ? resolve(stdout) : reject(new Error("WORD_TIMING_BUNNY_VIDEO_AUDIO_FAILED")));
+  });
+  const probe = await new Promise<string>((resolve, reject) => {
+    const child = spawn(process.env.FFPROBE_BIN?.trim() || "ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", source], { windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+    let stdout = "";
+    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    child.once("error", () => reject(new Error("WORD_TIMING_BUNNY_FFPROBE_UNAVAILABLE")));
+    child.once("close", (code) => code === 0 ? resolve(stdout) : reject(new Error("WORD_TIMING_BUNNY_VIDEO_PROBE_FAILED")));
+  });
+  const duration = Number.parseFloat(probe.trim());
+  if (!Number.isFinite(duration) || duration <= 0 || duration > 24 * 60 * 60) throw new Error("WORD_TIMING_BUNNY_VIDEO_DURATION_INVALID");
+  const directory = await mkdtemp(path.join(tmpdir(), "sueno-bunny-video-"));
+  const parts: string[] = [];
+  try {
+    const configuredSegmentSeconds = Number(process.env.BUNNY_VIDEO_SEGMENT_SECONDS);
+    const segmentSeconds = Number.isFinite(configuredSegmentSeconds) && configuredSegmentSeconds >= 30 && configuredSegmentSeconds <= 300
+      ? Math.floor(configuredSegmentSeconds)
+      : 180;
+    for (let start = 0, index = 0; start < duration; start += segmentSeconds, index += 1) {
+      const part = path.join(directory, `part-${String(index).padStart(3, "0")}.mp3`);
+      const inputOptions = /^https:\/\//u.test(source)
+        ? ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10"]
+        : [];
+      const extractPart = async (partStart: number, partDuration: number, outputPath: string) => {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          try {
+            await run(["-nostdin", "-hide_banner", "-loglevel", "error", ...inputOptions, "-ss", String(partStart), "-t", String(partDuration), "-i", source, "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "48k", "-y", outputPath]);
+            if ((await stat(outputPath)).size > 0) return;
+          } catch (error) {
+            lastError = error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1_500 * (attempt + 1)));
+        }
+        throw lastError instanceof Error ? lastError : new Error("WORD_TIMING_BUNNY_VIDEO_AUDIO_FAILED");
+      };
+      const wantedDuration = Math.min(segmentSeconds, duration - start);
+      try {
+        await extractPart(start, wantedDuration, part);
+      } catch {
+        // Some Bunny edge nodes reset a long seek at isolated offsets. Retry
+        // that window as smaller pieces and concatenate only complete files.
+        const subDuration = Math.max(15, Math.floor(wantedDuration / 2));
+        const subparts: string[] = [];
+        for (let offset = 0; offset < wantedDuration; offset += subDuration) {
+          const subpart = path.join(directory, `part-${String(index).padStart(3, "0")}-${subparts.length}.mp3`);
+          await extractPart(start + offset, Math.min(subDuration, wantedDuration - offset), subpart);
+          subparts.push(subpart);
+        }
+        const sublist = path.join(directory, `concat-${String(index).padStart(3, "0")}.txt`);
+        await writeFile(sublist, subparts.map((subpart) => `file '${subpart.replace(/'/gu, "'\\''")}'`).join("\n"), "utf8");
+        await run(["-nostdin", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", sublist, "-c:a", "copy", "-y", part]);
+      }
+      if (!(await stat(part)).size) throw new Error("WORD_TIMING_SOURCE_SIZE_INVALID");
+      parts.push(part);
+    }
+    const list = path.join(directory, "concat.txt");
+    await writeFile(list, parts.map((part) => `file '${part.replace(/'/gu, "'\\''")}'`).join("\n"), "utf8");
+    await run(["-nostdin", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list, "-c:a", "copy", "-y", output]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+  const extracted = await stat(output);
+  if (!extracted.size) throw new Error("WORD_TIMING_SOURCE_SIZE_INVALID");
+}
+
+async function downloadWithPowerShell(url: URL, output: string): Promise<void> {
+  if (process.platform !== "win32") throw new Error("WORD_TIMING_POWERSHELL_UNAVAILABLE");
+  await downloadBunnyWithPowerShell(url, output);
+}
+
 async function download(url: string, directory: string): Promise<{ path: string; hash: string }> {
   const parsed = new URL(url);
   if (parsed.protocol !== "https:" || !isAllowedHost(parsed.hostname)) throw new Error("WORD_TIMING_SOURCE_NOT_ALLOWED");
   const output = path.join(directory, "source.bin");
   if (parsed.hostname === "sueno-media.b-cdn.net") {
+    if (/\.mp4$/iu.test(parsed.pathname)) {
+      const localVideo = path.join(directory, "source.mp4");
+      let source = parsed.toString();
+      if (process.env.BUNNY_VIDEO_USE_STORAGE === "true") {
+        try {
+          // Bunny Storage is the authorized origin for our own assets. Keep
+          // the source local before seeking when an operator opts in; this is
+          // slower on some runners but avoids all remote range requests.
+          await downloadBunnyFromStorageApi(parsed, localVideo, 2 * 1024 * 1024 * 1024);
+          source = localVideo;
+        } catch {
+          // Fall back to the bounded public range path below.
+        }
+      }
+      await extractBunnyVideoAudio(source, output);
+      const bytes = await readFile(output);
+      return { path: output, hash: createHash("sha256").update(bytes).digest("hex") };
+    }
+    let storageDownloaded = false;
+    try {
+      await downloadBunnyFromStorageApi(parsed, output);
+      storageDownloaded = true;
+    } catch {
+      // Fall back to the public pull zone for environments that intentionally
+      // do not provide the storage credentials (for example a read-only CI).
+    }
+    if (storageDownloaded) {
+      const bytes = await readFile(output);
+      return { path: output, hash: createHash("sha256").update(bytes).digest("hex") };
+    }
     try {
       const bytes = await downloadResumableAudio({
         source: async () => parsed,
         directory,
         allowedHosts,
-        maxBytes: 512 * 1024 * 1024,
+        maxBytes: maxDownloadBytes,
         chunkSize: 2 * 1024 * 1024,
         acceptedContentTypes: new Set(["video/mp4", "audio/mpeg", "audio/mp3"]),
       });
@@ -65,35 +218,48 @@ async function download(url: string, directory: string): Promise<{ path: string;
         const child = spawn("curl.exe", [
           "-4", "--fail", "--location", "--proto", "=https", "--proto-redir", "=https",
           "--retry", "5", "--retry-delay", "2", "--retry-all-errors", "--connect-timeout", "30",
-          "--max-time", "1_800", "--max-filesize", String(512 * 1024 * 1024), "--output", output, parsed.toString(),
+          "--max-time", "1_800", "--max-filesize", String(maxDownloadBytes), "--output", output, parsed.toString(),
         ], { windowsHide: true, stdio: "ignore" });
         child.once("error", () => reject(new Error("WORD_TIMING_CURL_UNAVAILABLE")));
         child.once("close", (code) => code === 0 ? resolve() : reject(new Error("WORD_TIMING_CURL_DOWNLOAD_FAILED")));
+      }).catch(async () => {
+        if (process.platform !== "win32") throw new Error("WORD_TIMING_CURL_DOWNLOAD_FAILED");
+        await downloadWithPowerShell(parsed, output);
       });
     }
   } else if (["charlashispanas.com", "www.hoyhablamos.com", "traffic.libsyn.com"].includes(parsed.hostname.toLowerCase())) {
     let downloaded = false;
     for (let attempt = 0; attempt < 8 && !downloaded; attempt += 1) {
       await new Promise<void>((resolve, reject) => {
-        const child = spawn("curl.exe", ["-4", "--fail", "--location", "--proto", "=https", "--proto-redir", "=https", "--retry", "3", "--retry-delay", "2", "--retry-all-errors", "--continue-at", "-", "--connect-timeout", "30", "--max-time", "900", "--max-filesize", String(512 * 1024 * 1024), "--output", output, parsed.toString()], { windowsHide: true, stdio: "ignore" });
+        const child = spawn("curl.exe", ["-4", "--fail", "--location", "--proto", "=https", "--proto-redir", "=https", "--retry", "3", "--retry-delay", "2", "--retry-all-errors", "--continue-at", "-", "--connect-timeout", "30", "--max-time", "900", "--max-filesize", String(maxDownloadBytes), "--output", output, parsed.toString()], { windowsHide: true, stdio: "ignore" });
         child.once("error", () => reject(new Error("WORD_TIMING_PROXY_UNAVAILABLE")));
         child.once("close", (code) => code === 0 ? resolve() : reject(new Error("WORD_TIMING_PROXY_DOWNLOAD_FAILED")));
       }).then(() => { downloaded = true; }).catch(async (error) => {
+        if (process.platform === "win32" && attempt === 0) {
+          await downloadWithPowerShell(parsed, output);
+          downloaded = true;
+          return;
+        }
         if (attempt >= 7) throw error;
         await new Promise((resolve) => setTimeout(resolve, 2_000 * (attempt + 1)));
       });
     }
   } else {
-    const bytes = await downloadResumableAudio({
-      source: async () => parsed,
-      directory,
-      allowedHosts,
-      maxBytes: 512 * 1024 * 1024,
-      chunkSize: 8 * 1024 * 1024,
-      acceptedContentTypes: new Set(["audio/mpeg", "audio/mp3", "application/octet-stream"].filter((contentType) => acceptsPodcastAudioContentType(parsed.hostname, contentType))),
-    });
-    const { writeFile } = await import("node:fs/promises");
-    await writeFile(output, bytes);
+    try {
+      const bytes = await downloadResumableAudio({
+        source: async () => parsed,
+        directory,
+        allowedHosts,
+        maxBytes: maxDownloadBytes,
+        chunkSize: 8 * 1024 * 1024,
+        acceptedContentTypes: new Set(["audio/mpeg", "audio/mp3", "application/octet-stream"].filter((contentType) => acceptsPodcastAudioContentType(parsed.hostname, contentType))),
+      });
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(output, bytes);
+    } catch (error) {
+      if (!(error instanceof Error) || !/AUDIO_RANGE_NETWORK_FAILED|AUDIO_DOWNLOAD_FAILED/u.test(error.message)) throw error;
+      await downloadWithPowerShell(parsed, output);
+    }
   }
   const bytes = await readFile(output);
   if (!bytes.length) throw new Error("WORD_TIMING_EMPTY_SOURCE");
@@ -105,9 +271,11 @@ async function officialPodcastFallback(sourceName: string, currentUrl: string): 
     ? "https://charlashispanas.com/feed/podcast/"
     : sourceName.includes("Hoy Hablamos")
       ? "https://www.hoyhablamos.com/category/podcast/feed/"
-      : sourceName.includes("LearnCraft Spanish")
-        ? "https://rss.libsyn.com/shows/466488/destinations/3943362.xml"
-        : null;
+        : sourceName.includes("LearnCraft Spanish")
+          ? "https://rss.libsyn.com/shows/466488/destinations/3943362.xml"
+          : sourceName.includes("Unlimited Spanish")
+            ? "https://unlimitedspanish.libsyn.com/rss"
+          : null;
   if (!feedUrl) return null;
   let stem = "";
   try { stem = decodeURIComponent(new URL(currentUrl).pathname).split("/").pop()?.replace(/\.[^.]+$/u, "").toLowerCase() ?? ""; } catch { return null; }
@@ -164,9 +332,12 @@ function args() {
   const index = process.argv.indexOf("--stable-key");
   const stableKey = index >= 0 ? process.argv[index + 1] : undefined;
   if (!stableKey || stableKey.startsWith("--")) throw new Error("--stable-key is required");
+  const assetIndex = process.argv.indexOf("--asset-path");
+  const assetPath = assetIndex >= 0 ? process.argv[assetIndex + 1] : undefined;
+  if (assetPath?.startsWith("--")) throw new Error("--asset-path requires a file");
   const deterministic = process.argv.includes("--deterministic");
   if (!deterministic && !process.env.MINIMAX_API_KEY?.trim()) throw new Error("MINIMAX_API_KEY_REQUIRED");
-  return { stableKey, deterministic };
+  return { stableKey, deterministic, assetPath };
 }
 
 type ExistingWord = { startMs: number; endMs: number; startOffset: number; endOffset: number; text?: string };
@@ -287,7 +458,7 @@ function providerChunks(timed: readonly { startMs: number; endMs: number; text: 
 }
 
 async function main() {
-  const { stableKey, deterministic } = args();
+  const { stableKey, deterministic, assetPath } = args();
   const databaseUrl = process.env.DATABASE_URL ?? process.env.DIRECT_DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL_REQUIRED");
   const sql = postgres(databaseUrl, { max: 1, prepare: false });
@@ -311,7 +482,9 @@ async function main() {
     if (refreshed) {
       try { if (isAllowedHost(new URL(refreshed).hostname)) sourceUrl = refreshed; } catch { /* retain the verified stored asset */ }
     }
-    const source = await download(sourceUrl, directory);
+    const source = assetPath
+      ? { path: assetPath, hash: createHash("sha256").update(await readFile(assetPath)).digest("hex") }
+      : await download(sourceUrl, directory);
     const normalizedPath = await normalize(source.path, directory);
     const transcription = await createMiniMaxTranscriptionProvider({ timestampLevel: "word", timeoutMs: Number(row.duration_ms) >= 600_000 ? 3_600_000 : 900_000 }).transcribe({ audioBytes: new Uint8Array(await readFile(normalizedPath)), assetPath: normalizedPath, mimeType: "audio/mpeg", fileName: "media.mp3", languageTag: "es", durationMs: Number(row.duration_ms) });
     const timed = transcription.segments ?? [];

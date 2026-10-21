@@ -9,7 +9,10 @@ import { getDatabase } from "@/src/shared/db/client";
 
 export async function GET(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
-  const parsed = corpusQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams.entries()));
+  const raw = Object.fromEntries(request.nextUrl.searchParams.entries());
+  if (!raw.query && raw.q) raw.query = raw.q;
+  delete raw.q;
+  const parsed = corpusQuerySchema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ apiVersion: API_VERSION, error: { code: "VALIDATION_FAILED", message: "语料查询条件无效。", retryable: false, requestId } }, { status: 400 });
   if (!process.env.DATABASE_URL) return NextResponse.json({ apiVersion: API_VERSION, error: { code: "INTERNAL_ERROR", message: "语料库暂时不可用。", retryable: true, requestId } }, { status: 503 });
   try {

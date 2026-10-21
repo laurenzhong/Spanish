@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-series-descriptor.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seriesKey",
+    "title",
+    "summary",
+    "kind",
+    "orderMode",
+    "status",
+    "revision"
+  ],
+  "properties": {
+    "seriesKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "kind": {
+      "enum": [
+        "video",
+        "podcast"
+      ]
+    },
+    "orderMode": {
+      "enum": [
+        "ordered",
+        "episodic"
+      ]
+    },
+    "status": {
+      "enum": [
+        "active",
+        "archived"
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    }
+  }
+}

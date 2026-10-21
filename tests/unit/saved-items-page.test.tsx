@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   getDatabase: vi.fn(),
   SavedItemsLibrary: vi.fn(() => null),
-  ReadSectionNavigation: vi.fn(() => null),
 }));
 
 vi.mock("@/src/modules/reading", async (importOriginal) => {
@@ -15,7 +14,6 @@ vi.mock("@/src/modules/reading", async (importOriginal) => {
 });
 vi.mock("@/src/modules/reading/repositories", () => ({ createDrizzleReadingRepository: mocks.createDrizzleReadingRepository }));
 vi.mock("@/src/modules/reading/ui/saved-items-library", () => ({ SavedItemsLibrary: mocks.SavedItemsLibrary }));
-vi.mock("@/src/modules/lexicon-corpus", () => ({ ReadSectionNavigation: mocks.ReadSectionNavigation }));
 vi.mock("@/src/shared/auth/server", () => ({ getCurrentUser: mocks.getCurrentUser }));
 vi.mock("@/src/shared/db/client", () => ({ getDatabase: mocks.getDatabase }));
 
@@ -51,7 +49,10 @@ const originalDatabaseUrl = process.env.DATABASE_URL;
 
 async function renderPage(params: Record<string, string>) {
   const rendered = await SavedItemsPage({ searchParams: Promise.resolve(params) });
-  return rendered.props.children[1].props as {
+  // The page returns the library alone now: the reading navigation and the
+  // container that stacked it above the content belong to
+  // `app/(product)/read/layout.tsx`.
+  return rendered.props as {
     items: readonly { itemType: string; createdAt: string }[];
     itemType?: string;
     page: number;

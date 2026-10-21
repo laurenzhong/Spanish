@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 
-import { and, desc, eq, gt, gte, inArray, isNull, lt, lte, max, or } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lt, lte, max, or, sql } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -16,11 +17,14 @@ import {
   type MediaArtwork,
   type MediaCard,
   type MediaProgress,
+  type MediaSeriesSummary,
 } from "../domain";
 import type { ParsedMediaListQuery } from "../schemas";
 import type { MediaLookupResult, MediaRepository } from "./media-repository";
 import type { AcquiredPodcastRepository } from "./acquired-podcast-repository";
 import type { AcquiredVideoRepository, HostedVideoAsset } from "./acquired-video-repository";
+import { createCatalogueCache, type CatalogueCacheEntry } from "./media-catalogue-cache";
+import { selectMediaBrowsePage } from "../domain/media-browse";
 
 export class AcquiredVideoPersistenceConflictError extends Error {
   readonly code = "CONTENT_PUBLICATION_CONFLICT" as const;
@@ -53,6 +57,25 @@ type StoredProgress = Readonly<{
   lastOpenedAt: Date;
 }>;
 
+/**
+ * The public catalogue rows, cached for ten minutes.
+ *
+ * The shelf renders this same wide query on every `/learn` visit and on every
+ * channel switch, and the rows only change when the daily publishing pipeline
+ * runs. Only the catalogue rows are cached - per-user progress is read per
+ * request further down, so a resume position is never stale beyond the request
+ * that reads it.
+ */
+const MEDIA_CATALOGUE_CACHE_TTL_MS = 10 * 60 * 1_000;
+
+const runtimeState = globalThis as typeof globalThis & {
+  spanishMediaCatalogueCache?: Map<string, CatalogueCacheEntry<unknown>>;
+  spanishMediaCatalogueInFlight?: Map<string, Promise<unknown>>;
+};
+
+runtimeState.spanishMediaCatalogueCache ??= new Map();
+runtimeState.spanishMediaCatalogueInFlight ??= new Map();
+
 function progressRecord(row: typeof schema.userMediaProgress.$inferSelect): MediaProgress {
   return {
     lastPositionMs: row.lastPositionMs,
@@ -83,6 +106,31 @@ function artworkColumns(artwork: MediaArtwork | null | undefined) {
   };
 }
 
+function browseSourceIdentity(row: JoinedRow): string {
+  if (row.item.kind === "video") {
+    const channelId = row.version.sourceChannelId?.trim();
+    if (channelId && /^UC[A-Za-z0-9_-]{22}$/u.test(channelId)) return `youtube-channel:${channelId}`;
+  } else if (row.version.sourceFeedUrl) {
+    try {
+      const feed = new URL(row.version.sourceFeedUrl);
+      if (feed.protocol !== "https:" || feed.username || feed.password) return `media:${row.item.stableKey}`;
+      // Inventory review MEDIA-SERIES-002 established that this registered
+      // Language Reactor URL is a mixed acquisition catalogue, never a show RSS.
+      if (["https://www.languagereactor.com", "https://languagereactor.com"].includes(feed.origin)
+        && /^\/c\/es\/pd\/t_pd_mix_es\/?$/u.test(feed.pathname)) return "registered-source:language-reactor:es-podcast-mix";
+      for (const key of feed.searchParams.keys()) {
+        if (/^(?:x-amz-.*|x-goog-.*|signature|sig|token|access_token|api_key|apikey|key-pair-id|policy|expires)$/iu.test(key)) return `media:${row.item.stableKey}`;
+      }
+      feed.hash = "";
+      feed.searchParams.sort();
+      // Hash even public feed metadata so source identifiers cannot accidentally
+      // expose feed query parameters when inspected by internal diagnostics.
+      return `podcast-feed:${createHash("sha256").update(feed.toString()).digest("hex")}`;
+    } catch { /* Unverified feed metadata stays an independent media source. */ }
+  }
+  return `media:${row.item.stableKey}`;
+}
+
 function assertHostedVideoAsset(asset: HostedVideoAsset): void {
   if (asset.providerKey !== "bunny-storage" || asset.mimeType !== "video/mp4" || !/^[a-f0-9]{64}$/u.test(asset.sha256) || !Number.isSafeInteger(asset.byteSize) || asset.byteSize <= 0) {
     throw new AcquiredVideoPersistenceConflictError("The video must be a validated Bunny MP4 asset.");
@@ -96,8 +144,8 @@ function assertHostedVideoAsset(asset: HostedVideoAsset): void {
   }
 }
 
-function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date): MediaCard | null {
-  return projectMediaCard({
+function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date, series: MediaSeriesSummary | null = null): MediaCard | null {
+  const card = projectMediaCard({
     stableKey: row.item.stableKey,
     version: row.version.version,
     kind: row.item.kind,
@@ -106,7 +154,7 @@ function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date):
     sourceName: row.version.sourceName,
     language: row.version.language,
     region: row.version.region,
-    cefr: row.version.cefr as "A2" | "B1" | null,
+    cefr: row.version.cefr as "A1" | "A2" | "B1" | "B2" | null,
     topics: row.version.topics,
     durationMs: row.version.durationMs,
     publishedAt: row.version.publicationDate,
@@ -127,6 +175,7 @@ function projectCard(row: JoinedRow, progress: MediaProgress | null, now: Date):
       : null,
     progress,
   }, now);
+  return card ? { ...card, series } : null;
 }
 
 type MediaCursor = Readonly<{ id: string; curatedAt?: string; stableKey?: string }>;
@@ -178,8 +227,13 @@ export function createDrizzleMediaRepository(
   dependencies: Readonly<{ now?: () => Date }> = {},
 ): DrizzleMediaRepository {
   const now = dependencies.now ?? (() => new Date());
+  const catalogueCache = createCatalogueCache({
+    ttlMs: MEDIA_CATALOGUE_CACHE_TTL_MS,
+    entries: runtimeState.spanishMediaCatalogueCache,
+    inFlight: runtimeState.spanishMediaCatalogueInFlight,
+  });
 
-  async function joinedRows(stableKey?: string, query?: ParsedMediaListQuery): Promise<JoinedRow[]> {
+  async function joinedRows(stableKey?: string, query?: ParsedMediaListQuery, fullCatalogue = false): Promise<JoinedRow[]> {
     const published = and(
       eq(schema.mediaVersions.status, "published"),
       eq(schema.mediaVersions.copyrightStatus, "cleared"),
@@ -211,7 +265,7 @@ export function createDrizzleMediaRepository(
       ));
     }
     const canLimitToPage = Boolean(query && query.sort === "recently_added" && !query.search && !query.topic && (!query.cursor || canUseDatabaseCursor));
-    return database
+    const statement = database
       .select({ item: schema.mediaItems, version: schema.mediaVersions, asset: schema.mediaAssets })
       .from(schema.mediaItems)
       .innerJoin(
@@ -223,8 +277,8 @@ export function createDrizzleMediaRepository(
       )
       .innerJoin(schema.mediaAssets, eq(schema.mediaAssets.mediaVersionId, schema.mediaVersions.id))
       .where(and(...filters))
-      .orderBy(desc(schema.mediaVersions.curatedAt), schema.mediaItems.stableKey)
-      .limit(canLimitToPage ? (query?.pageSize ?? 18) + 1 : 500);
+      .orderBy(desc(schema.mediaVersions.curatedAt), schema.mediaItems.stableKey);
+    return fullCatalogue ? statement : statement.limit(canLimitToPage ? (query?.pageSize ?? 18) + 1 : 500);
   }
 
   async function progressByVersion(userId: string | undefined, versionIds: readonly string[]) {
@@ -243,13 +297,38 @@ export function createDrizzleMediaRepository(
     return result;
   }
 
+  // Directory metadata has its own revision and can change without publishing a
+  // new media version. Keep this one batched read outside the catalogue cache.
+  async function summariesByItemIds(itemIds: readonly string[]) {
+    const result = new Map<string, MediaSeriesSummary>();
+    if (!itemIds.length) return result;
+    const rows = await database.select({
+      mediaItemId: schema.mediaSeriesMemberships.mediaItemId,
+      seriesKey: schema.mediaSeries.seriesKey,
+      title: schema.mediaSeries.title,
+      kind: schema.mediaSeries.kind,
+      orderMode: schema.mediaSeries.orderMode,
+      revision: schema.mediaSeries.revision,
+      seasonNumber: schema.mediaSeriesMemberships.seasonNumber,
+      episodeNumber: schema.mediaSeriesMemberships.episodeNumber,
+      episodeLabel: schema.mediaSeriesMemberships.episodeLabel,
+    }).from(schema.mediaSeriesMemberships)
+      .innerJoin(schema.mediaSeries, eq(schema.mediaSeries.id, schema.mediaSeriesMemberships.seriesId))
+      .where(and(inArray(schema.mediaSeriesMemberships.mediaItemId, [...new Set(itemIds)]), eq(schema.mediaSeries.status, "active")));
+    for (const { mediaItemId, ...summary } of rows) result.set(mediaItemId, summary);
+    return result;
+  }
+
   async function lookup(stableKey: string, userId?: string): Promise<MediaLookupResult> {
     const rows = await joinedRows(stableKey);
     if (rows.length === 0) return { reason: "not_found", media: null };
     const selected = rows.find((row) => isPlayable(row, now()));
     if (!selected) return { reason: "unavailable", media: null };
-    const progress = await progressByVersion(userId, [selected.version.id]);
-    const media = projectCard(selected, progress.get(selected.version.id)?.progress ?? null, now());
+    const [progress, summaries] = await Promise.all([
+      progressByVersion(userId, [selected.version.id]),
+      summariesByItemIds([selected.item.id]),
+    ]);
+    const media = projectCard(selected, progress.get(selected.version.id)?.progress ?? null, now(), summaries.get(selected.item.id) ?? null);
     return media ? { reason: "found", media } : { reason: "unavailable", media: null };
   }
 
@@ -600,16 +679,42 @@ export function createDrizzleMediaRepository(
       });
     },
 
-    async list(query, userId) {
-      const rows = await joinedRows(undefined, query);
+    async browse(query, userId) {
+      const filters: ParsedMediaListQuery = { ...query.filters, sort: "newest", pageSize: query.pageSize };
+      // Explicit browsing revalidates publication/rights/assets, bypassing the
+      // ten-minute shelf cache. Never fall back to stale rows on failure.
+      const rows = await joinedRows(undefined, filters, true);
       const selected = new Map<string, JoinedRow>();
       for (const row of rows) {
         if (!selected.has(row.item.stableKey) && isPlayable(row, now())) selected.set(row.item.stableKey, row);
       }
-      const progress = await progressByVersion(userId, [...selected.values()].map((row) => row.version.id));
+      const summaries = await summariesByItemIds([...selected.values()].map((row) => row.item.id));
+      const cards = [...selected.values()].flatMap((row) => {
+        const card = projectCard(row, null, now(), summaries.get(row.item.id) ?? null);
+        return card && matches(card, filters) ? [card] : [];
+      });
+      const sourceIdentities = new Map([...selected.values()].map((row) => [row.item.stableKey, browseSourceIdentity(row)]));
+      const page = selectMediaBrowsePage(cards, query, sourceIdentities);
+      const pageRows = page.items.map((card) => selected.get(card.stableKey)!);
+      const progress = await progressByVersion(userId, pageRows.map((row) => row.version.id));
+      return { ...page, items: page.items.map((card) => ({ ...card, progress: progress.get(selected.get(card.stableKey)!.version.id)?.progress ?? null })) };
+    },
+
+    async list(query, userId) {
+      // The catalogue rows are public and cached; the per-user progress below is
+      // always read fresh, so only the shelf's resume label depends on this read.
+      const rows = await catalogueCache.load(`list:${JSON.stringify(query)}`, () => joinedRows(undefined, query));
+      const selected = new Map<string, JoinedRow>();
+      for (const row of rows) {
+        if (!selected.has(row.item.stableKey) && isPlayable(row, now())) selected.set(row.item.stableKey, row);
+      }
+      const [progress, summaries] = await Promise.all([
+        progressByVersion(userId, [...selected.values()].map((row) => row.version.id)),
+        summariesByItemIds([...selected.values()].map((row) => row.item.id)),
+      ]);
       const itemsWithActivity = [...selected.values()].flatMap((row) => {
         const stored = progress.get(row.version.id);
-        const item = projectCard(row, stored?.progress ?? null, now());
+        const item = projectCard(row, stored?.progress ?? null, now(), summaries.get(row.item.id) ?? null);
         return item && matches(item, query) ? [{ item, lastOpenedAt: stored?.lastOpenedAt ?? null }] : [];
       });
       if (query.sort === "newest") {
@@ -638,19 +743,144 @@ export function createDrizzleMediaRepository(
 
     findByStableKey: lookup,
 
-    async getPlayback(stableKey, userId, requestedAt) {
+    async getSegmentLookup(stableKey, lookFor, requestedAt) {
+      const rows = await joinedRows(stableKey);
+      const selected = rows.find((row) => isPlayable(row, requestedAt));
+      if (!selected) return null;
+      // Only the columns a clip needs — but `words` is one of them: the clip window is
+      // the word's own timing inside the segment, so a read that omitted the timeline
+      // could only ever fall back to the whole segment. What is dropped is the *rest* of
+      // the transcript (translation, speaker) and every other segment.
+      const columns = {
+        id: schema.mediaSegments.id,
+        index: schema.mediaSegments.segmentIndex,
+        startMs: schema.mediaSegments.startMs,
+        endMs: schema.mediaSegments.endMs,
+        sourceText: schema.mediaSegments.sourceText,
+        words: schema.mediaSegments.words,
+      };
+      const byIndex = lookFor.segmentIndex === null
+        ? []
+        : await database
+          .select(columns)
+          .from(schema.mediaSegments)
+          .where(and(
+            eq(schema.mediaSegments.mediaVersionId, selected.version.id),
+            eq(schema.mediaSegments.segmentIndex, lookFor.segmentIndex),
+            eq(schema.mediaSegments.sourceText, lookFor.expectedText),
+          ))
+          .limit(1);
+      const candidates = byIndex.length
+        ? byIndex
+        : await database
+          .select(columns)
+          .from(schema.mediaSegments)
+          .where(and(
+            eq(schema.mediaSegments.mediaVersionId, selected.version.id),
+            eq(schema.mediaSegments.sourceText, lookFor.expectedText),
+          ))
+          .limit(2);
+      return {
+        stableKey: selected.item.stableKey,
+        title: selected.version.title,
+        version: selected.version.version,
+        asset: {
+          kind: selected.asset.kind,
+          url: selected.asset.playbackUrl,
+          expiresAt: selected.asset.playbackExpiresAt,
+        },
+        candidates,
+      };
+    },
+
+    async getStreamSource(stableKey, requestedAt) {
+      // Range requests must recheck publication/rights/availability, but do not
+      // need to download the full transcript or read personal progress again.
       const rows = await joinedRows(stableKey);
       const selected = rows.find((row) => isPlayable(row, requestedAt));
       if (!selected) throw new MediaUnavailableError();
-      const progress = await progressByVersion(userId, [selected.version.id]);
-      const media = projectCard(selected, progress.get(selected.version.id)?.progress ?? null, requestedAt);
+      const card = projectCard(selected, null, requestedAt);
+      if (!card) throw new MediaUnavailableError();
+      const { asset } = projectMediaPlayback({
+        card,
+        asset: { kind: selected.asset.kind, url: selected.asset.playbackUrl, expiresAt: selected.asset.playbackExpiresAt },
+        segments: [],
+      }, requestedAt);
+      return {
+        media: { stableKey: card.stableKey, version: card.version, kind: card.kind, title: card.title, sourceName: card.sourceName },
+        asset,
+      };
+    },
+
+    async getPlaybackOverview(stableKey, userId, requestedAt) {
+      // The detail page needs the same gates as getPlayback — current version,
+      // published, cleared rights, playable asset, unexpired URL — but not the
+      // transcript. Reading one aggregate row instead of every segment (and every
+      // segment's word JSON) is what lets the title and player stream first.
+      const rows = await joinedRows(stableKey);
+      const selected = rows.find((row) => isPlayable(row, requestedAt));
+      if (!selected) throw new MediaUnavailableError();
+      const [progress, summaries, segmentCountRows] = await Promise.all([
+        progressByVersion(userId, [selected.version.id]),
+        summariesByItemIds([selected.item.id]),
+        database
+          .select({ count: sql<number>`count(*)::int` })
+          .from(schema.mediaSegments)
+          .where(and(
+            eq(schema.mediaSegments.mediaVersionId, selected.version.id),
+            eq(schema.mediaSegments.reviewStatus, "approved"),
+          )),
+      ]);
+      const media = projectCard(selected, progress.get(selected.version.id)?.progress ?? null, requestedAt, summaries.get(selected.item.id) ?? null);
       if (!media) throw new MediaUnavailableError();
-      const segments = await database
-        .select()
-        .from(schema.mediaSegments)
-        .where(eq(schema.mediaSegments.mediaVersionId, selected.version.id))
-        .orderBy(schema.mediaSegments.segmentIndex)
-        .limit(500);
+      const { asset } = projectMediaPlayback({
+        card: media,
+        asset: {
+          kind: selected.asset.kind,
+          url: selected.asset.playbackUrl,
+          expiresAt: selected.asset.playbackExpiresAt,
+        },
+        segments: [],
+      }, requestedAt);
+      const segmentCount = segmentCountRows[0]?.count ?? 0;
+      if (!Number.isSafeInteger(segmentCount) || segmentCount < 0) throw new MediaUnavailableError();
+      return { media, asset, segmentCount };
+    },
+
+    async getPlayback(stableKey, userId, requestedAt, options = {}) {
+      const includeWords = options.includeWords ?? true;
+      const rows = await joinedRows(stableKey);
+      const selected = rows.find((row) => isPlayable(row, requestedAt));
+      if (!selected) throw new MediaUnavailableError();
+      // Both reads depend only on the selected version, so the transcript no
+      // longer queues behind the progress lookup: one remote round trip saved on
+      // every media item open.
+      const [progress, segments, summaries] = await Promise.all([
+        progressByVersion(userId, [selected.version.id]),
+        database
+          .select({
+            id: schema.mediaSegments.id,
+            segmentIndex: schema.mediaSegments.segmentIndex,
+            startMs: schema.mediaSegments.startMs,
+            endMs: schema.mediaSegments.endMs,
+            sourceText: schema.mediaSegments.sourceText,
+            translation: schema.mediaSegments.translation,
+            speaker: schema.mediaSegments.speaker,
+            // The text-only phase never transfers the word-timing JSON; a SQL
+            // NULL keeps the row shape identical, so only bytes are saved.
+            words: includeWords ? schema.mediaSegments.words : sql<null>`null`,
+            reviewStatus: schema.mediaSegments.reviewStatus,
+          })
+          .from(schema.mediaSegments)
+          .where(and(
+            eq(schema.mediaSegments.mediaVersionId, selected.version.id),
+            eq(schema.mediaSegments.reviewStatus, "approved"),
+          ))
+          .orderBy(schema.mediaSegments.segmentIndex),
+        summariesByItemIds([selected.item.id]),
+      ]);
+      const media = projectCard(selected, progress.get(selected.version.id)?.progress ?? null, requestedAt, summaries.get(selected.item.id) ?? null);
+      if (!media) throw new MediaUnavailableError();
       return projectMediaPlayback({
         card: media,
         asset: {
@@ -666,7 +896,7 @@ export function createDrizzleMediaRepository(
           sourceText: segment.sourceText,
           translation: segment.translation,
           speaker: segment.speaker,
-          words: segment.words ?? null,
+          words: includeWords ? segment.words ?? null : null,
           reviewStatus: segment.reviewStatus,
         })),
       }, requestedAt);

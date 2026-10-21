@@ -229,9 +229,151 @@ export const lexiconCandidates = pgTable("lexicon_candidates", {
   ),
 ]);
 
+/**
+ * Append-only record of each owner approval, including batch context (ADR-0011 §5).
+ *
+ * This exists because `lexicon_candidates` cannot hold it: `mode`, `batch_id`,
+ * and the lexeme/phrase counts have no column there, and merging them in would
+ * force the writer to either throw or silently drop audit evidence. A batch
+ * approval must leave one row per candidate, so this is a child table keyed by
+ * `(candidate_id, revision)` — an approval of a given revision is recorded once.
+ *
+ * `reviews` snapshots the two review dimensions as they stood at approval time,
+ * so the audit stays readable even if the candidate row later advances or the
+ * review identities change.
+ *
+ * No RLS: approvals are made by the owner over content-side candidates and carry
+ * no end-user private data. If candidates ever accept user submissions, this
+ * table must gain RLS in the same change.
+ */
+export const lexiconCandidateApprovals = pgTable("lexicon_candidate_approvals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  candidateId: uuid("candidate_id").notNull().references(() => lexiconCandidates.id, { onDelete: "cascade" }),
+  /** Monotonic candidate revision that was approved. */
+  revision: integer("revision").notNull(),
+  /** `single` for one-off approval, `batch` when part of a bulk approval. */
+  mode: text("mode").notNull(),
+  /** Shared across every member of one bulk approval; null for single approvals. */
+  batchId: text("batch_id"),
+  approvedBy: text("approved_by").notNull(),
+  approvedAt: timestamp("approved_at", { withTimezone: true, mode: "date" }).notNull(),
+  documentKind: text("document_kind").notNull(),
+  documentStableKey: text("document_stable_key").notNull(),
+  documentVersion: integer("document_version").notNull(),
+  segmentIndex: integer("segment_index").notNull(),
+  /** Review records as they stood at approval: [{dimension, outcome, …}]. */
+  reviews: jsonb("reviews").$type<JsonObject[]>().default(sql`'[]'::jsonb`).notNull(),
+  lexemeCount: integer("lexeme_count").default(0).notNull(),
+  phraseCount: integer("phrase_count").default(0).notNull(),
+  createdAt: createdAt(),
+}, (table) => [
+  // One approval record per candidate revision.
+  uniqueIndex("lexicon_candidate_approvals_candidate_revision_uidx").on(table.candidateId, table.revision),
+  index("lexicon_candidate_approvals_batch_idx").on(table.batchId),
+  index("lexicon_candidate_approvals_approved_at_idx").on(table.approvedAt),
+  check("lexicon_candidate_approvals_mode_check", sql`${table.mode} in ('single', 'batch')`),
+  check("lexicon_candidate_approvals_revision_positive_check", sql`${table.revision} > 0`),
+  check(
+    "lexicon_candidate_approvals_document_kind_check",
+    sql`${table.documentKind} in ('article', 'media')`,
+  ),
+  // A batch member must name its batch; a single approval must not.
+  check(
+    "lexicon_candidate_approvals_batch_id_check",
+    sql`(${table.mode} = 'batch' and ${table.batchId} is not null) or (${table.mode} = 'single' and ${table.batchId} is null)`,
+  ),
+  check("lexicon_candidate_approvals_counts_check", sql`${table.lexemeCount} >= 0 and ${table.phraseCount} >= 0`),
+]);
+
+/**
+ * Materialised per-form counts for the vocabulary shelf.
+ *
+ * The shelf needs two facts about the published corpus: how often each surface
+ * form occurs, and one real segment it occurs in. Computing them live means
+ * reading every published segment — 109,211 texts, ~1.0 s just to transfer them
+ * and ~1.4 s with the tokenising aggregate — on every cold cache. This table is
+ * that answer, stored.
+ *
+ * **The visibility predicate has exactly one definition.** The refresh that
+ * fills this table reads the same `source_texts` set the live scan reads
+ * (published media versions + published, copyright-cleared article versions,
+ * with `user_generated_articles` excluded); that SQL lives in one place,
+ * `src/modules/lexicon-corpus/repositories/corpus-form-frequency.ts`, and both
+ * the refresh and the live fallback are built from it. A second, independent
+ * visibility rule is the failure mode this table must not introduce.
+ *
+ * **Staleness is explicit, bounded and observable.** Nothing here is triggered
+ * by a publish or a withdraw; the table is refreshed by
+ * `scripts/refresh-frequency-forms.ts`. `lexicon_form_frequency_state` records
+ * when that last happened, the read path refuses a refresh older than its
+ * documented cap (falling back to the exact live numbers), and a cold load logs
+ * the age it served from. Counts can therefore be stale, but never silently and
+ * never without a bound.
+ *
+ * `word` is the accent-folded form — the same key the token index and the shelf
+ * lookup use — and `example_text`/`example_title` are the segment the live scan
+ * would have picked (`min(array[text, title])`), so a materialised page renders
+ * exactly what the live scan rendered.
+ *
+ * The four `example_document_*`/`example_segment_index` columns are that same
+ * segment's address. They exist because a materialised row is otherwise an
+ * orphan string: read-aloud has to find the word inside the published media
+ * segment it was counted in, and after materialisation there is no aggregate
+ * left to ask. They are written by the same `min(array[...])` pick, so the text
+ * and its address cannot drift apart.
+ */
+export const lexiconFormFrequencies = pgTable("lexicon_form_frequencies", {
+  word: text("word").primaryKey(),
+  occurrenceCount: integer("occurrence_count").notNull(),
+  exampleTitle: text("example_title").notNull(),
+  exampleText: text("example_text").notNull(),
+  /**
+   * Where the example came from — the shelf's read-aloud needs this to locate
+   * the word's real audio, and the materialised row has no aggregate to fall
+   * back on. `media` rows must carry all three of the rest; an article example
+   * has no audio path at all, so its identity stays `null` rather than being
+   * half-filled.
+   */
+  exampleDocumentKind: text("example_document_kind", { enum: ["media", "article"] }),
+  exampleDocumentStableKey: text("example_document_stable_key"),
+  exampleDocumentVersion: integer("example_document_version"),
+  exampleSegmentIndex: integer("example_segment_index"),
+}, (table) => [
+  // Single-character forms are dropped by the live scan before they are counted;
+  // keeping them out of the table keeps the two paths equivalent.
+  check("lexicon_form_frequencies_word_check", sql`length(${table.word}) >= 2`),
+  check("lexicon_form_frequencies_count_check", sql`${table.occurrenceCount} > 0`),
+  // A media example without an addressable segment is the one combination that
+  // cannot be read aloud, so it must not be representable. Article examples are
+  // the deliberate all-null case.
+  check(
+    "lexicon_form_frequencies_example_identity_check",
+    sql`(${table.exampleDocumentKind} = 'article' and ${table.exampleDocumentStableKey} is null and ${table.exampleDocumentVersion} is null and ${table.exampleSegmentIndex} is null)
+      or (${table.exampleDocumentKind} = 'media' and ${table.exampleDocumentStableKey} is not null and ${table.exampleDocumentVersion} is not null and ${table.exampleSegmentIndex} is not null)`,
+  ),
+]);
+
+/**
+ * When the form-frequency table was last refreshed — one row, keyed `corpus`.
+ *
+ * This is the switch the read path reads: no row means the materialisation has
+ * never run, which is a correct state (the shelf falls back to the live scan),
+ * not an error. `form_count` is what the refresh wrote, so an operator can see
+ * the size of the last refresh without counting the table.
+ */
+export const lexiconFormFrequencyState = pgTable("lexicon_form_frequency_state", {
+  id: text("id").primaryKey(),
+  refreshedAt: timestamp("refreshed_at", { withTimezone: true, mode: "date" }).notNull(),
+  formCount: integer("form_count").notNull(),
+}, (table) => [
+  check("lexicon_form_frequency_state_id_check", sql`${table.id} = 'corpus'`),
+  check("lexicon_form_frequency_state_count_check", sql`${table.formCount} >= 0`),
+]);
+
 export type LexemeRow = typeof lexemes.$inferSelect;
 export type PhraseEntryRow = typeof phraseEntries.$inferSelect;
 export type CorpusOccurrenceRow = typeof corpusOccurrences.$inferSelect;
 export type LexicalAssessmentItemRow = typeof lexicalAssessmentItems.$inferSelect;
 export type LexicalAssessmentAttemptRow = typeof lexicalAssessmentAttempts.$inferSelect;
 export type LexiconCandidateRow = typeof lexiconCandidates.$inferSelect;
+export type LexiconCandidateApprovalRow = typeof lexiconCandidateApprovals.$inferSelect;

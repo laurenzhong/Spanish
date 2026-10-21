@@ -8,14 +8,17 @@ async function authenticate(page: Page) {
   await page.context().addCookies([{ name: "spanish-e2e-user", value: e2eUserId, url: e2eBaseUrl }]);
 }
 
-test("uses one responsive workbench for the three starter scenarios", async ({ page }) => {
+test("uses one responsive workbench for the published scenario catalog", async ({ page }) => {
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/explore");
-  for (const title of ["餐厅沟通", "校园办事", "租房沟通"]) await expect(page.getByRole("link", { name: new RegExp(title) })).toBeVisible();
+  for (const title of ["餐厅沟通：点单", "餐厅沟通：打包", "校园办事：注册", "校园办事：领取", "租房沟通：费用", "租房沟通：预约", "交通沟通：买票", "邮局沟通：寄件", "酒店沟通：入住"]) {
+    await expect(page.getByRole("link", { name: new RegExp(title) })).toBeVisible();
+  }
 
-  await page.getByRole("link", { name: /校园办事/ }).click();
+  await page.getByRole("link", { name: /校园办事：注册与材料/ }).click();
   await expect(page.getByRole("heading", { name: "校园办事" })).toBeVisible();
+  await expect(page.getByText(/地点、人物、价格、政策、预约和现实安排均为练习设定/u)).toBeVisible();
   await page.getByRole("link", { name: /开始实战/ }).click();
   await expect(page.getByText("Javier · 临时人物")).toBeVisible();
   await expect(page.getByPlaceholder("用西班牙语完成你的表达…")).toBeVisible();

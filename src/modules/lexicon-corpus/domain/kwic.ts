@@ -2,6 +2,7 @@ import { normalizeSpanishSurface, tokenizeSpanish } from "./spanish-token";
 import type { SourcePosition } from "./content-reference";
 
 export type CorpusQueryTokens = readonly string[];
+export type CorpusMatchMode = "phrase" | "all";
 
 export type KwicInput = Readonly<{
   surfaceText: string;
@@ -29,10 +30,15 @@ export function normalizeCorpusQuery(query: string): CorpusQueryTokens {
   return tokenizeSpanish(query).map((token) => token.normalized).filter(Boolean);
 }
 
-export function matchesCorpusQuery(text: string, query: CorpusQueryTokens): boolean {
+export function matchesCorpusQuery(text: string, query: CorpusQueryTokens, mode: CorpusMatchMode = "phrase"): boolean {
   if (query.length === 0) return false;
-  const haystack = new Set(tokenizeSpanish(text).map((token) => token.normalized));
-  return query.every((token) => haystack.has(normalizeSpanishSurface(token)));
+  const haystack = tokenizeSpanish(text).map((token) => token.normalized);
+  const normalizedQuery = query.map(normalizeSpanishSurface);
+  if (mode === "phrase") {
+    return haystack.some((_, start) => normalizedQuery.every((token, offset) => haystack[start + offset] === token));
+  }
+  const tokenSet = new Set(haystack);
+  return normalizedQuery.every((token) => tokenSet.has(token));
 }
 
 export function buildKwic(input: KwicInput): KwicResult {

@@ -10,9 +10,24 @@ import {
   validateAnnotationDraftInput,
 } from "./annotation";
 
-const defaultEndpoint = "https://api.minimax.io/anthropic/v1/messages";
+/**
+ * `api.minimaxi.com` is the host this project's MiniMax key is issued for; the
+ * same key returns 401 from `api.minimax.io`. `.env.example` records the
+ * canonical value as `MINIMAX_API_ENDPOINT`, and the factory below reads it, so
+ * a host change is configuration rather than a code change.
+ *
+ * This adapter previously pinned the `.io` host and never read the variable,
+ * which made it the only MiniMax adapter that disagreed with the rest — and it
+ * failed with `provider-auth-failed` on every call in this environment.
+ */
+const defaultEndpoint = "https://api.minimaxi.com/anthropic/v1/messages";
 const defaultModelVersion = "MiniMax-M3";
 const defaultTimeoutMs = 30_000;
+/**
+ * Generous enough to finish a full draft: the schema allows 12 observations and
+ * 12 questions, and a real response already overflowed the previous 900.
+ */
+const defaultMaxTokens = 4_000;
 
 type FetchImplementation = (
   input: RequestInfo | URL,
@@ -24,6 +39,8 @@ export type MiniMaxAnnotationDraftProviderOptions = Readonly<{
   apiKey: string;
   endpoint?: string;
   modelVersion?: string;
+  /** Completion budget; the draft schema allows up to 12 observations plus 12 questions. */
+  maxTokens?: number;
   timeoutMs?: number;
   fetchImplementation?: FetchImplementation;
   clock?: Clock;
@@ -56,6 +73,7 @@ export class MiniMaxAnnotationDraftProvider implements AnnotationDraftProvider {
   private readonly endpoint: string;
   private readonly modelVersion: string;
   private readonly timeoutMs: number;
+  private readonly maxTokens: number;
   private readonly fetchImplementation: FetchImplementation;
   private readonly clock: Clock;
 
@@ -63,6 +81,7 @@ export class MiniMaxAnnotationDraftProvider implements AnnotationDraftProvider {
     this.endpoint = options.endpoint ?? defaultEndpoint;
     this.modelVersion = options.modelVersion ?? defaultModelVersion;
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
+    this.maxTokens = options.maxTokens ?? defaultMaxTokens;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
     this.clock = options.clock ?? Date.now;
   }
@@ -93,14 +112,19 @@ export class MiniMaxAnnotationDraftProvider implements AnnotationDraftProvider {
         },
         body: JSON.stringify({
           model: this.modelVersion,
-          max_tokens: 900,
+          // 900 tokens truncated the payload mid-JSON: the draft schema allows up
+          // to 12 observations plus 12 questions, and a real response already
+          // overflowed. The provider then reports `stop_reason: "max_tokens"`,
+          // which surfaces as an invalid response rather than as a length
+          // problem, so the budget has to be generous enough to finish.
+          max_tokens: this.maxTokens,
           thinking: { type: "disabled" },
           system: systemPrompt,
           messages: [{ role: "user", content: [{ type: "text", text: buildPrompt(input) }] }],
         }),
         signal: requestSignal.signal,
       });
-      const providerRequestId = response.headers.get("x-request-id");
+      const providerRequestId = readRequestId(response.headers);
 
       if (!response.ok) throw errorForResponseStatus(response.status);
 
@@ -149,6 +173,23 @@ export class MiniMaxAnnotationDraftProvider implements AnnotationDraftProvider {
   }
 }
 
+/**
+ * The request id the vendor actually returns.
+ *
+ * This host answers with `x-mm-request-id` (and `trace-id`, `x-session-id`,
+ * `alb_request_id`) and **no** `x-request-id`. Reading only `x-request-id`
+ * therefore recorded `null` on every successful call, which left the request-id
+ * requirement in AGENTS.md section 7 unmet and made a vendor-side investigation
+ * impossible. Names are tried most specific first.
+ */
+function readRequestId(headers: Headers): string | null {
+  for (const name of ["x-mm-request-id", "trace-id", "x-request-id"]) {
+    const value = headers.get(name);
+    if (value) return value;
+  }
+  return null;
+}
+
 export function createMiniMaxAnnotationDraftProvider(
   options: Omit<MiniMaxAnnotationDraftProviderOptions, "apiKey"> &
     Partial<Pick<MiniMaxAnnotationDraftProviderOptions, "apiKey">> = {},
@@ -156,15 +197,36 @@ export function createMiniMaxAnnotationDraftProvider(
   return new MiniMaxAnnotationDraftProvider({
     ...options,
     apiKey: options.apiKey ?? process.env.MINIMAX_API_KEY ?? "",
+    // Same resolution order as the other MiniMax adapters.
+    endpoint: options.endpoint ?? process.env.MINIMAX_API_ENDPOINT ?? defaultEndpoint,
   });
 }
 
+/**
+ * The prompt states the exact wire shape, not just the field semantics.
+ *
+ * This matters, and it is the same defect that broke the lexicon-extraction
+ * prompt: an earlier version listed the top-level keys and described each
+ * observation in prose, but never named the keys inside an observation. The
+ * model therefore answered with `{id, type, clue}` — a perfectly reasonable
+ * guess — while the strict schema requires `{category, observation,
+ * evidenceBasis, needsHumanReview}`, so every draft was rejected with
+ * `provider-response-invalid`. Naming the fields in a concrete example is what
+ * makes the contract land.
+ */
 const systemPrompt = [
   "You prepare a Spanish-learning annotation draft for a human reviewer.",
   "Use only the supplied transcript and aggregate speech-signal observations.",
   "Do not infer phoneme accuracy, learner ability, mastery, confidence, or negative evidence.",
   "Every observation must be phrased as a tentative human-review question or clue.",
-  "Return JSON only with summary, observations, and questionsForReviewer.",
+  "Return JSON only, with no markdown fence and no commentary.",
+  "Each observation object must carry exactly these four keys and no others: " +
+    "category, observation, evidenceBasis, needsHumanReview.",
+  'category is one of "transcript", "pronunciation", "fluency", "context".',
+  'evidenceBasis is one of "transcript", "speech-signal", "both" — use "transcript" when the clue comes only from the words, and "speech-signal" only when the aggregate signal supports it.',
+  "needsHumanReview is always the literal boolean true; every observation awaits a human.",
+  "Provide at most 12 observations.",
+  'The exact shape is: {"summary":"...","observations":[{"category":"fluency","observation":"The speaker repeats a word after a pause; is that worth noting?","evidenceBasis":"transcript","needsHumanReview":true}],"questionsForReviewer":["..."]}',
 ].join(" ");
 
 function buildPrompt(input: AnnotationDraftInput): string {

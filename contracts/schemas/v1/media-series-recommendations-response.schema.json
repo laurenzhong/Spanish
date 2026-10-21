@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-series-recommendations-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "data"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "v1"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "series",
+        "items"
+      ],
+      "properties": {
+        "series": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "media-series-view.schema.json"
+            }
+          ]
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "$ref": "media-item.schema.json"
+          }
+        }
+      }
+    }
+  }
+}

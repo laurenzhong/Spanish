@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import type { MediaArtwork } from "../domain";
 import {
+  applyPlyrSpeed,
   audioPlyrOptions,
+  DEFAULT_MEDIA_PLAYBACK_SPEED,
   disableNativeMediaControls,
   markPlyrContainer,
   mountPlyrAutoPauseControl,
@@ -26,6 +28,8 @@ export interface AudioPlayerPort {
   pause(): void;
   seek(positionMs: number): void;
   currentTime(): number;
+  /** Optional so existing controlled test fakes keep working unchanged. */
+  setSpeed?(speed: number): void;
   destroy(): void;
 }
 
@@ -96,44 +100,55 @@ export function AudioPlayerAdapter({
   artwork,
   title,
   factory,
+  speed = DEFAULT_MEDIA_PLAYBACK_SPEED,
   autoPause,
   hasSegments,
   onToggleAutoPause,
-  onAutoPauseControlReady,
-  onPortChange,
-  onPositionChange,
-  onStateChange,
-  onError,
+  onPortChange: onPortChangeCallback,
+  onPositionChange: onPositionChangeCallback,
+  onStateChange: onStateChangeCallback,
+  onError: onErrorCallback,
 }: Readonly<{
   audioUrl: string;
   artwork?: MediaArtwork | null;
   title: string;
   factory?: AudioPlayerFactory;
+  /** Playback speed chosen through the workbench's visible control. */
+  speed?: number;
   autoPause: boolean;
   hasSegments: boolean;
   onToggleAutoPause: () => void;
-  onAutoPauseControlReady: (ready: boolean) => void;
   onPortChange: (port: AudioPlayerPort | null) => void;
   onPositionChange: () => void;
   onStateChange: (state: AudioPlayerState) => void;
   onError: (message: string | null) => void;
 }>) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const onPortChange = useEffectEvent(onPortChangeCallback);
+  const onPositionChange = useEffectEvent(onPositionChangeCallback);
+  const onStateChange = useEffectEvent(onStateChangeCallback);
+  const onError = useEffectEvent(onErrorCallback);
+  const hostRef = useRef<HTMLDivElement>(null);
   const generationRef = useRef(0);
   const autoPauseControlRef = useRef<MountedAutoPauseControl | null>(null);
+  const portRef = useRef<AudioPlayerPort | null>(null);
   const toggleAutoPauseRef = useRef(onToggleAutoPause);
   const autoPauseRef = useRef(autoPause);
+  const speedRef = useRef(speed);
   const [failedArtworkUrl, setFailedArtworkUrl] = useState<string | null>(null);
   const displayArtwork = artwork && failedArtworkUrl !== artwork.url ? artwork : null;
 
   useEffect(() => {
     toggleAutoPauseRef.current = onToggleAutoPause;
     autoPauseRef.current = autoPause;
-  }, [autoPause, onToggleAutoPause]);
+    speedRef.current = speed;
+  }, [autoPause, onToggleAutoPause, speed]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const host = hostRef.current;
+    if (!host) return;
+    const audio = document.createElement("audio");
+    audio.setAttribute("aria-label", title);
+    host.replaceChildren(audio);
 
     const generation = generationRef.current + 1;
     generationRef.current = generation;
@@ -158,6 +173,7 @@ export function AudioPlayerAdapter({
         return;
       }
       port = nextPort;
+      portRef.current = nextPort;
       onPortChange(nextPort);
       onError(null);
     };
@@ -184,14 +200,11 @@ export function AudioPlayerAdapter({
       });
       if (autoPauseControl) {
         autoPauseControlRef.current = autoPauseControl;
-        onAutoPauseControlReady(true);
       } else if (autoPauseMountAttempts < 20) {
         autoPauseMountAttempts += 1;
         autoPauseMountTimer = window.setTimeout(mountAutoPause, 25);
       }
     };
-
-    onAutoPauseControlReady(false);
     disableNativeMediaControls(audio);
     audio.dataset.mediaPlayerState = "loading";
     audio.src = audioUrl;
@@ -201,7 +214,9 @@ export function AudioPlayerAdapter({
     if (factory) {
       try {
         audio.dataset.mediaPlayerState = "test-factory";
-        attachPort(factory(audio, { url: audioUrl, lifecycle }));
+        const nextPort = factory(audio, { url: audioUrl, lifecycle });
+        portRef.current = nextPort;
+        attachPort(nextPort);
       } catch (error) {
         audio.dataset.mediaPlayerState = "error";
         if (current()) onError(error instanceof Error ? error.message : "播客播放器初始化失败。");
@@ -225,23 +240,24 @@ export function AudioPlayerAdapter({
       void import("plyr").then((module) => {
         if (cancelled || !current()) return;
         const Plyr = resolvePlyrConstructor(module);
-        player = new Plyr(audio, audioPlyrOptions);
+        player = new Plyr(audio, { ...audioPlyrOptions, speed: { ...audioPlyrOptions.speed, selected: speedRef.current } });
         const playerContainer = markPlyrContainer(player, audio, "audio");
         playerContainer.dataset.mediaPlayerState = "ready";
         playerContainer.setAttribute("aria-label", title);
         audio.removeAttribute("aria-label");
         player.on("ready", ready);
         mountAutoPause();
+        const plyrInstance = player;
         attachPort({
           play: () => {
-            if (!player) return;
-            void Promise.resolve(player.play()).catch(() => lifecycle.onError("浏览器阻止了音频播放，请再次点击播放。"));
+            if (!plyrInstance) return;
+            void Promise.resolve(plyrInstance.play()).catch(() => lifecycle.onError("浏览器阻止了音频播放，请再次点击播放。"));
           },
           pause: () => {
             // Plyr delegates to the media node, but calling the node as well
             // keeps a controlled HTMLMediaElement implementation in sync when
             // its paused flag has not been updated yet.
-            player?.pause();
+            plyrInstance?.pause();
             audio.pause();
           },
           seek: (positionMs) => {
@@ -249,11 +265,18 @@ export function AudioPlayerAdapter({
             // Plyr ignores seeks until metadata exposes a duration. Keep the
             // underlying element in sync so an early sentence click is not lost.
             audio.currentTime = seconds;
-            if (player) player.currentTime = seconds;
+            if (plyrInstance) plyrInstance.currentTime = seconds;
           },
           currentTime: () => Math.max(0, Math.round(audio.currentTime * 1_000)),
+          setSpeed: (nextSpeed) => {
+            applyPlyrSpeed(plyrInstance, nextSpeed);
+            // Keep the media node in sync so a speed change is observable
+            // before Plyr flushes its deferred playbackRate update.
+            audio.playbackRate = nextSpeed;
+          },
           destroy: destroyPlayer,
         });
+        applyPlyrSpeed(plyrInstance, speedRef.current);
         if (audio.readyState >= 1) ready();
       }).catch(() => {
         audio.dataset.mediaPlayerState = "error";
@@ -265,7 +288,6 @@ export function AudioPlayerAdapter({
       cancelled = true;
       if (generationRef.current === generation) generationRef.current += 1;
       if (autoPauseMountTimer !== null) window.clearTimeout(autoPauseMountTimer);
-      onAutoPauseControlReady(false);
       autoPauseControl?.destroy();
       if (autoPauseControlRef.current === autoPauseControl) autoPauseControlRef.current = null;
       if (player) {
@@ -281,15 +303,24 @@ export function AudioPlayerAdapter({
       audio.removeEventListener("seeking", seeking);
       audio.removeEventListener("seeked", seeked);
       audio.removeEventListener("error", failed);
+      portRef.current = null;
       onPortChange(null);
       if (port) port.destroy();
       destroyPlayer();
+      host.replaceChildren();
     };
-  }, [audioUrl, factory, hasSegments, onAutoPauseControlReady, onError, onPortChange, onPositionChange, onStateChange, title]);
+  }, [audioUrl, factory, hasSegments, title]);
 
   useEffect(() => {
     autoPauseControlRef.current?.setAutoPause(autoPause);
   }, [autoPause]);
+
+  useEffect(() => {
+    // Mounting applies speedRef to the new port; later choices update the
+    // existing port without restarting playback.
+    speedRef.current = speed;
+    portRef.current?.setSpeed?.(speed);
+  }, [speed]);
 
   return (
     <div className="audio-player-adapter">
@@ -299,7 +330,7 @@ export function AudioPlayerAdapter({
           <img alt={displayArtwork.alt} height={displayArtwork.height ?? 600} onError={() => setFailedArtworkUrl(displayArtwork.url)} src={displayArtwork.url} width={displayArtwork.width ?? 600} />
         ) : <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 13.5v-3a5 5 0 0 1 10 0v3" /><path d="M7 12H5.5A1.5 1.5 0 0 0 4 13.5v3A1.5 1.5 0 0 0 5.5 18H8v-6H7ZM17 12h1.5a1.5 1.5 0 0 1 1.5 1.5V16.5A1.5 1.5 0 0 1 17 18H16v-6h1Z" /></svg>}
       </div>
-      <audio aria-label={title} ref={audioRef} src={audioUrl}>当前浏览器无法播放音频。</audio>
+      <div className="w-full min-w-0" ref={hostRef} />
     </div>
   );
 }

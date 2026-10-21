@@ -9,6 +9,8 @@ export type TextToSpeechOptions = Readonly<{
   pitch?: number;
   voiceName?: string;
   voiceURI?: string;
+  /** Fired only when the utterance reports an actual start. */
+  onStart?: () => void;
   /**
    * How long an utterance may stay without `start` before the engine is treated
    * as silent. Chrome and Safari accept `speak()` for voices that are listed but
@@ -67,7 +69,7 @@ function startupTimeoutFor(voice: SpeechSynthesisVoice | null, options: TextToSp
  * unsettled (which is what made the reader button look dead).
  */
 function totalStartupBudgetFor(startupTimeoutMs: number): number {
-  return startupTimeoutMs + Math.max(startupTimeoutMs * 2, 8_000);
+  return startupTimeoutMs + Math.max(startupTimeoutMs, 500);
 }
 
 /**
@@ -84,22 +86,15 @@ function maxSpeechRuntimeFor(text: string): number {
 const endWatcherIntervalMs = 500;
 
 /**
- * Only a start that the engine dropped without playing anything may be retried;
- * replaying a sentence the engine reported as speaking would duplicate audio.
+ * Only a failed startup may be retried. A confirmed start prevents replay.
  */
-function shouldRetrySilence(error: unknown, maybeAudible: boolean, hasPinnedVoice: boolean): boolean {
-  return (
-    !maybeAudible &&
-    hasPinnedVoice &&
-    error instanceof SpeechCapabilityError &&
-    error.code === "tts-no-audio"
-  );
+function shouldRetrySilence(error: unknown): boolean {
+  return error instanceof SpeechCapabilityError && error.code === "tts-no-audio";
 }
 
 /**
- * True once the engine owns audible work. Blink and WebKit both set `speaking`
- * synchronously inside `speak()`, so this is only consulted after the startup
- * deadline, where it means the audio really is on its way out.
+ * Queue activity is useful for detecting a missing end after a confirmed start.
+ * Chrome sets these flags before audio starts, so they cannot prove audibility.
  */
 function engineIsSpeaking(synthesis: SpeechSynthesisLike): boolean {
   return synthesis.speaking === true || synthesis.pending === true;
@@ -107,8 +102,7 @@ function engineIsSpeaking(synthesis: SpeechSynthesisLike): boolean {
 
 export class BrowserTextToSpeech {
   private active: SpeechAttempt | null = null;
-  /** True when the last failure may have cut audio short, so replaying is unsafe. */
-  private lastAttemptMaybeAudible = false;
+  private generation = 0;
 
   constructor(
     private readonly synthesis: SpeechSynthesisLike | null,
@@ -132,24 +126,24 @@ export class BrowserTextToSpeech {
     }
 
     this.stop();
-
+    const generation = this.generation;
     const pinnedVoice = this.selectVoice(options);
-    const startupTimeoutMs = startupTimeoutFor(pinnedVoice, options);
-    try {
-      await this.utter(text, options, pinnedVoice, startupTimeoutMs);
-    } catch (error) {
-      // A listed-but-unusable voice is the common silent failure. Only a start
-      // that produced no audio reaches here with `engineReportedPlaying` false,
-      // so speaking the same text again cannot double up. Keep the chosen voice
-      // for one retry (a slow engine can simply have missed the deadline), then
-      // fall back to the engine default. Without a pinned voice a retry would
-      // just repeat the same request.
-      if (!shouldRetrySilence(error, this.lastAttemptMaybeAudible, pinnedVoice !== null) || !this.isSupported) throw error;
+    const language = options.languageTag.toLowerCase();
+    const alternatives = this.voices()
+      .filter((voice) => voice !== pinnedVoice && voice.lang.toLowerCase().startsWith(language.slice(0, 2)))
+      .sort((left, right) => Number(Boolean(right.localService)) - Number(Boolean(left.localService)) || Number(right.lang.toLowerCase() === language) - Number(left.lang.toLowerCase() === language));
+    // Prefer another real Spanish voice over repeating a broken voice or using
+    // the system's default language. Never retry once a start was confirmed.
+    const candidates = !pinnedVoice ? [null] : alternatives.length ? [pinnedVoice, ...alternatives.slice(0, 2)] : [pinnedVoice, pinnedVoice, null];
+    for (let index = 0; index < candidates.length; index += 1) {
+      if (this.generation !== generation) return;
+      const voice = candidates[index];
       try {
-        await this.utter(text, options, pinnedVoice, startupTimeoutMs);
-      } catch (retryError) {
-        if (!shouldRetrySilence(retryError, this.lastAttemptMaybeAudible, pinnedVoice !== null)) throw retryError;
-        await this.utter(text, options, null, startupTimeoutFor(null, options));
+        await this.utter(text, options, voice, startupTimeoutFor(voice, options));
+        return;
+      } catch (error) {
+        if (this.generation !== generation) return;
+        if (!shouldRetrySilence(error) || index === candidates.length - 1) throw error;
       }
     }
   }
@@ -185,16 +179,14 @@ export class BrowserTextToSpeech {
       let intervalMs = endWatcherIntervalMs;
       const totalStartupBudgetMs = totalStartupBudgetFor(startupTimeoutMs);
       const maxRuntimeMs = options.maxRuntimeMs ?? maxSpeechRuntimeFor(text);
-      this.lastAttemptMaybeAudible = false;
       const clearWatchdog = () => {
         if (watchdog) globalThis.clearTimeout(watchdog);
         watchdog = 0;
       };
       const engineStarted = () => {
-        // The engine reports the utterance through `start`/`speaking` even when
-        // the utterance-level `onstart` is late, so this is the audio evidence.
-        if (audioStarted) return;
+        if (settled || this.active !== attempt || audioStarted) return;
         audioStarted = true;
+        options.onStart?.();
         // The startup deadline is over, but the end is still outstanding: keep a
         // watcher armed so a dropped `end` can never leave the caller waiting.
         armWatchdog(endWatcherIntervalMs);
@@ -229,7 +221,7 @@ export class BrowserTextToSpeech {
       utterance.onerror = (event) =>
         attempt.reject(
           new SpeechCapabilityError(
-            speechErrorCode(event.error),
+            !audioStarted && ["synthesis-unavailable", "language-unavailable", "voice-unavailable", "network"].includes(event.error) ? "tts-no-audio" : speechErrorCode(event.error),
             "Text to speech failed.",
           ),
         );
@@ -254,11 +246,10 @@ export class BrowserTextToSpeech {
                 armWatchdog(endWatcherIntervalMs);
                 return;
               }
-              this.lastAttemptMaybeAudible = true;
-              synthesis.cancel();
               attempt.reject(
                 new SpeechCapabilityError("tts-stalled", "Text to speech did not finish."),
               );
+              synthesis.cancel();
               return;
             }
             // The engine reports `speaking`, yet no `start` ever arrived. That can
@@ -270,29 +261,20 @@ export class BrowserTextToSpeech {
               armWatchdog(totalStartupBudgetMs - elapsedMs);
               return;
             }
-            // A second look: if the engine stopped claiming to speak without ever
-            // starting, nothing was audible and a retry is safe. If it still claims
-            // to be speaking, audio may exist without events, so say "interrupted"
-            // rather than the wrong "no sound".
-            const maybeAudible = engineIsSpeaking(synthesis);
-            this.lastAttemptMaybeAudible = maybeAudible;
-            // Drop the stuck utterance before reporting so the next click starts
-            // from a clean queue instead of waiting behind a dead utterance.
+            // `speaking` alone is just a queued request in Chrome. Cancel the
+            // unstarted request before trying a different voice. Settle first
+            // so cancel's synchronous error event cannot change the verdict.
+            attempt.reject(new SpeechCapabilityError("tts-no-audio", "Text to speech never started."));
             synthesis.cancel();
-            attempt.reject(
-              maybeAudible
-                ? new SpeechCapabilityError("tts-stalled", "Text to speech never reported its start.")
-                : new SpeechCapabilityError("tts-no-audio", "Text to speech never started."),
-            );
           }, delayMs),
         );
       };
-      // Both Blink and WebKit clear the paused flag inside speak() and treat
-      // resume() on an empty queue as a no-op, so no resume() call is needed
-      // here; the queue is started by speak() itself. The watchdog is armed
-      // first because speak() may report the start synchronously.
+      // Chrome can clear `paused` while leaving a previously paused engine
+      // silent. Resume after queuing: resume() on an empty queue does nothing.
+      // Keep both calls within the click gesture so Safari can authorize audio.
       try {
         synthesis.speak(utterance);
+        if (!settled) synthesis.resume?.();
       } catch (error) {
         attempt.reject(
           new SpeechCapabilityError(
@@ -304,11 +286,12 @@ export class BrowserTextToSpeech {
       }
       // Only arm the startup deadline when the engine has not already started:
       // `engineStarted` re-arms the end watcher in that case.
-      if (!audioStarted) armWatchdog(startupTimeoutMs);
+      if (!settled && !audioStarted) armWatchdog(startupTimeoutMs);
     });
   }
 
   stop(): void {
+    this.generation += 1;
     const active = this.active;
     this.active = null;
     // Calling cancel() on an idle synthesis queue can silence the very next
@@ -319,9 +302,9 @@ export class BrowserTextToSpeech {
   }
 
   private selectVoice(options: TextToSpeechOptions): SpeechSynthesisVoice | null {
-    const voices = this.voices();
     const language = options.languageTag.toLowerCase();
     const prefix = language.slice(0, 2);
+    const voices = this.voices().filter((voice) => voice.lang.toLowerCase().startsWith(prefix));
     return (
       voices.find((voice) => options.voiceURI && voice.voiceURI === options.voiceURI) ??
       voices.find((voice) => options.voiceName && voice.name === options.voiceName) ??
@@ -388,6 +371,8 @@ export function preferredSpanishVoice(voices: readonly SpeechSynthesisVoice[], s
     ((voice.voiceURI && voice.voiceURI === storedVoiceURI) || (voice.name && voice.name === storedVoiceURI)),
   );
   return stored ??
+    spanish.find((voice) => voice.localService && voice.lang.toLowerCase() === "es-es") ??
+    spanish.find((voice) => voice.localService) ??
     spanish.find((voice) => voice.name === defaultSpanishVoiceName) ??
     spanish.find((voice) => voice.name.toLowerCase().includes("elvira")) ??
     spanish[0] ?? null;

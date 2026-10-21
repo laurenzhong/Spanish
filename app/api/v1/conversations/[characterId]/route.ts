@@ -94,7 +94,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const [character, history, access] = await Promise.all([
       settle(resolveConversationCharacter({
         characterKey: characterId,
-        characterVersion: 1,
+        characterVersion: findConversationCharacter(characterId)?.version ?? 1,
         repository: database && process.env.NODE_ENV !== "test" ? createDrizzleCharacterRepository(database) : undefined,
         allowStaticFallback: isConversationStaticFallbackAllowed(),
       })),

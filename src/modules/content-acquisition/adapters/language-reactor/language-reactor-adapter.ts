@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 
 import { z } from "zod";
+import { mediaProcessingAuthorizationSchema } from "@/src/modules/media-processing/schemas/processing-authorization";
 
 import { createPodcastCandidateDraft } from "../../normalizers/podcast-candidate";
 import { createVideoCandidateDraft } from "../../normalizers/youtube-candidate";
+import { suggestLanguageReactorPodcastSeries } from "../../normalizers/media-series-suggestion";
 import type { MediaArtwork } from "@/src/modules/media/domain";
 import type { ContentSourceRecord } from "../../repositories";
 import type { ContentSourcePage } from "../../schemas";
@@ -47,6 +49,7 @@ const hostSchema = z.string().trim().min(1).max(253);
 const topicSchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 
 export const languageReactorRightsPolicySchema = z.strictObject({
+  mediaProcessing: mediaProcessingAuthorizationSchema.optional(),
   provider: z.literal("language-reactor"),
   directoryUrl: z.url().startsWith("https://"),
   apiHost: z.literal("api-cdn.dioco.io").default("api-cdn.dioco.io"),
@@ -54,7 +57,7 @@ export const languageReactorRightsPolicySchema = z.strictObject({
   attribution: z.string().trim().min(1).max(1_000),
   licenseEvidence: z.url().startsWith("https://"),
   authorization: z.string().trim().min(1).max(2_000).optional(),
-  cefr: z.enum(["A2", "B1"]),
+  cefr: z.enum(["A1", "A2", "B1", "B2"]),
   topics: z.array(topicSchema).min(1).max(20),
   allowedAudioHosts: z.array(hostSchema).min(1).max(100),
   allowedAudioMimeTypes: z.array(z.enum(["audio/mpeg", "audio/mp4", "audio/aac", "audio/ogg", "audio/webm", "application/ogg"])).min(1).max(6),
@@ -110,6 +113,11 @@ function httpsArtworkUrl(value: string | undefined): string | null {
   }
 }
 
+function cachedYoutubeArtworkUrl(videoId: string, source: string | undefined): string {
+  const original = httpsArtworkUrl(source) ?? `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/maxresdefault.jpg`;
+  return `https://images.weserv.nl/?url=${encodeURIComponent(original.replace(/^https:\/\//u, ""))}`;
+}
+
 export class LanguageReactorAdapter implements ContentSourceAdapter {
   readonly key = "language-reactor" as const;
   private readonly podcastArtworkCache = new Map<string, MediaArtwork | null>();
@@ -156,8 +164,12 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
   }
 
   async discover(input: ContentSourceDiscoveryInput, requestOptions?: Readonly<{ signal?: AbortSignal }>): Promise<ContentSourcePage> {
+    requestOptions?.signal?.throwIfAborted();
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 50) {
       throw new ContentSourceAdapterError("Language Reactor discovery limit must be between 1 and 50.", false);
+    }
+    if (input.externalSourceId !== this.options.source.playlistId) {
+      throw new ContentSourceAdapterError("Language Reactor identity does not match its registered source.", false);
     }
     const offset = parseCursor(input.cursor);
     const policy = this.options.source.policy;
@@ -185,6 +197,7 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
       maxBytes: policy.maxApiBytes,
       signal: requestOptions?.signal,
     });
+    requestOptions?.signal?.throwIfAborted();
     let documents: z.infer<typeof documentSchema>[];
     try {
       documents = responseSchema.parse(JSON.parse(response.text)).data.docs_metadata;
@@ -224,7 +237,7 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           licenseEvidence: policy.licenseEvidence,
           copyrightStatus: "cleared",
           artwork: {
-            url: httpsArtworkUrl(document.image?.src) ?? `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/maxresdefault.jpg`,
+            url: cachedYoutubeArtworkUrl(videoId, document.image?.src),
             alt: title.slice(0, 300),
             source: "youtube",
             width: 1280,
@@ -255,7 +268,9 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           maxAttempts: 1,
           signal: requestOptions?.signal,
         });
+        requestOptions?.signal?.throwIfAborted();
         const artwork = await this.podcastArtwork(document.info.itunesId, document.info.feedTitle?.trim() || title, requestOptions?.signal);
+        requestOptions?.signal?.throwIfAborted();
         const draft = createPodcastCandidateDraft({
           stableKey: `podcast.language-reactor.${document.diocoDocId.toLowerCase()}`,
           feedUrl: policy.directoryUrl,
@@ -288,7 +303,14 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
           segments: [],
           changeReason: "Discovered from the owner-authorized Language Reactor podcast directory.",
         });
-        items.push({ externalItemId: document.diocoDocId, canonicalUrl: draft.canonicalUrl, title, contentType: "podcast", language: "es", publishedAt, contentHash: draft.contentHash, metadata: { podcastDraft: draft } });
+        const seriesSuggestion = suggestLanguageReactorPodcastSeries({
+          sourceStableKey: input.sourceStableKey,
+          mediaStableKey: draft.stableKey,
+          directoryUrl: policy.directoryUrl,
+          itunesId: document.info.itunesId,
+          feedTitle: document.info.feedTitle,
+        });
+        items.push({ externalItemId: document.diocoDocId, canonicalUrl: draft.canonicalUrl, title, contentType: "podcast", language: "es", publishedAt, contentHash: draft.contentHash, metadata: { podcastDraft: draft, mediaSeriesSuggestions: seriesSuggestion ? [seriesSuggestion] : [] } });
       } catch (error) {
         if (requestOptions?.signal?.aborted) throw error;
         // A single enclosure can be temporarily unavailable while the

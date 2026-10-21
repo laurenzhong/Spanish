@@ -1,6 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { conversationCharacterVersion } from "@/src/modules/conversation/domain/character-catalog";
+
 const {
   chatThread,
   resolveCharacter,
@@ -137,7 +139,7 @@ describe("dynamic character chat page", () => {
     );
     expect(threadProps()).toMatchObject({
       initialMessageId: "00000000-0000-4000-8000-000000000123",
-      characterVersion: 1,
+      characterVersion: conversationCharacterVersion("lucia") ?? 1,
     });
     expectNoRemoteRead();
   });

@@ -20,6 +20,8 @@ const userA = "00000000-0000-4000-8000-000000000051";
 const userB = "00000000-0000-4000-8000-000000000052";
 const luciaId = "10000000-0000-4000-8000-000000000051";
 const mateoId = "10000000-0000-4000-8000-000000000052";
+const luciaIdentityId = "40000000-0000-4000-8000-000000000051";
+const mateoIdentityId = "40000000-0000-4000-8000-000000000052";
 
 async function migration(name: string) {
   return (await readFile(path.join(process.cwd(), "drizzle", name), "utf8")).replaceAll("--> statement-breakpoint", "");
@@ -58,22 +60,30 @@ describe("memory persistence and sharing", () => {
       grant usage on schema auth, public to anon, authenticated;
       grant execute on function auth.uid() to anon, authenticated;
     `);
-    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0004_calm_iron_monger.sql"]) await client.exec(await migration(name));
+    // The memory rows themselves are user state, so slice 2 reads and writes
+    // them through `identity_id`; 0045 is the migration that added it.
+    for (const name of ["0000_big_phalanx.sql", "0001_auth_rls.sql", "0002_content_import_registry.sql", "0003_chunky_black_knight.sql", "0004_calm_iron_monger.sql", "0005_kind_character_network.sql", "0016_proactive_messages.sql", "0017_sudden_betty_brant.sql", "0045_lumpy_medusa.sql"]) await client.exec(await migration(name));
     database = drizzle(client, { schema });
     await client.exec(`insert into auth.users (id, email) values ('${userA}', 'memory-a@example.test'), ('${userB}', 'memory-b@example.test');`);
     await database.insert(schema.characters).values([
       { id: luciaId, stableKey: "lucia", displayName: "Lucía", homeLocation: "Madrid", profile: {}, characterVersion: 1, status: "published" },
       { id: mateoId, stableKey: "mateo", displayName: "Mateo", homeLocation: "Valencia", profile: {}, characterVersion: 1, status: "published" },
     ]);
+    await database.insert(schema.characterIdentities).values([
+      { id: luciaIdentityId, stableKey: "lucia", currentCharacterId: luciaId },
+      { id: mateoIdentityId, stableKey: "mateo", currentCharacterId: mateoId },
+    ]);
     await database.insert(schema.conversations).values({
       id: "20000000-0000-4000-8000-000000000051",
       userId: userA,
       characterId: luciaId,
+      identityId: luciaIdentityId,
     });
     await database.insert(schema.conversations).values({
       id: "20000000-0000-4000-8000-000000000052",
       userId: userB,
       characterId: luciaId,
+      identityId: luciaIdentityId,
     });
   });
 
@@ -121,8 +131,8 @@ describe("memory persistence and sharing", () => {
     // predates the later `messages.source_type` column. Insert only columns
     // present in that schema so the regression remains focused on the memory
     // foreign-key lifecycle rather than migration drift.
-    await client.exec(`insert into messages (id, user_id, conversation_id, character_id, client_message_id, role, status, content, completed_at)
-      values ('${sourceMessageId}', '${userA}', '20000000-0000-4000-8000-000000000051', '${luciaId}', 'memory-source-message', 'user', 'completed', '这是产生关系记忆的消息', now())`);
+    await client.exec(`insert into messages (id, user_id, conversation_id, character_id, identity_id, client_message_id, role, status, content, completed_at)
+      values ('${sourceMessageId}', '${userA}', '20000000-0000-4000-8000-000000000051', '${luciaId}', '${luciaIdentityId}', 'memory-source-message', 'user', 'completed', '这是产生关系记忆的消息', now())`);
 
     const repository = createDrizzleMemoryRepository(database);
     const [inserted] = await commitMemories({

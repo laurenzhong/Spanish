@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FakeMediaTranscriptionProvider, FakeMediaTranslationProvider, processMediaTranscript, type MediaProcessingArtifactStore } from "@/src/modules/media-processing";
 
 const policy = { maxDurationMs: 30 * 60 * 1_000, maxAssetBytes: 50_000_000, maxEstimatedCostMicros: 2_000_000, minimumConfidence: 0.72 };
-const input = { candidateId: "candidate-1", mediaType: "podcast" as const, sourceUrl: "https://media.example.test/episode.mp3", sourceEnabled: true, rightsStatus: "verified" as const, language: "es", durationMs: 8_000, assetBytes: 2_000_000, captionStatus: "unavailable" as const, existingSegments: [], estimatedCostMicros: 10_000 };
+const input = { candidateId: "candidate-1", mediaType: "podcast" as const, sourceUrl: "https://media.example.test/episode.mp3", sourceEnabled: true, rightsStatus: "verified" as const, language: "es", durationMs: 8_000, assetBytes: 2_000_000, captionStatus: "unavailable" as const, existingSegments: [], estimatedCostMicros: 10_000, processingAudience: "shared-learning" as const, processingAuthorization: { version: 1, allowedOperations: ["acquire-audio", "asr", "translate"], audience: "shared-learning", thirdPartyProcessing: true, evidenceUrl: "https://media.example.test/permission", expiresAt: null } };
 
 function store(overrides: Partial<MediaProcessingArtifactStore> = {}): MediaProcessingArtifactStore {
   return { acquire: vi.fn(async () => ({ id: "tmp-1", path: "tmp/audio", byteSize: 2_000_000 })), delete: vi.fn(async () => undefined), ...overrides };

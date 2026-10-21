@@ -27,8 +27,8 @@ describe("lexicon v1 contracts", () => {
     expect(list({ apiVersion: "v1", data: { items: [vocabulary], page: 1, pageSize: 24, total: 1 } }), JSON.stringify(list.errors)).toBe(true);
     expect(list({ apiVersion: "v1", data: { items: [{ ...vocabulary, internalLocator: "private" }], page: 1, pageSize: 24, total: 1 } })).toBe(false);
     expect(list({ apiVersion: "v1", data: { items: [{
-      id: "20000000-0000-4000-8000-000000000001", expression: "¿Qué tal?", normalizedExpression: "que tal", pragmaticPurpose: null,
-      register: "neutral", region: "es-ES", cefr: "A2", meaningZh: "怎么样", variants: [], occurrenceCount: 0, intent: "revisit", revision: 2,
+      id: "20000000-0000-4000-8000-000000000001", expression: "¿Qué tal?", normalizedExpression: "que tal", scope: "public", pragmaticPurpose: null,
+      register: "neutral", region: "es-ES", cefr: "A2", meaningZh: "怎么样", variants: [], occurrenceCount: 0, representativeOccurrence: null, intent: "revisit", revision: 2,
     }], page: 1, pageSize: 24, total: 1 } }), JSON.stringify(list.errors)).toBe(true);
   });
 
@@ -57,7 +57,7 @@ describe("lexicon v1 contracts", () => {
     expect(attempt({ apiVersion: "v1", data: { attemptId: vocabulary.id, assessmentKey: "lexical.core", version: 1, answer: "comer", passed: true, score: 1, normalizedAnswer: "comer", duplicate: false, evidence: "recorded" } })).toBe(true);
     const openapi = JSON.parse(readFileSync(path.join(process.cwd(), "contracts", "openapi", "v1", "openapi.json"), "utf8"));
     expect(openapi.paths["/corpus/search"].get.responses["200"].content["application/json"].schema.$ref).toContain("corpus-search-response");
-    expect(openapi.paths["/corpus/search"].get.parameters.map((parameter: { name: string }) => parameter.name)).toEqual(expect.arrayContaining(["entryKind", "entryId"]));
+    expect(openapi.paths["/corpus/search"].get.parameters.map((parameter: { name: string }) => parameter.name)).toEqual(expect.arrayContaining(["q", "match", "entryKind", "entryId"]));
     expect(openapi.paths["/lexicon/assessments/{assessmentId}/attempts"].post.parameters.some((parameter: { name: string }) => parameter.name === "Idempotency-Key")).toBe(true);
   });
 });

@@ -1,7 +1,8 @@
-import { aliasedTable, and, asc, desc, eq, gt, gte, ilike, inArray, isNull, notExists, or } from "drizzle-orm";
+import { aliasedTable, and, asc, desc, eq, gt, gte, ilike, inArray, isNull, notExists, or, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
+import { createDrizzleReplyGenerationRepository, invalidateConversationReplies } from "./drizzle-reply-generations";
 import type {
   ConversationListRecord,
   ConversationMessageRecord,
@@ -36,6 +37,47 @@ type MessageRow = Readonly<{
   [K in keyof typeof messageColumns]: (typeof schema.messages.$inferSelect)[K];
 }>;
 
+/**
+ * Resolves a character's stable identity and the revision its pointer currently
+ * names. Conversation state is keyed by `identity_id` from here on (ADR 0014);
+ * the revision is only the availability gate and the dual-written audit column
+ * that keeps a rollback to `character_id` possible until slice 4.
+ *
+ * The gate fails closed: a missing identity, or a pointer at a revision that is
+ * not published, both keep raising CHARACTER_UNAVAILABLE exactly as the
+ * version-keyed lookup used to.
+ */
+async function resolveCharacterIdentity<TResult extends PgQueryResultHKT>(
+  database: ConversationDatabase<TResult>,
+  characterKey: string,
+): Promise<Readonly<{ identityId: string; revisionId: string }>> {
+  const [row] = await database
+    .select({
+      identityId: schema.characterIdentities.id,
+      revisionId: schema.characters.id,
+      status: schema.characters.status,
+    })
+    .from(schema.characterIdentities)
+    .innerJoin(schema.characters, eq(schema.characters.id, schema.characterIdentities.currentCharacterId))
+    .where(eq(schema.characterIdentities.stableKey, characterKey))
+    .limit(1);
+  if (!row || row.status !== "published") throw new Error("CHARACTER_UNAVAILABLE");
+  return row;
+}
+
+async function findConversationByIdentity<TResult extends PgQueryResultHKT>(
+  database: ConversationDatabase<TResult>,
+  userId: string,
+  identityId: string,
+): Promise<{ id: string } | null> {
+  const [conversation] = await database
+    .select({ id: schema.conversations.id })
+    .from(schema.conversations)
+    .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.identityId, identityId)))
+    .limit(1);
+  return conversation ?? null;
+}
+
 function toMessage(row: MessageRow): ConversationMessageRecord {
   return {
     id: row.id,
@@ -55,28 +97,24 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
   database: ConversationDatabase<TResult>,
 ): ConversationRepository {
   return {
+    ...createDrizzleReplyGenerationRepository(database),
     async getOrCreateConversation(userId, characterKey, characterVersion) {
-      const [character] = await database
-        .select({ id: schema.characters.id })
-        .from(schema.characters)
-        .where(and(
-          eq(schema.characters.stableKey, characterKey),
-          eq(schema.characters.characterVersion, characterVersion),
-          eq(schema.characters.status, "published"),
-        ))
-        .limit(1);
-      if (!character) throw new Error("CHARACTER_UNAVAILABLE");
+      // `characterVersion` stays in the signature for the callers that already
+      // hold the catalog revision, but the conversation is no longer keyed on
+      // it: the identity pointer decides which revision is current, and the
+      // conversation is found through the identity.
+      void characterVersion;
+      const character = await resolveCharacterIdentity(database, characterKey);
+
+      const existing = await findConversationByIdentity(database, userId, character.identityId);
+      if (existing) return existing.id;
 
       await database
         .insert(schema.conversations)
-        .values({ userId, characterId: character.id })
+        .values({ userId, characterId: character.revisionId, identityId: character.identityId })
         .onConflictDoNothing({ target: [schema.conversations.userId, schema.conversations.characterId] });
 
-      const [conversation] = await database
-        .select({ id: schema.conversations.id })
-        .from(schema.conversations)
-        .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.characterId, character.id)))
-        .limit(1);
+      const conversation = await findConversationByIdentity(database, userId, character.identityId);
       if (!conversation) throw new Error("CONVERSATION_UNAVAILABLE");
       return conversation.id;
     },
@@ -85,18 +123,22 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const [existing] = await database
         .select()
         .from(schema.messages)
-        .where(and(eq(schema.messages.conversationId, input.conversationId), eq(schema.messages.clientMessageId, input.clientMessageId)))
+        .where(and(eq(schema.messages.userId, input.userId), eq(schema.messages.role, "user"), eq(schema.messages.conversationId, input.conversationId), eq(schema.messages.clientMessageId, input.clientMessageId)))
         .limit(1);
-      if (existing) return toMessage(existing);
+      if (existing) {
+        if (existing.content !== input.content) throw new Error("MESSAGE_CONFLICT");
+        return toMessage(existing);
+      }
 
       const [character] = await database
-        .select({ id: schema.characters.id })
+        .select({ identityId: schema.characterIdentities.id, revisionId: schema.characters.id })
         .from(schema.conversations)
-        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .innerJoin(schema.characterIdentities, eq(schema.conversations.identityId, schema.characterIdentities.id))
+        .innerJoin(schema.characters, eq(schema.characterIdentities.currentCharacterId, schema.characters.id))
         .where(and(
           eq(schema.conversations.id, input.conversationId),
           eq(schema.conversations.userId, input.userId),
-          eq(schema.characters.stableKey, input.characterKey),
+          eq(schema.characterIdentities.stableKey, input.characterKey),
           eq(schema.characters.status, "published"),
         ))
         .limit(1);
@@ -106,12 +148,13 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         .values({
           userId: input.userId,
           conversationId: input.conversationId,
-          characterId: character.id,
+          characterId: character.revisionId,
+          identityId: character.identityId,
           clientMessageId: input.clientMessageId,
           generationId: input.generationId,
           role: "user",
           status: "completed",
-          sourceType: "conversation",
+          sourceType: input.sourceType ?? "conversation",
           content: input.content,
           completedAt: new Date(),
         })
@@ -121,8 +164,9 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         await database.update(schema.conversations).set({ lastMessageAt: message.createdAt, updatedAt: new Date() }).where(eq(schema.conversations.id, input.conversationId));
         return toMessage(message);
       }
-      const [raced] = await database.select().from(schema.messages).where(and(eq(schema.messages.conversationId, input.conversationId), eq(schema.messages.clientMessageId, input.clientMessageId))).limit(1);
+      const [raced] = await database.select().from(schema.messages).where(and(eq(schema.messages.userId, input.userId), eq(schema.messages.role, "user"), eq(schema.messages.conversationId, input.conversationId), eq(schema.messages.clientMessageId, input.clientMessageId))).limit(1);
       if (!raced) throw new Error("MESSAGE_UNAVAILABLE");
+      if (raced.content !== input.content) throw new Error("MESSAGE_CONFLICT");
       return toMessage(raced);
     },
 
@@ -135,13 +179,14 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       )).limit(1);
       if (existing) return toMessage(existing);
       const [character] = await database
-        .select({ id: schema.characters.id })
+        .select({ identityId: schema.characterIdentities.id, revisionId: schema.characters.id })
         .from(schema.conversations)
-        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .innerJoin(schema.characterIdentities, eq(schema.conversations.identityId, schema.characterIdentities.id))
+        .innerJoin(schema.characters, eq(schema.characterIdentities.currentCharacterId, schema.characters.id))
         .where(and(
           eq(schema.conversations.id, input.conversationId),
           eq(schema.conversations.userId, input.userId),
-          eq(schema.characters.stableKey, input.characterKey),
+          eq(schema.characterIdentities.stableKey, input.characterKey),
           eq(schema.characters.status, "published"),
         ))
         .limit(1);
@@ -150,7 +195,8 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         id: input.messageId,
         userId: input.userId,
         conversationId: input.conversationId,
-        characterId: character.id,
+        characterId: character.revisionId,
+        identityId: character.identityId,
         clientMessageId: input.clientMessageId,
         generationId: input.generationId,
         role: "character",
@@ -180,22 +226,31 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
     },
 
     async listMessages(userId, characterKey, limit = 100) {
+      const withdrawnHistoryParents = aliasedTable(schema.messages, "withdrawn_history_parents");
       const rows = await database.select(messageColumns).from(schema.messages)
         .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .innerJoin(schema.characterIdentities, eq(schema.conversations.identityId, schema.characterIdentities.id))
         // Filter through the owning conversation first so PostgreSQL can use
-        // conversations_user_character_uidx, then walk the conversation's
+        // conversations_user_last_message_idx, then walk the conversation's
         // messages via messages_conversation_created_idx.
         .where(and(
           eq(schema.conversations.userId, userId),
           eq(schema.messages.userId, userId),
-          eq(schema.characters.stableKey, characterKey),
+          eq(schema.characterIdentities.stableKey, characterKey),
+          or(eq(schema.messages.role, "user"), and(inArray(schema.messages.status, ["completed", "streaming", "cancelled"]), sql`length(trim(${schema.messages.content})) > 0`)),
+          notExists(database.select({ id: withdrawnHistoryParents.id }).from(withdrawnHistoryParents).where(and(
+            eq(withdrawnHistoryParents.id, schema.messages.replyToMessageId), eq(withdrawnHistoryParents.userId, userId),
+            eq(withdrawnHistoryParents.conversationId, schema.messages.conversationId), eq(withdrawnHistoryParents.status, "withdrawn"),
+          ))),
         ))
         .orderBy(desc(schema.messages.createdAt)).limit(Math.max(1, Math.min(limit, 200)));
       return rows.map((row) => toMessage(row)).reverse();
     },
 
     async listConversations(userId): Promise<readonly ConversationListRecord[]> {
+      // Display facts come from the revision the identity points at, not from
+      // the revision the conversation was created under, so a published
+      // revision never has to move the conversation row.
       const rows = await database
         .select({
           conversation: schema.conversations,
@@ -203,10 +258,11 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
           conversationPreferences: schema.conversationPreferences,
         })
         .from(schema.conversations)
-        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .innerJoin(schema.characterIdentities, eq(schema.conversations.identityId, schema.characterIdentities.id))
+        .innerJoin(schema.characters, eq(schema.characterIdentities.currentCharacterId, schema.characters.id))
         .leftJoin(schema.conversationPreferences, and(
           eq(schema.conversationPreferences.userId, userId),
-          eq(schema.conversationPreferences.characterId, schema.characters.id),
+          eq(schema.conversationPreferences.identityId, schema.characterIdentities.id),
         ))
         .where(and(
           eq(schema.conversations.userId, userId),
@@ -219,29 +275,62 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const unreadCountByConversation = new Map<string, number>();
       if (conversationIds.length > 0) {
         const withdrawnLatestParents = aliasedTable(schema.messages, "withdrawn_latest_parents");
-        const messages = await database
-          .selectDistinctOn([schema.messages.conversationId], {
-            conversationId: schema.messages.conversationId,
-            role: schema.messages.role,
-            content: schema.messages.content,
-            createdAt: schema.messages.createdAt,
-          })
-          .from(schema.messages)
-          .where(and(
-            inArray(schema.messages.conversationId, conversationIds),
-            eq(schema.messages.status, "completed"),
-            notExists(
-              database.select({ id: withdrawnLatestParents.id })
-                .from(withdrawnLatestParents)
-                .where(and(
-                  eq(withdrawnLatestParents.id, schema.messages.replyToMessageId),
-                  eq(withdrawnLatestParents.userId, userId),
-                  eq(withdrawnLatestParents.conversationId, schema.messages.conversationId),
-                  eq(withdrawnLatestParents.status, "withdrawn"),
-                )),
-            ),
-          ))
-          .orderBy(asc(schema.messages.conversationId), desc(schema.messages.createdAt));
+        const withdrawnUnreadParents = aliasedTable(schema.messages, "withdrawn_unread_parents");
+        // Both aggregates need only the conversation ids read above, so they
+        // share one round trip instead of queueing the unread count behind the
+        // latest message. The rail is on screen for every chat route.
+        const [messages, unreadRows] = await Promise.all([
+          database
+            .selectDistinctOn([schema.messages.conversationId], {
+              conversationId: schema.messages.conversationId,
+              role: schema.messages.role,
+              content: schema.messages.content,
+              createdAt: schema.messages.createdAt,
+            })
+            .from(schema.messages)
+            .where(and(
+              inArray(schema.messages.conversationId, conversationIds),
+              inArray(schema.messages.status, ["completed", "cancelled"]),
+              sql`length(trim(${schema.messages.content})) > 0`,
+              notExists(
+                database.select({ id: withdrawnLatestParents.id })
+                  .from(withdrawnLatestParents)
+                  .where(and(
+                    eq(withdrawnLatestParents.id, schema.messages.replyToMessageId),
+                    eq(withdrawnLatestParents.userId, userId),
+                    eq(withdrawnLatestParents.conversationId, schema.messages.conversationId),
+                    eq(withdrawnLatestParents.status, "withdrawn"),
+                  )),
+              ),
+            ))
+            .orderBy(asc(schema.messages.conversationId), desc(schema.messages.createdAt)),
+          database
+            .select({ conversationId: schema.messages.conversationId })
+            .from(schema.messages)
+            .leftJoin(schema.conversationPreferences, and(
+              eq(schema.conversationPreferences.userId, userId),
+              eq(schema.conversationPreferences.identityId, schema.messages.identityId),
+            ))
+            .where(and(
+              inArray(schema.messages.conversationId, conversationIds),
+              eq(schema.messages.role, "character"),
+              eq(schema.messages.status, "completed"),
+              notExists(
+                database.select({ id: withdrawnUnreadParents.id })
+                  .from(withdrawnUnreadParents)
+                  .where(and(
+                    eq(withdrawnUnreadParents.id, schema.messages.replyToMessageId),
+                    eq(withdrawnUnreadParents.userId, userId),
+                    eq(withdrawnUnreadParents.conversationId, schema.messages.conversationId),
+                    eq(withdrawnUnreadParents.status, "withdrawn"),
+                  )),
+              ),
+              or(
+                isNull(schema.conversationPreferences.lastReadAt),
+                gt(schema.messages.createdAt, schema.conversationPreferences.lastReadAt),
+              ),
+            )),
+        ]);
         for (const message of messages) {
           if (!latestMessageByConversation.has(message.conversationId)) {
             latestMessageByConversation.set(message.conversationId, {
@@ -251,33 +340,6 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
             });
           }
         }
-        const withdrawnUnreadParents = aliasedTable(schema.messages, "withdrawn_unread_parents");
-        const unreadRows = await database
-          .select({ conversationId: schema.messages.conversationId })
-          .from(schema.messages)
-          .leftJoin(schema.conversationPreferences, and(
-            eq(schema.conversationPreferences.userId, userId),
-            eq(schema.conversationPreferences.characterId, schema.messages.characterId),
-          ))
-          .where(and(
-            inArray(schema.messages.conversationId, conversationIds),
-            eq(schema.messages.role, "character"),
-            eq(schema.messages.status, "completed"),
-            notExists(
-              database.select({ id: withdrawnUnreadParents.id })
-                .from(withdrawnUnreadParents)
-                .where(and(
-                  eq(withdrawnUnreadParents.id, schema.messages.replyToMessageId),
-                  eq(withdrawnUnreadParents.userId, userId),
-                  eq(withdrawnUnreadParents.conversationId, schema.messages.conversationId),
-                  eq(withdrawnUnreadParents.status, "withdrawn"),
-                )),
-            ),
-            or(
-              isNull(schema.conversationPreferences.lastReadAt),
-              gt(schema.messages.createdAt, schema.conversationPreferences.lastReadAt),
-            ),
-          ));
         for (const row of unreadRows) unreadCountByConversation.set(row.conversationId, (unreadCountByConversation.get(row.conversationId) ?? 0) + 1);
       }
 
@@ -301,29 +363,26 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
     },
 
     async updateConversationPreference(userId, characterKey, patch) {
-      const [character] = await database
-        .select({ id: schema.characters.id, stableKey: schema.characters.stableKey })
-        .from(schema.characters)
-        .innerJoin(schema.conversations, and(
-          eq(schema.conversations.characterId, schema.characters.id),
-          eq(schema.conversations.userId, userId),
-        ))
-        .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.status, "published")))
-        .limit(1);
-      if (!character) throw new Error("CHARACTER_UNAVAILABLE");
+      const character = await resolveCharacterIdentity(database, characterKey);
+      const conversation = await findConversationByIdentity(database, userId, character.identityId);
+      if (!conversation) throw new Error("CHARACTER_UNAVAILABLE");
 
+      // The preference is read and written through the identity, so the row
+      // survives a pointer move. `character_id` is still written on every
+      // path for rollback.
       const [existing] = await database
         .select()
         .from(schema.conversationPreferences)
         .where(and(
           eq(schema.conversationPreferences.userId, userId),
-          eq(schema.conversationPreferences.characterId, character.id),
+          eq(schema.conversationPreferences.identityId, character.identityId),
         ))
         .limit(1);
       const values = {
         userId,
-        characterId: character.id,
-        isPinned: patch.isPinned ?? existing?.isPinned ?? character.stableKey === "lucia",
+        characterId: character.revisionId,
+        identityId: character.identityId,
+        isPinned: patch.isPinned ?? existing?.isPinned ?? characterKey === "lucia",
         isMuted: patch.isMuted ?? existing?.isMuted ?? false,
         sortRank: patch.sortRank !== undefined ? patch.sortRank : existing?.sortRank ?? null,
         updatedAt: new Date(),
@@ -331,25 +390,30 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const [preference] = existing
         ? await database.update(schema.conversationPreferences).set(values).where(and(
           eq(schema.conversationPreferences.userId, userId),
-          eq(schema.conversationPreferences.characterId, character.id),
+          eq(schema.conversationPreferences.identityId, character.identityId),
         )).returning()
         : await database.insert(schema.conversationPreferences).values(values).onConflictDoUpdate({
           target: [schema.conversationPreferences.userId, schema.conversationPreferences.characterId],
           set: values,
         }).returning();
       if (!preference) throw new Error("CONVERSATION_PREFERENCE_UNAVAILABLE");
-      return { characterKey: character.stableKey, isPinned: preference.isPinned, isMuted: preference.isMuted, sortRank: preference.sortRank };
+      return { characterKey, isPinned: preference.isPinned, isMuted: preference.isMuted, sortRank: preference.sortRank };
     },
 
     async reorderConversationPreferences(userId, characterKeys) {
       const uniqueKeys = [...new Set(characterKeys)];
       const rows = await database
-        .select({ id: schema.characters.id, stableKey: schema.characters.stableKey })
-        .from(schema.characters)
+        .select({
+          identityId: schema.characterIdentities.id,
+          revisionId: schema.characterIdentities.currentCharacterId,
+          stableKey: schema.characterIdentities.stableKey,
+        })
+        .from(schema.characterIdentities)
         .innerJoin(schema.conversations, and(
-          eq(schema.conversations.characterId, schema.characters.id),
+          eq(schema.conversations.identityId, schema.characterIdentities.id),
           eq(schema.conversations.userId, userId),
         ))
+        .innerJoin(schema.characters, eq(schema.characterIdentities.currentCharacterId, schema.characters.id))
         .where(eq(schema.characters.status, "published"));
       const ownedKeys = new Set(rows.map((row) => row.stableKey));
       if (uniqueKeys.some((key) => !ownedKeys.has(key))) throw new Error("CONVERSATION_UNAVAILABLE");
@@ -357,23 +421,64 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         for (const [sortRank, characterKey] of uniqueKeys.entries()) {
           const character = rows.find((row) => row.stableKey === characterKey);
           if (!character) continue;
-          await transaction.insert(schema.conversationPreferences).values({ userId, characterId: character.id, sortRank }).onConflictDoUpdate({
-            target: [schema.conversationPreferences.userId, schema.conversationPreferences.characterId],
-            set: { sortRank, updatedAt: new Date() },
-          });
+          // Identity first: an upsert keyed on `character_id` would insert a
+          // second preference row once the pointer names a newer revision.
+          // `conversation_preferences` has no surrogate key, so the identity
+          // pair is what the update addresses.
+          const [existing] = await transaction
+            .select({ identityId: schema.conversationPreferences.identityId })
+            .from(schema.conversationPreferences)
+            .where(and(
+              eq(schema.conversationPreferences.userId, userId),
+              eq(schema.conversationPreferences.identityId, character.identityId),
+            ))
+            .limit(1);
+          if (existing) {
+            await transaction.update(schema.conversationPreferences)
+              .set({ sortRank, characterId: character.revisionId, updatedAt: new Date() })
+              .where(and(
+                eq(schema.conversationPreferences.userId, userId),
+                eq(schema.conversationPreferences.identityId, character.identityId),
+              ));
+            continue;
+          }
+          await transaction.insert(schema.conversationPreferences).values({
+            userId,
+            characterId: character.revisionId,
+            identityId: character.identityId,
+            sortRank,
+          }).onConflictDoNothing({ target: [schema.conversationPreferences.userId, schema.conversationPreferences.characterId] });
         }
       });
     },
 
     async markConversationRead(userId, characterKey, readAt = new Date()) {
-      const [character] = await database.select({ id: schema.characters.id }).from(schema.characters)
-        .where(and(eq(schema.characters.stableKey, characterKey), eq(schema.characters.status, "published"))).limit(1);
-      if (!character) throw new Error("CHARACTER_UNAVAILABLE");
-      const [conversation] = await database.select({ id: schema.conversations.id }).from(schema.conversations)
-        .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.characterId, character.id))).limit(1);
+      const character = await resolveCharacterIdentity(database, characterKey);
+      const conversation = await findConversationByIdentity(database, userId, character.identityId);
       if (!conversation) throw new Error("CONVERSATION_UNAVAILABLE");
-      await database.insert(schema.conversationPreferences).values({ userId, characterId: character.id, lastReadAt: readAt })
-        .onConflictDoUpdate({ target: [schema.conversationPreferences.userId, schema.conversationPreferences.characterId], set: { lastReadAt: readAt, updatedAt: new Date() } });
+      const [existing] = await database
+        .select({ identityId: schema.conversationPreferences.identityId })
+        .from(schema.conversationPreferences)
+        .where(and(
+          eq(schema.conversationPreferences.userId, userId),
+          eq(schema.conversationPreferences.identityId, character.identityId),
+        ))
+        .limit(1);
+      if (existing) {
+        await database.update(schema.conversationPreferences)
+          .set({ lastReadAt: readAt, characterId: character.revisionId, updatedAt: new Date() })
+          .where(and(
+            eq(schema.conversationPreferences.userId, userId),
+            eq(schema.conversationPreferences.identityId, character.identityId),
+          ));
+        return;
+      }
+      await database.insert(schema.conversationPreferences)
+        .values({ userId, characterId: character.revisionId, identityId: character.identityId, lastReadAt: readAt })
+        .onConflictDoUpdate({
+          target: [schema.conversationPreferences.userId, schema.conversationPreferences.characterId],
+          set: { lastReadAt: readAt, updatedAt: new Date() },
+        });
     },
 
     async searchMessages(userId, query, limit = 50) {
@@ -385,10 +490,12 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         .select({ message: schema.messages, character: schema.characters })
         .from(schema.messages)
         .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .innerJoin(schema.characterIdentities, eq(schema.conversations.identityId, schema.characterIdentities.id))
+        .innerJoin(schema.characters, eq(schema.characterIdentities.currentCharacterId, schema.characters.id))
         .where(and(
           eq(schema.messages.userId, userId),
-          eq(schema.messages.status, "completed"),
+          inArray(schema.messages.status, ["completed", "cancelled"]),
+          sql`length(trim(${schema.messages.content})) > 0`,
           eq(schema.characters.status, "published"),
           notExists(
             database.select({ id: withdrawnSearchParents.id })
@@ -415,11 +522,11 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
       const [message] = await database.select({ id: schema.messages.id })
         .from(schema.messages)
         .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+        .innerJoin(schema.characterIdentities, eq(schema.conversations.identityId, schema.characterIdentities.id))
         .where(and(
           eq(schema.messages.id, messageId),
           eq(schema.messages.userId, userId),
-          eq(schema.characters.stableKey, characterKey),
+          eq(schema.characterIdentities.stableKey, characterKey),
           eq(schema.messages.role, "user"),
         ))
         .limit(1);
@@ -431,25 +538,17 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
         const [message] = await transaction.select({ id: schema.messages.id, conversationId: schema.messages.conversationId })
           .from(schema.messages)
           .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-          .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
+          .innerJoin(schema.characterIdentities, eq(schema.conversations.identityId, schema.characterIdentities.id))
           .where(and(
             eq(schema.messages.id, messageId),
             eq(schema.messages.userId, userId),
-            eq(schema.characters.stableKey, characterKey),
+            eq(schema.characterIdentities.stableKey, characterKey),
             eq(schema.messages.role, "user"),
           )).limit(1);
         if (!message) return false;
-
-        // reply_to_message_id is intentionally not a database foreign key so
-        // failed/streaming rows can be retained. Delete dependent assistant
-        // content explicitly before removing the user turn, otherwise a
-        // deleted prompt could survive in history/search projections.
-        await transaction.delete(schema.messages).where(and(
-          eq(schema.messages.userId, userId),
-          eq(schema.messages.conversationId, message.conversationId),
-          eq(schema.messages.replyToMessageId, message.id),
-          eq(schema.messages.role, "character"),
-        ));
+        await transaction.select({ id: schema.conversations.id }).from(schema.conversations)
+          .where(and(eq(schema.conversations.id, message.conversationId), eq(schema.conversations.userId, userId))).for("update");
+        await invalidateConversationReplies(transaction, { userId, conversationId: message.conversationId, userMessageId: message.id });
         const deleted = await transaction.delete(schema.messages)
           .where(and(eq(schema.messages.id, message.id), eq(schema.messages.userId, userId)))
           .returning({ id: schema.messages.id });
@@ -458,25 +557,31 @@ export function createDrizzleConversationRepository<TResult extends PgQueryResul
     },
 
     async withdrawMessage(userId, characterKey, messageId) {
-      const cutoff = new Date(Date.now() - 2 * 60 * 1000);
-      const [message] = await database.select({ id: schema.messages.id })
-        .from(schema.messages)
-        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-        .innerJoin(schema.characters, eq(schema.conversations.characterId, schema.characters.id))
-        .where(and(
-          eq(schema.messages.id, messageId),
-          eq(schema.messages.userId, userId),
-          eq(schema.characters.stableKey, characterKey),
-          eq(schema.messages.role, "user"),
-          eq(schema.messages.status, "completed"),
-          gte(schema.messages.createdAt, cutoff),
-        )).limit(1);
-      if (!message) return false;
-      const updated = await database.update(schema.messages)
-        .set({ status: "withdrawn", updatedAt: new Date() })
-        .where(and(eq(schema.messages.id, message.id), eq(schema.messages.userId, userId)))
-        .returning({ id: schema.messages.id });
-      return updated.length > 0;
+      return database.transaction(async (transaction) => {
+        const cutoff = new Date(Date.now() - 2 * 60 * 1000);
+        const [message] = await transaction.select({ id: schema.messages.id, conversationId: schema.messages.conversationId })
+          .from(schema.messages)
+          .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+          .innerJoin(schema.characterIdentities, eq(schema.conversations.identityId, schema.characterIdentities.id))
+          .where(and(
+            eq(schema.messages.id, messageId),
+            eq(schema.messages.userId, userId),
+            eq(schema.characterIdentities.stableKey, characterKey),
+            eq(schema.messages.role, "user"),
+            eq(schema.messages.status, "completed"),
+            gte(schema.messages.createdAt, cutoff),
+          )).limit(1);
+        if (!message) return false;
+        await transaction.select({ id: schema.conversations.id }).from(schema.conversations)
+          .where(and(eq(schema.conversations.id, message.conversationId), eq(schema.conversations.userId, userId))).for("update");
+        const updated = await transaction.update(schema.messages)
+          .set({ status: "withdrawn", updatedAt: new Date() })
+          .where(and(eq(schema.messages.id, message.id), eq(schema.messages.userId, userId), eq(schema.messages.status, "completed")))
+          .returning({ id: schema.messages.id });
+        if (!updated.length) return false;
+        await invalidateConversationReplies(transaction, { userId, conversationId: message.conversationId, userMessageId: message.id });
+        return true;
+      });
     },
 
     async isMessageWithdrawn(userId, messageId) {

@@ -34,8 +34,12 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <head>
         <script
           id="theme-initializer"
+          // Only an explicit choice is written. Leaving the attribute unset lets
+          // the public home follow `prefers-color-scheme`, while the signed-in
+          // shell keeps its light default and the toggle writes the attribute on
+          // mount as before.
           dangerouslySetInnerHTML={{
-            __html: `(() => { try { const storedTheme = window.localStorage.getItem("spanish-theme"); document.documentElement.dataset.theme = storedTheme === "dark" || storedTheme === "light" ? storedTheme : "light"; } catch { document.documentElement.dataset.theme = "light"; } })();`,
+            __html: `(() => { try { const stored = window.localStorage.getItem("spanish-theme"); if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored; } catch { /* no storage: leave the attribute unset */ } })();`,
           }}
         />
       </head>

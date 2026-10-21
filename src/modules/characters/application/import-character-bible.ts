@@ -30,6 +30,9 @@ export function profileFor(character: CharacterBible): PersistedCharacter["profi
     personality: character.personality,
     relationships: character.relationships,
     changeLog: character.changeLog,
+    canonPolicies: Object.fromEntries(character.facts.filter((fact) => fact.isActive).map((fact) => [fact.factKey, {
+      version: fact.version, category: fact.category, reveal: fact.reveal,
+    }])),
   };
 }
 
@@ -98,6 +101,13 @@ export async function importCharacterBible(repository: CharacterRepository, inpu
       }
       return { stableKey: character.stableKey, version: character.version, characterId: existing.id, status: "unchanged" };
     }
+    // Import deliberately does not create the character identity (ADR 0014 /
+    // slice 3). A new revision arrives as a draft, and
+    // `character_identities.current_character_id` is not nullable, so an
+    // identity created here would have to point at that unpublished revision —
+    // exactly the state the ADR forbids. `publish` creates the identity when it
+    // publishes the key's first revision; until then read paths fail closed
+    // because they resolve the character through the identity.
     const inserted = await transaction.insert({ character, profile });
     return { stableKey: character.stableKey, version: character.version, characterId: inserted.id, status: "imported" };
   });

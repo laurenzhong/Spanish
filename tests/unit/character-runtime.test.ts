@@ -73,6 +73,19 @@ describe("character runtime release gate", () => {
     expect(resolved.persisted?.status).toBe("published");
   });
 
+  it("preserves authored identity and traits without restoring absent biography from the catalog", async () => {
+    const stored = repositoryReturning({ status: "published", profile: {
+      identity: { age: 24, growthLocation: "Madrid", education: "Máster en Comunicación", occupation: "Comunicación digital" },
+      personality: { traits: ["curiosa", "cálida"], tone: ["cercana"], initiative: "balanced", responseStyle: ["escucha primero"], topicPreferences: [{ topic: "fotografía", interest: "high", notes: "Observa la ciudad." }] },
+      relationships: [], changeLog: [],
+    } });
+    const resolved = await resolveConversationCharacter({ characterKey: "lucia", characterVersion: 1, repository: stored });
+    expect(resolved.catalog.snapshot).toMatchObject({ identity: { age: 24, occupation: "Comunicación digital" }, traits: ["curiosa", "cálida"] });
+    const missing = await resolveConversationCharacter({ characterKey: "lucia", characterVersion: 1, repository: repositoryWith("published") });
+    expect(missing.catalog.snapshot).not.toHaveProperty("identity");
+    expect(missing.catalog.snapshot).not.toHaveProperty("traits");
+  });
+
   it("fails closed for persisted canon facts without a stored reveal policy", async () => {
     const resolved = await resolveConversationCharacter({
       characterKey: "lucia",
@@ -100,6 +113,24 @@ describe("character runtime release gate", () => {
     expect(resolved.catalog.snapshot.facts).toEqual([
       expect.objectContaining({ factKey: "preference.private-interest", reveal: "never" }),
       expect.objectContaining({ factKey: "boundary.ai-identity", reveal: "direct" }),
+    ]);
+  });
+
+  it("uses version-matched authored reveal policies and rejects mismatched or absent policies", async () => {
+    const base = await repositoryReturning({ status: "published" }).findByStableVersion("lucia", 1);
+    const repository = repositoryReturning({ status: "published", profile: { ...base!.profile,
+      canonPolicies: {
+        "preference.food": { version: 1, category: "preference", reveal: { mode: "contextual", audience: "any-user", trigger: "Al hablar de comida." } },
+        "background.old": { version: 1, category: "background", reveal: { mode: "direct", audience: "any-user", trigger: "Cuando pregunte." } },
+      },
+    }, facts: [
+      { factKey: "preference.food", value: { statement: "Me interesa la cocina local." }, sensitivity: "normal", version: 1, isActive: true },
+      { factKey: "background.old", value: { statement: "Old policy must not authorize this revision." }, sensitivity: "normal", version: 2, isActive: true },
+    ] });
+    const resolved = await resolveConversationCharacter({ characterKey: "lucia", characterVersion: 1, repository });
+    expect(resolved.catalog.snapshot.facts).toEqual([
+      expect.objectContaining({ factKey: "preference.food", reveal: "contextual", audience: "any-user", trigger: "Al hablar de comida." }),
+      expect.objectContaining({ factKey: "background.old", reveal: "never" }),
     ]);
   });
 
@@ -179,5 +210,44 @@ describe("character runtime release gate", () => {
       repository,
       requiredCapability: "proactiveMessages",
     })).rejects.toBeInstanceOf(CharacterRuntimeError);
+  });
+
+  it("carries the character bible's expression rules into the provider snapshot", async () => {
+    const resolved = await resolveConversationCharacter({
+      characterKey: "lucia",
+      characterVersion: 1,
+      repository: repositoryReturning({
+        status: "published",
+        profile: {
+          identity: { age: 24, growthLocation: "Madrid", education: "Máster en Comunicación", occupation: "Comunicación digital" },
+          personality: {
+            traits: ["curiosa", "cálida"],
+            tone: ["cercana"],
+            initiative: "balanced",
+            responseStyle: ["no repite una expresión que ya usó"],
+            topicPreferences: [{ topic: "fotografía urbana", interest: "high", notes: "Le gusta Madrid." }],
+          },
+          relationships: [],
+          changeLog: [],
+        },
+      }),
+    });
+    expect(resolved.catalog.snapshot.responseStyle).toEqual(["no repite una expresión que ya usó"]);
+  });
+
+  it("falls back to the catalog expression rules when the published row predates the field", async () => {
+    const resolved = await resolveConversationCharacter({
+      characterKey: "lucia",
+      characterVersion: 1,
+      repository: repositoryReturning({ status: "published" }),
+    });
+    // The bible's rule has to reach a row imported before the field existed,
+    // otherwise "write it in the bible" would be inert for the live character.
+    expect(resolved.catalog.snapshot.responseStyle).toContain(
+      "no recicla preguntas ni frases; si le piden repetir o retomar un tema, lo hace con naturalidad",
+    );
+    expect(resolved.catalog.snapshot.responseStyle).toContain(
+      "usa es-ES cotidiano, breve y claro; evita traducciones literales, moralejas y saludos en cada mensaje",
+    );
   });
 });

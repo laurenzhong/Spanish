@@ -413,6 +413,77 @@ test("opens the mobile conversation list without a redundant back link", async (
   await expect(page.getByRole("dialog", { name: "会话列表" })).toBeVisible();
 });
 
+test("persists contact menu changes and keeps the menu inside the workspace", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chromium", "The desktop contact context menu is not rendered in the mobile layout.");
+  await authenticate(page);
+  const preferenceBodies: string[] = [];
+  await page.route("**/api/v1/conversations/preferences", async (route) => {
+    if (route.request().method() === "PATCH") {
+      preferenceBodies.push(route.request().postData() ?? "");
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: {} }) });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/chat/lucia");
+  const contact = page.getByRole("link", { name: /Lucía Martín/ });
+  await contact.click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "Lucía Martín 的好友操作" });
+  await expect(menu).toBeVisible();
+  const menuBox = await menu.boundingBox();
+  const viewport = page.viewportSize();
+  expect(menuBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect((menuBox?.x ?? 0) + (menuBox?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
+  expect((menuBox?.y ?? 0) + (menuBox?.height ?? 0)).toBeLessThanOrEqual(viewport?.height ?? 0);
+
+  await page.getByRole("menuitem", { name: "取消置顶" }).click();
+  await expect(page.getByRole("status")).toContainText("已取消置顶");
+  expect(preferenceBodies.some((body) => body.includes('"isPinned":false'))).toBe(true);
+});
+
+test("supports direct desktop contact reordering without navigating away", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chromium", "Direct pointer reordering is a desktop interaction; mobile uses long press for contact actions.");
+  await authenticate(page);
+  await page.route("**/api/v1/conversations", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { conversations: [
+        { conversationId: "conversation-lucia", characterKey: "lucia", characterName: "Lucía Martín", avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null, isPinned: true, sortRank: 0 },
+        { conversationId: "conversation-mateo", characterKey: "mateo", characterName: "Mateo Ruiz", avatarClass: "avatar--mateo", roleLabel: "兴趣好友", lastMessageAt: null, lastMessage: null, isPinned: false, sortRank: 1 },
+      ] } }),
+    });
+  });
+  const preferenceBodies: string[] = [];
+  await page.route("**/api/v1/conversations/preferences", async (route) => {
+    if (route.request().method() === "PATCH") {
+      preferenceBodies.push(route.request().postData() ?? "");
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: {} }) });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/chat/lucia");
+  const first = page.locator("[data-character-key='lucia']");
+  const second = page.locator("[data-character-key='mateo']");
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+  const from = await first.boundingBox();
+  const to = await second.boundingBox();
+  expect(from).not.toBeNull();
+  expect(to).not.toBeNull();
+  await page.mouse.move((from?.x ?? 0) + 20, (from?.y ?? 0) + 20);
+  await page.mouse.down();
+  await page.mouse.move((to?.x ?? 0) + 20, (to?.y ?? 0) + (to?.height ?? 0) - 4, { steps: 3 });
+  await page.mouse.up();
+
+  await expect.poll(() => preferenceBodies.some((body) => body.includes('"orderedCharacterKeys":["mateo","lucia"]'))).toBe(true);
+  await expect(page).toHaveURL(/\/chat\/lucia$/);
+});
+
 test("searches conversation history and opens the matching message", async ({ page }) => {
   await authenticate(page);
   const messageId = "00000000-0000-4000-8000-000000000099";
@@ -482,7 +553,9 @@ test("opens sent-message actions and marks a withdrawn message without memory te
   expect(viewport).not.toBeNull();
   expect((menuBox?.x ?? 0) + (menuBox?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
   expect(menuBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(156);
-  expect(menuBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((viewport?.width ?? 0) < 600 ? 196 : 156);
+  // A user message menu is now the tallest variant: copy, read aloud, quote,
+  // withdraw and delete. Five 34px rows on desktop, five 44px rows on mobile.
+  expect(menuBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((viewport?.width ?? 0) < 600 ? 240 : 190);
   expect(Math.abs((menuBox?.x ?? 0) + (menuBox?.width ?? 0) - ((bubbleBox?.x ?? 0) + (bubbleBox?.width ?? 0)))).toBeLessThanOrEqual(1);
   expect(menuBox?.y ?? 0).toBeGreaterThanOrEqual((bubbleBox?.y ?? 0) + (bubbleBox?.height ?? 0) + 5);
   await expect(messageMenu).toHaveCSS("background-color", "rgb(48, 52, 45)");
@@ -528,4 +601,35 @@ test("opens friend-message actions on double click and translates inline", async
   await page.getByRole("menuitem", { name: "取消翻译" }).click();
   await expect(message).not.toContainText("明天见。");
   await expect(page.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toHaveCount(0);
+});
+
+test("keeps the conversation workspace flush with the viewport's right edge", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/chat/lucia");
+  await expect(page.getByTestId("conversation-thread")).toBeVisible();
+
+  const geometry = await page.evaluate(() => {
+    const right = (selector: string) => document.querySelector<HTMLElement>(selector)?.getBoundingClientRect().right ?? null;
+    return {
+      viewportWidth: window.innerWidth,
+      bodyRight: document.body.getBoundingClientRect().right,
+      pageRight: right(".conversation-page"),
+      workspaceRight: right(".conversation-workspace"),
+      threadRight: right(".conversation-thread"),
+      rootScrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+
+  expect(geometry.workspaceRight).not.toBeNull();
+  expect(geometry.threadRight).not.toBeNull();
+  // The document reserves a stable scrollbar gutter for pages that scroll.
+  // The conversation workspace is a fixed, full-bleed view that never scrolls
+  // the document, so that reserved lane must not survive as an empty strip of
+  // page background along the far right of the chat page.
+  expect(Math.round(geometry.viewportWidth - (geometry.workspaceRight ?? 0))).toBe(0);
+  expect(Math.round(geometry.viewportWidth - (geometry.threadRight ?? 0))).toBe(0);
+  expect(Math.round(geometry.viewportWidth - geometry.pageRight!)).toBe(0);
+  expect(Math.round(geometry.viewportWidth - geometry.bodyRight)).toBe(0);
+  // Filling the reserved lane must not spill the page sideways either.
+  expect(geometry.rootScrollWidth).toBeLessThanOrEqual(geometry.viewportWidth);
 });

@@ -1,3 +1,4 @@
+export * from "./audio-level-meter";
 export * from "./browser-recorder";
 export * from "./fake-speech-signal";
 export * from "./local-speech-signal";

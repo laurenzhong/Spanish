@@ -141,62 +141,65 @@ export function createDrizzleProfileRepository<
       const now = new Date();
       const from = new Date(now);
       from.setUTCDate(from.getUTCDate() - 364);
-      const sessions = await database
-        .select({
-          completedAt: schema.practiceSessions.completedAt,
-          id: schema.practiceSessions.id,
-          sceneTitle: schema.scenarios.title,
-          startedAt: schema.practiceSessions.startedAt,
-          status: schema.practiceSessions.status,
-        })
-        .from(schema.practiceSessions)
-        .leftJoin(
-          schema.scenarios,
-          eq(schema.practiceSessions.scenarioId, schema.scenarios.id),
-        )
-        .where(
-          and(
-            eq(schema.practiceSessions.userId, userId),
-            gte(schema.practiceSessions.startedAt, from),
-            lte(schema.practiceSessions.startedAt, now),
+      // Four independent reads, all keyed only by the user (and the same
+      // 365-day window), so they share one round trip instead of queueing four
+      // remote statements behind each other. The profile heatmap endpoint was
+      // the slowest client fetch left (666 ms / 45 KB measured) before this.
+      const [sessions, attempts, evidence, activityEvents] = await Promise.all([
+        database
+          .select({
+            completedAt: schema.practiceSessions.completedAt,
+            id: schema.practiceSessions.id,
+            sceneTitle: schema.scenarios.title,
+            startedAt: schema.practiceSessions.startedAt,
+            status: schema.practiceSessions.status,
+          })
+          .from(schema.practiceSessions)
+          .leftJoin(
+            schema.scenarios,
+            eq(schema.practiceSessions.scenarioId, schema.scenarios.id),
+          )
+          .where(
+            and(
+              eq(schema.practiceSessions.userId, userId),
+              gte(schema.practiceSessions.startedAt, from),
+              lte(schema.practiceSessions.startedAt, now),
+            ),
+          )
+          .orderBy(desc(schema.practiceSessions.startedAt)),
+        database
+          .select({
+            id: schema.practiceAttempts.id,
+            hintLevel: schema.practiceAttempts.hintLevel,
+            modality: schema.practiceAttempts.modality,
+            responseText: schema.practiceAttempts.responseText,
+            sessionId: schema.practiceAttempts.sessionId,
+          })
+          .from(schema.practiceAttempts)
+          .where(eq(schema.practiceAttempts.userId, userId)),
+        database
+          .select({
+            practiceAttemptId: schema.evidenceEvents.practiceAttemptId,
+            skillKey: schema.evidenceEvents.skillKey,
+          })
+          .from(schema.evidenceEvents)
+          .where(eq(schema.evidenceEvents.userId, userId)),
+        database
+          .select({
+            clientInstanceId: schema.practiceSessionActivityEvents.clientInstanceId,
+            eventType: schema.practiceSessionActivityEvents.eventType,
+            occurredAt: schema.practiceSessionActivityEvents.occurredAt,
+            sequence: schema.practiceSessionActivityEvents.sequence,
+            sessionId: schema.practiceSessionActivityEvents.sessionId,
+          })
+          .from(schema.practiceSessionActivityEvents)
+          .where(
+            and(
+              eq(schema.practiceSessionActivityEvents.userId, userId),
+              gte(schema.practiceSessionActivityEvents.occurredAt, from),
+            ),
           ),
-        )
-        .orderBy(desc(schema.practiceSessions.startedAt));
-
-      const attempts = await database
-        .select({
-          id: schema.practiceAttempts.id,
-          hintLevel: schema.practiceAttempts.hintLevel,
-          modality: schema.practiceAttempts.modality,
-          responseText: schema.practiceAttempts.responseText,
-          sessionId: schema.practiceAttempts.sessionId,
-        })
-        .from(schema.practiceAttempts)
-        .where(eq(schema.practiceAttempts.userId, userId));
-
-      const evidence = await database
-        .select({
-          practiceAttemptId: schema.evidenceEvents.practiceAttemptId,
-          skillKey: schema.evidenceEvents.skillKey,
-        })
-        .from(schema.evidenceEvents)
-        .where(eq(schema.evidenceEvents.userId, userId));
-
-      const activityEvents = await database
-        .select({
-          clientInstanceId: schema.practiceSessionActivityEvents.clientInstanceId,
-          eventType: schema.practiceSessionActivityEvents.eventType,
-          occurredAt: schema.practiceSessionActivityEvents.occurredAt,
-          sequence: schema.practiceSessionActivityEvents.sequence,
-          sessionId: schema.practiceSessionActivityEvents.sessionId,
-        })
-        .from(schema.practiceSessionActivityEvents)
-        .where(
-          and(
-            eq(schema.practiceSessionActivityEvents.userId, userId),
-            gte(schema.practiceSessionActivityEvents.occurredAt, from),
-          ),
-        );
+      ]);
       const activityBySession = new Map<string, typeof activityEvents>();
       for (const event of activityEvents) {
         const existing = activityBySession.get(event.sessionId) ?? [];

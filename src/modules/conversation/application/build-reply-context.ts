@@ -1,5 +1,7 @@
 import type { MemoryRecord, MemoryRepository } from "@/src/modules/memory";
 import { getConversationCharacter } from "../domain/character-catalog";
+import { hasGreetedOnLocalDate } from "../domain/greeting";
+import { localDateInTimeZone } from "../domain/local-date";
 import { questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 
 export type ReplyCharacterSnapshot = Readonly<{
@@ -7,14 +9,26 @@ export type ReplyCharacterSnapshot = Readonly<{
   characterVersion: number;
   displayName: string;
   homeLocation: string;
+  /** Authored public identity; its presence does not mean the user was told it. */
+  identity?: Readonly<{ age: number; growthLocation: string; education: string; occupation: string }>;
+  traits?: readonly string[];
   initiative: "low" | "balanced" | "high";
   tone: readonly string[];
+  /**
+   * Expression rules from the character bible's `personality.responseStyle`:
+   * how this character phrases things, not topics to bring up. Optional because
+   * a character row imported before the field existed has none.
+   */
+  responseStyle?: readonly string[];
   topics: readonly string[];
   facts: readonly Readonly<{
     factKey: string;
     statement: string;
     sensitivity: "normal" | "sensitive" | "private";
     reveal: "never" | "contextual" | "gradual" | "direct";
+    audience?: "any-user" | "relationship";
+    trigger?: string;
+    topic?: string;
   }>[];
 }>;
 
@@ -65,6 +79,8 @@ export type ReplyContext = Readonly<{
   generationId: string;
   userId: string;
   userMessage: string;
+  /** Validated, still-unanswered submissions in order, including the latest. */
+  unansweredUserMessages?: readonly string[];
   recentMessages: readonly ReplyContextMessage[];
   rollingSummary: string | null;
   openTopics: readonly ReplyOpenTopic[];
@@ -72,6 +88,12 @@ export type ReplyContext = Readonly<{
   openCommitments: readonly ReplyCommitment[];
   conversationTimeZone: string;
   currentLocalDate: string;
+  /**
+   * Whether the character already greeted the user on `currentLocalDate`.
+   * Derived from the unbudgeted recent history so a long day cannot push the
+   * earlier greeting out of the provider's recent-message budget.
+   */
+  alreadyGreetedToday?: boolean;
   continuityInstruction?: string | null;
   character: ReplyCharacterSnapshot;
   relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
@@ -88,6 +110,7 @@ export type BuildReplyContextInput = Readonly<{
   generationId: string;
   userId: string;
   userMessage: string;
+  unansweredUserMessages?: readonly string[];
   character?: ReplyCharacterSnapshot;
   relationshipStage?: ReplyContext["relationshipStage"];
   relationshipSummary?: string | null;
@@ -156,28 +179,13 @@ function topicLabel(value: string): string {
   return value.replace(/\s+/gu, " ").trim().slice(0, 140);
 }
 
-function localDateFor(value: string | Date, timeZone: string): string | null {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-  return year && month && day ? `${year}-${month}-${day}` : null;
-}
-
 /** Builds a small deterministic topic projection from completed message history. */
 export function deriveReplyOpenTopics(
   messages: readonly ReplyContextMessage[],
   options: Readonly<{ now?: Date; timeZone?: string }> = {},
 ): readonly ReplyOpenTopic[] {
   const timeZone = options.timeZone ?? luciaConversationTimeZone;
-  const currentLocalDate = localDateFor(options.now ?? new Date(), timeZone);
+  const currentLocalDate = localDateInTimeZone(options.now ?? new Date(), timeZone);
   const topics = new Map<string, ReplyOpenTopic>();
   for (let index = 0; index < messages.length; index += 1) {
     const message = messages[index];
@@ -195,7 +203,7 @@ export function deriveReplyOpenTopics(
       ...(message.sentAt ? { lastAskedAt: message.sentAt } : {}),
       ...(answer && messages[index + 1]?.sentAt ? { lastAnsweredAt: messages[index + 1]?.sentAt } : {}),
       ...(message.sentAt && currentLocalDate
-        ? { sameLocalDay: localDateFor(message.sentAt, timeZone) === currentLocalDate }
+        ? { sameLocalDay: localDateInTimeZone(message.sentAt, timeZone) === currentLocalDate }
         : {}),
     });
   }
@@ -208,7 +216,7 @@ export function deriveReplyCharacterClaims(
   options: Readonly<{ now?: Date; timeZone?: string }> = {},
 ): readonly ReplyCharacterClaim[] {
   const timeZone = options.timeZone ?? luciaConversationTimeZone;
-  const currentLocalDate = localDateFor(options.now ?? new Date(), timeZone);
+  const currentLocalDate = localDateInTimeZone(options.now ?? new Date(), timeZone);
   const claims = new Map<string, ReplyCharacterClaim>();
   for (const message of messages) {
     if (message.role !== "character" || !message.content.trim()) continue;
@@ -220,7 +228,7 @@ export function deriveReplyCharacterClaims(
       statement: message.content.trim().slice(0, 280),
       ...(message.sentAt ? { assertedAt: message.sentAt } : {}),
       ...(message.sentAt && currentLocalDate
-        ? { sameLocalDay: localDateFor(message.sentAt, timeZone) === currentLocalDate }
+        ? { sameLocalDay: localDateInTimeZone(message.sentAt, timeZone) === currentLocalDate }
         : {}),
       repeatableOnLaterDays: claimKey === "daily:meal" || claimKey === "daily:drink",
     });
@@ -270,8 +278,8 @@ function dueWindowElapsed(commitment: ReplyCommitment, now: Date, timeZone: stri
   if (Number.isNaN(madeAt.getTime())) return false;
   const nowMs = now.getTime();
   if (nowMs <= madeAt.getTime()) return false;
-  const madeDate = localDateFor(madeAt, timeZone);
-  const currentDate = localDateFor(now, timeZone);
+  const madeDate = localDateInTimeZone(madeAt, timeZone);
+  const currentDate = localDateInTimeZone(now, timeZone);
   if (!madeDate || !currentDate) return false;
   const elapsedHours = (nowMs - madeAt.getTime()) / 3_600_000;
   if (commitment.dueHint === "later-today") return currentDate !== madeDate || elapsedHours >= 12;
@@ -375,15 +383,19 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
   const now = input.now ?? new Date();
   const hasExplicitClock = input.now !== undefined;
   const conversationTimeZone = input.conversationTimeZone ?? luciaConversationTimeZone;
-  const currentLocalDate = localDateFor(now, conversationTimeZone) ?? now.toISOString().slice(0, 10);
+  const currentLocalDate = localDateInTimeZone(now, conversationTimeZone) ?? now.toISOString().slice(0, 10);
+  const alreadyGreetedToday = hasGreetedOnLocalDate(input.recentMessages ?? [], currentLocalDate, conversationTimeZone);
   const memories = input.memoryRepository
     ? await input.memoryRepository.listReadableMemories(input.userId, character.characterKey)
     : (input.memories ?? []);
+  const unansweredUserMessages = input.unansweredUserMessages?.map((message) => message.trim()).filter(Boolean);
+  const unansweredText = unansweredUserMessages?.length ? unansweredUserMessages.join("\n\n") : input.userMessage;
 
   return {
     generationId: input.generationId,
     userId: input.userId,
     userMessage: input.userMessage.trim(),
+    ...(unansweredUserMessages?.length ? { unansweredUserMessages } : {}),
     recentMessages: budgetRecentMessages(input.recentMessages ?? [], input.recentMessageCharBudget ?? defaultRecentMessageCharBudget),
     rollingSummary: input.rollingSummary?.trim() || null,
     openTopics: input.openTopics ?? deriveReplyOpenTopics(input.recentMessages ?? [], { now, timeZone: conversationTimeZone }),
@@ -403,11 +415,15 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
         ),
     conversationTimeZone,
     currentLocalDate,
+    alreadyGreetedToday,
+    ...(unansweredUserMessages && unansweredUserMessages.length > 1 ? {
+      continuityInstruction: "Han llegado varios mensajes antes de terminar tu respuesta. Responde al conjunto de unansweredUserMessages y a lo que ya dijiste, no solo a userMessage. Busca primero la conexión entre sus temas: si el último introduce un objeto que podría relacionarse con el interés anterior, formula esa conexión como una posibilidad concreta, sin darla por hecha, en vez de una pregunta genérica sobre el objeto. Un prefijo visible que solo reconoce un interés compartido no cierra ese tema: úsalo para conectar la nueva información sin volver a expresarlo. Si son temas independientes, conserva una breve respuesta útil a ambos. Omite preguntas ya respondidas, corregidas o cerradas; no repitas el prefijo visible. Usa mensajes breves separados por una línea en blanco cuando resulte natural.",
+    } : {}),
     character,
     relationshipStage: input.relationshipStage ?? "new_contact",
     relationshipSummary: input.relationshipSummary ?? null,
     memories: readableMemories(memories, character.characterKey),
     teachingOpportunity: input.teachingOpportunity ?? null,
-    questionPolicy: questionPolicyForReply({ userMessage: input.userMessage }),
+    questionPolicy: questionPolicyForReply({ userMessage: unansweredText }),
   };
 }

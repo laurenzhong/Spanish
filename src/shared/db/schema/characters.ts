@@ -54,6 +54,32 @@ export const characters = pgTable(
   ],
 );
 
+/**
+ * Stable identity for one character across revisions.
+ *
+ * A `characters` row is one *revision* (`stable_key` + `character_version`),
+ * while user state currently points at that revision's row id. This table gives
+ * user state a revision-independent target, so publishing a new revision
+ * becomes a single pointer update on `current_character_id` instead of moving
+ * every user-state row. Slice 1 only adds the table plus nullable
+ * `identity_id` columns; no read path uses them yet.
+ */
+export const characterIdentities = pgTable(
+  "character_identities",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    stableKey: stableKey(),
+    currentCharacterId: uuid("current_character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("character_identities_stable_key_uidx").on(table.stableKey),
+  ],
+);
+
 export const characterCanonFacts = pgTable(
   "character_canon_facts",
   {
@@ -95,6 +121,10 @@ export const characterRelationships = pgTable(
     characterId: uuid("character_id")
       .notNull()
       .references(() => characters.id, { onDelete: "restrict" }),
+    /** Nullable during the migration window; later slices read state by identity. */
+    identityId: uuid("identity_id").references(() => characterIdentities.id, {
+      onDelete: "restrict",
+    }),
     status: text("status").default("active").notNull(),
     relationshipStage: text("relationship_stage")
       .default("new_contact")
@@ -116,6 +146,7 @@ export const characterRelationships = pgTable(
       table.userId,
       table.updatedAt,
     ),
+    index("character_relationships_identity_idx").on(table.identityId),
   ],
 );
 
@@ -133,6 +164,15 @@ export const characterIntroductionOffers = pgTable(
     targetCharacterId: uuid("target_character_id")
       .notNull()
       .references(() => characters.id, { onDelete: "restrict" }),
+    /** Nullable during the migration window; both stay for rollback until slice 4. */
+    sourceIdentityId: uuid("source_identity_id").references(
+      () => characterIdentities.id,
+      { onDelete: "restrict" },
+    ),
+    targetIdentityId: uuid("target_identity_id").references(
+      () => characterIdentities.id,
+      { onDelete: "restrict" },
+    ),
     reasonCode: text("reason_code").notNull(),
     reasonText: text("reason_text").notNull(),
     context: jsonb("context").$type<JsonObject>().default(sql`'{}'::jsonb`).notNull(),
@@ -160,6 +200,12 @@ export const characterIntroductionOffers = pgTable(
       "character_introduction_offers_status_check",
       sql`${table.status} in ('pending', 'accepted', 'declined', 'expired')`,
     ),
+    index("character_introduction_offers_source_identity_idx").on(
+      table.sourceIdentityId,
+    ),
+    index("character_introduction_offers_target_identity_idx").on(
+      table.targetIdentityId,
+    ),
   ],
 );
 
@@ -173,6 +219,10 @@ export const conversations = pgTable(
     characterId: uuid("character_id")
       .notNull()
       .references(() => characters.id, { onDelete: "restrict" }),
+    /** Nullable during the migration window; the chat itself moves to the identity later. */
+    identityId: uuid("identity_id").references(() => characterIdentities.id, {
+      onDelete: "restrict",
+    }),
     status: text("status").default("active").notNull(),
     lastMessageAt: timestamp("last_message_at", {
       withTimezone: true,
@@ -194,6 +244,7 @@ export const conversations = pgTable(
       table.userId,
       table.characterId,
     ),
+    index("conversations_identity_idx").on(table.identityId),
   ],
 );
 
@@ -206,6 +257,10 @@ export const conversationPreferences = pgTable(
     characterId: uuid("character_id")
       .notNull()
       .references(() => characters.id, { onDelete: "restrict" }),
+    /** Nullable during the migration window; later slices read state by identity. */
+    identityId: uuid("identity_id").references(() => characterIdentities.id, {
+      onDelete: "restrict",
+    }),
     isPinned: boolean("is_pinned").default(false).notNull(),
     isMuted: boolean("is_muted").default(false).notNull(),
     sortRank: integer("sort_rank"),
@@ -216,6 +271,7 @@ export const conversationPreferences = pgTable(
   (table) => [
     uniqueIndex("conversation_preferences_user_character_uidx").on(table.userId, table.characterId),
     index("conversation_preferences_user_idx").on(table.userId, table.updatedAt),
+    index("conversation_preferences_identity_idx").on(table.identityId),
   ],
 );
 
@@ -230,6 +286,10 @@ export const messages = pgTable(
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
     characterId: uuid("character_id").references(() => characters.id, {
+      onDelete: "restrict",
+    }),
+    /** Audit source stays on `character_id`; `identity_id` is for ownership queries. */
+    identityId: uuid("identity_id").references(() => characterIdentities.id, {
       onDelete: "restrict",
     }),
     clientMessageId: text("client_message_id").notNull(),
@@ -256,6 +316,7 @@ export const messages = pgTable(
       table.createdAt,
     ),
     index("messages_user_created_idx").on(table.userId, table.createdAt),
+    index("messages_identity_idx").on(table.identityId),
   ],
 );
 
@@ -270,6 +331,10 @@ export const proactiveMessageCandidates = pgTable(
     characterId: uuid("character_id")
       .notNull()
       .references(() => characters.id, { onDelete: "restrict" }),
+    /** Nullable during the migration window; dedupe state follows the identity later. */
+    identityId: uuid("identity_id").references(() => characterIdentities.id, {
+      onDelete: "restrict",
+    }),
     conversationId: uuid("conversation_id")
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
@@ -289,6 +354,7 @@ export const proactiveMessageCandidates = pgTable(
     uniqueIndex("proactive_candidates_user_dedupe_uidx").on(table.userId, table.dedupeKey),
     index("proactive_candidates_user_status_idx").on(table.userId, table.status, table.updatedAt),
     index("proactive_candidates_user_character_idx").on(table.userId, table.characterId, table.createdAt),
+    index("proactive_candidates_identity_idx").on(table.identityId),
     check(
       "proactive_candidates_status_check",
       sql`${table.status} in ('pending', 'generating', 'generated', 'suppressed', 'failed', 'expired')`,
@@ -310,6 +376,10 @@ export const relationshipMemories = pgTable(
     characterId: uuid("character_id")
       .notNull()
       .references(() => characters.id, { onDelete: "restrict" }),
+    /** Nullable during the migration window; the memory's owner becomes the identity. */
+    identityId: uuid("identity_id").references(() => characterIdentities.id, {
+      onDelete: "restrict",
+    }),
     sourceConversationId: uuid("source_conversation_id").references(
       () => conversations.id,
       { onDelete: "set null" },
@@ -340,6 +410,7 @@ export const relationshipMemories = pgTable(
       table.characterId,
       table.factKey,
     ),
+    index("relationship_memories_identity_idx").on(table.identityId),
     check(
       "relationship_memories_confidence_range_check",
       sql`${table.confidence} >= 0 and ${table.confidence} <= 1`,
@@ -364,6 +435,11 @@ export const memorySharingPermissions = pgTable(
     targetCharacterId: uuid("target_character_id")
       .notNull()
       .references(() => characters.id, { onDelete: "cascade" }),
+    /** Nullable during the migration window; sharing grants move to the identity later. */
+    targetIdentityId: uuid("target_identity_id").references(
+      () => characterIdentities.id,
+      { onDelete: "restrict" },
+    ),
     isAllowed: boolean("is_allowed").default(true).notNull(),
     grantedAt: timestamp("granted_at", {
       withTimezone: true,
@@ -380,5 +456,8 @@ export const memorySharingPermissions = pgTable(
       table.targetCharacterId,
     ),
     index("memory_sharing_permissions_user_idx").on(table.userId),
+    index("memory_sharing_permissions_target_identity_idx").on(
+      table.targetIdentityId,
+    ),
   ],
 );

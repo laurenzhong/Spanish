@@ -1,0 +1,127 @@
+{
+  "at": "2026-10-17T00:41:05.064Z",
+  "synthetic": true,
+  "writesUserData": false,
+  "characterVersion": 3,
+  "results": [
+    {
+      "id": "shared-interest",
+      "done": true,
+      "text": "¡Qué coincidencia! Yo le doy bastante a eso, sobre todo cuando paseo por Madrid. A veces una esquina cualquiera da para una foto curiosa.\n\n¿Tú también disparas por la calle o lo ves más desde fuera?",
+      "bubbles": [
+        "¡Qué coincidencia! Yo le doy bastante a eso, sobre todo cuando paseo por Madrid. A veces una esquina cualquiera da para una foto curiosa.",
+        "¿Tú también disparas por la calle o lo ves más desde fuera?"
+      ],
+      "observations": [
+        {
+          "provider": "minimax",
+          "modelVersion": "MiniMax-M3",
+          "providerRequestId": null,
+          "status": "succeeded",
+          "latencyMs": 1318,
+          "estimatedCostMicros": null
+        }
+      ],
+      "attempts": [
+        {
+          "text": "¡Qué coincidencia! Yo le doy bastante a eso, sobre todo cuando paseo por Madrid. A veces una esquina cualquiera da para una foto curiosa.\n\n¿Tú también disparas por la calle o lo ves más desde fuera?",
+          "instruction": null,
+          "policy": {
+            "maxSubstantiveQuestions": 1,
+            "allowReciprocalQuestion": true,
+            "maxQuestionPressure": "low"
+          }
+        }
+      ]
+    },
+    {
+      "id": "book-connection",
+      "done": true,
+      "text": "Anda, mira qué casualidad con lo de la fotografía.\n\n¿Es de fotografía o de otra cosa?",
+      "bubbles": [
+        "Anda, mira qué casualidad con lo de la fotografía.",
+        "¿Es de fotografía o de otra cosa?"
+      ],
+      "observations": [
+        {
+          "provider": "minimax",
+          "modelVersion": "MiniMax-M3",
+          "providerRequestId": null,
+          "status": "succeeded",
+          "latencyMs": 821,
+          "estimatedCostMicros": null
+        }
+      ],
+      "attempts": [
+        {
+          "text": "Anda, mira qué casualidad con lo de la fotografía.\n\n¿Es de fotografía o de otra cosa?",
+          "instruction": "Han llegado varios mensajes antes de terminar tu respuesta. Responde al conjunto de unansweredUserMessages y a lo que ya dijiste, no solo a userMessage. Busca primero la conexión entre sus temas: si el último introduce un objeto que podría relacionarse con el interés anterior, formula esa conexión como una posibilidad concreta, sin darla por hecha, en vez de una pregunta genérica sobre el objeto. Un prefijo visible que solo reconoce un interés compartido no cierra ese tema: úsalo para conectar la nueva información sin volver a expresarlo. Si son temas independientes, conserva una breve respuesta útil a ambos. Omite preguntas ya respondidas, corregidas o cerradas; no repitas el prefijo visible. Usa mensajes breves separados por una línea en blanco cuando resulte natural.",
+          "policy": {
+            "maxSubstantiveQuestions": 1,
+            "allowReciprocalQuestion": true,
+            "maxQuestionPressure": "low"
+          }
+        }
+      ]
+    },
+    {
+      "id": "visible-prefix",
+      "done": true,
+      "text": "Qué buen plan para un viernes. Oye, y el libro, ¿es de fotografía o de otra cosa?",
+      "bubbles": [
+        "Qué buen plan para un viernes. Oye, y el libro, ¿es de fotografía o de otra cosa?"
+      ],
+      "observations": [
+        {
+          "provider": "minimax",
+          "modelVersion": "MiniMax-M3",
+          "providerRequestId": null,
+          "status": "succeeded",
+          "latencyMs": 1204,
+          "estimatedCostMicros": null
+        }
+      ],
+      "attempts": [
+        {
+          "text": "Qué buen plan para un viernes. Oye, y el libro, ¿es de fotografía o de otra cosa?",
+          "instruction": "Han llegado varios mensajes antes de terminar tu respuesta. Responde al conjunto de unansweredUserMessages y a lo que ya dijiste, no solo a userMessage. Busca primero la conexión entre sus temas: si el último introduce un objeto que podría relacionarse con el interés anterior, formula esa conexión como una posibilidad concreta, sin darla por hecha, en vez de una pregunta genérica sobre el objeto. Un prefijo visible que solo reconoce un interés compartido no cierra ese tema: úsalo para conectar la nueva información sin volver a expresarlo. Si son temas independientes, conserva una breve respuesta útil a ambos. Omite preguntas ya respondidas, corregidas o cerradas; no repitas el prefijo visible. Usa mensajes breves separados por una línea en blanco cuando resulte natural.",
+          "policy": {
+            "maxSubstantiveQuestions": 1,
+            "allowReciprocalQuestion": true,
+            "maxQuestionPressure": "low"
+          }
+        }
+      ]
+    },
+    {
+      "id": "independent-topics",
+      "done": true,
+      "text": "¡Enhorabuena por el aprobado, eso siempre se celebra!\n\nY el libro, ¿de cocina de algún país en concreto o más bien recetario general?",
+      "bubbles": [
+        "¡Enhorabuena por el aprobado, eso siempre se celebra!",
+        "Y el libro, ¿de cocina de algún país en concreto o más bien recetario general?"
+      ],
+      "observations": [
+        {
+          "provider": "minimax",
+          "modelVersion": "MiniMax-M3",
+          "providerRequestId": null,
+          "status": "succeeded",
+          "latencyMs": 944,
+          "estimatedCostMicros": null
+        }
+      ],
+      "attempts": [
+        {
+          "text": "¡Enhorabuena por el aprobado, eso siempre se celebra!\n\nY el libro, ¿de cocina de algún país en concreto o más bien recetario general?",
+          "instruction": "Han llegado varios mensajes antes de terminar tu respuesta. Responde al conjunto de unansweredUserMessages y a lo que ya dijiste, no solo a userMessage. Busca primero la conexión entre sus temas: si el último introduce un objeto que podría relacionarse con el interés anterior, formula esa conexión como una posibilidad concreta, sin darla por hecha, en vez de una pregunta genérica sobre el objeto. Un prefijo visible que solo reconoce un interés compartido no cierra ese tema: úsalo para conectar la nueva información sin volver a expresarlo. Si son temas independientes, conserva una breve respuesta útil a ambos. Omite preguntas ya respondidas, corregidas o cerradas; no repitas el prefijo visible. Usa mensajes breves separados por una línea en blanco cuando resulte natural.",
+          "policy": {
+            "maxSubstantiveQuestions": 1,
+            "allowReciprocalQuestion": true,
+            "maxQuestionPressure": "low"
+          }
+        }
+      ]
+    }
+  ]
+}

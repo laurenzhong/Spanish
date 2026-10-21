@@ -1,0 +1,174 @@
+{
+  "format": "disabled-source-configuration-proposal",
+  "formatVersion": 1,
+  "taskId": "SOURCE-CONFIG-001",
+  "status": "review",
+  "notImportableSourceConfig": true,
+  "checkedAt": "2026-10-16T10:11:18.564Z",
+  "channelId": "UCQK4L3hsPP0ei2_54lDaB6g",
+  "channelEvidence": "CONTENT-SOURCE-001.json",
+  "newOfficialDataApiVerification": false,
+  "observedLicense": "CC BY-NC-ND 4.0 International",
+  "runtimeLicenseSelection": null,
+  "runtimeLicenseReason": "Website BY-NC-ND is not YouTube creativeCommon. No licensed-path conclusion for this pipeline has been established.",
+  "attribution": {
+    "brand": "VideoEle",
+    "namedAuthor": "Agustín Iruela",
+    "namedAuthorEvidence": "Both official lesson footers say VideoEle by Agust&#237;n Iruela is licensed under a Creative Commons license.",
+    "pdfInternalNoticesRead": false,
+    "licenseUrl": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es",
+    "conflictingImageFilename": "images/by-nc-sa.png",
+    "interpretation": "Use the explicit BY-NC-ND text and license link; do not infer SA from an image filename. Preserve notices in any later lawfully obtained material."
+  },
+  "officialHtmlEvidence": [
+    {
+      "url": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+      "checkedAt": "2026-10-16T10:11:18.512Z",
+      "status": 200,
+      "bodySha256": "6620f901fc6b196c0e47a90ad64fd7365c2a9aacaeb8eb9731ef51c0365d9432",
+      "title": "Sube a mi casa. Nivel A2. Léxico de la vivienda",
+      "videoIdInEmbed": "S0irU4fsfA0",
+      "excerpt": "VideoEle by Agust&#237;n Iruela is licensed under a Creative Commons Reconocimiento-No comercial-Sin obras derivadas 4.0 Internacional"
+    },
+    {
+      "url": "https://www.videoele.com/B1-Comer-fuera.html",
+      "checkedAt": "2026-10-16T10:11:18.563Z",
+      "status": 200,
+      "bodySha256": "380857a1e1805a7a3a0a7b0879ba9452aa48ef693fa194824c367a04dd21f36c",
+      "title": "Comer fuera. Nivel B1. Presente de subjuntivo",
+      "videoIdInEmbed": "z-CS3hAuOxs",
+      "excerpt": "VideoEle by Agust&#237;n Iruela is licensed under a Creative Commons Reconocimiento-No comercial-Sin obras derivadas 4.0 Internacional"
+    },
+    {
+      "url": "https://www.videoele.com/legal.html",
+      "checkedAt": "2026-10-16T10:11:18.564Z",
+      "status": 200,
+      "bodySha256": "fc67ef7d3367ee3ac9cec103b66d3172f735024f8be265254c03ba4c1d921900",
+      "excerpt": "Sin obras derivadas: Si remezcla, transforma o crea a partir del material, no podrá distribuir el material modificado."
+    },
+    {
+      "url": "https://www.videoele.com/Curso.html",
+      "checkedAt": "2026-10-16T10:11:18.564Z",
+      "status": 200,
+      "bodySha256": "a9d0f3b4bceb9264065e2ca994583079c6c942c776982cf7e7de253b706d64aa",
+      "excerpt": "Después puede descargar leer la transcripción para resolver sus dudas y traducir todo lo necesario."
+    }
+  ],
+  "drafts": [
+    {
+      "title": "Sube a mi casa",
+      "officialPage": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+      "transcriptPdfUrl": "https://www.videoele.com/Archivos/A2_Sube_a_mi_casa_Transc.pdf",
+      "expectedDurationMs": 289000,
+      "durationEvidence": "Prior CONTENT-SOURCE-001 metadata; not remeasured in this task",
+      "expectedMediaStableKey": "youtube.s0iru4fsfa0",
+      "sourceDraftWithoutId": {
+        "stableKey": "youtube.videoele.a2-sube-a-mi-casa",
+        "adapterType": "youtube",
+        "sourceKind": "video-channel",
+        "externalSourceId": "UCQK4L3hsPP0ei2_54lDaB6g",
+        "displayName": "VideoEle · Sube a mi casa · A2",
+        "language": "es",
+        "region": null,
+        "enabled": false,
+        "rightsStatus": "unknown",
+        "rightsPolicy": {
+          "allowedVideoIds": ["S0irU4fsfA0"],
+          "contentMode": "official_embed",
+          "attribution": "VideoEle — Agustín Iruela; Sube a mi casa; https://www.videoele.com/A2-Sube-a-mi-casa.html; CC BY-NC-ND 4.0 https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es; proposal only, no material reproduced or modified.",
+          "licenseEvidence": "https://www.videoele.com/legal.html",
+          "cefr": "A2",
+          "topics": ["topic.daily-life"],
+          "allowedRegions": ["ES"],
+          "minDurationMs": 180000,
+          "maxDurationMs": 480000
+        },
+        "schedule": {},
+        "rateLimit": {},
+        "cursor": null
+      }
+    },
+    {
+      "title": "Comer fuera",
+      "officialPage": "https://www.videoele.com/B1-Comer-fuera.html",
+      "transcriptPdfUrl": "https://www.videoele.com/Archivos/B1_Comer_fuera_Transc.pdf",
+      "expectedDurationMs": 256000,
+      "durationEvidence": "Prior CONTENT-SOURCE-001 metadata; not remeasured in this task",
+      "expectedMediaStableKey": "youtube.z-cs3hauoxs",
+      "sourceDraftWithoutId": {
+        "stableKey": "youtube.videoele.b1-comer-fuera",
+        "adapterType": "youtube",
+        "sourceKind": "video-channel",
+        "externalSourceId": "UCQK4L3hsPP0ei2_54lDaB6g",
+        "displayName": "VideoEle · Comer fuera · B1",
+        "language": "es",
+        "region": null,
+        "enabled": false,
+        "rightsStatus": "unknown",
+        "rightsPolicy": {
+          "allowedVideoIds": ["z-CS3hAuOxs"],
+          "contentMode": "official_embed",
+          "attribution": "VideoEle — Agustín Iruela; Comer fuera; https://www.videoele.com/B1-Comer-fuera.html; CC BY-NC-ND 4.0 https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es; proposal only, no material reproduced or modified.",
+          "licenseEvidence": "https://www.videoele.com/legal.html",
+          "cefr": "B1",
+          "topics": ["topic.daily-life"],
+          "allowedRegions": ["ES"],
+          "minDurationMs": 180000,
+          "maxDurationMs": 480000
+        },
+        "schedule": {},
+        "rateLimit": {},
+        "cursor": null
+      }
+    }
+  ],
+  "draftSemantics": {
+    "idOmittedUntilRegistration": true,
+    "licenseDeliberatelyOmitted": true,
+    "mediaProcessingDeliberatelyOmitted": true,
+    "regionUnknown": true,
+    "allowedRegionsESIsProposedViewingRestriction": true,
+    "cefrIsOfficialSelectionSignalNotFormalReview": true,
+    "noScheduleIsNotARunnerExclusionGuarantee": true
+  },
+  "actions": [
+    { "action": "official-link-personal-view", "state": "supported-conditional", "basis": "Official lesson links and legal page; use original site and preserve attribution." },
+    { "action": "original-pdf-personal-study", "state": "supported-conditional-not-executed", "basis": "Official PDF link and personal study terms; preserve internal notices when obtained." },
+    { "action": "private-noncommercial-translation-without-sharing", "state": "supported-conditional-not-executed", "basis": "Prior CC legal-code audit and official course guidance; not a conclusion about third-party processing or this app's audience." },
+    { "action": "official-api-exact-metadata", "state": "conditional-not-executed", "basis": "Exact IDs supported in code. Official credentials/quota and current policy semantics still need a separate bounded live plan; no verified flag inferred." },
+    { "action": "official-embed-in-this-app", "state": "pending-item-and-runtime-checks", "basis": "No current Data API item checks; publisher now requires hosted Bunny MP4 for new videos." },
+    { "action": "obtain-youtube-captions", "state": "no-established-path", "basis": "Captions download API requires edit permission; current adapter emits unavailable captions and no segments." },
+    { "action": "acquire-audio-or-original-video", "state": "no-established-path", "basis": "No authorized original file supplied; plain youtube source is rejected by current video audio downloader." },
+    { "action": "cloud-asr-and-translation", "state": "pending", "basis": "No established acquire/asr/translate grant, third-party processing or applicable shared-learning audience evidence; no mediaProcessing created." },
+    { "action": "share-adapted-subtitles-or-hosted-video", "state": "outside-established-scope", "basis": "Do not infer adapted sharing or video rehosting authorization from website BY-NC-ND or PDF availability." },
+    { "action": "corpus-index-and-display", "state": "pending-use-specific-assessment", "basis": "Statistics, internal indexing and displayed protected excerpts differ; not all technical indexing requires extra permission, and current display scope is not established." }
+  ],
+  "canary": {
+    "decision": "not-ready-for-existing-live-runner",
+    "executed": false,
+    "reason": "Existing factory requires enabled/verified and a complete license policy; enabling a persisted source may also expose it to scheduled discovery. Do not promote flags only to test metadata.",
+    "futureBound": { "exactIds": ["S0irU4fsfA0", "z-CS3hAuOxs"], "channelId": "UCQK4L3hsPP0ei2_54lDaB6g", "maxVideoListRequests": 2, "maxRetries": 0, "candidateWrites": 0, "cursorWrites": 0, "processing": false, "publication": false },
+    "successCriteria": ["Official item identity and channel match", "Public, embeddable, language, duration, region and actual API license checked", "No missing/invalid item replaced", "No secrets or full response logged", "No source enablement, candidate/cursor write, media acquisition or cloud processing"]
+  },
+  "operations": {
+    "sourcesEnabled": 0,
+    "databaseRead": false,
+    "databaseWritten": false,
+    "credentialsRead": false,
+    "officialDataApiCalled": false,
+    "mediaOrPdfRequested": false,
+    "paidProviderCalled": false,
+    "thirdPartyContacted": false,
+    "published": 0
+  },
+  "targetSnapshotFromPriorTask": { "pendingReview": 2, "unfilled": 10, "freshDatabaseCount": false },
+  "validation": {
+    "status": "passed-with-live-limitations",
+    "officialHtmlPages": 4,
+    "offlineProbeAssertionGroups": 18,
+    "focusedVitest": { "files": 3, "passed": 61 },
+    "fullChecksRun": false,
+    "reason": "Only a research report and nonimportable draft were changed; no application, public schema or database changes. Shared-tree full-suite failures remain unresolved.",
+    "externalArtifactPrefix": "C:/Users/master/.codex/visualizations/2026/10/15/01a13f25-4c54-7281-b450-1ff23e5ded8d/source-config-001"
+  }
+}

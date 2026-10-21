@@ -12,7 +12,7 @@
     "role": { "enum": ["user", "character"] },
     "text": { "type": "string" },
     "complete": { "type": "boolean" },
-    "status": { "enum": ["completed", "withdrawn"] },
+    "status": { "enum": ["completed", "withdrawn", "streaming", "cancelled"] },
     "withdrawn": { "type": "boolean" },
     "createdAt": { "type": "string", "format": "date-time" },
     "sourceType": { "type": "string", "minLength": 1, "maxLength": 80 }

@@ -48,20 +48,42 @@ function toCandidate(row: typeof schema.proactiveMessageCandidates.$inferSelect)
   };
 }
 
+/**
+ * Lucía's stable identity plus the revision its pointer currently names. The
+ * dedupe state (`proactive_message_candidates`), the relationship and the
+ * conversation are all user state, so they are read and written through
+ * `identity_id`; the revision only gates availability and is dual-written on
+ * `character_id` for rollback. The gate fails closed.
+ */
 async function findLucia<TResult extends PgQueryResultHKT>(database: ConversationDatabase<TResult>) {
-  const [character] = await database.select({ id: schema.characters.id, status: schema.characters.status })
-    .from(schema.characters)
-    .where(and(
-      eq(schema.characters.stableKey, "lucia"),
-      eq(schema.characters.characterVersion, 1),
-      eq(schema.characters.status, "published"),
-    ))
+  const [character] = await database
+    .select({
+      identityId: schema.characterIdentities.id,
+      revisionId: schema.characters.id,
+      version: schema.characters.characterVersion,
+      status: schema.characters.status,
+    })
+    .from(schema.characterIdentities)
+    .innerJoin(schema.characters, eq(schema.characters.id, schema.characterIdentities.currentCharacterId))
+    .where(eq(schema.characterIdentities.stableKey, "lucia"))
     .limit(1);
-  const definition = findCharacterRuntimeDefinition("lucia", 1);
+  const definition = character ? findCharacterRuntimeDefinition("lucia", character.version) : null;
   if (!character || !definition || !isPublishedCharacterStatus(character.status) || !isCharacterConversationEnabled(definition) || !definition.policy.proactiveMessages) {
     throw new Error("CHARACTER_UNAVAILABLE");
   }
   return character;
+}
+
+async function findLuciaConversation<TResult extends PgQueryResultHKT>(
+  database: ConversationDatabase<TResult>,
+  userId: string,
+  identityId: string,
+): Promise<{ id: string } | null> {
+  const [conversation] = await database.select({ id: schema.conversations.id })
+    .from(schema.conversations)
+    .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.identityId, identityId)))
+    .limit(1);
+  return conversation ?? null;
 }
 
 export function createDrizzleProactiveMessageRepository<TResult extends PgQueryResultHKT>(
@@ -70,12 +92,20 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
   return {
     async getConversationId(userId) {
       const character = await findLucia(database);
-      const [conversation] = await database.select({ id: schema.conversations.id })
-        .from(schema.conversations)
-        .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.characterId, character.id)))
-        .limit(1);
+      const conversation = await findLuciaConversation(database, userId, character.identityId);
       if (!conversation) throw new Error("CONVERSATION_UNAVAILABLE");
       return conversation.id;
+    },
+    async listRecentMessages(userId, limit = 100) {
+      const character = await findLucia(database);
+      const conversation = await findLuciaConversation(database, userId, character.identityId);
+      if (!conversation) return [];
+      const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 100) : 100;
+      const rows = await database.select().from(schema.messages)
+        .where(and(eq(schema.messages.conversationId, conversation.id), eq(schema.messages.status, "completed")))
+        .orderBy(desc(schema.messages.createdAt))
+        .limit(safeLimit);
+      return rows.reverse().map(toMessage);
     },
     async getEligibilityState(userId, now): Promise<ProactiveEligibilityState> {
       const character = await findLucia(database);
@@ -84,12 +114,9 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
         relationshipStage: schema.characterRelationships.relationshipStage,
         relationshipSummary: schema.characterRelationships.relationshipSummary,
       }).from(schema.characterRelationships)
-        .where(and(eq(schema.characterRelationships.userId, userId), eq(schema.characterRelationships.characterId, character.id)))
+        .where(and(eq(schema.characterRelationships.userId, userId), eq(schema.characterRelationships.identityId, character.identityId)))
         .limit(1);
-      const [conversation] = await database.select({ id: schema.conversations.id })
-        .from(schema.conversations)
-        .where(and(eq(schema.conversations.userId, userId), eq(schema.conversations.characterId, character.id)))
-        .limit(1);
+      const conversation = await findLuciaConversation(database, userId, character.identityId);
       if (!conversation) {
         return {
           relationshipStatus: relationship?.status === "active" ? "active" : "inactive",
@@ -150,7 +177,8 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
       }
       const [candidate] = await database.insert(schema.proactiveMessageCandidates).values({
         userId: input.userId,
-        characterId: character.id,
+        characterId: character.revisionId,
+        identityId: character.identityId,
         conversationId: input.conversationId,
         sourceType: input.sourceType,
         dedupeKey: input.dedupeKey,
@@ -180,7 +208,12 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
           id: input.messageId,
           userId: input.userId,
           conversationId: candidate.conversationId,
+          // `character_id` stays the audit source of the revision that produced
+          // the message; `identity_id` is what ownership queries read. A
+          // candidate written before slice 2 has no identity yet, so fall back
+          // to the pointer rather than writing a null.
           characterId: candidate.characterId,
+          identityId: candidate.identityId ?? (await findLucia(transaction)).identityId,
           clientMessageId: `proactive-${candidate.id}`,
           generationId: input.generationId,
           role: "character",

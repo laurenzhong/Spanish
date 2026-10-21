@@ -19,6 +19,7 @@ import * as schema from "@/src/shared/db/schema";
 const userA = "00000000-0000-4000-0000-000000000091";
 const userB = "00000000-0000-4000-0000-000000000092";
 const characterId = "10000000-0000-4000-0000-000000000091";
+const identityId = "15000000-0000-4000-0000-000000000091";
 const sessionA = "20000000-0000-4000-0000-000000000091";
 const attemptA = "30000000-0000-4000-0000-000000000091";
 const conversationA = "40000000-0000-4000-0000-000000000091";
@@ -77,6 +78,10 @@ describe("account data deletion", () => {
       "0014_*.sql",
       "0015_flaky_havok.sql",
       "0016_proactive_messages.sql",
+      "0017_sudden_betty_brant.sql",
+      "0018_dusty_sue_storm.sql",
+      "0040_happy_wolverine.sql",
+      "0045_lumpy_medusa.sql",
     ]) {
       const migrationName = name.includes("*")
         ? (await readdir(path.join(process.cwd(), "drizzle"))).find((file) => new RegExp(`^${name.replace("*", ".*")}$`, "u").test(file))
@@ -95,6 +100,13 @@ describe("account data deletion", () => {
       displayName: "Lucía",
       homeLocation: "Madrid",
       profile: {},
+    });
+    // All of this user's Lucía state is keyed by the identity; the deletion is
+    // scoped by it rather than by a set of revision ids.
+    await database.insert(schema.characterIdentities).values({
+      id: identityId,
+      stableKey: "lucia",
+      currentCharacterId: characterId,
     });
     await database.insert(schema.practiceSessions).values({
       id: sessionA,
@@ -153,6 +165,7 @@ describe("account data deletion", () => {
       id: conversationA,
       userId: userA,
       characterId,
+      identityId,
     });
     await database.insert(schema.messages).values([
       {
@@ -160,6 +173,7 @@ describe("account data deletion", () => {
         userId: userA,
         conversationId: conversationA,
         characterId,
+        identityId,
         clientMessageId: "client-lucia-reset-1",
         generationId: "generation-lucia-reset-1",
         role: "user",
@@ -172,6 +186,7 @@ describe("account data deletion", () => {
         userId: userA,
         conversationId: conversationA,
         characterId,
+        identityId,
         clientMessageId: "assistant-lucia-reset-1",
         generationId: "generation-lucia-reset-1",
         role: "character",
@@ -185,6 +200,7 @@ describe("account data deletion", () => {
       id: memoryA,
       userId: userA,
       characterId,
+      identityId,
       factKey: "city",
       category: "interest",
       content: "Valencia",
@@ -194,12 +210,14 @@ describe("account data deletion", () => {
     await database.insert(schema.characterRelationships).values({
       userId: userA,
       characterId,
+      identityId,
       relationshipStage: "familiar",
     });
     await database.insert(schema.memorySharingPermissions).values({
       userId: userA,
       memoryId: memoryA,
       targetCharacterId: characterId,
+      targetIdentityId: identityId,
       isAllowed: true,
     });
   });
@@ -259,6 +277,46 @@ describe("account data deletion", () => {
     ).resolves.toHaveLength(1);
   });
 
+  it("deletes Lucía data that sits on a newer revision too", async () => {
+    // The 2026-10-12 v1 -> v2 rollover moved the conversation to a new revision
+    // row while the relationship stayed behind. Both rows now carry the same
+    // identity, which is what the deletion is scoped by.
+    const newerCharacterId = "10000000-0000-4000-0000-000000000092";
+    const newerConversationId = "40000000-0000-4000-0000-000000000092";
+    await database.insert(schema.characters).values({
+      id: newerCharacterId,
+      stableKey: "lucia",
+      characterVersion: 2,
+      displayName: "Lucía",
+      homeLocation: "Madrid",
+      profile: {},
+    });
+    await database.insert(schema.conversations).values({ id: newerConversationId, userId: userA, characterId: newerCharacterId, identityId });
+    await database.insert(schema.messages).values({
+      id: "70000000-0000-4000-0000-000000000093",
+      conversationId: newerConversationId,
+      userId: userA,
+      characterId: newerCharacterId,
+      identityId,
+      clientMessageId: "client-lucia-v2",
+      generationId: "generation-lucia-v2",
+      role: "user",
+      status: "completed",
+      content: "Sigo aquí.",
+    });
+
+    const result = await deleteLuciaData(createDrizzlePrivacyRepository(database), userA);
+
+    expect(result.conversationsDeleted).toBe(2);
+    expect(result.messagesDeleted).toBe(3);
+    await expect(
+      database.select().from(schema.conversations).where(eq(schema.conversations.characterId, newerCharacterId)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      database.select().from(schema.conversations).where(eq(schema.conversations.identityId, identityId)),
+    ).resolves.toHaveLength(0);
+  });
+
   it("deletes only Lucía conversation and relationship data", async () => {
     const result = await deleteLuciaData(
       createDrizzlePrivacyRepository(database),
@@ -305,5 +363,48 @@ describe("account data deletion", () => {
     await expect(
       database.select().from(schema.characters).where(eq(schema.characters.id, characterId)),
     ).resolves.toHaveLength(1);
+  });
+
+  it("clears Lucía preferences and introductions across revisions while preserving other users and characters", async () => {
+    const currentRevision = "10000000-0000-4000-0000-000000000094";
+    const otherCharacter = "10000000-0000-4000-0000-000000000095";
+    const otherIdentity = "15000000-0000-4000-0000-000000000095";
+    await database.insert(schema.characters).values([
+      { id: currentRevision, stableKey: "lucia", characterVersion: 2, displayName: "Lucía", homeLocation: "Madrid", profile: {} },
+      { id: otherCharacter, stableKey: "mateo", displayName: "Mateo", homeLocation: "Madrid", profile: {} },
+    ]);
+    await database.update(schema.characterIdentities).set({ currentCharacterId: currentRevision }).where(eq(schema.characterIdentities.id, identityId));
+    await database.insert(schema.characterIdentities).values({ id: otherIdentity, stableKey: "mateo", currentCharacterId: otherCharacter });
+    await database.insert(schema.conversationPreferences).values([
+      { userId: userA, characterId, identityId, isMuted: true, lastReadAt: new Date() },
+      { userId: userA, characterId: currentRevision, identityId, isMuted: true, lastReadAt: new Date() },
+      { userId: userB, characterId, identityId, isMuted: true },
+      { userId: userA, characterId: otherCharacter, identityId: otherIdentity, isMuted: true },
+    ]);
+    const offer = { reasonCode: "shared-interest", reasonText: "Fotografía" };
+    await database.insert(schema.characterIntroductionOffers).values([
+      { ...offer, userId: userA, offerKey: "old-source", sourceCharacterId: characterId, sourceIdentityId: identityId, targetCharacterId: otherCharacter, targetIdentityId: otherIdentity },
+      { ...offer, userId: userA, offerKey: "current-source", sourceCharacterId: currentRevision, sourceIdentityId: identityId, targetCharacterId: otherCharacter, targetIdentityId: otherIdentity },
+      { ...offer, userId: userA, offerKey: "lucia-target", sourceCharacterId: otherCharacter, sourceIdentityId: otherIdentity, targetCharacterId: characterId, targetIdentityId: identityId },
+      { ...offer, userId: userB, offerKey: "other-user", sourceCharacterId: characterId, sourceIdentityId: identityId, targetCharacterId: otherCharacter, targetIdentityId: otherIdentity },
+      { ...offer, userId: userA, offerKey: "other-character", sourceCharacterId: otherCharacter, sourceIdentityId: otherIdentity, targetCharacterId: otherCharacter, targetIdentityId: otherIdentity },
+    ]);
+    await database.insert(schema.characterRelationships).values({ userId: userA, characterId: otherCharacter, identityId: otherIdentity, relationshipStage: "familiar" });
+
+    await deleteLuciaData(createDrizzlePrivacyRepository(database), userA);
+
+    const preferences = await database.select().from(schema.conversationPreferences);
+    expect(preferences).toHaveLength(2);
+    expect(preferences).toEqual(expect.arrayContaining([
+      expect.objectContaining({ userId: userB, identityId, isMuted: true }),
+      expect.objectContaining({ userId: userA, identityId: otherIdentity, isMuted: true }),
+    ]));
+    const introductions = await database.select().from(schema.characterIntroductionOffers);
+    expect(introductions.map((row) => row.offerKey).sort()).toEqual(["other-character", "other-user"]);
+    expect(await database.select().from(schema.characterRelationships)).toEqual([
+      expect.objectContaining({ userId: userA, identityId: otherIdentity, relationshipStage: "familiar" }),
+    ]);
+    expect(await database.select().from(schema.evidenceEvents)).toHaveLength(1);
+    expect(await database.select().from(schema.practiceAttempts)).toHaveLength(1);
   });
 });

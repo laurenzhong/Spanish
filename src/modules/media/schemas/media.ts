@@ -17,7 +17,7 @@ export const mediaListQuerySchema = z.strictObject({
     ...(typeof mediaTopicFilters)[number]["value"][],
   ]).optional(),
   region: z.string().trim().max(40).optional(),
-  cefr: z.enum(["A2", "B1"]).optional(),
+  cefr: z.enum(["A1", "A2", "B1", "B2"]).optional(),
   duration: z.enum(["short", "medium", "long"]).optional(),
   sort: z.enum(["newest", "recently_added", "recently_played"]).default("recently_added"),
   cursor: z.string().trim().max(500).optional(),
@@ -25,6 +25,15 @@ export const mediaListQuerySchema = z.strictObject({
 });
 
 export const mediaStableKeySchema = stableKeySchema;
+
+export const mediaBrowseQuerySchema = z.strictObject({
+  filters: mediaListQuerySchema.omit({ sort: true, cursor: true, pageSize: true }),
+  seed: z.uuid(),
+  exclude: z.array(stableKeySchema).max(1000).default([]),
+  cursor: z.string().min(1).max(500).optional(),
+  pageSize: z.number().int().min(1).max(50).default(24),
+});
+export type MediaBrowseQuery = z.infer<typeof mediaBrowseQuerySchema>;
 
 export const mediaArtworkSchema = z.strictObject({
   url: z.url().startsWith("https://"),

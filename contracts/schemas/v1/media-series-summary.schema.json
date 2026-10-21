@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-series-summary.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seriesKey",
+    "title",
+    "kind",
+    "orderMode",
+    "revision",
+    "seasonNumber",
+    "episodeNumber",
+    "episodeLabel"
+  ],
+  "properties": {
+    "seriesKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "kind": {
+      "enum": [
+        "video",
+        "podcast"
+      ]
+    },
+    "orderMode": {
+      "enum": [
+        "ordered",
+        "episodic"
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "seasonNumber": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "episodeNumber": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "episodeLabel": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 120
+    }
+  }
+}

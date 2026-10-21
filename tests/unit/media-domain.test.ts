@@ -45,4 +45,18 @@ describe("media domain", () => {
       { id: "segment-2", index: 1, startMs: 1_500, endMs: 3_000, sourceText: "Borrador", translation: null, speaker: null, reviewStatus: "pending" },
     ] }, now)).toMatchObject({ segments: [{ id: "segment-1" }] });
   });
+
+  it("keeps diarization indexes out of the learner-facing playback projection", () => {
+    const now = new Date("2026-09-13T10:00:00.000Z");
+    const playback = projectMediaPlayback({ card: projectMediaCard(raw)!, asset: {
+      kind: "official_embed", url: "https://player.example.test/embed/1", expiresAt: null,
+    }, segments: [
+      { id: "segment-1", index: 0, startMs: 0, endMs: 1_500, sourceText: "Buenos días.", translation: "早上好。", speaker: "S1", reviewStatus: "approved" },
+      { id: "segment-2", index: 1, startMs: 1_500, endMs: 3_000, sourceText: "¿Qué tal?", translation: "你好吗？", speaker: " s 2 ", reviewStatus: "approved" },
+      { id: "segment-3", index: 2, startMs: 3_000, endMs: 4_500, sourceText: "Hasta luego.", translation: "回头见。", speaker: "Speaker_11", reviewStatus: "approved" },
+      { id: "segment-4", index: 3, startMs: 4_500, endMs: 6_000, sourceText: "Hasta mañana.", translation: "明天见。", speaker: "Lucía", reviewStatus: "approved" },
+    ] }, now);
+    expect(playback.segments.map((segment) => segment.speaker)).toEqual([null, null, null, "Lucía"]);
+    expect(playback.segments.map((segment) => segment.sourceText)).toEqual(["Buenos días.", "¿Qué tal?", "Hasta luego.", "Hasta mañana."]);
+  });
 });

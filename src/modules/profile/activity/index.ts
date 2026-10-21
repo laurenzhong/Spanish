@@ -6,5 +6,6 @@ export {
 export type {
   LearningActivityPayload,
   LearningActivityRecorder,
+  LearningActivitySendOptions,
   LearningActivitySender,
 } from "./browser-learning-activity";

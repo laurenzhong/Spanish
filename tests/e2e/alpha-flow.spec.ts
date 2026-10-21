@@ -1,7 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { installReadAloud } from "./fixtures/read-aloud";
 
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
+
+test.beforeEach(async ({ page }) => {
+  await installReadAloud(page, { endAfterMs: 20 });
+});
 
 async function authenticate(page: Page) {
   await page.context().addCookies([
@@ -19,7 +24,7 @@ test("keeps the legacy phone training route usable without restoring a learning-
   await page.goto("/learn");
   await expect(page.getByRole("progressbar", { name: "这组表达进度" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "开始第一次练习" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "看点、听点真实西语" })).toBeVisible();
+  await expect(page.getByTestId("media-library")).toBeVisible();
 
   await page.goto("/learn/practice");
   const loop = page.getByTestId("training-loop");
@@ -68,12 +73,6 @@ test("turns microphone denial into a typing path without a negative result", asy
 });
 
 test("completes content-pack listening, reading, and typing before oral verification", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(window, "speechSynthesis", {
-      configurable: true,
-      value: undefined,
-    });
-  });
   await authenticate(page);
   await usePhoneViewport(page);
   await page.goto("/explore/packs/immersive.first-cafe-conversation");

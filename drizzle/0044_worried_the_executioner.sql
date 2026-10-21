@@ -1,0 +1,6 @@
+ALTER TABLE "lexicon_form_frequencies" ADD COLUMN "example_document_kind" text;--> statement-breakpoint
+ALTER TABLE "lexicon_form_frequencies" ADD COLUMN "example_document_stable_key" text;--> statement-breakpoint
+ALTER TABLE "lexicon_form_frequencies" ADD COLUMN "example_document_version" integer;--> statement-breakpoint
+ALTER TABLE "lexicon_form_frequencies" ADD COLUMN "example_segment_index" integer;--> statement-breakpoint
+ALTER TABLE "lexicon_form_frequencies" ADD CONSTRAINT "lexicon_form_frequencies_example_identity_check" CHECK (("lexicon_form_frequencies"."example_document_kind" = 'article' and "lexicon_form_frequencies"."example_document_stable_key" is null and "lexicon_form_frequencies"."example_document_version" is null and "lexicon_form_frequencies"."example_segment_index" is null)
+      or ("lexicon_form_frequencies"."example_document_kind" = 'media' and "lexicon_form_frequencies"."example_document_stable_key" is not null and "lexicon_form_frequencies"."example_document_version" is not null and "lexicon_form_frequencies"."example_segment_index" is not null));

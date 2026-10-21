@@ -1,139 +1,243 @@
 import { isAllowedMediaSourceHost } from "./media-source-hosts";
 
 /**
- * Publisher fallbacks for podcast audio whose stored URL no longer serves the
- * file. The mapping is deliberately a small, named allowlist: a resolver must
- * never turn an arbitrary URL into a download target, and every address here was
- * verified against the publisher's own feed during the media backfills.
+ * Resolve a fresh, publisher-controlled podcast enclosure before using the
+ * URL stored by Language Reactor.  The stored URLs may be signed CDN links
+ * that expire; this resolver only uses a small, hard-coded catalogue of the
+ * publishers' public RSS feeds.  It never follows an arbitrary feed URL.
  */
-const publisherFeeds = [
-  { source: "Charlas Hispanas", feedUrl: "https://charlashispanas.com/feed/podcast/" },
-  { source: "Hoy Hablamos", feedUrl: "https://www.hoyhablamos.com/category/podcast/feed/" },
-  { source: "LearnCraft Spanish", feedUrl: "https://rss.libsyn.com/shows/466488/destinations/3943362.xml" },
-] as const;
 
-/** Publishers whose own player endpoint must serve audio we already verified. */
-const publisherProxyHosts = [
-  { source: "Charlas Hispanas", host: "https://charlashispanas.com" },
-  { source: "Hoy Hablamos", host: "https://www.hoyhablamos.com" },
-] as const;
+export type OfficialPodcastSourceInput = Readonly<{
+  sourceName: string;
+  title: string;
+  currentUrl: string;
+}>;
 
-const blubrryHosts = new Set(["media.blubrry.com", "content.blubrry.com"]);
+export type OfficialPodcastSourceResolverOptions = Readonly<{
+  fetcher?: typeof fetch;
+  /**
+   * `true` when the caller trusts this host as a podcast media source. Defaults
+   * to the product's own verified media allowlist; callers may narrow it, and
+   * the returned URL always passes it before being handed back.
+   */
+  isAllowedSourceHost?: (hostname: string) => boolean;
+}>;
+
+type FeedDefinition = Readonly<{
+  sourceNamePattern: RegExp;
+  feedUrl: string;
+  proxyHost?: string;
+}>;
+
+/**
+ * The two publisher download endpoints below intentionally return
+ * `application/octet-stream` even though the payload is an MP3.  They are
+ * fixed, publisher-controlled URLs produced by the feed resolver; accepting
+ * that MIME on arbitrary hosts would make a corrupt or non-audio response
+ * indistinguishable from a valid enclosure.  The migration still validates
+ * the bytes with ffmpeg and the decoded duration before publishing them.
+ */
+export const officialPodcastProxyHosts = new Set([
+  "charlashispanas.com",
+  "www.hoyhablamos.com",
+]);
+
+export function isOfficialPodcastProxyHost(hostname: string): boolean {
+  return officialPodcastProxyHosts.has(hostname.trim().toLowerCase());
+}
+
 const genericAudioContentTypes = new Set(["audio/mpeg", "audio/mp3", "audio/mp4", "audio/aac", "audio/x-m4a"]);
 /** Some publishers serve podcast audio as a generic binary stream. */
 const streamsWithoutAudioContentType = new Set(["application/octet-stream", "binary/octet-stream"]);
 
-type FeedEpisode = Readonly<{ title: string; enclosureUrl: string }>;
+/**
+ * True when a publisher may serve podcast audio under this content type. Generic
+ * binary streams are only trusted for the fixed publisher download endpoints and
+ * for hosts on the product's verified media allowlist; anywhere else the caller
+ * keeps the stricter audio-only expectation.
+ */
+export function acceptsPodcastAudioContentType(hostname: string, contentType: string | null | undefined): boolean {
+  const normalized = contentType?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  if (!normalized) return false;
+  if (genericAudioContentTypes.has(normalized)) return true;
+  if (!streamsWithoutAudioContentType.has(normalized)) return false;
+  return isOfficialPodcastProxyHost(hostname) || isAllowedMediaSourceHost(hostname);
+}
 
-function episodeSlug(value: string): string {
+const feedDefinitions: readonly FeedDefinition[] = [
+  {
+    sourceNamePattern: /charlas\s+hispanas/iu,
+    feedUrl: "https://charlashispanas.com/feed/podcast/",
+    proxyHost: "https://charlashispanas.com",
+  },
+  {
+    sourceNamePattern: /hoy\s+hablamos/iu,
+    feedUrl: "https://www.hoyhablamos.com/category/podcast/feed/",
+    proxyHost: "https://www.hoyhablamos.com",
+  },
+  {
+    sourceNamePattern: /learncraft\s+spanish/iu,
+    feedUrl: "https://rss.libsyn.com/shows/466488/destinations/3943362.xml",
+  },
+  {
+    sourceNamePattern: /news\s+in\s+slow\s+spanish\s+latino/iu,
+    feedUrl: "https://rss.libsyn.com/shows/45040/destinations/146316.xml",
+  },
+  {
+    sourceNamePattern: /unlimited\s+spanish/iu,
+    feedUrl: "https://unlimitedspanish.libsyn.com/rss",
+  },
+  {
+    sourceNamePattern: /a\s+hombros\s+de\s+gigantes/iu,
+    feedUrl: "https://api.rtve.es/api/programas/1873/audios.rss",
+  },
+  {
+    sourceNamePattern: /no\s+hay\s+tos/iu,
+    feedUrl: "https://feeds.simplecast.com/UrwSRKXH",
+  },
+  {
+    sourceNamePattern: /el\s+dollop/iu,
+    feedUrl: "https://feeds.simplecast.com/YVUZ6yUE",
+  },
+];
+
+const officialFeedHosts = new Set(feedDefinitions.map((definition) => new URL(definition.feedUrl).hostname));
+const maxFeedBytes = 2 * 1024 * 1024;
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gu, "$1")
+    .replace(/&#x([0-9a-f]+);/giu, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#([0-9]+);/gu, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&amp;/gu, "&")
+    .replace(/&quot;/gu, '"')
+    .replace(/&apos;/gu, "'")
+    .replace(/&lt;/gu, "<")
+    .replace(/&gt;/gu, ">");
+}
+
+function cleanXmlText(value: string): string {
+  return decodeXml(value).replace(/<[^>]*>/gu, " ").replace(/\s+/gu, " ").trim();
+}
+
+function normalizedText(value: string): string {
+  return cleanXmlText(value).normalize("NFKD").replace(/[\u0300-\u036f]/gu, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function pathStem(value: string): string {
   try {
-    const path = decodeURIComponent(new URL(value).pathname);
-    return path.split("/").pop()?.replace(/\.[^.]+$/u, "").toLowerCase() ?? "";
+    const url = new URL(value);
+    const name = decodeURIComponent(url.pathname).split("/").at(-1) ?? "";
+    return name.replace(/\.[^.]+$/u, "").toLocaleLowerCase();
   } catch {
     return "";
   }
 }
 
-function normalizeTitle(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/gu, "")
-    .replace(/[^a-z0-9]+/giu, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function feedUrlFor(sourceName: string): string | null {
-  return publisherFeeds.find((entry) => sourceName.includes(entry.source))?.feedUrl ?? null;
-}
-
-function feedEpisodes(xml: string): readonly FeedEpisode[] {
-  return (xml.match(/<item\b[^>]*>[\s\S]*?<\/item>/giu) ?? []).flatMap((item) => {
-    const enclosureUrl = /<enclosure\b[^>]*?\burl=["']([^"']+)/iu.exec(item)?.[1];
-    if (!enclosureUrl) return [];
-    const rawTitle = /<title\b[^>]*>([\s\S]*?)<\/title>/iu.exec(item)?.[1] ?? "";
-    const title = rawTitle
-      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gu, "$1")
-      .replace(/<[^>]*>/gu, "")
-      .trim();
-    return [{ title, enclosureUrl }];
-  });
-}
-
-/**
- * True when a publisher may serve podcast audio under this content type. Generic
- * binary streams are only trusted for hosts whose own feeds were verified;
- * anywhere else the caller keeps the stricter audio-only expectation.
- */
-export function acceptsPodcastAudioContentType(hostname: string, contentType: string): boolean {
-  const normalized = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
-  if (!normalized) return false;
-  if (genericAudioContentTypes.has(normalized)) return true;
-  if (!streamsWithoutAudioContentType.has(normalized)) return false;
-  return isAllowedMediaSourceHost(hostname);
-}
-
-/**
- * Resolves an official publisher URL for a podcast whose stored address stopped
- * serving. Returns `null` whenever the publisher is unknown, the feed cannot be
- * read, or nothing in it matches; the caller then keeps the verified stored
- * asset and fails closed. Every returned URL has already passed the caller's
- * host predicate.
- */
-export async function resolveOfficialPodcastSource(
-  input: Readonly<{ sourceName: string; title: string; currentUrl: string }>,
-  options: Readonly<{ isAllowedSourceHost: (hostname: string) => boolean }>,
-): Promise<URL | null> {
-  const feedUrl = feedUrlFor(input.sourceName);
-  if (!feedUrl) return null;
-
-  let xml: string;
+function episodeId(value: string): string {
   try {
-    // Pass a URL instance: every fetch call in this path keeps its target as a
-    // parsed URL so the allowlist check and the request cannot diverge.
-    const response = await fetch(new URL(feedUrl), { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok) return null;
-    xml = await response.text();
+    const url = new URL(value);
+    return decodeURIComponent(url.pathname).match(/\/episodes\/([^/]+)/iu)?.[1]?.toLocaleLowerCase() ?? "";
   } catch {
-    return null;
+    return "";
+  }
+}
+
+function firstTag(item: string, tag: string): string {
+  const match = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, "iu").exec(item);
+  return match ? cleanXmlText(match[1] ?? "") : "";
+}
+
+function enclosureUrls(item: string): string[] {
+  return [...item.matchAll(/<enclosure\b[^>]*?\burl=["']([^"']+)["'][^>]*>/giu)]
+    .map((match) => decodeXml(match[1] ?? "").trim())
+    .filter(Boolean);
+}
+
+function feedDefinition(sourceName: string): FeedDefinition | null {
+  return feedDefinitions.find((definition) => definition.sourceNamePattern.test(sourceName)) ?? null;
+}
+
+function candidateMatches(input: OfficialPodcastSourceInput, item: string, candidate: string): boolean {
+  const currentEpisode = episodeId(input.currentUrl);
+  const candidateEpisode = episodeId(candidate);
+  if (currentEpisode && candidateEpisode && currentEpisode === candidateEpisode) return true;
+
+  // Publishers rename audio files independently of the episode title, so a
+  // shared filename stem is the next strongest identity signal.
+  const currentStem = pathStem(input.currentUrl);
+  const candidateStem = pathStem(candidate);
+  if (currentStem && candidateStem) {
+    const shorter = Math.min(currentStem.length, candidateStem.length);
+    const longer = Math.max(currentStem.length, candidateStem.length);
+    if (currentStem === candidateStem || (shorter >= 8 && (currentStem.includes(candidateStem) || candidateStem.includes(currentStem)) && shorter / longer >= 0.6)) return true;
   }
 
-  const wantedTitle = normalizeTitle(input.title);
-  const wantedSlug = episodeSlug(input.currentUrl);
-  const proxyHost = publisherProxyHosts.find((entry) => input.sourceName.includes(entry.source))?.host ?? null;
-  let slugFallback: URL | null = null;
+  const title = normalizedText(input.title);
+  const itemTitle = normalizedText(firstTag(item, "title"));
+  if (title.length >= 12 && itemTitle.length >= 12 && (title === itemTitle || title.includes(itemTitle) || itemTitle.includes(title))) return true;
+  return false;
+}
 
-  for (const episode of feedEpisodes(xml)) {
-    let candidate: URL;
-    try {
-      candidate = new URL(episode.enclosureUrl);
-    } catch {
-      continue;
-    }
-    if (candidate.protocol !== "https:" || candidate.username || candidate.password) continue;
-    if (!options.isAllowedSourceHost(candidate.hostname)) continue;
-
+function safeCandidateUrl(raw: string, definition: FeedDefinition, isAllowedSourceHost: (hostname: string) => boolean): URL | null {
+  try {
+    const candidate = new URL(raw);
+    if (candidate.protocol !== "https:" || candidate.username || candidate.password || !isAllowedSourceHost(candidate.hostname)) return null;
+    if (!definition.proxyHost || !/(?:^|\.)blubrry\.com$/iu.test(candidate.hostname)) return candidate;
     // The publisher's own player endpoint is the only way to read Blubrry-hosted
     // shows; the file parameter always carries the enclosure we just verified.
-    const resolved = proxyHost && blubrryHosts.has(candidate.hostname) ? proxyThroughPublisher(proxyHost, candidate) : candidate;
-    if (!resolved) continue;
-
-    // Titles are authoritative because publishers rename audio files
-    // independently of the episode title; the file name is only a fallback.
-    if (wantedTitle.length > 0 && normalizeTitle(episode.title) === wantedTitle) return resolved;
-    const slug = episodeSlug(episode.enclosureUrl);
-    if (slug && wantedSlug && (slug === wantedSlug || slug.includes(wantedSlug) || wantedSlug.includes(slug))) slugFallback ??= resolved;
-  }
-
-  return slugFallback;
-}
-
-function proxyThroughPublisher(host: string, enclosure: URL): URL | null {
-  try {
-    const proxy = new URL(`${host}/wp-content/plugins/simple-podcast-press/responsive_audio_player/downloadaudio.php`);
-    proxy.searchParams.set("file", enclosure.toString());
+    const proxy = new URL(`${definition.proxyHost}/wp-content/plugins/simple-podcast-press/responsive_audio_player/downloadaudio.php`);
+    proxy.searchParams.set("file", candidate.toString());
+    // The proxy target is a fixed publisher endpoint: it is either explicitly
+    // allowed by the caller or one of the documented official proxy hosts.
+    if (!isAllowedSourceHost(proxy.hostname) && !isOfficialPodcastProxyHost(proxy.hostname)) return null;
     return proxy;
   } catch {
     return null;
   }
+}
+
+/** Return a matching official enclosure, or null when the feed cannot prove identity. */
+export async function resolveOfficialPodcastSource(
+  input: OfficialPodcastSourceInput,
+  options: OfficialPodcastSourceResolverOptions = {},
+): Promise<URL | null> {
+  const definition = feedDefinition(input.sourceName);
+  if (!definition) return null;
+  const feedUrl = new URL(definition.feedUrl);
+  if (!officialFeedHosts.has(feedUrl.hostname)) return null;
+  const fetcher = options.fetcher ?? fetch;
+  const isAllowedSourceHost = options.isAllowedSourceHost ?? isAllowedMediaSourceHost;
+  try {
+    const response = await fetcher(feedUrl, {
+      headers: { accept: "application/rss+xml, application/xml, text/xml" },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
+    const contentLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > maxFeedBytes) {
+      await response.body?.cancel();
+      return null;
+    }
+    const xml = await response.text();
+    if (xml.length > maxFeedBytes) return null;
+    const items = xml.match(/<item\b[\s\S]*?<\/item>/giu) ?? [];
+    for (const item of items) {
+      for (const rawCandidate of enclosureUrls(item)) {
+        if (!candidateMatches(input, item, rawCandidate)) continue;
+        const candidate = safeCandidateUrl(rawCandidate, definition, isAllowedSourceHost);
+        if (candidate) return candidate;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function officialPodcastFeedFor(sourceName: string): string | null {
+  return feedDefinition(sourceName)?.feedUrl ?? null;
 }

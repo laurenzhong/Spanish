@@ -1,0 +1,1094 @@
+{
+  "format": "source-research-proposal",
+  "formatVersion": 1,
+  "taskId": "CONTENT-SOURCE-001",
+  "status": "review",
+  "createdAt": "2026-10-16T07:06:31.204543+00:00",
+  "notImportableSourceConfig": true,
+  "formalReviewRecorded": false,
+  "summary": {
+    "sources": 3,
+    "samples": 5,
+    "newSourcesEnabled": 0,
+    "newCandidatesCreated": 0,
+    "newPublished": 0,
+    "targetPendingReview": 2,
+    "targetUnfilled": 10,
+    "verifiedPodcastSamples": 0
+  },
+  "boundaries": {
+    "audioVideoDownloaded": false,
+    "fullCaptionsObtained": false,
+    "pdfFullTextObtained": false,
+    "paidProviderCalled": false,
+    "databaseWritten": false,
+    "thirdPartyMessaged": false
+  },
+  "evidence": [
+    {
+      "file": "source001-easy-parent.json",
+      "sha256": "c62f3df132f0491fc7efd071e67136d386e68f535e634a2613c8b41b4d2b5800",
+      "url": "https://www.easy-languages.org/",
+      "checkedAt": "2026-10-16T05:49:09.960988+00:00",
+      "httpStatus": "200",
+      "rawResponseSha256": "c1436937c5c2076cb80ef2a5c3a9897e1ab242afae28a3b5660bcab056f24f00",
+      "excerpt": "Easy Languages\n0\nSkip to Content\nHome\nOur Languages\nPodcasts\nTeam\nAbout\nContact\nOpen Menu\nClose Menu\nHome\nOur Languages\nPodcasts\nTeam\nAbout\nContact\nOpen Menu\nClose Menu\nHome\nOur Languages\nPodcasts\nTeam\nAbout\nContact\nLearning Languages\nfrom the Streets\nOur Mission\nEasy Languages is a video and podcast series that showcases language as spoken in the streets and among friends. Our goal is to help you learn languages in a fun and authentic way.  We are based in Berlin, Germany, but operate with a global\nnetwork of producers\n.\nLanguage Learning\nAt the core of our project is the idea that language learning should go beyond textbooks and classrooms. Our videos are fun to watch and allow learners to truly immerse themselves in a new language. All of our content is freely accessible and additional materials such as transcripts and exercises are available to everyone who supports our work as a member.\nOur Languages\nCultural Exchange\nWe are passionate about creating media that bring people closer together, break stereotypes and let us learn from each other. We produce videos and podcasts for language learners and people who move abroad. We also provide media trainings and encourage people to share voices from their local communities through the use of digital media.\nAbout\nBuilding a Network\nWhat once started with Easy German has turned into a network of content creators from all over the globe. We created Easy Languages as a franchise, inviting new content creators to join and produce videos and podcasts in their local languages. As a network we learn from another and regularly organize online and offline trainings to exchange ideas and improve our production.\nBecome a Co-Producer\nQuestions?\nFAQ & Contact\nImprint\nPrivacy"
+    },
+    {
+      "file": "source001-easy-languages.json",
+      "sha256": "f90e8dc20e238ffa890f6f169cbffff4240a9b22840bd317764db94212d84e7f",
+      "url": "https://www.easy-languages.org/our-languages",
+      "checkedAt": "2026-10-16T05:51:43.871362+00:00",
+      "httpStatus": "200",
+      "rawResponseSha256": "8de5f3f5d30b5f7a4660697f2a8078ff692cf0d8573998d769f5f3e77097960e",
+      "excerpt": " Czech\nEasy Dutch\nEasy English\nEasy French\nEasy German\nEasy Greek\nEasy Italian\nEasy Polish\nEasy Portuguese\nEasy Russian\nEasy Spanish\nEasy Turkish\nEasy Mandarin\nMore Languages\nThe projects below don’t have their own YouTube channels yet. Find their videos on the\nEasy Languages channel\nand in the playlists listed here.\nStreet Interviews\nStreet Interviews\nSuper Easy Canton"
+    },
+    {
+      "file": "source001-easy-official.json",
+      "sha256": "cdde8528d881c4a8a6faabe27069bb96673617fec18ed767fad29b2ebef5474c",
+      "url": "https://www.easy-spanish.org/",
+      "checkedAt": "2026-10-16T05:53:22.520668+00:00",
+      "httpStatus": "200",
+      "rawResponseSha256": "f69ecd359f0bf69d7b3f69d64fb2d439d1449f957229e38810393a83e10f1334",
+      "excerpt": "Easy Spanish\n0\nSaltar al contenido\nVideos\nPodcast\nMembership\nEasy Spanish Book Club\nNewsletter\nAbout\nContact\nJoin our community!\nAbrir menú\nCerrar menú\nVideos\nPodcast\nMembership\nEasy Spanish Book Club\nNewsletter\nAbout\nContact\nJoin our community!\nAbrir menú\nCerrar menú\nVideos\nPodcast\nMembership\nE\n[...]\nst\nMembership\nEasy Spanish Book Club\nNewsletter\nAbout\nContact\nJoin our community!\nAbrir menú\nCerrar menú\nVideos\nPodcast\nMembership\nEasy Spanish Book Club\nNewsletter\nAbout\nContact\nJoin our community!\nAbrir menú\nCerrar menú\nVideos\nPodcast\nMembership\nEasy Spanish Book Club\nNewsletter\nAbout\nContact\nJoin our community!\nLearning Spanish\nfrom the Streets\nLearning Spanish\n[...]\nst\nMembership\nEasy Spanish Book Club\nNewsletter\nAbout\nContact\nJoin our community!\nAbrir menú\nCerrar menú\nVideos\nPodcast\nMembership\nEasy Spanish Book Club\nNewsletter\nAbout\nContact\nJoin our community!\nLearning Spanish\nfrom the Streets\nLearning Spanish\nfrom the Streets\nEasy Spanish is a valuable resource for Spanish learners. Our videos and\npodcasts\nhave helped over \n[...]\nnsively, or looking for extra motivation and structure, are welcome to join our learning community. More on this in our\nmemberships\npage!\nSubscribe on YouTube\nStreet\nInterviews\nYou can learn from Spanish speakers on the streets chatting about all kinds of topics, from the everyday to the profound. Precise subtitles in Spanish and English will help you follow along\n[...]\notivation and structure, are welcome to join our learning community. More on this in our\nmemberships\npage!\nSubscribe on YouTube\nStreet\nInterviews\nYou can learn from Spanish speakers on the streets chatting about all kinds of topics, from the everyday to the profound. Precise subtitles in Spanish and English will help you follow along.\nWatch all\nSuper Easy\n(grammar \n[...]\narn from Spanish speakers on the streets chatting about all kinds of topics, from the everyday to the profound. Precise subtitles in Spanish and English will help you follow along.\nWatch all\nSuper Easy\n(grammar + vocab)\nDevelop your vocabulary, improve your grammar and build your confidence with our series aimed at beginners and lower intermediate level learners.\nWa\n[...]\npics, from the everyday to the profound. Precise subtitles in Spanish and English will help you follow along.\nWatch all\nSuper Easy\n(grammar + vocab)\nDevelop your vocabulary, improve your grammar and build your confidence with our series aimed at beginners and lower intermediate level learners.\nWatch all\nSlow Spanish\nGet more used to the sounds of the language with the\n[...]\nEasy\n(grammar + vocab)\nDevelop your vocabulary, improve your grammar and build your confidence with our series aimed at beginners and lower intermediate level learners.\nWatch all\nSlow Spanish\nGet more used to the sounds of the language with these conversations delivered at a slow and easy pace.\nWatch all\nEasy Spanish\nPodcast\nImmerse yourself in Spanish conversations\n[...]\nhis weekly dose of language and culture is a must.\nWatch all\nLet’s be friends"
+    },
+    {
+      "file": "source001-easy-home.json",
+      "sha256": "f8ea1976a7a8a4d24351dcbc4881efdf9d80cfcb103a510fc0394e3866778504",
+      "url": "https://www.easyspanish.org/",
+      "checkedAt": "2026-10-16T05:47:23.210373+00:00",
+      "httpStatus": "200",
+      "rawResponseSha256": "1b86c256d925040767eaddcce275eb46f96b7c5a9cb33148a2252ba52850b3ee",
+      "excerpt": "easyspanish.org domain name is for sale. Inquire now.\neasyspanish.org\neasyspanish.org\nThis premium domain name is available for immediate purchase using the \"buy now\" button. We use Escrow.com by default since they don't pay us until you have the domain. Please email sales@titan.net if you have any questions or prefer to pay by PayPal or direct credit card link instead. Thanks!\"\nYour domain name is your identity on the Internet\nEstablish instant trust and credibility with customers\nPremium domain names appreciate in value over time\nBoost your business and invest in the right domain name\nBuy safely and securely with\nEscrow.com\nWhen buying easyspanish.org, your transaction is securely processed by Escrow.com, a licensed escrow company.\nBuy now for USD 3,995"
+    },
+    {
+      "file": "source001-easy-membership.json",
+      "sha256": "4590e76c3f3db8be9848ab9a5030a7be0aa09f26ea0216671dc56804ace43ccf",
+      "url": "https://www.easy-spanish.org/membership",
+      "checkedAt": "2026-10-16T06:05:35.138405+00:00",
+      "httpStatus": "200",
+      "rawResponseSha256": "2e0501b3029adb4f2a0b13a2d7d82c8d1b675aa2e260e1fd03e7daaff024ede6",
+      "excerpt": "r videos without all that online noise.\nWatch our \"Spanish only\" videos\nDid you know you can also watch our videos with subtitles JUST in Spanish?\nWhen you’re a beginner, the English translation can be a real lifesaver.\nBut as you reach an intermediate level, it’s a good idea to start pushing your limits and immersing yourself in the language. You’ll find the “Spa\n[...]\nr Discord community\nSupporting this project\nPlatform access\nLearning paths\nFilter videos by level / accent\nVideos\nVideo transcripts\nPDF exercises\nInteractive exercises\nVocabulary lists\nVocab flashcards\nAudio feed (for videos)\nSpanish only video version\nVideo downloads\n(with/without subtitles)\nPodcasts\nPodcast feed for members\nPodcast transcripts\nInteractive transcript\n[...]\nises\nVocabulary lists\nVocab flashcards\nAudio feed (for videos)\nSpanish only video version\nVideo downloads\n(with/without subtitles)\nPodcasts\nPodcast feed for members\nPodcast transcripts\nInteractive transcript player\nVocab helper\nVocabulary lists\nAftershow\nConversations\nConversation sessions\nTopics and vocab for each call\nVIP area on Discord\nCommunity: all tiers\nCom\n[...]\nr videos)\nSpanish only video version\nVideo downloads\n(with/without subtitles)\nPodcasts\nPodcast feed for members\nPodcast transcripts\nInteractive transcript player\nVocab helper\nVocabulary lists\nAftershow\nConversations\nConversation sessions\nTopics and vocab for each call\nVIP area on Discord\nCommunity: all tiers\nCommunity challenges\nAccess to our Discord community\nSupport\n[...]\nideo version\nVideo downloads\n(with/without subtitles)\nPodcasts\nPodcast feed for members\nPodcast transcripts\nInteractive transcript player\nVocab helper\nVocabulary lists\nAftershow\nConversations\nConversation sessions\nTopics and vocab for each call\nVIP area on Discord\nCommunity: all tiers\nCommunity challenges\nAccess to our Discord community\nSupporting this project\nPlatfor\n[...]\n project\nPlatform access: all tiers\nLearning paths\nFilter videos by level / accent\nVideos: Learner + Conversation\nVideo transcripts\nPDF exercises\nInteractive exercises\nVocabulary lists\nVocab flashcards\nAudio feed (for videos)\nSpanish only video version\nVideo downloads\n(with/without subtitles)\nPodcasts: Learner + Conversation\nPodcast feed for members\nPodcast transcript\n[...]\nises\nVocabulary lists\nVocab flashcards\nAudio feed (for videos)\nSpanish only video version\nVideo downloads\n(with/without subtitles)\nPodcasts: Learner + Conversation\nPodcast feed for members\nPodcast transcripts\nInteractive transcript player\nVocab helper\nVocabulary lists\nAftershow\nConversations: Conversation tier\nConversation sessions\nTopics and vocab for each call\nV\n[...]\nideo version\nVideo downloads\n(with/without subtitles)\nPodcasts: Learner + Conversation\nPodcast feed for members\nPodcast transcripts\nInteractive transcript player\nVocab helper\nVocabulary lists\nAftershow\nConversations: Conversation tier\nConversation sessions\nTopics and vocab for each call\nVIP area on Discord\n¿Tienes una duda?\nFAQ\nHow will I receive my benefits?\nOnce you\n[."
+    },
+    {
+      "file": "source001-easy-imprint.json",
+      "sha256": "dcc47f7962c3a416f4a7d8763a6201a0f1ac03cc314534adb6d6702c80006c66",
+      "url": "https://www.easy-spanish.org/imprint",
+      "checkedAt": "2026-10-16T06:05:36.569014+00:00",
+      "httpStatus": "200",
+      "rawResponseSha256": "73486b770647ded9ba76e1a6d0c8a8abda2c3898e4099d707f19fb41511c853e",
+      "excerpt": "s\nPodcast\nMembership\nEasy Spanish Book Club\nNewsletter\nAbout\nContact\nJoin our community!\nImprint\nAngaben gemäß § 5 DDG:\nEasy Languages GmbH\nTorstr. 85\nEinheit 80\n10119 Berlin\nHandelsregisternummer / German commercial register number:\nHRB 213773 B\nRegistergericht / Registry Court: Amtsgericht Charlottenburg\nUSt-IdNr. / German VAT number: DE329214566\nVertreten durch:\nCarina"
+    },
+    {
+      "file": "source001-easy-super.json",
+      "sha256": "1c880ee8ceb8a5668cba4c8075317f4b136df01c5b841daf4b3d1e5fb342131a",
+      "url": "https://www.youtube.com/playlist?list=PLQGxDRfENoxJMWCoj8kszBjr61c-Bq-tW",
+      "checkedAt": "2026-10-16T06:07:14.915875+00:00",
+      "httpStatus": null,
+      "rawResponseSha256": "2dfd3457132a5276c393cf7edca707ff98ebaaab546d8fd5bb49c6a483f5ca9a",
+      "metadata": {
+        "id": "PLQGxDRfENoxJMWCoj8kszBjr61c-Bq-tW",
+        "title": "Super Easy Spanish - Spanish for Beginners",
+        "channel": "Easy Spanish",
+        "channel_id": "UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "channel_url": "https://www.youtube.com/channel/UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "uploader": "Easy Spanish",
+        "uploader_id": "@EasySpanish",
+        "webpage_url": "https://www.youtube.com/playlist?list=PLQGxDRfENoxJMWCoj8kszBjr61c-Bq-tW",
+        "availability": "public"
+      },
+      "entryCount": 65
+    },
+    {
+      "file": "source001-easy-slow.json",
+      "sha256": "fe7d7931fadcec2506934fdd9c4fa735b38eb322d9fadd5288680a0f297517aa",
+      "url": "https://www.youtube.com/playlist?list=PLQGxDRfENoxKq86RU0IYqFIsMFgMRpVf-",
+      "checkedAt": "2026-10-16T06:07:19.809358+00:00",
+      "httpStatus": null,
+      "rawResponseSha256": "fd54f7a9c40365315b25f6b4b5a09410090c871b9d8899e3d9fcb64a35b1ccec",
+      "metadata": {
+        "id": "PLQGxDRfENoxKq86RU0IYqFIsMFgMRpVf-",
+        "title": "Slow Spanish",
+        "channel": "Easy Spanish",
+        "channel_id": "UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "channel_url": "https://www.youtube.com/channel/UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "uploader": "Easy Spanish",
+        "uploader_id": "@EasySpanish",
+        "webpage_url": "https://www.youtube.com/playlist?list=PLQGxDRfENoxKq86RU0IYqFIsMFgMRpVf-",
+        "availability": "public"
+      },
+      "entryCount": 32
+    },
+    {
+      "file": "source001-easy-summer.json",
+      "sha256": "62523d1407b3cac1f5e0d908ff8d2f6b4c00324b8f930f7b026a8f87229b86b2",
+      "url": "https://www.youtube.com/watch?v=SDcJPk62qG0",
+      "checkedAt": "2026-10-16T06:08:26.479265+00:00",
+      "httpStatus": null,
+      "rawResponseSha256": "90fa256d495f05d3e3af28bb16e7fe341747c65ef3abe8c19065e04f93870bd9",
+      "metadata": {
+        "id": "SDcJPk62qG0",
+        "title": "Casual Spanish Conversation about Summer Plans | Super Easy Spanish 109",
+        "duration": 473,
+        "channel": "Easy Spanish",
+        "channel_id": "UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "channel_url": "https://www.youtube.com/channel/UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "uploader": "Easy Spanish",
+        "uploader_id": "@EasySpanish",
+        "webpage_url": "https://www.youtube.com/watch?v=SDcJPk62qG0",
+        "availability": "public",
+        "language": "es",
+        "descriptionExcerpt": "💛 JOIN OUR COMMUNITY HERE 👉🏽 https://www.easy-spanish.org/membership\n\nWhat are your plans this summer? In this video, Carla and Sara share their holiday plans while talking a little slower than usual. Can you follow the thread of this casual Spanish conversation?\n\nAs a member of our community, you get transcripts, vocabulary lists & flashcards & exercise sheets for all of our videos, an interactive transcript, vocab helper & exclusive aftershow for our podcast episodes. Members also get access to our Discord service, where you can chat with other community members and the Easy Spanish team!\n\n---\nMORE EASY SPANISH CONTENT! 📱\n\n🎙 Listen to our podcast: https://bit.ly/easyspanishpodcast\n📹 Subscribe to our YouTube channel: https://bit.ly/easyspanishsubscribe\n📸 Follow us on Instagram: https://bit.ly/easyspanishinsta\n👥 Facebook: https://bit.ly/easyspanishfacebook\n👯‍♀️ & Tiktok! https://bit.ly/easyspanishtiktok\n💻 Want to know more? Visit https://www.easy-spanish.org/\n\n---\nWE'RE PART OF SOMETHING BIGGER! 💛💚💙🧡\n\nEasy Languages is an international video project aiming at supporting people worldwide to learn languages through authentic street interviews and exposing the street culture of participating partner countries abroad. Episodes are produced in local languages and contain subtitles in both the original language and English.\n\n📹 Subscribe to the Easy Languages channel: https://bit.ly/easylanguages\n💻 & visit our website if you want to know more https://www.easy-languages.org\n\n---\nDISC",
+        "subtitleLanguages": [],
+        "automaticCaptionLanguages": [
+          "ab",
+          "aa",
+          "af",
+          "ak",
+          "sq",
+          "am",
+          "ar",
+          "hy",
+          "as",
+          "ay",
+          "az",
+          "bn"
+        ]
+      }
+    },
+    {
+      "file": "source001-easy-coffee.json",
+      "sha256": "6215859811ab4fb280acb1376c74ea322230bb2ce1221ef9edb5e7894b324b5c",
+      "url": "https://www.youtube.com/watch?v=JtLypQpGruo",
+      "checkedAt": "2026-10-16T06:08:26.695997+00:00",
+      "httpStatus": null,
+      "rawResponseSha256": "1acdc50f9bcb60a086543df1603380b13fea3c4ad4ad7c8053e4d907e44392a4",
+      "metadata": {
+        "id": "JtLypQpGruo",
+        "title": "3 Ways to Order a Coffee in Spanish (And 3 Mistakes to Avoid) | Super Easy Spanish 74",
+        "duration": 477,
+        "channel": "Easy Spanish",
+        "channel_id": "UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "channel_url": "https://www.youtube.com/channel/UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "uploader": "Easy Spanish",
+        "uploader_id": "@EasySpanish",
+        "webpage_url": "https://www.youtube.com/watch?v=JtLypQpGruo",
+        "availability": "public",
+        "language": "es",
+        "descriptionExcerpt": "💛 JOIN OUR COMMUNITY HERE 👉🏽 https://bit.ly/easyspanishcommunity\n\nAs a member of our community, you get transcripts, vocabulary lists & flashcards & exercise sheets for all of our videos, an interactive transcript, vocab helper & exclusive aftershow for our podcast episodes. Members also get access to our Discord service, where you can chat with other community members and the Easy Spanish team!\n\n---\nMORE EASY SPANISH CONTENT! 📱\n\n🎙 Listen to our podcast: https://bit.ly/easyspanishpodcast\n📹 Subscribe to our YouTube channel: https://bit.ly/easyspanishsubscribe\n📸 Follow us on Instagram: https://bit.ly/easyspanishinsta\n👥 Facebook: https://bit.ly/easyspanishfacebook\n👯‍♀️ & Tiktok! https://bit.ly/easyspanishtiktok\n💻 Want to know more? Visit https://www.easy-spanish.org/\n\n---\nWE'RE PART OF SOMETHING BIGGER! 💛💚💙🧡\n\nEasy Languages is an international video project aiming at supporting people worldwide to learn languages through authentic street interviews and exposing the street culture of participating partner countries abroad. Episodes are produced in local languages and contain subtitles in both the original language and English.\n\n📹 Subscribe to the Easy Languages channel: https://bit.ly/easylanguages\n💻 & visit our website if you want to know more https://www.easy-languages.org\n\n---\nDISCOUNTS FROM OUR PARTNERS 💰\n\nLINGOPIE - Get a 7-day free trial and 55% discount on the annual subscription:\nhttps://learn.lingopie.com/easyspanish\n\nITALKI - Get $10 in italki credits after your first l",
+        "subtitleLanguages": [],
+        "automaticCaptionLanguages": [
+          "ab",
+          "aa",
+          "af",
+          "ak",
+          "sq",
+          "am",
+          "ar",
+          "hy",
+          "as",
+          "ay",
+          "az",
+          "bn"
+        ]
+      }
+    },
+    {
+      "file": "source001-lab-dialogue.json",
+      "sha256": "51f42924729b1d63b258743cd85f98961af8b808e818105daa19ac5a91c8a2b7",
+      "url": "https://www.spanishlearninglab.com/making-future-plans-in-spanish/",
+      "checkedAt": "2026-10-16T06:08:23.609482+00:00",
+      "httpStatus": "200",
+      "rawResponseSha256": "0c9446e930cc43382d1f206ea0f125e9caa370d0172733718ece339cece03970",
+      "excerpt": " and read a few books.\nExample No. 4\nAlejandro:\n¿Qué planeas hacer el fin de semana?\nDoris:\nMauricio y yo vamos a ir al concierto de Katia. ¿Vos no vas a ir?\nAlejandro:\nQué tuani, pero no puedo ir… Es una lástima, pero seguro que ustedes se van a divertir. Después de todo, a vos te gusta mucho la música de Katia.\nDoris:\nOjalá que nos podás acompañar la próxima vez.\nA\n[...]\nragua is TUANI, which means “Cool!”. If you go to Nicaragua, you will hear the phrase ¡Qué tuani! (That’s cool!) a lot.\nListening Activity No. 1: My plans for the weekend in Spanish\nListen to two people talking about their weekend plans in Spanish. Write down the information you consider important, identify the structure “IR + A + Infinitive,” and solve the interactive quiz about t\n[...]\ná hecha un desastre, voy a relajarme y a leer un libro. ¿y tú que piensas hacer?\nAlejandro: Mi novia y yo vamos a ir al concierto de Katia y como tenemos una entrada adicional, pensamos en invitarte a ir con nosotros. ¿Qué dices?\nDoris: Dale, me parece buena idea… ¿Qué vamos a hacer después?\nAlejandro: Vamos a ir a la casa de mi novia. Ella va a cocinar algo y yo voy\n[...]\ns: ¡Uhmm que rico! Tengo que estar lista entonces… ¿Vas a llevar tu carro?\nAlejandro: Sí, nosotros vamos a pasar por ti media hora antes del concierto… La vamos a pasar muy bien.\nDoris: Estoy segura que así va a ser.\nListening activity No. 2: Talking about vacation plans in Spanish\nListen to a recording of someone’s vacation plans in Spanish. Complete the plan using the information from \n[...]\n – PDF Conversation\n2 thoughts on “Making Future Plans in Spanish: IR + A + Infinitive”\nWilliam Frank\nApril 10, 2017 at 6:26 pm\nMe encanta este sitio.   En Costa Rica se usa Tuanis para “cool”  Es “Tuani” en Nicaragua o es que no se oye la -s al final?\nReply\nAlex\nApril 11, 2017 at 1:36 am\n¡Que bueno que te guste el sitio! Nos alegra mucho. Ambas palabras significan “Cool”, pero en Nicaragua usamos TUANI, por ejemplo: ¡Qué tuani tu auto! o ¡Es tuani saber español! 🙂\nReply\nLeave a Reply\nCancel reply\nYour email address wil"
+    },
+    {
+      "file": "source001-lab-rights.json",
+      "sha256": "3c30d19a3134b6a60dc2a23a94c1bd1985517fa0e657e55a40e55f6bdcdbe80b",
+      "url": "https://www.spanishlearninglab.com/",
+      "checkedAt": "2026-10-16T06:13:29.225825+00:00",
+      "httpStatus": "200",
+      "rawResponseSha256": "1d740975f4c5a1793bf97c679f59e6f0bac0056a55c4a14ba3da066e025c0be3",
+      "excerpt": "te te pediríamos el favor de dirigir a tus usuarios a las lecciones que les puedan ayudar en su proceso de aprendizaje, sin necesidad de duplicar nuestro contenido en tu sitio. ¡Éxito!\nAtentamente,\nAlex\nReply\nJoe Montoya\nFebruary 22, 2018 at 12:46 pm\nGracias Alex. Con gusto remito a mis estudiantes a su sitio web. Si en algo más puedo colaborar, solo déjeme saber.\nMichelle Stewart-M\n[...]\nish Greetings and Introductions\nCounting in Spanish from 1-20\nDescribing your family\nDaily Routine in Spanish\nCopyright © 2026 Spanish Learning Lab | Powered by\nAstra WordPress Theme\nScroll to Top"
+    },
+    {
+      "file": "source001-videole-evidence.json",
+      "sha256": "ec3e75b953b26190a7c0d3a2375981dc2b99e2a45c6054d008a15c79ed198a36",
+      "research": {
+        "taskId": "CONTENT-SOURCE-001",
+        "kind": "public_web_metadata_and_short_excerpts",
+        "rawPageBodiesSaved": false,
+        "pdfsRead": false,
+        "audioVideoDownloaded": false,
+        "records": [
+          {
+            "key": "home",
+            "url": "https://www.videoele.com/",
+            "finalUrl": "https://www.videoele.com/",
+            "httpStatus": 200,
+            "retrievedAt": "2026-10-16T06:48:36.329372+00:00",
+            "bodySha256": "2360fd17dc44c19f9cfff167e580c3746eeebb0b4d8b45b5dab574db45698138",
+            "bodyByteCount": 13334,
+            "title": "VideoEle. Curso de español para extranjeros gratis",
+            "shortExcerpts": [
+              "VideoEle es un curso de español para extranjeros, online y gratuito basado en vídeos. Todos los materiales son de acceso libre, no es preciso ningún registro, ni suscripción ni pago para usarlos."
+            ],
+            "activities": [],
+            "youtubeEmbedIds": [
+              "DBDB1vaXqps"
+            ],
+            "transcriptPdfLinks": []
+          },
+          {
+            "key": "course",
+            "url": "https://www.videoele.com/Curso.html",
+            "finalUrl": "https://www.videoele.com/Curso.html",
+            "httpStatus": 200,
+            "retrievedAt": "2026-10-16T06:48:37.384338+00:00",
+            "bodySha256": "a9d0f3b4bceb9264065e2ca994583079c6c942c776982cf7e7de253b706d64aa",
+            "bodyByteCount": 16332,
+            "title": "El curso tiene unidades didácticas organizadas en 4 niveles",
+            "shortExcerpts": [
+              "Los vídeos tienen una duración aproximada de entre 3 y 6 minutos. Cada uno hace énfasis en distintos elementos de la lengua, como el léxico (partes del cuerpo, tiendas, deportes...), funciones comunicativas (expresar gustos, expresar opiniones, dar información, hablar del tiempo atmosférico...), gramática (verbos irregulares, presente de subjuntivo...) o elementos culturales (la Navidad, actividades del ocio, el transporte en tren...) Observe con detenimiento las imágenes, porque reflejan escenas cotidianas así como numerosos elementos culturales presentes en el entorno de un país hispanohablante. Todos los vídeos se ofrecen con subtítulos en español y además, muchos subtítulos han sido traducidos al inglés, italiano y alemán. Puede activar o desactivar esta opción, y elegir el idioma, con el botón que aparece a la derecha de la barra del reproductor de Youtube. Apriete el botón de opciones:",
+              "En este documento podrá leer las palabras exactas que dicen en el vídeo. Se ofrece en un archivo PDF. En general, es preferible que en primer lugar escuche el vídeo, deteniéndolo, escuchándolo las veces que usted crea necesario y esforzándose en comprender todo lo que pueda. Después puede descargar leer la transcripción para resolver sus dudas y traducir todo lo necesario."
+            ],
+            "activities": [],
+            "youtubeEmbedIds": [],
+            "transcriptPdfLinks": []
+          },
+          {
+            "key": "legal",
+            "url": "https://www.videoele.com/legal.html",
+            "finalUrl": "https://www.videoele.com/legal.html",
+            "httpStatus": 200,
+            "retrievedAt": "2026-10-16T06:48:38.665897+00:00",
+            "bodySha256": "fc67ef7d3367ee3ac9cec103b66d3172f735024f8be265254c03ba4c1d921900",
+            "bodyByteCount": 8685,
+            "title": "Información legal sobre VideoEle",
+            "observedLicenseHrefs": [
+              "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es",
+              "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es"
+            ],
+            "observedLicenseImageSrc": "images/by-nc-sa.png",
+            "shortExcerpts": [
+              "Los contenidos de VideoEle se publican bajo una licencia Creative Commons 4.0 que proporciona un conjunto de permisos respecto al uso y distribución, pero no invalida los derechos de autor. Usted puede usar libre y gratuitamente todos los materiales de VideoEle (vídeos y actividades interactivas) y descargar los archivos en PDF (transcripción, guía didáctica y soluciones) respetando las condiciones siguientes:",
+              "No Comercial: Usted no puede hacer uso del material con propósitos comerciales.",
+              "Sin obras derivadas: Si remezcla, transforma o crea a partir del material, no podrá distribuir el material modificado."
+            ],
+            "activities": [],
+            "youtubeEmbedIds": [],
+            "transcriptPdfLinks": []
+          },
+          {
+            "key": "a2",
+            "url": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+            "finalUrl": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+            "httpStatus": 200,
+            "retrievedAt": "2026-10-16T06:48:40.702726+00:00",
+            "bodySha256": "6620f901fc6b196c0e47a90ad64fd7365c2a9aacaeb8eb9731ef51c0365d9432",
+            "bodyByteCount": 10149,
+            "title": "Sube a mi casa. Nivel A2. Léxico de la vivienda",
+            "shortExcerpts": [
+              "Contenidos funcionales Describir lugares. Ofrecer e invitar. Contenidos gramaticales Adverbios de lugar. Contraste hay / está . Contenidos léxicos Objetos de la vivienda. Partes de la vivienda. Contenidos socioculturales Bloques de viviendas. La vivienda en las ciudades."
+            ],
+            "activities": [],
+            "youtubeEmbedIds": [
+              "S0irU4fsfA0"
+            ],
+            "transcriptPdfLinks": [
+              "https://www.videoele.com/Archivos/A2_Sube_a_mi_casa_Transc.pdf"
+            ]
+          },
+          {
+            "key": "b1",
+            "url": "https://www.videoele.com/B1-Comer-fuera.html",
+            "finalUrl": "https://www.videoele.com/B1-Comer-fuera.html",
+            "httpStatus": 200,
+            "retrievedAt": "2026-10-16T06:48:42.973357+00:00",
+            "bodySha256": "380857a1e1805a7a3a0a7b0879ba9452aa48ef693fa194824c367a04dd21f36c",
+            "bodyByteCount": 9353,
+            "title": "Comer fuera. Nivel B1. Presente de subjuntivo",
+            "shortExcerpts": [
+              "Contenidos funcionales Expresar planes e intenciones. Pedir en un restaurante. Formular buenos deseos en la mesa. Expresar deseos. Expresar una opinión y valorar. Contenidos gramaticales Usos del presente de subjuntivo. No más de… Contenidos léxicos Alimentos. Platos. Contenidos socioculturales Las tapas."
+            ],
+            "activities": [],
+            "youtubeEmbedIds": [
+              "z-CS3hAuOxs"
+            ],
+            "transcriptPdfLinks": [
+              "https://www.videoele.com/Archivos/B1_Comer_fuera_Transc.pdf"
+            ]
+          },
+          {
+            "key": "a2_activity",
+            "url": "https://www.videoele.com/A2_sube_a_casa_interactivo/subeacasa.html",
+            "finalUrl": "https://www.videoele.com/A2_sube_a_casa_interactivo/subeacasa.html",
+            "httpStatus": 200,
+            "retrievedAt": "2026-10-16T06:48:45.009853+00:00",
+            "bodySha256": "36f00cee9e21767987af8dd0802ff8c37b1b9b0af7b69efddbd3dbf3030f862b",
+            "bodyByteCount": 14333,
+            "title": "Sube a mi casa. Nivel A2",
+            "shortExcerpts": [],
+            "activities": [
+              {
+                "id": "7",
+                "txcabe": "Vivo en ese bloque",
+                "texto": "\"¿ Quieres ver el piso donde vivo ?\""
+              },
+              {
+                "id": "23",
+                "txcabe": "Escucha, puedes ver mi casa",
+                "etiquetas": [
+                  "uvs120613-003.JPG||piso.mp3||¿Quieres ver el piso...?",
+                  "uvs120613-008.JPG||invito.mp3||...sube que te invito...",
+                  "uvs120613-025.JPG||ver.mp3||¿Quieres ver algo...?",
+                  "uvs120613-047.JPG||tomar.mp3||¿Te apetece...?",
+                  "uvs120616-001.JPG||sofa.mp3||Venga, siéntate..."
+                ]
+              }
+            ],
+            "youtubeEmbedIds": [],
+            "transcriptPdfLinks": []
+          },
+          {
+            "key": "b1_activity",
+            "url": "https://www.videoele.com/B1_Comer-fuera-interactivo/comer.html",
+            "finalUrl": "https://www.videoele.com/B1_Comer-fuera-interactivo/comer.html",
+            "httpStatus": 200,
+            "retrievedAt": "2026-10-16T06:48:46.267195+00:00",
+            "bodySha256": "9d35fce76c9b3d10de3c96e754afe8fdfb167690156777f5838c594cebf13b23",
+            "bodyByteCount": 23912,
+            "title": "Comer fuera. Nivel B1",
+            "shortExcerpts": [],
+            "activities": [
+              {
+                "id": "21",
+                "txcabe": "¿Qué prefieren hacer hoy?",
+                "texto": "\"Hoy preferimos comer tapas a comer un menú.\""
+              },
+              {
+                "id": "23",
+                "txcabe": "Responde",
+                "texto": "Todavía tienen hambre. ¿Qué piden después?",
+                "respuestas": [
+                  "Camarero, ¿nos pone una ración de calamares a la romana?",
+                  "Camarero, ¿nos pone unas anchoas?",
+                  "Camarero, ¿nos pone unos boquerones en vinagre?",
+                  "Camarero, ¿nos pone una ración de callos?"
+                ],
+                "corr": "1000"
+              },
+              {
+                "id": "24",
+                "txcabe": "En el restaurante",
+                "textos": [
+                  "Que ",
+                  "Qué rico ",
+                  "Camarero, ¿nos pone",
+                  "Camarero, ¿nos"
+                ],
+                "unir": [
+                  "aproveche.",
+                  "está todo.",
+                  "una ensaladilla rusa?",
+                  "trae la cuenta?"
+                ]
+              }
+            ],
+            "youtubeEmbedIds": [],
+            "transcriptPdfLinks": []
+          },
+          {
+            "key": "cc_legal",
+            "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.en",
+            "finalUrl": "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.en",
+            "httpStatus": 200,
+            "retrievedAt": "2026-10-16T06:48:47.270253+00:00",
+            "bodySha256": "e4acba200a8b8139aebcffffca4a7fcc41b357d7a5acbe9e639b6e960cbb97cb",
+            "bodyByteCount": 49896,
+            "title": "Legal Code - Attribution-NonCommercial-NoDerivatives 4.0 International - Creative Commons",
+            "shortExcerpts": [
+              "id=\"s1a_adapted_material\"> Adapted Material means material subject to Copyright and Similar Rights that is derived from or based upon the Licensed Material and in which the Licensed Material is translated, altered, arranged, transformed, or otherwise modified in a manner requiring permission under the Copyright and Similar Rights held by the Licensor. For purposes of this Public License, where the Licensed Material is a musical work, performance, or sound recording, Adapted Material is always produced where the Licensed Material is synched in timed relation with a moving image. Copyright and Similar Rights means copyright and/or similar rights closely related to copyright including, without limitation, performance, broadcast, sound recording, and Sui Generis Database Rights, without regard to how the rights are labeled or categorized. For purposes of this Public License, the rights specified in Section 2(b)(1)-(2) are not Copyright and Similar Rights. Effective Technological Measures means those measures that, in the absence of proper authority, may not be circumvented under laws fulfilling obligations under Article 11 of the WIPO Copyright Treaty adopted on December 20, 1996, and/",
+              "id=\"s2a1\"> Subject to the terms and conditions of this Public License, the Licensor hereby grants You a worldwide, royalty-free, non-sublicensable, non-exclusive, irrevocable license to exercise the Licensed Rights in the Licensed Material to: reproduce and Share the Licensed Material, in whole or in part, for NonCommercial purposes only; and produce and reproduce, but not Share, Adapted Material for NonCommercial purposes only. Exceptions and Limitations . For the avoidance of doubt, where Exceptions and Limitations apply to Your use, this Public License does not apply, and You do not need to comply with its terms and conditions. Term . The term of this Public License is specified in Section 6(a) . Media and formats; technical modifications allowed . The Licensor authorizes You to exercise the Licensed Rights in all media and formats whether now known or hereafter created, and to make technical modifications necessary to do so. The Licensor waives and/or agrees not to assert any right or authority to forbid You from making technical modifications necessary to exercise the Licensed Rights, including technical modifications necessary to circumvent Effective Technological Measures. F"
+            ],
+            "activities": [],
+            "youtubeEmbedIds": [],
+            "transcriptPdfLinks": []
+          }
+        ]
+      }
+    },
+    {
+      "file": "source001-videole-video-metadata.json",
+      "sha256": "151dcbeb9d2a139df21d90101d4df5c490ad183c50ed9638b642dfccb70fe38d",
+      "research": {
+        "taskId": "CONTENT-SOURCE-001",
+        "mode": "metadata_only",
+        "records": [
+          {
+            "url": "https://www.youtube.com/watch?v=S0irU4fsfA0",
+            "retrievedAt": "2026-10-16T06:56:31.014250+00:00",
+            "responseSha256": "0456dbaa5a7748217180b57874c4476766ffb108c45885ea3a73f602d48e720d",
+            "rawResponseSaved": false,
+            "id": "S0irU4fsfA0",
+            "title": "Sube a mi casa. Nivel A2",
+            "duration": 289,
+            "channel": "VideoEle",
+            "channel_id": "UCQK4L3hsPP0ei2_54lDaB6g",
+            "channel_url": "https://www.youtube.com/channel/UCQK4L3hsPP0ei2_54lDaB6g",
+            "uploader": "VideoEle",
+            "uploader_id": "@AgustinIruela",
+            "license": null,
+            "licenseFieldPresent": false,
+            "subtitleLanguages": [
+              "en",
+              "fr",
+              "de",
+              "it",
+              "pt-BR",
+              "es"
+            ],
+            "automaticCaptionLanguages": [
+              "en",
+              "fr",
+              "de",
+              "it",
+              "pt-BR",
+              "es",
+              "ab",
+              "aa",
+              "af",
+              "ak",
+              "sq",
+              "am",
+              "ar",
+              "hy",
+              "as",
+              "ay",
+              "az",
+              "bn",
+              "ba",
+              "eu",
+              "be",
+              "bho",
+              "bs",
+              "br",
+              "bg",
+              "my",
+              "ca",
+              "ceb",
+              "zh-Hans",
+              "zh-Hant",
+              "co",
+              "hr",
+              "cs",
+              "da",
+              "dv",
+              "nl",
+              "dz",
+              "eo",
+              "et",
+              "ee",
+              "fo",
+              "fj",
+              "fil",
+              "fi",
+              "gaa",
+              "gl",
+              "lg",
+              "ka",
+              "el",
+              "gn",
+              "gu",
+              "ht",
+              "ha",
+              "haw",
+              "iw",
+              "hi",
+              "hmn",
+              "hu",
+              "is",
+              "ig",
+              "id",
+              "iu",
+              "ga",
+              "ja",
+              "jv",
+              "kl",
+              "kn",
+              "kk",
+              "kha",
+              "km",
+              "rw",
+              "ko",
+              "kri",
+              "ku",
+              "ky",
+              "lo",
+              "la",
+              "lv",
+              "ln",
+              "lt",
+              "lua",
+              "luo",
+              "lb",
+              "mk",
+              "mg",
+              "ms",
+              "ml",
+              "mt",
+              "gv",
+              "mi",
+              "mr",
+              "mn",
+              "mfe",
+              "ne",
+              "new",
+              "nso",
+              "no",
+              "ny",
+              "oc",
+              "or",
+              "om",
+              "os",
+              "pam",
+              "ps",
+              "fa",
+              "pl",
+              "pt",
+              "pt-PT",
+              "pa",
+              "qu",
+              "ro",
+              "rn",
+              "ru",
+              "sm",
+              "sg",
+              "sa",
+              "gd",
+              "sr",
+              "crs",
+              "sn",
+              "sd",
+              "si",
+              "sk",
+              "sl",
+              "so",
+              "st",
+              "es-orig",
+              "su",
+              "sw",
+              "ss",
+              "sv",
+              "tg",
+              "ta",
+              "tt",
+              "te",
+              "th",
+              "bo",
+              "ti",
+              "to",
+              "ts",
+              "tn",
+              "tum",
+              "tr",
+              "tk",
+              "uk",
+              "ur",
+              "ug",
+              "uz",
+              "ve",
+              "vi",
+              "war",
+              "cy",
+              "fy",
+              "wo",
+              "xh",
+              "yi",
+              "yo",
+              "zu"
+            ],
+            "warnings": "WARNING: [youtube] No supported JavaScript runtime could be found. Only deno is enabled by default; to use another runtime add  --js-runtimes RUNTIME[:PATH]  to your command/config. YouTube extraction without a JS runtime has been deprecated, and some formats may be missing. See  https://github.com/yt-dlp/yt-dlp/wiki/EJS  for details on installing one",
+            "audioVideoDownloaded": false,
+            "subtitleBodiesFetched": false
+          },
+          {
+            "url": "https://www.youtube.com/watch?v=z-CS3hAuOxs",
+            "retrievedAt": "2026-10-16T06:56:29.988341+00:00",
+            "responseSha256": "097fbbd2d776f85fc190a85054c2afbdaecc75b9027a77deb4a878d091dc19e1",
+            "rawResponseSaved": false,
+            "id": "z-CS3hAuOxs",
+            "title": "Comer fuera. Nivel B1",
+            "duration": 256,
+            "channel": "VideoEle",
+            "channel_id": "UCQK4L3hsPP0ei2_54lDaB6g",
+            "channel_url": "https://www.youtube.com/channel/UCQK4L3hsPP0ei2_54lDaB6g",
+            "uploader": "VideoEle",
+            "uploader_id": "@AgustinIruela",
+            "license": null,
+            "licenseFieldPresent": false,
+            "subtitleLanguages": [
+              "en-G-PHUSlR500",
+              "fr-G-PHUSlR500",
+              "it-G-PHUSlR500",
+              "pt-BR-G-PHUSlR500",
+              "es-G-PHUSlR500"
+            ],
+            "automaticCaptionLanguages": [
+              "en",
+              "fr",
+              "it",
+              "pt-BR",
+              "es"
+            ],
+            "warnings": "WARNING: [youtube] No supported JavaScript runtime could be found. Only deno is enabled by default; to use another runtime add  --js-runtimes RUNTIME[:PATH]  to your command/config. YouTube extraction without a JS runtime has been deprecated, and some formats may be missing. See  https://github.com/yt-dlp/yt-dlp/wiki/EJS  for details on installing one",
+            "audioVideoDownloaded": false,
+            "subtitleBodiesFetched": false
+          }
+        ]
+      }
+    },
+    {
+      "file": "source001-videole-review.json",
+      "sha256": "ad196899a26dde76f6874c17447113a6e461232debaf1d57d4255033e2747dee",
+      "research": {
+        "taskId": "CONTENT-SOURCE-001",
+        "source": "VideoEle",
+        "researcher": {
+          "identity": "AI public-source researcher",
+          "audioReviewed": false,
+          "formalApproval": false
+        },
+        "status": "proposal_only_rights_and_full_dialogue_checks_pending",
+        "evidenceFile": "source001-videole-evidence.json",
+        "evidenceSha256": "ec3e75b953b26190a7c0d3a2375981dc2b99e2a45c6054d008a15c79ed198a36",
+        "videoMetadataFile": "source001-videole-video-metadata.json",
+        "videoMetadataSha256": "151dcbeb9d2a139df21d90101d4df5c490ad183c50ed9638b642dfccb70fe38d",
+        "confirmedChannelId": "UCQK4L3hsPP0ei2_54lDaB6g",
+        "samples": [
+          {
+            "title": "Sube a mi casa",
+            "publisherLevel": "A2",
+            "officialPage": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+            "youtubeId": "S0irU4fsfA0",
+            "youtubeUrl": "https://www.youtube.com/watch?v=S0irU4fsfA0",
+            "durationSeconds": 289,
+            "durationEvidence": "yt-dlp --skip-download --no-playlist metadata only; title Sube a mi casa. Nivel A2",
+            "publisherFunctions": [
+              "Describir lugares",
+              "Ofrecer e invitar"
+            ],
+            "publicTranscriptPdf": "https://www.videoele.com/Archivos/A2_Sube_a_mi_casa_Transc.pdf",
+            "transcriptAccess": "Official public page links PDF; no membership link or payment gate shown. PDF contents not fetched/read.",
+            "subtitles": "Official course claim corroborated by per-video metadata track keys en/fr/de/it/pt-BR/es. Spanish track metadata exists; no caption body retrieved and text/timing not verified.",
+            "shortPublicTextEvidence": {
+              "url": "https://www.videoele.com/A2_sube_a_casa_interactivo/subeacasa.html",
+              "exercise7": "¿Quieres ver el piso donde vivo?",
+              "exercise23Fragments": [
+                "...sube que te invito...",
+                "¿Te apetece...?",
+                "Venga, siéntate..."
+              ],
+              "limitation": "These are official accompanying exercise texts, not verified timestamped transcript. Invitation is evidenced; acceptance, complete two-person dialogue and meeting-time/place negotiation are not established. The unit substantially teaches house description."
+            },
+            "fit": "Promising limited invitation/home-visit sample; not confirmed replacement for a complete gathering/appointment dialogue."
+          },
+          {
+            "title": "Comer fuera",
+            "publisherLevel": "B1",
+            "officialPage": "https://www.videoele.com/B1-Comer-fuera.html",
+            "youtubeId": "z-CS3hAuOxs",
+            "youtubeUrl": "https://www.youtube.com/watch?v=z-CS3hAuOxs",
+            "durationSeconds": 256,
+            "durationEvidence": "yt-dlp --skip-download --no-playlist metadata only; title Comer fuera. Nivel B1",
+            "publisherFunctions": [
+              "Expresar planes e intenciones",
+              "Pedir en un restaurante",
+              "Formular buenos deseos en la mesa",
+              "Expresar deseos",
+              "Expresar una opinión y valorar"
+            ],
+            "publicTranscriptPdf": "https://www.videoele.com/Archivos/B1_Comer_fuera_Transc.pdf",
+            "transcriptAccess": "Official public page links PDF; no membership link or payment gate shown. PDF contents not fetched/read.",
+            "subtitles": "Per-video metadata has en/fr/it/pt-BR/es keys suffixed -G-PHUSlR500, including es-G-PHUSlR500. Spanish track metadata exists; no caption body retrieved and text/timing not verified.",
+            "shortPublicTextEvidence": {
+              "url": "https://www.videoele.com/B1_Comer-fuera-interactivo/comer.html",
+              "exercise21": "Hoy preferimos comer tapas a comer un menú.",
+              "exercise23CorrectChoice": "Camarero, ¿nos pone una ración de calamares a la romana?",
+              "exercise24Reconstruction": [
+                "Que aproveche.",
+                "Camarero, ¿nos trae la cuenta?"
+              ],
+              "limitation": "Exercise 23 has four answer choices; the recorded corr=1000 identifies only the first as correct. Exercise 24 strings are reconstructed from explicit matching halves. No timestamps, audio or full response turns checked."
+            },
+            "fit": "Concrete ordering/bill-request language; useful B1 restaurant lead. Full scene and listening suitability still unreviewed."
+          }
+        ],
+        "accessEvidence": {
+          "url": "https://www.videoele.com/",
+          "quote": "Todos los materiales son de acceso libre, no es preciso ningún registro, ni suscripción ni pago para usarlos.",
+          "interpretation": "Public access statement, not blanket permission to translate, index, download video/audio or redistribute."
+        },
+        "rights": {
+          "officialUrl": "https://www.videoele.com/legal.html",
+          "linkedLicense": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es",
+          "licenseCodeUrl": "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.en",
+          "license": "CC BY-NC-ND 4.0, according to explicit site legal prose and hyperlink",
+          "officialQuotes": [
+            "Usted no puede hacer uso del material con propósitos comerciales.",
+            "Si remezcla, transforma o crea a partir del material, no podrá distribuir el material modificado."
+          ],
+          "imageMismatch": "Legal-page image filename is by-nc-sa.png; explicit prose and links say NoDerivatives/by-nc-nd. Do not infer ShareAlike permission from filename; seek publisher clarification before operational reliance.",
+          "privateVsShare": "CC 4.0 section 2(a)(1)(B) permits producing/reproducing, but not Sharing, Adapted Material for NonCommercial purposes. Section 1(a) includes translation in Adapted Material where permission is required. Thus ND is not a categorical ban on private noncommercial adaptation; it does not authorize sharing translated/modified subtitles. A private-use possibility is not an authorization to ingest or publish here.",
+          "ccShortQuote": "produce and reproduce, but not Share, Adapted Material for NonCommercial purposes only.",
+          "scopeLimitations": [
+            "Site-level statement does not independently verify chain of title for every embedded video, soundtrack, image or third-party element.",
+            "YouTube metadata license field was NA; do not infer a YouTube CC license.",
+            "Embedding/linking on the official site does not authorize extracting, downloading or rehosting audiovisual files.",
+            "Public PDF links do not automatically authorize translated subtitle distribution, corpus/index storage, glossary derivatives or commercial use.",
+            "Attribution, link to license and change indication remain necessary where licensed sharing is allowed; no endorsement implied."
+          ]
+        },
+        "proposalScope": {
+          "enabled": false,
+          "allowedResearchPages": [
+            "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+            "https://www.videoele.com/B1-Comer-fuera.html"
+          ],
+          "allowedResearchVideoIds": [
+            "S0irU4fsfA0",
+            "z-CS3hAuOxs"
+          ],
+          "notAWhitelistChange": true,
+          "nextChecks": [
+            "Owner selects a limited source proposal; preserve official attribution and source links.",
+            "Resolve explicit permission for subtitle retrieval/storage, Chinese translation, lexical indexing, display, temporary processing and any redistribution as applicable, including third-party rights.",
+            "Confirm individual Spanish subtitle tracks and full text; perform full dialogue fit and independent language/Chinese teaching reviews before any candidate approval.",
+            "Use official embed or external links only after relevant platform conditions are checked; do not treat proposal acceptance as a download/rehosting license."
+          ]
+        },
+        "operations": {
+          "sourceEnabled": false,
+          "databaseWrites": false,
+          "formalReviewWrites": false,
+          "published": false,
+          "audioVideoDownloaded": false,
+          "paidProviderCalls": false,
+          "outboundMessages": false,
+          "systemProxyChanged": false,
+          "cookiesOrTokensUsed": false
+        },
+        "toolLimitations": [
+          "yt-dlp warned that a supported JavaScript runtime was unavailable; metadata duration/title succeeded, no media was requested.",
+          "pypdf was unavailable and bundled workspace dependencies were not configured. No package was installed and no PDF was downloaded; official HTML activities supplied short textual evidence.",
+          "A Python urllib collection attempt returned HTTP 403 and saved no page body; ordinary curl requests previously succeeded. Collector records any non-200 response without bypass."
+        ]
+      }
+    }
+  ],
+  "sources": [
+    {
+      "id": "videole",
+      "priority": 1,
+      "officialUrl": "https://www.videoele.com/",
+      "identity": "Official lesson pages link the embedded video IDs and transcript/exercise resources.",
+      "proposedScope": {
+        "hosts": [
+          "www.videoele.com"
+        ],
+        "lessonPaths": [
+          "/A2-Sube-a-mi-casa.html",
+          "/B1-Comer-fuera.html"
+        ],
+        "videoIds": [
+          "S0irU4fsfA0",
+          "z-CS3hAuOxs"
+        ],
+        "channelId": "UCQK4L3hsPP0ei2_54lDaB6g",
+        "enabled": false,
+        "restriction": "channel AND exact video ID, not whole channel"
+      },
+      "rights": {
+        "licenseObserved": "CC BY-NC-ND 4.0",
+        "evidenceUrl": "https://www.videoele.com/legal.html",
+        "statusForProposedUse": "unverified",
+        "allowsBilingualRedistribution": "not-established",
+        "note": "ND restricts sharing adapted material; do not infer a ban on all private adaptation or permission for this product. Website text/link prevails over an image filename. YouTube license metadata absent; scope and third-party rights pending."
+      },
+      "transcript": {
+        "publicLinksExist": true,
+        "kind": "untimed-pdf-link",
+        "obtained": false,
+        "spanishTrackMetadataObserved": true
+      },
+      "samples": [
+        {
+          "id": "S0irU4fsfA0",
+          "title": "A2 Sube a mi casa",
+          "url": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+          "durationSeconds": 289,
+          "durationVerified": true,
+          "videoTargetMet": true,
+          "actions": [
+            "offer",
+            "invite"
+          ],
+          "actionEvidenceLevel": "official-function-label-and-public-exercise",
+          "coreApproved": false,
+          "audioReviewed": false,
+          "officialLevel": "A2",
+          "subtitleTrackKeys": [
+            "en",
+            "fr",
+            "de",
+            "it",
+            "pt-BR",
+            "es"
+          ],
+          "subtitleBodyObtained": false,
+          "licenseFieldPresent": false
+        },
+        {
+          "id": "z-CS3hAuOxs",
+          "title": "B1 Comer fuera",
+          "url": "https://www.videoele.com/B1-Comer-fuera.html",
+          "durationSeconds": 256,
+          "durationVerified": true,
+          "videoTargetMet": true,
+          "actions": [
+            "plans",
+            "food-order",
+            "request-bill"
+          ],
+          "actionEvidenceLevel": "official-function-label-and-public-exercise",
+          "coreApproved": false,
+          "audioReviewed": false,
+          "officialLevel": "B1",
+          "subtitleTrackKeys": [
+            "en-G-PHUSlR500",
+            "fr-G-PHUSlR500",
+            "it-G-PHUSlR500",
+            "pt-BR-G-PHUSlR500",
+            "es-G-PHUSlR500"
+          ],
+          "subtitleBodyObtained": false,
+          "licenseFieldPresent": false
+        }
+      ],
+      "nextGates": [
+        "Resolve per-item rights coverage and third-party rights, using already confirmed channel ID",
+        "Resolve NC/ND and proposed transcript alignment, translation, corpus index and distribution scope",
+        "Check current adapter license support and exact item restriction",
+        "Verify official embed availability, declared language, region and complete communicative turns",
+        "Independent es-ES and zh-CN content reviews before any explicit publish"
+      ]
+    },
+    {
+      "id": "easy-spanish",
+      "priority": 2,
+      "officialUrl": "https://www.easy-spanish.org/",
+      "officialChannelId": "UCAL4AMMMXKxHDu3FqZV6CbQ",
+      "proposedScope": {
+        "hosts": [
+          "www.easy-spanish.org",
+          "www.youtube.com"
+        ],
+        "channelId": "UCAL4AMMMXKxHDu3FqZV6CbQ",
+        "videoIds": [
+          "SDcJPk62qG0",
+          "JtLypQpGruo"
+        ],
+        "restriction": "channel AND exact video ID, not whole channel",
+        "enabled": false
+      },
+      "rights": {
+        "statusForProposedUse": "unverified",
+        "licenseObserved": null,
+        "evidenceUrl": "https://www.easy-spanish.org/membership",
+        "note": "Transcripts/downloads listed as membership benefits; no observed grant for copying, translation, hosting or indexing. Membership access does not itself confer redistribution rights."
+      },
+      "transcript": {
+        "kind": "none-obtained",
+        "manualTracksObserved": false,
+        "automaticCaptionMetadataObserved": true,
+        "membershipMaterialAccessed": false
+      },
+      "samples": [
+        {
+          "id": "SDcJPk62qG0",
+          "title": "Casual Spanish Conversation about Summer Plans | Super Easy Spanish 109",
+          "url": "https://www.youtube.com/watch?v=SDcJPk62qG0",
+          "durationSeconds": 473,
+          "durationVerified": true,
+          "videoTargetMet": true,
+          "actions": [
+            "discuss-plans"
+          ],
+          "actionEvidenceLevel": "official-description-only",
+          "coreApproved": false,
+          "audioReviewed": false,
+          "officialLevel": null,
+          "declaredLanguage": "es",
+          "manualSubtitleLanguages": [],
+          "automaticCaptionListObserved": true,
+          "licenseFieldPresent": false
+        },
+        {
+          "id": "JtLypQpGruo",
+          "title": "3 Ways to Order a Coffee in Spanish (And 3 Mistakes to Avoid) | Super Easy Spanish 74",
+          "url": "https://www.youtube.com/watch?v=JtLypQpGruo",
+          "durationSeconds": 477,
+          "durationVerified": true,
+          "videoTargetMet": true,
+          "actions": [
+            "order-coffee"
+          ],
+          "actionEvidenceLevel": "title-only",
+          "coreApproved": false,
+          "audioReviewed": false,
+          "officialLevel": null,
+          "declaredLanguage": "es",
+          "manualSubtitleLanguages": [],
+          "automaticCaptionListObserved": true,
+          "licenseFieldPresent": false
+        }
+      ],
+      "nextGates": [
+        "Obtain evidence for specific intended uses and IDs",
+        "Check exact item restrictions supported by adapter",
+        "Obtain permitted captions or gate ASR by rights and budget",
+        "Review actual complete turns rather than infer suitability from titles",
+        "Verify official embed, language/region/CEFR and independent content reviews"
+      ]
+    },
+    {
+      "id": "spanish-learning-lab",
+      "priority": 3,
+      "officialUrl": "https://www.spanishlearninglab.com/",
+      "proposedScope": {
+        "hosts": [
+          "www.spanishlearninglab.com"
+        ],
+        "paths": [
+          "/making-future-plans-in-spanish/",
+          "/"
+        ],
+        "mode": "original-site-reference",
+        "feedUrl": null,
+        "enabled": false
+      },
+      "rights": {
+        "statusForProposedUse": "unverified",
+        "licenseObserved": null,
+        "evidenceUrl": "https://www.spanishlearninglab.com/",
+        "note": "Copyright notice and a specific 2018 public reply favor directing students to original lessons without duplication; neither is a general license grant to this project."
+      },
+      "transcript": {
+        "kind": "public-untimed-page-text",
+        "shortExcerptsRead": true,
+        "audioRequested": false
+      },
+      "samples": [
+        {
+          "id": "listening-activity-1",
+          "title": "Making Future Plans in Spanish — Listening Activity No. 1",
+          "url": "https://www.spanishlearninglab.com/making-future-plans-in-spanish/",
+          "durationSeconds": null,
+          "durationVerified": false,
+          "videoTargetMet": false,
+          "actions": [
+            "invite",
+            "accept",
+            "ask-next-plan",
+            "offer-pickup"
+          ],
+          "actionEvidenceLevel": "public-activity-text",
+          "coreApproved": false,
+          "audioReviewed": false,
+          "officialLevel": null,
+          "kind": "lesson-audio-not-verified-podcast",
+          "feedUrl": null,
+          "notSameAsEmbeddedGrammarVideo": "ImRaC-WlgHo"
+        }
+      ],
+      "nextGates": [
+        "Author permission for any copying/translation/hosting",
+        "Verify audio duration without assuming a podcast/feed",
+        "Establish any necessary documented adapter and processing boundary before implementation"
+      ]
+    }
+  ],
+  "independentResearchReview": {
+    "scope": "VideoEle facts and rights boundaries only",
+    "file": "source001-videole-review.json",
+    "sha256": "ad196899a26dde76f6874c17447113a6e461232debaf1d57d4255033e2747dee",
+    "formalContentApproval": false
+  },
+  "durationDiscrepancy": {
+    "reason": "playlist metadata differs by one second; single-video values used",
+    "playlistSeconds": {
+      "SDcJPk62qG0": 474,
+      "JtLypQpGruo": 478
+    },
+    "singleSeconds": {
+      "SDcJPk62qG0": 473,
+      "JtLypQpGruo": 477
+    }
+  },
+  "proposedRun": {
+    "mode": "single-manual-dry-run-after-gates",
+    "maxItems": 5,
+    "concurrency": 1,
+    "recurringEnabled": false,
+    "asrBudget": 0,
+    "translationBudget": 0,
+    "implemented": false
+  },
+  "attributionAndRemoval": {
+    "videole": "Verified author + title + official lesson + exact CC license URL + change notice as required",
+    "easySpanish": "Title + official video + Easy Spanish/Easy Languages, subject to authorization terms",
+    "learningLab": "Original lesson title/link only until permission",
+    "beforeEnable": [
+      "Confirm attribution names, permitted uses, expiry and withdrawal contact",
+      "Pause acquisition and use existing withdrawal mechanism on revoked authorization, removed source or license change; retain audit and immutable evidence-linked versions"
+    ]
+  },
+  "authorizationRecordFields": [
+    "rightsHolder",
+    "identityEvidence",
+    "formAndDate",
+    "httpsEvidenceOrControlledRecordId",
+    "exactItemsAndVersions",
+    "thirdPartyMaterialCoverage",
+    "territoryAndTerm",
+    "commercialScope",
+    "audience",
+    "officialEmbed",
+    "transcriptPdfAcquisition",
+    "temporaryDownloadAndDeletion",
+    "thirdPartyAsrTranslationProcessing",
+    "subtitleAlignment",
+    "zhTranslation",
+    "corpusIndexAndExcerpts",
+    "inProductDisplayAndRedistribution",
+    "attributionAndChanges",
+    "withdrawalAndExpiry"
+  ],
+  "checksNotRun": {
+    "applicationChecks": [
+      "lint",
+      "typecheck",
+      "Vitest",
+      "E2E",
+      "build"
+    ],
+    "reason": "Documentation and public-source research only; no application, interface, schema or migration changes.",
+    "other": [
+      "original-audio-and-video-review",
+      "actual-embed-playback",
+      "Safari-device",
+      "database",
+      "CEFR-and-region-review"
+    ]
+  }
+}

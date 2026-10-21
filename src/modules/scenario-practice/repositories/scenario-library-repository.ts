@@ -92,7 +92,15 @@ export interface ScenarioLibraryRepository {
   findSavedExpressionByClientSaveId(userId: string, clientSaveId: string): Promise<SavedExpressionDto | null>;
   createSavedExpression(input: CreateSavedExpressionInput): Promise<SavedExpressionDto>;
   archiveSavedExpression(userId: string, savedExpressionId: string): Promise<boolean>;
-  listGenerationSources(userId: string): Promise<ScenarioGenerationSourcesDto>;
+  /**
+   * Generation sources for the personal-scenario generator.
+   *
+   * `savedExpressionsInFlight` lets a caller that is already reading the user's
+   * saved expressions pass that read in, so the newest 20 of the same rows are
+   * not fetched a second time inside the same wave (the explore page reads both
+   * in one `Promise.all`).
+   */
+  listGenerationSources(userId: string, savedExpressionsInFlight?: Promise<readonly SavedExpressionDto[]>): Promise<ScenarioGenerationSourcesDto>;
   resolveGenerationSource(userId: string, source: GenerationSourceInput): Promise<ResolvedGenerationSource | null>;
   findPersonalScenarioByIdempotencyKey(userId: string, idempotencyKey: string): Promise<PersonalScenarioRecord | null>;
   createPersonalScenario(input: CreatePersonalScenarioInput): Promise<PersonalScenarioRecord>;

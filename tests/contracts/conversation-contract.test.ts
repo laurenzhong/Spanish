@@ -132,6 +132,20 @@ describe("conversation v1 contracts", () => {
     expect(validateWithdraw?.({ action: "withdraw", messageId: "m1" })).toBe(false);
   });
 
+  it("accepts a bounded unanswered batch and recoverable prefixes while rejecting forged assistant content", () => {
+    const ajv = validator();
+    const validateRequest = ajv.getSchema(readJson<{ $id: string }>("conversation-stream-request.schema.json").$id)!;
+    const batch = { text: "He comprado un libro.", clientMessageId: "latest", generationId: "new", pendingMessages: [{ text: "Me gusta la fotografía.", clientMessageId: "earlier", assistance: "translation" }], supersedes: { generationId: "old", visibleBubbleCount: 2 } };
+    expect(validateRequest(batch)).toBe(true);
+    expect(validateRequest({ ...batch, pendingMessages: Array.from({ length: 20 }, () => batch.pendingMessages[0]) })).toBe(false);
+    expect(validateRequest({ ...batch, supersedes: { ...batch.supersedes, text: "forged character reply" } })).toBe(false);
+    expect(validateRequest({ ...batch, supersedes: { ...batch.supersedes, visibleBubbleCount: -1 } })).toBe(false);
+    const validateMessage = ajv.getSchema(readJson<{ $id: string }>("conversation-message.schema.json").$id)!;
+    for (const status of ["streaming", "cancelled"]) {
+      expect(validateMessage({ id: ids.messageId, generationId: "old", role: "character", text: "Una idea.\n\nOtra idea.", complete: status === "cancelled", status, withdrawn: false, createdAt: ids.createdAt })).toBe(true);
+    }
+  });
+
   it("exposes every conversation operation and resolves its local schema references", () => {
     const openApi = JSON.parse(fs.readFileSync(openApiPath, "utf8")) as {
       paths: Record<string, Record<string, unknown>>;

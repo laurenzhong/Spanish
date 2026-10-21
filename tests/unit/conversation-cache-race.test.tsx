@@ -81,6 +81,22 @@ describe("conversation cache invalidation", () => {
     expect(getCachedConversationHistory("lucia", "scope-a")).toBeNull();
   });
 
+  it("forces a post-mutation history read and rejects the older same-account response", async () => {
+    const oldRead = deferred<Response>();
+    const newRead = deferred<Response>();
+    const fetchMock = vi.fn().mockReturnValueOnce(oldRead.promise).mockReturnValueOnce(newRead.promise);
+    vi.stubGlobal("fetch", fetchMock);
+    const beforeMutation = loadConversationHistory("lucia", "scope-a");
+    const afterMutation = loadConversationHistory("lucia", "scope-a", { refresh: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((fetchMock.mock.calls[0]![1] as RequestInit).signal?.aborted).toBe(true);
+    newRead.resolve(jsonResponse({ data: { messages: [{ id: "kept", role: "user", text: "Kept", complete: true }] } }));
+    await afterMutation;
+    oldRead.resolve(jsonResponse({ data: { messages: [{ id: "deleted-reply", role: "character", text: "Old reply", complete: true }] } }));
+    await expect(beforeMutation).rejects.toThrow("CONVERSATION_HISTORY_INVALIDATED");
+    expect(getCachedConversationHistory("lucia", "scope-a")?.map((message) => message.id)).toEqual(["kept"]);
+  });
+
   it("keeps the new account contact list when the old account response arrives late", async () => {
     const scopeAList = deferred<Response>();
     const scopeBList = deferred<Response>();

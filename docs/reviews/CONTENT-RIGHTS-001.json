@@ -1,0 +1,647 @@
+{
+  "format": "rights-and-adapter-audit",
+  "formatVersion": 1,
+  "taskId": "CONTENT-RIGHTS-001",
+  "status": "review",
+  "checkedAt": "2026-10-16T08:06:47.425633+00:00",
+  "notImportableSourceConfig": true,
+  "rightsStatusWritten": false,
+  "sourcesEnabled": 0,
+  "databaseWritten": false,
+  "formalApprovalRecorded": false,
+  "paidProviderCalled": false,
+  "audioVideoDownloaded": false,
+  "pdfFullTextObtained": false,
+  "fullCaptionsObtained": false,
+  "thirdPartyContacted": false,
+  "newPublished": 0,
+  "targetPendingReview": 2,
+  "targetUnfilled": 10,
+  "independentPublicResearch": {
+    "taskId": "CONTENT-RIGHTS-001",
+    "checkedAt": "2026-10-16T08:02:24.725654+00:00",
+    "role": "AI public-source factual research, not legal counsel or formal language/pedagogy approval",
+    "scope": {
+      "exactVideoIds": [
+        "S0irU4fsfA0",
+        "z-CS3hAuOxs"
+      ],
+      "channelId": "UCQK4L3hsPP0ei2_54lDaB6g",
+      "repoModified": false,
+      "databaseRead": false,
+      "databaseWritten": false,
+      "sourceEnabled": false,
+      "published": false,
+      "audioVideoDownloaded": false,
+      "pdfDownloaded": false,
+      "fullTranscriptDownloaded": false,
+      "paidProviderCalled": false,
+      "thirdPartyContacted": false
+    },
+    "license": {
+      "observed": "CC BY-NC-ND 4.0 International",
+      "sourceUrl": "https://www.videoele.com/legal.html",
+      "deed": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es",
+      "legalcode": "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es",
+      "conflictingImage": "images/by-nc-sa.png",
+      "conflictingImageMeaning": "图片文件名与明确文字/超链接不同，不足以推断SA授权；保留冲突，按明示ND处理。"
+    },
+    "attribution": {
+      "verifiedDesignation": "VideoEle",
+      "naturalPersonAuthor": "not established from these official pages",
+      "recommended": "VideoEle — [课程标题]；来源：[官方课程URL]；CC BY-NC-ND 4.0：[deed链接]；摘录/格式变化：[实际变化]。不暗示VideoEle支持本产品。",
+      "requirements": "保留材料实际提供的作者/指定受署名者、版权/许可/免责声明和来源URI；本轮未读PDF内作者/其他声明，后续取得时再核，不虚构姓名或把频道主自动视为自然人作者。",
+      "contactUrl": "https://www.videoele.com/Contacto.html",
+      "contacted": false
+    },
+    "samples": [
+      {
+        "key": "a2",
+        "url": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+        "videoId": "S0irU4fsfA0",
+        "sourceRetrievedAt": "2026-10-16T06:48:40.702726+00:00",
+        "sourceBodySha256": "6620f901fc6b196c0e47a90ad64fd7365c2a9aacaeb8eb9731ef51c0365d9432",
+        "durationSeconds": 289,
+        "transcriptPdfUrl": "https://www.videoele.com/Archivos/A2_Sube_a_mi_casa_Transc.pdf",
+        "pdfRead": false
+      },
+      {
+        "key": "b1",
+        "url": "https://www.videoele.com/B1-Comer-fuera.html",
+        "videoId": "z-CS3hAuOxs",
+        "sourceRetrievedAt": "2026-10-16T06:48:42.973357+00:00",
+        "sourceBodySha256": "380857a1e1805a7a3a0a7b0879ba9452aa48ef693fa194824c367a04dd21f36c",
+        "durationSeconds": 256,
+        "transcriptPdfUrl": "https://www.videoele.com/Archivos/B1_Comer_fuera_Transc.pdf",
+        "pdfRead": false
+      }
+    ],
+    "matrix": [
+      {
+        "id": "link",
+        "action": "原样链接两官方课程页、官方PDF链接",
+        "status": "supported_conditional",
+        "assessment": "链接与官方描述可以作为最小候选记录；不等同于取得字幕、媒体或发布审核。",
+        "evidenceUrls": [
+          "https://www.videoele.com/legal.html",
+          "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+          "https://www.videoele.com/B1-Comer-fuera.html"
+        ],
+        "conditions": [
+          "保留VideoEle、标题、来源URL和许可链接，不暗示背书",
+          "不复制完整PDF/字幕；本任务仍不启用来源或发布"
+        ]
+      },
+      {
+        "id": "embed",
+        "action": "使用原样YouTube官方嵌入播放器",
+        "status": "supported_conditional",
+        "assessment": "YouTube条款明确允许embeddable YouTube player；需确认单视频可嵌入且按播放器规范使用。许可与播放器权限分别保留证据。",
+        "evidenceUrls": [
+          "https://www.youtube.com/static?template=terms",
+          "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+          "https://www.videoele.com/B1-Comer-fuera.html"
+        ],
+        "conditions": [
+          "不覆盖/剥离播放器广告、品牌或访问限制",
+          "未执行真实播放器/地区/Safari验证",
+          "不据此取得任意下载权"
+        ]
+      },
+      {
+        "id": "pdf-personal",
+        "action": "日后从VideoEle官方PDF链接下载及个人阅读打印",
+        "status": "supported_conditional",
+        "assessment": "官网legal明确许可下载transcripción/guía/soluciones；Curso明确个人下载/打印，并称可翻译所需。不是只有公开链接而没有下载许可。",
+        "evidenceUrls": [
+          "https://www.videoele.com/legal.html",
+          "https://www.videoele.com/Curso.html"
+        ],
+        "conditions": [
+          "非商业用途、保留原有声明与署名",
+          "本轮按任务边界没有请求或保存PDF，未读单份PDF内额外声明"
+        ]
+      },
+      {
+        "id": "unmodified-copy",
+        "action": "非商业原样复制/分发全部或部分许可材料",
+        "status": "supported_conditional",
+        "assessment": "CC4.0 2(a)(1)(A)允许非商业reproduce and Share整部或部分；并非ND禁止一切复制。",
+        "evidenceUrls": [
+          "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es"
+        ],
+        "conditions": [
+          "实际材料属于许可范围且无第三方除外项",
+          "满足3(a)署名/来源/许可/改动说明及不背书",
+          "取得途径本身须合规；本轮不制作副本或发布"
+        ]
+      },
+      {
+        "id": "private-translation",
+        "action": "所有者私密非商业中文翻译/改编副本",
+        "status": "supported_conditional",
+        "assessment": "CC4.0 2(a)(1)(B)明确允许produce/reproduce但不Share改编；不能把ND解释为禁止所有私人改编。翻译通常属于改编。",
+        "evidenceUrls": [
+          "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es",
+          "https://www.videoele.com/Curso.html",
+          "https://creativecommons.org/faq/#when-is-my-use-considered-an-adaptation"
+        ],
+        "conditions": [
+          "限定所有者私密自用且非商业",
+          "合法取得原材料",
+          "供应商处理与访问范围需另判，不能单靠个人Alpha名称推定",
+          "本轮没有翻译正文或调用provider"
+        ]
+      },
+      {
+        "id": "share-translation",
+        "action": "向公众/其他用户分发中文翻译、改写或改编字幕",
+        "status": "not_granted_by_current_license",
+        "assessment": "ND不授予Share Adapted Material；需独立许可或确切适用的法定例外。加署名或免费不消除ND。",
+        "evidenceUrls": [
+          "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es"
+        ],
+        "conditions": [
+          "必须补充覆盖翻译、改写、同步字幕、分发对象/地域/期限的授权",
+          "鉴权登录不自动表示非public；朋友/多人分发须按实际受众和法律判断"
+        ]
+      },
+      {
+        "id": "timestamps",
+        "action": "原播放器时间定位、仅存时间戳及事实元数据",
+        "status": "supported_conditional",
+        "assessment": "只保留时间定位/元数据、不重制媒体或改写表达通常不产生改编；仍须核实元数据取得方式及播放器条款。",
+        "evidenceUrls": [
+          "https://www.youtube.com/static?template=terms",
+          "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es"
+        ],
+        "conditions": [
+          "使用官方播放器允许的seek能力",
+          "不抓取或下载媒体片段",
+          "不得把此判断扩展为任意媒体剪辑许可"
+        ]
+      },
+      {
+        "id": "segment-text",
+        "action": "原样转录文本的技术格式转换/时间切分",
+        "status": "case_specific",
+        "assessment": "CC2(a)(4)允许必要技术修改且本身不构成Adapted Material；原样摘录也非当然改编。若切分、重排、合并重构表达则要按改编判断。",
+        "evidenceUrls": [
+          "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es",
+          "https://creativecommons.org/faq/#can-i-take-a-cc-licensed-work-and-use-it-in-a-different-format",
+          "https://creativecommons.org/faq/#can-i-reuse-an-excerpt-of-a-larger-work-that-is-licensed-with-the-noderivs-restriction"
+        ],
+        "conditions": [
+          "合法取得文本，保留原文/出处/版本",
+          "只添加定位和格式，保持语义/顺序",
+          "展示摘录要满足NC及署名并标明摘录/格式变动",
+          "不得将未知直接写成禁止或已许可全部"
+        ]
+      },
+      {
+        "id": "lexicon",
+        "action": "词、短语、上下文索引及自主教学说明",
+        "status": "case_specific",
+        "assessment": "事实、单词或不具保护性的短表达可能不需版权许可；表达性上下文摘录通常行使复制权。索引不当然改编，但大量提取、上下文重写、翻译或重组可能触发改编/数据库权。",
+        "evidenceUrls": [
+          "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es",
+          "https://creativecommons.org/faq/#can-i-reuse-an-excerpt-of-a-larger-work-that-is-licensed-with-the-noderivs-restriction"
+        ],
+        "conditions": [
+          "最小原样摘录、逐项source/time/version追溯",
+          "独立说明与原文/翻译清楚区分",
+          "对分发的改编内容单独授权",
+          "不以词典名义重建整份受保护字幕"
+        ]
+      },
+      {
+        "id": "cloud",
+        "action": "向第三方云ASR/翻译/LLM上传来源材料",
+        "status": "unresolved_provider_specific",
+        "assessment": "付费provider或商业公司身份本身不自动使所有者个人学习成为商业用途；封闭受托处理也不自动等于向public Share。需依据实际用途、代理关系、接收者、保存/复用/训练/公开条款及取得途径判定。当前没有具体provider合同与授权事实，不能称禁止一切或全部许可。",
+        "evidenceUrls": [
+          "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es",
+          "https://creativecommons.org/faq/#does-my-use-violate-the-noncommercial-clause-of-the-licenses"
+        ],
+        "conditions": [
+          "核验provider仅受托处理、保留/删除、训练/再分发权与访问范围",
+          "不能把版权许可代替平台下载许可",
+          "未知项保持未决并阻止自动处理直至按动作验证",
+          "本次未上传内容/未调用收费provider"
+        ]
+      },
+      {
+        "id": "youtube-download",
+        "action": "通过yt-dlp或其他工具下载YouTube音视频",
+        "status": "not_established",
+        "assessment": "VideoEle官网CC版权授权不等于YouTube服务层任意下载授权。YouTube条款另有限制；未证明Service功能授权、所需书面许可或适用法律依据，故当前取得路径未通过。不是宣称版权法绝对禁止私人复制。",
+        "evidenceUrls": [
+          "https://www.youtube.com/static?template=terms",
+          "https://www.videoele.com/legal.html"
+        ],
+        "conditions": [
+          "不得绕过DRM/访问/付费墙/平台限制",
+          "优先采用VideoEle明确提供的PDF或权利人提供的独立合法原件",
+          "本轮未下载媒体"
+        ]
+      },
+      {
+        "id": "youtube-caption-api",
+        "action": "通过官方captions.download取得他人字幕",
+        "status": "not_established",
+        "assessment": "官方接口要求用户有编辑该视频权限并需OAuth；公开可看字幕不代表具有下载API授权。两视频未证实所有者编辑权限。",
+        "evidenceUrls": [
+          "https://developers.google.com/youtube/data/reference/rest/v3/captions/download"
+        ],
+        "conditions": [
+          "不得用页面可看字幕、metadata或工具能取得代替接口授权",
+          "可按另立切片读取官方明示PDF，仍遵守使用范围"
+        ]
+      },
+      {
+        "id": "youtube-license",
+        "action": "把VideoEle BY-NC-ND映射为YouTube creativeCommon",
+        "status": "unsupported_mapping",
+        "assessment": "YouTube官方仅列Standard YouTube license与Creative Commons Attribution；其CC选项是CC BY。官网BY-NC-ND可为站外许可证据，但不能重命名为YouTube creativeCommon。",
+        "evidenceUrls": [
+          "https://support.google.com/youtube/answer/2797468?hl=en",
+          "https://www.videoele.com/legal.html"
+        ],
+        "conditions": [
+          "未调用Data API查两视频正式license字段",
+          "yt-dlp字符串不作为Data API license判定",
+          "若有多重许可须分别保留且核实适用具体材料"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-videole-legal.json",
+        "fileSha256": "1f5e1989d04cde3afe0819fd2bded986e75186f6db35bfd65e3619026bfcfb3e",
+        "url": "https://www.videoele.com/legal.html",
+        "checkedAt": "2026-10-16T07:53:01.133642+00:00",
+        "bodySha256": "fc67ef7d3367ee3ac9cec103b66d3172f735024f8be265254c03ba4c1d921900",
+        "shortExcerpt": "Información legal sobre VideoEle\nInicio\nCurso\n¿Qué es?\nProfesores\nAyude\nContacto\nVídeos para aprender\nespañol como lengua extranjera\nInformación legal de VideoEle\nVideoEle ofrece de forma libre y gratuita todo el material educativo pero esto no quiere decir que no tenga una propiedad intelectual\nVideoEle ofrece vídeos \n[...]\natuita por los profesores en  el aula o por los alumnos en su  hogar.\nLos contenidos de VideoEle se publican bajo   una licencia\nCreative Commons 4.0\nque proporciona un conjunto de   permisos respecto al uso y distribución, pero no invalida los derechos de autor.   Usted puede usar libre y gratuitamente todos los materiales de VideoEle (vídeos y actividades interactivas) y descargar los  archivos en PDF (transcripción, guía didáctica y soluciones) respetando   las condiciones siguientes:\nAtribución:\nUsted  debe dar crédito de manera adecuada, brindar un enlace a la licencia, e indicar  si se han realizado cambios. Puede hacerlo en cualquier forma razonable, pero  no de forma tal que sugiera que usted o su uso tienen el apoyo del  licenciante.\nNo Comercial:\nUsted  no puede hacer uso del material con propósitos comerciales.\nSin obras   derivadas:\nSi remezcla, transforma o crea a partir del material, no podrá distribuir el material modificado.\nSi   lo desea, puede leer el\ntexto legal completo\nde la licencia 4.0.\nPara   saber más sobre\nCreative   Commons\n."
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-videole-course.json",
+        "fileSha256": "39cbe48212b3ce47007bad03704f7456687e9a63b410a5ea108ae4896524453a",
+        "url": "https://www.videoele.com/Curso.html",
+        "checkedAt": "2026-10-16T07:53:01.133642+00:00",
+        "bodySha256": "a9d0f3b4bceb9264065e2ca994583079c6c942c776982cf7e7de253b706d64aa",
+        "shortExcerpt": "El curso tiene unidades didácticas organizadas en 4 niveles\nInicio\nCurso\n¿Qué es?\nProfesores\nAyude\nContacto\nVídeos para aprender\nespañol como lengua extranjera\nCurso\nSeleccione la unidad didáctica más apropiada para sus necesidades\nEl curso se compone de unidades didácticas organizadas en cuatro niveles\n. Cada unidad didáctica contiene un vídeo,\n[...]\niéndolo, escuchándolo las veces que usted crea necesario y esforzándose  en comprender todo lo que pueda. Después puede descargar leer la transcripción para resolver sus dudas y traducir todo lo necesario.\nGuía didáctica\nLe ayudarán a comprender cuáles son los elementos más destacados del vídeo.\nSe ofrecen en un archivo PDF. Puede descargarlas e imprimirlas libremente para su uso personal. Todas las guías didácticas presentan una estructura organizada en cuatro apartados:\nAntes de visionar\nEstas actividades dirigen su atención sobre el tema principal del vídeo y le preparan p"
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-cc-deed-es.json",
+        "fileSha256": "d085e2383e9dca57549114c5fb197f15043055ef53b4f32bea57af57cea134b6",
+        "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es",
+        "checkedAt": "2026-10-16T07:53:01.133642+00:00",
+        "bodySha256": "3a5a4de608720bb0d9918decd69661d528a9bd35c796c98bf986b07f333c987f",
+        "shortExcerpt": "Deed - Atribución/Reconocimiento-NoComercial-SinDerivados 4.0\n      Internacional - Creative Commons\nSaltar al contenido\nLanguages available\naragonés\nAzərbaycanca\nBahasa Indonesia\nBasque\ncatalà\ndansk\nDeutsch\neesti\nEnglish\nespañol\nEsperanto\nfrançais\nfrysk\nGaeilge\ngalego\nHrvatski\nitali\n[...]\ning + Webinars\nAdvocacy\nCommunity\nEvents\nBlog\nSupport Us\nExpand\nMake a Gift\nOpen Infrastructure Circle\nDonor FAQ\nDonate\nAtribución/Reconocimiento-NoComercial-SinDerivados 4.0 Internacional\nCC BY-NC-ND 4.0\nDeed\nCanonical URL\nhttps://creativecommons.org/licenses/by-nc-nd/4.0/\nSee the legal code\nUsted es libre de:\nCompartir\n— copiar y redistribuir el material en\n              cualquier medio o formato\nLa licenciante no puede revocar estas libertades en tanto usted\n              siga los términos de la licencia\nBajo los siguientes términos:\nAtribución\n— Usted debe dar\ncrédito de manera adecuada\n, brindar un enlace a la licencia, e\nindicar si se han realizado cambios\n. Puede hacerlo en cualquier forma razonable, pero no de forma\n              tal que sugiera que usted o su uso tienen el apoyo de la\n              licenciante.\nNoComercial\n— Usted no puede hacer uso del\n              material con\npropósitos comerciales\n.\nSinDerivadas\n— Si\nremezcla, transforma o crea a partir\ndel material, no podrá distribuir el material modificado.\nNo hay restricciones adicionales\n— No puede\n              aplicar términos legales ni\nmedidas tecnológicas\nque restrinjan legalmente a otra"
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-cc-legal-es.json",
+        "fileSha256": "d154eab0671c96cb228fae182075d9475fce518dc7185d4605a066c96bf1384e",
+        "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.es",
+        "checkedAt": "2026-10-16T07:53:01.133642+00:00",
+        "bodySha256": "9b09cca82558f6109ec8ac7304d01f4d784436ff5708c7844c603c9aa78ae205",
+        "shortExcerpt": "Código legal - Atribución/Reconocimiento-NoComercial-SinDerivados 4.0\n      Internacional - Creative Commons\nSaltar al contenido\nLanguages available\nBahasa Indonesia\nBasque\ndansk\nDeutsch\neesti\nEnglish\nespañol\nfrançais\nfrysk\nHrvatski\nitaliano\nlatviešu\nLietuviškai\nMāori\nNederlands\n\n[...]\nars\nAdvocacy\nCommunity\nEvents\nBlog\nSupport Us\nExpand\nMake a Gift\nOpen Infrastructure Circle\nDonor FAQ\nDonate\nAtribución/Reconocimiento-NoComercial-SinDerivados 4.0 Internacional\nCC BY-NC-ND 4.0\nCódigo legal\nAtribución/Reconocimiento-NoComercial-SinDerivados 4.0\n                Internacional\nSección 1 – Definiciones.\nSección 2 – Ámbito de Aplicación.\nSección 3 – Condiciones de la Licencia.\nSección 4 – Derechos \"Sui Generis\" sobre Bases de Datos.\nSección 5 – Exención de\n[...]\nnta a respetar esas solicitudes\n            dentro de lo razonable.\nMás consideraciones para licenciatarios.\nAtribución/Reconocimiento-NoComercial-SinDerivados 4.0 Internacional\nAl ejercer los Derechos Licenciados (definidos a continuación),\n            Usted acepta y acuerda estar obligado por los términos y condiciones\n            de esta Licencia Internacional Pública de\n            Atribución/Reconocimiento-NoComercial-SinDerivados 4.0 de Creative\n            Commons (\"Licencia Pública\"). En la medida en que esta Licencia\n            Pública pueda ser interpretada como un contrato, a Usted se le\n            otorgan los Derechos Licenciados en\n[...]\nón\n              sonora, la sincronización temporal de este material con una imagen\n              en movimiento siempre producirá Material Adaptado.\nDerechos de Autor y Derechos Similares\nson todos aquellos derechos estrechamente vinculados a los\n              derechos de autor, incluidos, de manera enunciativa y no taxativa,\n              los derechos sobre las int\n[...]\n                 irrevocable para ejercer los Derechos Licenciados sobre el\n                  Material Licenciado para:\nreproducir y Compartir el Material Licenciado, en su\n                      totalidad o en parte, solamente para fines NoComerciales;\n                      y\nproducir y reproducir, pero no Compartir Material\n                      Adaptado, para fines NoComerciales.\nExcepciones y Limitaciones\n. Para evitar\n                  cualquier duda, donde se apliquen Excepciones y Limitaciones\n                  al uso del Mate\n[...]\nncia\n. La vigencia de esta Licencia\n                  Pública está especificada en la sección\n6(a)\n.\nMedios y formatos; modificaciones técnicas\n                    permitidas\n. El Licenciante le autoriza a Usted a ejercer los Derechos\n                  Licenciados en todos los medios y formatos, actualmente\n                  conocidos o por crearse en el futuro, y a realizar las\n                  modificaciones técnicas necesarias para ello. El Licenciante\n                  renuncia y/o se compromete a no hacer valer cualquier derecho\n                  o potestad para prohibirle a Usted realizar las modificaciones\n                  técnicas necesarias para ejercer los Derechos Licenciados,\n                  incluyendo las modificaciones técnicas necesarias para eludir\n                  las Medidas Tecnológicas Efectivas. A los efectos de esta\n                  Licencia Pública, la mera realización de modificaciones\n                  autorizadas por esta sección\n2(a)(4)\nnunca\n                  produce Material Adaptado.\nReceptores posteriores\n.\nOferta del Licenciante – Material Licenciado\n. Cada receptor de Material Licenciado recibe\n                 \n[...]\non estatus\n                  oficial por el Licenciante u otros designados para recibir la\n                  Atribución/Reconocimiento según lo dispuesto en la sección\n3(a)(1)(A)(i)\n.\nOtros derechos\n.\nLos derechos morales, tales como el derecho a la integridad,\n                  no están comprendidos bajo esta Licencia Pública ni tampoco\n                  los derechos de \n[...]\n\nSu ejercicio de los Derechos Licenciados está expresamente sujeto a\n            las condiciones siguientes.\nAtribución/Reconocimiento\n.\nSi Usted comparte el Material Licenciado, Usted debe:\nConservar lo siguiente si es facilitado por el Licenciante\n                      con el Material Licenciad"
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-cc-legal-definitions.json",
+        "fileSha256": "46562a6026d943c2344a52b5806f14e61ecdd69e356d6bd2bf2234bd13a5b015",
+        "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.en",
+        "checkedAt": "2026-10-16T08:00:26.501135+00:00",
+        "bodySha256": "e4acba200a8b8139aebcffffca4a7fcc41b357d7a5acbe9e639b6e960cbb97cb",
+        "shortExcerpt": "\nLicensor\nmeans the\n              individual(s) or entity(ies) granting rights under this Public\n              License.\nNonCommercial\nmeans not primarily intended for or directed towards commercial\n              advantage or monetary compensation. For purposes of this Public\n              License, the exchange of the Licensed Material for other material\n              subject t\n[...]\ns is NonCommercial provided there is no payment of\n              monetary compensation in connection with the exchange.\nShare\nmeans to\n              provide material to the public by any means or process that\n              requires permission under the Licensed Rights, such as\n              reproduction, public display, public performance, distribution,\n              d\n[...]\nroduce and Share the Licensed Material, in whole or in\n                      part, for NonCommercial purposes only; and\nproduce and reproduce, but not Share, Adapted Material for\n                      NonCommercial purposes only.\nExceptions and Limitations\n. For the avoidance\n                  of doubt, where Exceptions and Limitations apply to Your use,\n                  this P\n[...]\nial, You must:\nretain the following if it is supplied by the Licensor\n                      with the Licensed Material:\nidentification of the creator(s) of the Licensed\n                          Material and any others designated to receive\n                          attribution, in any reasonable manner requested by the\n                          Licensor (including by pseudonym if desig"
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-videole-about.json",
+        "fileSha256": "ae4cfed446d33c8625828bde6892a663a728269c52d029a1ab8f94708062b030",
+        "url": "https://www.videoele.com/Que-es-videoele.html",
+        "checkedAt": "2026-10-16T07:54:28.303256+00:00",
+        "bodySha256": "9a6185ed35a4a18b87df12302bf2705fab0c66a3bf41877a49e86e3ae665550f",
+        "shortExcerpt": "ción propia y exclusivos de VideoEle. Podríamos calificarlos como didácticos y domésticos. Son didácticos porque están  creados   expresamente para que los usuarios aprendan español, es decir, VideoEle no contiene vídeos ajenos dirigidos a hispanohablantes, como anuncios publicitarios, películas, cortos, vídeos musicales, etc.   Cada vídeo se ha creado expresamente con el propósito de que sirva para aprender unos determinados contenidos socioculturales, gramaticales, funcionales o léxicos.\nAsimismo, son domésticos porque no hay ninguna infraestructura profesional detrás de la creación de\n[...]\ntreaming\nes inagotable.\nUna característica esencial de VideEle es que los vídeos que ofrece son didácticos porque están creados expresamente para que aprendan alumnos de español como lengua extranjera.\n¿Por qué no consigo descargar la\nGuía didáctica\n?\nAlgunos enlaces a  las actividades y las soluciones no funcionan  simplemente porque todavía   no están hechas. En"
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-videole-contact.json",
+        "fileSha256": "ffc2fba7f058563e888a74a44d65cc2081f2de6bb54790b06ad1bc29b45af145",
+        "url": "https://www.videoele.com/Contacto.html",
+        "checkedAt": "2026-10-16T07:54:28.303256+00:00",
+        "bodySha256": "52e058de6ee1eda0543a25129c0c294ba7d216bd6d49a9c68fd98acb62a600e0",
+        "shortExcerpt": "Contacte con VideoEle.\nInicio\nCurso\n¿Qué es?\nProfesores\nAyude\nContacto\nVídeos para aprender\nespañol como lengua extranjera\nContacto\nNo dude en contactar con VideoEle, con mucho gusto será atendido\nSu opinión es muy importante para mí:\n* Quizá quiera  sugerir algo.\n* A lo mejor tiene alguna duda.\n* ¿Quiere hacer alguna observación?\n* ¿Le gustaría proponer  algún vídeo nuevo?\n* ¿Ha identif"
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-youtube-license-help.json",
+        "fileSha256": "23056b1753fedeaef09258cca1b9aaa0e3d9b9c21a7df4da7ecd5e843836e769",
+        "url": "https://support.google.com/youtube/answer/2797468?hl=en",
+        "checkedAt": "2026-10-16T07:59:46.681130+00:00",
+        "bodySha256": "02cff0f2e79216b5c3b60aaad7ceb95c0ae128ccf29689a9b7dd01d2a15fbdda",
+        "shortExcerpt": "ent rules about how content can be used.\nWhen you upload content to YouTube, the license types you can choose from are:\nStandard YouTube license\nCreative Commons Attribution license\nStandard YouTube license\nThe standard YouTube license is the default setting for all YouTube uploads. To review the terms of the standard YouTube license, go to our\nTerms of Service\n.\nCreative Commons Attribution license\nCreative Commons\nis a global nonprofit organization that give creators a standardized way to grant someone else permission to use their work. You can add a Creative Commons Attribution license to your video if the content is licenseable under the\nCC BY license\n. Examples include:\nYour originally created content\nContent released under a\nCC BY license\nContent in the\npublic domain\nNote:\nIf there's a\nContent ID claim\non your video, you can’t add a Creative Commons Attribution license to your video.\nIf you add a Creative Commons Attribution license to your video, it means other creators can reuse your work subject to the terms of the\nCC BY license\n. If you’re using someone else’s work under the Creative Commons Attribution license, you need to give them\ncredit\n(attribution).\nAdd a Creative Commons Attribution license to your video\nUsing a computer, you can add a Creative Commons Attribution license to your video during video upload or after.\nDuring upload\nFrom a computer, sign in to\nYouTube Studio\n.\nIn the top-right corner, click\nCREATE\nUpload videos\n.\nSelect the video you want to upload.\nOn the\nDetails\npage, at the bottom, c\n[...]\ndeo description:\nTitle of the work\nAuthor of the work\nSource of the work (URL)\nLicense info, such as “is licensed under CC BY.”\nIncluding this info in your video can be done in various ways, such as text overlay or voiceover.\nFrequently asked questions (FAQ)\nHow do I find Creative Commons content on YouTube?\nTo find Creative Commons content on YouTube, select\nCre\n[...]\nnced search filters\n.\nYou can also look in video descriptions to see license information.\nCan I monetize content with a Creative Commons Attribution license?\nYou can monetize Creative Commons content if the license agreement grants you rights to use it commercially. Sometimes copyright owners require you to credit the creator of the content or give proof of purchase to use it in your video for commercial purposes.\nLearn more about\nwhat content you can monetize\n.\nWhat type of content is eligible for a Creative Commons Attribution license?\nYou can mark your uploaded video with a Creative Commons (CC) Attribution license if it's all content that you can license under the\nCC BY license\n. Some examples are:\nYour originally created content\nContent released under a\nCC BY license\nContent in the\npublic domain\nIf there's a\nContent ID claim\non your video, you can’t mark your video with the Creative Commons Attribution license.\nHow do I get permission to use someone else’s content?\nYouTube can’t grant you rights to use someone else’s content and we can’t help you find the parties who can grant them to you. You’ll have to research and handle this process "
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-youtube-captions-download.json",
+        "fileSha256": "16a7743dc22311b1cbd72d2e9f9e32bf854052652cb2a0dd5a684ed0967c066a",
+        "url": "https://developers.google.com/youtube/data/reference/rest/v3/captions/download",
+        "checkedAt": "2026-10-16T07:59:46.680129+00:00",
+        "bodySha256": "fb09bd9b7b54e688391ba99d9fa40843c963f79f33467be548f045c6a6ccca12",
+        "shortExcerpt": "ang\nparameter.\nQuota impact:\nA call to this method has a\nquota cost\nof 200 units.\nThis method requires the user to have permission to edit the video.\nCommon use cases\nRequest\nHTTP request\nGET https://www.googleapis.com/youtube/v3/captions/\nid\nAuthorization\nThis request requires authorization with at least one of the following scopes (\nread more about authentication and authorization\n).\nScope\nhttps://www.googleapis.com/auth/youtube.force-ssl\nhttps://www.googleapis.com/auth/youtubepartner\nParameters\nThe table below lists the parameters that this query supports. All of the parameters listed are query parameters.\nParamete\n[...]\nis intended exclusively for YouTube content partners.\nThe\nonBehalfOfContentOwner\nparameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows c\n[...]\n see the\nerror message\ndocumentation for more detail.\nError type\nError detail\nDescription\nforbidden (403)\nforbidden\nThe permissions associated with the request are not sufficient to download the caption track. The request might not be properly authorized.\ninvalidValue (400)\ncouldNotConvert\nThe caption track data could not be converted to the requested language and/or "
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-youtube-terms.json",
+        "fileSha256": "3d08adb2a5c825743bfb03f63e1cd692831205e74ae18837a97bdb19207ab8e0",
+        "url": "https://www.youtube.com/static?template=terms",
+        "checkedAt": "2026-10-16T07:59:46.698129+00:00",
+        "bodySha256": "19b0c2145b0dd1e30e6dffe760b0a84715cc1adc90a48bd2f56ba09ca6da4091",
+        "shortExcerpt": ". You may view or listen to Content for your personal, non-commercial use. You may also show YouTube videos through the embeddable YouTube player.\nThe following restrictions apply to your use of the Service. You are not allowed to:\naccess, reproduce, download, distribute, transmit, broadcast, display, sell, license, alter, modify or otherwise use any part of the Service or any Content except: (a) as expressly authorized by the Service; or (b) with prior written permission from YouTube and, if a\n[...]\nstrict the copying or other use of Content or (b) limit the use of the Service or Content;\naccess the Service using any automated means (such as robots, botnets or scrapers) except (a) in the case of public search engines, in accordance with YouTube’s robots.txt file; or (b) with YouTube’s prior written permission;\ncollect or harvest any information that might identi\n[...]\nstems. These changes may affect all users, some users or even an individual user. When the Service requires or includes downloadable software (such as the YouTube Studio application), that software may update automatically on your device once a new version or feature is available, subject to your device settings. If we make material changes that negatively impact yo\n[...]\n otherwise legally entitled to do so. You are legally responsible for the Content you submit to the Service. We may use automated systems that analyze your Content to help detect infringement and abuse, such as spam, malware, and illegal content.\nRights you Grant\nYou retain ownership rights in your Content. However, we do require you to grant certain rights to YouTub\n[...]\nom your Google Account, which involves closing your YouTube channel and removing your data. You also have the option to download a copy of your data first.\nTerminations and Suspensions by YouTube\nYouTube reserves the right to suspend or terminate your Google account or your access to all or part of the Service if (a) you materially or repeatedly breach this Agreemen\n[...]\nat the termination or suspension has been made in error, you can\nappeal using this form\n.\nAbout Software in the Service\nDownloadable Software\nWhen the Service requires or includes downloadable software (such as the YouTube Studio application), unless that software is governed by additional terms which provide a license, YouTube gives you a personal, worldwide, royalty-free, non-assignable and non-exclusive license to use the"
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-precise-sections.json",
+        "fileSha256": "1d3934ef1a84041f28af78bfd3c75b3460da4c6f814cc061c40848fb5dc3ca04",
+        "url": "https://creativecommons.org/faq/",
+        "checkedAt": "2026-10-16T07:57:43.861325+00:00",
+        "httpStatus": 200,
+        "htmlSha256": "d4ffb015ad13ce12eb060979abf835caa5c2ce2ef5d928e6af1885845db99c02",
+        "bodyBytes": 231234,
+        "rawBodySaved": false,
+        "sections": [
+          {
+            "url": "https://creativecommons.org/faq/#how-do-i-properly-attribute-material-offered-under-a-creative-commons-license",
+            "heading": "How\ndo I properly attribute material offered under a Creative Commons license?",
+            "shortExcerpt": "All CC licenses require users to attribute the creator of licensed material,\nunless the creator has waived that requirement , not supplied a name, or asked that her name be removed . Additionally, you must\nretain a copyright notice, a link to the license (or to the deed), a license\nnotice, a notice about the disclaimer of warranties, and a URI if reasonable.\nFor versions prior to 4.0, you must also provide the title of the work. (Though\nit is not a requirement in 4.0, it is still recommended if one is\nsupplied.) You must also indicate if you have modified the work —for example, if you have taken an\nexcerpt, or cropped a photo. (For versions prior to 4.0, this is only required\nif you have created an adaptation by contributing your own creative material,\nbut it is recommended even when not required.) It is not necessary to note\ntrivial alterations, such as correcting a typo or changing a font size.\nFinally, you must retain an indication of previous modifications to the\nwork. CC licenses have a flexible attribution requirement, so there is not\nnecessarily one correct way to provide attribution. The proper method for\ngiving credit will depend on the medium and means you are using, and may be\nimplemented in any reasonable manner. Additionally, you may satisfy the\nattribution requirement by providing a link to a place where the attribution\ninformation may be found. While the attribution requirements in the license are the minimum\nrequirement, we always recommend that you follow the best practices for the kind of use you are\nmaking. For example, if you are using scientific data marked with CC0, you are\nnot required to give attribution at all, but we recommend that you give the\nsame credit you would give to any other source—not because the license requires\nit, but because that is the standard for letting others know the source of the\ndata. The CC website offers some best practices to help you attribute properly, and the CC Australia team has developed a helpful\nguide to attributing CC-licensed material (.pdf) in different formats. Note\nthat the attribution and marking requirements vary slightly among license\nversions. See here for a chart comparing the specific requirements .",
+            "truncated": false
+          },
+          {
+            "url": "https://creativecommons.org/faq/#does-my-use-violate-the-noncommercial-clause-of-the-licenses",
+            "heading": "Does my\nuse violate the NonCommercial clause of the licenses?",
+            "shortExcerpt": "CC’s NonCommercial (NC) licenses prohibit uses that are “primarily intended\nfor or directed toward commercial advantage or monetary compensation.” This is\nintended to capture the intention of the NC-using community without placing\ndetailed restrictions that are either too broad or too narrow. Please note that\nCC’s definition does not turn on the type of user: if you are a nonprofit or\ncharitable organization, your use of an NC-licensed work could still run afoul\nof the NC restriction, and if you are a for-profit entity, your use of an\nNC-licensed work does not necessarily mean you have violated the term. Whether\na use is commercial will depend on the specifics of the situation and the\nintentions of the user. In CC’s experience, it is usually relatively easy to determine whether a use\nis permitted, and known conflicts are relatively few considering the popularity\nof the NC licenses. However, there will always be uses that are challenging to\ncategorize as commercial or noncommercial. CC cannot advise you on what is and\nis not commercial use. If you are unsure, you should either contact the rights\nholder for clarification, or search for works that permit commercial uses. CC has a brief guide to interpretation of the NC license that goes\ninto more detail about the meaning of the NC license and some key points to pay\nattention to. Additionally, in 2008, Creative Commons published results from a survey on\nmeanings of commercial and noncommercial use generally. Note that the results\nof the study are not intended to serve as CC’s official interpretation of what\nis and is not commercial use under our licenses, and the results should not be\nrelied upon as such.",
+            "truncated": false
+          },
+          {
+            "url": "https://creativecommons.org/faq/#can-i-take-a-cc-licensed-work-and-use-it-in-a-different-format",
+            "heading": "Can I\ntake a CC-licensed work and use it in a different format?",
+            "shortExcerpt": "Yes. When any of the six CC licenses is applied to material, licensees are\ngranted permission to use the material as the license allows, whatever the\nmedia or format chosen by the user when it is used or distributed further. This\nis true even in our NoDerivatives licenses. This is one of a very few default\nrules established in our licenses, to harmonize what may be different outcomes\ndepending on where CC-licensed material is reused and what jurisdiction’s\ncopyright law applies. This means, for example, that even if a creator distributes a work in\ndigital format, you have permission to print and share a hard copy of the same\nwork.",
+            "truncated": false
+          },
+          {
+            "url": "https://creativecommons.org/faq/#can-i-reuse-an-excerpt-of-a-larger-work-that-is-licensed-with-the-noderivs-restriction",
+            "heading": "Can\nI reuse an excerpt of a larger work that is licensed with the NoDerivs\nrestriction?",
+            "shortExcerpt": "The NoDerivs licenses (BY-ND and BY-NC-ND) prohibit reusers from creating\nadaptations. What constitutes an adaptation , otherwise known\nas a derivative work, varies slightly based on the law of the relevant\njurisdiction. Incorporating an unaltered excerpt from an ND-licensed work into a larger\nwork only creates an adaptation if the larger work can be said to be built upon\nand derived from the work from which the excerpt was taken. Generally, no\nderivative work is made of the original from which the excerpt was taken when\nthe excerpt is used to illuminate an idea or provide an example in another\nlarger work. Instead, only the reproduction right of the original copyright\nholder is being exercised by person reusing the excerpt. All CC licenses grant\nthe right to reproduce a CC-licensed work for noncommercial purposes (at a\nminimum). For example, a person could make copies of one chapter of an\nND-licensed book and not be in violation of the license so long as other\nconditions of the license are met. There are exceptions to that general rule, however, when the excerpts are\ncombined with other material in a way that creates some new version of the\noriginal from which the excerpt is taken. For example, if a portion of a song\nwas used as part of a new song, that may rise to the level of creating an\nadaptation of the original song, even though only a portion of it was used and\neven if that portion was used as-is.",
+            "truncated": false
+          },
+          {
+            "url": "https://creativecommons.org/faq/#when-is-my-use-considered-an-adaptation",
+            "heading": "When is my use considered an\nadaptation?",
+            "shortExcerpt": "Whether a modification of licensed material is considered an adaptation for the purpose\nof CC licenses depends primarily on the applicable copyright law. Copyright law\nreserves to an original creator the right to create adaptations of the original\nwork. CC licenses that allow for adaptations to be shared—all except BY-ND and\nBY-NC-ND—grant permission to others to create and redistribute adaptations when\ndoing so would otherwise constitute a violation of applicable copyright law.\nGenerally, a modification rises to the level of an adaptation under copyright\nlaw when the modified work is based on the prior work but manifests sufficient\nnew creativity to be copyrightable, such as a translation of a novel from one\nlanguage to another, or the creation of a screenplay based on a novel. Under CC licenses, synching music in timed relation with a moving image is\nalways considered an adaptation, whether or not it would be considered so under\napplicable law. Also, under version 4.0, certain uses of databases restricted\nby sui generis database rights also constitute adaptations (called “Adapted\nMaterial” in the 4.0 licenses), whether or not they would be considered\nadaptations under copyright law. For more details about adaptations in the\ndatabase context, see the Data FAQ . Note that all CC licenses allow the user to exercise the rights permitted\nunder the license in any format or medium . Those changes are not considered\nadaptations even if applicable law would suggest otherwise. For example, you\nmay redistribute a book that uses the CC BY-NC-ND license\nin print form when it was originally distributed online, even if you have had\nto make formatting changes to do so, as long as you do so in compliance with\nthe other terms of the license. Note on terminology: throughout these FAQs, we use the term\n“remix” interchangeably with “adapt.” Both are designed to mean doing something\nthat constitutes an adaptation under copyright law .",
+            "truncated": false
+          }
+        ]
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-precise-sections.json",
+        "fileSha256": "1d3934ef1a84041f28af78bfd3c75b3460da4c6f814cc061c40848fb5dc3ca04",
+        "url": "https://www.videoele.com/Que-es-videoele.html",
+        "checkedAt": "2026-10-16T07:57:45.222682+00:00",
+        "httpStatus": 200,
+        "htmlSha256": "9a6185ed35a4a18b87df12302bf2705fab0c66a3bf41877a49e86e3ae665550f",
+        "bodyBytes": 24789,
+        "rawBodySaved": false,
+        "shortExcerpts": [
+          "Si su centro de enseñanza tiene aula de informática o su aula tiene conexión a internet,   pueden visionar un vídeo con todos sus alumnos en la hora  de clase. ¿Quién usa VideoEle? Profesores de español y alumnos de prácticamente todo el mundo se conectan a VideoEle. Algunos profesores trabajan en un centro de enseñanza y otros dan clases particulares. Numerosos alumnos se conectan a VideoEle por indicación de su profesor, que les ha pedido que accedan a una unidad determinada. Otros aprendientes son completamente autónomos, no están matriculados en ningún curso, aprenden por su cuenta, a su ritmo y con los materiales que ellos mismos seleccionan. En esta pá"
+        ]
+      },
+      {
+        "file": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\rights001-precise-sections.json",
+        "fileSha256": "1d3934ef1a84041f28af78bfd3c75b3460da4c6f814cc061c40848fb5dc3ca04",
+        "url": "https://www.videoele.com/Contacto.html",
+        "checkedAt": "2026-10-16T07:57:46.517413+00:00",
+        "httpStatus": 200,
+        "htmlSha256": "52e058de6ee1eda0543a25129c0c294ba7d216bd6d49a9c68fd98acb62a600e0",
+        "bodyBytes": 7229,
+        "rawBodySaved": false,
+        "shortExcerpts": [
+          "Contacte con VideoEle. Inicio Curso ¿Qué es? Profesores Ayude Contacto Vídeos para aprender español como lengua extranjera Contacto No dude en contactar con VideoEle, con mucho gusto será atendido Su opinión es muy importante para mí: * Quizá quiera  sugerir algo. * A lo mejor tiene alguna duda. * ¿Quiere hacer alguna observación? * ¿Le gustaría proponer  algún vídeo nuevo? * ¿Ha identificado algún error? * ¿Quiere colaborar con VideoEle? * ¿Quiere participar en la creación de VideoEle latino ? Nombre Apellido Direc",
+          "Contacte con VideoEle. Inicio Curso ¿Qué es? Profesores Ayude Contacto Vídeos para aprender español como lengua extranjera Contacto No dude en contactar con VideoEle, con mucho gusto será atendido Su opinión es muy importante para mí: * Quizá quiera  sugerir algo. * A lo mejor tiene alguna duda. * ¿Quiere hacer alguna observación? * ¿Le gustaría proponer  algún vídeo nuevo? * ¿Ha identificado algún error? * ¿Quiere colaborar con VideoEle? * ¿Quiere participar en la creación de VideoEle latino ? Nombre Apellido Dirección de e-mail Asunto Mensaje",
+          "ejor tiene alguna duda. * ¿Quiere hacer alguna observación? * ¿Le gustaría proponer  algún vídeo nuevo? * ¿Ha identificado algún error? * ¿Quiere colaborar con VideoEle? * ¿Quiere participar en la creación de VideoEle latino ? Nombre Apellido Dirección de e-mail Asunto Mensaje",
+          "servación? * ¿Le gustaría proponer  algún vídeo nuevo? * ¿Ha identificado algún error? * ¿Quiere colaborar con VideoEle? * ¿Quiere participar en la creación de VideoEle latino ? Nombre Apellido Dirección de e-mail Asunto Mensaje"
+        ]
+      }
+    ],
+    "uncertainties": [
+      "未读取两份PDF内容或其内署名/第三方保留项",
+      "未确认个人之外的受众、司法辖区及云provider具体合同",
+      "未确认YouTube正式Data API license/embedding可用性/内容地区限制",
+      "未听原音、读取完整字幕、做语义教学审核或播放器真机验证",
+      "CC FAQ摘录首句对ND使用概述性措辞；私人非商业改编以4.0法律文本2(a)(1)(B)明确许可为准"
+    ],
+    "nextSlice": "先补确切两ID白名单与按动作的取得/处理/展示门禁，保留站外NC/ND证据及未知状态，再单独决定取得官方PDF和仅所有者私密处理；不将licensed或非商业标签视为翻译发布授权。"
+  },
+  "independentResearchBinding": {
+    "file": "rights001-videole-rights-matrix.json",
+    "sha256": "2cb0cc0db7679986c021ad0309d39d42a54ae2287e5d5c4528f42ee85997b7c3"
+  },
+  "fakeProbe": {
+    "taskId": "CONTENT-RIGHTS-001",
+    "mode": "fake-only-read-only-probe",
+    "checkedAt": "2026-10-16T07:59:06.537Z",
+    "networkUsed": false,
+    "databaseUsed": false,
+    "paidProviderCalled": false,
+    "assertions": {
+      "strictSchemaRejectsAllowedVideoIds": true,
+      "strictSchemaRejectsLiteralByNcNd": true,
+      "extraPropertyDoesNotFilterOutOfScopeItem": true,
+      "limitTwoIsNotIdSelection": true,
+      "creativeCommonsPolicyRejectsYoutubeStandardLicense": true,
+      "existingCaptionsTranslationDoesNotApplyAsrRightsGate": true
+    },
+    "existingCaptionProbe": {
+      "sourceEnabled": false,
+      "rightsStatus": "unknown",
+      "fakeTranslationCalls": 1,
+      "noAssetsAcquired": true,
+      "actualProviderCalled": false
+    },
+    "schemaIssues": [
+      {
+        "code": "unrecognized_keys",
+        "path": []
+      }
+    ],
+    "requestedTargetIds": [
+      "S0irU4fsfA0",
+      "z-CS3hAuOxs"
+    ],
+    "returnedFixtureIds": [
+      "publicVideo1"
+    ],
+    "firstRunCalls": [
+      "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv",
+      "https://www.googleapis.com/youtube/v3/videos?part=snippet%2CcontentDetails%2Cstatus&id=publicVideo1%2CprivateVideo2&key=FIXTURE"
+    ],
+    "codeEvidence": [
+      {
+        "path": "src/modules/content-acquisition/adapters/youtube/youtube-policy.ts",
+        "sha256": "99c13e6ba6bf2a1baab85a1b21c80a98d07399257cf39a28083f4ce07958033a"
+      },
+      {
+        "path": "src/modules/content-acquisition/adapters/youtube/youtube-channel-adapter.ts",
+        "sha256": "9e1e9ae36b3adae07d84a720122649bb4174996305722b3a7a5083653585d934"
+      },
+      {
+        "path": "src/modules/content-acquisition/application/run-acquisition-source.ts",
+        "sha256": "72417fec31e1c758d7c8c193153582f12de85528e6362e5b19f985e198a96152"
+      },
+      {
+        "path": "src/modules/content-acquisition/domain/source-policy.ts",
+        "sha256": "8f85b53fc00e6250047e3d8fe116078c0a3506434c801562355344fc4eb6adea"
+      },
+      {
+        "path": "src/modules/content-acquisition/domain/review-gate.ts",
+        "sha256": "1fe571fbc81e0381e90588352a0c220ced1b238abac72b87c533afd12f1a73b0"
+      },
+      {
+        "path": "src/modules/media-processing/application/process-media-transcript.ts",
+        "sha256": "84fba68e885927750491ab7a0e9bcd86207c8373f32ec96d4f8aac052625d3e2"
+      }
+    ]
+  },
+  "fakeProbeBinding": {
+    "file": "rights001-adapter-probe.json",
+    "sha256": "397e9ec9ce67d23aab806a1573531072657fe9c83190b57c15f23dbef452d5db"
+  },
+  "codeEvidence": [
+    {
+      "path": "src/modules/content-acquisition/adapters/youtube/youtube-channel-adapter.ts",
+      "sha256": "9e1e9ae36b3adae07d84a720122649bb4174996305722b3a7a5083653585d934"
+    },
+    {
+      "path": "src/modules/content-acquisition/adapters/youtube/youtube-policy.ts",
+      "sha256": "99c13e6ba6bf2a1baab85a1b21c80a98d07399257cf39a28083f4ce07958033a"
+    },
+    {
+      "path": "src/modules/content-acquisition/application/content-media-runtime.ts",
+      "sha256": "63fa77e07860b950f8ade4bbae26855b301aecde40adb020d957ce84f9361f67"
+    },
+    {
+      "path": "src/modules/content-acquisition/application/prepare-video-candidate-for-review.ts",
+      "sha256": "144647ac21dc51d488a44eba77e014d803e38041b1e8f62dc5d2b9881c24166f"
+    },
+    {
+      "path": "src/modules/content-acquisition/application/process-media-candidate.ts",
+      "sha256": "426b740f8d901d6e14b97860534327669081472f07d479a0aaf3fbd654d7e7c6"
+    },
+    {
+      "path": "src/modules/content-acquisition/application/publish-candidate.ts",
+      "sha256": "3830782b7dcb9161e97b1d34bf2deaf2d681418b5cdf2f8de7f2016dee9d792b"
+    },
+    {
+      "path": "src/modules/content-acquisition/application/run-acquisition-source.ts",
+      "sha256": "72417fec31e1c758d7c8c193153582f12de85528e6362e5b19f985e198a96152"
+    },
+    {
+      "path": "src/modules/content-acquisition/domain/review-gate.ts",
+      "sha256": "1fe571fbc81e0381e90588352a0c220ced1b238abac72b87c533afd12f1a73b0"
+    },
+    {
+      "path": "src/modules/content-acquisition/domain/source-policy.ts",
+      "sha256": "8f85b53fc00e6250047e3d8fe116078c0a3506434c801562355344fc4eb6adea"
+    },
+    {
+      "path": "src/modules/content-acquisition/publishers/acquired-video-publisher.ts",
+      "sha256": "8215c2db29a505f3cfcefcfe2c0d8838d3d6599ca19541ca039ed31b2629499e"
+    },
+    {
+      "path": "src/modules/media-processing/application/process-media-transcript.ts",
+      "sha256": "84fba68e885927750491ab7a0e9bcd86207c8373f32ec96d4f8aac052625d3e2"
+    },
+    {
+      "path": "src/modules/media-processing/domain/media-processing.ts",
+      "sha256": "609e2607f36f16804015e519b79b8010b28d1c075aa09874a72bb8531e9dfd3b"
+    },
+    {
+      "path": "tests/contracts/youtube-source-adapter-contract.test.ts",
+      "sha256": "a7374c9c53cf2c48fea193a8015e6f843e170e745c2013d698ce0ab7f848a7cb"
+    },
+    {
+      "path": "tests/unit/content-workflow-review-gate.test.ts",
+      "sha256": "d355c401058b7146046c3f82e21d243a22a82b5ca9d80e168258b64295297620"
+    },
+    {
+      "path": "tests/unit/media-asr-eligibility.test.ts",
+      "sha256": "2d38551e01d574a8facee632275906ac3a33dd3890eefecd66e0ee8d3c923d52"
+    },
+    {
+      "path": "tests/unit/process-media-candidate.test.ts",
+      "sha256": "88903c3e1b30959870ccc8fc833debe28bbe83e67edf562c8414b564e1b468a6"
+    },
+    {
+      "path": "tests/unit/youtube-candidate-policy.test.ts",
+      "sha256": "2dfa75a1460e239a1070bc16bf9a06a48b8625de09d580c928d74a6c52c3886e"
+    }
+  ],
+  "sourceScope": {
+    "channelId": "UCQK4L3hsPP0ei2_54lDaB6g",
+    "videoIds": [
+      "S0irU4fsfA0",
+      "z-CS3hAuOxs"
+    ],
+    "runtimeEnabled": false
+  },
+  "conclusions": {
+    "existingLicenseSupportsConditionalPersonalPdf": true,
+    "noncommercialNonSharedAdaptationSupported": true,
+    "sharingAdaptationNotGranted": true,
+    "allIndexingIsForbidden": false,
+    "cloudProcessing": "unresolved-provider-and-use-specific",
+    "officialEmbed": "conditionally-supported-not-playback-verified",
+    "youtubeCaptionApiPermission": "not-established-for-owner",
+    "youtubeLicenseMapping": "site-BY-NC-ND-is-not-YouTube-CC-BY",
+    "exactIdScopeSupportedByCurrentAdapter": false,
+    "existingCaptionBranchRechecksRightsBeforeTranslation": false
+  },
+  "nextSlices": [
+    {
+      "scope": "Pre-provider rights checks for existing-caption and ASR paths",
+      "implemented": false,
+      "claimed": false
+    },
+    {
+      "scope": "Separate channel AND exact-ID official metadata discovery, including old videos absent from feed",
+      "implemented": false,
+      "claimed": false
+    }
+  ],
+  "checks": {
+    "vitest": [
+      {
+        "command": "node node_modules/vitest/vitest.mjs run tests/contracts/youtube-source-adapter-contract.test.ts tests/unit/youtube-candidate-policy.test.ts --maxWorkers=1",
+        "files": 2,
+        "tests": 8,
+        "passed": true
+      },
+      {
+        "command": "node node_modules/vitest/vitest.mjs run tests/unit/media-asr-eligibility.test.ts tests/unit/process-media-candidate.test.ts tests/unit/content-workflow-review-gate.test.ts --maxWorkers=1",
+        "files": 3,
+        "tests": 11,
+        "passed": true
+      }
+    ],
+    "runtime": "C:/nvm4w/nodejs/node.exe",
+    "vitestVersion": "4.1.11",
+    "pnpmInitiallyUnavailableInShell": true,
+    "externalFakeAssertions": 6,
+    "fullApplicationChecksRun": false,
+    "reason": "Research/document-only audit; no product code, interfaces, schemas or migrations changed.",
+    "notValidated": [
+      "actual-Data-API-video-rights",
+      "embed-playback",
+      "full-subtitle-text-and-timeline",
+      "PDF-content-and-third-party-notices",
+      "audio-and-video-review",
+      "CEFR-and-region",
+      "real-database-and-RLS",
+      "Safari-device"
+    ]
+  }
+}

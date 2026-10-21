@@ -1,5 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { MediaLibrary } from "@/src/modules/media";
@@ -19,25 +18,57 @@ describe("media library", () => {
     expect(screen.getByRole("link", { name: "全部" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "视频" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "播客" })).toBeInTheDocument();
-    expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "学习主题" })).not.toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "筛选" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "排序" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "媒体资料库正在准备中" })).toBeInTheDocument();
     expect(screen.queryByText(/开始第一次练习|继续学习|学习任务时间线/)).not.toBeInTheDocument();
   });
 
-  it("keeps the channel and search while the filter popover carries the range filters", async () => {
-    const user = userEvent.setup();
+  it("passes the active query to the filter fields", () => {
     render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{ kind: "video", search: "Madrid", cefr: "B1" }} />);
     expect(screen.getByRole("link", { name: "视频" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toHaveValue("Madrid");
 
-    await user.click(screen.getByRole("button", { name: /筛选/ }));
-    // The panel and the toolbar's screen-reader copy both carry the fields, so
-    // the assertion targets the visible panel.
-    const panel = screen.getByRole("heading", { name: "筛选内容" }).closest("div")?.parentElement ?? document.body;
-    expect(within(panel).getByRole("combobox", { name: "地区" })).toBeInTheDocument();
-    expect(within(panel).getByRole("combobox", { name: "难度" })).toHaveValue("B1");
-    expect(within(panel).getByRole("combobox", { name: "时长" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /筛选/ }));
+    // The panel is the only copy of the range fields, and each one reflects the
+    // query the shelf hands to the toolbar (the former missing-prop crash).
+    expect(screen.getByRole("combobox", { name: "地区" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "难度" })).toHaveValue("B1");
+    expect(screen.getByRole("combobox", { name: "时长" })).toBeInTheDocument();
+  });
+
+  it("keeps topic filtering compatible without rendering duplicate topic navigation", () => {
+    render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{ kind: "video", search: "Madrid", topic: "travel-city" }} />);
+    expect(screen.queryByRole("navigation", { name: "学习主题" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "视频" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("searchbox", { name: "搜索视频和播客" })).toHaveValue("Madrid");
+    expect(screen.getByRole("button", { name: "筛选" })).toBeInTheDocument();
+  });
+
+  it("offers the four media CEFR levels in the filter fields", () => {
+    render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{}} />);
+    // The fields exist once, inside the panel the trigger opens; there is no
+    // second, invisible copy of them sitting in the tab order.
+    expect(screen.queryByRole("combobox", { name: "难度" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
+    const levels = Array.from(screen.getByRole("combobox", { name: "难度" }).querySelectorAll("option")).map((option) => option.value);
+    expect(levels).toEqual(["", "A1", "A2", "B1", "B2"]);
+  });
+
+  it("keeps the filter and sort controls on the header line, not in a band of their own", () => {
+    const { container } = render(<MediaLibrary result={{ items: [], nextCursor: null, hasMore: false }} query={{}} />);
+    const header = container.querySelector(".media-library__topbar");
+    const toolbar = container.querySelector(".media-library__toolbar");
+    expect(header).not.toBeNull();
+    expect(toolbar?.parentElement).toBe(header);
+    // The previous arrangement parked the toolbar in a full-width row between
+    // the header and the grid.
+    expect(header?.nextElementSibling).not.toBe(toolbar);
+    expect(header?.contains(screen.getByRole("button", { name: "筛选" }))).toBe(true);
+    expect(header?.contains(screen.getByRole("combobox", { name: "排序" }))).toBe(true);
+    expect(container.querySelector(".media-library__toolbar-row")).toBeNull();
   });
 
   it("renders equal-weight direct content links and real resume state", () => {
@@ -53,6 +84,6 @@ describe("media library", () => {
     }} query={{ kind: "podcast" }} />);
     expect(screen.getByRole("link", { name: /Café de cada día/ })).toHaveAttribute("href", "/learn/media/media.fixture.cafe");
     expect(screen.getByText("继续 · 02:00")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "加载更多" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "加载更多" })).toBeInTheDocument();
   });
 });

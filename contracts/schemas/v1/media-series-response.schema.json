@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-series-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "data"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "v1"
+    },
+    "data": {
+      "$ref": "media-series-view.schema.json"
+    }
+  }
+}

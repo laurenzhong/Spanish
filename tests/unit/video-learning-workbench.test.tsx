@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,7 @@ import {
   type VideoPlayerFactory,
   type VideoPlayerLifecycle,
   type VideoPlayerPort,
+  type MediaPlayback,
 } from "@/src/modules/media";
 
 function playback() {
@@ -68,6 +69,121 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { progress: { revision: 3 } } }), { status: 200 })));
 });
 
+describe("workbench series completion lifecycle", () => {
+  const summary = { seriesKey: "series.workbench", title: "Historias", kind: "video" as const, orderMode: "ordered" as const, revision: 1, seasonNumber: null, episodeNumber: null, episodeLabel: null };
+  function seriesPlayback(native = false): MediaPlayback {
+    const source = playback();
+    return { ...source, media: { ...source.media, series: summary }, asset: native ? { kind: "video", url: "https://media.example.test/sample.mp4", expiresAt: null } : source.asset };
+  }
+  function installRequests(progressFails = false) {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/series-recommendations")) return new Response(JSON.stringify({ apiVersion: "v1", data: {
+        series: { ...summary, summary: "Historias", status: "active", episodeCount: 2 },
+        items: [{ ...seriesPlayback().media, id: "video.next@1", stableKey: "video.next", title: "Otra historia" }],
+      } }));
+      return new Response(JSON.stringify({ data: { progress: { revision: 3 } } }), { status: progressFails ? 503 : 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return () => fetchMock.mock.calls.filter(([url]) => url.endsWith("/series-recommendations"));
+  }
+
+  it.each([false, true])("shows recommendations only for current ended, clears on seek/replay and refreshes (native=%s)", async (native) => {
+    const requests = installRequests(true);
+    const player = native ? fakeNativePlayer() : fakePlayer();
+    render(<MediaLearningWorkbench playback={seriesPlayback(native)} {...(native ? { nativeVideoFactory: player.factory as NativeVideoPlayerFactory } : { playerFactory: player.factory as VideoPlayerFactory })} />);
+    act(() => player.lifecycle().onReady());
+    player.setCurrentTime(5_999);
+    act(() => player.lifecycle().onPositionChange?.());
+    act(() => player.lifecycle().onStateChange("paused"));
+    expect(requests()).toHaveLength(0);
+    player.setCurrentTime(6_000);
+    act(() => player.lifecycle().onStateChange("ended"));
+    expect(await screen.findByRole("heading", { name: "当前系列的其他视频" })).toBeVisible();
+    expect(screen.getByText("本次进度未能同步，暂停或继续播放时会重试。")).toBeVisible();
+    act(() => player.lifecycle().onStateChange("ended"));
+    expect(requests()).toHaveLength(1);
+    player.setCurrentTime(2_000);
+    act(() => player.lifecycle().onPositionChange?.());
+    expect(screen.queryByRole("heading", { name: "当前系列的其他视频" })).not.toBeInTheDocument();
+    player.setCurrentTime(6_000);
+    act(() => player.lifecycle().onStateChange("ended"));
+    await screen.findByRole("heading", { name: "当前系列的其他视频" });
+    expect(requests()).toHaveLength(2);
+    fireEvent.keyDown(window, { key: "s" });
+    expect(screen.queryByRole("heading", { name: "当前系列的其他视频" })).not.toBeInTheDocument();
+    expect(player.port.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not infer completion from historical progress, auto-pause or near-end position", async () => {
+    vi.useFakeTimers();
+    const requests = installRequests();
+    const player = fakePlayer();
+    const source = seriesPlayback();
+    render(<MediaLearningWorkbench playback={{ ...source, media: { ...source.media, progress: { status: "completed", lastPositionMs: 6_000, lastSegmentIndex: 2, revision: 2 } } }} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    fireEvent.keyDown(window, { key: "q" });
+    fireEvent.keyDown(window, { key: "s" });
+    player.setCurrentTime(6_000);
+    act(() => player.lifecycle().onStateChange("playing"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    expect(player.port.pause).toHaveBeenCalled();
+    expect(requests()).toHaveLength(0);
+  });
+
+  it.each([false, true])("does not recommend after a technical failure until the player recovers (native=%s)", async (native) => {
+    const requests = installRequests();
+    const player = native ? fakeNativePlayer() : fakePlayer();
+    render(<MediaLearningWorkbench playback={seriesPlayback(native)} {...(native ? { nativeVideoFactory: player.factory as NativeVideoPlayerFactory } : { playerFactory: player.factory as VideoPlayerFactory })} />);
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onError("Media failed"));
+    act(() => player.lifecycle().onStateChange("ended"));
+    expect(requests()).toHaveLength(0);
+    expect(screen.queryByRole("heading", { name: "当前系列的其他视频" })).not.toBeInTheDocument();
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onStateChange("ended"));
+    await screen.findByRole("heading", { name: "当前系列的其他视频" });
+    expect(requests()).toHaveLength(1);
+    act(() => player.lifecycle().onError("Another failure"));
+    expect(screen.queryByRole("heading", { name: "当前系列的其他视频" })).not.toBeInTheDocument();
+  });
+
+  it("clears on player replacement and ignores old ended callbacks after instance, asset or version changes", async () => {
+    const requests = installRequests();
+    const source = seriesPlayback();
+    const first = fakePlayer();
+    const second = fakePlayer();
+    const view = render(<MediaLearningWorkbench playback={source} playerFactory={first.factory} />);
+    act(() => first.lifecycle().onReady());
+    act(() => first.lifecycle().onStateChange("ended"));
+    await screen.findByRole("heading", { name: "当前系列的其他视频" });
+    const stale = first.lifecycle();
+    view.rerender(<MediaLearningWorkbench playback={source} playerFactory={second.factory} />);
+    expect(screen.queryByRole("heading", { name: "当前系列的其他视频" })).not.toBeInTheDocument();
+    act(() => stale.onStateChange("ended"));
+    expect(requests()).toHaveLength(1);
+    act(() => second.lifecycle().onReady());
+    act(() => second.lifecycle().onStateChange("ended"));
+    await screen.findByRole("heading", { name: "当前系列的其他视频" });
+    const priorAsset = second.lifecycle();
+    view.rerender(<MediaLearningWorkbench playback={{ ...source, asset: { ...source.asset, url: "https://www.youtube-nocookie.com/embed/otherVideo2?enablejsapi=1" } }} playerFactory={second.factory} />);
+    act(() => priorAsset.onStateChange("ended"));
+    expect(screen.queryByRole("heading", { name: "当前系列的其他视频" })).not.toBeInTheDocument();
+    const priorVersion = second.lifecycle();
+    view.rerender(<MediaLearningWorkbench playback={{ ...source, media: { ...source.media, id: `${source.media.stableKey}@2`, version: 2 } }} playerFactory={second.factory} />);
+    act(() => priorVersion.onStateChange("ended"));
+    expect(requests()).toHaveLength(2);
+    act(() => second.lifecycle().onReady());
+    act(() => second.lifecycle().onStateChange("ended"));
+    await screen.findByRole("heading", { name: "当前系列的其他视频" });
+    const beforeRetry = second.lifecycle();
+    act(() => beforeRetry.onError("Playback failed"));
+    fireEvent.click(screen.getByRole("button", { name: "重试播放" }));
+    act(() => beforeRetry.onStateChange("ended"));
+    expect(screen.queryByRole("heading", { name: "当前系列的其他视频" })).not.toBeInTheDocument();
+    expect(requests()).toHaveLength(3);
+  });
+});
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -75,6 +191,50 @@ afterEach(() => {
 });
 
 describe("video learning workbench", () => {
+  it("highlights and navigates the transcript tail beyond cue 500", () => {
+    vi.useFakeTimers();
+    const player = fakePlayer();
+    const longPlayback = {
+      ...playback(),
+      media: { ...playback().media, durationMs: 848_000 },
+      segments: Array.from({ length: 848 }, (_, index) => ({
+        id: `long-${index}`, index, startMs: index * 1_000, endMs: (index + 1) * 1_000,
+        sourceText: "Hola.", translation: null, speaker: null,
+        words: [{ text: "Hola", startOffset: 0, endOffset: 4, startMs: index * 1_000, endMs: (index + 1) * 1_000 }],
+      })),
+    };
+    const view = render(<MediaLearningWorkbench playback={longPlayback} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    player.setCurrentTime(846_100);
+    act(() => player.lifecycle().onStateChange("playing"));
+    act(() => vi.advanceTimersByTime(300));
+    expect(view.container.querySelector("#segment-846 [data-active-word='true']")).toHaveTextContent("Hola");
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(847_000);
+    expect(view.container.querySelector("#segment-847 [data-active-word='true']")).toHaveTextContent("Hola");
+    fireEvent.keyDown(window, { key: "a" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(846_000);
+  });
+
+  it("pauses for word lookup, lets panel buttons own their keyboard events, and never resumes on close", async () => {
+    const user = userEvent.setup();
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onStateChange("playing"));
+    const word = screen.getByRole("button", { name: "查看词语 Buenos" });
+    await user.click(word);
+    expect(player.port.pause).toHaveBeenCalledTimes(1);
+    const close = screen.getByRole("button", { name: "关闭词句上下文" });
+    fireEvent.keyDown(close, { key: " ", code: "Space" });
+    fireEvent.keyDown(close, { key: "ArrowRight" });
+    expect(player.port.play).not.toHaveBeenCalled();
+    expect(player.port.seek).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(word).toHaveFocus();
+    expect(player.port.play).not.toHaveBeenCalled();
+  });
   it("uses the same workbench for licensed native video assets", async () => {
     const player = fakeNativePlayer();
     const nativePlayback = {
@@ -85,8 +245,23 @@ describe("video learning workbench", () => {
     render(<MediaLearningWorkbench nativeVideoFactory={player.factory} playback={nativePlayback} />);
     expect(player.factory).toHaveBeenCalledWith(expect.any(HTMLVideoElement), expect.objectContaining({ url: nativePlayback.asset.url }));
     act(() => player.lifecycle().onReady());
-    await userEvent.setup().click(screen.getByRole("button", { name: "下一句" }));
+    fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
+  });
+
+  it("applies the saved position once even when the player reports ready again", () => {
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench initialPositionMs={4_250} playback={playback()} playerFactory={player.factory} />);
+
+    act(() => player.lifecycle().onReady());
+    expect(player.port.seek).toHaveBeenCalledTimes(1);
+
+    // Plyr announces `ready` again after a source reload. Re-seeking there yanked
+    // playback back to the saved position over and over, which is what made the
+    // picture tear while the player still claimed to be playing.
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onReady());
+    expect(player.port.seek).toHaveBeenCalledTimes(1);
   });
 
   it("honors a source deep link before saved progress", () => {
@@ -97,32 +272,106 @@ describe("video learning workbench", () => {
     expect(view.container.querySelector("#segment-2")).toBeInTheDocument();
   });
 
-  it("supports transcript seeking, A/S/D/Q controls, caption modes and focus-restoring lexical drawer", async () => {
+  it("resolves a deep-linked segment by its stable index after unreviewed cues are omitted", () => {
+    const player = fakePlayer();
+    const sparse = { ...playback(), segments: [playback().segments[0]!, playback().segments[2]!] };
+    const view = render(<MediaLearningWorkbench initialSegmentIndex={2} playback={sparse} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+    expect(player.port.seek).toHaveBeenCalledWith(4_250);
+    expect(view.container.querySelector("#segment-2")).toHaveClass("is-active");
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(0);
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(4_250);
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>("#segment-2 .segment-transcript__time")!);
+    expect(player.port.seek).toHaveBeenLastCalledWith(4_250);
+  });
+
+  it("falls back to the first available stable cue index before playback is ready", () => {
+    const player = fakePlayer();
+    const source = playback();
+    const sparse = { ...source, media: { ...source.media, progress: null }, segments: [source.segments[2]!] };
+    const view = render(<MediaLearningWorkbench playback={sparse} playerFactory={player.factory} />);
+    expect(view.container.querySelector("#segment-2")).toHaveClass("is-active");
+  });
+
+  it.each([[0, 0], [2500, 1]])("prioritizes explicit time %i over a conflicting segment before and after ready", (time, index) => {
+    const player = fakePlayer();
+    const view = render(<MediaLearningWorkbench initialPositionMs={time} initialSegmentIndex={2} playback={playback()} playerFactory={player.factory} />);
+    expect(view.container.querySelector(`#segment-${index}`)).toHaveClass("is-active");
+    act(() => player.lifecycle().onReady());
+    expect(view.container.querySelector(`#segment-${index}`)).toHaveClass("is-active");
+    if (time > 0) expect(player.port.seek).toHaveBeenLastCalledWith(time);
+  });
+
+  it("supports transcript seeking, arrow/A-S-D/Q keys, caption modes and focus-restoring lexical drawer", async () => {
     const player = fakePlayer();
     const user = userEvent.setup();
     render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
     act(() => player.lifecycle().onReady());
 
-    await user.click(screen.getByRole("button", { name: "下一句" }));
+    // Sentence navigation is keyboard-only: the owner already uses the arrow
+    // keys, so the workbench renders no button row for it.
+    fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(player.port.seek).toHaveBeenLastCalledWith(1_800);
     expect(player.port.play).toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(player.port.seek).toHaveBeenLastCalledWith(0);
     fireEvent.keyDown(window, { key: "a" });
     expect(player.port.seek).toHaveBeenLastCalledWith(0);
     fireEvent.keyDown(window, { key: "s" });
     expect(player.port.seek).toHaveBeenLastCalledWith(0);
+    expect(screen.queryByRole("button", { name: "下一句" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /播放速度/ })).not.toBeInTheDocument();
 
-    const autoPause = screen.getByRole("checkbox", { name: "自动暂停" });
-    expect(autoPause).not.toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: "自动暂停" })).not.toBeInTheDocument();
     fireEvent.keyDown(window, { key: "q" });
-    expect(autoPause).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "双语" }));
-    expect(screen.getByText("早上好。")).toBeVisible();
+    // The active line's translation is now also shown in the "当前片段" card,
+    // so assert inside the transcript region instead of the whole document.
+    expect(within(screen.getByRole("region", { name: "字幕与文本" })).getByText("早上好。")).toBeVisible();
     const word = screen.getByRole("button", { name: "查看词语 Buenos" });
     await user.click(word);
     expect(screen.getByRole("dialog", { name: "词句上下文" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "关闭词句上下文" }));
     expect(word).toHaveFocus();
+  });
+
+  it("plays and pauses on Space without needing to focus the player first", async () => {
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+    act(() => player.lifecycle().onReady());
+
+    // Space plays when paused …
+    fireEvent.keyDown(window, { key: " " });
+    expect(player.port.play).toHaveBeenCalled();
+
+    // … and pauses once the player reports it is playing.
+    act(() => player.lifecycle().onStateChange("playing"));
+    fireEvent.keyDown(window, { key: " " });
+    expect(player.port.pause).toHaveBeenCalled();
+
+    // A space typed into a text field must still be a space.
+    const box = document.createElement("input");
+    document.body.append(box);
+    fireEvent.keyDown(box, { key: " " });
+    expect(player.port.pause).toHaveBeenCalledTimes(1);
+    box.remove();
+  });
+
+  it("ignores Space (and other keys) until the player reports it is mounted", () => {
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} />);
+
+    // No onReady() yet: the player is still mounting, so nothing may be toggled.
+    fireEvent.keyDown(window, { key: " " });
+    expect(player.port.play).not.toHaveBeenCalled();
+    expect(player.port.pause).not.toHaveBeenCalled();
+
+    act(() => player.lifecycle().onReady());
+    fireEvent.keyDown(window, { key: " " });
+    expect(player.port.play).toHaveBeenCalled();
   });
 
   it("follows playback time with a current word selection inside the active subtitle", () => {
@@ -186,7 +435,7 @@ describe("video learning workbench", () => {
     const first = fakePlayer();
     const { rerender } = render(<MediaLearningWorkbench playback={playback()} playerFactory={first.factory} />);
     act(() => first.lifecycle().onReady());
-    fireEvent.click(screen.getByRole("checkbox", { name: "自动暂停" }));
+    fireEvent.keyDown(window, { key: "q" });
     first.setCurrentTime(1_800);
     act(() => first.lifecycle().onStateChange("playing"));
     act(() => vi.advanceTimersByTime(300));
@@ -226,6 +475,93 @@ describe("video learning workbench", () => {
     act(() => second.lifecycle().onReady());
     second.setCurrentTime(4_500);
     act(() => second.lifecycle().onStateChange("paused"));
-    expect(await screen.findByText("进度已在其他页面更新，请刷新后继续。")).toBeVisible();
+    // A conflict no longer tells the reader to reload the page: the workbench
+    // offers a control that re-reads the server revision in place.
+    expect(await screen.findByText("进度已在其他页面更新。重新读取服务器进度后即可继续同步，不需要刷新整个页面。")).toBeVisible();
+    expect(screen.getByRole("button", { name: "重新读取服务器进度" })).toBeInTheDocument();
+  });
+});
+
+describe("progressive transcript arrival", () => {
+  function emptyPlayback() {
+    return { ...playback(), segments: [] };
+  }
+
+  it("keeps the player mounted, playing and positioned when the transcript arrives later", async () => {
+    const player = fakePlayer();
+    const view = render(<MediaLearningWorkbench playback={emptyPlayback()} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "loading" }} />);
+    expect(player.factory).toHaveBeenCalledTimes(1);
+    act(() => player.lifecycle().onReady());
+    act(() => player.lifecycle().onStateChange("playing"));
+    player.setCurrentTime(2_500);
+    act(() => player.lifecycle().onPositionChange?.());
+    // Loading state never fabricates a "current segment" from missing cues.
+    expect(screen.queryByRole("group", { name: "当前片段" })).not.toBeInTheDocument();
+
+    view.rerender(<MediaLearningWorkbench playback={playback()} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "ready", segments: playback().segments }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(player.factory).toHaveBeenCalledTimes(1);
+    expect(player.port.destroy).not.toHaveBeenCalled();
+    expect(player.port.currentTime()).toBe(2_500);
+    expect(screen.getByText("正在播放")).toBeVisible();
+    expect(view.container.querySelector("#segment-1")).toHaveClass("is-active");
+    expect(screen.getByRole("group", { name: "当前片段" })).toHaveTextContent("Quería un café con leche.");
+  });
+
+  it("shows the loading placeholder instead of a stale current segment, then fills the transcript count", async () => {
+    const player = fakePlayer();
+    const source = playback();
+    const view = render(<MediaLearningWorkbench playback={emptyPlayback()} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "loading" }} />);
+    expect(screen.getByText("字幕正在加载…")).toBeVisible();
+    expect(screen.getByText("字幕加载中…")).toBeVisible();
+    expect(view.container.querySelector(".media-current-segment--loading")).not.toBeNull();
+    expect(screen.queryByText("3 段")).not.toBeInTheDocument();
+
+    view.rerender(<MediaLearningWorkbench playback={source} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "ready", segments: source.segments }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByText("字幕正在加载…")).not.toBeInTheDocument();
+    expect(screen.getByText("3 段")).toBeVisible();
+    expect(view.container.querySelector(".media-current-segment--loading")).toBeNull();
+  });
+
+  it("applies a ?segment= deep link once the cues arrive, only when no ?t= was given", async () => {
+    const player = fakePlayer();
+    const view = render(<MediaLearningWorkbench initialSegmentIndex={2} playback={emptyPlayback()} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "loading" }} />);
+    act(() => player.lifecycle().onReady());
+    // No cue was resolvable at mount, so nothing was seeked yet.
+    expect(player.port.seek).not.toHaveBeenCalled();
+
+    view.rerender(<MediaLearningWorkbench initialSegmentIndex={2} playback={playback()} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "text_ready", segments: playback().segments, words: "loading" }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(player.port.seek).toHaveBeenCalledTimes(1);
+    expect(player.port.seek).toHaveBeenLastCalledWith(4_250);
+    expect(view.container.querySelector("#segment-2")).toHaveClass("is-active");
+    // A later ready announcement must not apply the old resume position again.
+    act(() => player.lifecycle().onReady());
+    expect(player.port.seek).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps ?t= priority over a linked segment when the transcript arrives", async () => {
+    const player = fakePlayer();
+    const view = render(<MediaLearningWorkbench initialPositionMs={2_500} initialSegmentIndex={2} playback={emptyPlayback()} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "text_ready", segments: [], words: "loading" }} />);
+    act(() => player.lifecycle().onReady());
+    expect(player.port.seek).toHaveBeenLastCalledWith(2_500);
+    view.rerender(<MediaLearningWorkbench initialPositionMs={2_500} initialSegmentIndex={2} playback={playback()} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "text_ready", segments: playback().segments, words: "loading" }} />);
+    await act(async () => { await Promise.resolve(); });
+    // The explicit time wins; the deep-linked segment index does not seek.
+    expect(player.port.seek).toHaveBeenCalledTimes(1);
+    expect(view.container.querySelector("#segment-1")).toHaveClass("is-active");
+  });
+
+  it("keeps the player usable and surfaces a retry while the transcript text failed", () => {
+    const retry = vi.fn();
+    const player = fakePlayer();
+    render(<MediaLearningWorkbench playback={emptyPlayback()} onTranscriptRetry={retry} playerFactory={player.factory} transcriptExpectedSegments={3} transcriptState={{ status: "error", message: "字幕暂时无法加载，可重试。" }} />);
+    expect(player.factory).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("字幕暂时无法加载，可重试。");
+    fireEvent.click(screen.getByRole("button", { name: "重试加载字幕" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    act(() => player.lifecycle().onReady());
+    expect(screen.getByText("播放器已就绪")).toBeVisible();
   });
 });

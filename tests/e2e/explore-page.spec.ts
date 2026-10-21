@@ -18,7 +18,9 @@ test("keeps the desktop discovery workspace focused while exposing three content
   await expect(page.getByRole("tablist", { name: "探索内容" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "场景" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("searchbox", { name: "搜索场景" })).toHaveAttribute("placeholder", "搜索场景");
-  await expect(page.getByRole("link", { name: /校园办事/u })).toBeVisible();
+  await expect(page.locator(".explore-scenario-grid > a")).toHaveCount(9);
+  await expect(page.getByRole("link", { name: "校园办事：注册与材料" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "交通沟通：买票与改签" })).toBeVisible();
   await expect(page.getByRole("button", { name: /收藏表达/u })).toHaveCount(0);
   await page.getByRole("tab", { name: "表达" }).click();
   await expect(page.getByRole("button", { name: "筛选表达" })).toBeVisible();
@@ -50,7 +52,7 @@ test("finds scenarios through their expressions and cleans legacy URL state", as
   await expect(page.getByText("没有匹配的场景")).toBeVisible();
   await page.getByRole("button", { name: "清除搜索和筛选" }).click();
   await expect(page.getByRole("searchbox", { name: "搜索场景" })).toHaveValue("");
-  await expect(page.getByRole("link", { name: /校园办事/u })).toBeVisible();
+  await expect(page.getByRole("link", { name: "校园办事：注册与材料" })).toBeVisible();
 });
 
 test("suggests and swaps an explainable scenario without requiring a search query", async ({ page }) => {

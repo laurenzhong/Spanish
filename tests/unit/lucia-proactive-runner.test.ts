@@ -11,9 +11,9 @@ describe("Lucía proactive daily runner", () => {
     expect(() => parseLuciaProactiveUserIds("not-a-uuid")).toThrow("comma-separated list of UUIDs");
   });
 
-  it("uses the configured product timezone for the daily dedupe date", () => {
+  it("uses Lucía's Madrid timezone for the daily dedupe date", () => {
     expect(formatNaturalDate(new Date("2026-09-24T01:00:00.000Z"))).toBe("2026-09-24");
-    expect(formatNaturalDate(new Date("2026-09-24T16:00:00.000Z"))).toBe("2026-09-25");
+    expect(formatNaturalDate(new Date("2026-09-24T22:00:00.000Z"))).toBe("2026-09-25");
   });
 
   it("assigns stable multiple daily slots per user", () => {
@@ -21,6 +21,6 @@ describe("Lucía proactive daily runner", () => {
     expect(slots).toHaveLength(3);
     expect(slots).toEqual(getLuciaProactiveSlots("00000000-0000-4000-8000-000000000001", "2026-09-24"));
     expect(slots.map((slot) => slot.sourceEventId)).toEqual(["2026-09-24:slot-1", "2026-09-24:slot-2", "2026-09-24:slot-3"]);
-    expect(getDueLuciaProactiveSlots({ userId: "00000000-0000-4000-8000-000000000001", now: new Date("2026-09-24T02:00:00.000Z") }).length).toBe(1);
+    expect(getDueLuciaProactiveSlots({ userId: "00000000-0000-4000-8000-000000000001", now: new Date("2026-09-24T08:00:00.000Z") }).length).toBe(1);
   });
 });

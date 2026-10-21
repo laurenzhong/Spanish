@@ -6,3 +6,4 @@ export * from "./spanish-token";
 export * from "./kwic";
 export * from "./lexical-assessment";
 export * from "./lexicon-candidate";
+export * from "./content-discovery";

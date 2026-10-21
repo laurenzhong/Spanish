@@ -33,8 +33,57 @@ let cachedScope: string | null = null;
 let contactCacheGeneration = 0;
 
 const CONTACT_SEARCH_THRESHOLD = 8;
-const CONTACT_REQUEST_TIMEOUT_MS = 8_000;
+/**
+ * The contact list is a read of a remote pooled database (character runtime,
+ * conversation rows, preferences, last message), so its wall-clock time is
+ * governed by round-trip latency rather than by query cost. Measured against
+ * the running app the plain read answers in 0.9-4.9s, and the rail's own
+ * concurrent readers (the navigation unread badge and the chat thread read the
+ * same endpoint) push a single response to 7.6s while still answering 200.
+ *
+ * At 8s an ordinary slow read aborted client-side, and an aborted read was
+ * indistinguishable from an unavailable list: the rail showed
+ * "暂时无法加载会话列表。" with a retry button while the server was healthy.
+ * This bound must stay comfortably above the measured latency; it matches the
+ * 20s bound the conversation history read already uses for the same reason.
+ */
+const CONTACT_REQUEST_TIMEOUT_MS = 20_000;
 export const CONVERSATION_LIST_UPDATED_EVENT = "conversation-list-updated";
+
+/**
+ * Marks one conversation as read and refetches the contact list so the navigation
+ * unread badge reflects it. Callers use this from the chat thread itself: opening
+ * or re-reading a conversation is what makes its messages read, not clicking the
+ * contact row.
+ *
+ * A lost acknowledgement is not a cosmetic problem: the conversation keeps
+ * being counted as unread, so the dot comes back for a message the reader has
+ * already seen ("已读之后又出现未读 1，但没有新消息"). The request is
+ * idempotent — the route only advances `lastReadAt` — so a failed attempt is
+ * retried once, and only a confirmed acknowledgement refreshes the badge.
+ */
+export async function markConversationRead(characterKey: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch("/api/v1/conversations/preferences", {
+        method: "PATCH",
+        keepalive: true,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ characterKey, markRead: true }),
+      });
+      if (response.ok) {
+        window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
+        return true;
+      }
+      // A 4xx is a stable refusal (validation, authorization); retrying it only
+      // adds noise. Anything else may be a transient outage.
+      if (response.status < 500) return false;
+    } catch {
+      // Network failure: fall through and retry once.
+    }
+  }
+  return false;
+}
 
 async function fetchContactJson<T>(url: string, controller: AbortController): Promise<T> {
   const timeout = window.setTimeout(() => controller.abort(), CONTACT_REQUEST_TIMEOUT_MS);
@@ -132,7 +181,11 @@ function loadConversationList(force = false, scope = getConversationCacheScope()
     })
     .catch(() => {
       if (!isCurrentContactRequest(listRequest, generation, scope, request)) return;
-      cachedStatus = "unavailable";
+      // A failed background refresh must not deny a list the rail already has:
+      // the contacts the server handed down stay on screen and the next refresh
+      // retries. Only a read that has nothing to fall back on reports the rail
+      // as unavailable, which is the state the retry button belongs to.
+      cachedStatus = cachedConversations === null ? "unavailable" : "available";
     })
     .finally(() => {
       if (listRequest?.promise === request) listRequest = null;
@@ -214,6 +267,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLElement>(null);
   const introductionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const acknowledgedUnreadRef = useRef<{ characterKey: string; unreadCount: number } | null>(null);
   const dragState = useRef<DragState | null>(null);
   const dragOverCharacterKeyRef = useRef<string | null>(null);
   const [preferenceError, setPreferenceError] = useState(false);
@@ -233,6 +287,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
       setConversations(nextConversations);
       setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }])))
       setStatus(cachedStatus);
+      window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
     });
     void Promise.all([loadLuciaContact(resolvedCacheScope), loadIntroductionOfferCount(false, resolvedCacheScope)]).then(() => {
       if (!active) return;
@@ -250,19 +305,39 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
         setStatus(cachedStatus);
       });
     };
+    // Each row carries its own unread count, so the list has to converge on the
+    // server the same way the navigation badge does. Without this, a
+    // conversation read in another tab (or on the phone) kept its row badge
+    // until the next page load, while the navigation dot had already cleared.
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "hidden") return;
+      refresh();
+    };
     window.addEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
-    return () => window.removeEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener(CONVERSATION_LIST_UPDATED_EVENT, refresh);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [resolvedCacheScope]);
 
+  // Opening a conversation marks it read. The signature guard keeps the
+  // patch → list-refresh → effect cycle bounded: each new unread count is
+  // acknowledged once instead of re-patching on every refetched array identity.
   useEffect(() => {
     const conversation = conversations.find((item) => item.characterKey === activeCharacterKey);
-    if (!conversation || (conversation.unreadCount ?? 0) < 1) return;
-    void fetch("/api/v1/conversations/preferences", {
-      method: "PATCH",
-      keepalive: true,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }),
-    }).then(() => window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT))).catch(() => undefined);
+    if (!conversation) {
+      acknowledgedUnreadRef.current = null;
+      return;
+    }
+    const unreadCount = conversation.unreadCount ?? 0;
+    if (unreadCount < 1) return;
+    const acknowledged = acknowledgedUnreadRef.current;
+    if (acknowledged?.characterKey === conversation.characterKey && acknowledged.unreadCount === unreadCount) return;
+    acknowledgedUnreadRef.current = { characterKey: conversation.characterKey, unreadCount };
+    void markConversationRead(conversation.characterKey);
   }, [activeCharacterKey, conversations]);
 
   useEffect(() => {
@@ -542,7 +617,9 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                     return;
                   }
                   setMarkedUnread((current) => { const next = new Set(current); next.delete(conversation.characterKey); return next; });
-                  if (unreadCount > 0) void fetch("/api/v1/conversations/preferences", { method: "PATCH", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ characterKey: conversation.characterKey, markRead: true }) }).then(() => window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT))).catch(() => undefined);
+                  // The shared helper retries a failed acknowledgement and only
+                  // refreshes the list once the server confirmed the read.
+                  if (unreadCount > 0) void markConversationRead(conversation.characterKey);
                 }}
                 onMouseEnter={() => prefetchConversationHistory(conversation.characterKey, resolvedCacheScope)}
                 onFocus={() => prefetchConversationHistory(conversation.characterKey, resolvedCacheScope)}
@@ -557,9 +634,11 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                   ) : <small>{conversation.roleLabel}</small>}
                   {conversation.lastMessage ? <span className="conversation-contact-row__preview">{conversation.lastMessage.snippet}</span> : null}
                 </span>
-                {unreadCount > 0 ? <span className="conversation-contact-row__unread-count" aria-label={`${unreadCount} 条未读消息`}>{unreadCount > 99 ? "99+" : unreadCount}</span> : isUnread ? <span className="conversation-contact-row__unread" aria-label="未读" /> : null}
-                {preference.isMuted ? <span className="conversation-contact-row__muted" aria-label="已静音">静音</span> : null}
-                {conversation.lastMessageAt ? <time className="conversation-contact-row__time" dateTime={conversation.lastMessageAt}>{formatConversationTime(conversation.lastMessageAt)}</time> : null}
+                <span className="conversation-contact-row__meta">
+                  {conversation.lastMessageAt ? <time className="conversation-contact-row__time" dateTime={conversation.lastMessageAt}>{formatConversationTime(conversation.lastMessageAt)}</time> : null}
+                  {unreadCount > 0 ? <span className="conversation-contact-row__unread-count" aria-label={`${unreadCount} 条未读消息`}>{unreadCount > 99 ? "99+" : unreadCount}</span> : isUnread ? <span className="conversation-contact-row__unread" aria-label="未读" /> : null}
+                  {preference.isMuted ? <span className="conversation-contact-row__muted" aria-label="已静音">静音</span> : null}
+                </span>
               </Link>
             </div>
           );

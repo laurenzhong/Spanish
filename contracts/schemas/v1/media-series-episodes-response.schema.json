@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-series-episodes-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "data"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "v1"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "series",
+        "items",
+        "anchor",
+        "nextCursor",
+        "hasMore"
+      ],
+      "properties": {
+        "series": {
+          "$ref": "media-series-view.schema.json"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "media-item.schema.json"
+          }
+        },
+        "anchor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "current",
+            "previous",
+            "next"
+          ],
+          "properties": {
+            "current": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "media-item.schema.json"
+                }
+              ]
+            },
+            "previous": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "media-item.schema.json"
+                }
+              ]
+            },
+            "next": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "media-item.schema.json"
+                }
+              ]
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

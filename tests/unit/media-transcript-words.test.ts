@@ -106,6 +106,8 @@ describe("segmentMediaTranscript word timings", () => {
         sourceUrl: "https://media.example.test/episode.mp3",
         sourceEnabled: true,
         rightsStatus: "verified",
+        processingAudience: "shared-learning",
+        processingAuthorization: { version: 1, allowedOperations: ["acquire-audio", "asr", "translate"], audience: "shared-learning", thirdPartyProcessing: true, evidenceUrl: "https://media.example.test/permission", expiresAt: null },
         language: "es",
         durationMs: 8_000,
         assetBytes: 2_000_000,

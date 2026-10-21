@@ -1,17 +1,21 @@
 import { z } from "zod";
+import { mediaProcessingAuthorizationSchema } from "@/src/modules/media-processing/schemas/processing-authorization";
 
 import type { ContentSourceRecord } from "../../repositories";
 import { ContentSourceAdapterError } from "../content-source-adapter";
 import { YouTubeChannelAdapter } from "./youtube-channel-adapter";
+import { youtubeAllowedVideoIdsSchema } from "./youtube-exact-discovery";
 
 const topicSchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u);
 
 export const youtubeRightsPolicySchema = z.strictObject({
+  mediaProcessing: mediaProcessingAuthorizationSchema.optional(),
+  allowedVideoIds: youtubeAllowedVideoIdsSchema.optional(),
   contentMode: z.literal("official_embed"),
   license: z.enum(["creative_commons", "licensed"]),
   attribution: z.string().trim().min(1).max(1_000),
   licenseEvidence: z.url().startsWith("https://"),
-  cefr: z.enum(["A2", "B1"]),
+  cefr: z.enum(["A1", "A2", "B1", "B2"]),
   topics: z.array(topicSchema).min(1).max(20),
   allowedRegions: z.array(z.string().regex(/^[A-Z]{2}$/u)).min(1).max(30),
   minDurationMs: z.number().int().min(1_000).max(3_600_000).default(15_000),
@@ -48,6 +52,7 @@ export function createYouTubeChannelAdapterFromSource(
     source: {
       channelId: source.externalSourceId,
       channelName: source.displayName,
+      allowedVideoIds: policy.data.allowedVideoIds,
       region: source.region,
       cefr: policy.data.cefr,
       topics: policy.data.topics,

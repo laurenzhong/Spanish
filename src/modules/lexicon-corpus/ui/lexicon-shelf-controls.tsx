@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { PhraseQuery, VocabularyQuery } from "../schemas";
+import type { PhraseQuery } from "../schemas";
 
 const intentOptions = [
   ["", "全部状态"],
@@ -10,41 +10,51 @@ const intentOptions = [
   ["unmarked", "未分类"],
 ] as const;
 
-export function VocabularyShelfControls({ query, total, view = "lexicon" }: Readonly<{ query: VocabularyQuery; total: number; view?: "frequency" | "lexicon" }>) {
-  if (view === "frequency") {
-    return <div className="lexicon-shelf-controls">
-      <form action="/read/vocabulary" className="lexicon-filter-form" method="get" role="search">
-        <input type="hidden" name="view" value="frequency" />
-        <label className="lexicon-filter-form__search"><span>搜索语料词形</span><input defaultValue={query.search ?? ""} maxLength={80} name="search" placeholder="例如：casa" /></label>
-        <button type="submit">搜索词频</button><Link href="/read/vocabulary?view=frequency">重置</Link>
-      </form>
-      <p className="lexicon-result-count" aria-live="polite">显示出现次数最高的 {total} 个词形（来自已发布文章与已审核媒体字幕）</p>
-    </div>;
-  }
-  return <div className="lexicon-shelf-controls">
-    <form action="/read/vocabulary" className="lexicon-filter-form" method="get" role="search">
-      <input type="hidden" name="view" value="lexicon" />
-      <label className="lexicon-filter-form__search"><span>搜索词汇或词形</span><input defaultValue={query.search ?? ""} maxLength={80} name="search" placeholder="例如：comer / comiendo" /></label>
-      <label><span>学习状态</span><select defaultValue={query.intent ?? ""} name="intent">{intentOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
-      <label><span>词元状态</span><select defaultValue={query.lemmaStatus ?? ""} name="lemmaStatus"><option value="">全部词元</option><option value="verified">已确认词元</option><option value="pending">待确认词形</option></select></label>
-      <button type="submit">应用筛选</button><Link href="/read/vocabulary?view=lexicon">重置</Link>
+/**
+ * The single vocabulary shelf's search field and compact count.
+ *
+ * There is no view selector: the page has one shelf, so the form submits only the
+ * reader's search. The lexicon variant (`intent` / `lemmaStatus` against
+ * `user_lexical_intents`) went with the lexicon view — the shelf's marks are
+ * browser-local, and the corpus holds no lexeme rows to filter yet.
+ *
+ * The field is the control: no card around it, no submit button, no reset link.
+ * The magnifier stays on the left; an active search gets a clear control on the
+ * right. The label is real but visually hidden, so
+ * the input keeps its accessible name without adding a visible caption, and Enter
+ * still submits the form. `PhraseShelfControls` keeps the framed layout it shares
+ * with the other library pages.
+ */
+export function VocabularyShelfControls({ query, total }: Readonly<{ query: Readonly<{ search?: string }>; total: number }>) {
+  const search = query.search ?? "";
+  return <div className="lexicon-shelf-controls vocabulary-controls">
+    <form action="/read/vocabulary" className="vocabulary-search" method="get" role="search">
+      <label className="sr-only" htmlFor="vocabulary-search">搜索词表</label>
+      <svg className="vocabulary-search__icon" aria-hidden="true" focusable="false" viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.5" /><path d="M13.2 13.2L17 17" /></svg>
+      {search ? <Link className="vocabulary-search__clear" href="/read/vocabulary" aria-label={`清除搜索：${search}`}>
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20"><path d="M6 6l8 8M14 6l-8 8" /></svg>
+        </Link>
+        : null}
+      <input id="vocabulary-search" defaultValue={search} maxLength={80} name="search" placeholder="搜索单词" />
     </form>
-    <p className="lexicon-result-count" aria-live="polite">共 {total} 个词汇</p>
+    <p className="lexicon-result-count" aria-live="polite" title="按参考词频排序">{total.toLocaleString("zh-CN")} 词</p>
   </div>;
 }
 
-export function PhraseShelfControls({ query, total }: Readonly<{ query: PhraseQuery; total: number }>) {
+export function PhraseShelfControls({ query, total, discovery = false }: Readonly<{ query: PhraseQuery; total: number; discovery?: boolean }>) {
   return <div className="lexicon-shelf-controls">
     <form action="/read/phrases" className="lexicon-filter-form lexicon-filter-form--phrases" method="get" role="search">
-      <label className="lexicon-filter-form__search"><span>搜索短语</span><input defaultValue={query.search ?? ""} maxLength={120} name="search" placeholder="例如：¿Qué tal?" /></label>
-      <label><span>学习状态</span><select defaultValue={query.intent ?? ""} name="intent">{intentOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
-      <label><span>语用目的</span><input defaultValue={query.pragmaticPurpose ?? ""} maxLength={80} name="pragmaticPurpose" placeholder="例如：saludo" /></label>
-      <label><span>语域</span><input defaultValue={query.register ?? ""} maxLength={40} name="register" placeholder="neutral" /></label>
-      <label><span>地区</span><input defaultValue={query.region ?? ""} maxLength={40} name="region" placeholder="es-ES" /></label>
-      <label><span>CEFR</span><select defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部级别</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
+      <label className="lexicon-filter-form__search"><span>{discovery ? "可选：筛选片段" : "可选：筛选短语"}</span><input defaultValue={query.search ?? ""} maxLength={120} name="search" placeholder={discovery ? "可选：输入片段筛选" : "可选：输入短语筛选"} /></label>
+      {!discovery ? <>
+        <label><span>学习状态</span><select defaultValue={query.intent ?? ""} name="intent">{intentOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
+        <label><span>语用目的</span><input defaultValue={query.pragmaticPurpose ?? ""} maxLength={80} name="pragmaticPurpose" placeholder="例如：saludo" /></label>
+        <label><span>语域</span><input defaultValue={query.register ?? ""} maxLength={40} name="register" placeholder="neutral" /></label>
+        <label><span>地区</span><input defaultValue={query.region ?? ""} maxLength={40} name="region" placeholder="es-ES" /></label>
+        <label><span>CEFR</span><select defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部级别</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
+      </> : null}
       <button type="submit">应用筛选</button><Link href="/read/phrases">重置</Link>
     </form>
-    <p className="lexicon-result-count" aria-live="polite">共 {total} 个短语</p>
+    <p className="lexicon-result-count" aria-live="polite">正在浏览来自文章、视频和播客的 {total} 条{discovery ? "语料片段" : "短语"}</p>
   </div>;
 }
 

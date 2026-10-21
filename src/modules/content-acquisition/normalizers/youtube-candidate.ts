@@ -33,7 +33,7 @@ export const videoCandidateDraftSchema = z.strictObject({
   sourceName: z.string().trim().min(1).max(200),
   language: z.literal("es"),
   region: z.string().trim().min(2).max(35).nullable(),
-  cefr: z.enum(["A2", "B1"]),
+  cefr: z.enum(["A1", "A2", "B1", "B2"]),
   topics: z.array(stableKeySchema).min(1).max(20),
   durationMs: z.number().int().positive(),
   publicationDate: z.iso.datetime({ offset: true }),
