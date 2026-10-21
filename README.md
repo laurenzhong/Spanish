@@ -83,6 +83,8 @@ Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推�
 - [内容制作与审核规范](docs/content-authoring.md)
 - [测试与质量策略](docs/testing-strategy.md)
 - [角色运行时与对话闭环设计](docs/superpowers/specs/2026-09-26-character-runtime-and-conversation-closure-design.md)
+- [聊天 AI 助手设计](docs/superpowers/specs/2026-10-21-chat-ai-assistant-design.md)
+- [聊天 AI 助手实施计划](docs/plans/2026-10-21-chat-ai-assistant-implementation-plan.md)
 - [CONV-ROLE-001 角色运行时与对话闭环实施计划](docs/plans/2026-09-26-character-runtime-and-conversation-closure-implementation-plan.md)
 - [ADR-0009：版本化角色运行时与对话闭环边界](docs/adr/0009-character-runtime-and-conversation-boundary.md)
 - [Echo-Loop 参考评审](docs/references/echo-loop-review.md)
