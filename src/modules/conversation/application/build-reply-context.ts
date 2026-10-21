@@ -1,5 +1,7 @@
 import type { MemoryRecord, MemoryRepository } from "@/src/modules/memory";
 import { getConversationCharacter } from "../domain/character-catalog";
+import { hasGreetedOnLocalDate } from "../domain/greeting";
+import { localDateInTimeZone } from "../domain/local-date";
 import { questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 
 export type ReplyCharacterSnapshot = Readonly<{
@@ -86,6 +88,12 @@ export type ReplyContext = Readonly<{
   openCommitments: readonly ReplyCommitment[];
   conversationTimeZone: string;
   currentLocalDate: string;
+  /**
+   * Whether the character already greeted the user on `currentLocalDate`.
+   * Derived from the unbudgeted recent history so a long day cannot push the
+   * earlier greeting out of the provider's recent-message budget.
+   */
+  alreadyGreetedToday?: boolean;
   continuityInstruction?: string | null;
   character: ReplyCharacterSnapshot;
   relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
@@ -169,22 +177,6 @@ function characterClaimKind(claimKey: string): ReplyCharacterClaim["claimKind"] 
 
 function topicLabel(value: string): string {
   return value.replace(/\s+/gu, " ").trim().slice(0, 140);
-}
-
-/** Calendar date of an instant in the conversation's local time zone (`en-CA` shape). */
-export function localDateInTimeZone(value: string | Date, timeZone: string): string | null {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-  return year && month && day ? `${year}-${month}-${day}` : null;
 }
 
 /** Builds a small deterministic topic projection from completed message history. */
@@ -392,6 +384,7 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
   const hasExplicitClock = input.now !== undefined;
   const conversationTimeZone = input.conversationTimeZone ?? luciaConversationTimeZone;
   const currentLocalDate = localDateInTimeZone(now, conversationTimeZone) ?? now.toISOString().slice(0, 10);
+  const alreadyGreetedToday = hasGreetedOnLocalDate(input.recentMessages ?? [], currentLocalDate, conversationTimeZone);
   const memories = input.memoryRepository
     ? await input.memoryRepository.listReadableMemories(input.userId, character.characterKey)
     : (input.memories ?? []);
@@ -422,6 +415,7 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
         ),
     conversationTimeZone,
     currentLocalDate,
+    alreadyGreetedToday,
     ...(unansweredUserMessages && unansweredUserMessages.length > 1 ? {
       continuityInstruction: "Han llegado varios mensajes antes de terminar tu respuesta. Responde al conjunto de unansweredUserMessages y a lo que ya dijiste, no solo a userMessage. Busca primero la conexión entre sus temas: si el último introduce un objeto que podría relacionarse con el interés anterior, formula esa conexión como una posibilidad concreta, sin darla por hecha, en vez de una pregunta genérica sobre el objeto. Un prefijo visible que solo reconoce un interés compartido no cierra ese tema: úsalo para conectar la nueva información sin volver a expresarlo. Si son temas independientes, conserva una breve respuesta útil a ambos. Omite preguntas ya respondidas, corregidas o cerradas; no repitas el prefijo visible. Usa mensajes breves separados por una línea en blanco cuando resulte natural.",
     } : {}),

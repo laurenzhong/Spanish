@@ -553,7 +553,9 @@ test("opens sent-message actions and marks a withdrawn message without memory te
   expect(viewport).not.toBeNull();
   expect((menuBox?.x ?? 0) + (menuBox?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
   expect(menuBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(156);
-  expect(menuBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((viewport?.width ?? 0) < 600 ? 196 : 156);
+  // A user message menu is now the tallest variant: copy, read aloud, quote,
+  // withdraw and delete. Five 34px rows on desktop, five 44px rows on mobile.
+  expect(menuBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((viewport?.width ?? 0) < 600 ? 240 : 190);
   expect(Math.abs((menuBox?.x ?? 0) + (menuBox?.width ?? 0) - ((bubbleBox?.x ?? 0) + (bubbleBox?.width ?? 0)))).toBeLessThanOrEqual(1);
   expect(menuBox?.y ?? 0).toBeGreaterThanOrEqual((bubbleBox?.y ?? 0) + (bubbleBox?.height ?? 0) + 5);
   await expect(messageMenu).toHaveCSS("background-color", "rgb(48, 52, 45)");
@@ -599,4 +601,35 @@ test("opens friend-message actions on double click and translates inline", async
   await page.getByRole("menuitem", { name: "取消翻译" }).click();
   await expect(message).not.toContainText("明天见。");
   await expect(page.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toHaveCount(0);
+});
+
+test("keeps the conversation workspace flush with the viewport's right edge", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/chat/lucia");
+  await expect(page.getByTestId("conversation-thread")).toBeVisible();
+
+  const geometry = await page.evaluate(() => {
+    const right = (selector: string) => document.querySelector<HTMLElement>(selector)?.getBoundingClientRect().right ?? null;
+    return {
+      viewportWidth: window.innerWidth,
+      bodyRight: document.body.getBoundingClientRect().right,
+      pageRight: right(".conversation-page"),
+      workspaceRight: right(".conversation-workspace"),
+      threadRight: right(".conversation-thread"),
+      rootScrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+
+  expect(geometry.workspaceRight).not.toBeNull();
+  expect(geometry.threadRight).not.toBeNull();
+  // The document reserves a stable scrollbar gutter for pages that scroll.
+  // The conversation workspace is a fixed, full-bleed view that never scrolls
+  // the document, so that reserved lane must not survive as an empty strip of
+  // page background along the far right of the chat page.
+  expect(Math.round(geometry.viewportWidth - (geometry.workspaceRight ?? 0))).toBe(0);
+  expect(Math.round(geometry.viewportWidth - (geometry.threadRight ?? 0))).toBe(0);
+  expect(Math.round(geometry.viewportWidth - geometry.pageRight!)).toBe(0);
+  expect(Math.round(geometry.viewportWidth - geometry.bodyRight)).toBe(0);
+  // Filling the reserved lane must not spill the page sideways either.
+  expect(geometry.rootScrollWidth).toBeLessThanOrEqual(geometry.viewportWidth);
 });

@@ -49,6 +49,8 @@ export type ConversationProviderInput = Readonly<{
   }>[];
   conversationTimeZone?: string;
   currentLocalDate?: string;
+  /** True when this character already greeted the user on currentLocalDate. */
+  alreadyGreetedToday?: boolean;
   continuityInstruction?: string | null;
   character: Readonly<{
     characterKey: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
@@ -18,6 +18,7 @@ import {
 } from "@/src/modules/conversation";
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
+import { ConversationAssistant } from "./conversation-assistant";
 import { CONVERSATION_LIST_UPDATED_EVENT, ConversationContactRail, markConversationRead } from "./conversation-contact-rail";
 import {
   getCachedConversationAccess,
@@ -97,6 +98,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const [showMobileConversations, setShowMobileConversations] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [userProfile, setUserProfile] = useState<UserAvatarProfile | null>(null);
   const stateRef = useRef(state);
@@ -114,6 +116,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const assistantPanelRef = useRef<HTMLElement | null>(null);
   const messageMenuRef = useRef<HTMLDivElement | null>(null);
   const messageMenuTriggerRef = useRef<HTMLElement | null>(null);
   const shouldFollowRef = useRef(true);
@@ -303,6 +306,31 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     document.addEventListener("keydown", onKeyDown);
     return () => { window.clearTimeout(focusTimer); document.removeEventListener("click", close); document.removeEventListener("keydown", onKeyDown); };
   }, [showHeaderMenu]);
+
+  const closeAssistant = useCallback((restoreFocus = true) => {
+    setShowAssistant(false);
+    if (restoreFocus) headerMenuTriggerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!showAssistant) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || assistantPanelRef.current?.contains(target)) return;
+      // Clicking another control (the composer, a message action) is a
+      // deliberate move: closing must not drag focus back to the menu trigger.
+      const movedToControl = target instanceof HTMLElement
+        && target.closest("input, textarea, select, button, a, [contenteditable='true'], [tabindex]") !== null;
+      closeAssistant(!movedToControl);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      closeAssistant();
+    };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("click", close); document.removeEventListener("keydown", onKeyDown); };
+  }, [showAssistant, closeAssistant]);
 
   useEffect(() => {
     if (!notice) return;
@@ -600,6 +628,18 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   function retryHistory() {
     setPersistenceStatus("loading");
     setHistoryReloadToken((value) => value + 1);
+  }
+
+  /**
+   * The composer owns its textarea internally, so handing the assistant's
+   * applied draft back to it uses the one composer textarea in this thread.
+   * The deferred focus runs after the panel has unmounted and React has
+   * painted the draft into the field.
+   */
+  function focusComposerInput() {
+    window.setTimeout(() => {
+      document.querySelector<HTMLTextAreaElement>(".conversation-composer textarea")?.focus({ preventScroll: true });
+    }, 0);
   }
 
   function openMessageMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
@@ -907,7 +947,8 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </button>
         </div>
         {showHeaderMenu ? <div ref={headerMenuRef} className="conversation-thread__header-menu" role="menu" aria-label="对话操作">
-          <button type="button" role="menuitem" onClick={() => { setShowHeaderMenu(false); setShowSearch(true); }}>搜索消息</button>
+          <button type="button" role="menuitem" onClick={() => { setShowHeaderMenu(false); setShowSearch(false); setShowAssistant(true); }}>AI 助手</button>
+          <button type="button" role="menuitem" onClick={() => { setShowHeaderMenu(false); setShowAssistant(false); setShowSearch(true); }}>搜索消息</button>
           <Link role="menuitem" href="/me#profile-relationships" onClick={() => setShowHeaderMenu(false)}>关系资料与清理</Link>
         </div> : null}
         {showSearch ? <div className="conversation-thread__search-panel">
@@ -999,7 +1040,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {contextMenu && selectedMessage() && typeof document !== "undefined" ? createPortal(
         <div ref={messageMenuRef} className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x ?? contextMenu.anchorX, top: contextMenu.y ?? contextMenu.anchorBottom, visibility: contextMenu.x === undefined ? "hidden" : undefined }} onClick={(event) => event.stopPropagation()}>
           <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
-          {selectedMessage()?.role === "character" ? <button type="button" role="menuitem" onClick={() => void speakMessage(selectedMessage()!)}>{speakingMessageId === selectedMessage()?.id ? "停止朗读" : "朗读"}</button> : null}
+          {/* Either side of the conversation can be heard: users re-listen to their
+              own Spanish to check pronunciation, not only to Lucía's replies. */}
+          <button type="button" role="menuitem" onClick={() => void speakMessage(selectedMessage()!)}>{speakingMessageId === selectedMessage()?.id ? "停止朗读" : "朗读"}</button>
           {selectedMessage()?.role === "character" ? (() => {
             const selected = selectedMessage()!;
             const translation = translations[selected.id];
@@ -1054,6 +1097,22 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           assistance={{ contextKey: `${characterKey}:${characterVersion}:${cacheScope}:${assistEpoch}`, characterKey, characterVersion,
             onAssisted: () => { assistedRef.current = true; } }} />
       )}
+
+      {/* Kept mounted while closed so the transient transcript survives reopening;
+          it paints nothing until the header menu opens it. The key drops the
+          transcript and aborts any request when the character changes. */}
+      <ConversationAssistant
+        key={`${characterKey}:${characterVersion}`}
+        characterKey={characterKey}
+        characterVersion={characterVersion}
+        characterName={characterName}
+        draft={draft}
+        onApply={(text) => { setDraft(text); setShowAssistant(false); }}
+        onClose={() => closeAssistant()}
+        onFocusInput={focusComposerInput}
+        open={showAssistant}
+        panelRef={assistantPanelRef}
+      />
     </section>
   );
 }

@@ -65,7 +65,31 @@ describe("ChatThread persistence status", () => {
     await user.click(screen.getByRole("button", { name: "更多对话操作" }));
     expect(screen.getByRole("menu", { name: "对话操作" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "搜索消息" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "AI 助手" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "关系资料与清理" })).toHaveAttribute("href", "/me#profile-relationships");
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "AI 助手",
+      "搜索消息",
+      "关系资料与清理",
+    ]);
+  });
+
+  it("opens the assistant from the header menu and returns focus to the trigger on close", async () => {
+    const user = userEvent.setup();
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" roleLabel="熟悉的朋友" characterVersion={1} initialMessages={[]} />);
+
+    const trigger = screen.getByRole("button", { name: "更多对话操作" });
+    await user.click(trigger);
+    await user.click(screen.getByRole("menuitem", { name: "AI 助手" }));
+
+    expect(screen.queryByRole("menu", { name: "对话操作" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Lucía Martín 的 AI 助手" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "向 AI 助手提问" })).toHaveFocus());
+
+    await user.click(screen.getByRole("button", { name: "关闭 AI 助手" }));
+
+    expect(screen.queryByRole("dialog", { name: "Lucía Martín 的 AI 助手" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("uses one natural sentence for an empty conversation", () => {
@@ -162,7 +186,7 @@ describe("ChatThread persistence status", () => {
     expect(screen.queryByRole("button", { name: "消息操作" })).not.toBeInTheDocument();
     fireEvent.contextMenu(message.closest("article")!);
     expect(screen.getByRole("menu")).toBeInTheDocument();
-    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "引用回复", "撤回", "删除"]);
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "朗读", "引用回复", "撤回", "删除"]);
     expect(screen.queryByRole("menuitem", { name: "转发" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "复制" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("Hola desde el chat"));
@@ -245,6 +269,25 @@ describe("ChatThread persistence status", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "朗读" }));
     await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
     expect(speak.mock.calls[0]?.[0].text).toBe("¿Quieres tomar un café?");
+  });
+
+  it("reads your own message from the message menu and can stop it", async () => {
+    const speak = speech.speak;
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[{ id: "speak-user-1", role: "user", text: "Me gusta el senderismo", complete: true }]} />);
+    const message = screen.getByText("Me gusta el senderismo");
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "朗读" }));
+    await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
+    expect(speak.mock.calls[0]?.[0].text).toBe("Me gusta el senderismo");
+    expect(speak.mock.calls[0]?.[0].lang).toBe("es-ES");
+
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "停止朗读" }));
+    await waitFor(() => expect(speech.cancel).toHaveBeenCalled());
+
+    fireEvent.contextMenu(message.closest("article")!);
+    expect(screen.getByRole("menuitem", { name: "朗读" })).toBeInTheDocument();
   });
 
   it("keeps a restarted message active when the cancelled attempt settles", async () => {

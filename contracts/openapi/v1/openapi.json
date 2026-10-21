@@ -673,6 +673,26 @@
         }
       }
     },
+    "/conversations/{characterId}/assistant": {
+      "post": {
+        "summary": "Answer a private learning question, suggest a reply, check grammar, or analyse sentence structure",
+        "description": "Private, no-store learning assistance. Reads at most eight completed, non-withdrawn messages from the authenticated user's own conversation with this current published character; the client sends only the question or target sentence the learner chose to check. No message, assistant transcript, relationship memory or learning evidence is saved, nothing is auto-sent, and a suggestion enters the composer only on explicit user action. The provider call is recorded as opaque metadata only (provider, model version, latency, request id, estimated cost); questions, drafts, conversation context and model output are never logged or stored. The response is transient and must not be treated as ability evidence.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "characterId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 80 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/conversation-assistant-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Transient structured learning answer; private, no-store", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/conversation-assistant-response.schema.json" } } } },
+          "400": { "description": "Invalid request or no sentence available to analyse", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "403": { "description": "An active contact is required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "404": { "description": "Character or requested revision unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "429": { "description": "Provider rate limit", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "499": { "description": "Request cancelled", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Conversation context, contact state or assistant provider unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "504": { "description": "Assistant generation timed out", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/conversations/{characterId}/stream": {
       "post": {
         "summary": "Stream semantic reply bubbles with durable prefixes and one completed turn",

@@ -30,10 +30,14 @@ test("uses the same endpoint for scenario reference expressions", async ({ page 
 
 test("reads completed private chat messages through the authenticated shared endpoint", async ({ page }) => {
   const messageId = "00000000-0000-4000-8000-000000000124";
+  const userMessageId = "00000000-0000-4000-8000-000000000125";
   await page.route("**/api/v1/conversations", (route) => route.fulfill({ json: { data: { conversations: [] } } }));
   await page.route("**/api/v1/character-network/lucia-contact", (route) => route.fulfill({ json: { data: { characterKey: "lucia", status: "active", relationshipStage: "familiar", conversationId: "conversation-lucia" } } }));
   await page.route("**/api/v1/character-network/introductions", (route) => route.fulfill({ json: { data: { offers: [] } } }));
-  await page.route("**/api/v1/conversations/lucia", (route) => route.fulfill({ json: { data: { characterKey: "lucia", messages: [{ id: messageId, role: "character", text: "Nos vemos mañana.", complete: true }] } } }));
+  await page.route("**/api/v1/conversations/lucia", (route) => route.fulfill({ json: { data: { characterKey: "lucia", messages: [
+    { id: messageId, role: "character", text: "Nos vemos mañana.", complete: true },
+    { id: userMessageId, role: "user", text: "Me gusta el senderismo", complete: true },
+  ] } } }));
   await page.goto("/chat/lucia");
   const message = page.locator(`[data-message-id="${messageId}"]`);
   await message.dblclick();
@@ -43,4 +47,14 @@ test("reads completed private chat messages through the authenticated shared end
   await message.dblclick();
   await page.getByRole("menuitem", { name: "停止朗读", exact: true }).click();
   await expect.poll(() => page.evaluate(() => Reflect.get(window, "readAloudPauses"))).toBeGreaterThan(0);
+
+  // The learner's own message has the same menu action so they can re-listen to
+  // their Spanish; it still goes through the authenticated shared endpoint.
+  const userMessage = page.locator(`[data-message-id="${userMessageId}"]`);
+  await userMessage.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "朗读", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, "readAloudTrace"))).toEqual([
+    { text: "Nos vemos mañana.", lang: "es-ES" },
+    { text: "Me gusta el senderismo", lang: "es-ES" },
+  ]);
 });

@@ -563,6 +563,78 @@ describe("fake conversation reply", () => {
     expect(streamed).not.toContain("Buenas tardes");
   });
 
+  it("rejects a greeting later the same day after non-greeting replies", async () => {
+    // Reported 2026-10-21 transcript: Lucía greeted at 16:40, sent two ordinary
+    // replies, then the retry for "Pues sí, es una buena idea." opened with
+    // "¡Hola!" again. The previous message did not greet, so the old gate that
+    // only inspected the last character message let it through.
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "¡Hola! ¿Qué tal te va con el día gris?", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "greet-later-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "Me alegra que te guste la idea; los charcos dan mucho juego.", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "greet-later-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Pues sí, es una buena idea.", clientMessageId: "client-greet-later", generationId: "generation-greet-later", messageId: "message-greet-later",
+      replyContext: {
+        generationId: "generation-greet-later", userId: "user-1", userMessage: "Pues sí, es una buena idea.",
+        recentMessages: [
+          { role: "character", content: "¡Hola! Yo bien, ya funcionando a tope. ¿Tú qué tal?", sentAt: "2026-10-21T08:40:45.000Z" },
+          { role: "user", content: "Estoy muy bien, hoy en mi ciudad ha llovido, ¿qué tiempo hace por tu zona?", sentAt: "2026-10-21T08:47:00.000Z" },
+          { role: "character", content: "Por Madrid sigue sin llover, pero el cielo está bastante gris. Tu ciudad seguramente tiene un ambiente más húmedo y bonito para fotografiar.", sentAt: "2026-10-21T08:47:02.000Z" },
+          { role: "user", content: "Ah, ¿qué harías una foto en un día de lluvia?", sentAt: "2026-10-21T08:53:01.000Z" },
+          { role: "character", content: "Uff, los días de lluvia me vuelven un poco loca para fotografiar, pero también tienen su magia.", sentAt: "2026-10-21T08:53:03.000Z" },
+        ],
+        rollingSummary: null, openTopics: [], characterClaims: [], openCommitments: [],
+        conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-10-21",
+        character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
+      },
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("No vuelvas a abrir con un saludo") });
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).toContain("Me alegra");
+    expect(streamed).not.toContain("¡Hola!");
+  });
+
+  it("blocks a greeting introduced by the retry after another rejection", async () => {
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: "Uff, los días de lluvia me vuelven un poco loca para fotografiar, pero también tienen su magia.", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "retry-greet-1", latencyMs: 1, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: "¡Hola! ¿Qué tal te va con el día gris?", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "retry-greet-2", latencyMs: 1, estimatedCostMicros: null }),
+    };
+    const observations: StreamReplyProviderObservation[] = [];
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "Pues sí, es una buena idea.", clientMessageId: "client-retry-greet", generationId: "generation-retry-greet", messageId: "message-retry-greet",
+      replyContext: {
+        generationId: "generation-retry-greet", userId: "user-1", userMessage: "Pues sí, es una buena idea.",
+        recentMessages: [
+          { role: "character", content: "¡Hola! Yo bien, ya funcionando a tope. ¿Tú qué tal?", sentAt: "2026-10-21T08:40:45.000Z" },
+          { role: "character", content: "Uff, los días de lluvia me vuelven un poco loca para fotografiar, pero también tienen su magia.", sentAt: "2026-10-21T08:53:03.000Z" },
+        ],
+        rollingSummary: null, openTopics: [], characterClaims: [], openCommitments: [],
+        conversationTimeZone: "Europe/Madrid", currentLocalDate: "2026-10-21",
+        questionPolicy: { maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" },
+        character: luciaReplyCharacter, relationshipStage: "familiar", relationshipSummary: null, memories: [], teachingOpportunity: null,
+      },
+      replyProvider: provider, onProviderResult: (observation) => { observations.push(observation); }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    const retryInstruction = provider.generate.mock.calls[1]?.[0].continuityInstruction ?? "";
+    expect(retryInstruction).toContain("reutilizaba casi literalmente");
+    expect(retryInstruction).toContain("No vuelvas a abrir con un saludo");
+    expect(observations).toEqual([
+      expect.objectContaining({ status: "failed", errorType: "safety-gate" }),
+      expect.objectContaining({ status: "failed", errorType: "safety-gate" }),
+    ]);
+    expect(events.some((event) => event.type === "delta")).toBe(false);
+    expect(events.some((event) => event.type === "done")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });
+  });
+
   it("still greets back when the user greets again", async () => {
     const provider = {
       generate: vi.fn().mockResolvedValue({ text: "Buenas tardes 😊 ¿Y tú qué tal?", provider: "openai" as const, modelVersion: "test", providerRequestId: "greet-back-1", latencyMs: 1, estimatedCostMicros: null }),

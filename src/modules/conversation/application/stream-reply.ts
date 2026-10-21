@@ -10,7 +10,8 @@ import { ConversationProviderError } from "@/src/modules/providers/conversation"
 import {
   generateCharacterReply,
 } from "./generate-character-reply";
-import { deriveReplyOpenTopics, localDateInTimeZone, type ReplyContext } from "./build-reply-context";
+import { deriveReplyOpenTopics, type ReplyContext } from "./build-reply-context";
+import { greetingOpener, hasGreetedOnLocalDate } from "../domain/greeting";
 import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 import { containsUnsupportedScript, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
 import { attributesUnconfirmedCoffee, narrowsUnspecifiedWeekendWork, repeatsDailyActivityQuestion, requestsQuestionRepeat } from "../domain/reply-continuity";
@@ -161,8 +162,18 @@ export async function* streamReply(
         const repeatedActivityQuestion = repeatsDailyActivityQuestion(context, replyResult.text);
         const unconfirmedCoffee = attributesUnconfirmedCoffee(context, replyResult.text);
         const narrowedWeekend = narrowsUnspecifiedWeekendWork(context, replyResult.text);
+        const greetedToday = context.alreadyGreetedToday
+          ?? hasGreetedOnLocalDate(context.recentMessages, context.currentLocalDate, context.conversationTimeZone);
+        // The one permitted retry may fix the defect it was told about and still
+        // introduce a new one. A character that already greeted today must not
+        // greet in the retry either, even if the rejected text itself did not
+        // greet: the 2026-10-21 transcript reached the user exactly this way.
+        const greetingGuard = !redundantGreeting && greetedToday && !greetingOpener(context.userMessage)
+          ? " No vuelvas a abrir con un saludo (nada de 'hola', 'buenos días', 'buenas tardes' ni 'buenas noches'): hoy ya has saludado y la persona no te ha saludado ahora; continúa directamente con lo que acaba de decir."
+          : "";
         generationContext = {
           ...context,
+          alreadyGreetedToday: greetedToday,
           ...(returnedPlan || (context.questionPolicy && context.questionPolicy.maxQuestionPressure !== "none")
             ? {}
             : {
@@ -172,7 +183,7 @@ export async function* streamReply(
                   maxQuestionPressure: "none" as const,
                 },
               }),
-          continuityInstruction: retryInstruction({ dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, translationese, redundantGreeting, recycledPhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend }),
+          continuityInstruction: `${retryInstruction({ dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, translationese, redundantGreeting, recycledPhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend })}${greetingGuard}`,
         };
       }
       await notifyProviderResult(input, {
@@ -308,44 +319,23 @@ function deterministicResult(context: ReplyContext, signal?: AbortSignal): Conve
 }
 
 /**
- * The greeting that opens a message, normalized to accent-free lowercase form,
- * or null when the message does not open with one. Leading emoji and
- * punctuation are skipped, so "Buenas tardes 😊 …" counts as a greeting.
- */
-function greetingOpener(value: string): string | null {
-  const normalized = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/gu, "")
-    .toLocaleLowerCase("es-ES")
-    .replace(/^[^\p{L}]+/u, "");
-  const timed = /^(?:buenos\s+dias|buenas\s+tardes|buenas\s+noches)/u.exec(normalized);
-  if (timed) return timed[0];
-  const generic = /^(?:hola|hey|buenas|que\s+tal)\b/u.exec(normalized);
-  if (!generic) return null;
-  // "Buenas noticias…" is not a greeting: a bare "buenas" only greets when
-  // nothing but punctuation follows it.
-  if (generic[0] === "buenas" && /^\s*\p{L}/u.test(normalized.slice(generic[0].length))) return null;
-  return generic[0];
-}
-
-/**
  * A greeting opens a conversation; it is not a per-message decoration. Once the
  * character has greeted the user on the current local day, a message that only
- * continues the exchange must not greet again — "Buenas tardes" twice within
- * minutes reads as a bot restarting the conversation instead of a person
- * talking. Answering a greeting with a greeting stays allowed, and a new local
- * day resets the rule. When the previous message's timestamp is unusable we
- * cannot tell a same-day repeat from a new day, so we never block on a guess.
+ * continues the exchange must not greet again — a repeated "¡Hola!" reads as a
+ * bot restarting the conversation instead of a person talking. Answering a
+ * greeting with a greeting stays allowed, and a new local day resets the rule.
+ *
+ * The whole current day is checked, not just the immediately previous message:
+ * a 2026-10-21 transcript greeted at 16:40, then sent two non-greeting replies,
+ * and greeted again at 16:58. The earlier check only inspected the last
+ * character message ("Uff, los días de lluvia…") and let the repeat through.
+ * Messages with an unusable timestamp never block on a guess.
  */
 function isRedundantGreetingReply(context: ReplyContext, text: string): boolean {
   if (!greetingOpener(text)) return false;
   if (greetingOpener(context.userMessage)) return false;
-  const previousCharacterMessage = [...context.recentMessages]
-    .reverse()
-    .find((message) => message.role === "character" && message.content.trim().length > 0);
-  if (!previousCharacterMessage || !greetingOpener(previousCharacterMessage.content)) return false;
-  const previousGreetingDate = localDateInTimeZone(previousCharacterMessage.sentAt ?? "", context.conversationTimeZone);
-  return previousGreetingDate !== null && previousGreetingDate === context.currentLocalDate;
+  return context.alreadyGreetedToday
+    ?? hasGreetedOnLocalDate(context.recentMessages, context.currentLocalDate, context.conversationTimeZone);
 }
 
 const recycledPhraseMinimumTokens = 4;

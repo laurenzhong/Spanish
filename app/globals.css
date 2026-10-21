@@ -5559,6 +5559,17 @@ button {
 .conversation-index__empty .surface-state p { margin: 0; color: var(--conversation-muted); font-size: 11px; }
 .conversation-index > #introductions { width: min(100%, 760px); margin-top: 28px; }
 
+/* The conversation section is a fixed, full-bleed app view at every width: on
+   desktop the workspace is locked to 100svh and on small screens the product
+   shell is, so the document never scrolls here. The root's
+   `scrollbar-gutter: stable` would still reserve its lane and leave an empty
+   strip of page background along the far right edge of the chat page, breaking
+   the edge-to-edge workspace. Release the gutter for this route only; every
+   other route keeps the stable gutter that prevents scrollbar layout shifts. */
+html:has(.conversation-page--detail) {
+  scrollbar-gutter: auto;
+}
+
 @media (min-width: 960px) {
   .product-content:has(.conversation-page) {
     width: 100%;
