@@ -1,0 +1,58 @@
+{
+  "contentVersion": "2026-10-15.v3",
+  "entryCount": 120,
+  "addedEntryCount": 60,
+  "sources": [
+    {
+      "file": "phrasebook-v1.ts",
+      "sha256": "3997d51f3d97d2a746f23b2414548f4a3bb9f62c406b358cc989216ba3d810f5"
+    },
+    {
+      "file": "phrasebook-expansion-a.ts",
+      "sha256": "08c496d898ce1924c446b6b060a901fd4e5f9fcfb553fe59ca18d2a4b1280534"
+    },
+    {
+      "file": "phrasebook-expansion-b.ts",
+      "sha256": "7a9f204b7d355c74efdf3e9302664c8cc29fbf9c49d4b9ba270103fbc0ea9b8e"
+    },
+    {
+      "file": "phrasebook-v2.ts",
+      "sha256": "dff8f3d99abd6ed92aeff35139b7733125f2b97d3b5307d660392cc044b268fe"
+    },
+    {
+      "file": "phrasebook-v3-social.ts",
+      "sha256": "af3c216ae5d066e1864b6be1103ada1de89b094f2cb780d8ba73773299b0a9b5"
+    },
+    {
+      "file": "phrasebook-v3-practical.ts",
+      "sha256": "3d236412c89a1342c8af290e01e3253b3eaef2c8c20dfc9d7063bda36886405e"
+    },
+    {
+      "file": "phrasebook-v3.ts",
+      "sha256": "f7f0a7e7de6ede5f335d41661501b18159460831115e852a011ee189ebd902fd"
+    }
+  ],
+  "scope": "Owner-only original non-scoring teaching examples. All sixty prior entries, IDs and earlier review manifests remain unchanged.",
+  "authorizationDate": "2026-10-15",
+  "reviewerId": "dsh-ai-owner-authorized-review",
+  "reviewerKind": "ai",
+  "executedBy": "Codex AI independent review agent review_expansion; the reviewerId follows the repository identifier convention and does not describe the executing platform.",
+  "previousReview": "phrasebook-v2.review.json",
+  "reviews": [
+    {
+      "locale": "es-ES",
+      "status": "approved",
+      "newEntriesReviewed": 60,
+      "revision": 2,
+      "reviewedOn": "2026-10-15"
+    },
+    {
+      "locale": "zh-CN",
+      "status": "approved",
+      "newEntriesReviewed": 60,
+      "revision": 2,
+      "reviewedOn": "2026-10-15"
+    }
+  ],
+  "report": "docs/reviews/PHRASE-CONTENT-003.md"
+}

@@ -1,6 +1,12 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { readAloudFake as speech } from "../helpers/read-aloud-fake";
+vi.mock("@/src/modules/providers/tts/read-aloud", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/modules/providers/tts/read-aloud")>();
+  const { readAloudFake } = await import("../helpers/read-aloud-fake");
+  return { ...actual, createReadAloud: readAloudFake.create };
+});
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ContentPackExperience } from "@/src/modules/content/ui/content-pack-experience";
 import {
@@ -63,7 +69,7 @@ const pack = projectContentPack({
 });
 
 describe("content pack domain and experience", () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => { window.localStorage.clear(); speech.reset(); speech.state.supported = false; });
   afterEach(() => cleanup());
 
   it("keeps draft packs unavailable unless explicitly allowed", () => {
@@ -92,11 +98,39 @@ describe("content pack domain and experience", () => {
     expect(screen.queryByText("Hola, me llamo Ana.")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "播放全文" }));
-    expect(screen.getByRole("status")).toHaveTextContent("浏览器暂时无法朗读");
+    expect(screen.getByRole("status")).toHaveTextContent("暂时无法朗读");
 
     await user.click(screen.getByRole("button", { name: "展开西语和中文" }));
     expect(screen.getByText("Hola, me llamo Ana.")).toBeInTheDocument();
     expect(screen.getByText("你好，我叫 Ana。")).toBeInTheDocument();
+  });
+
+  it("completes listening only after actual shared playback finishes", async () => {
+    speech.state.supported = true;
+    const user = userEvent.setup();
+    render(<ContentPackExperience pack={pack} />);
+    await user.click(screen.getByRole("button", { name: "播放全文" }));
+    expect(screen.getByLabelText("内容包进度")).toHaveTextContent("0/4");
+    expect(screen.getByRole("button", { name: "正在准备朗读" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "正在朗读" })).not.toBeInTheDocument();
+    act(() => speech.attempts[0].onstart?.());
+    expect(screen.getByRole("button", { name: "正在朗读" })).toBeDisabled();
+    await act(async () => speech.attempts[0].onend?.());
+    expect(screen.getByLabelText("内容包进度")).toHaveTextContent("1/4");
+  });
+
+  it("keeps cancelled and failed listening incomplete", async () => {
+    speech.state.supported = true;
+    const user = userEvent.setup();
+    render(<ContentPackExperience pack={pack} />);
+    await user.click(screen.getByRole("button", { name: "播放全文" }));
+    await act(async () => speech.cancel());
+    expect(screen.getByLabelText("内容包进度")).toHaveTextContent("0/4");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "播放全文" }));
+    await act(async () => speech.attempts.at(-1)!.onerror?.());
+    expect(screen.getByLabelText("内容包进度")).toHaveTextContent("0/4");
+    expect(screen.getByRole("status")).toHaveTextContent("暂时无法朗读");
   });
 
   it("persists a typed draft and does not label it oral evidence", async () => {

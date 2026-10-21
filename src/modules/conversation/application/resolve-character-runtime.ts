@@ -13,6 +13,7 @@ import {
   type ConversationCharacter,
 } from "../domain/character-catalog";
 import type { ReplyCharacterSnapshot } from "./build-reply-context";
+import { characterBibleSchema } from "@/src/modules/characters/schemas";
 
 export class CharacterRuntimeError extends Error {
   constructor(
@@ -35,14 +36,18 @@ function persistedSnapshot(
   fallback: ConversationCharacter,
 ): ReplyCharacterSnapshot {
   const personality = (persisted.profile?.personality ?? {}) as Partial<{
+    traits: readonly string[];
     initiative: ReplyCharacterSnapshot["initiative"];
     tone: readonly string[];
+    responseStyle: readonly string[];
     topicPreferences: readonly Readonly<{ topic: string }>[];
   }>;
   const initiative = personality.initiative && ["low", "balanced", "high"].includes(personality.initiative)
     ? personality.initiative
     : fallback.snapshot.initiative;
   const topics = (personality.topicPreferences ?? []).map((item) => item.topic).filter(Boolean);
+  const identity = characterBibleSchema.shape.identity.safeParse(persisted.profile?.identity);
+  const traits = characterBibleSchema.shape.personality.shape.traits.safeParse(personality.traits);
   const facts = persisted.facts
     .filter((fact) => fact.isActive)
     .map((fact) => {
@@ -52,18 +57,23 @@ function persistedSnapshot(
         : typeof value.rule === "string"
           ? value.rule
           : JSON.stringify(value);
-      // Older character rows do not yet have a dedicated reveal-policy
-      // column. Until that migration exists, a missing policy must fail
-      // closed rather than turning an arbitrary canon fact into prompt-ready
-      // context. The AI identity boundary is the one invariant exception.
+      // New revisions keep their authored disclosure metadata in the same
+      // versioned profile. A policy for another fact version cannot authorize
+      // this one; older rows without a policy still fail closed.
+      const storedPolicy = persisted.profile?.canonPolicies?.[fact.factKey];
+      const policy = storedPolicy?.version === fact.version
+        ? characterBibleSchema.shape.facts.element.shape.reveal.safeParse(storedPolicy.reveal)
+        : null;
       const reveal = fact.factKey === "boundary.ai-identity"
         ? "direct"
-        : "never";
+        : policy?.success ? policy.data.mode : "never";
       return {
         factKey: fact.factKey,
         statement,
         sensitivity: fact.sensitivity,
         reveal: reveal as "never" | "contextual" | "gradual" | "direct",
+        ...(policy?.success ? { audience: policy.data.audience, trigger: policy.data.trigger } : {}),
+        ...(typeof value.topic === "string" ? { topic: value.topic } : {}),
       };
     });
   // The persisted character version is authoritative. An empty (or fully
@@ -79,8 +89,16 @@ function persistedSnapshot(
     characterVersion: persisted.version,
     displayName: persisted.displayName,
     homeLocation: persisted.homeLocation,
+    ...(identity.success ? { identity: identity.data } : {}),
+    ...(traits.success ? { traits: traits.data } : {}),
     initiative,
     tone: personality.tone?.length ? personality.tone : fallback.snapshot.tone,
+    // The expression rules are what keeps a voice recognisable across replies.
+    // A row imported before the bible carried them falls back to the catalog
+    // the same way tone and topics already do.
+    responseStyle: personality.responseStyle?.length
+      ? personality.responseStyle
+      : fallback.snapshot.responseStyle,
     topics: topics.length > 0 ? topics : fallback.snapshot.topics,
     facts: safeFacts,
   };

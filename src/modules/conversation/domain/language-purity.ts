@@ -18,6 +18,55 @@ export function containsUnsupportedScript(text: string): boolean {
   return unsupportedScriptPattern.test(text);
 }
 
+/**
+ * Literal translations the model produces when it renders a greeting word by
+ * word from Chinese or English. They are grammatical Spanish, so every script
+ * and safety check passes them; the learner would still copy language nobody
+ * says.
+ *
+ * Each entry comes either from a reported reply or from a well-documented
+ * anglicism of the `es-ES` variety the content pipeline reviews against. The
+ * list stays short and high-precision on purpose: it triggers a retry, so a
+ * wrong entry costs a provider call while a missing entry only costs the
+ * prompt's own guidance. Accents are already stripped before matching.
+ */
+const translationesePatterns: readonly Readonly<{ phrase: string; pattern: RegExp }>[] = [
+  {
+    // Reported on 2026-10-12: "Buenas tardes 😊 Bienvenido al lunes." Spanish
+    // says "Vaya lunes" or "Ánimo con el lunes"; "bienvenido al lunes" is
+    // "welcome to Monday" rendered word by word. "Bienvenido a casa" stays
+    // untouched because the pattern requires a day, week or weekend after it.
+    phrase: "bienvenido al lunes",
+    pattern: /\bbienvenid[oa]s?\s+(?:a\s+la\s+|al\s+|a\s+)?(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo|semana|finde|fin\s+de\s+semana)\b/u,
+  },
+  {
+    // Anglicism for "make sense"; es-ES uses "tiene sentido". "Hacia sentido"
+    // is deliberately absent: it is the correct imperfect of "hacer", and
+    // accent stripping makes it indistinguishable from the preposition.
+    phrase: "hace sentido",
+    pattern: /\bhac(?:e|en)\s+sentido\b/u,
+  },
+  {
+    // Calque of "in order to"; Spanish uses "para". Requiring an infinitive
+    // keeps "en orden de llegada" and "en orden de importancia" out.
+    phrase: "en orden de",
+    pattern: /\ben\s+orden\s+de\s+\p{L}{2,}(?:ar|er|ir)\b/u,
+  },
+];
+
+/** The first literal-translation phrase in a reply, or null when it reads as Spanish. */
+export function translationesePhrase(text: string): string | null {
+  if (!text.trim()) return null;
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES");
+  for (const entry of translationesePatterns) {
+    if (entry.pattern.test(normalized)) return entry.phrase;
+  }
+  return null;
+}
+
 // Both the English and the Spanish name of each target language are accepted so
 // a Spanish user asking "¿Puedes responder en inglés?" is understood. Accents
 // are already stripped by normalization, so the Spanish names are unaccented.

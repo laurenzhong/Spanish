@@ -23,6 +23,12 @@ export type ProactiveMessageCandidateRecord = Readonly<{
 
 export type ProactiveMessageRepository = Readonly<{
   getConversationId(userId: string): Promise<string>;
+  /**
+   * Completed user-visible messages of the user's Lucía conversation, oldest
+   * first. Proactive generation must see the same conversation the user sees:
+   * without it the character cannot know which questions were already answered.
+   */
+  listRecentMessages(userId: string, limit?: number): Promise<readonly ConversationMessageRecord[]>;
   getEligibilityState(userId: string, now: Date): Promise<ProactiveEligibilityState>;
   createCandidate(input: Readonly<{
     userId: string;

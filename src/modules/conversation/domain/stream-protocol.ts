@@ -17,7 +17,8 @@ export type ConversationMetaEvent = Readonly<{
   type: "meta";
   protocolVersion: typeof conversationProtocolVersion;
   characterKey: ConversationCharacterKey;
-  characterVersion: 1;
+  /** The released revision the server served, from the character catalog. */
+  characterVersion: number;
   generationId: string;
   messageId: string;
   /** Optional for backwards-compatible stream clients; the UI fills it when absent. */
@@ -66,7 +67,9 @@ export function parseConversationEvent(value: unknown): ConversationStreamEvent 
   if (event.type === "meta") {
     return event.protocolVersion === conversationProtocolVersion &&
         conversationCharacterKeys.includes(event.characterKey as ConversationCharacterKey) &&
-        event.characterVersion === 1 &&
+        // The server, not the client, decides which revision is served; the
+        // parser only rejects values that cannot be a released revision.
+        Number.isInteger(event.characterVersion) && (event.characterVersion as number) > 0 &&
         isNonEmptyString(event.generationId) &&
         isNonEmptyString(event.messageId)
       ? (event as unknown as ConversationMetaEvent)

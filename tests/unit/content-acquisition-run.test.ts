@@ -69,6 +69,21 @@ const page = {
 };
 
 describe("run content acquisition source", () => {
+  it("does not write a run when discovery was already cancelled", async () => {
+    const state = repository(source()); const controller = new AbortController(); controller.abort();
+    await expect(runAcquisitionSource({ repository: state.value, adapter: new FakeContentSourceAdapter([page]), input: { sourceStableKey: "fixture.spanish.daily", dryRun: false, limit: 1 }, signal: controller.signal })).rejects.toThrow(/cancel/i);
+    expect(state.runs).toHaveLength(0);
+    expect(state.commits).toHaveLength(0);
+  });
+
+  it("does not commit a late discovery result after the adapter ignores cancellation", async () => {
+    const state = repository(source()); const controller = new AbortController();
+    const adapter = { key: "fake" as const, discover: async () => { controller.abort(); return page; } };
+    await expect(runAcquisitionSource({ repository: state.value, adapter, input: { sourceStableKey: "fixture.spanish.daily", dryRun: false, limit: 1 }, signal: controller.signal })).rejects.toThrow(/cancel/i);
+    expect(state.commits).toHaveLength(0);
+    expect(state.readSource()?.cursor).toBe("page-1");
+  });
+
   it("commits candidates and advances the cursor only as one repository operation", async () => {
     const state = repository(source());
     const result = await runAcquisitionSource({

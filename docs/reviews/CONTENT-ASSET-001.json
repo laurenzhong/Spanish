@@ -1,0 +1,194 @@
+{
+  "format": "original-transcript-acquisition-and-visual-fit-check",
+  "formatVersion": 1,
+  "taskId": "CONTENT-ASSET-001",
+  "status": "review",
+  "checkedAt": "2026-10-16T10:26:23.522Z",
+  "purpose": "owner-personal-study-inspection",
+  "notImportableContent": true,
+  "legalEvidence": {
+    "url": "https://www.videoele.com/legal.html",
+    "checkedAt": "2026-10-16T10:21:02.332Z",
+    "status": 200,
+    "mime": "text/html",
+    "bytes": 8685,
+    "sha256": "fc67ef7d3367ee3ac9cec103b66d3172f735024f8be265254c03ba4c1d921900",
+    "excerpt": "descargar los archivos en PDF",
+    "license": "CC BY-NC-ND 4.0",
+    "originalsOnly": true
+  },
+  "attribution": {
+    "brand": "VideoEle",
+    "websiteNamedAuthor": "Agustin Iruela (website accent: Agustín)",
+    "license": "CC BY-NC-ND 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es",
+    "noNewPermissionsInferred": true
+  },
+  "items": [
+    {
+      "key": "a2",
+      "videoId": "S0irU4fsfA0",
+      "officialLesson": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+      "officialPdf": "https://www.videoele.com/Archivos/A2_Sube_a_mi_casa_Transc.pdf",
+      "localOriginal": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\content-asset-001-originals\\A2_Sube_a_mi_casa_Transc.pdf",
+      "acquisition": {
+        "url": "https://www.videoele.com/Archivos/A2_Sube_a_mi_casa_Transc.pdf",
+        "checkedAt": "2026-10-16T10:21:03.161Z",
+        "status": 200,
+        "mime": "application/pdf",
+        "bytes": 28323,
+        "sha256": "e177565449eec7ade6889af8ee53a054deae87b0f6f75c87b1661078ea004b75"
+      },
+      "lessonEvidence": {
+        "url": "https://www.videoele.com/A2-Sube-a-mi-casa.html",
+        "checkedAt": "2026-10-16T10:21:02.962Z",
+        "status": 200,
+        "mime": "text/html",
+        "bytes": 10149,
+        "sha256": "6620f901fc6b196c0e47a90ad64fd7365c2a9aacaeb8eb9731ef51c0365d9432"
+      },
+      "pages": 1,
+      "pdfMetadata": {
+        "title": "Sube a mi casa. Nivel A2. Transcripción",
+        "author": "Agustin Iruela",
+        "subject": "Transcripción del vídeo del nivel A2 \"Sube a mi casa\"",
+        "encryption": "Standard V4 R4 128-bit AES"
+      },
+      "permissions": {
+        "needsOpenPassword": false,
+        "raw": -1340,
+        "copyAllowed": false,
+        "accessibilityAllowed": true,
+        "printAllowed": true,
+        "modifyAllowed": false
+      },
+      "originalBytesUnmodified": true,
+      "visualInspection": {
+        "allPagesReviewed": true,
+        "visibleLogo": "VideoEle",
+        "visiblePageNumbers": [
+          1
+        ],
+        "visibleLicenseOrAdditionalThirdPartyNoticeFound": false,
+        "visibleTimestampsFound": false,
+        "noAudioOrVideoInspection": true
+      },
+      "selection": {
+        "officialLevel": "A2",
+        "textStructure": "single-narrator housing tour with invitation opening and hosting close",
+        "continuousTwoPersonTurnsObserved": false,
+        "coreShortDialogueDecision": "exclude",
+        "supplementaryUse": "personal reading: housing and hosting",
+        "visualPagesReviewed": [
+          1
+        ]
+      }
+    },
+    {
+      "key": "b1",
+      "videoId": "z-CS3hAuOxs",
+      "officialLesson": "https://www.videoele.com/B1-Comer-fuera.html",
+      "officialPdf": "https://www.videoele.com/Archivos/B1_Comer_fuera_Transc.pdf",
+      "localOriginal": "C:\\Users\\master\\.codex\\visualizations\\2026\\10\\15\\01a13f25-4c54-7281-b450-1ff23e5ded8d\\content-asset-001-originals\\B1_Comer_fuera_Transc.pdf",
+      "acquisition": {
+        "url": "https://www.videoele.com/Archivos/B1_Comer_fuera_Transc.pdf",
+        "checkedAt": "2026-10-16T10:21:03.667Z",
+        "status": 200,
+        "mime": "application/pdf",
+        "bytes": 41644,
+        "sha256": "f3a33a3e15619a40cd002a72050e083f6a91b08a652987e39d2bcbd272215b68"
+      },
+      "lessonEvidence": {
+        "url": "https://www.videoele.com/B1-Comer-fuera.html",
+        "checkedAt": "2026-10-16T10:21:03.470Z",
+        "status": 200,
+        "mime": "text/html",
+        "bytes": 9353,
+        "sha256": "380857a1e1805a7a3a0a7b0879ba9452aa48ef693fa194824c367a04dd21f36c"
+      },
+      "pages": 2,
+      "pdfMetadata": {
+        "title": "Comer fuera. Nivel B1 Transcripción",
+        "author": "Agustin Iruela",
+        "subject": "Transcripción del vídeo del nivel B1 \"Comer fuera\"",
+        "encryption": "Standard V4 R4 128-bit AES"
+      },
+      "permissions": {
+        "needsOpenPassword": false,
+        "raw": -1340,
+        "copyAllowed": false,
+        "accessibilityAllowed": true,
+        "printAllowed": true,
+        "modifyAllowed": false
+      },
+      "originalBytesUnmodified": true,
+      "visualInspection": {
+        "allPagesReviewed": true,
+        "visibleLogo": "VideoEle",
+        "visiblePageNumbers": [
+          1,
+          2
+        ],
+        "visibleLicenseOrAdditionalThirdPartyNoticeFound": false,
+        "visibleTimestampsFound": false,
+        "noAudioOrVideoInspection": true
+      },
+      "selection": {
+        "officialLevel": "B1",
+        "textStructure": "single-narrator restaurant and food overview, followed by one-sided ordering/bill requests",
+        "continuousTwoPersonTurnsObserved": false,
+        "coreShortDialogueDecision": "exclude",
+        "supplementaryUse": "personal reading: dining and requests",
+        "historicalPricesNotCurrentFacts": true,
+        "visualPagesReviewed": [
+          1,
+          2
+        ]
+      }
+    }
+  ],
+  "processCorrection": {
+    "initialTextExtractionBeforePermissionCheck": true,
+    "derivedFullTextRemoved": true,
+    "initialToolOutputRemainsInChatHistory": true,
+    "finalScriptChecksPermissionsFirst": true,
+    "noOcrOrPermissionStripping": true
+  },
+  "operations": {
+    "originalPdfDownloads": 2,
+    "originalPdfPages": 3,
+    "aiPersonalVisualInspection": true,
+    "originalFilesModified": false,
+    "pdfTextInRepository": false,
+    "youtubeMediaDownloaded": false,
+    "separateAsrOrTranslationApiCalled": false,
+    "thirdPartyContacted": false,
+    "credentialsRead": false,
+    "databaseRead": false,
+    "databaseWritten": false,
+    "sourcesEnabled": 0,
+    "formalReviewRecorded": false,
+    "published": 0,
+    "committed": false,
+    "pushed": false,
+    "deployed": false
+  },
+  "targetSnapshotFromPriorTask": {
+    "pendingReview": 2,
+    "unfilled": 10,
+    "freshDatabaseCount": false
+  },
+  "validation": {
+    "httpMimeHeaderEofAndHashes": true,
+    "pdfOpenAndPermissions": true,
+    "visualPagesReviewed": 3,
+    "fullChecksExecuted": false,
+    "reason": "Research and acquisition only; no application source, public schema or migration changes"
+  },
+  "externalEvidence": {
+    "directory": "C:/Users/master/.codex/visualizations/2026/10/15/01a13f25-4c54-7281-b450-1ff23e5ded8d/",
+    "acquisition": "content-asset-001-acquisition.json",
+    "inspection": "content-asset-001-inspection.json",
+    "validation": "content-asset-001-validation.json"
+  }
+}

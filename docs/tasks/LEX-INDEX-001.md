@@ -83,10 +83,29 @@ server-only 适配器从**新增的 `server.ts`** 导出而非 capability index 
 
 **最终合并验证**（切片 1+2+3 + READ-SHELF-001 修复 + 既有相邻套件）：8 文件 / **58 测试**通过。
 
-### 切片 4 起的先决条件
+### 切片 4+5（已完成）：审核接入与 owner 批准门禁
 
-- **候选表 schema 与持久化**（原切片 1 的另一半）：新增迁移会向真实数据库追加记录，必须先确认 `drizzle-kit generate` 的 diff 归属与基线、在空库/一次性副本验证、经迁移评审。**产品本人已定：只生成迁移、贴出 diff 供审查，不应用到数据库。**
-- MiniMax 凭据已核实存在（`.env` 的 `MINIMAX_API_KEY`），但切片 4 之前需确认是否允许真实调用（会产生费用）。
+Commit `f147ec5`（5 文件）：新增 `src/modules/lexicon-corpus/application/lexicon-candidate-review.ts`（176 行）与 `approve-candidate-indexing.ts`（453 行）+ barrel 导出，测试 `tests/unit/lexicon-candidate-review.test.ts`（16 例）与 `tests/unit/lexicon-candidate-indexing-gate.test.ts`（24 例）。**全程使用 fake provider，未调用真实 MiniMax。**
+
+**切片 4 —— 审核结构上无法发布**：编排函数**完全不接收 repository**，所以记录审核不可能写 corpus 行。审核身份只经既有 `isOwnerAuthorizedReviewerReference()`（唯一身份权威，未另造判断）：历史 `codex-ai-owner-authorized-review` 与当前 `dsh-ai-owner-authorized-review[:actor[:runId]]` 通过，`codex-ai-temporary-review` 与未知字符串拒绝。两个维度都必须有；`reviewedAt`/`reviewerReference` **原样保存**，不被当前时间替换。
+
+**切片 5 —— 唯一一道闸门**：`indexApprovedCandidate()` 在做任何工作前拒绝所有非 `approved` 状态，且它是既有 `indexContentVersion()` 的**唯一调用点**（复用而非重写）。`lemmaStatus` 经 domain helper 派生，corpus 只可能通过显式批准拿到 `verified`。
+
+**头部测试**（记录 corpus writer 调用次数）：`discovered`/`review_submitted`/`review_ready`/`rejected` **各 0 次调用**；批准后**恰好 1 次**；重复批准报告 `duplicate: true` 且**仍为 1 次**。
+
+**批量批准**按 ADR-0011 §5：每个批次单一来源、仅限 provider 未声明词性的 lexeme、**整批预校验**（坏成员不会留下半应用批次）、每条候选**各自一份自包含审计记录**。批量批准只是省审核人力的捷径，绝不是绕过双维度审核或批准闸门的捷径。
+
+验证：聚焦 vitest `40/40`；含上游相邻套件 **6 文件 / 79 测试**通过；`tsc --noEmit` exit 0；改动文件 ESLint exit 0。Lead 独立复跑确认一致。
+
+**已知限制（刻意用测试锁定）**：候选尚未持久化，因此**携带批准前快照的重试与首次批准不可区分**，会再次调用 writer（corpus 写入本身仍幂等，靠 `onConflictDoNothing`）。存下候选 revision + CAS 才能关闭这一点。批量原子性目前只是内存预校验，真正的持久性需要持久化片的**事务边界**。
+
+**架构审查需注意的新跨模块边**：`lexicon-corpus/application` 现在读取 `content-acquisition/domain/review-identity` —— 这是对唯一身份权威的**规定复用**（而非本地复制），与既有 `media-processing` 先例一致，但确属新增边，已记录。
+
+### 切片 6 起的先决条件
+
+- **候选持久化**（表已定义，迁移未应用）：接上 repository、在存储的 revision 上做 CAS、把审计记录落库 —— 这同时解决上面三条限制。
+- **每日流水线开关**（切片 6）依赖持久化。
+- MiniMax 凭据存在，但真实调用会产生费用，需单独确认。
 
 ### 候选表 schema（已完成，迁移未应用）
 

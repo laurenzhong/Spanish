@@ -1,0 +1,344 @@
+/* Public home (`/`) — the landing page's own stylesheet.
+ *
+ * `app/globals.css` still carries the original landing rules plus a stack of
+ * later override blocks (`PUBLIC-HOME-001A`…`001H`). Everything here is scoped
+ * under `.landing-page`, one class deeper than those base rules, so this file is
+ * the authority for the public home whatever order the two stylesheets end up
+ * bundled in — the Next docs warn that CSS order differs between `next dev` and
+ * `next build` — and nothing here can reach the signed-in shell.
+ *
+ * The page is a product page, not a poster: quiet type (no display-size
+ * slogans), the real recording as the hero visual, and capabilities listed as
+ * small cards. The palette is not redefined here; the shared `--landing-*`
+ * tokens keep the contrast values another pass already tuned.
+ */
+
+main.landing-page {
+  min-height: 100vh;
+  overflow: clip;
+  color: var(--landing-ink);
+  background: var(--landing-paper);
+  font-family: var(--font-ui);
+  color-scheme: light;
+  /* Two accent roles, because one value cannot carry both: accent text has to
+     stay bright on a dark surface, while a filled button needs to stay dark
+     enough for white text. The dark block at the end re-points both. */
+  --home-accent-ink: var(--landing-coral);
+  --home-accent-bg: var(--landing-coral);
+}
+.landing-page a { color: inherit; text-decoration: none; }
+.landing-shell { width: min(100%, 1120px); margin-inline: auto; padding-inline: clamp(16px, 4vw, 32px); }
+
+/* --- Top band: header + hero ------------------------------------------- */
+.landing-page .landing-top {
+  color: #f7f3eb;
+  background: var(--landing-night);
+  padding-bottom: clamp(26px, 4vw, 44px);
+}
+.landing-page .landing-nav {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  gap: clamp(14px, 3vw, 34px);
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+}
+.landing-page .landing-wordmark { display: inline-block; padding-block: 7px; color: #f7f3eb; font-family: Georgia, "Times New Roman", serif; font-size: 1.3rem; font-style: italic; font-weight: 800; letter-spacing: -.05em; }
+.landing-page .landing-wordmark span { color: var(--home-accent-ink); }
+.landing-page .landing-nav nav { display: flex; align-items: center; gap: clamp(28px, 3vw, 34px); margin-left: auto; color: rgb(247 243 235 / 72%); font-size: .78rem; font-weight: 650; }
+.landing-page .landing-nav nav a:hover,
+.landing-page .landing-nav nav a:focus-visible { color: #fff; }
+.landing-page .landing-nav__links { position: relative; --slideable-navigation-offset-y: 4px; }
+/* The labels are small, so each link carries an invisible 44x44 tap area: the
+   nav gap leaves 8px between adjacent targets so they never overlap. */
+.landing-page .landing-nav__links a { position: relative; }
+.landing-page .landing-nav__links a::before { position: absolute; top: 50%; right: -10px; left: -10px; height: 44px; content: ""; transform: translateY(-50%); }
+.landing-page .landing-nav__indicator { background: var(--home-accent-ink, #ff6b57); }
+.landing-page .landing-nav__cta {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0 16px;
+  border: 1px solid rgb(255 255 255 / 26%);
+  border-radius: 999px;
+  color: #fff !important;
+  background: rgb(255 255 255 / 8%);
+  font-size: .78rem;
+  font-weight: 700;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.landing-page .landing-nav__cta:hover { border-color: transparent; background: var(--home-accent-bg); }
+
+.landing-page .landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  gap: clamp(24px, 4vw, 52px);
+  align-items: center;
+  padding: clamp(28px, 4.5vw, 56px) 0 0;
+  background: none;
+}
+.landing-page .landing-hero__intro { display: grid; align-content: center; gap: 0; }
+.landing-eyebrow { margin: 0; color: var(--landing-gold); font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+/* Quiet on purpose: the recording is the loudest thing on this page. */
+.landing-page h1 {
+  max-width: 20ch;
+  margin: 12px 0 0;
+  font-size: clamp(1.5rem, 2.5vw, 1.95rem);
+  font-weight: 620;
+  line-height: 1.24;
+  letter-spacing: -.015em;
+  text-wrap: balance;
+}
+.landing-page h1 > span { display: inline; }
+/* Chinese has no spaces, so the default breaker splits words across lines
+   (把认识的西 / 语). The noun stays whole and the phone layout breaks between the
+   two clauses instead. Plain inline text: `display: block` would change the
+   accessible name of the heading between breakpoints. */
+.landing-page .landing-hero__keep { white-space: nowrap; }
+.landing-lede { max-width: 38ch; margin: 12px 0 0; color: rgb(247 243 235 / 72%); font-size: .88rem; line-height: 1.75; }
+.landing-page .landing-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 20px; animation: none; }
+.landing-page .landing-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 700;
+  transition: transform 160ms ease, background 160ms ease;
+}
+.landing-page .landing-button:hover { transform: translateY(-1px); }
+.landing-page .landing-button--accent { color: #fff !important; background: var(--home-accent-bg); box-shadow: 0 6px 20px rgb(0 0 0 / 22%); }
+.landing-page .landing-button--accent:hover { background: #e57459; }
+.landing-page .landing-text-button { display: inline-flex; min-height: 44px; align-items: center; color: rgb(247 243 235 / 78%) !important; font-size: .8rem; font-weight: 650; }
+.landing-page .landing-text-button span { display: inline-block; margin-left: 4px; color: var(--landing-gold); transition: transform 160ms ease; }
+.landing-page .landing-text-button:hover span { transform: translateY(3px); }
+
+/* --- The recording ------------------------------------------------------ */
+.landing-demo { margin: 0; display: grid; gap: 10px; }
+.landing-page .landing-demo__video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1280 / 720;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 12px;
+  background: #0b0f0e;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 34%);
+}
+.landing-demo__caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; color: rgb(247 243 235 / 58%); font-size: .7rem; line-height: 1.5; }
+.landing-demo__caption span:first-child { color: var(--landing-gold); font-weight: 650; }
+/* Three real transcript lines from inside the clip: the lesson itself lets a
+   learner click a subtitle to land on that moment, and this is the same move. */
+.landing-demo__marks { display: flex; flex-wrap: wrap; gap: 8px; }
+.landing-page .landing-demo__mark {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgb(247 243 235 / 20%);
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.landing-page .landing-demo__mark:hover { border-color: rgb(247 243 235 / 42%); background: rgb(255 255 255 / 6%); }
+.landing-demo__mark b { color: var(--landing-gold); font-size: .72rem; font-variant-numeric: tabular-nums; font-weight: 700; }
+.landing-demo__mark span { color: rgb(247 243 235 / 76%); font-size: .74rem; }
+/* Browsers only autoplay a muted video, so the lesson's own Spanish audio gets
+   its own control instead of hiding inside the player chrome. */
+.landing-page .landing-demo__sound {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 0 14px;
+  border: 1px solid var(--landing-gold);
+  border-radius: 999px;
+  color: var(--landing-gold);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.landing-page .landing-demo__sound:hover { background: rgb(223 181 110 / 14%); }
+.landing-page .landing-demo__sound span { font-size: .74rem; font-weight: 650; }
+.landing-page .landing-demo__sound[aria-pressed="true"] { border-color: rgb(247 243 235 / 26%); color: rgb(247 243 235 / 62%); }
+/* The burned-in subtitles are unreadable on a 320px phone and invisible to a
+   screen reader; this is the same three lines as text, one tap away. */
+.landing-page .landing-demo__transcript { border: 1px solid rgb(247 243 235 / 16%); border-radius: 12px; padding: 0 14px; }
+.landing-page .landing-demo__transcript summary { display: flex; min-height: 44px; align-items: center; gap: 8px; color: rgb(247 243 235 / 78%); font-size: .76rem; font-weight: 650; cursor: pointer; list-style: none; }
+.landing-page .landing-demo__transcript summary::-webkit-details-marker { display: none; }
+.landing-page .landing-demo__transcript summary::after { margin-left: auto; color: var(--landing-gold); content: "▾"; transition: transform 160ms ease; }
+.landing-page .landing-demo__transcript[open] summary::after { transform: rotate(180deg); }
+.landing-demo__transcript ol { display: grid; gap: 12px; margin: 0 0 14px; padding: 0; list-style: none; }
+.landing-demo__transcript li { display: grid; gap: 4px; }
+.landing-demo__transcript b { color: var(--landing-gold); font-size: .72rem; font-variant-numeric: tabular-nums; font-weight: 700; }
+.landing-demo__transcript p { margin: 0; }
+.landing-demo__transcript p[lang="es"] { color: #f7f3eb; font-size: .88rem; line-height: 1.55; }
+.landing-demo__transcript p:not([lang]) { color: rgb(247 243 235 / 64%); font-size: .78rem; line-height: 1.6; }
+
+/* --- Sections ----------------------------------------------------------- */
+/* `globals.css` gives `.landing-section-head` a three-column template and
+   `.landing-closing` a fixed min-height from the old design, so every reused
+   class name is scoped and reset here rather than inherited. */
+.landing-page .landing-capabilities,
+.landing-page .landing-loop,
+.landing-page .landing-trust,
+.landing-page .landing-closing { padding-block: clamp(48px, 6vw, 78px); }
+.landing-page .landing-loop { padding-top: clamp(34px, 4vw, 54px); }
+.landing-page .landing-section-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; max-width: 62ch; }
+/* The base rules pin `h2` to a serif display face, a 16ch cap and a 1.03 line
+   height, and push the paragraph into a second grid column — which is what made
+   a small heading wrap into three lines. Reset all four here. */
+.landing-page h2 { margin: 0; max-width: none; font-family: inherit; font-size: 1.08rem; font-weight: 650; line-height: 1.35; letter-spacing: -.01em; }
+.landing-page .landing-section-head p { grid-column: auto; max-width: none; margin: 0; color: var(--landing-muted); font-size: .84rem; line-height: 1.7; }
+
+.landing-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 0 0; padding: 0; list-style: none; }
+.landing-card { padding: 16px; border: 1px solid var(--landing-line); border-radius: 12px; background: var(--landing-surface); transition: border-color 160ms ease, transform 160ms ease; }
+.landing-card:hover { border-color: rgb(23 33 29 / 28%); transform: translateY(-2px); }
+.landing-card__icon { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 9px; color: var(--landing-teal); background: rgb(47 111 102 / 10%); }
+.landing-card__icon svg { width: 17px; height: 17px; }
+.landing-card h3 { margin: 12px 0 6px; font-size: .92rem; font-weight: 620; }
+.landing-card p { margin: 0; color: var(--landing-muted); font-size: .8rem; line-height: 1.66; }
+
+/* --- Practice loop ------------------------------------------------------ */
+.landing-loop__body { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 14px; margin-top: 22px; }
+.landing-loop__steps { display: grid; gap: 8px; align-content: start; }
+.landing-page .landing-loop__step {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 3px 10px;
+  padding: 13px 15px;
+  border: 1px solid var(--landing-line);
+  border-radius: 12px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.landing-page .landing-loop__step:hover { border-color: rgb(23 33 29 / 26%); }
+.landing-page .landing-loop__step.is-active { border-color: rgb(23 33 29 / 32%); background: var(--landing-surface); }
+.landing-loop__index { grid-row: span 2; color: var(--home-accent-ink); font-size: .72rem; font-weight: 800; letter-spacing: .06em; }
+.landing-loop__step strong { font-size: .88rem; font-weight: 620; }
+.landing-loop__step small { color: var(--landing-muted); font-size: .76rem; line-height: 1.55; }
+.landing-loop__step.is-active small { color: rgb(23 33 29 / 72%); }
+
+.landing-loop__sample { display: grid; gap: 7px; align-content: start; padding: 20px; border-radius: 12px; color: #f7f3eb; background: var(--landing-night); }
+.landing-loop__eyebrow { margin: 0; color: var(--landing-gold); font-size: .68rem; font-weight: 700; letter-spacing: .1em; }
+.landing-loop__es { margin: 4px 0 0; font-size: 1.08rem; line-height: 1.5; }
+.landing-loop__zh { margin: 0; color: rgb(247 243 235 / 72%); font-size: .82rem; }
+.landing-loop__detail { margin: 4px 0 0; color: rgb(247 243 235 / 62%); font-size: .78rem; line-height: 1.6; }
+.landing-loop__words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.landing-loop__words b { padding: 3px 8px; border: 1px solid rgb(247 243 235 / 22%); border-radius: 999px; color: rgb(247 243 235 / 86%); font-size: .72rem; font-weight: 600; }
+
+/* --- Trust -------------------------------------------------------------- */
+.landing-trust__body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 22px; }
+.landing-page .landing-chat { padding: 16px; border: 1px solid var(--landing-line); border-radius: 12px; background: var(--landing-surface); }
+.landing-page .landing-chat__head { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--landing-line); }
+.landing-page .landing-chat__head span { color: var(--landing-teal); font-size: .78rem; font-weight: 700; }
+.landing-page .landing-chat__head small { color: var(--landing-muted); font-size: .7rem; }
+.landing-page .landing-chat__message { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--landing-line); }
+.landing-page .landing-chat__message:last-child { border-bottom: 0; padding-bottom: 0; }
+.landing-page .landing-chat__message > span { color: var(--landing-teal); font-size: .72rem; font-weight: 700; }
+.landing-page .landing-chat__message.is-user > span { color: var(--home-accent-ink); }
+.landing-page .landing-chat__message p { margin: 0; font-size: .88rem; line-height: 1.5; }
+.landing-page .landing-chat__message small { color: var(--landing-muted); font-size: .7rem; }
+.landing-trust__rules { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.landing-trust__rules li { display: grid; gap: 3px; padding: 12px 15px; border: 1px solid var(--landing-line); border-radius: 12px; background: var(--landing-surface); }
+.landing-trust__rules b { font-size: .78rem; font-weight: 650; }
+.landing-trust__rules span { color: var(--landing-muted); font-size: .78rem; line-height: 1.6; }
+
+/* --- Closing ------------------------------------------------------------ */
+.landing-page .landing-closing { display: flex; min-height: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--landing-line); }
+.landing-page .landing-closing h2 { max-width: 26ch; }
+.landing-page .landing-closing p { margin: 8px 0 0; color: var(--landing-muted); font-size: .84rem; }
+.landing-page .landing-closing .landing-button--accent { color: #fff !important; background: var(--home-accent-bg); }
+.landing-page .landing-footer { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid var(--landing-line); color: var(--landing-muted); font-size: .74rem; }
+.landing-page .landing-footer a { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
+.landing-page .landing-footer .landing-wordmark { color: var(--landing-ink); font-size: 1.15rem; }
+.landing-page .landing-footer > a:last-child { color: var(--home-accent-ink); font-weight: 650; }
+
+/* --- Focus -------------------------------------------------------------- */
+.landing-page .landing-nav__cta:focus-visible,
+.landing-page .landing-button:focus-visible,
+.landing-page .landing-text-button:focus-visible,
+.landing-page .landing-loop__step:focus-visible,
+.landing-demo__video:focus-visible,
+.landing-page .landing-footer a:focus-visible {
+  outline: 2px solid var(--home-accent-ink);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* --- Phone / tablet ----------------------------------------------------- */
+@media (max-width: 900px) {
+  .landing-page .landing-hero { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .landing-page h1 { max-width: 24ch; }
+  .landing-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .landing-loop__body,
+  .landing-trust__body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 620px) {
+  .landing-page .landing-nav { min-height: 58px; }
+  .landing-page .landing-nav nav { font-size: .74rem; }
+  /* The first two destinations are hidden at phone widths; the CTA stays. */
+  .landing-page .landing-nav__links a:nth-child(1),
+  .landing-page .landing-nav__links a:nth-child(2) { display: none; }
+  .landing-page .landing-hero { padding-top: 22px; }
+  .landing-page h1 { font-size: 1.45rem; }
+  /* Break between the two headline clauses instead of inside a word. */
+  .landing-page h1 > span:first-child { white-space: nowrap; }
+  .landing-lede { font-size: .85rem; }
+  .landing-demo__caption { font-size: .66rem; }
+  .landing-cards { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .landing-loop__sample { padding: 16px; }
+  .landing-closing { display: grid; }
+  .landing-page .landing-closing .landing-button--accent { justify-self: start; }
+}
+
+/* --- Dark ---------------------------------------------------------------
+   The app writes `data-theme` from the visitor's stored choice; a first-time
+   visitor has none, so the system preference decides. An explicit "light" wins
+   over a dark system setting, which is why the media query excludes it.
+   The palette is written twice because a media query cannot join a selector
+   list. `light-dark()` would be shorter, but a browser that does not support it
+   keeps the custom property as unparsed tokens and then drops the substituted
+   declaration, so the page would lose its background instead of falling back.
+   Surfaces get lighter as they come forward and the recessed night band stays
+   darker than the page. */
+:root[data-theme="dark"] main.landing-page {
+  color-scheme: dark;
+  --landing-paper: #151c1a;
+  --landing-surface: #1d2523;
+  --landing-ink: #f1eee7;
+  --landing-muted: #a2afa8;
+  --landing-line: rgb(241 238 231 / 14%);
+  --landing-night: #0f1614;
+  --landing-coral: #e8967c;
+  --landing-teal: #6cbdb0;
+  --home-accent-ink: #e8967c;
+  --home-accent-bg: #b8503a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) main.landing-page {
+    color-scheme: dark;
+    --landing-paper: #151c1a;
+    --landing-surface: #1d2523;
+    --landing-ink: #f1eee7;
+    --landing-muted: #a2afa8;
+    --landing-line: rgb(241 238 231 / 14%);
+    --landing-night: #0f1614;
+    --landing-coral: #e8967c;
+    --landing-teal: #6cbdb0;
+    --home-accent-ink: #e8967c;
+    --home-accent-bg: #b8503a;
+  }
+}

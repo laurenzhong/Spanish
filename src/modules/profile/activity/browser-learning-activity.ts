@@ -5,8 +5,17 @@ export type LearningActivityPayload = Omit<
   "occurredAt"
 >;
 
+export type LearningActivitySendOptions = Readonly<{
+  /**
+   * Aborted when the recorder is torn down, so a pending heartbeat cannot
+   * outlive the practice page. A sender may ignore it and still be correct.
+   */
+  signal?: AbortSignal;
+}>;
+
 export type LearningActivitySender = (
   event: LearningActivityPayload,
+  options?: LearningActivitySendOptions,
 ) => Promise<void>;
 
 export type LearningActivityRecorder = Readonly<{
@@ -33,6 +42,7 @@ class BrowserLearningActivityRecorder implements LearningActivityRecorder {
   private foreground = true;
   private lastInteractionAt = 0;
   private lastSentType: LearningActivityPayload["eventType"] | null = null;
+  private readonly inFlight = new Set<AbortController>();
 
   constructor(private readonly send: LearningActivitySender) {}
 
@@ -68,7 +78,15 @@ class BrowserLearningActivityRecorder implements LearningActivityRecorder {
     window.removeEventListener("focus", this.handleFocus);
     window.removeEventListener("pointerdown", this.markInteraction);
     window.removeEventListener("keydown", this.markInteraction);
+    // Pending heartbeats are cancelled first so the terminal event is the only
+    // request still in flight; `emit` gives `ended` a fresh, un-aborted signal.
+    this.abortInFlight();
     this.emit("ended");
+  }
+
+  private abortInFlight(): void {
+    for (const controller of [...this.inFlight]) controller.abort();
+    this.inFlight.clear();
   }
 
   private emit(eventType: LearningActivityPayload["eventType"]): void {
@@ -78,7 +96,19 @@ class BrowserLearningActivityRecorder implements LearningActivityRecorder {
       sequence: this.sequence++,
     };
     this.lastSentType = eventType;
-    void this.send(event).catch(() => undefined);
+    const controller = new AbortController();
+    this.inFlight.add(controller);
+    const settle = () => {
+      this.inFlight.delete(controller);
+    };
+    try {
+      // A failed or rejected heartbeat is dropped, never re-queued: the sequence
+      // is consumed, so a transport retry of the same event is idempotent and a
+      // new attempt can never re-use it. Collection must not break training.
+      void this.send(event, { signal: controller.signal }).then(settle, settle);
+    } catch {
+      settle();
+    }
   }
 
   private tick = (): void => {
@@ -91,21 +121,30 @@ class BrowserLearningActivityRecorder implements LearningActivityRecorder {
     }
   };
 
-  private handleVisibilityChange = (): void => {
-    this.foreground = document.visibilityState !== "hidden";
-    if (!this.foreground && this.lastSentType !== "inactive") {
-      this.emit("inactive");
+  /**
+   * Mirrors the Flutter adapter's `didChangeAppLifecycleState`: leaving the
+   * foreground emits `inactive`, returning to it counts as interaction and
+   * re-emits `active` immediately instead of waiting for the next heartbeat.
+   */
+  private setForeground(foreground: boolean): void {
+    this.foreground = foreground;
+    if (!foreground) {
+      if (this.lastSentType !== "inactive") this.emit("inactive");
+      return;
     }
+    this.markInteraction();
+  }
+
+  private handleVisibilityChange = (): void => {
+    this.setForeground(document.visibilityState !== "hidden");
   };
 
   private handleBlur = (): void => {
-    this.foreground = false;
-    if (this.lastSentType !== "inactive") this.emit("inactive");
+    this.setForeground(false);
   };
 
   private handleFocus = (): void => {
-    this.foreground = document.visibilityState !== "hidden";
-    this.markInteraction();
+    this.setForeground(document.visibilityState !== "hidden");
   };
 }
 
@@ -119,12 +158,13 @@ export function createFetchLearningActivitySender(
   sessionId: string,
   fetcher: typeof fetch = fetch,
 ): LearningActivitySender {
-  return async (event) => {
+  return async (event, options) => {
     const response = await fetcher(`/api/v1/practice/sessions/${sessionId}/activity`, {
       body: JSON.stringify(event),
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
       method: "POST",
+      signal: options?.signal,
     });
     if (!response.ok) throw new Error("learning-activity-request-failed");
   };

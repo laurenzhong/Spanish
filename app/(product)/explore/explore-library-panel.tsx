@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExploreDashboardDto, ExploreCardDto } from "@/src/modules/explore/domain";
@@ -9,30 +10,54 @@ import {
   type ExploreExpressionLibraryCard,
   type ExploreLibraryDto,
   type ExploreLibraryFilter,
+  type ExplorePrivateState,
 } from "@/src/modules/explore/domain/explore-library";
 
 import { ExploreExpressionSaveButton } from "./explore-expression-save-button";
 
 type ExploreView = "scenarios" | "expressions" | "packs";
 
+/**
+ * `owned` marks the filters whose result can only be computed from the user's
+ * own rows. While those rows are still in flight, an empty list under such a
+ * filter means "not read yet", not "you have nothing saved".
+ */
 const scenarioFilterChoices = [
-  { value: "all", label: "全部场景" },
-  { value: "available", label: "可立即开始" },
+  { value: "all", label: "全部场景", owned: false },
+  { value: "available", label: "可立即开始", owned: false },
 ] as const;
 
 const expressionFilterChoices = [
-  { value: "all", label: "全部表达" },
-  { value: "formal", label: "正式表达" },
-  { value: "saved", label: "我的收藏" },
-  { value: "reading", label: "阅读来源" },
-  { value: "recent-error", label: "近期难点" },
+  { value: "all", label: "全部表达", owned: false },
+  { value: "formal", label: "正式表达", owned: false },
+  { value: "saved", label: "我的收藏", owned: true },
+  { value: "reading", label: "阅读来源", owned: true },
+  { value: "recent-error", label: "近期难点", owned: true },
 ] as const;
 
 const packFilterChoices = [
-  { value: "all", label: "全部内容包" },
-  { value: "available", label: "可打开" },
-  { value: "saved", label: "已收藏" },
+  { value: "all", label: "全部内容包", owned: false },
+  // `route` is decided by the pack's published status, which is catalogue data;
+  // only the saved flag comes from the user's own rows.
+  { value: "available", label: "可打开", owned: false },
+  { value: "saved", label: "已收藏", owned: true },
 ] as const;
+
+/**
+ * Only a failed owned-read is worth a notice. While those rows are still in
+ * flight the public catalogue stands on its own without an announcement, and
+ * the filters that cannot be answered yet show `privateFilterPending` instead.
+ */
+const privateNotice: Readonly<Partial<Record<ExplorePrivateState, string>>> = {
+  unavailable: "私人内容暂不可用，当前显示公共内容。",
+};
+
+/** The placeholder shown when the active filter needs rows that have not arrived. */
+const privateFilterPending: Readonly<Record<ExploreView, string>> = {
+  scenarios: "正在加载你的场景…",
+  expressions: "正在加载你的收藏与阅读来源…",
+  packs: "正在加载你的内容包状态…",
+};
 
 const skillLabels: Readonly<Record<ExploreCardDto["skills"][number], string>> = {
   listen: "听力",
@@ -105,6 +130,8 @@ export function ExploreLibraryPanel({ dashboard, library, view, query, filter, s
     return [...new Map(items.map((item) => [item.category, item.categoryLabel])).entries()];
   }, [library.expressions, library.scenarios, view]);
   const choices = view === "scenarios" ? scenarioFilterChoices : view === "expressions" ? expressionFilterChoices : packFilterChoices;
+  const ownedFilter = choices.find((choice) => choice.value === filter)?.owned === true;
+  const privatePending = library.privateState === "loading" && ownedFilter;
   const activeFilterLabel = choices.find((choice) => choice.value === filter)?.label;
   const count = view === "scenarios" ? scenarios.length : view === "expressions" ? expressions.length : packs.length;
   const countLabel = view === "scenarios" ? `${count} 个场景` : view === "expressions" ? `${count} 条表达` : `${count} 个内容包`;
@@ -153,21 +180,27 @@ export function ExploreLibraryPanel({ dashboard, library, view, query, filter, s
       </div>
     </div>
     {filter !== "all" || category !== "all" ? <div className="explore-library__active-filters" aria-label="已选筛选">{filter !== "all" ? <button type="button" onClick={() => onFilterChange("all")}>{activeFilterLabel} <span aria-hidden="true">×</span><span className="sr-only">，移除筛选</span></button> : null}{category !== "all" ? <button type="button" onClick={() => setCategoryState({ key: resetKey, value: "all" })}>{categories.find(([value]) => value === category)?.[1]} <span aria-hidden="true">×</span><span className="sr-only">，移除筛选</span></button> : null}</div> : null}
-    {library.privateState === "unavailable" && view !== "packs" ? <p className="explore-library__private-note" role="status">私人内容暂不可用，当前显示公共内容。</p> : null}
+    {privateNotice[library.privateState] ? <p className="explore-library__private-note" role="status">{privateNotice[library.privateState]}</p> : null}
 
-    {view === "scenarios" ? scenarios.length === 0
-      ? <div className="explore-empty explore-library__empty" role="status"><strong>没有匹配的场景</strong><button type="button" onClick={onClear}>清除搜索和筛选</button></div>
-      : <div className="explore-scenario-grid">{scenarios.map((scenario) => <a href={scenario.route} key={scenario.stableKey}><div><small>{scenario.cefr} · {scenario.role}{scenario.sourceKind === "personal" ? " · 私人" : ""}</small><h3>{scenario.title}</h3><span className="explore-scenario-card__goal">{scenario.communicationGoal}</span></div><span aria-hidden="true">→</span></a>)}</div>
+    {view === "scenarios" ? privatePending
+      ? <div className="explore-empty explore-library__empty" role="status"><strong>{privateFilterPending.scenarios}</strong></div>
+      : scenarios.length === 0
+        ? <div className="explore-empty explore-library__empty" role="status"><strong>没有匹配的场景</strong><button type="button" onClick={onClear}>清除搜索和筛选</button></div>
+        : <div className="explore-scenario-grid">{scenarios.map((scenario) => <Link href={scenario.route} key={scenario.stableKey}><div><small>{scenario.cefr} · {scenario.role}{scenario.sourceKind === "personal" ? " · 私人" : ""}</small><h3>{scenario.title}</h3><span className="explore-scenario-card__goal">{scenario.communicationGoal}</span></div><span aria-hidden="true">→</span></Link>)}</div>
       : null}
 
-    {view === "expressions" ? expressions.length === 0
-      ? <div className="explore-empty explore-library__empty" role="status"><strong>没有匹配的表达</strong><button type="button" onClick={onClear}>清除搜索和筛选</button></div>
-      : <><ul className="explore-expression-list">{expressions.slice(0, visibleExpressionCount).map((expression) => <li key={expression.id}><article className="explore-expression-card"><div className="explore-expression-card__copy"><div className="explore-expression-card__meta"><span>{sourceLabel(expression)}</span>{expression.cefr ? <span>{expression.cefr}</span> : null}{expression.region ? <span>{expression.region}</span> : null}<span>{expression.categoryLabel}</span></div><h3 lang="es">{expression.text}</h3>{expression.translation ? <p>{expression.translation}</p> : null}{expression.intent ? <small>{expression.intent}</small> : null}</div>{expression.saved || expression.saveSource ? <ExploreExpressionSaveButton expressionText={expression.text} initiallySaved={expression.saved} source={expression.saveSource} /> : null}</article></li>)}</ul>{visibleExpressionCount < expressions.length ? <button className="explore-library__more" type="button" onClick={() => setVisibleState({ key: resetKey, count: visibleExpressionCount + 12 })}>显示更多</button> : null}</>
+    {view === "expressions" ? privatePending
+      ? <div className="explore-empty explore-library__empty" role="status"><strong>{privateFilterPending.expressions}</strong></div>
+      : expressions.length === 0
+        ? <div className="explore-empty explore-library__empty" role="status"><strong>没有匹配的表达</strong><button type="button" onClick={onClear}>清除搜索和筛选</button></div>
+        : <><ul className="explore-expression-list">{expressions.slice(0, visibleExpressionCount).map((expression) => <li key={expression.id}><article className="explore-expression-card"><div className="explore-expression-card__copy"><div className="explore-expression-card__meta"><span>{sourceLabel(expression)}</span>{expression.cefr ? <span>{expression.cefr}</span> : null}{expression.region ? <span>{expression.region}</span> : null}<span>{expression.categoryLabel}</span></div><h3 lang="es">{expression.text}</h3>{expression.translation ? <p>{expression.translation}</p> : null}{expression.intent ? <small>{expression.intent}</small> : null}</div>{expression.saved || expression.saveSource ? <ExploreExpressionSaveButton expressionText={expression.text} initiallySaved={expression.saved} source={expression.saveSource} /> : null}</article></li>)}</ul>{visibleExpressionCount < expressions.length ? <button className="explore-library__more" type="button" onClick={() => setVisibleState({ key: resetKey, count: visibleExpressionCount + 12 })}>显示更多</button> : null}</>
       : null}
 
-    {view === "packs" ? packs.length === 0
-      ? <div className="explore-empty explore-library__empty" role="status"><strong>没有匹配的内容包</strong><button type="button" onClick={onClear}>清除搜索和筛选</button></div>
-      : <div className="explore-pack-grid">{packs.map((pack) => <PackCard key={pack.id} pack={pack} selected={pack.stableKey === selectedPack} onSelect={() => onPackSelected(pack.stableKey)} />)}</div>
+    {view === "packs" ? privatePending
+      ? <div className="explore-empty explore-library__empty" role="status"><strong>{privateFilterPending.packs}</strong></div>
+      : packs.length === 0
+        ? <div className="explore-empty explore-library__empty" role="status"><strong>没有匹配的内容包</strong><button type="button" onClick={onClear}>清除搜索和筛选</button></div>
+        : <div className="explore-pack-grid">{packs.map((pack) => <PackCard key={pack.id} pack={pack} selected={pack.stableKey === selectedPack} onSelect={() => onPackSelected(pack.stableKey)} />)}</div>
       : null}
   </section>;
 }

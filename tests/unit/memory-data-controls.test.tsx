@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryDataControls } from "@/src/modules/profile/ui/memory-data-controls";
@@ -7,6 +7,8 @@ const originalFetch = globalThis.fetch;
 const originalConfirm = window.confirm;
 
 afterEach(() => {
+  // vitest.config.ts does not enable `globals`, so RTL cannot auto-cleanup.
+  cleanup();
   globalThis.fetch = originalFetch;
   window.confirm = originalConfirm;
   vi.restoreAllMocks();
@@ -14,6 +16,8 @@ afterEach(() => {
 
 describe("MemoryDataControls", () => {
   it("shows private memories and removes one after explicit confirmation", async () => {
+    const confirmSpy = vi.fn(() => true);
+    window.confirm = confirmSpy;
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
@@ -21,17 +25,38 @@ describe("MemoryDataControls", () => {
       })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { deleted: true } }) });
     globalThis.fetch = fetchMock;
-    window.confirm = vi.fn(() => true);
 
     render(<MemoryDataControls />);
     await waitFor(() => expect(screen.getByText("喜欢摄影")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "删除记忆" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "删除这条关系记忆？" });
+    expect(confirmSpy).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认删除记忆" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(
       "/api/v1/profile/memories?memoryId=memory-1",
       expect.objectContaining({ method: "DELETE" }),
     ));
     await waitFor(() => expect(screen.queryByText("喜欢摄影")).not.toBeInTheDocument());
+  });
+
+  it("keeps a memory when the confirmation is dismissed", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { memories: [{ id: "memory-1", characterKey: "lucia", category: "interest", content: "喜欢摄影", createdAt: "2026-08-25T00:00:00.000Z", sensitivity: "normal", shareScope: "private", status: "candidate" }] } }),
+    });
+    globalThis.fetch = fetchMock;
+
+    render(<MemoryDataControls />);
+    await waitFor(() => expect(screen.getByText("喜欢摄影")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "删除记忆" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "删除这条关系记忆？" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(screen.getByText("喜欢摄影")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("offers a retry when the private memory list is unavailable", async () => {
@@ -47,3 +72,4 @@ describe("MemoryDataControls", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+

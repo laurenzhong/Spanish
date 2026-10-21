@@ -27,6 +27,15 @@ async function requestUser(request: NextRequest) {
 
 export async function GET(request: NextRequest, { params }: Context) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
+  // `include=text` is the detail page's first phase: same playback contract
+  // (sentences and metadata) but every `words` is null, so the word-timing JSON
+  // (68-89% of a large transcript's bytes) is not read, serialised or shipped.
+  // Any other explicit value is rejected rather than silently falling back to
+  // the full transcript, which would quietly undo the optimisation.
+  const include = request.nextUrl.searchParams.get("include");
+  if (include !== null && include !== "text") {
+    return errorResponse(requestId, "VALIDATION_FAILED", 400, "include 参数只支持 text。");
+  }
   const user = await requestUser(request);
   if (!user) return errorResponse(requestId, "AUTH_REQUIRED", 401, "A valid user session is required.");
   if (!process.env.DATABASE_URL) {
@@ -39,6 +48,8 @@ export async function GET(request: NextRequest, { params }: Context) {
       createDrizzleMediaRepository(getDatabase()),
       decodeURIComponent(stableKey),
       user.id,
+      new Date(),
+      include === "text" ? { includeWords: false } : {},
     );
     return NextResponse.json(
       { apiVersion: API_VERSION, data: playback },

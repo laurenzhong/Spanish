@@ -82,10 +82,15 @@ export async function runAcquisitionSource(options: Readonly<{
   signal?: AbortSignal;
 }>): Promise<RunAcquisitionSourceResult> {
   const { repository, adapter, input, signal } = options;
+  const assertActive = () => {
+    if (signal?.aborted) throw new ContentAcquisitionRunError("Content acquisition was cancelled.");
+  };
+  assertActive();
   if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 500) {
     throw new RangeError("Content acquisition limit must be between 1 and 500.");
   }
   const source = await repository.findSourceByStableKey(input.sourceStableKey);
+  assertActive();
   if (!source) throw new ContentSourceNotFoundError();
   if (!source.enabled) throw new ContentSourceDisabledError();
   if (source.adapterType !== adapter.key) {
@@ -109,6 +114,7 @@ export async function runAcquisitionSource(options: Readonly<{
       });
       runCreated = true;
     }
+    assertActive();
 
     const page = await adapter.discover({
       sourceStableKey: source.stableKey,
@@ -116,6 +122,7 @@ export async function runAcquisitionSource(options: Readonly<{
       cursor: source.cursor,
       limit: input.limit,
     }, { signal });
+    assertActive();
     if (page.sourceStableKey !== source.stableKey || page.cursor !== source.cursor) {
       throw new ContentAcquisitionRunError("Adapter returned a page for a different source revision.");
     }

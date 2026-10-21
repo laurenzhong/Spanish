@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ScenarioPracticeExpression } from "../content";
-import { createBrowserTextToSpeech } from "@/src/modules/providers/tts";
+import { createReadAloud } from "@/src/modules/providers/tts";
+import { speechCapabilityErrorCode } from "@/src/modules/providers/speech";
 import { SaveExpressionButton } from "./save-expression-button";
 
 export type ScenarioExpressionGoal = Readonly<{
@@ -21,7 +22,7 @@ type ScenarioExpressionListProps = Readonly<{
 
 /**
  * Keeps the expression controls on the client while the scenario detail stays
- * server-rendered. Browser TTS is intentionally local-only: listening does
+ * server-rendered. Shared read-aloud uses the selected MiniMax female voice and does
  * not create a practice attempt or learning evidence.
  */
 export function ScenarioExpressionList({
@@ -31,8 +32,9 @@ export function ScenarioExpressionList({
   allowSave,
   languageTag,
 }: ScenarioExpressionListProps) {
-  const tts = useMemo(() => createBrowserTextToSpeech(), []);
+  const tts = useMemo(() => createReadAloud(), []);
   const [speakingKey, setSpeakingKey] = useState<string | null>(null);
+  const [speechStarted, setSpeechStarted] = useState(false);
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const attemptRef = useRef(0);
 
@@ -48,11 +50,13 @@ export function ScenarioExpressionList({
       attemptRef.current += 1;
       tts.stop();
       setSpeakingKey(null);
+      setSpeechStarted(false);
       setErrorKey(null);
       return;
     }
 
     const attempt = ++attemptRef.current;
+    setSpeechStarted(false);
     if (!tts.isSupported) {
       setSpeakingKey(null);
       setErrorKey(key);
@@ -63,18 +67,20 @@ export function ScenarioExpressionList({
     setErrorKey(null);
 
     try {
-      await tts.speak(expression.text, { languageTag, rate: 0.88 });
-    } catch {
-      if (attemptRef.current === attempt) setErrorKey(key);
+      await tts.speak(expression.text, { languageTag, rate: 1, onStart: () => {
+        if (attemptRef.current === attempt) setSpeechStarted(true);
+      } });
+    } catch (error) {
+      if (attemptRef.current === attempt && speechCapabilityErrorCode(error, "tts-failed") !== "tts-cancelled") setErrorKey(key);
     } finally {
-      if (attemptRef.current === attempt) setSpeakingKey(null);
+      if (attemptRef.current === attempt) { setSpeakingKey(null); setSpeechStarted(false); }
     }
   }, [languageTag, speakingKey, tts]);
 
   const statusMessage = speakingKey
-    ? `正在朗读：${expressions.find((expression) => expression.stableKey === speakingKey)?.text ?? "表达"}`
+    ? `${speechStarted ? "正在朗读" : "正在准备朗读"}：${expressions.find((expression) => expression.stableKey === speakingKey)?.text ?? "表达"}`
     : errorKey
-      ? "浏览器暂时无法朗读；你仍可以直接阅读或进入实战。"
+      ? "暂时无法朗读；你仍可以直接阅读或进入实战。"
       : null;
 
   return (

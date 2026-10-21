@@ -22,7 +22,7 @@ export type MediaRevisionInput = Readonly<{
 const revisionPayloadSchema = z.object({
   title: z.string().trim().min(1).max(500).optional(),
   summary: z.string().trim().max(4_000).optional(),
-  cefr: z.preprocess((value) => value === "A2" || value === "B1" ? value : undefined, z.enum(["A2", "B1"]).optional()),
+  cefr: z.preprocess((value) => typeof value === "string" && ["A1", "A2", "B1", "B2"].includes(value) ? value : undefined, z.enum(["A1", "A2", "B1", "B2"]).optional()),
   topics: z.array(z.string().trim().min(1).max(160)).min(1).max(20).optional(),
   region: z.string().trim().min(2).max(35).nullable().optional(),
   // Some valid revisions omit a new reason or return an empty one. The merge

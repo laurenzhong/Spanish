@@ -1,5 +1,11 @@
 export type PlyrInstance = {
   currentTime: number;
+  /**
+   * Plyr exposes playback speed as an accessor pair. Assigning it updates
+   * `config.speed.selected` and the underlying media `playbackRate`, so a
+   * visible workbench control and Plyr's own settings menu stay in agreement.
+   */
+  speed: number;
   elements?: { controls?: HTMLElement; container?: HTMLElement };
   media?: HTMLElement & { error?: { code?: number } };
   play(): Promise<void> | void;
@@ -18,6 +24,34 @@ export type PlyrConstructor = new (target: HTMLElement, options: Readonly<Record
  */
 export const PLYR_VERSION = "3.8.4" as const;
 export type PlyrMediaKind = "audio" | "video";
+
+/**
+ * Speeds offered by the visible workbench control. Keep every value inside
+ * Plyr's own `speed.options` list below so the two controls agree about the
+ * current rate instead of overwriting each other.
+ */
+export const MEDIA_PLAYBACK_SPEEDS = [0.75, 1, 1.25] as const;
+export type MediaPlaybackSpeed = (typeof MEDIA_PLAYBACK_SPEEDS)[number];
+export const DEFAULT_MEDIA_PLAYBACK_SPEED: MediaPlaybackSpeed = 1;
+
+export function isMediaPlaybackSpeed(value: number): value is MediaPlaybackSpeed {
+  return (MEDIA_PLAYBACK_SPEEDS as readonly number[]).includes(value);
+}
+
+/** Compact "0.75x" label that fits the shared sentence-control row. */
+export function mediaPlaybackSpeedLabel(speed: number): string {
+  return `${speed}x`;
+}
+
+/**
+ * Apply a speed selected outside Plyr's settings menu. Assigning `speed`
+ * before the instance finishes bootstrapping is safe: Plyr clamps the value
+ * and defers the media update.
+ */
+export function applyPlyrSpeed(player: PlyrInstance | null | undefined, speed: number): void {
+  if (!player || !Number.isFinite(speed)) return;
+  player.speed = speed;
+}
 
 export type MountedAutoPauseControl = Readonly<{
   destroy: () => void;

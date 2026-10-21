@@ -61,7 +61,9 @@ function lexemeProposal(overrides: Record<string, unknown> = {}) {
     surfaceText: "terremoto",
     lemma: "terremoto",
     partOfSpeech: "NOUN",
-    meaningZh: null,
+    // Required by the contract: the teaching review judges this gloss, so a
+    // lexeme without one is dropped by the adapter rather than reviewed.
+    meaningZh: "地震",
     segmentIndex: 0,
     confidence: 0.9,
     ...overrides,
@@ -101,7 +103,7 @@ describe("MiniMax lexicon extraction adapter", () => {
     expect(result.modelVersion).toBe("MiniMax-M3");
   });
 
-  it("keeps a well-formed lexeme proposal", async () => {
+  it("keeps a well-formed lexeme proposal, including its gloss", async () => {
     const { provider } = providerWithResponse(anthropicResponse([lexemeProposal()]));
     const result = await provider.extractCandidates(input);
     expect(result.proposals).toEqual([
@@ -111,11 +113,41 @@ describe("MiniMax lexicon extraction adapter", () => {
         normalizedText: "terremoto",
         lemma: "terremoto",
         partOfSpeech: "NOUN",
-        meaningZh: null,
+        // The gloss survives the adapter now. It used to be forced to null here,
+        // which is what guaranteed the teaching review would reject every lexeme.
+        meaningZh: "地震",
         segmentIndex: 0,
         confidence: 0.9,
       },
     ]);
+  });
+
+  it("drops a lexeme that arrives without a gloss, rather than paying to review it", async () => {
+    // Dropping is deliberate: a gloss-less lexeme cannot pass the teaching
+    // dimension, so requesting a verdict for it would spend a call to learn
+    // something already known.
+    const { provider } = providerWithResponse(anthropicResponse([lexemeProposal({ meaningZh: null })]));
+    const result = await provider.extractCandidates(input);
+    expect(result.proposals).toHaveLength(0);
+  });
+
+  it("drops a lexeme that arrives with a null dictionary form", async () => {
+    // A null lemma passes the payload schema and is dropped per-proposal, so one
+    // bad candidate does not cost the whole batch.
+    const { provider } = providerWithResponse(anthropicResponse([lexemeProposal({ lemma: null })]));
+    expect((await provider.extractCandidates(input)).proposals).toHaveLength(0);
+  });
+
+  it("rejects the whole payload when a dictionary form is present but blank", async () => {
+    // A blank string is a different failure from a missing one: the schema's
+    // `.trim().min(1)` refuses it before the sanitiser runs, so the batch fails.
+    // Both behaviours are asserted because they take different paths, and losing
+    // either would let a claim through unexamined.
+    const { provider } = providerWithResponse(anthropicResponse([lexemeProposal({ lemma: "   " })]));
+    await expect(provider.extractCandidates(input)).rejects.toMatchObject({
+      code: "provider-response-invalid",
+      retryable: false,
+    });
   });
 
   it("drops a proposal whose surface form is not in the segment it cites (hallucination guard)", async () => {
@@ -134,6 +166,52 @@ describe("MiniMax lexicon extraction adapter", () => {
     expect(result.proposals).toHaveLength(0);
   });
 
+  it("requires whole tokens, so a form inside a longer word is not 'present'", async () => {
+    // The segment says `droides`; `droide` is only a substring of it. A substring
+    // guard accepted this proposal, which would have created a corpus occurrence
+    // for a form the text never uses.
+    const pluralSegment = { ...segment, sourceText: "Los droides de batalla avanzan por el pasillo." };
+    const pluralInput: LexiconExtractionInput = {
+      language: "es",
+      segments: [pluralSegment],
+      maxCandidatesPerSegment: 50,
+    };
+
+    const { provider: partial } = providerWithResponse(
+      anthropicResponse([lexemeProposal({ surfaceText: "droide", lemma: "droide" })]),
+    );
+    expect((await partial.extractCandidates(pluralInput)).proposals).toHaveLength(0);
+
+    // The form the segment actually uses is kept, so the guard narrows the claim
+    // rather than rejecting the segment.
+    const { provider: exact } = providerWithResponse(
+      anthropicResponse([lexemeProposal({ surfaceText: "droides", lemma: "droide" })]),
+    );
+    const kept = await exact.extractCandidates(pluralInput);
+    expect(kept.proposals).toHaveLength(1);
+    expect(kept.proposals[0]?.surfaceText).toBe("droides");
+  });
+
+  it("keeps a phrase only when it is a contiguous run of the segment's tokens", async () => {
+    const phrase = (surfaceText: string) => ({
+      kind: "phrase",
+      surfaceText,
+      lemma: null,
+      partOfSpeech: null,
+      meaningZh: "一场地震",
+      segmentIndex: 0,
+      confidence: 0.8,
+    });
+
+    // "un terremoto" is two whole tokens of the fixture segment.
+    const { provider: whole } = providerWithResponse(anthropicResponse([phrase("un terremoto")]));
+    expect((await whole.extractCandidates(input)).proposals).toHaveLength(1);
+
+    // "un terremot" ends in the middle of a token: the text does not contain it.
+    const { provider: truncated } = providerWithResponse(anthropicResponse([phrase("un terremot")]));
+    expect((await truncated.extractCandidates(input)).proposals).toHaveLength(0);
+  });
+
   it("discards a part of speech outside the controlled set instead of storing it as fact", async () => {
     const { provider } = providerWithResponse(anthropicResponse([lexemeProposal({ partOfSpeech: "NOUNISH" })]));
     const result = await provider.extractCandidates(input);
@@ -141,10 +219,22 @@ describe("MiniMax lexicon extraction adapter", () => {
     expect(result.proposals[0].partOfSpeech).toBeNull();
   });
 
-  it("drops malformed cross-kind proposals", async () => {
+  it("keeps a lexeme that carries a gloss, because that is now the required shape", async () => {
+    // This case used to sit in the malformed bucket: a lexeme with a translation
+    // was cross-kind. The rule inverted when the teaching dimension made the
+    // gloss mandatory, so the same input is now exactly what the contract asks
+    // for — and asserting it positively is what stops the old rule creeping back.
+    const { provider } = providerWithResponse(anthropicResponse([lexemeProposal({ meaningZh: "地震" })]));
+    const result = await provider.extractCandidates(input);
+    expect(result.proposals).toHaveLength(1);
+    expect(result.proposals[0].meaningZh).toBe("地震");
+  });
+
+  it("drops a phrase that carries a lemma", async () => {
+    // The surviving half of the cross-kind rule: a lemma on a phrase would claim
+    // a dictionary form for a whole sentence.
     const { provider } = providerWithResponse(
       anthropicResponse([
-        lexemeProposal({ meaningZh: "地震" }),
         {
           kind: "phrase",
           surfaceText: "un terremoto",
@@ -156,8 +246,26 @@ describe("MiniMax lexicon extraction adapter", () => {
         },
       ]),
     );
+    expect((await provider.extractCandidates(input)).proposals).toHaveLength(0);
+  });
+
+  it("keeps a well-formed phrase, gloss and no lemma", async () => {
+    const { provider } = providerWithResponse(
+      anthropicResponse([
+        {
+          kind: "phrase",
+          surfaceText: "un terremoto",
+          lemma: null,
+          partOfSpeech: null,
+          meaningZh: "一场地震",
+          segmentIndex: 0,
+          confidence: 0.9,
+        },
+      ]),
+    );
     const result = await provider.extractCandidates(input);
-    expect(result.proposals).toHaveLength(0);
+    expect(result.proposals).toHaveLength(1);
+    expect(result.proposals[0]).toMatchObject({ kind: "phrase", lemma: null, meaningZh: "一场地震" });
   });
 
   it("enforces the per-segment bound even when the model over-produces", async () => {

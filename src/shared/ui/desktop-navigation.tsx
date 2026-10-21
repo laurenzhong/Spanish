@@ -39,9 +39,11 @@ export function DesktopNavigation() {
                     onClick={() => setPendingHref(item.href)}
                     data-pending={pendingHref === item.href && pathname !== item.href ? "true" : undefined}
                   >
-                    <span className="desktop-navigation__icon"><NavigationIcon name={item.icon} /></span>
+                    <span className="desktop-navigation__icon">
+                      <NavigationIcon name={item.icon} />
+                      {item.icon === "chat" ? <ConversationUnreadBadge /> : null}
+                    </span>
                     <span className="desktop-navigation__label">{item.label}</span>
-                    {item.icon === "chat" ? <ConversationUnreadBadge /> : null}
                   </NavigationLink>
                 );
               })}

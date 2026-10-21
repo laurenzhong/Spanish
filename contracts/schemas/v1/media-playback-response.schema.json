@@ -24,7 +24,6 @@
         },
         "segments": {
           "type": "array",
-          "maxItems": 500,
           "items": {
             "type": "object",
             "additionalProperties": false,

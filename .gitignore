@@ -21,3 +21,11 @@ __pycache__/
 recording-script-*.png
 student-*.png
 sueno1-recording-script.txt
+# Agent scratch files and per-session build dirs. These must stay ignored:
+# Tailwind v4 skips .gitignore'd paths, and without that it reads locked files
+# inside them (e.g. a live Playwright chromium profile) and Turbopack panics.
+.tmp-*
+.next-*/
+# Partial install directories left by interrupted pnpm runs.
+.pnpm-store/
+node_modules.incomplete/

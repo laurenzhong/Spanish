@@ -55,5 +55,13 @@
   { "code": "MEDIA_NOT_FOUND", "defaultRetryable": false },
   { "code": "MEDIA_NOT_AVAILABLE", "defaultRetryable": true },
   { "code": "MEDIA_PROGRESS_CONFLICT", "defaultRetryable": false },
+  { "code": "MEDIA_SERIES_QUERY_INVALID", "defaultRetryable": false },
+  { "code": "MEDIA_SERIES_COMMAND_INVALID", "defaultRetryable": false },
+  { "code": "MEDIA_SERIES_NOT_AVAILABLE", "defaultRetryable": false },
+  { "code": "MEDIA_SERIES_REVISION_CONFLICT", "defaultRetryable": false },
+  { "code": "MEDIA_SERIES_IDEMPOTENCY_CONFLICT", "defaultRetryable": false },
+  { "code": "MEDIA_SERIES_MEMBERSHIP_CONFLICT", "defaultRetryable": false },
+  { "code": "MEDIA_SERIES_CURSOR_INVALID", "defaultRetryable": false },
+  { "code": "MEDIA_SERIES_UNAVAILABLE", "defaultRetryable": true },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }
 ]

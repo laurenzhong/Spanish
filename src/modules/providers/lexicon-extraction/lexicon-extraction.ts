@@ -80,7 +80,16 @@ export type LexiconExtractionResult = Readonly<{
     /** Always true: proposals are never publishable without owner approval. */
     needsOwnerApproval: true;
   }>;
-  provider: "minimax" | "fake";
+  /**
+   * Which source produced these proposals.
+   *
+   * `reference-list` is the deterministic source that proposes only the committed
+   * reference list's own forms and makes no vendor call at all
+   * (`application/reference-list-candidate-provider.ts`). It is listed here
+   * rather than reported as `fake`, because an audit trail that calls a real
+   * source "fake" is worse than one that names it.
+   */
+  provider: "minimax" | "fake" | "reference-list";
   modelVersion: string;
   providerRequestId: string | null;
   latencyMs: number;
@@ -174,10 +183,21 @@ export function validateLexiconCandidateProposals(
         false,
       );
     }
-    if (proposal.kind === "lexeme" && proposal.meaningZh !== null) {
+    // Both kinds carry a Chinese gloss, and a lexeme's gloss is not incidental:
+    // the `teaching-zh-CN` review dimension judges it, and the vocabulary view
+    // renders it. A lexeme without one cannot be approved, so it is refused here
+    // rather than being carried to a review that is guaranteed to fail.
+    if (proposal.meaningZh === null || !proposal.meaningZh.trim()) {
       throw new LexiconExtractionError(
         "provider-response-invalid",
-        "A lexeme proposal must not carry a phrase translation.",
+        "Every proposal must carry a Chinese gloss of its meaning.",
+        false,
+      );
+    }
+    if (proposal.kind === "lexeme" && proposal.lemma === null) {
+      throw new LexiconExtractionError(
+        "provider-response-invalid",
+        "A lexeme proposal must carry its dictionary form as the lemma.",
         false,
       );
     }

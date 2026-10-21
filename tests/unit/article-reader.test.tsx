@@ -1,3 +1,10 @@
+import { readAloudFake as speech } from "../helpers/read-aloud-fake";
+vi.mock("@/src/modules/providers/tts/read-aloud", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/modules/providers/tts/read-aloud")>();
+  const { readAloudFake } = await import("../helpers/read-aloud-fake");
+  return { ...actual, createReadAloud: readAloudFake.create };
+});
+
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,15 +28,20 @@ const publishedBundle = (): ContentBundle => {
 
 const nativeSpeechSynthesis = window.speechSynthesis;
 const nativeSpeechSynthesisUtterance = globalThis.SpeechSynthesisUtterance;
+const nativeScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
 
 describe("normalized article reader", () => {
   afterEach(() => {
     cleanup();
+    speech.reset();
     window.localStorage.clear();
+    window.history.replaceState(null, "", "/");
     Object.defineProperty(window, "speechSynthesis", { configurable: true, value: nativeSpeechSynthesis });
     Object.defineProperty(globalThis, "SpeechSynthesisUtterance", { configurable: true, value: nativeSpeechSynthesisUtterance });
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    if (nativeScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", nativeScrollIntoView);
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   });
 
   it("returns only published article versions with ordered segments", async () => {
@@ -43,6 +55,25 @@ describe("normalized article reader", () => {
     const draft = await getArticle(new BundleArticleRepository(draftSource), "article.sueno-first-cafe@1");
     expect(draft.reason).toBe("unpublished");
     expect(draft.article).toBeNull();
+  });
+
+  it.each([["#segment-2", "2"], ["#segment-999", "3"]])("prioritizes only a valid source anchor %s over saved reading progress", async (hash, expectedPosition) => {
+    const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
+    if (!result.article) throw new Error("fixture article not found");
+    const article = result.article;
+    window.localStorage.setItem(`reading-reader:v1:${article.stableKey}`, JSON.stringify({
+      stableKey: article.stableKey, version: article.version, contentHash: article.contentHash,
+      position: 3, savedPhrases: [], highlights: [], note: "", saved: false,
+    }));
+    window.history.replaceState(null, "", `/${hash}`);
+    const scrolled: string[] = [];
+    const scroll = vi.fn(function (this: HTMLElement) {
+      scrolled.push(this.dataset.readerPosition ?? "");
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scroll });
+    render(<ArticleReader article={article} />);
+    await waitFor(() => expect(scroll).toHaveBeenCalled());
+    expect(scrolled).toEqual([expectedPosition]);
   });
 
   it("renders the reading workbench and keeps notes private", async () => {
@@ -100,56 +131,29 @@ describe("normalized article reader", () => {
     expect(screen.getByTestId("article-transfer")).toBeInTheDocument();
   });
 
-  it("lists Spanish browser voices and reuses the selected voice in Explain", async () => {
+  it("uses the shared MiniMax female voice for word, paragraph and full article", async () => {
     const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
     if (!result.article) throw new Error("fixture article not found");
-    const elvira = { name: "Microsoft Elvira Online (Natural) - Spanish (Spain)", lang: "es-ES", voiceURI: "elvira-es" } as SpeechSynthesisVoice;
-    const sofia = { name: "Microsoft Sofia Online (Natural) - Spanish (Bolivia)", lang: "es-BO", voiceURI: "sofia-es" } as SpeechSynthesisVoice;
-    const spoken: SpeechSynthesisUtterance[] = [];
-    const synthesis = {
-      getVoices: () => [elvira, sofia],
-      cancel: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      speak: (utterance: SpeechSynthesisUtterance) => { spoken.push(utterance); utterance.onend?.(new Event("end") as SpeechSynthesisEvent); },
-    } as unknown as SpeechSynthesis;
-    class FakeUtterance {
-      lang = "";
-      rate = 1;
-      pitch = 1;
-      voice: SpeechSynthesisVoice | null = null;
-      onend: ((event: SpeechSynthesisEvent) => void) | null = null;
-      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
-      constructor(public readonly text: string) {}
-    }
-    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: synthesis });
-    Object.defineProperty(globalThis, "SpeechSynthesisUtterance", { configurable: true, value: FakeUtterance });
+    speech.state.completeImmediately = true;
+    window.localStorage.setItem("sueno-reader-tts-voice:es", "old-browser-voice");
     const user = userEvent.setup();
     render(<ArticleReader article={result.article} />);
-
     await user.click(screen.getByRole("button", { name: "设置" }));
-    expect(screen.getByRole("heading", { name: "Spanish voices" })).toBeInTheDocument();
-    const elviraLabels = screen.getAllByText(elvira.name);
-    expect(elviraLabels.length).toBeGreaterThan(0);
-    expect(elviraLabels.at(-1)?.closest("li")).toHaveClass("is-selected");
-    const sofiaLabel = screen.getAllByText(sofia.name).at(-1);
-    expect(sofiaLabel).toBeDefined();
-    if (!sofiaLabel?.parentElement) throw new Error("voice option missing");
-    await user.click(sofiaLabel.parentElement);
-    expect(screen.getAllByText(sofia.name).at(-1)?.closest("li")).toHaveClass("is-selected");
-    expect(window.localStorage.getItem("sueno-reader-tts-voice:es")).toBe(sofia.voiceURI);
-
+    expect(screen.getByRole("heading", { name: "Serene Woman 女声" })).toBeInTheDocument();
+    expect(screen.getByText("Serene Woman")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "TTS 速度" })).toHaveValue("1");
+    await user.click(screen.getByRole("button", { name: "试听 Serene Woman 女声" }));
+    expect(speech.attempts.at(-1)).toMatchObject({ lang: "es-ES", rate: 1 });
     const token = screen.getAllByRole("button").find((button) => button.textContent === "cafetería");
-    expect(token).toBeDefined();
     if (!token) throw new Error("word token missing");
     await user.click(token);
     await user.click(screen.getByRole("button", { name: "朗读 cafetería" }));
-    expect(spoken.at(-1)?.voice).toBe(sofia);
+    expect(speech.attempts.at(-1)).toMatchObject({ text: "cafetería", lang: "es-ES", rate: 1 });
     await user.click(screen.getByRole("button", { name: "朗读" }));
     await user.click(screen.getByRole("button", { name: "朗读第 1 段" }));
-    expect(spoken.at(-1)?.voice).toBe(sofia);
+    expect(speech.attempts.at(-1)?.text).toBe(result.article.segments[0].text);
     await user.click(screen.getByRole("button", { name: "朗读全文" }));
-    expect(spoken.at(-1)?.voice).toBe(sofia);
+    expect(speech.attempts.at(-1)?.text).toBe(result.article.segments.map((segment) => segment.text).join(" "));
   });
 
   it("opens the contextual explanation only after selecting text", async () => {

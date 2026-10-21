@@ -31,6 +31,8 @@ function categoryFor(relationshipType: string): Readonly<{ key: string; label: s
   if (relationshipType.includes("campus")) return { key: "study", label: "学习办事" };
   if (relationshipType.includes("rental")) return { key: "housing", label: "居住沟通" };
   if (relationshipType.includes("restaurant")) return { key: "daily-life", label: "日常生活" };
+  if (relationshipType.includes("transport") || relationshipType.includes("hotel")) return { key: "travel", label: "出行与住宿" };
+  if (relationshipType.includes("post-office")) return { key: "services", label: "生活服务" };
   return { key: "social", label: "社交沟通" };
 }
 
@@ -149,107 +151,159 @@ function historicalSavedFormalExpressions(
   });
 }
 
+/**
+ * The per-user half of the library, projected from the user's own rows.
+ *
+ * Kept apart from the public catalogue so a caller can paint the public tree
+ * before these reads are issued (see `app/(product)/explore/page.tsx`). It is a
+ * pure function of already-read rows, so the credential-free base and the
+ * decorated result stay one projection with one merge order.
+ */
+async function buildPrivateLayer(
+  privateSource: ExplorePrivateLibrarySource,
+  userId: string,
+): Promise<Readonly<{
+  scenarios: readonly ExploreScenarioLibraryCard[];
+  expressions: readonly ExploreExpressionLibraryCard[];
+  /** Which formal expression versions this user has saved, for the public cards. */
+  savedByFormalKey: ReadonlyMap<string, Readonly<{ id: string }>>;
+}>> {
+  // One wave, and the saved-expression read is issued once: the generation
+  // sources receive it in flight rather than selecting the same newest 20
+  // rows again.
+  const savedExpressionsInFlight = privateSource.listSavedExpressions(userId);
+  const [personal, saved, sources] = await Promise.all([
+    privateSource.listPersonalSuggestionCandidates(userId),
+    savedExpressionsInFlight,
+    privateSource.listGenerationSources(userId, savedExpressionsInFlight),
+  ]);
+  const savedByFormalKey = new Map(saved.flatMap((item) => item.sourceType === "formal-expression" && item.sourceEntityId && item.sourceVersion
+    ? [[`${item.sourceEntityId}@${item.sourceVersion}`, { id: item.id }]]
+    : []));
+  const savedBySource = new Map(saved.flatMap((item) => item.sourceEntityId ? [[`${item.sourceType}:${item.sourceEntityId}`, item]] : []));
+  const visibleSourceKeys = new Set([
+    ...sources.readingHighlights.map((item) => `reading-selection:${item.id}`),
+    ...sources.recentErrors.map((item) => `scenario-review:${item.id}`),
+  ]);
+  const personalScenarios: ExploreScenarioLibraryCard[] = personal.map((scenario) => ({
+    stableKey: `personal.${scenario.id}`,
+    title: scenario.title,
+    description: scenario.description,
+    cefr: scenario.cefr,
+    region: scenario.region ?? "es-ES",
+    category: "personal",
+    categoryLabel: "私人场景",
+    role: scenario.role,
+    communicationGoal: scenario.communicationGoal,
+    expressionTexts: scenario.expressionTexts,
+    sourceKind: "personal",
+    route: `/explore/scenarios/${encodeURIComponent(`personal.${scenario.id}`)}`,
+  }));
+  const readingExpressions: ExploreExpressionLibraryCard[] = sources.readingHighlights.map((item) => {
+    const savedItem = savedBySource.get(`reading-selection:${item.id}`);
+    return {
+      id: `reading:${item.id}`,
+      text: item.label,
+      translation: null,
+      intent: item.detail,
+      cefr: null,
+      region: null,
+      category: "reading",
+      categoryLabel: "阅读来源",
+      sourceKind: "reading",
+      saved: Boolean(savedItem),
+      ...(savedItem ? { savedExpressionId: savedItem.id } : { saveSource: { sourceType: "reading-selection" as const, highlightId: item.id } }),
+      generationSource: { sourceType: "reading" as const, sourceId: item.id },
+    };
+  });
+  const recentExpressions: ExploreExpressionLibraryCard[] = sources.recentErrors.map((item) => {
+    const savedItem = savedBySource.get(`scenario-review:${item.id}`);
+    return {
+      id: `recent-error:${item.id}`,
+      text: item.label,
+      translation: null,
+      intent: item.detail,
+      cefr: null,
+      region: null,
+      category: "recent-error",
+      categoryLabel: "近期难点",
+      sourceKind: "recent-error",
+      saved: Boolean(savedItem),
+      ...(savedItem ? { savedExpressionId: savedItem.id } : { saveSource: { sourceType: "scenario-review" as const, reviewId: item.id } }),
+      generationSource: { sourceType: "recent-error" as const, sourceId: item.id },
+    };
+  });
+  const standaloneSaved: ExploreExpressionLibraryCard[] = saved
+    .filter((item) => item.sourceType !== "formal-expression" && (!item.sourceEntityId || !visibleSourceKeys.has(`${item.sourceType}:${item.sourceEntityId}`)))
+    .map((item) => ({
+      id: `saved:${item.id}`,
+      text: item.sourceText,
+      translation: item.translation,
+      intent: null,
+      cefr: null,
+      region: null,
+      category: "saved",
+      categoryLabel: "我的收藏",
+      sourceKind: "saved" as const,
+      saved: true,
+      savedExpressionId: item.id,
+      generationSource: { sourceType: "saved-expression" as const, sourceId: item.id },
+    }));
+  const historicalFormal = historicalSavedFormalExpressions(saved);
+  return {
+    scenarios: personalScenarios,
+    expressions: [
+      historicalFormal,
+      standaloneSaved,
+      readingExpressions,
+      recentExpressions,
+    ].flat(),
+    savedByFormalKey,
+  };
+}
+
 export class CatalogExploreLibraryRepository implements ExploreLibraryRepository {
   constructor(private readonly privateSource?: ExplorePrivateLibrarySource) {}
 
+  /**
+   * The public catalogue alone: reviewed scenarios and formal expressions read
+   * from the validated content bundles, with no credential of any kind.
+   *
+   * This is the part of `/explore` that must paint before the page waits on
+   * anything. Both builders below run once per process on the validated
+   * bundles, so calling this on the render path issues no database statement.
+   */
+  publicLibrary(options: ExploreLibraryRepositoryOptions = {}): ExploreLibraryDto {
+    const allowDraft = options.allowDraft === true;
+    return {
+      scenarios: publicScenarios(allowDraft),
+      expressions: publicExpressions(allowDraft, new Map()),
+      privateState: "loading",
+    };
+  }
+
   async getForUser(userId: string, options: ExploreLibraryRepositoryOptions = {}): Promise<ExploreLibraryDto> {
     const allowDraft = options.allowDraft === true;
+    const base = this.publicLibrary(options);
     if (!this.privateSource) {
-      return { scenarios: publicScenarios(allowDraft), expressions: publicExpressions(allowDraft, new Map()), privateState: "unavailable" };
+      return { ...base, privateState: "unavailable" };
     }
 
     try {
-      const [personal, saved, sources] = await Promise.all([
-        this.privateSource.listPersonalSuggestionCandidates(userId),
-        this.privateSource.listSavedExpressions(userId),
-        this.privateSource.listGenerationSources(userId),
-      ]);
-      const savedByFormalKey = new Map(saved.flatMap((item) => item.sourceType === "formal-expression" && item.sourceEntityId && item.sourceVersion
-        ? [[`${item.sourceEntityId}@${item.sourceVersion}`, { id: item.id }]]
-        : []));
-      const savedBySource = new Map(saved.flatMap((item) => item.sourceEntityId ? [[`${item.sourceType}:${item.sourceEntityId}`, item]] : []));
-      const visibleSourceKeys = new Set([
-        ...sources.readingHighlights.map((item) => `reading-selection:${item.id}`),
-        ...sources.recentErrors.map((item) => `scenario-review:${item.id}`),
-      ]);
-      const personalScenarios: ExploreScenarioLibraryCard[] = personal.map((scenario) => ({
-        stableKey: `personal.${scenario.id}`,
-        title: scenario.title,
-        description: scenario.description,
-        cefr: scenario.cefr,
-        region: scenario.region ?? "es-ES",
-        category: "personal",
-        categoryLabel: "私人场景",
-        role: scenario.role,
-        communicationGoal: scenario.communicationGoal,
-        expressionTexts: scenario.expressionTexts,
-        sourceKind: "personal",
-        route: `/explore/scenarios/${encodeURIComponent(`personal.${scenario.id}`)}`,
-      }));
-      const readingExpressions: ExploreExpressionLibraryCard[] = sources.readingHighlights.map((item) => {
-        const savedItem = savedBySource.get(`reading-selection:${item.id}`);
-        return {
-          id: `reading:${item.id}`,
-          text: item.label,
-          translation: null,
-          intent: item.detail,
-          cefr: null,
-          region: null,
-          category: "reading",
-          categoryLabel: "阅读来源",
-          sourceKind: "reading",
-          saved: Boolean(savedItem),
-          ...(savedItem ? { savedExpressionId: savedItem.id } : { saveSource: { sourceType: "reading-selection" as const, highlightId: item.id } }),
-          generationSource: { sourceType: "reading" as const, sourceId: item.id },
-        };
-      });
-      const recentExpressions: ExploreExpressionLibraryCard[] = sources.recentErrors.map((item) => {
-        const savedItem = savedBySource.get(`scenario-review:${item.id}`);
-        return {
-          id: `recent-error:${item.id}`,
-          text: item.label,
-          translation: null,
-          intent: item.detail,
-          cefr: null,
-          region: null,
-          category: "recent-error",
-          categoryLabel: "近期难点",
-          sourceKind: "recent-error",
-          saved: Boolean(savedItem),
-          ...(savedItem ? { savedExpressionId: savedItem.id } : { saveSource: { sourceType: "scenario-review" as const, reviewId: item.id } }),
-          generationSource: { sourceType: "recent-error" as const, sourceId: item.id },
-        };
-      });
-      const standaloneSaved: ExploreExpressionLibraryCard[] = saved
-        .filter((item) => item.sourceType !== "formal-expression" && (!item.sourceEntityId || !visibleSourceKeys.has(`${item.sourceType}:${item.sourceEntityId}`)))
-        .map((item) => ({
-          id: `saved:${item.id}`,
-          text: item.sourceText,
-          translation: item.translation,
-          intent: null,
-          cefr: null,
-          region: null,
-          category: "saved",
-          categoryLabel: "我的收藏",
-          sourceKind: "saved" as const,
-          saved: true,
-          savedExpressionId: item.id,
-          generationSource: { sourceType: "saved-expression" as const, sourceId: item.id },
-        }));
-      const historicalFormal = historicalSavedFormalExpressions(saved);
+      // The saved-expression read is issued once, inside the private layer, and
+      // comes back both as the user's own cards and as the flag on the public
+      // formal cards they have saved.
+      const privateLayer = await buildPrivateLayer(this.privateSource, userId);
       return {
-        scenarios: [...personalScenarios, ...publicScenarios(allowDraft)],
+        scenarios: [...privateLayer.scenarios, ...base.scenarios],
         expressions: [
-          ...publicExpressions(allowDraft, savedByFormalKey),
-          ...historicalFormal,
-          ...standaloneSaved,
-          ...readingExpressions,
-          ...recentExpressions,
+          ...publicExpressions(allowDraft, privateLayer.savedByFormalKey),
+          ...privateLayer.expressions,
         ],
         privateState: "available",
       };
     } catch {
-      return { scenarios: publicScenarios(allowDraft), expressions: publicExpressions(allowDraft, new Map()), privateState: "unavailable" };
+      return { ...base, privateState: "unavailable" };
     }
   }
 }

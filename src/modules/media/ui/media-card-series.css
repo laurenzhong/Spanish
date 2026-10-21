@@ -1,0 +1,6 @@
+.media-card__series { display: grid; gap: 2px; min-width: 0; margin-top: 6px; }
+.media-card__series > a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; color: var(--teal); font-size: .75rem; border-radius: 6px; }
+.media-card__series > a > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-card__series > a > span:last-child { flex: none; }
+.media-card__series > small { color: var(--muted); font-size: .72rem; }
+.media-card__series > a:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }

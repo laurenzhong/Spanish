@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { listMedia } from "@/src/modules/media/application";
 import { createDrizzleMediaRepository } from "@/src/modules/media/repositories";
@@ -6,6 +7,7 @@ import { mediaListQuerySchema } from "@/src/modules/media/schemas";
 import { getCurrentUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
 
+import { LearnLibrarySkeleton } from "./learn-library-skeleton";
 import { LearnPageContent } from "./learn-page-content";
 
 export const metadata: Metadata = {
@@ -18,11 +20,26 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function LearnPage({ searchParams }: Readonly<{ searchParams: SearchParams }>) {
+/**
+ * The page shell returns synchronously so the library skeleton can stream as
+ * the first paint. Every runtime read (search params, session, database) is
+ * deferred into the suspended child; awaiting any of it here would make the
+ * whole route fall back to the `(product)` surface state instead.
+ */
+export default function LearnPage({ searchParams }: Readonly<{ searchParams: SearchParams }>) {
+  return (
+    <Suspense fallback={<LearnLibrarySkeleton />}>
+      <LearnLibraryData searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function LearnLibraryData({ searchParams }: Readonly<{ searchParams: SearchParams }>) {
   const raw = await searchParams;
   const parsed = mediaListQuerySchema.safeParse({
     search: first(raw.search),
     kind: first(raw.kind),
+    topic: first(raw.topic),
     region: first(raw.region),
     cefr: first(raw.cefr),
     duration: first(raw.duration),

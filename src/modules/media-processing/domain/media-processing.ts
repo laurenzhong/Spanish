@@ -1,6 +1,7 @@
 import type { CandidateStatus } from "@/src/modules/content-acquisition/domain";
 
 export const mediaProcessingErrorCodes = [
+  "MEDIA_PROCESSING_NOT_AUTHORIZED",
   "MEDIA_ASR_NOT_ELIGIBLE",
   "MEDIA_ASR_BUDGET_EXCEEDED",
   "MEDIA_TRANSCRIPTION_FAILED",

@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   const parsed = mediaListQuerySchema.safeParse({
     search: request.nextUrl.searchParams.get("search") || undefined,
     kind: request.nextUrl.searchParams.get("kind") || undefined,
+    topic: request.nextUrl.searchParams.get("topic") || undefined,
     region: request.nextUrl.searchParams.get("region") || undefined,
     cefr: request.nextUrl.searchParams.get("cefr") || undefined,
     duration: request.nextUrl.searchParams.get("duration") || undefined,

@@ -1,0 +1,1499 @@
+{
+  "asset": "content/word-lists/es-meanings-v1.json",
+  "source": {
+    "name": "Language Reactor",
+    "site": "https://www.language-reactor.com/",
+    "dictionaryHost": "api-cdn-plus.dioco.io",
+    "endpoint": "https://api-cdn-plus.dioco.io/base_dict_getHoverDict_8",
+    "method": "GET",
+    "parameters": {
+      "lemma": "",
+      "sl": "es",
+      "tl": "zh-CN",
+      "pos": "ANY",
+      "pow": "n"
+    },
+    "note": "Parameters are the ones Language Reactor's own UI sends, supplied by the owner and verified live: lemma is empty and pos=ANY (not an empty string)."
+  },
+  "authorisation": {
+    "authorisedBy": "project owner",
+    "authorisedOn": "2026-10-11",
+    "scope": "one-off scrape of the 7,922-word shelf list for the personal Alpha",
+    "licence": "unresolved",
+    "licenceNote": "No Dioco terms of service could be located, and Language Reactor's terms page is client-rendered. The scrape is recorded here rather than assumed legitimate; resolving the licence is the owner's call. AGENTS.md §8 still applies to the imported text: source and licence must be recorded, and this file is that record."
+  },
+  "fetch": {
+    "wordsRequested": 7922,
+    "recordsInRawFile": 8042,
+    "firstFetchedAt": "2026-10-11T11:04:06.406Z",
+    "lastFetchedAt": "2026-10-11T17:27:16.025Z",
+    "pacing": "~400 ms between requests plus jitter (measured 1.66 req/s sustained by the scout, zero 429s)",
+    "outcomes": {
+      "found": 7685,
+      "miss": 11,
+      "partial": 226,
+      "error": 17,
+      "throttled": 103
+    },
+    "tornLinesIgnored": 0,
+    "pauses": {
+      "count": 22,
+      "totalMinutes": 221,
+      "note": "Gaps of two minutes or more between consecutive requests, derived from the raw record. These are the cooldowns between slices, the waits after a throttled slice, and one 65-minute stall in which no requests were made (environmental, not a rate limit — normal service resumed afterwards).",
+      "episodes": [
+        {
+          "from": "2026-10-11T11:37:27.981Z",
+          "to": "2026-10-11T11:45:52.778Z",
+          "minutes": 8.4
+        },
+        {
+          "from": "2026-10-11T11:55:20.619Z",
+          "to": "2026-10-11T13:00:13.987Z",
+          "minutes": 64.9
+        },
+        {
+          "from": "2026-10-11T13:10:40.829Z",
+          "to": "2026-10-11T13:13:13.034Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T13:21:15.725Z",
+          "to": "2026-10-11T13:23:46.980Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T13:31:50.377Z",
+          "to": "2026-10-11T13:34:22.077Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T13:39:33.200Z",
+          "to": "2026-10-11T13:42:03.863Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T13:43:15.078Z",
+          "to": "2026-10-11T13:48:15.756Z",
+          "minutes": 5
+        },
+        {
+          "from": "2026-10-11T13:48:20.436Z",
+          "to": "2026-10-11T13:58:21.533Z",
+          "minutes": 10
+        },
+        {
+          "from": "2026-10-11T14:07:07.352Z",
+          "to": "2026-10-11T14:09:38.852Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T14:18:00.943Z",
+          "to": "2026-10-11T14:20:32.540Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T14:31:00.641Z",
+          "to": "2026-10-11T14:33:31.781Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T14:42:01.339Z",
+          "to": "2026-10-11T14:44:32.496Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T14:48:25.952Z",
+          "to": "2026-10-11T14:53:26.571Z",
+          "minutes": 5
+        },
+        {
+          "from": "2026-10-11T14:54:47.528Z",
+          "to": "2026-10-11T15:04:48.136Z",
+          "minutes": 10
+        },
+        {
+          "from": "2026-10-11T15:12:56.199Z",
+          "to": "2026-10-11T15:15:27.529Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T15:23:40.371Z",
+          "to": "2026-10-11T15:26:12.222Z",
+          "minutes": 2.5
+        },
+        {
+          "from": "2026-10-11T15:28:05.944Z",
+          "to": "2026-10-11T15:33:06.610Z",
+          "minutes": 5
+        },
+        {
+          "from": "2026-10-11T15:33:13.092Z",
+          "to": "2026-10-11T15:43:13.761Z",
+          "minutes": 10
+        },
+        {
+          "from": "2026-10-11T15:43:18.105Z",
+          "to": "2026-10-11T16:00:44.854Z",
+          "minutes": 17.4
+        },
+        {
+          "from": "2026-10-11T16:15:57.839Z",
+          "to": "2026-10-11T16:30:59.527Z",
+          "minutes": 15
+        },
+        {
+          "from": "2026-10-11T16:33:53.992Z",
+          "to": "2026-10-11T17:03:54.648Z",
+          "minutes": 30
+        },
+        {
+          "from": "2026-10-11T17:12:03.343Z",
+          "to": "2026-10-11T17:27:04.522Z",
+          "minutes": 15
+        }
+      ]
+    },
+    "throttling": {
+      "note": "The endpoint tolerates roughly 1,800 requests per window and then answers 429 until the window refills (measured: clean slices of 450 words, then bursts of 429s). A 429 is recorded as `throttled` and the word stays pending for the next slice; it is **not** retried inside a slice, because retrying into a rate limit costs ~30 s per word and makes the throttling worse. Full runs are therefore sliced with a cooldown.",
+      "throttledRecords": 103
+    },
+    "rawRecord": {
+      "path": "content/word-lists/es-meanings-v1.raw.jsonl",
+      "lines": 8042,
+      "sha256": "0f71f0574942711d6b20eae6e58cc59867dde823f2c7b2e471b38355350fdf2e",
+      "contents": "one JSON object per word: word, listRank, fetchedAt, httpStatus, outcome, attempts, url, raw body"
+    }
+  },
+  "filtering": {
+    "rule": "for tl=zh-CN a translation must contain a CJK ideograph; entries that do not are dropped, never imported",
+    "droppedEntries": 101,
+    "droppedByReason": {
+      "entry is the Spanish form itself": 53,
+      "entry carries no Chinese characters": 48
+    },
+    "droppedExamples": [
+      {
+        "word": "buscar",
+        "entry": "buscar",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "segundo",
+        "entry": "segundo",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "cualquiera",
+        "entry": "든지",
+        "reason": "entry carries no Chinese characters"
+      },
+      {
+        "word": "cabeza",
+        "entry": "cabeza",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "cabeza",
+        "entry": "cabezas",
+        "reason": "entry carries no Chinese characters"
+      },
+      {
+        "word": "pronto",
+        "entry": "pronto",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "adelante",
+        "entry": "adelante",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "próximo",
+        "entry": "próxima",
+        "reason": "entry carries no Chinese characters"
+      },
+      {
+        "word": "pie",
+        "entry": "pie",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "pie",
+        "entry": "tarta",
+        "reason": "entry carries no Chinese characters"
+      },
+      {
+        "word": "siguiente",
+        "entry": "siguiente",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "campo",
+        "entry": "campo",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "mente",
+        "entry": "mente",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "vestido",
+        "entry": "vestido",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "vestido",
+        "entry": "vestir",
+        "reason": "entry carries no Chinese characters"
+      },
+      {
+        "word": "pierna",
+        "entry": "ขา",
+        "reason": "entry carries no Chinese characters"
+      },
+      {
+        "word": "ajá",
+        "entry": "AHA",
+        "reason": "entry carries no Chinese characters"
+      },
+      {
+        "word": "tarjeta",
+        "entry": "tarjeta",
+        "reason": "entry is the Spanish form itself"
+      },
+      {
+        "word": "tarjeta",
+        "entry": "tarjeta de crédito",
+        "reason": "entry carries no Chinese characters"
+      },
+      {
+        "word": "clave",
+        "entry": "clave",
+        "reason": "entry is the Spanish form itself"
+      }
+    ],
+    "wordsLeftWithoutMeanings": [
+      "aparentemente",
+      "comar",
+      "dictar",
+      "redacción"
+    ]
+  },
+  "misses": {
+    "count": 0,
+    "note": "A bare HTTP 400 with no payload is what this endpoint returns both for a word it does not carry and for a request it cannot parse, so a 400 is never retried. These words have no entry in the asset — deliberately, so nothing downstream can render an absent meaning as a meaning. This is the real miss list.",
+    "words": []
+  },
+  "unresolved": {
+    "count": 0,
+    "note": "Words with no final answer yet: rate-limited (429), a transport failure, or not reached. They are NOT misses — the endpoint never answered — and the scrape resumes them on the next pass. A finished run should leave this empty; if it is not empty, the asset is incomplete by exactly these words.",
+    "notReached": [],
+    "throttled": []
+  },
+  "partialData": {
+    "count": 237,
+    "note": "HTTP 400 whose body still carried `error: \"PARTIAL_DATA\"` **and** usable hoverDictEntries. LR's dictionary half-covers these forms (mostly reflexive verbs). The entries are real translations and were imported; they are listed here so a 400 is never read as a miss. They are not retried, because a retry returns the same 400.",
+    "words": [
+      {
+        "word": "darse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "callarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "acabarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "meterse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "enterarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "tratarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "equivocarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "encontrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "morirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "convertirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "encargarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "imaginarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "volverse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "alegrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "calmarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "tomarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pasarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "olvidarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "divertirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "caerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "parecerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "ocuparse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "detenerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "asegurarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "disculparse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "mudarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "temerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "rendirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "retirarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "enfrentarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "marcharse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "escaparse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "reunirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "abrirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "alejarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "esforzarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "dormirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "salirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "suscribirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "arrepentirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "dejarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "cansarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "portarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "enfadarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "deshacerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "separarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "molestarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "dedicarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "burlarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "terminarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "venirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "enojarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "asustarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "acostumbrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "cortarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "tirarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "cagarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "vestirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "quemarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "echarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "despedirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pararse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "sacarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "desmayarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "saberse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "cú",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "divorciarse",
+        "httpStatus": 400,
+        "entries": 1
+      },
+      {
+        "word": "deberse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "entregarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "apuntarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "fiarse",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "animarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "graduarse",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "cargarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "ahogarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "lavarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pensarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "tragarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "aburrirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "lastimarse",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "matarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "resistirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "apagarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "bajarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "ofenderse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "aprovecharse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "gastarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "comprometerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "defenderse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "ocultarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "apresurarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "alienígeno",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "bañarse",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "andarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "comunicarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "confundirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "conformarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pudrirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "oponerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "enfermarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "adelantarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pegarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "estrellarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "involucrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "interponerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "llenarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "subespacial",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "controlarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "romulano",
+        "httpStatus": 400,
+        "entries": 1
+      },
+      {
+        "word": "derretirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "criarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "derrumbarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "correrse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "agotarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "conectarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "probarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "dispararse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "arrodillarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "complicarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "e-mail",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "hartarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "curarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "enfriarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "agacharse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "desviarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "encenderse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "holocubierta",
+        "httpStatus": 400,
+        "entries": 1
+      },
+      {
+        "word": "beberse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "avergonzarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "distraerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "saltarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "aguantarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "aparecerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "secarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "cubrirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "xd",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "follarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "desvanecerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "partirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "limpiarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "aferrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "colarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "montarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "alimentarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "mejorarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "capitano",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "emborracharse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "armarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "yésica",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "ducharse",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "esfumarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "engañarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "precipitarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "proponerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "cabrearse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "culparse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "mojarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "deflector",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "apoderarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "colocarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "liarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "considerarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "escucharse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "conocerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "instalarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pedirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "glu",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pirarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "fáser",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "plantearse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "duelista",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "brum",
+        "httpStatus": 400,
+        "entries": 1
+      },
+      {
+        "word": "filtrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "marearse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "retractarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "tropezarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "apoyarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "atascarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "alterarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "quebrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "boss",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "aclararse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "antojarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pa'l",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "expandirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "servirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "deslizarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "taparse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "encerrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "postularse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pastelillo",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "yo-yo",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "atorarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "masturbarse",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "mearse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "permitirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "replicador",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "extinguirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "disfrazarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "beneficiarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "obsesionarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "faser",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "kardasiano",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "albieri",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "enrollarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "fundirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "p.m",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "desangrarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "hallarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "torcerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "recostarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "esteroide",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "descomponerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "entrometerse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "someterse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "campista",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "nanosonda",
+        "httpStatus": 400,
+        "entries": 1
+      },
+      {
+        "word": "desquitarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "empeñarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "manifestarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "chuparse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "lucirse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "acelerarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "engancharse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "estropearse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "propagarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "tumbarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "jubilarse",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "kardashiano",
+        "httpStatus": 400,
+        "entries": 2
+      },
+      {
+        "word": "especializarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "apañarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "aliarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "colgarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "pillarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "remontarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "alistarse",
+        "httpStatus": 400,
+        "entries": 3
+      },
+      {
+        "word": "embarazarse",
+        "httpStatus": 400,
+        "entries": 1
+      }
+    ]
+  },
+  "unexpected": {
+    "count": 0,
+    "note": "HTTP 200 whose body did not carry a hoverDictEntries array of strings.",
+    "words": []
+  },
+  "noFrequencyClaim": {
+    "statement": "LR's hover dictionary returns no frequency field. The asset stores LR's order as display order only; no entry carries a rank. A real rank would need LR's base_dict_llmDict endpoint, which requires the owner's authenticated session and was not used.",
+    "counterExample": "Reading the same order as English frequency is wrong: banco returns 银行|库|长凳, i.e. bank before bench, while an English frequency reading would put bench first."
+  },
+  "reproduce": {
+    "scrape": "node --conditions=react-server --import tsx/esm scripts/scrape-lr-dictionary.ts",
+    "build": "node --conditions=react-server --import tsx/esm scripts/build-lr-meaning-asset.ts",
+    "listSource": "content/word-lists/es-frequency-v1.json filtered by content/word-lists/es-function-words-v1.json"
+  }
+}

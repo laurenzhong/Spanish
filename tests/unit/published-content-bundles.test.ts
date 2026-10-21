@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import coreBundle from "@/content/bundles/alpha-core-v2.json";
-import scenarioBundle from "@/content/bundles/scenario-practice-alpha-v2.json";
+import scenarioBundle from "@/content/bundles/scenario-practice-alpha-v4.json";
 import { validateContentBundle } from "@/src/modules/content/import";
 
 const reviewerReference = "codex-ai-owner-authorized-review";
@@ -35,7 +35,7 @@ describe("owner-authorized published content bundles", () => {
     expect(core.bundle).toMatchObject({ stableKey: "alpha.core", version: 2 });
     expect(scenarios.bundle).toMatchObject({
       stableKey: "alpha.scenario-practice",
-      version: 2,
+      version: 4,
     });
     expect({
       domains: core.domains.length + scenarios.domains.length,
@@ -43,7 +43,7 @@ describe("owner-authorized published content bundles", () => {
       expressions: core.expressions.length + scenarios.expressions.length,
       scenarios: scenarios.scenarios.length,
       packs: core.contentPacks.length + scenarios.contentPacks.length,
-    }).toEqual({ domains: 9, goals: 20, expressions: 26, scenarios: 3, packs: 1 });
+    }).toEqual({ domains: 9, goals: 29, expressions: 35, scenarios: 9, packs: 1 });
 
     expect(core.scenarios).toEqual([]);
     expect(core.articles).toEqual([]);
@@ -114,6 +114,12 @@ describe("owner-authorized published content bundles", () => {
       ["scenario.restaurant-ordering", 2],
       ["scenario.campus-administration", 2],
       ["scenario.rental-conversation", 2],
+      ["scenario.restaurant-takeaway", 1],
+      ["scenario.campus-student-card", 1],
+      ["scenario.rental-viewing", 1],
+      ["scenario.transport-ticket", 1],
+      ["scenario.post-office", 1],
+      ["scenario.hotel-checkin", 1],
     ]);
   });
 

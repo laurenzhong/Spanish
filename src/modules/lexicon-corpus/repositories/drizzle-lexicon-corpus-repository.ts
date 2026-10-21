@@ -1,81 +1,217 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
-import { buildKwic, evaluateLexicalAnswer, buildLexicalEvidenceDraft, normalizeCorpusQuery, normalizeSpanishSurface, type SourcePosition } from "../domain";
+import { buildKwic, discoveryContext, evaluateLexicalAnswer, buildLexicalEvidenceDraft, extractContentExpression, extractContentExpressions, interleaveContentDiscoveryExpressions, normalizeCorpusQuery, normalizeSpanishSurface, tokenizeSpanish, type ContentDiscoveryExpression, type ContentDiscoverySegment, type SourcePosition } from "../domain";
+import { searchContentFrequencyWords } from "../domain/frequency-word-list";
+import { FREQUENCY_CONTEXT_EDGE_CHARS, FREQUENCY_CONTEXT_MAX_CHARS, loadFormFrequencyRows, type FormFrequencyRow } from "./corpus-form-frequency";
 import { recordLexicalEvidenceWithinTransaction } from "@/src/modules/evidence/application";
 import { createDrizzleEvidenceRepository } from "@/src/modules/evidence/repositories";
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
 import { normalizeLexeme } from "../domain";
 import type { LexicalIntent, LexicalIntentFilter } from "../schemas/lexicon";
-import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusExample, CorpusItem, CorpusQuery, LexiconCorpusRepository, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
+import type { AssessmentAttemptInput, AssessmentAttemptResult, AssessmentItem, CorpusBrowseQuery, CorpusCluster, CorpusClusterContext, CorpusExample, CorpusItem, CorpusQuery, LexiconCorpusRepository, PagedResult, PhraseItem, VocabularyItem } from "./lexicon-corpus-repository";
+import type { PhraseQuery } from "../schemas/lexicon";
 
-const FREQUENCY_HEAD_LIMIT = 600;
-const FREQUENCY_AGGREGATE_ROWS = 1_500;
 const FREQUENCY_TTL_MS = 10 * 60 * 1_000;
+// The discovery path is a bounded read-through for databases that have
+// published content but have not finished the reviewed lexicon indexing job.
+// It must paint quickly; the formal phrase index remains the source of truth
+// once it has rows.
+const CONTENT_DISCOVERY_SEGMENT_LIMIT = 600;
+
+type DiscoveryFilters = Readonly<{ documentKind?: "article" | "media"; contentKind?: "article" | "video" | "podcast" }>;
+
+function discoverySourcePosition(segment: ContentDiscoverySegment): SourcePosition {
+  return segment.documentKind === "article"
+    ? { kind: "text", paragraphId: String(segment.segmentIndex), segmentIndex: segment.segmentIndex }
+    : { kind: "media", startMs: segment.startMs ?? 0, endMs: segment.endMs ?? Math.max(1, (segment.startMs ?? 0) + 1), segmentIndex: segment.segmentIndex };
+}
+
+function discoveryId(normalizedExpression: string, segment: ContentDiscoverySegment): string {
+  return `content:${segment.documentKind}:${segment.documentStableKey}:${segment.documentVersion}:${segment.segmentIndex}:${normalizedExpression}`;
+}
+
+function discoveryExpressionMatches(expression: ContentDiscoveryExpression, query: string | undefined): boolean {
+  const tokens = normalizeCorpusQuery(query ?? "");
+  if (tokens.length === 0) return true;
+  const haystack = expression.normalizedExpression.split(" ");
+  return tokens.every((token, index) => haystack[index] === token);
+}
+
+function toDiscoveryContext(expression: ContentDiscoveryExpression): CorpusClusterContext {
+  const context = discoveryContext(expression);
+  const segment = expression.segment;
+  const position = discoverySourcePosition(segment);
+  return {
+    ...buildKwic({
+      surfaceText: expression.expression,
+      contextBefore: context.contextBefore,
+      contextAfter: context.contextAfter,
+      sourceTitle: segment.sourceTitle,
+      sourceKind: segment.sourceKind,
+      documentKind: segment.documentKind,
+      documentStableKey: segment.documentStableKey,
+      documentVersion: segment.documentVersion,
+      sourcePosition: position,
+    }),
+    entryKind: "phrase",
+    entryId: discoveryId(expression.normalizedExpression, segment),
+    surfaceText: expression.expression,
+    contentKind: segment.contentKind,
+    isContentDiscovery: true,
+  };
+}
+
+function toDiscoveryPhrase(expression: ContentDiscoveryExpression): PhraseItem {
+  const context = discoveryContext(expression);
+  const segment = expression.segment;
+  const position = discoverySourcePosition(segment);
+  const id = discoveryId(expression.normalizedExpression, segment);
+  return {
+    id,
+    expression: expression.expression,
+    normalizedExpression: expression.normalizedExpression,
+    scope: "public",
+    meaningZh: null,
+    pragmaticPurpose: null,
+    register: null,
+    region: null,
+    cefr: null,
+    variants: [],
+    occurrenceCount: 1,
+    representativeOccurrence: {
+      ...buildKwic({
+        surfaceText: expression.expression,
+        contextBefore: context.contextBefore,
+        contextAfter: context.contextAfter,
+        sourceTitle: segment.sourceTitle,
+        sourceKind: segment.sourceKind,
+        documentKind: segment.documentKind,
+        documentStableKey: segment.documentStableKey,
+        documentVersion: segment.documentVersion,
+        sourcePosition: position,
+      }),
+      entryKind: "phrase",
+      entryId: id,
+      surfaceText: expression.expression,
+    },
+    intent: null,
+    revision: 1,
+    isContentDiscovery: true,
+  };
+}
 
 // The frequency shelf shows one usage line per word form. Contexts are clipped
 // around the form itself so a detail panel can never render an unbounded
 // sentence pair, while the form always stays whole enough to be recognisable.
-const FREQUENCY_CONTEXT_MAX_CHARS = 180;
-const FREQUENCY_CONTEXT_EDGE_CHARS = 60;
+// The two limits are defined in `corpus-form-frequency.ts`, because the SQL that
+// clips the example on the way out of the database has to respect them too: a
+// window that did not would change what this function renders.
 
-type FrequencyHead = readonly (readonly [string, Readonly<{ word: string; count: number }>])[];
+/**
+ * Occurrence counts for the reference-list forms, keyed by the accent-folded
+ * form the token index uses, plus one real example of each form in the wild.
+ *
+ * The live form of this query is an aggregate over every published segment
+ * (109,211 texts on the real corpus). Measured against the real database with
+ * `scripts/verify-frequency-shelf.ts` (fresh process each run, before/after
+ * alternating so both share the same load):
+ *
+ * | query                                              | cold            |
+ * |----------------------------------------------------|-----------------|
+ * | group every form, filter in Node (previous)        | 4548/4273/4052 ms |
+ * | fold + filter in SQL, one fold per token           | 2844/2790/2866 ms |
+ *
+ * Variants probed in a single process (relative to each other, not to the runs
+ * above — the first query of a process also warms the buffer cache, so these
+ * flatter whatever ran second): filter in SQL with `translate` twice per token
+ * 2394 ms; fold once per token 2332 ms; media and article branches in parallel
+ * 2206 ms; a 7.9k-value `IN (...)` placeholder list 3284 ms; tokenising without
+ * folding or grouping 1435 ms; reading the segments without tokenising 1014 ms.
+ *
+ * Those floors are the corpus scan itself, so the counts are now **materialised**
+ * into `lexicon_form_frequencies` and refreshed by
+ * `scripts/refresh-frequency-forms.ts`. The SQL that defines what "visible"
+ * means lives in one place, `corpus-form-frequency.ts`: the live query below and
+ * the refresh that fills the table are built from the same `source_texts` CTE,
+ * so they physically cannot drift apart. Which source serves a cold load, the
+ * 36-hour staleness cap that reverts to the live scan, and the fallback for an
+ * empty or never-refreshed table are documented there too.
+ */
+type CorpusFormCounts = ReadonlyMap<string, number>;
 
-let frequencyCache: Readonly<{ loadedAt: number; head: FrequencyHead }> | null = null;
-let frequencyInFlight: Promise<FrequencyHead> | null = null;
+/**
+ * One real, visible segment: the document title and the text the form occurs
+ * in. Picked with `min(...)` inside the same group-by as the counts, which is
+ * arbitrary but deterministic; the alternative — preferring the richest context
+ * — means carrying whole long segments (some are 7.8k characters) through the
+ * aggregate and measured 14 183 ms cold against 3 123 ms for this one.
+ */
+type FrequencyExample = Readonly<{ title: string; text: string }>;
 
-async function computeFrequencyHead(database: Database): Promise<FrequencyHead> {
-  // Aggregating inside PostgreSQL keeps the whole corpus scan server-side:
-  // only a bounded head of the distribution travels back to the app.
-  const rows = await database.execute(sql`
-    with source_texts as (
-      select ms.source_text as text
-      from ${schema.mediaSegments} ms
-      inner join ${schema.mediaVersions} mv on mv.id = ms.media_version_id
-      where ms.review_status = 'approved' and mv.status = 'published' and mv.copyright_status = 'cleared'
-      union all
-      select seg.source_text
-      from ${schema.articleSegments} seg
-      inner join ${schema.articleVersions} av on av.id = seg.article_version_id
-      inner join ${schema.articleSources} src on src.id = av.source_id
-      where av.status = 'published' and src.copyright_status = 'cleared'
-        and not exists (select 1 from ${schema.userGeneratedArticles} uga where uga.article_version_id = av.id)
-    ), tokens as (
-      select regexp_split_to_table(regexp_replace(lower(text), '[^a-záéíóúüñ]+', ' ', 'g'), ' ') as word
-      from source_texts
-    )
-    select word, count(*)::int as n
-    from tokens
-    where length(word) > 2
-    group by word
-    order by n desc
-    limit ${FREQUENCY_AGGREGATE_ROWS}
-  `) as unknown as readonly { word: string; n: number }[];
-  const byWord = new Map<string, { word: string; count: number }>();
-  for (const row of rows) {
-    const normalized = normalizeSpanishSurface(row.word);
-    if (normalized.length < 3) continue;
-    const current = byWord.get(normalized);
-    byWord.set(normalized, { word: current?.word ?? row.word.toLocaleLowerCase("es"), count: (current?.count ?? 0) + Number(row.n ?? 0) });
+/**
+ * The two facts the shelf needs from the corpus, produced by one scan and cached
+ * together: how often each form occurs, and one example of it in the wild. The
+ * examples are rows of the same `source_texts` set the counts are counted from,
+ * so a source cannot be visible to one and hidden from the other.
+ */
+type CorpusFrequencySnapshot = Readonly<{
+  counts: CorpusFormCounts;
+  examples: ReadonlyMap<string, FrequencyExample>;
+}>;
+
+let frequencySnapshotCache: Readonly<{ loadedAt: number; snapshot: CorpusFrequencySnapshot }> | null = null;
+let frequencySnapshotInFlight: Promise<CorpusFrequencySnapshot> | null = null;
+
+async function computeCorpusFrequencySnapshot(database: Database): Promise<CorpusFrequencySnapshot> {
+  // Both facts come from one source — the materialised table when it is fresh,
+  // the live corpus scan otherwise — so a caller cannot end up with counts from
+  // one visibility rule and examples from another. `corpus-form-frequency.ts`
+  // owns that choice and the single `source_texts` CTE behind it.
+  const perfStarted = Date.now();
+  let rows: readonly FormFrequencyRow[];
+  try {
+    rows = (await loadFormFrequencyRows(database)).rows;
+  } catch (error) {
+    // A failure here must keep the page's "unavailable" state rather than render
+    // every badge as a fabricated zero.
+    const cause = (error as { cause?: unknown }).cause;
+    console.log(`[frequency] corpus snapshot failed after ${Date.now() - perfStarted} ms: ${String(cause ?? error).slice(0, 300)}`);
+    throw error;
   }
-  return [...byWord.entries()]
-    .sort((left, right) => right[1].count - left[1].count || left[0].localeCompare(right[0], "es"))
-    .slice(0, FREQUENCY_HEAD_LIMIT);
+  const counts = new Map<string, number>();
+  const examples = new Map<string, FrequencyExample>();
+  for (const row of rows) {
+    // Folding again in JS is a no-op for these rows and keeps the SQL fold and
+    // `normalizeSpanishSurface` from drifting apart unnoticed.
+    const normalized = normalizeSpanishSurface(row.word);
+    if (normalized.length < 2) continue;
+    counts.set(normalized, (counts.get(normalized) ?? 0) + Number(row.n ?? 0));
+    // `min(array[text, title])` compares the text first, so the aggregate settles
+    // early instead of carrying whichever long segment happens to win, and the two
+    // fields stay one value with no separator the text could itself contain. It is
+    // loaded with the counts, so the example is a row of the same visible set --
+    // and the materialised table stores exactly the pair this aggregate picked.
+    const text = row.example?.[0];
+    const title = row.example?.[1];
+    if (typeof text === "string" && typeof title === "string") examples.set(normalized, { title, text });
+  }
+  return { counts, examples };
 }
 
-async function loadCorpusFrequency(database: Database): Promise<FrequencyHead> {
+async function loadCorpusFrequencySnapshot(database: Database): Promise<CorpusFrequencySnapshot> {
   const now = Date.now();
-  if (frequencyCache && now - frequencyCache.loadedAt < FREQUENCY_TTL_MS) return frequencyCache.head;
-  if (frequencyInFlight) return frequencyInFlight;
-  const pending = computeFrequencyHead(database)
-    .then((head) => {
-      frequencyCache = { loadedAt: Date.now(), head };
-      return head;
+  if (frequencySnapshotCache && now - frequencySnapshotCache.loadedAt < FREQUENCY_TTL_MS) return frequencySnapshotCache.snapshot;
+  if (frequencySnapshotInFlight) return frequencySnapshotInFlight;
+  const pending = computeCorpusFrequencySnapshot(database)
+    .then((snapshot) => {
+      frequencySnapshotCache = { loadedAt: Date.now(), snapshot };
+      return snapshot;
     })
     .finally(() => {
-      frequencyInFlight = null;
+      frequencySnapshotInFlight = null;
     });
-  frequencyInFlight = pending;
+  frequencySnapshotInFlight = pending;
   return pending;
 }
 
@@ -91,22 +227,69 @@ function collapseWhitespace(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
 }
 
+/** Collapse runs of whitespace but keep the boundary spaces the source had. */
+function normalizeContextText(value: string): string {
+  return value.replace(/\s+/gu, " ");
+}
+
+/**
+ * The three parts come from one real sentence, so a space is only inserted where
+ * the sentence must have had a word boundary: a side that begins or ends with a
+ * word character was separated from the keyword by something, while punctuation
+ * and the boundary spaces of a slice must stay attached (`decir.`, not
+ * `decir .`). Occurrence rows written without boundary spaces still get them.
+ */
+function joinContext(left: string, keyword: string, right: string): string {
+  const withLeft = /[\p{L}\p{N}]$/u.test(left) ? `${left} ` : left;
+  const withRight = /^[\p{L}\p{N}]/u.test(right) ? ` ${right}` : right;
+  return `${withLeft}${keyword}${withRight}`;
+}
+
 /**
  * Bounded keyword-in-context string for the frequency shelf. The surface form
  * is kept in the middle; only the surrounding segments are clipped, and the
  * total length never exceeds {@link FREQUENCY_CONTEXT_MAX_CHARS}.
+ *
+ * Exported with {@link locateFrequencyExample} so a verification run and the
+ * tests can render the *same* context from a SQL-clipped example and from the
+ * whole segment and assert the two are identical, character for character. That
+ * equality is what lets `corpus-form-frequency.ts` clip in the query without
+ * changing a single pixel of the shelf.
  */
-function buildFrequencyContext(occurrence: FrequencyOccurrence): string {
+export function buildFrequencyContext(occurrence: FrequencyOccurrence): string {
   const keyword = collapseWhitespace(occurrence.surfaceText);
-  const left = collapseWhitespace(occurrence.contextBefore);
-  const right = collapseWhitespace(occurrence.contextAfter);
-  const joined = [left, keyword, right].filter(Boolean).join(" ");
+  const left = normalizeContextText(occurrence.contextBefore);
+  const right = normalizeContextText(occurrence.contextAfter);
+  const joined = joinContext(left, keyword, right).trim();
   if (joined.length <= FREQUENCY_CONTEXT_MAX_CHARS) return joined;
   const clippedLeft = left.length > FREQUENCY_CONTEXT_EDGE_CHARS ? `…${left.slice(-FREQUENCY_CONTEXT_EDGE_CHARS)}` : left;
   const clippedRight = right.length > FREQUENCY_CONTEXT_EDGE_CHARS ? `${right.slice(0, FREQUENCY_CONTEXT_EDGE_CHARS)}…` : right;
   const keywordBudget = Math.max(16, FREQUENCY_CONTEXT_MAX_CHARS - clippedLeft.length - clippedRight.length - 2);
   const clippedKeyword = keyword.length > keywordBudget ? `${keyword.slice(0, keywordBudget - 1)}…` : keyword;
-  return [clippedLeft, clippedKeyword, clippedRight].filter(Boolean).join(" ");
+  return joinContext(clippedLeft, clippedKeyword, clippedRight).trim();
+}
+
+/**
+ * Recover the occurrence the SQL sample was picked for. The aggregate carries
+ * the whole segment text and its title because `regexp_split_to_table` cannot
+ * report offsets; `tokenizeSpanish` already knows them, so the position is found
+ * here instead of being recomputed in SQL. Returns `null` — never a guess — when
+ * the text holds no token folding to the requested form.
+ *
+ * A text clipped by {@link clippedFrequencyExample} is deliberately a window
+ * around that same first token, so this function locates it unchanged; the
+ * export exists for the equality proof described on
+ * {@link buildFrequencyContext}.
+ */
+export function locateFrequencyExample(example: FrequencyExample, normalizedWord: string): FrequencyOccurrence | null {
+  const token = tokenizeSpanish(example.text).find((candidate) => candidate.normalized === normalizedWord);
+  if (!token) return null;
+  return {
+    surfaceText: token.surface,
+    contextBefore: example.text.slice(0, token.start),
+    contextAfter: example.text.slice(token.end),
+    sourceTitle: example.title,
+  };
 }
 
 /** Letters, marks and internal apostrophes only; safe to use inside a regex. */
@@ -258,77 +441,210 @@ function intentFilter(userId: string | undefined, entryKind: "lexeme" | "phrase"
 }
 
 function corpusVisibility(userId: string | undefined) {
-  const publicArticle = sql`exists (select 1 from ${schema.articles} a inner join ${schema.articleVersions} av on av.article_id = a.id where a.stable_key = ${schema.corpusOccurrences.documentStableKey} and av.version = ${schema.corpusOccurrences.documentVersion} and av.status = 'published')`;
+  const publicArticle = sql`exists (
+    select 1 from ${schema.articles} a
+    inner join ${schema.articleVersions} av on av.article_id = a.id
+    inner join ${schema.articleSources} src on src.id = av.source_id
+    where a.stable_key = ${schema.corpusOccurrences.documentStableKey}
+      and av.version = ${schema.corpusOccurrences.documentVersion}
+      and av.status = 'published'
+      and src.copyright_status = 'cleared'
+      and not exists (select 1 from ${schema.userGeneratedArticles} generated where generated.article_version_id = av.id)
+  )`;
+  const ownGeneratedArticle = userId ? sql`exists (
+    select 1 from ${schema.articles} a
+    inner join ${schema.articleVersions} av on av.article_id = a.id
+    inner join ${schema.articleSources} src on src.id = av.source_id
+    inner join ${schema.userGeneratedArticles} generated on generated.article_version_id = av.id
+    where a.stable_key = ${schema.corpusOccurrences.documentStableKey}
+      and av.version = ${schema.corpusOccurrences.documentVersion}
+      and av.status = 'published'
+      and src.copyright_status = 'cleared'
+      and generated.user_id = ${userId}
+  )` : undefined;
   const publicMedia = sql`exists (select 1 from ${schema.mediaItems} mi inner join ${schema.mediaVersions} mv on mv.media_item_id = mi.id where mi.stable_key = ${schema.corpusOccurrences.documentStableKey} and mv.version = ${schema.corpusOccurrences.documentVersion} and mv.status = 'published' and mv.copyright_status = 'cleared')`;
+  const publicSource = or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia));
   return userId
-    ? or(eq(schema.corpusOccurrences.ownerUserId, userId), and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia))))
-    : and(isNull(schema.corpusOccurrences.ownerUserId), or(and(eq(schema.corpusOccurrences.documentKind, "article"), publicArticle), and(eq(schema.corpusOccurrences.documentKind, "media"), publicMedia)));
+    ? or(
+      and(isNull(schema.corpusOccurrences.ownerUserId), publicSource),
+      and(eq(schema.corpusOccurrences.ownerUserId, userId), or(publicSource, and(eq(schema.corpusOccurrences.documentKind, "article"), ownGeneratedArticle))),
+    )
+    : and(isNull(schema.corpusOccurrences.ownerUserId), publicSource);
 }
 
-/**
- * One batched lookup per rendered frequency page (never one query per word) for
- * a representative visible occurrence of each requested form. The visibility
- * predicate is the same one the vocabulary and phrase shelves use, so a word
- * whose only occurrences belong to a withdrawn, uncleared or private source
- * simply has no context and no source title.
- *
- * The representative row is the occurrence with the richest surrounding
- * context, then the most recent one, so the detail panel shows real usage
- * instead of an empty line whenever a usable occurrence exists.
- */
-async function loadFrequencyOccurrences(database: Database, normalizedWords: readonly string[]): Promise<Map<string, FrequencyOccurrence>> {
-  if (normalizedWords.length === 0) return new Map();
-  try {
-    const visibleOccurrence = corpusVisibility(undefined);
-    const rows = await database
-      .selectDistinctOn([schema.corpusOccurrences.normalizedText], {
-        normalizedText: schema.corpusOccurrences.normalizedText,
-        surfaceText: schema.corpusOccurrences.surfaceText,
-        contextBefore: schema.corpusOccurrences.contextBefore,
-        contextAfter: schema.corpusOccurrences.contextAfter,
-        sourceTitle: schema.corpusOccurrences.sourceTitle,
-      })
-      .from(schema.corpusOccurrences)
-      .where(and(inArray(schema.corpusOccurrences.normalizedText, [...normalizedWords]), visibleOccurrence))
-      .orderBy(
-        asc(schema.corpusOccurrences.normalizedText),
-        desc(sql`char_length(${schema.corpusOccurrences.contextBefore}) + char_length(${schema.corpusOccurrences.contextAfter})`),
-        desc(schema.corpusOccurrences.createdAt),
-        asc(schema.corpusOccurrences.id),
-      );
-    return new Map(rows.map((row) => [row.normalizedText, row]));
-  } catch {
-    // Context is an enhancement: if this lookup fails the shelf still lists the
-    // same words with `null` context instead of losing the whole frequency head.
-    return new Map();
+function phraseVisibility(userId: string | undefined) {
+  return userId
+    ? or(and(isNull(schema.phraseEntries.ownerUserId), eq(schema.phraseEntries.reviewStatus, "approved")), eq(schema.phraseEntries.ownerUserId, userId))
+    : and(isNull(schema.phraseEntries.ownerUserId), eq(schema.phraseEntries.reviewStatus, "approved"));
+}
+
+async function listPublishedContentSegments(database: Database, filters: DiscoveryFilters = {}): Promise<readonly ContentDiscoverySegment[]> {
+  const mediaKinds = filters.contentKind && filters.contentKind !== "article" ? [filters.contentKind] : ["video", "podcast"] as const;
+  const mediaRows = filters.documentKind === "article" ? [] : (await Promise.all(
+    mediaKinds.map((kind) => database.select({
+    contentKind: schema.mediaItems.kind,
+    documentStableKey: schema.mediaItems.stableKey,
+    documentVersion: schema.mediaVersions.version,
+    sourceText: schema.mediaSegments.sourceText,
+    segmentIndex: schema.mediaSegments.segmentIndex,
+    startMs: schema.mediaSegments.startMs,
+    endMs: schema.mediaSegments.endMs,
+    sourceTitle: schema.mediaVersions.title,
+    sourceKind: schema.mediaVersions.sourceName,
+    publishedAt: schema.mediaVersions.publishedAt,
+  })
+    .from(schema.mediaSegments)
+    .innerJoin(schema.mediaVersions, eq(schema.mediaSegments.mediaVersionId, schema.mediaVersions.id))
+    .innerJoin(schema.mediaItems, eq(schema.mediaVersions.mediaItemId, schema.mediaItems.id))
+    .where(and(
+      eq(schema.mediaSegments.reviewStatus, "approved"),
+      eq(schema.mediaVersions.status, "published"),
+      eq(schema.mediaVersions.copyrightStatus, "cleared"),
+      eq(schema.mediaItems.kind, kind),
+    ))
+      .limit(CONTENT_DISCOVERY_SEGMENT_LIMIT)),
+  )).flat();
+  const articleRows = filters.documentKind === "media" || (filters.contentKind && filters.contentKind !== "article") ? [] : await database.select({
+    documentStableKey: schema.articles.stableKey,
+    documentVersion: schema.articleVersions.version,
+    sourceText: schema.articleSegments.sourceText,
+    segmentIndex: schema.articleSegments.position,
+    sourceTitle: schema.articleVersions.title,
+    publishedAt: schema.articleVersions.publishedAt,
+  })
+    .from(schema.articleSegments)
+    .innerJoin(schema.articleVersions, eq(schema.articleSegments.articleVersionId, schema.articleVersions.id))
+    .innerJoin(schema.articles, eq(schema.articleVersions.articleId, schema.articles.id))
+    .innerJoin(schema.articleSources, eq(schema.articleVersions.sourceId, schema.articleSources.id))
+    .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
+    .where(and(
+      eq(schema.articleVersions.status, "published"),
+      eq(schema.articleSources.copyrightStatus, "cleared"),
+      isNull(schema.userGeneratedArticles.id),
+    ))
+    .limit(CONTENT_DISCOVERY_SEGMENT_LIMIT);
+  const segments: ContentDiscoverySegment[] = [
+    ...mediaRows.map((row) => ({ ...row, documentKind: "media" as const, contentKind: row.contentKind as "video" | "podcast", sourceKind: row.sourceKind || row.contentKind, publishedAt: row.publishedAt ?? null })),
+    ...articleRows.map((row) => ({ ...row, documentKind: "article" as const, contentKind: "article" as const, sourceKind: "article", publishedAt: row.publishedAt ?? null })),
+  ];
+  segments.sort((left, right) => (right.publishedAt?.getTime() ?? 0) - (left.publishedAt?.getTime() ?? 0) || left.documentStableKey.localeCompare(right.documentStableKey) || left.segmentIndex - right.segmentIndex);
+  return segments;
+}
+
+async function listContentDiscoveryPhrases(database: Database, query: PhraseQuery): Promise<PagedResult<PhraseItem>> {
+  if (query.intent || query.pragmaticPurpose || query.register || query.region || query.cefr) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+  // A failed content read is not an empty library. Let the page render its
+  // unavailable/retry state so a schema or connection error cannot masquerade
+  // as "there are no phrases".
+  const segments = await listPublishedContentSegments(database);
+  const seen = new Set<string>();
+  const expressions: ContentDiscoveryExpression[] = [];
+  for (const segment of segments) {
+    const expression = extractContentExpression(segment);
+    if (!expression || !discoveryExpressionMatches(expression, query.search)) continue;
+    if (seen.has(expression.normalizedExpression)) continue;
+    seen.add(expression.normalizedExpression);
+    expressions.push(expression);
   }
+  const ordered = interleaveContentDiscoveryExpressions(expressions);
+  const offset = (query.page - 1) * query.pageSize;
+  return { items: ordered.slice(offset, offset + query.pageSize).map(toDiscoveryPhrase), page: query.page, pageSize: query.pageSize, total: ordered.length };
+}
+
+async function listContentDiscoveryClusters(database: Database, query: CorpusBrowseQuery): Promise<PagedResult<CorpusCluster>> {
+  const segments = await listPublishedContentSegments(database, { documentKind: query.documentKind, contentKind: query.contentKind });
+  const byExpression = new Map<string, ContentDiscoveryExpression[]>();
+  for (const segment of segments) {
+    const seenInSegment = new Set<string>();
+    for (const expression of extractContentExpressions(segment).slice(0, 8)) {
+      if (!discoveryExpressionMatches(expression, query.query) || seenInSegment.has(expression.normalizedExpression)) continue;
+      seenInSegment.add(expression.normalizedExpression);
+      const current = byExpression.get(expression.normalizedExpression) ?? [];
+      current.push(expression);
+      byExpression.set(expression.normalizedExpression, current);
+    }
+  }
+  const ranked = [...byExpression.entries()].sort((left, right) => {
+    const leftKinds = new Set(left[1].map((item) => item.segment.contentKind)).size;
+    const rightKinds = new Set(right[1].map((item) => item.segment.contentKind)).size;
+    return rightKinds - leftKinds || right[1].length - left[1].length || left[0].localeCompare(right[0]);
+  });
+  const offset = (query.page - 1) * query.pageSize;
+  const items = ranked.slice(offset, offset + query.pageSize).map(([normalizedExpression, expressions]) => {
+    const contexts: CorpusClusterContext[] = [];
+    for (const kind of ["article", "video", "podcast"] as const) {
+      for (const expression of expressions) {
+        const duplicate = contexts.some((item) => item.contentKind === kind && item.document.stableKey === expression.segment.documentStableKey && item.location.segmentIndex === expression.segment.segmentIndex);
+        if (expression.segment.contentKind !== kind || duplicate) continue;
+        contexts.push(toDiscoveryContext(expression));
+        if (contexts.filter((item) => item.contentKind === kind).length >= 3) break;
+      }
+    }
+    const contentKinds = ["article", "video", "podcast"] as const;
+    return {
+      entryKind: "phrase" as const,
+      entryId: `content:${normalizedExpression}`,
+      expression: expressions[0]?.expression ?? normalizedExpression,
+      meaningZh: null,
+      pragmaticPurpose: null,
+      contexts,
+      contentKinds: contentKinds.filter((kind) => contexts.some((context) => context.contentKind === kind)),
+      isContentDiscovery: true,
+    } satisfies CorpusCluster;
+  });
+  return { items, page: query.page, pageSize: query.pageSize, total: ranked.length };
 }
 
 export function createDrizzleLexiconCorpusRepository(database: Database): LexiconCorpusRepository {
   return {
     async listFrequencyWords(query) {
-      // The corpus holds tens of thousands of approved segments. Aggregate in
-      // PostgreSQL and cache the bounded head of the distribution instead of
-      // streaming every segment into Node on each request.
-      const all = await loadCorpusFrequency(database);
-      const normalizedSearch = query.search ? normalizeSpanishSurface(query.search) : "";
-      const filtered = normalizedSearch ? all.filter(([normalized]) => normalized.includes(normalizedSearch)) : all;
-      const pageSlice = filtered.slice((query.page - 1) * query.pageSize, query.page * query.pageSize);
-      // One batched query for the whole page; words without a visible
-      // occurrence keep `null` context and `null` source title.
-      const occurrences = await loadFrequencyOccurrences(database, pageSlice.map(([normalizedWord]) => normalizedWord));
-      const pageItems = pageSlice.map(([normalizedWord, item]) => {
-        const occurrence = occurrences.get(normalizedWord);
+      // The shelf is the committed reference word list with function words
+      // removed, in reference-rank order; our corpus only supplies how often we
+      // have seen the form and one visible example. Order is never recomputed
+      // from our own counts — that is what put `que`/`los`/`por` at the top.
+      const matched = searchContentFrequencyWords(query.search ?? "");
+      const pageSlice = matched.slice((query.page - 1) * query.pageSize, query.page * query.pageSize);
+      // One cached read for the whole page: counts and examples are both facts
+      // of the same snapshot, so a warm page costs no query at all and never one
+      // query per word.
+      const snapshot = await loadCorpusFrequencySnapshot(database);
+      const pageItems = pageSlice.map((entry) => {
+        const normalizedWord = normalizeSpanishSurface(entry.word);
+        const example = snapshot.examples.get(normalizedWord);
+        const occurrence = example ? locateFrequencyExample(example, normalizedWord) : null;
         return {
           id: `word:${normalizedWord}`,
-          word: item.word,
+          word: entry.word,
           normalizedWord,
-          occurrenceCount: item.count,
+          occurrenceCount: snapshot.counts.get(normalizedWord) ?? 0,
           context: occurrence ? buildFrequencyContext(occurrence) : null,
           sourceTitle: occurrence?.sourceTitle ?? null,
         };
       });
-      return { items: pageItems, page: query.page, pageSize: query.pageSize, total: filtered.length };
+      return { items: pageItems, page: query.page, pageSize: query.pageSize, total: matched.length };
+    },
+
+    async readFrequencyWord(word) {
+      // The form the caller asked about is the form the corpus was read by, so the
+      // row is taken only when it really is that form: `casa` must not be answered
+      // with `casas`, which the fold would otherwise allow.
+      const normalizedWord = normalizeSpanishSurface(word);
+      if (!normalizedWord) return null;
+      // The same cached snapshot the page reads — not a second read path. The warm-up
+      // at boot fills it, so a lookup costs no query, and the shelf and the lookup
+      // cannot disagree about a word's count or excerpt.
+      const snapshot = await loadCorpusFrequencySnapshot(database);
+      if (!snapshot.counts.has(normalizedWord) && !snapshot.examples.has(normalizedWord)) return null;
+      const example = snapshot.examples.get(normalizedWord);
+      const occurrence = example ? locateFrequencyExample(example, normalizedWord) : null;
+      return {
+        id: `word:${normalizedWord}`,
+        word: normalizedWord,
+        normalizedWord,
+        occurrenceCount: snapshot.counts.get(normalizedWord) ?? 0,
+        context: occurrence ? buildFrequencyContext(occurrence) : null,
+        sourceTitle: occurrence?.sourceTitle ?? null,
+      };
     },
 
     async findCorpusExample(word) {
@@ -423,18 +739,55 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
         userId ? database.select().from(schema.userLexicalIntents).where(eq(schema.userLexicalIntents.userId, userId)) : Promise.resolve([]),
       ]);
       const ids = idRows.map((row) => row.id);
-      const [phraseRows, variantRows, occurrenceRows] = ids.length === 0
-        ? [[], [], []] as const
+      if (ids.length === 0 && Number(countRows[0]?.count ?? 0) === 0) return listContentDiscoveryPhrases(database, query);
+      const [phraseRows, variantRows, occurrenceRows, representativeRows] = ids.length === 0
+        ? [[], [], [], []] as const
         : await Promise.all([
           database.select().from(schema.phraseEntries).where(inArray(schema.phraseEntries.id, ids)),
           database.select({ phraseEntryId: schema.phraseVariants.phraseEntryId, expression: schema.phraseVariants.expression }).from(schema.phraseVariants).where(inArray(schema.phraseVariants.phraseEntryId, ids)),
           database.select({ phraseEntryId: schema.corpusOccurrences.phraseEntryId, count: sql<number>`count(*)` }).from(schema.corpusOccurrences).where(and(inArray(schema.corpusOccurrences.phraseEntryId, ids), visibleOccurrence)).groupBy(schema.corpusOccurrences.phraseEntryId),
+          database.selectDistinctOn([schema.corpusOccurrences.phraseEntryId], {
+            phraseEntryId: schema.corpusOccurrences.phraseEntryId,
+            surfaceText: schema.corpusOccurrences.surfaceText,
+            contextBefore: schema.corpusOccurrences.contextBefore,
+            contextAfter: schema.corpusOccurrences.contextAfter,
+            sourceTitle: schema.corpusOccurrences.sourceTitle,
+            sourceKind: schema.corpusOccurrences.sourceKind,
+            documentKind: schema.corpusOccurrences.documentKind,
+            documentStableKey: schema.corpusOccurrences.documentStableKey,
+            documentVersion: schema.corpusOccurrences.documentVersion,
+            sourcePosition: schema.corpusOccurrences.sourcePosition,
+          })
+            .from(schema.corpusOccurrences)
+            .where(and(inArray(schema.corpusOccurrences.phraseEntryId, ids), visibleOccurrence))
+            .orderBy(asc(schema.corpusOccurrences.phraseEntryId), asc(schema.corpusOccurrences.createdAt), asc(schema.corpusOccurrences.id)),
         ]);
       const intentByKey = intentMap(intents);
+      const representativeById = new Map(representativeRows.flatMap((row) => {
+        if (!row.phraseEntryId) return [];
+        return [[row.phraseEntryId, {
+          ...buildKwic({
+            surfaceText: row.surfaceText,
+            contextBefore: row.contextBefore,
+            contextAfter: row.contextAfter,
+            sourceTitle: row.sourceTitle,
+            sourceKind: row.sourceKind,
+            documentKind: row.documentKind as "article" | "media",
+            documentStableKey: row.documentStableKey,
+            documentVersion: row.documentVersion,
+            sourcePosition: row.sourcePosition as SourcePosition,
+          }),
+          entryKind: "phrase" as const,
+          entryId: row.phraseEntryId,
+          surfaceText: row.surfaceText,
+        }]] as const;
+      }));
       const byId = new Map<string, PhraseItem>(phraseRows.map((phrase) => [phrase.id, {
-        id: phrase.id, expression: phrase.expression, normalizedExpression: phrase.normalizedExpression, meaningZh: phrase.meaningZh,
+        id: phrase.id, expression: phrase.expression, normalizedExpression: phrase.normalizedExpression,
+        scope: phrase.ownerUserId ? "private" : "public",
+        meaningZh: phrase.meaningZh,
         pragmaticPurpose: phrase.pragmaticPurpose, register: phrase.register, region: phrase.region, cefr: phrase.cefr,
-        variants: [] as string[], occurrenceCount: 0, intent: null, revision: 1,
+        variants: [] as string[], occurrenceCount: 0, representativeOccurrence: representativeById.get(phrase.id) ?? null, intent: null, revision: 1,
       } satisfies PhraseItem]));
       for (const row of variantRows) {
         const current = byId.get(row.phraseEntryId);
@@ -495,15 +848,139 @@ export function createDrizzleLexiconCorpusRepository(database: Database): Lexico
       });
     },
 
+    async listCorpusClusters(userId, query: CorpusBrowseQuery): Promise<{
+      items: readonly CorpusCluster[];
+      page: number;
+      pageSize: number;
+      total: number;
+    }> {
+      const search = query.query ? `%${query.query}%` : undefined;
+      const contentFilter = query.contentKind === "article"
+        ? eq(schema.corpusOccurrences.documentKind, "article")
+        : query.contentKind === "video" || query.contentKind === "podcast"
+          ? eq(schema.mediaItems.kind, query.contentKind)
+          : undefined;
+      const where = and(
+        isNotNull(schema.corpusOccurrences.phraseEntryId),
+        phraseVisibility(userId),
+        corpusVisibility(userId),
+        query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,
+        contentFilter,
+        search ? or(ilike(schema.phraseEntries.expression, search), ilike(schema.phraseEntries.normalizedExpression, search)) : undefined,
+      );
+      const [idRows, countRows] = await Promise.all([
+        database.select({
+          id: schema.phraseEntries.id,
+          expression: schema.phraseEntries.expression,
+          meaningZh: schema.phraseEntries.meaningZh,
+          pragmaticPurpose: schema.phraseEntries.pragmaticPurpose,
+          latestAt: sql<Date>`max(${schema.corpusOccurrences.createdAt})`,
+        })
+          .from(schema.corpusOccurrences)
+          .innerJoin(schema.phraseEntries, eq(schema.corpusOccurrences.phraseEntryId, schema.phraseEntries.id))
+          .leftJoin(schema.mediaItems, and(eq(schema.mediaItems.stableKey, schema.corpusOccurrences.documentStableKey), eq(schema.corpusOccurrences.documentKind, "media")))
+          .where(where)
+          .groupBy(schema.phraseEntries.id, schema.phraseEntries.expression, schema.phraseEntries.meaningZh, schema.phraseEntries.pragmaticPurpose)
+          .orderBy(desc(sql`max(${schema.corpusOccurrences.createdAt})`), asc(schema.phraseEntries.expression))
+          .limit(query.pageSize)
+          .offset((query.page - 1) * query.pageSize),
+        database.select({ count: sql<number>`count(distinct ${schema.corpusOccurrences.phraseEntryId})` })
+          .from(schema.corpusOccurrences)
+          .innerJoin(schema.phraseEntries, eq(schema.corpusOccurrences.phraseEntryId, schema.phraseEntries.id))
+          .leftJoin(schema.mediaItems, and(eq(schema.mediaItems.stableKey, schema.corpusOccurrences.documentStableKey), eq(schema.corpusOccurrences.documentKind, "media")))
+          .where(where),
+      ]);
+      const ids = idRows.map((row) => row.id);
+      if (ids.length === 0) return Number(countRows[0]?.count ?? 0) === 0
+        ? listContentDiscoveryClusters(database, query)
+        : { items: [], page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
+
+      // A cluster is deliberately bounded: three contexts per source kind keeps
+      // the default page useful on mobile and prevents one prolific source from
+      // starving the other phrases in the same page.
+      const contextRows = await database.select({
+        phraseEntryId: schema.corpusOccurrences.phraseEntryId,
+        surfaceText: schema.corpusOccurrences.surfaceText,
+        contextBefore: schema.corpusOccurrences.contextBefore,
+        contextAfter: schema.corpusOccurrences.contextAfter,
+        sourceTitle: schema.corpusOccurrences.sourceTitle,
+        sourceKind: schema.corpusOccurrences.sourceKind,
+        documentKind: schema.corpusOccurrences.documentKind,
+        documentStableKey: schema.corpusOccurrences.documentStableKey,
+        documentVersion: schema.corpusOccurrences.documentVersion,
+        sourcePosition: schema.corpusOccurrences.sourcePosition,
+        mediaKind: schema.mediaItems.kind,
+      })
+        .from(schema.corpusOccurrences)
+        .innerJoin(schema.phraseEntries, eq(schema.corpusOccurrences.phraseEntryId, schema.phraseEntries.id))
+        .leftJoin(schema.mediaItems, and(eq(schema.mediaItems.stableKey, schema.corpusOccurrences.documentStableKey), eq(schema.corpusOccurrences.documentKind, "media")))
+        .where(and(
+          inArray(schema.corpusOccurrences.phraseEntryId, ids),
+          phraseVisibility(userId),
+          corpusVisibility(userId),
+          query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,
+          contentFilter,
+        ))
+        .orderBy(desc(schema.corpusOccurrences.createdAt), asc(schema.corpusOccurrences.id))
+        .limit(Math.min(1_000, Math.max(100, ids.length * 30)));
+
+      const contextsById = new Map<string, CorpusClusterContext[]>();
+      for (const row of contextRows) {
+        if (!row.phraseEntryId) continue;
+        const kind: CorpusClusterContext["contentKind"] = row.documentKind === "article"
+          ? "article"
+          : row.mediaKind === "video" || row.mediaKind === "podcast" ? row.mediaKind : "article";
+        const current = contextsById.get(row.phraseEntryId) ?? [];
+        if (current.filter((item) => item.contentKind === kind).length >= 3) continue;
+        current.push({
+          ...buildKwic({
+            surfaceText: row.surfaceText,
+            contextBefore: row.contextBefore,
+            contextAfter: row.contextAfter,
+            sourceTitle: row.sourceTitle,
+            sourceKind: row.sourceKind,
+            documentKind: row.documentKind as "article" | "media",
+            documentStableKey: row.documentStableKey,
+            documentVersion: row.documentVersion,
+            sourcePosition: row.sourcePosition as SourcePosition,
+          }),
+          entryKind: "phrase",
+          entryId: row.phraseEntryId,
+          surfaceText: row.surfaceText,
+          contentKind: kind,
+        });
+        contextsById.set(row.phraseEntryId, current);
+      }
+
+      const order: CorpusClusterContext["contentKind"][] = ["article", "video", "podcast"];
+      const items = idRows.flatMap((row) => {
+        const contexts = contextsById.get(row.id) ?? [];
+        if (contexts.length === 0) return [];
+        const contentKinds = order.filter((kind) => contexts.some((context) => context.contentKind === kind));
+        return [{ entryKind: "phrase" as const, entryId: row.id, expression: row.expression, meaningZh: row.meaningZh, pragmaticPurpose: row.pragmaticPurpose, contexts, contentKinds } satisfies CorpusCluster];
+      });
+      return { items, page: query.page, pageSize: query.pageSize, total: Number(countRows[0]?.count ?? 0) };
+    },
+
     async searchCorpus(userId, query: CorpusQuery) {
       const tokens = query.query ? normalizeCorpusQuery(query.query) : [];
       if (tokens.length === 0 && !(query.entryKind && query.entryId)) return { items: [], page: query.page, pageSize: query.pageSize, total: 0 };
+      const normalizedQuery = tokens.join(" ");
+      const matchCondition = tokens.length === 0
+        ? undefined
+        : (query.match ?? "phrase") === "phrase"
+          ? eq(schema.corpusOccurrences.normalizedText, normalizedQuery)
+          : and(...tokens.map((token) => ilike(schema.corpusOccurrences.normalizedText, `%${token}%`)));
       const where = and(
         corpusVisibility(userId),
-        ...tokens.map((token) => ilike(schema.corpusOccurrences.normalizedText, `%${token}%`)),
+        matchCondition,
         query.entryKind === "lexeme" && query.entryId ? eq(schema.corpusOccurrences.lexemeId, query.entryId) : undefined,
         query.entryKind === "phrase" && query.entryId ? eq(schema.corpusOccurrences.phraseEntryId, query.entryId) : undefined,
         query.documentKind ? eq(schema.corpusOccurrences.documentKind, query.documentKind) : undefined,
+        query.contentKind === "article" ? eq(schema.corpusOccurrences.documentKind, "article") : undefined,
+        query.contentKind === "video" || query.contentKind === "podcast"
+          ? sql`exists (select 1 from ${schema.mediaItems} mi where mi.stable_key = ${schema.corpusOccurrences.documentStableKey} and mi.kind = ${query.contentKind})`
+          : undefined,
         query.sourceKind ? eq(schema.corpusOccurrences.sourceKind, query.sourceKind) : undefined,
         query.stableKey ? eq(schema.corpusOccurrences.documentStableKey, query.stableKey) : undefined,
       );

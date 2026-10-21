@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "locale": "es",
+  "kind": "function-words",
+  "status": "published",
+  "appliesTo": "content/word-lists/es-frequency-v1.json",
+  "purpose": "从 LR 8000 高频词表中剔除功能词，让 /read/vocabulary?view=frequency 的头部呈现学习者真正要学的内容词。只决定展示哪些词；不删除词条、不改语义、不入库。",
+
+  "matching": {
+    "mode": "exact-surface-lowercase",
+    "note": [
+      "按 LR 词表的字面形式做小写精确匹配，不做重音归一。",
+      "实测理由：归一化会误滤内容词 —— LR 词表里 té（茶，rank 1136）去掉重音后与代词 te 同形；aún/aun、sólo/solo 也各自成对存在。宁可少滤，不可误滤。",
+      "本表按封闭词类的完整清单编写（便于将来复用与复核）。LR 词表把同一词形变化组归并到一个代表词条（el 代表 el/la/lo/los/las，uno 代表 un/una/unos/unas，este 代表 este/esta/esto/estos/estas），因此清单中未在 LR 出现的词形属于「保留但不生效」的文档项；若参考词表修订，它们会自动生效。"
+    ]
+  },
+
+  "authorship": {
+    "source": "self-authored",
+    "thirdParty": "none",
+    "note": "本表由本项目自行编写，依据西班牙语封闭词类（冠词、介词、连词、代词、限定词、纯语法副词/助词）的通行划分，未复制任何第三方功能词表；参考词表的来源与授权见 es-frequency-v1.provenance.json。",
+    "review": {
+      "es-ES": "dsh-ai-owner-authorized-review:frequency-function-words",
+      "zh-CN": "dsh-ai-owner-authorized-review:frequency-function-words",
+      "reviewer": "DSH (AI)",
+      "authorizedBy": "project owner",
+      "note": "由所有者授权的 AI 平台（DSH）完成西语封闭词类划分与中文说明；不代表真人、母语者或教学专家签署。"
+    }
+  },
+
+  "criteria": {
+    "include": [
+      "封闭词类（closed class）：冠词与缩合形式、简单介词、连词与从属连词、人称/反身/关系/疑问代词、指示与物主限定词、纯语法程度与否定助词。",
+      "该词的主要用法是语法功能（连接、指代、限定、标记关系），而不是可以独立学习的词汇义。",
+      "去掉它不会让学习者丢失任何词汇知识；它只会在词表头部挤占内容词的位置。"
+    ],
+    "exclude": [
+      "任何动词。系词与助动词同样是学习者必需的内容词：ser / estar / haber / tener / ir / hacer / poder / decir / querer / saber / ver / dar / creer / hablar / deber 全部保留（见 neverFilter）。",
+      "有实际词汇义的副词与数量词：bien / mal / aquí / ahí / allí / así / ya / ahora / siempre / nunca / también / tampoco / entonces / después / antes / luego / pronto / casi / solo / mucho / poco / todo / otro / mismo / tanto / algo / alguien / nada / nadie / tal / aun。",
+      "名词、形容词、数词、感叹词与招呼语（hola / eh / ay / gracias / favor）。",
+      "只在重音上区分的同形词中的内容义项（té 茶、aún 仍然、sólo 仅仅）—— 见 matching.note。"
+    ],
+    "principle": "拿不准就保留。过度过滤会隐藏学习者要学的词，比多留几个功能词更糟。"
+  },
+
+  "borderline": [
+    { "word": "que", "decision": "filter", "reason": "关系代词/从属连词，纯语法连接；参考词表第 2 高频。" },
+    { "word": "no", "decision": "filter", "reason": "否定助词，没有可独立学习的词汇义。" },
+    { "word": "más", "decision": "filter", "reason": "比较/程度助词，与 menos、tan、muy 同类。" },
+    { "word": "menos", "decision": "filter", "reason": "与 más 对称的比较助词。" },
+    { "word": "tan", "decision": "filter", "reason": "纯程度助词。" },
+    { "word": "muy", "decision": "filter", "reason": "显式决策：纯程度助词，无词汇义，属于「过滤后学习者不丢失任何词汇知识」的一类；它通过语法而非词表掌握。" },
+    { "word": "uno", "decision": "filter", "reason": "显式决策：参考词表把不定冠词组（un/una/unos/unas）归并到 uno（rank 8），用户点名的头部污染词正是 una；数词义项是同形词，数字作为另一组词汇单独学习。" },
+    { "word": "él", "decision": "filter", "reason": "人称代词；参考词表用它代表 el/la/lo/los/las 之外的人称代词条目。" },
+    { "word": "sí", "decision": "filter", "reason": "反身/介词代词与肯定助词，封闭类。" },
+    { "word": "si", "decision": "filter", "reason": "条件连词。" },
+    { "word": "sobre", "decision": "filter", "reason": "简单介词（封闭类）。同形名词 el sobre（信封）不在本表处理范围；若将来词汇表引入词性维度，应重新评估。" },
+    { "word": "bajo", "decision": "filter", "reason": "简单介词；同形形容词 bajo（低的）同理。" },
+    { "word": "según", "decision": "filter", "reason": "简单介词。" },
+    { "word": "durante", "decision": "filter", "reason": "简单介词。" },
+    { "word": "cuando", "decision": "filter", "reason": "关系/疑问副词（wh-word），以语法功能为主。" },
+    { "word": "como", "decision": "filter", "reason": "关系/疑问副词与比较连词。" },
+    { "word": "donde", "decision": "filter", "reason": "关系/疑问副词。" },
+    { "word": "bien", "decision": "keep", "reason": "学习者会学的词汇副词（好 / well）。" },
+    { "word": "todo", "decision": "keep", "reason": "显式保留：虽偏限定用法，但 todo 是学习者必须掌握的高频词汇。" },
+    { "word": "aquí", "decision": "keep", "reason": "地点副词，词汇义明确。" },
+    { "word": "así", "decision": "keep", "reason": "方式副词，词汇义明确。" },
+    { "word": "ya", "decision": "keep", "reason": "时间副词，词汇义明确且学习者必学。" },
+    { "word": "solo", "decision": "keep", "reason": "副词/形容词（独自 / 仅仅），词汇义明确；与 sólo 一并保留。" },
+    { "word": "mucho", "decision": "keep", "reason": "数量词，词汇义明确。" },
+    { "word": "algo", "decision": "keep", "reason": "不定代词，词汇义明确，A1 必学。" },
+    { "word": "nada", "decision": "keep", "reason": "不定代词/否定副词，词汇义明确。" },
+    { "word": "aun", "decision": "keep", "reason": "强调副词（甚至），有明确用法；与 aún 一并保留。" },
+    { "word": "tal", "decision": "keep", "reason": "出现在 ¿qué tal? 等固定表达中，学习者需要。" },
+    { "word": "apenas", "decision": "keep", "reason": "有明确词汇义（几乎不 / 刚刚）。" }
+  ],
+
+  "neverFilter": ["ser", "estar", "haber", "tener", "ir", "hacer", "poder", "decir", "querer", "saber", "ver", "dar", "creer", "hablar", "deber"],
+
+  "categories": {
+    "articles": ["el", "la", "lo", "los", "las"],
+    "contractions": ["al", "del"],
+    "indefiniteArticleParadigm": ["uno", "un", "una", "unos", "unas"],
+    "prepositions": ["a", "ante", "bajo", "cabe", "con", "contra", "de", "desde", "durante", "en", "entre", "hacia", "hasta", "mediante", "para", "por", "según", "sin", "so", "sobre", "tras", "versus", "vía"],
+    "conjunctions": ["y", "e", "o", "u", "ni", "pero", "sino", "mas", "que", "si", "porque", "pues", "aunque", "mientras", "conque"],
+    "relativeAndInterrogativeWords": ["qué", "que", "quién", "quiénes", "quien", "quienes", "cuál", "cuáles", "cual", "cuales", "cuánto", "cuánta", "cuántos", "cuántas", "cuanto", "cuanta", "cuantos", "cuantas", "cómo", "cuándo", "dónde", "adónde", "como", "cuando", "donde", "adonde"],
+    "personalPronouns": ["yo", "tú", "él", "ella", "ello", "nosotros", "nosotras", "vosotros", "vosotras", "ellos", "ellas", "usted", "ustedes", "vos", "me", "te", "se", "nos", "os", "lo", "la", "los", "las", "le", "les", "mí", "ti", "sí", "conmigo", "contigo", "consigo"],
+    "possessiveDeterminers": ["mi", "mis", "tu", "tus", "su", "sus", "nuestro", "nuestra", "nuestros", "nuestras", "vuestro", "vuestra", "vuestros", "vuestras", "mío", "mía", "míos", "mías", "tuyo", "tuya", "tuyos", "tuyas", "suyo", "suya", "suyos", "suyas"],
+    "demonstratives": ["este", "esta", "esto", "estos", "estas", "ese", "esa", "eso", "esos", "esas", "aquel", "aquella", "aquello", "aquellos", "aquellas"],
+    "degreeAndNegationParticles": ["no", "más", "menos", "tan", "muy"]
+  }
+}

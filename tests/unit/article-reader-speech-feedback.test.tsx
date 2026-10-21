@@ -1,4 +1,11 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { readAloudFake as speech } from "../helpers/read-aloud-fake";
+vi.mock("@/src/modules/providers/tts/read-aloud", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/modules/providers/tts/read-aloud")>();
+  const { readAloudFake } = await import("../helpers/read-aloud-fake");
+  return { ...actual, createReadAloud: readAloudFake.create };
+});
+
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,20 +26,6 @@ const publishedBundle = (): ContentBundle => {
   return source;
 };
 
-const nativeSpeechSynthesis = window.speechSynthesis;
-const nativeSpeechSynthesisUtterance = globalThis.SpeechSynthesisUtterance;
-
-type FakeUtterance = {
-  text: string;
-  lang: string;
-  rate: number;
-  pitch: number;
-  voice: SpeechSynthesisVoice | null;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
-
 async function renderReader() {
   const result = await getArticle(new BundleArticleRepository(publishedBundle()), "article.sueno-first-cafe@1");
   if (!result.article) throw new Error("fixture article not found");
@@ -46,38 +39,10 @@ async function renderReader() {
   return { user, panel, word: token.textContent ?? "" };
 }
 
-function stubSynthesis(speak: (utterance: FakeUtterance) => void) {
-  Object.defineProperty(window, "speechSynthesis", {
-    configurable: true,
-    value: {
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      cancel: vi.fn(),
-      getVoices: () => [],
-      resume: vi.fn(),
-      speak,
-      speaking: false,
-      pending: false,
-    },
-  });
-  Object.defineProperty(globalThis, "SpeechSynthesisUtterance", {
-    configurable: true,
-    value: class {
-      lang = "";
-      rate = 1;
-      pitch = 1;
-      voice: SpeechSynthesisVoice | null = null;
-      onstart: (() => void) | null = null;
-      onend: (() => void) | null = null;
-      onerror: (() => void) | null = null;
-      constructor(public readonly text: string) {}
-    },
-  });
-}
-
 describe("article reader read-aloud feedback", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    speech.reset();
     // The word lookup is unrelated here; keep it pending so the panel stays open.
     vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => undefined));
   });
@@ -85,46 +50,70 @@ describe("article reader read-aloud feedback", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
-    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: nativeSpeechSynthesis });
-    Object.defineProperty(globalThis, "SpeechSynthesisUtterance", { configurable: true, value: nativeSpeechSynthesisUtterance });
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
-  it("tells the reader when the browser produced no audio", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const spoken: FakeUtterance[] = [];
-    // The engine accepts the utterance and never fires anything: the state that
-    // used to leave the translate panel's speaker button doing nothing at all.
-    stubSynthesis((utterance) => spoken.push(utterance));
+  it("reports preparation failures and leaves the read-aloud button usable", async () => {
     const { user, panel, word } = await renderReader();
-
     await user.click(within(panel).getByRole("button", { name: `朗读 ${word}` }));
-    expect(spoken).toHaveLength(1);
-
-    await vi.advanceTimersByTimeAsync(12_000);
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("浏览器没有出声"));
-    // The button stays usable so a second attempt is possible.
+    expect(speech.attempts).toHaveLength(1);
+    await act(async () => { speech.attempts[0].onerror?.(); });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("暂时无法朗读"));
     expect(within(panel).getByRole("button", { name: `朗读 ${word}` })).toBeEnabled();
   });
 
-  it("clears the error and speaks after the reader switches to a working voice", async () => {
-    let broken = true;
-    stubSynthesis((utterance) => {
-      if (broken) return;
-      utterance.onstart?.();
-      utterance.onend?.();
-    });
+  it("shows read-aloud activity and lets the reader stop from the word button", async () => {
+    speech.speak.mockImplementation((attempt) => attempt.onstart?.());
     const { user, panel, word } = await renderReader();
+    const button = within(panel).getByRole("button", { name: `朗读 ${word}` });
 
+    await user.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(within(panel).getByRole("status")).toHaveTextContent("正在朗读");
+
+    await user.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(within(panel).queryByRole("status")).not.toBeInTheDocument();
+    expect(speech.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("shows preparation until the browser confirms that speech started", async () => {
+    const spoken = speech.attempts;
+    const { user, panel, word } = await renderReader();
     await user.click(within(panel).getByRole("button", { name: `朗读 ${word}` }));
-    // Real timers here: the adapter needs its startup budget before reporting.
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("浏览器没有出声"), { timeout: 15_000 });
+    expect(within(panel).getByRole("status")).toHaveTextContent("正在准备语音");
+    expect(within(panel).getByRole("status")).not.toHaveTextContent("正在朗读");
+    await act(async () => { spoken[0].onstart?.(); });
+    expect(within(panel).getByRole("status")).toHaveTextContent("正在朗读");
+  });
 
-    broken = false;
+  it("keeps the newer word active when an older speech attempt settles", async () => {
+    const spoken = speech.attempts;
+    speech.speak.mockImplementation((attempt) => attempt.onstart?.());
+    const { user, panel, word } = await renderReader();
+    await user.click(within(panel).getByRole("button", { name: `朗读 ${word}` }));
+    const nextToken = screen.getAllByRole("button").filter((button) => button.classList.contains("reader-token"))[1];
+    await user.click(nextToken);
+    const nextButton = within(screen.getByRole("dialog", { name: "解释" })).getByRole("button", { name: `朗读 ${nextToken.textContent}` });
+    await user.click(nextButton);
+
+    expect(nextButton).toHaveAttribute("aria-pressed", "true");
+    await act(async () => { spoken[0].onerror?.({ error: "interrupted" } as SpeechSynthesisErrorEvent); });
+    expect(nextButton).toHaveAttribute("aria-pressed", "true");
+    await act(async () => { spoken[1].onend?.(); });
+    await waitFor(() => expect(nextButton).toHaveAttribute("aria-pressed", "false"));
+  });
+
+  it("clears the error when the reader retries successfully", async () => {
+    const { user, panel, word } = await renderReader();
+    await user.click(within(panel).getByRole("button", { name: `朗读 ${word}` }));
+    await act(async () => { speech.attempts[0].onerror?.(); });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("暂时无法朗读"));
+    speech.state.completeImmediately = true;
     await user.click(within(panel).getByRole("button", { name: `朗读 ${word}` }));
     await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
-    expect(within(panel).getByRole("button", { name: `朗读 ${word}` })).toBeEnabled();
-  }, 30_000);
+    expect(speech.attempts).toHaveLength(2);
+  });
 });

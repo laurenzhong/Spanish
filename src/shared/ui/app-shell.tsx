@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BottomNavigation } from "@/src/shared/ui/bottom-navigation";
 import { ConnectivityBanner } from "@/src/shared/ui/connectivity-banner";
 import { DesktopNavigation } from "@/src/shared/ui/desktop-navigation";
+import { ToastProvider } from "@/src/shared/ui/toast";
 
 type AppShellProps = Readonly<{
   children: ReactNode;
@@ -30,7 +31,9 @@ export function AppShell({ children, conversationCacheScope }: AppShellProps) {
         </div>
         <ConnectivityBanner />
         <main className="product-content" id="main-content">
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </main>
       </div>
     </div>

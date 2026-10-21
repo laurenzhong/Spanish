@@ -23,6 +23,7 @@ import {
   type XmlFeedNode,
 } from "./xml-feed";
 import { parseWebVttSegments } from "@/src/modules/media/domain";
+import { suggestRssPodcastSeries } from "../../normalizers/media-series-suggestion";
 
 type PodcastCursor = Readonly<{
   latestPublishedAt: string;
@@ -35,7 +36,7 @@ type PodcastSource = Readonly<{
   feedUrl: string;
   programName: string;
   region: string | null;
-  cefr: "A2" | "B1";
+  cefr: "A1" | "A2" | "B1" | "B2";
   topics: readonly string[];
   license: PodcastCandidateDraft["license"];
   attribution: string;
@@ -162,6 +163,7 @@ export class PodcastRssAdapter implements ContentSourceAdapter {
     input: ContentSourceDiscoveryInput,
     requestOptions?: Readonly<{ signal?: AbortSignal }>,
   ): Promise<ContentSourcePage> {
+    requestOptions?.signal?.throwIfAborted();
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 500) {
       throw new ContentSourceAdapterError("Podcast discovery limit is outside the supported range.", false);
     }
@@ -181,6 +183,7 @@ export class PodcastRssAdapter implements ContentSourceAdapter {
       headers,
       signal: requestOptions?.signal,
     });
+    requestOptions?.signal?.throwIfAborted();
     if (feed.status === 304) {
       return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor: input.cursor, estimatedCostMicros: 0, items: [] };
     }
@@ -245,12 +248,14 @@ export class PodcastRssAdapter implements ContentSourceAdapter {
           maxBytes: this.options.source.maxEnclosureBytes,
           signal: requestOptions?.signal,
         });
+        requestOptions?.signal?.throwIfAborted();
         if (audio.contentType !== enclosureType) continue;
         const transcript = await transcriptSegments(item.entry, duration, {
           fetch: this.options.fetch,
           source: this.options.source,
           signal: requestOptions?.signal,
         });
+        requestOptions?.signal?.throwIfAborted();
         const fetchedAt = (this.options.now ?? (() => new Date()))();
         const draft = createPodcastCandidateDraft({
           stableKey: podcastEpisodeStableKey(input.sourceStableKey, item.guid),
@@ -282,6 +287,15 @@ export class PodcastRssAdapter implements ContentSourceAdapter {
         });
         seenGuids.add(item.guid);
         seenUrls.add(canonicalUrl);
+        const seriesSuggestion = suggestRssPodcastSeries({
+          sourceStableKey: input.sourceStableKey,
+          mediaStableKey: draft.stableKey,
+          feedUrl: this.options.source.feedUrl,
+          registeredProgramName: this.options.source.programName,
+          channelTitles: channel ? xmlChildren(channel, "title").map(xmlText) : [],
+          seasons: item.entry.children.filter((node) => node.name.toLowerCase() === "itunes:season").map(xmlText),
+          episodes: item.entry.children.filter((node) => node.name.toLowerCase() === "itunes:episode").map(xmlText),
+        });
         items.push({
           externalItemId: item.guid,
           canonicalUrl,
@@ -290,7 +304,7 @@ export class PodcastRssAdapter implements ContentSourceAdapter {
           language: "es",
           publishedAt: draft.publicationDate,
           contentHash: draft.contentHash,
-          metadata: { podcastDraft: draft },
+          metadata: { podcastDraft: draft, mediaSeriesSuggestions: seriesSuggestion ? [seriesSuggestion] : [] },
         });
       } catch (error) {
         if (requestOptions?.signal?.aborted) throw error;

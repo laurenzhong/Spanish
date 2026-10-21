@@ -43,7 +43,7 @@
       "properties": {
         "scenarios": { "$ref": "#/$defs/scenarioLibraryCards" },
         "expressions": { "$ref": "#/$defs/expressionLibraryCards" },
-        "privateState": { "enum": ["available", "unavailable"] }
+        "privateState": { "enum": ["loading", "available", "unavailable"] }
       }
     },
     "scenarioLibraryCards": {

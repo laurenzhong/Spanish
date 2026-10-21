@@ -119,10 +119,12 @@ export function setCachedConversationHistory(
 ): void {
   if (!isConversationCacheBrowser()) return;
   ensureCacheScope(cacheScope);
-  const completed = messages.filter((message) => message.complete).slice(-100);
+  // Visible interrupted text is a recoverable view, not completed-turn evidence.
+  // Keep it across local navigation without caching empty stream placeholders.
+  const visible = messages.filter((message) => message.complete || (message.role === "character" && Boolean(message.text.trim()))).slice(-100);
   const key = cacheKey(characterKey, cacheScope);
   const previous = historyCache.get(key)?.access ?? null;
-  historyCache.set(key, { messages: completed, access: normalizeAccess(access, previous) });
+  historyCache.set(key, { messages: visible, access: normalizeAccess(access, previous) });
 }
 
 export function clearConversationHistoryCache(): void {
@@ -134,27 +136,31 @@ export function clearConversationHistoryCache(): void {
 export function loadConversationHistory(
   characterKey: string,
   cacheScope = getConversationCacheScope(),
+  options?: Readonly<{ refresh?: boolean }>,
 ): Promise<ConversationHistoryResponse> {
   if (!isConversationCacheBrowser()) {
     return Promise.reject(new Error("CONVERSATION_HISTORY_BROWSER_UNAVAILABLE"));
   }
   ensureCacheScope(cacheScope);
   const key = cacheKey(characterKey, cacheScope);
-  const pending = pendingRequests.get(key)?.promise;
-  if (pending) return pending;
+  const pending = pendingRequests.get(key);
+  if (pending && !options?.refresh) return pending.promise;
+  if (pending) {
+    pending.controller.abort();
+    pendingRequests.delete(key);
+  }
 
   const generation = cacheGeneration;
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), HISTORY_REQUEST_TIMEOUT_MS);
-  let request: Promise<ConversationHistoryResponse>;
-  request = fetch(`/api/v1/conversations/${characterKey}`, {
+  const request: Promise<ConversationHistoryResponse> = fetch(`/api/v1/conversations/${characterKey}`, {
     cache: "no-store",
     credentials: "same-origin",
     headers: { accept: "application/json" },
     signal: controller.signal,
   })
     .then(async (response) => {
-      if (generation !== cacheGeneration || activeCacheScope !== cacheScope) {
+      if (controller.signal.aborted || generation !== cacheGeneration || activeCacheScope !== cacheScope) {
         throw new Error("CONVERSATION_HISTORY_INVALIDATED");
       }
       if (!response.ok) throw new Error("CONVERSATION_HISTORY_UNAVAILABLE");
@@ -168,7 +174,7 @@ export function loadConversationHistory(
       };
       const data = payload.data;
       const messages = data?.messages ?? [];
-      if (generation !== cacheGeneration || activeCacheScope !== cacheScope) {
+      if (controller.signal.aborted || generation !== cacheGeneration || activeCacheScope !== cacheScope) {
         throw new Error("CONVERSATION_HISTORY_INVALIDATED");
       }
       const access = normalizeAccess({

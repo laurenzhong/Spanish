@@ -2,6 +2,7 @@ import {
   SpeechCapabilityError,
   type RecordedAudioMetadata,
 } from "./speech-capability";
+import { AudioLevelMeter, type AudioLevelListener } from "./audio-level-meter";
 
 type MediaDevicesLike = Readonly<{
   getUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream>;
@@ -40,6 +41,7 @@ export class BrowserAudioRecorder {
   private recorder: MediaRecorderLike | null = null;
   private chunks: Blob[] = [];
   private lifecycleCleanup: Array<() => void> = [];
+  private levelUnsubscribes: Array<() => void> = [];
 
   constructor(
     private readonly mediaDevices: MediaDevicesLike | null,
@@ -51,10 +53,42 @@ export class BrowserAudioRecorder {
       typeof MediaRecorder.isTypeSupported === "function" &&
       MediaRecorder.isTypeSupported(mimeType),
     private readonly lifecycle: RecorderLifecycle = {},
+    private readonly levelMeter: AudioLevelMeter = new AudioLevelMeter(),
   ) {}
 
   get isSupported(): boolean {
     return this.mediaDevices !== null && this.recorderFactory !== null;
+  }
+
+  /**
+   * True while a recording is open and the browser can actually measure the
+   * input. When it is false the UI must keep its decorative fallback instead of
+   * pretending to show real levels.
+   */
+  get isLevelMeterSupported(): boolean {
+    return this.stream !== null && this.levelMeter.isSupported;
+  }
+
+  /**
+   * Reports a normalized 0..1 input level while recording. The returned
+   * unsubscribe is safe to call at any time; every subscription is also closed
+   * by the recorder itself on stop, cancel or interruption.
+   */
+  subscribeLevel(listener: AudioLevelListener): () => void {
+    const stream = this.stream;
+    if (!stream) return () => undefined;
+    let closed = false;
+    const unsubscribe = this.levelMeter.open(stream, (level) => {
+      if (!closed) listener(level);
+    });
+    const release = () => {
+      if (closed) return;
+      closed = true;
+      unsubscribe();
+      this.levelUnsubscribes = this.levelUnsubscribes.filter((item) => item !== release);
+    };
+    this.levelUnsubscribes.push(release);
+    return release;
   }
 
   async start(): Promise<void> {
@@ -194,6 +228,7 @@ export class BrowserAudioRecorder {
   }
 
   private reset(stream: MediaStream): void {
+    for (const release of this.levelUnsubscribes.splice(0)) release();
     this.detachLifecycle();
     stopTracks(stream);
     this.stream = null;

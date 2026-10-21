@@ -12,7 +12,12 @@
     "title": { "type": "string", "minLength": 1 },
     "contentType": { "enum": ["video", "podcast", "article"] },
     "language": { "type": "string", "minLength": 2 },
-    "metadata": { "type": "object" },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "mediaSeriesSuggestions": { "type": "array", "items": { "$ref": "media-series-suggestion.schema.json" } }
+      }
+    },
     "publishedAt": { "type": ["string", "null"], "format": "date-time" },
     "contentHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
     "status": { "enum": ["discovered", "screened", "acquiring", "processing", "review_ready", "failed", "rejected"] },

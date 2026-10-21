@@ -1,7 +1,12 @@
+import { installReadAloud } from "./fixtures/read-aloud";
 import { expect, test, type Page } from "@playwright/test";
 
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
 const viewportWidths = [320, 375, 414, 768, 1024, 1280, 1440];
+
+test.beforeEach(async ({ page }) => {
+  await installReadAloud(page, { endAfterMs: 20 });
+});
 
 async function authenticate(page: Page) {
   await page.context().addCookies([
@@ -34,24 +39,6 @@ test("completes a typed natural alternative and moves to the next expression", a
 });
 
 test("replays the current Spanish pronunciation from the audio button", async ({ page }) => {
-  await page.addInitScript(() => {
-    const browserWindow = window as Window & { __spokenTexts?: string[] };
-    browserWindow.__spokenTexts = [];
-    Object.defineProperty(window, "speechSynthesis", {
-      configurable: true,
-      value: {
-        cancel: () => undefined,
-        getVoices: () => [],
-        speak: (utterance: SpeechSynthesisUtterance) => {
-          browserWindow.__spokenTexts?.push(utterance.text);
-          window.setTimeout(
-            () => utterance.onend?.({} as SpeechSynthesisEvent),
-            0,
-          );
-        },
-      },
-    });
-  });
   await authenticate(page);
   await page.goto("/learn/practice");
 
@@ -62,7 +49,7 @@ test("replays the current Spanish pronunciation from the audio button", async ({
   await expect
     .poll(() =>
       page.evaluate(
-        () => (window as Window & { __spokenTexts?: string[] }).__spokenTexts ?? [],
+        () => (Reflect.get(window, "readAloudTrace") as { text: string }[]).map((request) => request.text),
       ),
     )
     .toEqual(["¿Cómo va todo?"]);
@@ -72,7 +59,7 @@ test("replays the current Spanish pronunciation from the audio button", async ({
   await expect
     .poll(() =>
       page.evaluate(
-        () => (window as Window & { __spokenTexts?: string[] }).__spokenTexts ?? [],
+        () => (Reflect.get(window, "readAloudTrace") as { text: string }[]).map((request) => request.text),
       ),
     )
     .toEqual(["¿Cómo va todo?", "¿Cómo va todo?"]);
@@ -173,9 +160,6 @@ test("restores the last stable state after a refresh", async ({ page }) => {
 });
 
 test("shows progressive hint content and a real variant prompt", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: undefined });
-  });
   await authenticate(page);
   await page.goto("/learn/practice");
 

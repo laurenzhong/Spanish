@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
-import { useBrowserSpeech } from "@/src/modules/providers/tts";
+import { useReadAloud } from "@/src/modules/providers/tts";
 import { SlideableNavigation } from "@/src/shared/ui/slideable-navigation";
 import type {
   SavedArticleItemResponse,
@@ -115,13 +115,13 @@ export function SavedItemsLibrary({ items, total, page, pageSize, search, itemTy
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
   const [busySaveId, setBusySaveId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const speech = useBrowserSpeech();
+  const speech = useReadAloud();
   const activeSpeakingId = speech.speakingId;
   const visibleNotice = speech.errorMessage || notice;
 
   const speak = useCallback((item: SavedReadingItemResponse) => {
     setNotice("");
-    speech.speak(item.id, item.text, () => setNotice("当前浏览器不支持朗读，词句仍可正常浏览。"));
+    speech.speak(item.id, item.text, () => setNotice("当前浏览器不支持音频播放，词句仍可正常浏览。"));
   }, [speech]);
 
   const toggleSpeech = useCallback((item: SavedReadingItemResponse) => {

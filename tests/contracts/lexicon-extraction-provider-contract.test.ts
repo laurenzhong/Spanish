@@ -17,7 +17,9 @@ function proposal(overrides: Partial<LexiconCandidateProposal> = {}): LexiconCan
     normalizedText: "terremoto",
     lemma: "terremoto",
     partOfSpeech: null,
-    meaningZh: null,
+    // Every proposal carries a Chinese gloss: a lexeme's is what the teaching
+    // review judges, so the contract refuses one without it.
+    meaningZh: "地震",
     segmentIndex: 0,
     confidence: 1,
     ...overrides,
@@ -153,8 +155,18 @@ describe("lexicon extraction contract", () => {
     expect(() => validateLexiconCandidateProposals([proposal({ segmentIndex: 9 })], segments)).toThrow(
       LexiconExtractionError,
     );
-    // A lexeme carrying a phrase translation.
-    expect(() => validateLexiconCandidateProposals([proposal({ meaningZh: "地震" })], segments)).toThrow(
+    // A proposal with no Chinese gloss. This case used to be its opposite — a
+    // lexeme carrying a gloss was the malformation — and the rule inverted when
+    // the teaching dimension made the gloss mandatory. Asserting the new
+    // direction keeps the same strength: the shape is still refused.
+    expect(() => validateLexiconCandidateProposals([proposal({ meaningZh: null })], segments)).toThrow(
+      LexiconExtractionError,
+    );
+    expect(() => validateLexiconCandidateProposals([proposal({ meaningZh: "   " })], segments)).toThrow(
+      LexiconExtractionError,
+    );
+    // A lexeme with no dictionary form.
+    expect(() => validateLexiconCandidateProposals([proposal({ lemma: null })], segments)).toThrow(
       LexiconExtractionError,
     );
     // A phrase carrying a lemma.
@@ -175,6 +187,16 @@ describe("lexicon extraction contract", () => {
     const segments = [fakeSegment()];
     expect(() => validateLexiconCandidateProposals([proposal({ partOfSpeech: "NOUN" })], segments)).not.toThrow();
     expect(() => validateLexiconCandidateProposals([proposal({ partOfSpeech: null })], segments)).not.toThrow();
+  });
+
+  it("accepts a lexeme that carries both its dictionary form and a gloss", () => {
+    // The positive half of the inverted rule: this is now the shape the contract
+    // asks for, and the pipeline depends on it, because the teaching dimension
+    // reviews the gloss rather than finding nothing to judge.
+    const segments = [fakeSegment()];
+    expect(() =>
+      validateLexiconCandidateProposals([proposal({ lemma: "terremoto", meaningZh: "地震" })], segments),
+    ).not.toThrow();
   });
 
   it("emits phrase candidates only for translated segments", async () => {

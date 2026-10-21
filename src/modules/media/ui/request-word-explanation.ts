@@ -13,13 +13,17 @@ export async function requestWordExplanation(word: string, context: string, sign
     method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
     body: JSON.stringify({ word, context: context.slice(start, start + 2000), locale: "es-ES", selectionType: "word" }), signal,
   });
+  signal.throwIfAborted();
   if (!response.ok) throw new Error("解析暂时不可用，请重试。");
   if (!response.headers.get("content-type")?.includes("application/x-ndjson")) {
     const body = await response.json();
+    signal.throwIfAborted();
     return explanationSchema.parse(body.data);
   }
   if (!response.body) throw new Error("解析未完成，请重试。");
   const reader = response.body.getReader();
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener("abort", cancel, { once: true });
   const decoder = new TextDecoder();
   let buffer = "";
   let length = 0;
@@ -34,6 +38,7 @@ export async function requestWordExplanation(word: string, context: string, sign
     while (true) {
       signal.throwIfAborted();
       const chunk = await reader.read();
+      signal.throwIfAborted();
       length += chunk.value?.byteLength ?? 0;
       if (length > 100_000) throw new Error("解析响应过长，请重试。");
       buffer += decoder.decode(chunk.value, { stream: !chunk.done });
@@ -46,6 +51,7 @@ export async function requestWordExplanation(word: string, context: string, sign
     if (!explanation) throw new Error("解析连接中断，请重试。");
     return explanation;
   } finally {
+    signal.removeEventListener("abort", cancel);
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }

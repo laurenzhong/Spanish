@@ -1,4 +1,4 @@
-import { and, desc, eq, max } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, max } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -218,6 +218,32 @@ export function createDrizzleArticleRepository(database: Database): DrizzleArtic
     },
 
     async list(query: ArticleListQuery = {}) {
+      // A saved shelf with no saved IDs is a complete empty result. Returning
+      // before the public catalogue query avoids loading and projecting every
+      // published article for the common empty-shelf case.
+      if (query.savedOnly && query.savedArticleIds?.length === 0) {
+        return {
+          articles: [],
+          totalCount: 0,
+          topics: [],
+          nextCursor: null,
+          hasMore: false,
+          savedFilterAvailable: true,
+        };
+      }
+      const savedStableKeys = query.savedOnly
+        ? [...new Set((query.savedArticleIds ?? []).map((id) => parseArticleId(id)?.stableKey).filter((key): key is string => Boolean(key)))]
+        : [];
+      if (query.savedOnly && savedStableKeys.length === 0) {
+        return {
+          articles: [],
+          totalCount: 0,
+          topics: [],
+          nextCursor: null,
+          hasMore: false,
+          savedFilterAvailable: true,
+        };
+      }
       const rows = await database
         .select({
           article: { stableKey: schema.articles.stableKey },
@@ -245,7 +271,13 @@ export function createDrizzleArticleRepository(database: Database): DrizzleArtic
         .from(schema.articleVersions)
         .innerJoin(schema.articles, eq(schema.articles.id, schema.articleVersions.articleId))
         .innerJoin(schema.articleSources, eq(schema.articleSources.id, schema.articleVersions.sourceId))
-        .where(and(eq(schema.articleVersions.status, "published"), eq(schema.articleSources.copyrightStatus, "cleared")))
+        .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
+        .where(and(
+          eq(schema.articleVersions.status, "published"),
+          eq(schema.articleSources.copyrightStatus, "cleared"),
+          isNull(schema.userGeneratedArticles.id),
+          ...(query.savedOnly ? [inArray(schema.articles.stableKey, savedStableKeys)] : []),
+        ))
         .orderBy(desc(schema.articleVersions.publishedAt));
       const projected = rows.map((row) => projectPublicArticle(rawArticle(row))).filter((article): article is ArticleCardProjection => article !== null);
       return filterArticles(projected, query);
@@ -259,7 +291,12 @@ export function createDrizzleArticleRepository(database: Database): DrizzleArtic
         .from(schema.articleVersions)
         .innerJoin(schema.articles, eq(schema.articles.id, schema.articleVersions.articleId))
         .innerJoin(schema.articleSources, eq(schema.articleSources.id, schema.articleVersions.sourceId))
-        .where(and(eq(schema.articles.stableKey, parsed.stableKey), eq(schema.articleVersions.version, parsed.version)))
+        .leftJoin(schema.userGeneratedArticles, eq(schema.userGeneratedArticles.articleVersionId, schema.articleVersions.id))
+        .where(and(
+          eq(schema.articles.stableKey, parsed.stableKey),
+          eq(schema.articleVersions.version, parsed.version),
+          isNull(schema.userGeneratedArticles.id),
+        ))
         .limit(1);
       if (!row) return { article: null, reason: "not-found" as const };
       if (row.version.status !== "published" || row.source.copyrightStatus !== "cleared") {

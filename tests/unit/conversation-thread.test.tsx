@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { readAloudFake as speech } from "../helpers/read-aloud-fake";
+vi.mock("@/src/modules/providers/tts/read-aloud", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/modules/providers/tts/read-aloud")>();
+  const { readAloudFake } = await import("../helpers/read-aloud-fake");
+  return { ...actual, createReadAloud: readAloudFake.create };
+});
+
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +16,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 describe("ChatThread persistence status", () => {
   beforeEach(() => {
+    speech.reset();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
     HTMLElement.prototype.scrollIntoView = vi.fn();
     HTMLElement.prototype.scrollTo = vi.fn();
@@ -57,7 +65,31 @@ describe("ChatThread persistence status", () => {
     await user.click(screen.getByRole("button", { name: "更多对话操作" }));
     expect(screen.getByRole("menu", { name: "对话操作" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "搜索消息" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "AI 助手" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "关系资料与清理" })).toHaveAttribute("href", "/me#profile-relationships");
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "AI 助手",
+      "搜索消息",
+      "关系资料与清理",
+    ]);
+  });
+
+  it("opens the assistant from the header menu and returns focus to the trigger on close", async () => {
+    const user = userEvent.setup();
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" roleLabel="熟悉的朋友" characterVersion={1} initialMessages={[]} />);
+
+    const trigger = screen.getByRole("button", { name: "更多对话操作" });
+    await user.click(trigger);
+    await user.click(screen.getByRole("menuitem", { name: "AI 助手" }));
+
+    expect(screen.queryByRole("menu", { name: "对话操作" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Lucía Martín 的 AI 助手" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "向 AI 助手提问" })).toHaveFocus());
+
+    await user.click(screen.getByRole("button", { name: "关闭 AI 助手" }));
+
+    expect(screen.queryByRole("dialog", { name: "Lucía Martín 的 AI 助手" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("uses one natural sentence for an empty conversation", () => {
@@ -154,7 +186,7 @@ describe("ChatThread persistence status", () => {
     expect(screen.queryByRole("button", { name: "消息操作" })).not.toBeInTheDocument();
     fireEvent.contextMenu(message.closest("article")!);
     expect(screen.getByRole("menu")).toBeInTheDocument();
-    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "引用回复", "撤回", "删除"]);
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "朗读", "引用回复", "撤回", "删除"]);
     expect(screen.queryByRole("menuitem", { name: "转发" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "复制" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("Hola desde el chat"));
@@ -227,24 +259,9 @@ describe("ChatThread persistence status", () => {
   });
 
   it("reads a friend message from the message menu and can stop it", async () => {
-    const speak = vi.fn((utterance: SpeechSynthesisUtterance) => {
-      window.setTimeout(() => utterance.onend?.(new Event("end") as SpeechSynthesisEvent), 0);
-    });
-    Object.defineProperty(window, "speechSynthesis", {
-      configurable: true,
-      value: { speak, cancel: vi.fn(), getVoices: () => [] },
-    });
-    class TestUtterance {
-      text: string;
-      lang = "";
-      rate = 1;
-      pitch = 1;
-      voice = null;
-      onend: ((event: SpeechSynthesisEvent) => void) | null = null;
-      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
-      constructor(text: string) { this.text = text; }
-    }
-    vi.stubGlobal("SpeechSynthesisUtterance", TestUtterance);
+    speech.reset();
+    speech.state.completeImmediately = true;
+    const speak = speech.speak;
 
     render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[{ id: "speak-1", role: "character", text: "¿Quieres tomar un café?", complete: true }]} />);
     const message = screen.getByText("¿Quieres tomar un café?");
@@ -252,6 +269,43 @@ describe("ChatThread persistence status", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "朗读" }));
     await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
     expect(speak.mock.calls[0]?.[0].text).toBe("¿Quieres tomar un café?");
+  });
+
+  it("reads your own message from the message menu and can stop it", async () => {
+    const speak = speech.speak;
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[{ id: "speak-user-1", role: "user", text: "Me gusta el senderismo", complete: true }]} />);
+    const message = screen.getByText("Me gusta el senderismo");
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "朗读" }));
+    await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
+    expect(speak.mock.calls[0]?.[0].text).toBe("Me gusta el senderismo");
+    expect(speak.mock.calls[0]?.[0].lang).toBe("es-ES");
+
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "停止朗读" }));
+    await waitFor(() => expect(speech.cancel).toHaveBeenCalled());
+
+    fireEvent.contextMenu(message.closest("article")!);
+    expect(screen.getByRole("menuitem", { name: "朗读" })).toBeInTheDocument();
+  });
+
+  it("keeps a restarted message active when the cancelled attempt settles", async () => {
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[{ id: "same-message", role: "character", text: "Hola, ¿qué tal?", complete: true }]} />);
+    const row = screen.getByText("Hola, ¿qué tal?").closest("article")!;
+    const openMenu = () => fireEvent.contextMenu(row);
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "朗读" }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "停止朗读" }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "朗读" }));
+    await act(async () => undefined);
+    openMenu();
+    expect(screen.getByRole("menuitem", { name: "停止朗读" })).toBeInTheDocument();
+    expect(screen.queryByText("暂时无法朗读，请稍后重试")).not.toBeInTheDocument();
+    await act(async () => speech.attempts.at(-1)!.onend?.());
+    expect(screen.getByRole("menuitem", { name: "朗读" })).toBeInTheDocument();
   });
 
   it("translates a friend message inline and opens the same menu on double click", async () => {
@@ -566,5 +620,170 @@ describe("ChatThread persistence status", () => {
     expect(screen.getByText("Te escribiré cuando aceptes.")).toBeInTheDocument();
     expect(screen.getByTestId("conversation-composer-locked")).toHaveTextContent("接受好友申请后才能发送消息");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("deletes an own message only after the shared confirm dialog succeeds", async () => {
+    const confirmSpy = vi.fn(() => false);
+    // The native browser prompt must never be the confirmation path again.
+    vi.stubGlobal("confirm", confirmSpy);
+    const actionRequests: Array<{ url: string; method: string | undefined }> = [];
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "delete-1", role: "user", text: "这条消息要删除", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (url.includes("/messages/")) {
+        actionRequests.push({ url, method: init?.method });
+        return { ok: true, status: 200 } as Response;
+      }
+      return historyResponse;
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    const message = await screen.findByText("这条消息要删除");
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "删除" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "删除这条消息？" });
+    // Opening the dialog sends nothing and asks no native prompt.
+    expect(actionRequests).toEqual([]);
+    expect(confirmSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认删除" }));
+
+    await waitFor(() => expect(actionRequests).toEqual([{ url: "/api/v1/conversations/lucia/messages/delete-1", method: "DELETE" }]));
+    await waitFor(() => expect(screen.queryByText("这条消息要删除")).not.toBeInTheDocument());
+    expect(screen.getByText("消息已删除")).toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    // The deleted row is gone, so focus lands on the transcript rather than on
+    // the removed menu item.
+    await waitFor(() => expect(document.querySelector(".conversation-thread__messages")).toHaveFocus());
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the withdraw confirmation is dismissed", async () => {
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirmSpy);
+    const actionRequests: string[] = [];
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "withdraw-1", role: "user", text: "这条消息要撤回", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (url.includes("/messages/")) {
+        actionRequests.push(`${init?.method ?? "GET"} ${url}`);
+        return { ok: true, status: 200 } as Response;
+      }
+      return historyResponse;
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    const message = await screen.findByText("这条消息要撤回");
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "撤回" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "撤回这条消息？" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(actionRequests).toEqual([]);
+    expect(screen.getByText("这条消息要撤回")).toBeInTheDocument();
+    expect(screen.queryByText("你撤回了一条消息")).not.toBeInTheDocument();
+    // The menu stays mounted behind the dialog, so focus returns to its item.
+    expect(screen.getByRole("menuitem", { name: "撤回" })).toHaveFocus();
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open with the failure message when the withdraw request fails", async () => {
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirmSpy);
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "withdraw-failed", role: "user", text: "这条消息要撤回", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (url.includes("/messages/")) return { ok: false, status: 500 } as Response;
+      return historyResponse;
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    const message = await screen.findByText("这条消息要撤回");
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "撤回" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "撤回这条消息？" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认撤回" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("撤回没有完成，消息仍保留在对话中");
+    expect(screen.getByRole("alertdialog", { name: "撤回这条消息？" })).toBeInTheDocument();
+    expect(screen.getByText("这条消息要撤回")).toBeInTheDocument();
+    expect(screen.queryByText("你撤回了一条消息")).not.toBeInTheDocument();
+    expect(screen.queryByText("消息已撤回，且不会用于记忆或学习数据")).not.toBeInTheDocument();
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the 409 reason visible while the withdraw dialog stays open", async () => {
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "withdraw-late", role: "user", text: "太晚撤回的消息", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (url.includes("/messages/")) return { ok: false, status: 409 } as Response;
+      return historyResponse;
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    const message = await screen.findByText("太晚撤回的消息");
+    fireEvent.contextMenu(message.closest("article")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "撤回" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "撤回这条消息？" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认撤回" }));
+
+    expect(await screen.findByText("这条消息已超过可撤回时间")).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText("太晚撤回的消息")).toBeInTheDocument();
+  });
+
+  it("closes only the dialog on Escape and returns focus to its menu item", async () => {
+    const user = userEvent.setup();
+    const historyResponse = {
+      ok: true,
+      headers: new Headers([["x-conversation-persistence", "available"]]),
+      json: async () => ({ data: { messages: [{ id: "withdraw-escape", role: "user", text: "按 Escape 的消息", complete: true }] } }),
+    } as Response;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/api/v1/me") return { ok: false, status: 404 } as Response;
+      if (url.includes("/messages/")) return { ok: true, status: 200 } as Response;
+      return historyResponse;
+    });
+
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
+    const message = await screen.findByText("按 Escape 的消息");
+    fireEvent.contextMenu(message.closest("article")!);
+    await user.click(screen.getByRole("menuitem", { name: "撤回" }));
+
+    expect(await screen.findByRole("alertdialog", { name: "撤回这条消息？" })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    // Escape is consumed by the dialog first: the menu underneath it survives
+    // and its item takes focus back.
+    expect(screen.getByRole("menu", { name: "你的消息操作" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "撤回" })).toHaveFocus();
   });
 });

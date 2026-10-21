@@ -12,14 +12,299 @@
     }
   ],
   "paths": {
+    "/tts": {
+      "post": {
+        "summary": "Synthesize read-aloud with the shared MiniMax female voice",
+        "description": "Authenticated session cookie or bearer required. Fixed speech-2.8-turbo / Spanish_SereneWoman; sequential client chunks max 1000 characters. Sends requested text to MiniMax. Private process-memory reuse only; no automatic retry or durable idempotency guarantee.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/tts-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "MP3 audio; private, no-store. X-TTS-Provider, X-TTS-Model, X-TTS-Voice identify the policy.", "content": { "audio/mpeg": { "schema": { "type": "string", "format": "binary" } } } },
+          "400": { "description": "Invalid input", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "429": { "description": "Rate limited; manual retry only", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "499": { "description": "Caller cancelled" },
+          "502": { "description": "Provider unavailable or invalid audio" },
+          "503": { "description": "Provider not configured" }
+        }
+      }
+    },
+    "/conversations/tts": {
+      "post": {
+        "summary": "Compatibility alias for POST /tts",
+        "deprecated": true,
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/tts-request.schema.json" } } } },
+        "responses": { "200": { "description": "Same private MP3 response as /tts", "content": { "audio/mpeg": { "schema": { "type": "string", "format": "binary" } } } } }
+      }
+    },
+    "/media-series/{seriesKey}": {
+      "get": {
+        "summary": "Read a visible series and its current playable episode count",
+        "description": "Requires a valid bearer token or session cookie. Explicit invalid Authorization never falls back to cookies. All responses are private, no-store.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "seriesKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current visible series projection",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../schemas/v1/media-series-response.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid key, bounded query or expired catalogue cursor"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Series or media unavailable"
+          },
+          "503": {
+            "description": "Authentication or catalogue service unavailable"
+          }
+        }
+      }
+    },
+    "/media-series/{seriesKey}/episodes": {
+      "get": {
+        "summary": "Read bounded visible episodes, anchor and adjacent items",
+        "description": "Requires a valid bearer token or session cookie. Explicit invalid Authorization never falls back to cookies. All responses are private, no-store. Cursor and anchorMediaKey are mutually exclusive. Cursor binds catalogue revision and visible current versions.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "seriesKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          },
+          {
+            "name": "anchorMediaKey",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current visible series projection",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../schemas/v1/media-series-episodes-response.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid key, bounded query or expired catalogue cursor"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Series or media unavailable"
+          },
+          "503": {
+            "description": "Authentication or catalogue service unavailable"
+          }
+        }
+      }
+    },
+    "/media/{stableKey}/series-recommendations": {
+      "get": {
+        "summary": "Read at most six other videos from the current series",
+        "description": "Requires a valid bearer token or session cookie. Explicit invalid Authorization never falls back to cookies. All responses are private, no-store.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stableKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current visible series projection",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../schemas/v1/media-series-recommendations-response.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid key, bounded query or expired catalogue cursor"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Series or media unavailable"
+          },
+          "503": {
+            "description": "Authentication or catalogue service unavailable"
+          }
+        }
+      }
+    },
+    "/internal/content-workflow/media-series/{seriesKey}": {
+      "put": {
+        "summary": "Create or revise an owner-managed media series atomically",
+        "description": "Requires a valid bearer token or session cookie. Explicit invalid Authorization never falls back to cookies. All responses are private, no-store.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "seriesKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current visible series projection",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../schemas/v1/media-series-save-response.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid key, bounded query or expired catalogue cursor"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Configured owner allowlist required"
+          },
+          "404": {
+            "description": "Series or media unavailable"
+          },
+          "409": {
+            "description": "Revision, idempotency or membership conflict"
+          },
+          "503": {
+            "description": "Authentication or catalogue service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../../schemas/v1/media-series-save-request.schema.json"
+              }
+            }
+          }
+        }
+      }
+    },
     "/media": {
       "get": {
         "summary": "List playable published video and podcast versions",
         "parameters": [
           { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 120 } },
           { "name": "kind", "in": "query", "schema": { "enum": ["video", "podcast"] } },
+          { "name": "topic", "in": "query", "schema": { "enum": ["daily-life", "current-events", "culture-society", "travel-city", "work-study", "relationships", "hobbies-entertainment"] } },
           { "name": "region", "in": "query", "schema": { "type": "string", "maxLength": 40 } },
-          { "name": "cefr", "in": "query", "schema": { "enum": ["A2", "B1"] } },
+          { "name": "cefr", "in": "query", "schema": { "enum": ["A1", "A2", "B1", "B2"] } },
           { "name": "duration", "in": "query", "schema": { "enum": ["short", "medium", "long"] } },
           { "name": "sort", "in": "query", "schema": { "enum": ["newest", "recently_added", "recently_played"], "default": "recently_added" } },
           { "name": "cursor", "in": "query", "schema": { "type": "string", "maxLength": 500 } },
@@ -28,6 +313,20 @@
         "responses": {
           "200": { "description": "Bounded media page", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-list-response.schema.json" } } } },
           "400": { "description": "Invalid filter or cursor" },
+          "503": { "description": "Media library unavailable" }
+        }
+      }
+    },
+    "/media/browse": {
+      "post": {
+        "summary": "Read a stable source-balanced batch of published playable media",
+        "description": "Read-only. Requires authentication, preserves filters, excludes up to 1000 recent displayed stable keys, and bypasses the catalogue cache. Cursor is bound to the seed, filters, exclusions, page size and eligible catalogue. Catalogue changes invalidate the cursor; restart the batch. Does not acquire, publish or write learning evidence.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-browse-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Bounded browse page; empty items means no remaining eligible content", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-list-response.schema.json" } } } },
+          "400": { "description": "Invalid parameters or expired batch cursor" },
+          "401": { "description": "Authentication required" },
           "503": { "description": "Media library unavailable" }
         }
       }
@@ -44,13 +343,19 @@
     },
     "/media/{stableKey}/playback": {
       "get": {
-        "summary": "Issue validated playback information with bounded approved segments",
+        "summary": "Issue validated playback information with the approved transcript",
+        "description": "Returns the current published version and every approved cue. The response contract is unchanged. With `include=text` each cue's `words` is null and the word-timing JSON is neither read nor transferred, which makes it the fast first phase for media detail pages; clients then request the full transcript (with word timings) to enable per-word highlighting.",
         "security": [{ "bearerAuth": [] }],
-        "parameters": [{ "name": "stableKey", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "parameters": [
+          { "name": "stableKey", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "include", "in": "query", "required": false, "schema": { "enum": ["text"] }, "description": "Omit word-level timings (all `words` are null) to load the transcript text first." }
+        ],
         "responses": {
           "200": { "description": "Playback projection", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/media-playback-response.schema.json" } } } },
+          "400": { "description": "Unsupported include value" },
           "401": { "description": "Authentication required" },
-          "404": { "description": "Media unavailable" }
+          "404": { "description": "Media unavailable" },
+          "503": { "description": "Playback information unavailable" }
         }
       }
     },
@@ -364,9 +669,51 @@
         }
       }
     },
+    "/conversations/{characterId}/expression-assist": {
+      "post": {
+        "summary": "Suggest a private Spanish expression from a Chinese or mixed draft",
+        "description": "Uses at most six completed, non-withdrawn messages from the authenticated user's conversation with this current published character. No draft, message, memory or learning evidence is saved. The client previews or reads the result and sends it only on explicit user action. A later assisted stream request declares assistance=translation; absence of this declaration is not proof of independent ability.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "characterId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 80 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/expression-assist-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Transient expression and matching attemptId; private, no-store", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/expression-assist-response.schema.json" } } } },
+          "400": { "description": "Invalid or oversized draft", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "403": { "description": "An active contact is required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "404": { "description": "Character or requested revision unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Attempt key reused with a different draft", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "429": { "description": "Pending attempt capacity or provider rate limit", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "499": { "description": "Request cancelled", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Conversation context or translation unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "504": { "description": "Expression generation timed out", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/conversations/{characterId}/assistant": {
+      "post": {
+        "summary": "Answer a private learning question, suggest a reply, check grammar, or analyse sentence structure",
+        "description": "Private, no-store learning assistance. Reads at most eight completed, non-withdrawn messages from the authenticated user's own conversation with this current published character; the client sends only the question or target sentence the learner chose to check. No message, assistant transcript, relationship memory or learning evidence is saved, nothing is auto-sent, and a suggestion enters the composer only on explicit user action. The provider call is recorded as opaque metadata only (provider, model version, latency, request id, estimated cost); questions, drafts, conversation context and model output are never logged or stored. The response is transient and must not be treated as ability evidence.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "characterId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 80 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/conversation-assistant-request.schema.json" } } } },
+        "responses": {
+          "200": { "description": "Transient structured learning answer; private, no-store", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/conversation-assistant-response.schema.json" } } } },
+          "400": { "description": "Invalid request or no sentence available to analyse", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "403": { "description": "An active contact is required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "404": { "description": "Character or requested revision unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "429": { "description": "Provider rate limit", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "499": { "description": "Request cancelled", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Conversation context, contact state or assistant provider unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "504": { "description": "Assistant generation timed out", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/conversations/{characterId}/stream": {
       "post": {
-        "summary": "Stream a character reply and persist it only after a terminal done frame",
+        "summary": "Stream semantic reply bubbles with durable prefixes and one completed turn",
+        "description": "Optional pendingMessages preserve earlier unanswered user turns (20 messages including latest). A supersedes visibility count may only trim an owned unfinished generation's stored prefix. Prefixes are saved before delta; final persistence precedes done. Completed retries replay without another provider call or memory extraction.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "characterId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 80 } }
@@ -383,6 +730,7 @@
           "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
           "403": { "description": "Character contact is required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
           "404": { "description": "Character is unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "409": { "description": "Message text or assistance conflict, generation already running, or cancelled generation requires a new id", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
           "503": { "description": "Conversation persistence, contact, or provider unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
       }
@@ -539,6 +887,50 @@
         }
       }
     },
+    "/read/progress": {
+      "get": {
+        "summary": "List the authenticated user's reading progress, most recently opened first",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Reading progress entries", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/reading-progress-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Reading progress unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/read/saved-items": {
+      "get": {
+        "summary": "List the authenticated user's saved articles, private AI stories, saved words/phrases and highlights",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 120 } },
+          { "name": "itemType", "in": "query", "description": "Omit for 全部 (both sources merged newest-first).", "schema": { "type": "string", "enum": ["article", "phrase", "highlight"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 } }
+        ],
+        "responses": {
+          "200": { "description": "Saved reading shelf items", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-reading-items-response.schema.json" } } } },
+          "400": { "description": "Invalid saved-item filters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Saved items unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/read/saved-items/{itemId}": {
+      "delete": {
+        "summary": "Remove one authenticated user's saved reading item",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Deletion result", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/saved-reading-item-delete-response.schema.json" } } } },
+          "400": { "description": "Invalid saved-item ID", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Saved items unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/read/sources": {
       "get": {
         "summary": "List saved external source metadata",
@@ -623,14 +1015,42 @@
         }
       }
     },
+    "/corpus/examples": {
+      "get": {
+        "summary": "Browse and search complete examples from visible article and media content",
+        "description": "Read-only and authenticated. Rechecks publication, rights, current source version, transcript approval and private article ownership. Returns original source segments, available media translations and eligible neighboring context without relying on lexical occurrence indexing. Defaults to source rotation. No learning evidence is written. Responses use Cache-Control: private, no-store. Query object contract: ../../schemas/v1/corpus-examples-query.schema.json. entryKind and entryId must be provided together.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "query", "in": "query", "schema": { "type": "string", "maxLength": 120, "default": "" }, "description": "Optional surface-text query. Omit to browse complete source examples." },
+          { "name": "match", "in": "query", "schema": { "enum": ["phrase", "all"], "default": "phrase" }, "description": "Consecutive ordered tokens, or all query tokens within the same source segment." },
+          { "name": "contentKind", "in": "query", "schema": { "enum": ["article", "video", "podcast"] } },
+          { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },
+          { "name": "stableKey", "in": "query", "schema": { "type": "string", "maxLength": 240 } },
+          { "name": "sourceKind", "in": "query", "schema": { "type": "string", "maxLength": 80 }, "description": "Exact source name filter retained for existing deep links." },
+          { "name": "entryKind", "in": "query", "schema": { "enum": ["lexeme", "phrase"] }, "description": "Legacy indexed entry restriction; requires entryId." },
+          { "name": "entryId", "in": "query", "schema": { "type": "string", "format": "uuid" }, "description": "Legacy indexed entry restriction; requires entryKind." },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 24, "default": 12 } }
+        ],
+        "responses": {
+          "200": { "description": "Complete source example page, including the total before pagination", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/corpus-examples-response.schema.json" } } } },
+          "400": { "description": "Invalid corpus example query or unpaired entry filter", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "401": { "description": "Authentication required; explicit invalid Authorization never falls back to a session cookie", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Corpus examples unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
     "/corpus/search": {
       "get": {
         "summary": "Search published article and media occurrences with KWIC context",
         "parameters": [
-          { "name": "query", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 120 } },
+          { "name": "q", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 120 }, "description": "Canonical browser URL parameter for a free-text query." },
+          { "name": "query", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 120 }, "description": "API-compatible alias for q." },
+          { "name": "match", "in": "query", "schema": { "enum": ["phrase", "all"], "default": "phrase" }, "description": "Whether multiple tokens must be contiguous and ordered or merely co-occur." },
           { "name": "entryKind", "in": "query", "schema": { "enum": ["lexeme", "phrase"] } },
           { "name": "entryId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
           { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },
+          { "name": "contentKind", "in": "query", "schema": { "enum": ["article", "video", "podcast"] }, "description": "Optional content type filter; search remains an explicit query mode." },
           { "name": "sourceKind", "in": "query", "schema": { "type": "string", "maxLength": 80 } },
           { "name": "stableKey", "in": "query", "schema": { "type": "string", "maxLength": 240 } },
           { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
@@ -639,6 +1059,24 @@
         "responses": {
           "200": { "description": "KWIC corpus results", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/corpus-search-response.schema.json" } } } },
           "400": { "description": "Invalid corpus query", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
+          "503": { "description": "Corpus unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
+        }
+      }
+    },
+    "/corpus/browse": {
+      "get": {
+        "summary": "Browse published phrase clusters with article, video, and podcast contexts",
+        "description": "Content-first corpus entry point. Query and content filters are optional; when omitted, the response still contains available phrase clusters.",
+        "parameters": [
+          { "name": "query", "in": "query", "schema": { "type": "string", "maxLength": 120 }, "description": "Optional phrase filter; omitting it browses the default feed." },
+          { "name": "documentKind", "in": "query", "schema": { "enum": ["article", "media"] } },
+          { "name": "contentKind", "in": "query", "schema": { "enum": ["article", "video", "podcast"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 24, "default": 8 } }
+        ],
+        "responses": {
+          "200": { "description": "Phrase corpus clusters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/corpus-browse-response.schema.json" } } } },
+          "400": { "description": "Invalid corpus browse filters", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } },
           "503": { "description": "Corpus unavailable", "content": { "application/json": { "schema": { "$ref": "../../schemas/v1/error-response.schema.json" } } } }
         }
       }

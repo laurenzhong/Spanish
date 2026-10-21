@@ -55,6 +55,31 @@ describe("slideable navigation", () => {
     expect(indicator).toHaveStyle({ transform: "translateX(120px) translateY(0px)", width: "60px" });
   });
 
+  it("keeps the resting underline hidden for a header with no current item", () => {
+    mockGeometry();
+    const headerItems = [
+      { key: "how-it-works", label: "产品方式", href: "#how-it-works" },
+      { key: "read", label: "阅读", href: "/login?next=%2Fread" },
+      { key: "login", label: "登录", href: "/login" },
+    ];
+    const { container } = render(<SlideableNavigation className="test-navigation" label="公开页面导航" items={headerItems} restingIndicator="hidden" />);
+    const navigation = screen.getByRole("navigation", { name: "公开页面导航" });
+    const indicator = container.querySelector(".slideable-navigation__indicator");
+
+    // The resting box is still measured, so the underline is already in place
+    // the instant the pointer or keyboard arrives; only its visibility rests.
+    // A resting underline on a header reads as a current-page marker for a page
+    // nobody is on — on phone widths the only visible item is 登录.
+    expect(indicator).toHaveStyle({ transform: "translateX(0px) translateY(0px)", width: "60px", opacity: "0" });
+
+    const links = within(navigation).getAllByRole("link");
+    links[1].dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    expect(indicator).toHaveStyle({ transform: "translateX(60px) translateY(0px)", opacity: "1" });
+
+    links[1].dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    expect(indicator).toHaveStyle({ opacity: "0" });
+  });
+
   it("hands a click to the caller that loads the destination itself", () => {
     mockGeometry();
     const onSelect = vi.fn();

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "media-browse-request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["filters", "seed"],
+  "properties": {
+    "filters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "search": { "type": "string", "maxLength": 120 },
+        "kind": { "enum": ["video", "podcast"] },
+        "topic": { "enum": ["daily-life", "current-events", "culture-society", "travel-city", "work-study", "relationships", "hobbies-entertainment"] },
+        "region": { "type": "string", "maxLength": 40 },
+        "cefr": { "enum": ["A1", "A2", "B1", "B2"] },
+        "duration": { "enum": ["short", "medium", "long"] }
+      }
+    },
+    "seed": { "type": "string", "format": "uuid" },
+    "exclude": { "type": "array", "maxItems": 1000, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,199}$" } },
+    "cursor": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "pageSize": { "type": "integer", "minimum": 1, "maximum": 50, "default": 24 }
+  }
+}

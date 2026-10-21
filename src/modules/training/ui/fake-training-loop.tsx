@@ -33,11 +33,8 @@ import {
   type BrowserAudioRecorder,
 } from "@/src/modules/providers/speech";
 import {
-  createBrowserTextToSpeech,
-  listBrowserVoices,
-  preferredSpanishVoice,
-  readSpanishVoicePreference,
-  type BrowserTextToSpeech,
+  createReadAloud,
+  type ReadAloud,
 } from "@/src/modules/providers/tts";
 import type { LearningActivityRecorder } from "@/src/modules/profile/activity";
 import type { ArticleTransferTask } from "@/src/modules/content/domain";
@@ -62,8 +59,9 @@ type LoopEvent =
     }>;
 
 export type TrainingAudioCapabilities = Readonly<{
-  recorder: Pick<BrowserAudioRecorder, "start" | "stop" | "cancel">;
-  textToSpeech: Pick<BrowserTextToSpeech, "isSupported" | "speak" | "stop">;
+  recorder: Pick<BrowserAudioRecorder, "start" | "stop" | "cancel">
+    & Partial<Pick<BrowserAudioRecorder, "isLevelMeterSupported" | "subscribeLevel">>;
+  textToSpeech: Pick<ReadAloud, "isSupported" | "speak" | "stop">;
 }>;
 
 function expressionFor(
@@ -175,6 +173,16 @@ function formatRecordingTime(seconds: number): string {
   return `${minutes}:${remainder}`;
 }
 
+/**
+ * Per-bar multipliers for the live recording level. The bars only follow the
+ * microphone while a real measurement is available; otherwise their original
+ * CSS loop stays in place and no fake level is shown.
+ */
+const recordingBarWeights = [
+  0.45, 0.7, 0.95, 0.6, 0.8, 1, 0.55, 0.75, 0.9,
+  0.5, 0.85, 0.65, 0.95, 0.7, 0.6, 0.88, 0.52, 0.78,
+] as const;
+
 const trainingHints: Record<string, readonly string[]> = {
   "start.como-va-todo": [
     "先决定你想表达的近况：好、一般、忙，还是有点累。",
@@ -204,16 +212,7 @@ function hintFor(expressionKey: string, level: number): string | null {
 }
 
 function trainingTextToSpeechOptions() {
-  const selectedVoice = preferredSpanishVoice(
-    listBrowserVoices("es-ES"),
-    readSpanishVoicePreference(),
-  );
-  return {
-    languageTag: "es-ES",
-    rate: 0.9,
-    voiceName: selectedVoice?.name,
-    voiceURI: selectedVoice?.voiceURI,
-  };
+  return { languageTag: "es-ES", rate: 1 };
 }
 
 function useTrainingEffects(
@@ -258,6 +257,10 @@ function useTrainingEffects(
             })
             .catch((error: unknown) => {
               if (active) {
+                if (speechCapabilityErrorCode(error, "tts-failed") === "tts-cancelled") {
+                  dispatch({ type: "input-playback-completed" });
+                  return;
+                }
                 dispatch({
                   type: "input-playback-failed",
                   errorCode: speechCapabilityErrorCode(error, "tts-failed"),
@@ -390,6 +393,8 @@ export function FakeTrainingLoop({
   const [restored, setRestored] = useState(false);
   const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  // `null` means "no live measurement": the bars keep their decorative loop.
+  const [recordingLevel, setRecordingLevel] = useState<number | null>(null);
   const [isManualPlaybackActive, setIsManualPlaybackActive] = useState(false);
   const manualPlaybackAttemptRef = useRef(0);
   const state = current.transition.state;
@@ -404,7 +409,7 @@ export function FakeTrainingLoop({
     () =>
       providedAudio ?? {
         recorder: createBrowserAudioRecorder(),
-        textToSpeech: createBrowserTextToSpeech(),
+        textToSpeech: createReadAloud(),
       },
     [providedAudio],
   );
@@ -428,6 +433,39 @@ export function FakeTrainingLoop({
 
     return () => window.clearInterval(timer);
   }, [state.status]);
+
+  useEffect(() => {
+    if (state.status !== "recording") return;
+
+    // The engine opens the microphone asynchronously from the same state
+    // transition, so the stream is not guaranteed to exist yet. Wait briefly for
+    // it (same retry shape as the embedded player control); if it never becomes
+    // measurable the decorative fallback stays in place.
+    const recorder = audio.recorder;
+    let unsubscribe: (() => void) | null = null;
+    let timer: number | null = null;
+    let attempts = 0;
+
+    const attach = () => {
+      if (unsubscribe) return;
+      if (recorder.isLevelMeterSupported && recorder.subscribeLevel) {
+        unsubscribe = recorder.subscribeLevel((level: number) => setRecordingLevel(level));
+        return;
+      }
+      if (attempts >= 20) return;
+      attempts += 1;
+      timer = window.setTimeout(attach, 100);
+    };
+    attach();
+
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      unsubscribe?.();
+      // Leaving the recording state always clears the measured level, so the
+      // next recording starts from the decorative fallback instead of a stale bar.
+      setRecordingLevel(null);
+    };
+  }, [audio.recorder, state.status]);
 
   useEffect(() => {
     if (!checkpointStore) return;
@@ -517,9 +555,9 @@ export function FakeTrainingLoop({
     setIsManualPlaybackActive(true);
     void audio.textToSpeech
       .speak(expression.text, trainingTextToSpeechOptions())
-      .catch(() => {
-        if (manualPlaybackAttemptRef.current === attemptId) {
-          setCapabilityNotice("浏览器暂时无法朗读。你可以稍后再试，或直接阅读这句内容。");
+      .catch((error: unknown) => {
+        if (manualPlaybackAttemptRef.current === attemptId && speechCapabilityErrorCode(error, "tts-failed") !== "tts-cancelled") {
+          setCapabilityNotice("暂时无法朗读。你可以稍后再试，或直接阅读这句内容。");
         }
       })
       .finally(() => {
@@ -791,8 +829,13 @@ export function FakeTrainingLoop({
                 {formatRecordingTime(recordingSeconds)}
               </time>
             </div>
-            <div className="training-loop__recording-waveform" aria-hidden="true">
-              {Array.from({ length: 18 }, (_, index) => <i key={index} />)}
+            <div className="training-loop__recording-waveform" aria-hidden="true" data-live={recordingLevel === null ? "false" : "true"}>
+              {recordingBarWeights.map((weight, index) => (
+                <i
+                  key={index}
+                  style={recordingLevel === null ? undefined : { animation: "none", transform: `scaleY(${Math.max(0.05, Math.min(1, weight * recordingLevel)).toFixed(3)})` }}
+                />
+              ))}
             </div>
             <p>完整说完，再结束这一轮。</p>
             <div className="training-loop__recording-actions">

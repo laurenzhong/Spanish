@@ -51,6 +51,40 @@ export const characterRuntimeDefinitions: readonly CharacterRuntimeDefinition[] 
     },
   },
   {
+    // Current revision (2026-10-12): adds the expression rules to
+    // personality.responseStyle. v1 stays published as immutable history so
+    // older rows and fixtures still resolve; the conversation routes only serve
+    // the catalog's current version, so this is what production uses.
+    stableKey: "lucia",
+    version: 2,
+    lifecycle: "published",
+    policy: {
+      conversation: "full",
+      proactiveMessages: true,
+      romanticSubtext: false,
+      introductions: true,
+      persistentMemory: "private",
+      maxRelationshipStage: "close_friend",
+      voiceInput: false,
+    },
+  },
+  {
+    // Revised voice and complete public identity projection. Historic
+    // revisions retain their capability definitions for message audits.
+    stableKey: "lucia",
+    version: 3,
+    lifecycle: "published",
+    policy: {
+      conversation: "full",
+      proactiveMessages: true,
+      romanticSubtext: false,
+      introductions: true,
+      persistentMemory: "private",
+      maxRelationshipStage: "close_friend",
+      voiceInput: false,
+    },
+  },
+  {
     stableKey: "mateo",
     version: 1,
     lifecycle: "draft",

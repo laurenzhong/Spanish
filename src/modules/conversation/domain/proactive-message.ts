@@ -33,6 +33,7 @@ export type ProactiveEligibilityDecision = Readonly<{
     | "character-disabled"
     | "relationship-inactive"
     | "proactive-paused"
+    | "awaiting-first-user-message"
     | "daily-limit"
     | "weekly-limit"
     | "cooldown"
@@ -63,6 +64,9 @@ export function evaluateProactiveEligibility(
 ): ProactiveEligibilityDecision {
   if (state.relationshipStatus !== "active") return { allowed: false, reason: "relationship-inactive" };
   if (!state.proactiveEnabled) return { allowed: false, reason: "proactive-paused" };
+  // The authored contact opening owns first contact. Wait for an actual user
+  // reply before a scheduler can add unsolicited messages to that new thread.
+  if (state.lastInteractionAt === null) return { allowed: false, reason: "awaiting-first-user-message" };
   if (
     state.hasUnansweredProactive
     && state.lastProactiveMessageAt
@@ -167,4 +171,113 @@ export function proactiveDedupeKey(input: Readonly<{
 }>): string {
   const event = input.sourceEventId?.trim() || input.calendarDay?.trim() || "rolling";
   return `lucia:${input.source}:${event}`.slice(0, 240);
+}
+
+export type ProactiveContinuityMessage = Readonly<{
+  role: "user" | "character";
+  content: string;
+}>;
+
+function continuityNormalize(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES");
+}
+
+const continuityStopwords = new Set([
+  "para", "como", "cuando", "donde", "porque", "pero", "sino", "sobre", "entre", "desde", "hasta",
+  "hacia", "segun", "tambien", "siempre", "nunca", "mucho", "mucha", "muchos", "muchas", "muy",
+  "bien", "solo", "algo", "alguno", "alguna", "algunos", "algunas", "este", "esta", "esto",
+  "estos", "estas", "ese", "esa", "eso", "esos", "esas", "aquel", "aquella", "otro", "otra",
+  "otros", "otras", "tipo", "tipos", "cosa", "cosas", "mas", "menos", "sueles", "suele",
+  "suelo", "suelen", "tienes", "tiene", "tener", "haces", "hacer", "hace",
+]);
+
+function continuityTokens(value: string): readonly string[] {
+  return continuityNormalize(value)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .split(/\s+/u)
+    .filter((token) => token.length >= 3 && !continuityStopwords.has(token));
+}
+
+function questionFragments(text: string): readonly string[] {
+  return text.match(/¿[^?]*\?/gu) ?? [];
+}
+
+/** "gente o a paisajes" -> [gente, paisajes]; articles between the options are skipped. */
+function disjunctiveQuestionOptions(question: string): readonly (readonly [string, string])[] {
+  const normalized = continuityNormalize(question);
+  const pattern = /(?:^|\s)([a-z]{3,})\s+o\s+(?:a\s+|al\s+|el\s+|la\s+|los\s+|las\s+|un\s+|una\s+|unos\s+|unas\s+)?([a-z]{3,})(?=[\s,.?!]|$)/gu;
+  const options: Array<readonly [string, string]> = [];
+  for (const match of normalized.matchAll(pattern)) {
+    const left = match[1];
+    const right = match[2];
+    if (!left || !right || continuityStopwords.has(left) || continuityStopwords.has(right)) continue;
+    options.push([left, right]);
+  }
+  return options;
+}
+
+function tokenJaccard(left: readonly string[], right: readonly string[]): number {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  let intersection = 0;
+  for (const token of leftSet) if (rightSet.has(token)) intersection += 1;
+  const union = leftSet.size + rightSet.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+const answeredQuestionMinimumTokens = 4;
+const repeatedQuestionSimilarityThreshold = 0.75;
+
+/**
+ * A proactive message is unsolicited, so it must not ask for information the
+ * conversation already supplied. This is a bounded lexical check, not a general
+ * semantic equivalent detector. It catches two reported shapes:
+ *
+ * 1. A disjunctive preference question whose two options the user already named
+ *    in the recent conversation ("me gusta fotografiar gente y paisajes" then
+ *    "¿sueles disparar más a gente o a paisajes?").
+ * 2. A near-verbatim repeat of a question the character already asked and the
+ *    user already answered.
+ *
+ * Unparseable or short history is not guessed at: no history means no block.
+ */
+export function repeatsAnsweredQuestion(
+  recentMessages: readonly ProactiveContinuityMessage[],
+  reply: string,
+): boolean {
+  const questions = questionFragments(reply);
+  if (questions.length === 0) return false;
+
+  const userTokens = new Set(recentMessages
+    .filter((message) => message.role === "user")
+    .flatMap((message) => continuityTokens(message.content)));
+  if (userTokens.size > 0) {
+    for (const question of questions) {
+      const knownOptions = disjunctiveQuestionOptions(question)
+        .some(([left, right]) => userTokens.has(left) && userTokens.has(right));
+      if (knownOptions) return true;
+    }
+  }
+
+  const answeredQuestions: Array<readonly string[]> = [];
+  for (let index = 0; index < recentMessages.length; index += 1) {
+    const message = recentMessages[index];
+    if (!message || message.role !== "character") continue;
+    const next = recentMessages[index + 1];
+    if (!next || next.role !== "user") continue;
+    for (const earlier of questionFragments(message.content)) {
+      const tokens = continuityTokens(earlier);
+      if (tokens.length >= answeredQuestionMinimumTokens) answeredQuestions.push(tokens);
+    }
+  }
+  if (answeredQuestions.length === 0) return false;
+  return questions.some((question) => {
+    const tokens = continuityTokens(question);
+    return tokens.length >= answeredQuestionMinimumTokens
+      && answeredQuestions.some((earlier) => tokenJaccard(earlier, tokens) >= repeatedQuestionSimilarityThreshold);
+  });
 }

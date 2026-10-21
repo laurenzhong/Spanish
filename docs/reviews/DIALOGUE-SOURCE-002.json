@@ -1,0 +1,307 @@
+{
+  "taskId": "DIALOGUE-SOURCE-002",
+  "status": "review",
+  "checkedDate": "2026-10-16",
+  "branch": "codex/disable-legacy-readlang",
+  "commit": null,
+  "kind": "research_proposal_only",
+  "sourceEnabled": false,
+  "rightsVerified": false,
+  "formalContentReview": false,
+  "originalTargets": {
+    "videoSeconds": [
+      180,
+      480
+    ],
+    "podcastSeconds": [
+      240,
+      600
+    ]
+  },
+  "shortSupplementDecision": "unanswered_keep_original_targets",
+  "result": {
+    "candidateGroups": 3,
+    "officialAudioLinks": 4,
+    "verifiedPlayableMedia": 0,
+    "originalMediaSeatsFilled": 0,
+    "published": 0,
+    "historicalSnapshot": {
+      "pendingReview": 2,
+      "unfilled": 10,
+      "freshDatabaseQuery": false
+    }
+  },
+  "officialChain": [
+    "https://coerll.utexas.edu/coerll/materials/language/spanish/",
+    "https://trayectos.coerll.utexas.edu/",
+    "https://trayectosoer.org/"
+  ],
+  "rights": {
+    "license": "CC-BY-SA-4.0",
+    "licensePage": "https://trayectosoer.org/more/license/",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "creditsPage": "https://trayectosoer.org/more/credits/",
+    "originalText": "open_license_observed",
+    "audioCoverage": "embedded_in_work_no_separate_exception_observed_file_specific_confirmation_pending",
+    "requirements": [
+      "attribution",
+      "source_and_license_links",
+      "indicate_changes",
+      "share_adapted_material_under_applicable_sharealike_terms",
+      "exclude_or_separately_attribute_third_party_assets"
+    ],
+    "runtimePolicy": "not_registered"
+  },
+  "candidates": [
+    {
+      "id": "roommates",
+      "title": "Compañeras de cuarto",
+      "evidenceKey": "university",
+      "url": "https://trayectosoer.org/v1/mod1/introduccion-comunicativa/",
+      "volume": 1,
+      "authors": [
+        "Gabriela C. Zapata"
+      ],
+      "speakers": [
+        "Bailey",
+        "Carolina"
+      ],
+      "turns": 12,
+      "script": "complete_reciprocal_text_observed",
+      "actions": [
+        "introduce_self",
+        "origin_and_studies_questions",
+        "offer_bookstore_and_campus_tour",
+        "ask_cafeteria_location_without_answer"
+      ],
+      "mediaType": "textbook_recorded_dialogue_link",
+      "audioUrls": [
+        "https://trayectos.coerll.utexas.edu/wp-content/uploads/Trayectos_Mod1_Audio1.1.mp3"
+      ],
+      "durationSeconds": null,
+      "timedTranscript": "not_found_on_inspected_page",
+      "audioScriptCorrespondence": "not_listened",
+      "dialect": "Latin_American_context_not_es_ES_certified",
+      "image": "public_domain_as_labeled_on_page",
+      "decision": "priority_audio_preparation_candidate_not_imported"
+    },
+    {
+      "id": "introductions",
+      "title": "A conocernos",
+      "evidenceKey": "greetings",
+      "url": "https://trayectosoer.org/v1/mod0/introduccion-comunicativa/",
+      "volume": 1,
+      "authors": [
+        "Gabriela C. Zapata"
+      ],
+      "script": "three_complete_reciprocal_scripts_observed",
+      "situations": [
+        {
+          "number": 1,
+          "speakers": [
+            "Rosy",
+            "Mamá de Rosy",
+            "Ramón"
+          ],
+          "turns": 6,
+          "action": "introduce_boyfriend_to_mother"
+        },
+        {
+          "number": 2,
+          "speakers": [
+            "Kareza",
+            "Mariana",
+            "Jessica"
+          ],
+          "turns": 8,
+          "action": "friend_introduction_name_and_origin"
+        },
+        {
+          "number": 3,
+          "speakers": [
+            "Dr. Suárez",
+            "Dra. Campos"
+          ],
+          "turns": 5,
+          "action": "formal_colleague_greeting_and_origin"
+        }
+      ],
+      "audioUrls": [
+        "https://trayectos.coerll.utexas.edu/wp-content/uploads/Trayectos_Mod0_Audio0.1.1-1.mp3",
+        "https://trayectos.coerll.utexas.edu/wp-content/uploads/Trayectos_Mod0_Audio0.1.2.mp3",
+        "https://trayectos.coerll.utexas.edu/wp-content/uploads/Trayectos_Mod0_Audio0.1.3-1.mp3"
+      ],
+      "audioMapping": "page_order_not_confirmed_by_listening",
+      "durationSeconds": null,
+      "timedTranscript": "not_found_on_inspected_page",
+      "images": [
+        "situation_1_public_domain",
+        "situation_2_Katiebordner_CC_BY_2.0",
+        "situation_3_public_domain"
+      ],
+      "decision": "supplement_candidates_not_imported"
+    },
+    {
+      "id": "cousins",
+      "title": "Primas",
+      "evidenceKey": "daily-life",
+      "url": "https://trayectosoer.org/v2/mod1/introduccion-comunicativa/",
+      "volume": 2,
+      "authors": [
+        "Gabriela C. Zapata",
+        "Alessandra Ribota"
+      ],
+      "speakers": [
+        "Amy",
+        "Sara"
+      ],
+      "turns": 10,
+      "script": "complete_reciprocal_text_observed",
+      "actions": [
+        "compare_interests",
+        "propose_restaurant_tonight",
+        "accept_invitation"
+      ],
+      "anchor": "¿ vamos a comer allí esta noche?",
+      "specificClockTime": false,
+      "clarificationSequence": false,
+      "audioUrls": [],
+      "durationSeconds": null,
+      "timedTranscript": "not_found_on_inspected_page",
+      "dialect": "includes_Argentine_voseo_not_es_ES",
+      "image": "taylormackenzie_CC_BY_SA_2.0_exclude_from_proposed_text_audio_subset",
+      "decision": "text_source_proposal_only_not_media"
+    }
+  ],
+  "exclusions": [
+    {
+      "evidenceKey": "restaurant",
+      "decision": "inspected_sections_not_matched_service_dialogue",
+      "limitation": "long_page_excerpt_truncated_not_full_page_assessment"
+    },
+    {
+      "evidenceKey": "celebrations",
+      "decision": "birthday_message_image_not_verified_audio_dialogue"
+    }
+  ],
+  "evidence": [
+    {
+      "key": "coerll",
+      "url": "https://coerll.utexas.edu/coerll/spanish",
+      "finalUrl": "https://coerll.utexas.edu/coerll/materials/language/spanish/",
+      "checkedAt": "2026-10-16T10:40:01.269Z",
+      "status": 200,
+      "bytes": 173650,
+      "bodySha256": "f476eda8fb19e64ae15102f192a91611f1fbb0fde89254cd0e6a7ca0c02047ea",
+      "artifact": "dialogue-source-002-coerll.json"
+    },
+    {
+      "key": "trayectos",
+      "url": "https://trayectos.coerll.utexas.edu/",
+      "finalUrl": "https://trayectosoer.org/",
+      "checkedAt": "2026-10-16T10:40:32.327Z",
+      "status": 200,
+      "bytes": 46976,
+      "bodySha256": "2f0fa5d82491d750ed7b3503e8e28b0a1b942a2b2efe981713d405cb8f1d4c05",
+      "artifact": "dialogue-source-002-trayectos.json"
+    },
+    {
+      "key": "trayectos-license",
+      "url": "https://trayectosoer.org/more/license/",
+      "finalUrl": "https://trayectosoer.org/more/license/",
+      "checkedAt": "2026-10-16T10:44:25.293Z",
+      "status": 200,
+      "bytes": 44569,
+      "bodySha256": "c41d4d205bb12017862bf1369df0929c58d2817919d1027da2ed3712f30a32b2",
+      "artifact": "dialogue-source-002-trayectos-license.json"
+    },
+    {
+      "key": "credits",
+      "url": "https://trayectosoer.org/more/credits/",
+      "finalUrl": "https://trayectosoer.org/more/credits/",
+      "checkedAt": "2026-10-16T10:47:36.790Z",
+      "status": 200,
+      "bytes": 46289,
+      "bodySha256": "d5b5a71e4ddd496489a1f10c001d54db2f59902ea04c3563384a8291fbc00beb",
+      "artifact": "dialogue-source-002-credits.json"
+    },
+    {
+      "key": "daily-life",
+      "url": "https://trayectosoer.org/v2/mod1/introduccion-comunicativa/",
+      "finalUrl": "https://trayectosoer.org/v2/mod1/introduccion-comunicativa/",
+      "checkedAt": "2026-10-16T10:46:31.623Z",
+      "status": 200,
+      "bytes": 53649,
+      "bodySha256": "1517d8bb8325acdb59b20167b298a2cdb996e0a931f28ed295a1e745f2a4cfe4",
+      "artifact": "dialogue-source-002-daily-life.json"
+    },
+    {
+      "key": "greetings",
+      "url": "https://trayectosoer.org/v1/mod0/introduccion-comunicativa/",
+      "finalUrl": "https://trayectosoer.org/v1/mod0/introduccion-comunicativa/",
+      "checkedAt": "2026-10-16T10:46:34.278Z",
+      "status": 200,
+      "bytes": 53943,
+      "bodySha256": "b9bc45c4a9cab71cea754109cce46afcca209c345cf5d842fcf588f8505010af",
+      "artifact": "dialogue-source-002-greetings.json"
+    },
+    {
+      "key": "university",
+      "url": "https://trayectosoer.org/v1/mod1/introduccion-comunicativa/",
+      "finalUrl": "https://trayectosoer.org/v1/mod1/introduccion-comunicativa/",
+      "checkedAt": "2026-10-16T10:47:34.178Z",
+      "status": 200,
+      "bytes": 49676,
+      "bodySha256": "adffaaa58d332ec84cdca9a2e2c1afcccb451301f9731ee1e957c5c428fe6294",
+      "artifact": "dialogue-source-002-university.json"
+    },
+    {
+      "key": "restaurant",
+      "url": "https://trayectosoer.org/v2/mod2/mas-comunicacion/",
+      "finalUrl": "https://trayectosoer.org/v2/mod2/mas-comunicacion/",
+      "checkedAt": "2026-10-16T10:45:59.581Z",
+      "status": 200,
+      "bytes": 73330,
+      "bodySha256": "8c816838edeae190988d0160d88a0b13bf90469abeda6399a6833e54aecffdb9",
+      "artifact": "dialogue-source-002-restaurant.json"
+    },
+    {
+      "key": "celebrations",
+      "url": "https://trayectosoer.org/v2/mod3/introduccion-comunicativa/",
+      "finalUrl": "https://trayectosoer.org/v2/mod3/introduccion-comunicativa/",
+      "checkedAt": "2026-10-16T10:46:02.168Z",
+      "status": 200,
+      "bytes": 46438,
+      "bodySha256": "abf77bd66bb92f7d4f876edbae9c1bd98984e1ef987158c2d940ea9720bd2797",
+      "artifact": "dialogue-source-002-celebrations.json"
+    }
+  ],
+  "pending": [
+    "exact_audio_license_coverage",
+    "licensed_bounded_acquisition_and_listening",
+    "actual_durations",
+    "audio_script_correspondence",
+    "timed_transcript_or_future_alignment",
+    "versioned_attribution_and_sharealike_delivery",
+    "independent_es_ES_and_zh_CN_reviews",
+    "existing_source_processing_and_hosting_gates"
+  ],
+  "operations": {
+    "publicHtmlRead": true,
+    "mediaBytesFetched": false,
+    "remoteFfprobe": false,
+    "database": false,
+    "asr": false,
+    "translationProvider": false,
+    "paidProvider": false,
+    "thirdPartyMessages": false,
+    "publish": false,
+    "commit": false
+  },
+  "validation": {
+    "record": "dialogue-source-002-validation.json",
+    "applicationChecksRun": false,
+    "reason": "research_documents_only_no_product_changes",
+    "audioPlaybackAndSafariVerified": false
+  }
+}

@@ -11,6 +11,8 @@ function categoryForRelationship(relationshipType: string): string {
   if (relationshipType.includes("campus")) return "study";
   if (relationshipType.includes("rental")) return "housing";
   if (relationshipType.includes("restaurant")) return "daily-life";
+  if (relationshipType.includes("transport") || relationshipType.includes("hotel")) return "travel";
+  if (relationshipType.includes("post-office")) return "services";
   return "social";
 }
 

@@ -42,7 +42,25 @@ export type ConversationPreferencePatch = Readonly<{
   sortRank?: number | null;
 }>;
 
+export type PendingConversationMessage = Readonly<{ text: string; clientMessageId: string; assistance?: "translation" }>;
+export type ReplyGenerationScope = Readonly<{ userId: string; conversationId: string; generationId: string }>;
+export type ReplyGenerationClaimInput = ReplyGenerationScope & Readonly<{
+  characterKey: string;
+  messageId: string;
+  messages: readonly PendingConversationMessage[];
+  supersedes?: Readonly<{ generationId: string; visibleBubbleCount: number }>;
+}>;
+export type ReplyGenerationClaim = Readonly<{
+  status: "claimed" | "in-progress" | "completed" | "cancelled";
+  assistant: ConversationMessageRecord;
+  userMessages: readonly ConversationMessageRecord[];
+}>;
+
 export type ConversationRepository = Readonly<{
+  claimReplyGeneration?(input: ReplyGenerationClaimInput): Promise<ReplyGenerationClaim>;
+  saveReplyPrefix?(input: ReplyGenerationScope & Readonly<{ prefix: string; userMessageIds?: readonly string[] }>): Promise<boolean>;
+  finishReplyGeneration?(input: ReplyGenerationScope & Readonly<{ content: string; userMessageIds?: readonly string[] }>): Promise<ConversationMessageRecord | null>;
+  cancelReplyGeneration?(input: ReplyGenerationScope): Promise<boolean>;
   getOrCreateConversation(userId: string, characterKey: string, characterVersion: number): Promise<string>;
   appendUserMessage(input: Readonly<{
     userId: string;
@@ -51,6 +69,8 @@ export type ConversationRepository = Readonly<{
     clientMessageId: string;
     generationId: string;
     content: string;
+    /** Declared assistance; absence never authorizes independent learning evidence. */
+    sourceType?: "conversation" | "translation_assisted";
   }>): Promise<ConversationMessageRecord>;
   completeAssistantMessage(input: Readonly<{
     userId: string;

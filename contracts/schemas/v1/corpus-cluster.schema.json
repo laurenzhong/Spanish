@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spanish.local/contracts/v1/corpus-cluster.schema.json",
+  "title": "Phrase corpus comparison cluster",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entryKind", "entryId", "expression", "meaningZh", "pragmaticPurpose", "contexts", "contentKinds"],
+  "properties": {
+    "entryKind": { "const": "phrase" },
+    "entryId": { "type": "string", "format": "uuid" },
+    "expression": { "type": "string" },
+    "meaningZh": { "type": ["string", "null"] },
+    "pragmaticPurpose": { "type": ["string", "null"] },
+    "contexts": { "type": "array", "items": { "$ref": "https://spanish.local/contracts/v1/corpus-cluster-context.schema.json" } },
+    "contentKinds": { "type": "array", "items": { "enum": ["article", "video", "podcast"] }, "uniqueItems": true }
+  }
+}

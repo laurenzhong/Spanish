@@ -1,3 +1,10 @@
+import { readAloudFake as speech } from "../helpers/read-aloud-fake";
+vi.mock("@/src/modules/providers/tts/read-aloud", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/modules/providers/tts/read-aloud")>();
+  const { readAloudFake } = await import("../helpers/read-aloud-fake");
+  return { ...actual, createReadAloud: readAloudFake.create };
+});
+
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +15,8 @@ import { SpeechCapabilityError } from "@/src/modules/providers/speech";
 describe("FakeTrainingLoop", () => {
   beforeEach(() => {
     cleanup();
+    speech.reset();
+    speech.state.supported = false;
     window.localStorage.clear();
   });
 
@@ -58,17 +67,27 @@ describe("FakeTrainingLoop", () => {
     expect(screen.getByRole("button", { name: "用文字回答" })).toBeInTheDocument();
   });
 
+  it("lets a skipped reference playback reach answering without a technical error", async () => {
+    const audio = {
+      recorder: {
+        start: vi.fn(),
+        stop: vi.fn(),
+        cancel: vi.fn(),
+      },
+      textToSpeech: {
+        isSupported: true,
+        speak: vi.fn().mockRejectedValue(new SpeechCapabilityError("tts-cancelled", "stopped")),
+        stop: vi.fn(),
+      },
+    };
+    render(<FakeTrainingLoop audio={audio} />);
+    expect(await screen.findByText("轮到你了")).toBeInTheDocument();
+    expect(screen.queryByText("这次没有顺利完成")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "用文字回答" })).toBeInTheDocument();
+  });
+
   it("replays and stops the current Spanish pronunciation from the audio control", async () => {
     const user = userEvent.setup();
-    const selectedVoice = {
-      name: "Microsoft Sofia Online (Natural) - Spanish (Bolivia)",
-      lang: "es-BO",
-      voiceURI: "sofia-es",
-    } as SpeechSynthesisVoice;
-    vi.stubGlobal("speechSynthesis", {
-      getVoices: () => [selectedVoice],
-    });
-    window.localStorage.setItem("sueno-reader-tts-voice:es", selectedVoice.voiceURI);
     let finishReplay: () => void = () => undefined;
     const speak = vi
       .fn<() => Promise<void>>()
@@ -102,9 +121,7 @@ describe("FakeTrainingLoop", () => {
 
     expect(speak).toHaveBeenCalledWith("¿Cómo va todo?", {
       languageTag: "es-ES",
-      rate: 0.9,
-      voiceName: selectedVoice.name,
-      voiceURI: selectedVoice.voiceURI,
+      rate: 1,
     });
     await user.click(screen.getByRole("button", { name: "停止发音" }));
     expect(stop).toHaveBeenCalledTimes(1);

@@ -9,7 +9,11 @@ const defaultAudioContentTypes = new Set(["audio/mpeg", "audio/mp3"]);
 
 function allowedHost(hostname: string, hosts: ReadonlySet<string>): boolean {
   const host = hostname.toLowerCase();
-  return hosts.has(host) || (hosts.has("mc.tritondigital.com") && host.endsWith(".mc.tritondigital.com"));
+  return hosts.has(host)
+    || (hosts.has("mc.tritondigital.com") && host.endsWith(".mc.tritondigital.com"))
+    || (hosts.has("simplecastaudio.com") && host.endsWith(".simplecastaudio.com"))
+    || (hosts.has("pscrb.fm") && host.endsWith(".pscrb.fm"))
+    || (hosts.has("anchor.fm") && host.endsWith(".anchor.fm"));
 }
 
 /** Persist only verified chunks; never persist source signatures or credentials. */

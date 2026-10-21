@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { ConfirmActionDialog } from "@/src/shared/ui/confirm-action-dialog";
+
 type MemoryRecord = Readonly<{
   category: string;
   characterKey: string;
@@ -58,8 +60,7 @@ export function MemoryDataControls({ onError, retryToken = 0, showError = true }
     return () => { active = false; };
   }, [onError, reloadToken, retryToken, showError]);
 
-  async function remove(memory: MemoryRecord) {
-    if (!window.confirm("删除后这条关系记忆和相关共享授权都无法恢复，确定删除吗？")) return;
+  async function remove(memory: MemoryRecord): Promise<boolean> {
     setBusy(memory.id);
     setMessage(null);
     try {
@@ -69,8 +70,10 @@ export function MemoryDataControls({ onError, retryToken = 0, showError = true }
       if (!payload.data?.deleted) throw new Error("MEMORY_NOT_FOUND");
       setMemories((current) => current.filter((item) => item.id !== memory.id));
       setMessage("已删除这条关系记忆及其共享授权。");
+      return true;
     } catch {
-      setMessage("暂时无法删除这条关系记忆，请稍后再试。");
+      // The dialog owns the failure copy; no partial success is shown on the page.
+      return false;
     } finally {
       setBusy(null);
     }
@@ -96,9 +99,14 @@ export function MemoryDataControls({ onError, retryToken = 0, showError = true }
               {memory.sensitivity === "sensitive" ? " · 敏感资料" : ""}
             </p>
           </div>
-          <button type="button" className="button--quiet" onClick={() => void remove(memory)} disabled={busy !== null}>
-            {busy === memory.id ? "删除中…" : "删除记忆"}
-          </button>
+          <ConfirmActionDialog
+            confirmLabel="确认删除记忆"
+            description="删除后这条关系记忆和相关共享授权都无法恢复；能力证据不会被删除。"
+            failureMessage="暂时无法删除这条关系记忆，请稍后再试。"
+            onConfirm={() => remove(memory)}
+            title="删除这条关系记忆？"
+            trigger={<button type="button" className="button--quiet" disabled={busy !== null}>删除记忆</button>}
+          />
         </article>
       ))}
       {message ? <p className="surface-state__message" role="status">{message}</p> : null}

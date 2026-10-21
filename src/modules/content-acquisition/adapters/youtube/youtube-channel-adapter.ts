@@ -9,6 +9,7 @@ import {
   type ContentSourceDiscoveryInput,
 } from "../content-source-adapter";
 import { fetchBoundedText } from "../http/bounded-text-fetch";
+import { getExactYouTubeDiscoveryPage } from "./youtube-exact-discovery";
 
 type XmlNode = { name: string; text: string; attributes: Record<string, string>; children: XmlNode[] };
 type FeedVideo = Readonly<{ videoId: string; title: string; publishedAt: string }>;
@@ -106,7 +107,8 @@ function parseCursor(value: string | null): YouTubeCursor | null {
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>;
     if (
-      typeof parsed.latestPublishedAt !== "string"
+      "mode" in parsed
+      || typeof parsed.latestPublishedAt !== "string"
       || Number.isNaN(new Date(parsed.latestPublishedAt).getTime())
       || typeof parsed.latestVideoId !== "string"
     ) throw new Error();
@@ -147,8 +149,9 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
     source: Readonly<{
       channelId: string;
       channelName: string;
+      allowedVideoIds?: readonly string[];
       region: string | null;
-      cefr: "A2" | "B1";
+      cefr: "A1" | "A2" | "B1" | "B2";
       topics: readonly string[];
       allowedRegions?: readonly string[];
       minDurationMs?: number;
@@ -169,38 +172,53 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
     if (input.externalSourceId !== this.options.source.channelId || !this.options.apiKey.trim()) {
       throw new ContentSourceAdapterError("YouTube source identity or server credential is invalid.", false);
     }
-    const cursor = parseCursor(input.cursor);
-    const headers = new Headers({ accept: "application/atom+xml, application/xml, text/xml" });
-    if (cursor?.etag) headers.set("if-none-match", cursor.etag);
-    if (cursor?.lastModified) headers.set("if-modified-since", cursor.lastModified);
-    const feed = await fetchBoundedText({
-      url: `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(this.options.source.channelId)}`,
-      fetch: this.options.fetch,
-      allowedHosts: ["www.youtube.com"],
-      allowedContentTypes: ["application/atom+xml", "application/xml", "text/xml"],
-      maxBytes: this.options.maxFeedBytes ?? 500_000,
-      headers,
-      signal: requestOptions?.signal,
-    });
-    if (feed.status === 304) {
-      return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor: input.cursor, estimatedCostMicros: 0, items: [] };
-    }
-    const feedVideos = parseFeed(feed.text)
-      .filter((video) => !cursor || video.publishedAt > cursor.latestPublishedAt || (video.publishedAt === cursor.latestPublishedAt && video.videoId !== cursor.latestVideoId))
-      .slice(0, input.limit);
-    const newest = parseFeed(feed.text)[0];
-    const nextCursor = newest ? JSON.stringify({
-      latestPublishedAt: newest.publishedAt,
-      latestVideoId: newest.videoId,
-      ...(feed.headers.get("etag") ? { etag: feed.headers.get("etag")! } : {}),
-      ...(feed.headers.get("last-modified") ? { lastModified: feed.headers.get("last-modified")! } : {}),
-    }) : input.cursor;
-    if (feedVideos.length === 0) {
-      return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor, estimatedCostMicros: 0, items: [] };
+    const assertActive = () => {
+      if (requestOptions?.signal?.aborted) throw new ContentSourceAdapterError("YouTube discovery was cancelled.", false);
+    };
+    assertActive();
+    const exactMode = this.options.source.allowedVideoIds !== undefined;
+    let requestedVideos: readonly Readonly<{ videoId: string; title?: string }>[];
+    let nextCursor: string | null;
+    if (exactMode) {
+      const page = getExactYouTubeDiscoveryPage({ allowedVideoIds: this.options.source.allowedVideoIds, channelId: this.options.source.channelId, sourceStableKey: input.sourceStableKey, cursor: input.cursor, limit: input.limit });
+      requestedVideos = page.videoIds.map((videoId) => ({ videoId }));
+      nextCursor = page.nextCursor;
+    } else {
+      const cursor = parseCursor(input.cursor);
+      const headers = new Headers({ accept: "application/atom+xml, application/xml, text/xml" });
+      if (cursor?.etag) headers.set("if-none-match", cursor.etag);
+      if (cursor?.lastModified) headers.set("if-modified-since", cursor.lastModified);
+      const feed = await fetchBoundedText({
+        url: `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(this.options.source.channelId)}`,
+        fetch: this.options.fetch,
+        allowedHosts: ["www.youtube.com"],
+        allowedContentTypes: ["application/atom+xml", "application/xml", "text/xml"],
+        maxBytes: this.options.maxFeedBytes ?? 500_000,
+        headers,
+        signal: requestOptions?.signal,
+      });
+      assertActive();
+      if (feed.status === 304) {
+        return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor: input.cursor, estimatedCostMicros: 0, items: [] };
+      }
+      const feedVideos = parseFeed(feed.text)
+        .filter((video) => !cursor || video.publishedAt > cursor.latestPublishedAt || (video.publishedAt === cursor.latestPublishedAt && video.videoId !== cursor.latestVideoId))
+        .slice(0, input.limit);
+      const newest = parseFeed(feed.text)[0];
+      nextCursor = newest ? JSON.stringify({
+        latestPublishedAt: newest.publishedAt,
+        latestVideoId: newest.videoId,
+        ...(feed.headers.get("etag") ? { etag: feed.headers.get("etag")! } : {}),
+        ...(feed.headers.get("last-modified") ? { lastModified: feed.headers.get("last-modified")! } : {}),
+      }) : input.cursor;
+      if (feedVideos.length === 0) {
+        return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor, estimatedCostMicros: 0, items: [] };
+      }
+      requestedVideos = feedVideos;
     }
     const detailsUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
     detailsUrl.searchParams.set("part", "snippet,contentDetails,status");
-    detailsUrl.searchParams.set("id", feedVideos.map((video) => video.videoId).join(","));
+    detailsUrl.searchParams.set("id", requestedVideos.map((video) => video.videoId).join(","));
     detailsUrl.searchParams.set("key", this.options.apiKey);
     const detailsResponse = await fetchBoundedText({
       url: detailsUrl.toString(),
@@ -209,17 +227,32 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
       allowedContentTypes: ["application/json"],
       maxBytes: this.options.maxApiBytes ?? 1_000_000,
       signal: requestOptions?.signal,
+      // API credentials must never follow redirects, including to the same host.
+      maxRedirects: 0,
     });
+    assertActive();
     let details;
     try {
       details = videoDetailsSchema.parse(JSON.parse(detailsResponse.text));
     } catch {
       throw new ContentSourceAdapterError("YouTube Data API returned an invalid response.", false);
     }
-    const feedById = new Map(feedVideos.map((video) => [video.videoId, video]));
+    const feedById = new Map(requestedVideos.map((video) => [video.videoId, video]));
+    if (exactMode) {
+      const returned = new Set<string>();
+      for (const detail of details.items) {
+        if (!feedById.has(detail.id) || returned.has(detail.id)) throw new ContentSourceAdapterError("YouTube Data API returned an unexpected or duplicate video ID.", false);
+        returned.add(detail.id);
+      }
+    }
+    const byId = new Map(details.items.map((detail) => [detail.id, detail]));
+    const orderedDetails = exactMode ? requestedVideos.flatMap(({ videoId }) => {
+      const detail = byId.get(videoId);
+      return detail ? [detail] : [];
+    }) : details.items;
     const now = (this.options.now ?? (() => new Date()))().toISOString();
     const items: ContentSourcePage["items"][number][] = [];
-    for (const detail of details.items) {
+    for (const detail of orderedDetails) {
       const feedVideo = feedById.get(detail.id);
       const duration = durationMs(detail.contentDetails.duration);
       const declaredLanguage = detail.snippet.defaultAudioLanguage ?? detail.snippet.defaultLanguage;
@@ -235,6 +268,8 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
         || duration > (this.options.source.maxDurationMs ?? 43_200_000)
         || !availableInConfiguredRegion(detail.contentDetails.regionRestriction, this.options.source.allowedRegions ?? ["ES"])
       ) continue;
+      const title = detail.snippet.title.trim() || feedVideo.title?.trim();
+      if (!title) continue;
       const canonicalUrl = `https://www.youtube.com/watch?v=${detail.id}`;
       const draft = createVideoCandidateDraft({
         stableKey: `youtube.${detail.id.toLowerCase()}`,
@@ -243,7 +278,7 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
         sourceChannelId: detail.snippet.channelId,
         canonicalUrl,
         embedUrl: `https://www.youtube-nocookie.com/embed/${detail.id}?enablejsapi=1`,
-        title: detail.snippet.title.trim() || feedVideo.title,
+        title,
         summary: detail.snippet.description.trim().slice(0, 4_000),
         sourceName: detail.snippet.channelTitle.trim() || this.options.source.channelName,
         language: "es",
@@ -272,6 +307,7 @@ export class YouTubeChannelAdapter implements ContentSourceAdapter {
         metadata: { videoDraft: draft },
       });
     }
+    assertActive();
     return { sourceStableKey: input.sourceStableKey, cursor: input.cursor, nextCursor, estimatedCostMicros: 0, items };
   }
 }

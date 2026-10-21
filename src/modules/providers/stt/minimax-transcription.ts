@@ -42,9 +42,9 @@ const responseSchema = z.object({
   duration: z.number().nonnegative().optional(),
   trace_id: z.string().optional(),
   segments: z.array(z.object({
-    text: z.string(),
+    text: z.string().min(1),
     start: z.number().nonnegative(),
-    end: z.number().nonnegative(),
+    end: z.number().positive(),
     speaker: z.string().nullable().optional(),
   }).passthrough()).optional(),
 }).passthrough();
@@ -167,7 +167,18 @@ export class MiniMaxTranscriptionProvider implements SpeechToTextProvider {
       signal,
     });
     const requestId = response.headers.get("x-request-id");
-    if (!response.ok) throw errorForResponseStatus(response.status);
+    if (!response.ok) {
+      // MiniMax returns 422 for a chunk that contains only silence. A long
+      // recording can legitimately end with such a chunk; omit that chunk
+      // while keeping every other provider rejection fail-closed.
+      if (response.status === 422) {
+        const body = await response.text().catch(() => "");
+        if (/no clear speaker was detected/iu.test(body)) {
+          return { text: "", requestId };
+        }
+      }
+      throw errorForResponseStatus(response.status);
+    }
     let payload: unknown;
     try { payload = await response.json(); }
     catch { throw new SpeechToTextError("provider-response-invalid", "Speech provider returned invalid JSON.", false); }
@@ -247,6 +258,7 @@ export function createMiniMaxTranscriptionProvider(options: Partial<MiniMaxTrans
     apiKey: options.apiKey ?? process.env.MINIMAX_API_KEY ?? "",
     endpoint: options.endpoint ?? process.env.MINIMAX_TRANSCRIPTION_API_ENDPOINT ?? defaultEndpoint,
     model: options.model ?? process.env.MINIMAX_TRANSCRIPTION_MODEL ?? defaultModel,
+    timestampLevel: options.timestampLevel ?? (process.env.MINIMAX_TRANSCRIPTION_TIMESTAMP_LEVEL === "word" ? "word" : "sentence"),
   });
 }
 

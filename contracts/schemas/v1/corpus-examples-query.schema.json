@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "query": {
+      "default": "",
+      "type": "string",
+      "maxLength": 120
+    },
+    "match": {
+      "default": "phrase",
+      "type": "string",
+      "enum": [
+        "phrase",
+        "all"
+      ]
+    },
+    "contentKind": {
+      "type": "string",
+      "enum": [
+        "article",
+        "video",
+        "podcast"
+      ]
+    },
+    "documentKind": {
+      "type": "string",
+      "enum": [
+        "article",
+        "media"
+      ]
+    },
+    "stableKey": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "sourceKind": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "entryKind": {
+      "type": "string",
+      "enum": [
+        "lexeme",
+        "phrase"
+      ]
+    },
+    "entryId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "page": {
+      "default": 1,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000
+    },
+    "pageSize": {
+      "default": 12,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://spanish.local/contracts/v1/corpus-examples-query.schema.json",
+  "title": "Corpus examples query",
+  "$comment": "Generated with Zod.toJSONSchema from lexicon-corpus/schemas/corpus-examples.ts. Query defaults are optional on the wire; dependentRequired represents the paired entry refinement.",
+  "dependentRequired": {
+    "entryKind": [
+      "entryId"
+    ],
+    "entryId": [
+      "entryKind"
+    ]
+  }
+}
