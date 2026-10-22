@@ -6,6 +6,8 @@ import {
   getLuciaProactiveSlots,
   luciaProactiveGenerationAttempts,
   parseLuciaProactiveUserIds,
+  proactiveFailurePayload,
+  scheduledProactiveDatabaseUrl,
   shouldRetryLuciaProactiveGeneration,
 } from "@/src/modules/conversation/application/proactive-runner-utils";
 
@@ -39,5 +41,45 @@ describe("Lucía proactive daily runner", () => {
     expect(shouldRetryLuciaProactiveGeneration("character-runtime-unavailable")).toBe(false);
     expect(shouldRetryLuciaProactiveGeneration("relationship-inactive")).toBe(false);
     expect(shouldRetryLuciaProactiveGeneration(null)).toBe(false);
+  });
+
+  it("disables postgres.js's internal type fetch without disturbing the connection parameters", () => {
+    const raw = "postgresql://postgres.project:pa%40ss@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require";
+    const url = new URL(scheduledProactiveDatabaseUrl(raw));
+    // fetch_types is a postgres.js connection-URL option; disabling it stops the
+    // unretained pg_type catalog query that crashed the 2026-10-22 scheduled run.
+    expect(url.searchParams.get("fetch_types")).toBe("false");
+    expect(url.searchParams.get("sslmode")).toBe("require");
+    expect(url.username).toBe("postgres.project");
+    // postgres.js decodes the userinfo itself, so the round-tripped URL must
+    // decode back to the original password.
+    expect(decodeURIComponent(url.password)).toBe("pa@ss");
+    expect(url.hostname).toBe("aws-0-ap-southeast-1.pooler.supabase.com");
+    expect(url.port).toBe("6543");
+    expect(url.pathname).toBe("/postgres");
+
+    const repeated = scheduledProactiveDatabaseUrl("postgresql://u:p@h:5432/db?fetch_types=true&application_name=runner");
+    expect(new URL(repeated).searchParams.get("fetch_types")).toBe("false");
+    expect(new URL(repeated).searchParams.get("application_name")).toBe("runner");
+    expect(new URL(scheduledProactiveDatabaseUrl(repeated)).searchParams.get("fetch_types")).toBe("false");
+  });
+
+  it("reports process-level failures as one JSON line with the Postgres SQLSTATE", () => {
+    const postgresError = Object.assign(new Error("canceling statement due to statement timeout"), { code: "57014" });
+    expect(JSON.parse(proactiveFailurePayload("unhandled-rejection", postgresError))).toEqual({
+      code: "LUCIA_PROACTIVE_FAILED",
+      reason: "unhandled-rejection",
+      message: "canceling statement due to statement timeout",
+      pgCode: "57014",
+    });
+    expect(JSON.parse(proactiveFailurePayload("uncaught-exception", "boom"))).toEqual({
+      code: "LUCIA_PROACTIVE_FAILED",
+      reason: "uncaught-exception",
+      message: "Lucía proactive run failed.",
+    });
+    expect(JSON.parse(proactiveFailurePayload("run-failed", new Error("x".repeat(600)))).message).toHaveLength(500);
+    // Application error codes are not SQLSTATEs and must not be reported as one.
+    const applicationError = Object.assign(new Error("CHARACTER_RUNTIME_UNAVAILABLE"), { code: "CHARACTER_RUNTIME_UNAVAILABLE" });
+    expect(JSON.parse(proactiveFailurePayload("run-failed", applicationError))).not.toHaveProperty("pgCode");
   });
 });

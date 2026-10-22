@@ -80,3 +80,41 @@ export function shouldRetryLuciaProactiveGeneration(reason: string | null | unde
   if (!reason) return false;
   return reason === "provider-unavailable" || reason.startsWith("safety-gate-");
 }
+
+/**
+ * postgres.js fetches array type OIDs on a connection's first statement
+ * (`fetch_types`, enabled by default) with an internal catalog query whose
+ * promise it does not retain. A server-side cancellation of that internal
+ * statement (for example a transient `57014 statement timeout`) therefore
+ * surfaces as an unhandled rejection and kills the scheduled process before
+ * the runner can report its own JSON result. The runner only reads scalar and
+ * JSON columns, so it disables the internal lookup through the connection URL;
+ * every other consumer keeps the postgres.js default.
+ */
+export function scheduledProactiveDatabaseUrl(databaseUrl: string): string {
+  const url = new URL(databaseUrl);
+  url.searchParams.set("fetch_types", "false");
+  return url.toString();
+}
+
+/**
+ * One stable JSON line for process-level failures. Postgres errors carry their
+ * SQLSTATE as `code`; keeping it here distinguishes a transient server
+ * cancellation from a configuration or code bug without logging message text.
+ */
+export function proactiveFailurePayload(reason: string, error: unknown): string {
+  const message = error instanceof Error ? error.message : "Lucía proactive run failed.";
+  const rawCode = typeof (error as { code?: unknown } | null)?.code === "string"
+    ? (error as { code: string }).code
+    : null;
+  // Only SQLSTATEs are forwarded; application errors such as
+  // CHARACTER_RUNTIME_UNAVAILABLE also expose a `code`, but it is not a
+  // database status and would mislead a "transient?" diagnosis.
+  const pgCode = rawCode && /^[0-9A-Z]{5}$/u.test(rawCode) ? rawCode : null;
+  return JSON.stringify({
+    code: "LUCIA_PROACTIVE_FAILED",
+    reason,
+    message: message.slice(0, 500),
+    ...(pgCode ? { pgCode } : {}),
+  });
+}
