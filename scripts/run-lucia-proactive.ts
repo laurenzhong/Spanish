@@ -1,9 +1,10 @@
 import "dotenv/config";
 
+import { writeSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { generateLuciaProactiveMessage, createDrizzleProactiveMessageRepository, resolveConversationCharacter, getConversationCharacter } from "../src/modules/conversation";
 import { createDrizzleCharacterRepository } from "../src/modules/characters";
-import { formatNaturalDate, getDueLuciaProactiveSlots, parseLuciaProactiveUserIds } from "../src/modules/conversation/application/proactive-runner-utils";
+import { formatNaturalDate, getDueLuciaProactiveSlots, parseLuciaProactiveUserIds, proactiveFailurePayload, scheduledProactiveDatabaseUrl } from "../src/modules/conversation/application/proactive-runner-utils";
 import { createDrizzleMemoryRepository } from "../src/modules/memory";
 import { createMiniMaxConversationProvider } from "../src/modules/providers/conversation/minimax-conversation";
 import { createOpenAIConversationProvider } from "../src/modules/providers/conversation/openai-conversation";
@@ -24,7 +25,10 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl || !/^postgres(?:ql)?:\/\/[^\s]+$/u.test(databaseUrl)) throw new Error("DATABASE_URL must be a PostgreSQL connection string.");
 
-  const connection = createDatabaseConnection(databaseUrl);
+  // Disable postgres.js's internal array-type fetch; see
+  // scheduledProactiveDatabaseUrl for the 2026-10-22 scheduled-run failure it
+  // prevents. The runner reads no array columns.
+  const connection = createDatabaseConnection(scheduledProactiveDatabaseUrl(databaseUrl));
   try {
     const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();
     const provider = configuredProvider === "openai" && process.env.OPENAI_API_KEY?.trim()
@@ -97,8 +101,16 @@ async function main(): Promise<void> {
 
 const entryPoint = process.argv[1];
 if (entryPoint && import.meta.url === pathToFileURL(entryPoint).href) {
-  main().catch((error: unknown) => {
-    process.stderr.write(`${JSON.stringify({ code: "LUCIA_PROACTIVE_FAILED", message: error instanceof Error ? error.message : "Lucía proactive run failed." })}\n`);
-    process.exitCode = 1;
-  });
+  // Process-level failures (for example a rejection from a library promise the
+  // runner does not own) must still produce one actionable line and exit 1
+  // instead of the raw "triggerUncaughtException" dump that made the
+  // 2026-10-22 scheduled run hard to diagnose. Write synchronously so the line
+  // survives the immediate exit.
+  const reportFailure = (reason: string, error: unknown): never => {
+    writeSync(2, `${proactiveFailurePayload(reason, error)}\n`);
+    process.exit(1);
+  };
+  process.on("unhandledRejection", (reason: unknown) => reportFailure("unhandled-rejection", reason));
+  process.on("uncaughtException", (error: unknown) => reportFailure("uncaught-exception", error));
+  main().catch((error: unknown) => reportFailure("run-failed", error));
 }
