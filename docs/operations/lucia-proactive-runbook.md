@@ -254,6 +254,14 @@ ESLint exit 0；真实 transaction pooler + 真实库只读路径（固定非到
 `results: []`、约 2.1 s、未调用 provider 也未写消息；指向无效连接地址时入口
 输出单行 JSON 并 exit 1。
 
+GitHub 环境验证：从修复分支手动 dispatch run
+[`39708037334`](https://github.com/laurenzhong/Spanish/actions/runs/39708037334)
+结论 success，checkout ref 为 `0c63a74`，生成步骤输出
+`{"date":"2026-10-22","generated":0,"suppressed":1,"failed":0, ... "reason":"daily-limit"}`
+并 exit 0；当日额度已满，因此这次验证没有调用 provider、也没有写消息。
+同日 09:41 的自然调度 run `39707140882`（旧 pin `d496281`）也已 success，
+说明数据库侧在崩溃后已恢复。
+
 回退：只把 workflow 的 checkout ref 回退到 `d496281`；不要通过忽略退出码、
 `continue-on-error` 或关闭通知掩盖故障。本修复没有数据库写入，不需要数据回滚。
 
