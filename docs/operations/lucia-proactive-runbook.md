@@ -218,3 +218,53 @@ ESLint exit 0。workflow 的 checkout ref 同时更新为本提交。
 今早被安全门禁拦截的时段在重采样后真实生成；第二个到期时段按 4 小时冷却
 正常抑制，退出码 0。后续若再次出现 `safety-gate-<code>`，应按原因码排查
 提示词或模型，连续两次以上同类拒绝需要另立修复，而不是继续增加重试次数。
+
+## 2026-10-22：连接层 statement timeout 崩溃（LUCIA-CI-004）
+
+2026-10-22 07:18（北京时间）的自然调度 run `39692576920`（main `bf7ef5c`，
+实际 checkout 固定提交 `d496281`）在生成步骤以
+`PostgresError: canceling statement due to statement timeout`（SQLSTATE `57014`）
+退出 1；日志里没有 `LUCIA_PROACTIVE_FAILED` JSON，也没有运行结果行。相邻调度
+（04:02、前一日 23:58）成功，09:30 手动 dispatch 复跑也成功，说明数据库当时已经
+恢复，属于一次瞬时取消而不是持续故障。
+
+只读定位：被取消的语句不是 runner 自己的查询，而是 postgres.js 在连接第一条
+语句前执行的内部 `fetch_types` 目录查询（`select ... from pg_catalog.pg_type ...`）。
+驱动在 `ReadyForQuery` 中调用 `fetchArrayTypes()` 时没有保留或等待它的 promise，
+因此服务器端取消该语句后，这个 rejection 绕过脚本自己的 `main().catch`，Node 以
+`triggerUncaughtException` 直接崩溃。证据：默认连接的首条语句就是该目录查询；
+连接 URL 加 `fetch_types=false` 后该内部语句消失（postgres.js `debug` 钩子实测）；
+runner 只读标量与 JSON 列，不依赖数组类型解析。
+
+修复 Commit `0c63a746cfb4ab666b016cb49e59aac6f2dea636`（分支
+`codex/lucia-proactive-v3-runtime`，tag `lucia-runtime-v3.2`）：
+
+- 定时 runner 连接前给 `DATABASE_URL` 增加 `fetch_types=false`，关闭上述内部
+  查询；其他使用方保持 postgres.js 默认。
+- runner 入口安装 `unhandledRejection` / `uncaughtException` / `main` 失败报告：
+  统一同步输出一行 `{"code":"LUCIA_PROACTIVE_FAILED","reason":...,
+  "message":...,"pgCode":"57014"}`（只把 5 位 SQLSTATE 记为 `pgCode`）并立即
+  exit 1，避免下次只看到裸的 `triggerUncaughtException`。
+- 单测补充连接 URL 与失败 JSON 的断言；本 workflow 的 checkout ref 更新为该提交。
+- main 的 runner 同步加入相同硬化（当前仍由 pin 保护，尚未被调度使用）。
+
+验证：固定 runtime 与 main 全树 `tsc --noEmit` 均 exit 0；`lucia-proactive-runner`
+（固定 runtime 6 项 / main 5 项）与 `lucia-proactive-workflow` 1 项通过；改动文件
+ESLint exit 0；真实 transaction pooler + 真实库只读路径（固定非到期时钟）返回
+`results: []`、约 2.1 s、未调用 provider 也未写消息；指向无效连接地址时入口
+输出单行 JSON 并 exit 1。
+
+GitHub 环境验证：从修复分支手动 dispatch run
+[`39708037334`](https://github.com/laurenzhong/Spanish/actions/runs/39708037334)
+结论 success，checkout ref 为 `0c63a74`，生成步骤输出
+`{"date":"2026-10-22","generated":0,"suppressed":1,"failed":0, ... "reason":"daily-limit"}`
+并 exit 0；当日额度已满，因此这次验证没有调用 provider、也没有写消息。
+同日 09:41 的自然调度 run `39707140882`（旧 pin `d496281`）也已 success，
+说明数据库侧在崩溃后已恢复。
+
+回退：只把 workflow 的 checkout ref 回退到 `d496281`；不要通过忽略退出码、
+`continue-on-error` 或关闭通知掩盖故障。本修复没有数据库写入，不需要数据回滚。
+
+限制/下一步：没有在 GitHub runner 上复现那次瞬时取消本身（数据库侧触发条件
+不可得，复跑已成功）；`OPS-LUCIA-PIN-001` 仍待处理，移除 pin 前必须保留
+`d496281`/`0c63a74` 上的 safety-gate 重试与本次连接层硬化。
