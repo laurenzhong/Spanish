@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # LUCIA-CI-001/002/003: main still reads user state through
+          # LUCIA-CI-001/002/003/004: main still reads user state through
           # character_id, so the scheduler stays pinned to the identity-aware
           # runtime until main includes CHAR-IDENTITY-001. The pinned commit
           # must also list every published character revision in its runtime
@@ -30,9 +30,12 @@ jobs:
           # that does not know that revision fails due slots with
           # CHARACTER_UNAVAILABLE. It also labels safety-gate rejections and
           # retries provider outages or rejected samples up to 3 times per slot.
-          # Update this ref whenever the production character revision changes;
-          # see docs/operations/lucia-proactive-runbook.md.
-          ref: d4962811e6c245db2e9f490a1e3598cdd8f41e39
+          # LUCIA-CI-004 additionally disables postgres.js's internal type-fetch
+          # query (its unretained promise crashed run 39692576920 on a transient
+          # statement timeout) and reports process-level failures as one JSON
+          # line. Update this ref whenever the production character revision
+          # changes; see docs/operations/lucia-proactive-runbook.md.
+          ref: 0c63a746cfb4ab666b016cb49e59aac6f2dea636
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
