@@ -49,6 +49,24 @@ function response(body: unknown, status = 200, headers: HeadersInit = { "x-reque
 }
 
 describe("MiniMaxConversationProvider", () => {
+  it("keeps proactive morning guidance in Spanish and forbids copying English from the instructions", async () => {
+    let body: Record<string, unknown> = {};
+    const provider = new MiniMaxConversationProvider({
+      apiKey: "test-key",
+      fetchImplementation: vi.fn(async (_url, init) => {
+        body = JSON.parse(String(init?.body));
+        return response({ content: [{ type: "text", text: "Me acabo de despertar." }] });
+      }),
+    });
+    await provider.generate({ ...input, inputKind: "proactive", userMessage: "", dailyState: "waking" });
+    const system = String(body.system);
+    // The 2026-10-23 leak copied the English "waking up, coffee, breakfast"
+    // guidance; the prompt must show Spanish morning wording instead.
+    expect(system).toContain("Me acabo de despertar");
+    expect(system).not.toContain("such as waking up");
+    expect(system).toContain("never copy an English word or phrase");
+  });
+
   it("sends privacy-filtered context and returns generated text metadata", async () => {
     let request: RequestInit | undefined;
     const fetchImplementation = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {

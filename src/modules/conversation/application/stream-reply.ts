@@ -13,7 +13,7 @@ import {
 import { deriveReplyOpenTopics, type ReplyContext } from "./build-reply-context";
 import { greetingOpener, hasGreetedOnLocalDate } from "../domain/greeting";
 import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
-import { containsUnsupportedScript, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
+import { containsUnsupportedScript, englishFragments, fragmentQuotedFromUserMessage, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
 import { attributesUnconfirmedCoffee, narrowsUnspecifiedWeekendWork, repeatsDailyActivityQuestion, requestsQuestionRepeat } from "../domain/reply-continuity";
 import { getConversationCharacter, isKnownConversationVersion } from "../domain/character-catalog";
 import { replyBubbleIntervalMs, splitReplyBubbles } from "../domain/reply-bubbles";
@@ -159,6 +159,16 @@ export async function* streamReply(
         const redundantGreeting = isRedundantGreetingReply(context, replyResult.text);
         const recycledPhrase = isRecycledReplyPhrase(context, replyResult.text);
         const translationese = translationesePhrase(replyResult.text);
+        const english = englishFragments(replyResult.text);
+        // Name the fragment that actually caused the rejection. The first
+        // fragment may be a quote the user wrote, with an unquoted later one
+        // being the real defect.
+        const retryUnansweredText = context.unansweredUserMessages?.length
+          ? context.unansweredUserMessages.join("\n\n")
+          : context.userMessage;
+        const rejectedEnglish = requestedNonSpanishLanguage(retryUnansweredText)
+          ? null
+          : (english.find((fragment) => !fragmentQuotedFromUserMessage(retryUnansweredText, fragment)) ?? null);
         const repeatedActivityQuestion = repeatsDailyActivityQuestion(context, replyResult.text);
         const unconfirmedCoffee = attributesUnconfirmedCoffee(context, replyResult.text);
         const narrowedWeekend = narrowsUnspecifiedWeekendWork(context, replyResult.text);
@@ -183,7 +193,7 @@ export async function* streamReply(
                   maxQuestionPressure: "none" as const,
                 },
               }),
-          continuityInstruction: `${retryInstruction({ dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, translationese, redundantGreeting, recycledPhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend })}${greetingGuard}`,
+          continuityInstruction: `${retryInstruction({ dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, translationese, englishFragment: rejectedEnglish?.phrase ?? null, redundantGreeting, recycledPhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend })}${greetingGuard}`,
         };
       }
       await notifyProviderResult(input, {
@@ -414,6 +424,7 @@ function retryInstruction(input: Readonly<{
   dishonestIdentity: boolean;
   returnedPlan: boolean;
   translationese: string | null;
+  englishFragment: string | null;
   redundantGreeting: boolean;
   recycledPhrase: boolean;
   repeatedActivityQuestion: boolean;
@@ -437,6 +448,11 @@ function retryInstruction(input: Readonly<{
   }
   if (input.translationese) {
     return `La respuesta anterior usaba una expresión que no suena natural en español ("${input.translationese}"). Reformúlala con la fórmula corriente que usaría un hablante nativo, sin traducir literalmente del chino ni del inglés.`;
+  }
+  if (input.englishFragment) {
+    // The fragment comes from the fixed marker list in language-purity.ts, not
+    // from arbitrary model text, so quoting it here cannot inject instructions.
+    return `La respuesta anterior contenía palabras en inglés ("${input.englishFragment}"). Escribe el mensaje íntegramente en español, sin mezclar palabras ni frases en inglés, y usa la expresión española equivalente.`;
   }
   if (input.redundantGreeting) {
     return "Ya has saludado en un mensaje anterior de hoy y la persona no te ha saludado ahora. No vuelvas a abrir con un saludo (nada de 'hola', 'buenos días', 'buenas tardes' ni 'buenas noches'): continúa directamente con lo que acaba de decir.";
@@ -467,6 +483,17 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   // Spanish is the default; a stray Chinese fragment is the reported defect and
   // must not reach the user. Only an explicit in-conversation request unlocks it.
   if (containsUnsupportedScript(text) && !requestedNonSpanishLanguage(unansweredText)) return false;
+  // English is Latin-script, so it needs the marker check. One quoted English
+  // fragment the user themselves wrote in this turn may be repeated back;
+  // several fragments, or any fragment the user did not write, mean the
+  // character switched language on its own.
+  const english = englishFragments(text);
+  if (english.length > 0 && !requestedNonSpanishLanguage(unansweredText)) {
+    const [onlyFragment] = english;
+    const quoted = english.length === 1 && onlyFragment !== undefined
+      && fragmentQuotedFromUserMessage(unansweredText, onlyFragment);
+    if (!quoted) return false;
+  }
   if (hasDishonestIdentity(text)) return false;
   const plan = planReply({
     userMessage: unansweredText,

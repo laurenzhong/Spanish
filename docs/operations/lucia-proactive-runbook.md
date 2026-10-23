@@ -268,3 +268,65 @@ GitHub 环境验证：从修复分支手动 dispatch run
 限制/下一步：没有在 GitHub runner 上复现那次瞬时取消本身（数据库侧触发条件
 不可得，复跑已成功）；`OPS-LUCIA-PIN-001` 仍待处理，移除 pin 前必须保留
 `d496281`/`0c63a74` 上的 safety-gate 重试与本次连接层硬化。
+
+## 2026-10-23：主动消息混入英语（CONV-LANG-002）
+
+2026-10-23 11:29:36（北京时间）的自然调度 run
+[`39895246964`](https://github.com/laurenzhong/Spanish/actions/runs/39895246964)
+（main `ef78463`，实际 checkout 固定提交 `0c63a74`）成功生成并写入了一条
+主动消息，但正文混入英语：
+
+> Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?
+
+只读库确认：`messages` 行 `c4f22ac3…`（`source_type=proactive`、
+`2026-10-23T03:29:36.133Z`、`generation_id=8d88c62f…`），对应 `daily_share`
+候选 `660d2b6c…`（`dedupe_key=lucia:daily_share:2026-10-23:slot-1`）为
+`generated`，没有错误码；全库只有这一条消息含 `wake`，`foster` 在消息、记忆、
+人物包和仓库中零匹配，因此是真实 provider 生成时混入的英语，不是用户回显。
+根因有两层：`language-purity` 的 `containsUnsupportedScript` 只查汉字/假名/
+谚文，英语与西语同属拉丁字母，整条消息越过脚本门禁；该时段
+`dailyState=waking`，provider system prompt 用英文写着 “such as waking up,
+coffee, breakfast…”，模型把英文指导照抄成 `Wake Up` 并额外生成了一个英语词
+`foster`。prompt 不是安全边界，文本门禁又没有英语检查。
+
+修复 Commit `5b83aaab31a6fec983f817ac87857630476c2b6a`（分支
+`codex/lucia-proactive-v3-runtime`，tag `lucia-runtime-v3.3`）：
+
+- `conversation/domain/language-purity.ts` 增加高精度英语片段检测：已报告短语
+  （`wake up`、`good morning`、`thank you`、`that's great`、`by the way`、
+  `I miss you` 等）与英语功能词/小品词整词表；单词只在原文小写时命中
+  （`token.original === token.lower`），因此首字母大写的标题/人名/缩写
+  （`It`、`The Beatles`、`IT`、`síndrome de Down`）与去重音同形词 `aré`
+  不会误判。
+- `proactiveMessageSafetyViolation` 增加稳定原因 `english-fragment`，生成/预览
+  写为 `safety-gate-english-fragment`；runner 既有的 `safety-gate-*` 最多 3 次
+  重采样路径自动生效，3 次仍被拒仍按失败告警，不写入消息。
+- 两家 provider 的 prompt 明确“消息必须全西语、不得从英文指令复制单词”，
+  `dailyState=waking` 的正文示例改为 `Me acabo de despertar`、`el café`、
+  `el desayuno`、`empezar el día`。
+- 同一 PR 在 main 的产品代码加入相同语言门禁：普通对话回复也拒绝英语片段，
+  只放行“用户本轮显式要求其他语言”或“恰好一个且全部词元来自用户本轮消息”
+  的引用；重试指令点名真正未被引用的片段。
+
+验证（全部实跑）：固定 runtime 聚焦 5 文件 **50/50**、runner **6/6**、
+workflow **1/1**，全树 `tsc --noEmit` exit 0、改动文件 ESLint exit 0；main
+聚焦 5 文件 **100/100**、全树 `tsc --noEmit` exit 0、改动 10 个 TS/TSX 文件
+ESLint exit 0；真实 MiniMax-M3 合成探针 2/2 输出纯西语且通过门禁；只读扫描
+真实库 37 条已完成消息只有本次事故被命中；2,232 条西语 Tatoeba 例句与
+bundle/人物包 8,500+ 条西语文本零误报；临时移除门禁后新增用例 5 项失败，
+恢复后通过。
+
+workflow 的 checkout ref 同时更新为 `5b83aaa`。合并后需观察下一次自然调度：
+checkout SHA 应为 `5b83aaa`；若 provider 再返回英语样本，候选会以
+`safety-gate-english-fragment` 失败并重采样，不产生用户可见消息；运行结果只
+记录状态与原因码，不记录消息正文。
+
+回退：只把 workflow 的 checkout ref 回退到 `0c63a74`（恢复旧语言门禁）；
+不要通过忽略退出码、`continue-on-error` 或关闭通知掩盖故障。本次没有数据库
+写入，不需要数据回滚。
+
+限制/下一步：英语检测是有界高精度启发式，未报告的单个英语实词、句子开头的
+首字母大写英语（如 `The best.`）与已移除的常见借词（`and`/`after`/`down` 等）
+仍可能通过，靠其他标记词兜底；它是 fail-closed 取舍，不做全文语言识别。
+`OPS-LUCIA-PIN-001` 仍待处理，移除 pin 前必须保留 `d496281`/`0c63a74`/
+`5b83aaa` 上的 safety-gate 重试、连接层硬化与本次英语门禁。

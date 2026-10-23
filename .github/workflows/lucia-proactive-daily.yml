@@ -33,9 +33,14 @@ jobs:
           # LUCIA-CI-004 additionally disables postgres.js's internal type-fetch
           # query (its unretained promise crashed run 39692576920 on a transient
           # statement timeout) and reports process-level failures as one JSON
-          # line. Update this ref whenever the production character revision
-          # changes; see docs/operations/lucia-proactive-runbook.md.
-          ref: 0c63a746cfb4ab666b016cb49e59aac6f2dea636
+          # line. CONV-LANG-002 adds the English-fragment language gate: a sample
+          # that mixes English into Spanish now fails as
+          # `safety-gate-english-fragment` and is resampled by the retry path
+          # instead of being stored (run 39895246964 wrote "Acabo de Wake Up y
+          # foster me he acordado de ti" at 2026-10-23T03:29:36Z). Update this
+          # ref whenever the production character revision changes; see
+          # docs/operations/lucia-proactive-runbook.md.
+          ref: 5b83aaab31a6fec983f817ac87857630476c2b6a
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
