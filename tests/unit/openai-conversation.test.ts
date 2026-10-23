@@ -36,6 +36,22 @@ function response(body: unknown, status = 200, headers: HeadersInit = { "x-reque
 }
 
 describe("OpenAIConversationProvider", () => {
+  it("keeps proactive morning guidance in Spanish and forbids copying English from the instructions", async () => {
+    let body: Record<string, unknown> = {};
+    const provider = new OpenAIConversationProvider({
+      apiKey: "test-key",
+      fetchImplementation: vi.fn(async (_url, init) => {
+        body = JSON.parse(String(init?.body));
+        return response({ output_text: "Me acabo de despertar." });
+      }),
+    });
+    await provider.generate({ ...input, inputKind: "proactive", userMessage: "", dailyState: "waking" });
+    const instructions = String(body.instructions);
+    expect(instructions).toContain("Me acabo de despertar");
+    expect(instructions).not.toContain("such as waking up");
+    expect(instructions).toContain("never copy an English word or phrase");
+  });
+
   it("sends provider-neutral context through the Responses API and maps output text", async () => {
     let request: RequestInit | undefined;
     const fetchImplementation = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {

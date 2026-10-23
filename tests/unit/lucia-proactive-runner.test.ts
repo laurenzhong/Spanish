@@ -37,6 +37,7 @@ describe("Lucía proactive daily runner", () => {
     expect(luciaProactiveGenerationAttempts).toBe(3);
     expect(shouldRetryLuciaProactiveGeneration("provider-unavailable")).toBe(true);
     expect(shouldRetryLuciaProactiveGeneration("safety-gate-unsupported-script")).toBe(true);
+    expect(shouldRetryLuciaProactiveGeneration("safety-gate-english-fragment")).toBe(true);
     expect(shouldRetryLuciaProactiveGeneration("safety-gate-question-policy")).toBe(true);
     expect(shouldRetryLuciaProactiveGeneration("character-runtime-unavailable")).toBe(false);
     expect(shouldRetryLuciaProactiveGeneration("relationship-inactive")).toBe(false);

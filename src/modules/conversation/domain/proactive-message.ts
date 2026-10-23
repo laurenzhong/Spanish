@@ -1,5 +1,5 @@
 import type { RelationshipStage, QuestionPolicy } from "./reply-plan";
-import { containsUnsupportedScript } from "./language-purity";
+import { containsUnsupportedScript, englishFragment } from "./language-purity";
 
 export const proactiveMessageSources = [
   "spontaneous_affection",
@@ -133,6 +133,7 @@ export type ProactiveSafetyViolation =
   | "empty-or-too-long"
   | "markdown"
   | "unsupported-script"
+  | "english-fragment"
   | "internal-vocabulary"
   | "banned-cliche"
   | "ai-self-reference"
@@ -156,6 +157,10 @@ export function proactiveMessageSafetyViolation(
   // language, so it must be pure Spanish. A Spanish sentence carrying a stray
   // "随机" is the reported defect; the provider prompt alone did not prevent it.
   if (containsUnsupportedScript(text)) return "unsupported-script";
+  // English shares the Latin script with Spanish, so the check above cannot see
+  // it. The reported 2026-10-23 message ("Acabo de Wake Up y foster me he
+  // acordado de ti") mixed English words into an otherwise Spanish message.
+  if (englishFragment(text)) return "english-fragment";
   if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return "internal-vocabulary";
   if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return "banned-cliche";
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return "ai-self-reference";

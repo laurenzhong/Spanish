@@ -1,6 +1,15 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { containsUnsupportedScript, requestedNonSpanishLanguage, translationesePhrase } from "@/src/modules/conversation/domain/language-purity";
+import {
+  containsUnsupportedScript,
+  englishFragment,
+  englishFragments,
+  requestedNonSpanishLanguage,
+  translationesePhrase,
+} from "@/src/modules/conversation/domain/language-purity";
 
 describe("language purity", () => {
   it("detects Chinese characters mixed into Spanish text", () => {
@@ -59,5 +68,49 @@ describe("language purity", () => {
     expect(translationesePhrase("Tiene sentido, y me gusta la idea.")).toBeNull();
     expect(translationesePhrase("Vaya lunes, ánimo con la semana.")).toBeNull();
     expect(translationesePhrase("")).toBeNull();
+  });
+
+  it("reports English words mixed into an otherwise Spanish message", () => {
+    // Regression: the live proactive message reported on 2026-10-23.
+    expect(englishFragment("Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?"))
+      .toEqual({ phrase: "wake up", tokens: ["wake", "up"] });
+    expect(englishFragment("Hoy el día está raro, but me apetece salir.")).toEqual({ phrase: "but", tokens: ["but"] });
+    expect(englishFragment("Good morning, ¿cómo va todo?")).toEqual({ phrase: "good morning", tokens: ["good", "morning"] });
+    expect(englishFragment("That's great, me alegro mucho.")).toEqual({ phrase: "that s great", tokens: ["that", "s", "great"] });
+    expect(englishFragment("I miss you, pero estoy bien.")).toEqual({ phrase: "i miss you", tokens: ["i", "miss", "you"] });
+    expect(englishFragment("Acabo de despertarme y foster me he acordado de ti."))
+      .toEqual({ phrase: "foster", tokens: ["foster"] });
+    expect(englishFragments("The Crown is great, I love it.").map((fragment) => fragment.phrase))
+      .toEqual(["is", "it"]);
+    // "are" fires only when it is literally lowercase; accent stripping turns
+    // Spanish "aré" into "are", so the exact-surface check is required.
+    expect(englishFragment("We are here.")).toEqual({ phrase: "are", tokens: ["are"] });
+  });
+
+  it("treats capitalized English titles, names and acronyms as proper nouns", () => {
+    expect(englishFragment("Me encanta The Beatles.")).toBeNull();
+    expect(englishFragment("Estoy escuchando My Chemical Romance.")).toBeNull();
+    expect(englishFragment("Hoy tengo reunión con el equipo de IT.")).toBeNull();
+    expect(englishFragment("Mi sobrino tiene síndrome de Down.")).toBeNull();
+    expect(englishFragment("Anoche vi It y no dormí en toda la noche.")).toBeNull();
+    expect(englishFragment("Estoy con Doctor Who, llevo tres temporadas.")).toBeNull();
+    expect(englishFragment("¿Has visto el US Open? Menudo partido.")).toBeNull();
+    expect(englishFragment("Vi una peli de Jodie Foster el otro día.")).toBeNull();
+    expect(englishFragment("En Pull and Bear siempre encuentro algo.")).toBeNull();
+    expect(englishFragment("El rock and roll de los 50 no se ha superado.")).toBeNull();
+    expect(englishFragment("Mañana aré el huerto de mi abuelo temprano.")).toBeNull();
+    expect(englishFragment("Hoy estoy un poco down, pero se me pasa.")).toBeNull();
+    expect(englishFragment("El after de la boda fue lo mejor.")).toBeNull();
+    expect(englishFragment("Me he comprado un selfie stick y he hecho un directo online.")).toBeNull();
+    expect(englishFragment("")).toBeNull();
+  });
+
+  it("keeps every English marker out of the shipped Spanish frequency list", () => {
+    const frequency = JSON.parse(readFileSync(
+      join(process.cwd(), "content", "word-lists", "es-frequency-v1.json"),
+      "utf8",
+    )) as { words: readonly string[] };
+    expect(frequency.words.length).toBeGreaterThan(1_000);
+    expect(frequency.words.filter((word) => englishFragment(word) !== null)).toEqual([]);
   });
 });

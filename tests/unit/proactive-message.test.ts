@@ -70,7 +70,18 @@ describe("proactive message policy", () => {
     expect(isProactiveMessageSafe("Oye, me crucé con una fachada con azulejos increíbles en Malasaña, casi me quedo ahí plantada con el móvil. ¿Tú sueles parar a fotografiar cosas随机 de la calle?", plan)).toBe(false);
     expect(isProactiveMessageSafe("Hoy he salido a caminar un rato随机.", plan)).toBe(false);
     expect(isProactiveMessageSafe("随机", plan)).toBe(false);
+    // Regression: the live proactive message reported on 2026-10-23, which mixed
+    // English into an otherwise Spanish message; a script-only gate cannot see it.
+    expect(isProactiveMessageSafe("Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?", plan)).toBe(false);
     expect(isProactiveMessageSafe("Hoy he salido a caminar un rato. ¿Cómo va tu día?", plan)).toBe(true);
+    // Natural Spanish about the same morning keeps passing the gate.
+    expect(isProactiveMessageSafe("Buenos días. Me acabo de despertar y me he acordado de ti. ¿Has desayunado ya?", plan)).toBe(true);
+    // Capitalized English titles, brands and acronyms are proper nouns, not
+    // code-switching; they must not turn a Spanish message into a failed candidate.
+    expect(isProactiveMessageSafe("Esta mañana he puesto a The Beatles mientras desayunaba.", plan)).toBe(true);
+    expect(isProactiveMessageSafe("Hoy tengo reunión con el equipo de IT.", plan)).toBe(true);
+    expect(isProactiveMessageSafe("Hoy he leído una historia preciosa sobre el síndrome de Down.", plan)).toBe(true);
+    expect(isProactiveMessageSafe("Me he comprado una chaqueta en Pull and Bear.", plan)).toBe(true);
   });
 });
 
@@ -195,6 +206,29 @@ describe("generateLuciaProactiveMessage", () => {
     expect(repository.failCandidate).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "safety-gate-unsupported-script" }));
   });
 
+  it("fails a candidate whose provider text mixes in English", async () => {
+    const repository: ProactiveMessageRepository = {
+      getConversationId: vi.fn().mockResolvedValue("conversation-1"),
+      getEligibilityState: vi.fn().mockResolvedValue(state()),
+      createCandidate: vi.fn().mockImplementation(async (input) => ({
+        id: "candidate-1", userId: "user-1", characterKey: "lucia", conversationId: "conversation-1",
+        sourceType: input.sourceType, dedupeKey: input.dedupeKey, generationId: input.generationId,
+        notBefore: input.notBefore, expiresAt: input.expiresAt, status: "generating", messageId: null,
+        notificationStatus: "not_requested", lastErrorCode: null, createdAt: now, updatedAt: now,
+      })),
+      completeCandidate: vi.fn(),
+      failCandidate: vi.fn(),
+    };
+    // The exact text stored by the 2026-10-23 production run.
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?", provider: "minimax", modelVersion: "MiniMax-M3", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }),
+    };
+    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", dailyState: "waking", now, repository, provider, character: getConversationCharacter("lucia").snapshot });
+    expect(result).toMatchObject({ status: "failed", reason: "safety-gate-english-fragment", message: null });
+    expect(repository.completeCandidate).not.toHaveBeenCalled();
+    expect(repository.failCandidate).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "safety-gate-english-fragment" }));
+  });
+
   it("does not call a provider when policy suppresses the message", async () => {
     const repository: ProactiveMessageRepository = {
       getConversationId: vi.fn(),
@@ -218,12 +252,14 @@ describe("proactiveMessageSafetyViolation", () => {
     expect(proactiveMessageSafetyViolation("", plan)).toBe("empty-or-too-long");
     expect(proactiveMessageSafetyViolation("Hola *Lucía*.", plan)).toBe("markdown");
     expect(proactiveMessageSafetyViolation("Me apetecía saludarte随机.", plan)).toBe("unsupported-script");
+    expect(proactiveMessageSafetyViolation("Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?", plan)).toBe("english-fragment");
     expect(proactiveMessageSafetyViolation("Te comparto una foto de la app.", plan)).toBe("internal-vocabulary");
     expect(proactiveMessageSafetyViolation("¿Qué tal? ¿Y tú? ¿Y el finde?", plan)).toBe("question-policy");
   });
 
   it("returns null for a safe everyday message", () => {
     expect(proactiveMessageSafetyViolation("Me apetecía compartir una pequeña alegría contigo.", plan)).toBeNull();
+    expect(proactiveMessageSafetyViolation("Hoy he leído una historia preciosa sobre el síndrome de Down.", plan)).toBeNull();
   });
 });
 
