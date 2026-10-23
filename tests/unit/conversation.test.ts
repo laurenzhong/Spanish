@@ -415,6 +415,100 @@ describe("fake conversation reply", () => {
     expect(events.at(-1)).toMatchObject({ type: "done" });
   });
 
+  it("rejects a reply with English mixed into Spanish and names the fragment on retry", async () => {
+    const mixed = "Bien, aunque me ha costado un poco el wake up de hoy.";
+    const corrected = "Bien, aunque me ha costado un poco despertarme hoy.";
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: mixed, provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "english-1", latencyMs: 10, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: corrected, provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "english-2", latencyMs: 12, estimatedCostMicros: null }),
+    };
+    const observations: StreamReplyProviderObservation[] = [];
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué tal has dormido?", clientMessageId: "client-english", generationId: "generation-english", messageId: "message-english",
+      replyProvider: provider, onProviderResult: (observation) => { observations.push(observation); }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("palabras en inglés") });
+    expect(provider.generate.mock.calls[1]?.[0]).toMatchObject({ continuityInstruction: expect.stringContaining("wake up") });
+    expect(observations[0]).toMatchObject({ status: "failed", errorType: "safety-gate", providerRequestId: "english-1" });
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).not.toContain("wake up");
+    expect(streamed).toContain("despertarme");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("allows a reply that quotes English the learner wrote in the current turn", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "Se dice 'despertarse'; 'wake up' es la forma inglesa.", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "quote-1", latencyMs: 10, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué significa 'wake up' en español?", clientMessageId: "client-quote", generationId: "generation-quote", messageId: "message-quote",
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).toContain("wake up");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("does not reject capitalized English titles inside a Spanish reply", async () => {
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "Anoche vi It y luego puse Doctor Who mientras cenaba.", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "titles-1", latencyMs: 10, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué pelis has visto últimamente?", clientMessageId: "client-titles", generationId: "generation-titles", messageId: "message-titles",
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).toContain("Doctor Who");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("names the unquoted English fragment on retry instead of the learner's quote", async () => {
+    const leaked = "'Wake up' es 'despertarse'; it is great.";
+    const corrected = "Se dice 'despertarse'; es una expresión inglesa muy común.";
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: leaked, provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "quoted-cause-1", latencyMs: 10, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: corrected, provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "quoted-cause-2", latencyMs: 12, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "¿Qué significa 'wake up'?", clientMessageId: "client-quoted-cause", generationId: "generation-quoted-cause", messageId: "message-quoted-cause",
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    const retryContext = provider.generate.mock.calls[1]?.[0] as { continuityInstruction?: string };
+    expect(retryContext.continuityInstruction).toContain('("it")');
+    expect(retryContext.continuityInstruction).not.toContain('("wake up")');
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("does not accept an English sentence because its first fragment was quoted earlier", async () => {
+    const leaked = "The Crown is great, I love it.";
+    const corrected = "The Crown está muy bien; me tiene enganchada.";
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce({ text: leaked, provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "hole-1", latencyMs: 10, estimatedCostMicros: null })
+        .mockResolvedValueOnce({ text: corrected, provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "hole-2", latencyMs: 12, estimatedCostMicros: null }),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 1, text: "The Crown es mi serie favorita.", clientMessageId: "client-hole", generationId: "generation-hole", messageId: "message-hole",
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    const streamed = events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join("");
+    expect(streamed).not.toContain("is great");
+    expect(streamed).toContain("enganchada");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
   it("honours an explicit user request for another language", async () => {
     const provider = {
       generate: vi.fn().mockResolvedValue({ text: "好的，我用中文回答你。", provider: "minimax" as const, modelVersion: "MiniMax-M3", providerRequestId: "zh-1", latencyMs: 10, estimatedCostMicros: null }),

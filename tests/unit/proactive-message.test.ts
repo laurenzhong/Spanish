@@ -132,6 +132,17 @@ describe("proactive message policy", () => {
     expect(isProactiveMessageSafe("Hoy he salido a caminar un rato随机.", plan)).toBe(false);
     expect(isProactiveMessageSafe("随机", plan)).toBe(false);
     expect(isProactiveMessageSafe("Hoy he salido a caminar un rato. ¿Cómo va tu día?", plan)).toBe(true);
+    // Regression: the live proactive message reported on 2026-10-23, which mixed
+    // English into an otherwise Spanish message; a script-only gate cannot see it.
+    expect(isProactiveMessageSafe("Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?", plan)).toBe(false);
+    // Natural Spanish about the same morning keeps passing the gate.
+    expect(isProactiveMessageSafe("Buenos días. Me acabo de despertar y me he acordado de ti. ¿Has desayunado ya?", plan)).toBe(true);
+    // Capitalized English titles, brands and acronyms are proper nouns, not
+    // code-switching; they must not turn a Spanish message into a failed candidate.
+    expect(isProactiveMessageSafe("Esta mañana he puesto a The Beatles mientras desayunaba.", plan)).toBe(true);
+    expect(isProactiveMessageSafe("Hoy tengo reunión con el equipo de IT.", plan)).toBe(true);
+    expect(isProactiveMessageSafe("Hoy he leído una historia preciosa sobre el síndrome de Down.", plan)).toBe(true);
+    expect(isProactiveMessageSafe("Me he comprado una chaqueta en Pull and Bear.", plan)).toBe(true);
   });
 
   it("detects a proactive question whose options the user already answered", () => {
@@ -301,6 +312,25 @@ describe("generateLuciaProactiveMessage", () => {
       generate: vi.fn().mockResolvedValue({ text: "Me apetecía saludarte随机.", provider: "minimax", modelVersion: "MiniMax-M3", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }),
     };
     const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", now, repository, provider, character: getConversationCharacter("lucia").snapshot });
+    expect(result).toMatchObject({ status: "failed", reason: "safety-gate", message: null });
+    expect(repository.completeCandidate).not.toHaveBeenCalled();
+    expect(repository.failCandidate).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "safety-gate" }));
+  });
+
+  it("fails a candidate whose provider text mixes in English", async () => {
+    const repository = repositoryFixture({
+      createCandidate: vi.fn().mockImplementation(async (input) => ({
+        id: "candidate-1", userId: "user-1", characterKey: "lucia", conversationId: "conversation-1",
+        sourceType: input.sourceType, dedupeKey: input.dedupeKey, generationId: input.generationId,
+        notBefore: input.notBefore, expiresAt: input.expiresAt, status: "generating", messageId: null,
+        notificationStatus: "not_requested", lastErrorCode: null, createdAt: now, updatedAt: now,
+      })),
+    });
+    // The exact text stored by the 2026-10-23 production run.
+    const provider = {
+      generate: vi.fn().mockResolvedValue({ text: "Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?", provider: "minimax", modelVersion: "MiniMax-M3", providerRequestId: null, latencyMs: 10, estimatedCostMicros: null }),
+    };
+    const result = await generateLuciaProactiveMessage({ userId: "user-1", source: "daily_share", dailyState: "waking", now, repository, provider, character: getConversationCharacter("lucia").snapshot });
     expect(result).toMatchObject({ status: "failed", reason: "safety-gate", message: null });
     expect(repository.completeCandidate).not.toHaveBeenCalled();
     expect(repository.failCandidate).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "safety-gate" }));

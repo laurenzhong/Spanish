@@ -1,5 +1,5 @@
 import type { RelationshipStage, QuestionPolicy } from "./reply-plan";
-import { containsUnsupportedScript } from "./language-purity";
+import { containsUnsupportedScript, englishFragment } from "./language-purity";
 
 export const proactiveMessageSources = [
   "spontaneous_affection",
@@ -154,6 +154,10 @@ export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): 
   // Han character is the reported defect; the provider prompt alone did not
   // prevent it. (This replaces main's `containsForeignScript` gate.)
   if (containsUnsupportedScript(text)) return false;
+  // English shares the Latin script with Spanish, so the check above cannot see
+  // it. The reported 2026-10-23 message ("Acabo de Wake Up y foster me he
+  // acordado de ti") mixed English words into an otherwise Spanish message.
+  if (englishFragment(text)) return false;
   if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return false;
   if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return false;
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;
