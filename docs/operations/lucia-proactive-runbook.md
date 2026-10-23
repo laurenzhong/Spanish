@@ -316,10 +316,21 @@ ESLint exit 0；真实 MiniMax-M3 合成探针 2/2 输出纯西语且通过门�
 bundle/人物包 8,500+ 条西语文本零误报；临时移除门禁后新增用例 5 项失败，
 恢复后通过。
 
-workflow 的 checkout ref 同时更新为 `5b83aaa`。合并后需观察下一次自然调度：
-checkout SHA 应为 `5b83aaa`；若 provider 再返回英语样本，候选会以
-`safety-gate-english-fragment` 失败并重采样，不产生用户可见消息；运行结果只
-记录状态与原因码，不记录消息正文。
+workflow 的 checkout ref 同时更新为 `5b83aaa`。
+
+合并与生产验证：PR [#85](https://github.com/laurenzhong/Spanish/pull/85) 于
+北京时间 **15:42** 合入 main（merge `e7a3386`，实现提交 `bed6963`/`04afff7`）。
+GitHub schedule 当日自 03:29Z 之后数小时未触发（最近自然 run 仍是
+`39895246964`），因此用 `workflow_dispatch` 做一次受控验证：run
+[`39919703135`](https://github.com/laurenzhong/Spanish/actions/runs/39919703135)
+（main `e7a3386`）success，checkout ref 为 `5b83aaa`，生成步骤输出
+`{"generated":2,"suppressed":0,"failed":0,...}`：slot-1 命中当天已有的
+`generated` 候选，幂等返回原 `messageId=c4f22ac3…`；slot-2 真实调用 provider
+并写入新消息 `messageId=f6962fc8…`。只读核对：新消息为纯西语、不含英语片段
+（运行手册不记录正文），对应候选 `dedupe_key=lucia:daily_share:2026-10-23:slot-2`
+为 `generated`、`last_error_code=null`。该次 dispatch 写入的是当天到期 slot-2
+的正常主动消息（真实 provider，计入当日额度），不是测试消息；若当日额度已满
+或未到期，dispatch 只会返回 suppressed，不能作为本条修复的反证。
 
 回退：只把 workflow 的 checkout ref 回退到 `0c63a74`（恢复旧语言门禁）；
 不要通过忽略退出码、`continue-on-error` 或关闭通知掩盖故障。本次没有数据库
@@ -328,5 +339,7 @@ checkout SHA 应为 `5b83aaa`；若 provider 再返回英语样本，候选会�
 限制/下一步：英语检测是有界高精度启发式，未报告的单个英语实词、句子开头的
 首字母大写英语（如 `The best.`）与已移除的常见借词（`and`/`after`/`down` 等）
 仍可能通过，靠其他标记词兜底；它是 fail-closed 取舍，不做全文语言识别。
-`OPS-LUCIA-PIN-001` 仍待处理，移除 pin 前必须保留 `d496281`/`0c63a74`/
-`5b83aaa` 上的 safety-gate 重试、连接层硬化与本次英语门禁。
+GitHub 的 `*/15` schedule 在本仓库当日实际间隔可达数小时，因此生产验证使用了
+一次显式 dispatch；后续自然调度仍需按惯例核对 checkout SHA 与结果（预期为
+`5b83aaa`）。`OPS-LUCIA-PIN-001` 仍待处理，移除 pin 前必须保留 `d496281`/
+`0c63a74`/`5b83aaa` 上的 safety-gate 重试、连接层硬化与本次英语门禁。
