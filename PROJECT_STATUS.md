@@ -2,6 +2,8 @@
 
 - 已完成评估专用安全重试切片：`streamReply` 新增有界 `safetyRetryLimit`（默认仍为 1，最大 3），每次候选仍由评估 runner 先预留并记录；manifest、回放报告和真实批次预算均保存该配置。仅新的 `--r04-only` 真实路线显式使用 2 次，产品默认与 R01/R05 基线保持不变。新增污染两次后第三次干净成功、三次污染仍失败及默认行为回归；聚焦测试 3 文件 **59/59**，TypeScript 通过。当前环境未提供 `MINIMAX_API_KEY`，新的 R04-only 真实复验尚未执行；历史失败批次继续保留。
 
+- 实现 Commit：`317a4a7`（`fix: bound conversation evaluation safety retries`）；本切片修改评估 manifest/runner、流式安全重试、语言门禁、关系投影归档与对应回归测试。后续真实批次与测试结果见下方记录。
+
 - 新真实批次 `baseline-r04-20261026retry2` 已按 `MiniMax-M3.1-Flash` 使用独立初识状态完成：R04 普通来回 **24/24**、双评审完成，关系 projection 为 `familiar`、`romance=open`、无角色 proposal/恋爱确认；角色 31 次、评审 2 次，已知 usage ¥0.179535，预留 ¥1.503919。2 次评估安全重试实际拦截 6 个候选并保留调用证据；step 12 主动机会安全门禁失败但按非致命规则继续，未产生关系事实。主档与桌面备份分别位于 `artifacts/conversation-evaluations/baseline-r04-20261026retry2/` 与 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261026retry2\`，清单校验仍需交接时复核。该批次证明 R04 可到熟悉/开放意愿终点，不能证明语言质量、主动消息稳定性、真实 DB/RLS 或真人体验通过。
 
 - `baseline-r04-20261026retry3` 至 `retry6` 均从独立初识完成 R04 **24/24** 普通来回并到 `familiar/open`；每批均双份归档、无传输层预算阻断。新增语言门禁在这些批次中拦截了 `working/means`、`relaxing/Verification`、异语言词、黏连词、异常标点和重复句等多种形态，但每批仍出现新的可见语法/词汇污染（如 `dishes/Preparation`、`perfectly`、`CURIOUS`、`te.has`、`commitments`、`tocaOMC` 等）。这证明有界重试提升了路线执行完成度，却不能替代独立语言质量模型或人工复核；`retry6` 角色 29 次、评审 2 次，已知 usage ¥0.140278，主档/桌面清单 SHA-256 一致。当前应停止按单词无限追补，进入独立语言质量诊断任务。
