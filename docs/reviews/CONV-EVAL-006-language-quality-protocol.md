@@ -1,7 +1,7 @@
 # CONV-EVAL-006：独立语言质量诊断协议（离线阶段）
 
 日期：2026-10-26  
-状态：协议与离线回放完成；尚未调用收费评审模型，不能据此宣称真实批次语言质量通过。
+状态：协议、离线回放和首个受控真实 diagnostic 校准完成；整体真实批次语言质量仍未通过。
 
 ## 目的
 
@@ -25,8 +25,10 @@ R04 `retry2`–`retry6` 证明有界安全重试能让普通回合完成，但�
 - `scripts/conversation-evaluation/language-quality.ts` 提供固定 rubric、严格 Zod 结构、候选 SHA-256、逐字 quote 校验、分级门槛、双评审合并和不调用网络的 replay harness。
 - `tests/unit/conversation-evaluation-language-quality.test.ts` 覆盖干净回复、严重污染、非西语/破损、语法语义、上下文错位、重复机械、可发送但不自然、三条 minor 失败、无效引用、输入数据边界、双评审不一致，以及重复样本 ID 在首次评审前失败。
 - 离线回放使用 fake reviewer，14 项通过；没有修改候选、关系状态、人物设定或历史归档。
+- 真实校准批次 `language-quality-20261026-diagnostic-001` 从已归档 `quality-20261025-models-diagnostic-001` 固定选取 3 个样本，每个样本调用两次独立 `MiniMax-M3.1-Flash` reviewer，共 6 次，全部完成；已知 usage **¥0.006158**，未知计费 0。主档和 `C:\Users\master\Desktop\Lucia聊天测试\language-quality-20261026-diagnostic-001` 批次索引与 payload SHA-256 一致。
+- 其中 `d01/full-m3-native/0` 的 `¿Qué cuisine más?` 被两次评审判为 `major / non-spanish-or-broken`，合并结果 `fail/not-sendable`；另两个样本均为 `pass/sendable`。该结果确认协议能捕获已知可见破损词，但样本量不足以代表整批或长路线。
 
 ## 限制与下一步
 
-本协议尚未证明模型能稳定做出正确语言判断，也没有替代真人语言复核。下一步应先用固定 diagnostic/holdout 样本和同一 schema 做一次受控双评审，冻结评审输入与阈值后再决定是否对保留集和真实长路线收费评审。历史批次保持原样，不用新评分回写旧结论。
+本协议尚未证明模型能稳定做出正确语言判断，也没有替代真人语言复核。下一步应在保留集上沿用相同 schema 做受控双评审，并把争议样本交给所有者抽样复核；不能把这 3 个样本的结果外推到 R04 长路线。历史批次保持原样，不用新评分回写旧结论。
 

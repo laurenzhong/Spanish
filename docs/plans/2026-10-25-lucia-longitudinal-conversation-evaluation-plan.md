@@ -135,7 +135,7 @@
 
 随后 `retry3`–`retry6` 连续从独立初识完成 R04 24/24 普通来回并到 `familiar/open`，每批双评审与双份归档完成；新增门禁覆盖多组真实混语、异语言、黏连、异常标点和重复句形态。最新 `retry6` 仍出现 `dishes/Preparation`、`perfectly`、`CURIOUS`、`te.has`、`commitments`、`tocaOMC` 等可见问题，说明词表/规则式门禁无法证明自然西语质量，且继续按单个样本追加规则会产生追逐效应。该阶段以完成执行和保留失败证据为止，下一切片应建立独立语言质量诊断/人工复核协议；不得宣称 R04 语言质量通过。
 
-已建立独立语言质量诊断协议，见 [CONV-EVAL-006 语言质量协议](../reviews/CONV-EVAL-006-language-quality-protocol.md)：评审只看逐字可见候选和固定上下文，使用 `critical/major/minor` 严重度与六类问题分类；0 critical、0 major 且 minor≤2 才通过，双评审不一致或证据不足为 `inconclusive`。协议包含候选哈希、quote 校验、双评审合并和无网络 replay harness；离线回放 14/14 通过。尚未执行收费评审，历史真实批次不回写。
+已建立独立语言质量诊断协议，见 [CONV-EVAL-006 语言质量协议](../reviews/CONV-EVAL-006-language-quality-protocol.md)：评审只看逐字可见候选和固定上下文，使用 `critical/major/minor` 严重度与六类问题分类；0 critical、0 major 且 minor≤2 才通过，双评审不一致或证据不足为 `inconclusive`。协议包含候选哈希、quote 校验、双评审合并和无网络 replay harness；离线回放 14/14 通过。首个真实校准批次固定 3 个 diagnostic 候选、6 次 Flash reviewer 调用，抓到 `¿Qué cuisine más?` 的 major 破损语言问题；该小样本不代表长路线通过，历史真实批次不回写。
 
 007 覆盖桌面和移动布局中的进入/重开会话、刷新恢复、批量输入、取消/重试、长历史及主动消息可见性。模拟时钟结果与真人连续使用分开，iPhone Safari/PWA 真机结果只能由实际设备验证产生。文字测试不证明语音、发音或实际口头反应通过。
 
