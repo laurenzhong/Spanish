@@ -20,7 +20,7 @@ type State = {
 export function parseLanguageQualityArgs(args: string[]) {
   const values = new Map<string, string>();
   for (const arg of args) {
-    const match = /^--(execute|export-only)$/u.exec(arg) ?? /^--(run-id|source-run-id|limit)=(.+)$/u.exec(arg);
+    const match = /^--(execute|export-only)$/u.exec(arg) ?? /^--(run-id|source-run-id|limit|case-ids)=(.+)$/u.exec(arg);
     if (!match || values.has(match[1])) throw new Error("INVALID_LANGUAGE_QUALITY_OPTIONS");
     values.set(match[1], match[2] ?? "true");
   }
@@ -30,7 +30,11 @@ export function parseLanguageQualityArgs(args: string[]) {
   if (!runId.startsWith("language-quality-") || !sourceRunId.startsWith("quality-")) throw new Error("LANGUAGE_QUALITY_ID_REQUIRED");
   const limit = Number(values.get("limit") ?? "3");
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 3) throw new Error("LANGUAGE_QUALITY_LIMIT_INVALID");
-  return { runId, sourceRunId, limit, exportOnly: values.has("export-only") };
+  const caseIds = values.get("case-ids")?.split(",").map((value) => value.trim()).filter(Boolean);
+  if (caseIds && (caseIds.length !== limit || new Set(caseIds).size !== caseIds.length || caseIds.some((id) => !/^[a-z][a-z0-9-]{0,79}$/u.test(id)))) {
+    throw new Error("LANGUAGE_QUALITY_CASE_SELECTION_INVALID");
+  }
+  return { runId, sourceRunId, limit, caseIds, exportOnly: values.has("export-only") };
 }
 
 const quote = (text: string) => text.split(/\r?\n/u).map((line) => `> ${line}`).join("\n");
@@ -56,7 +60,9 @@ export async function runLanguageQualityBatch(options: ReturnType<typeof parseLa
     const sourcePath = path.join(primaryRoot, options.sourceRunId, "batch-summary", "回放数据.json");
     let source: SourceReplay;
     try { source = JSON.parse(await readFile(sourcePath, "utf8")) as SourceReplay; } catch { throw new Error("LANGUAGE_QUALITY_SOURCE_NOT_FOUND"); }
-    const selected = previous?.selected ?? source.records.filter((record) => typeof record.text === "string" && record.text.trim()).slice(0, options.limit);
+    const selected = previous?.selected ?? (options.caseIds
+      ? options.caseIds.map((caseId) => source.records.find((record) => record.caseId === caseId && typeof record.text === "string" && record.text.trim())).filter((record): record is ProbeRecord => Boolean(record))
+      : source.records.filter((record) => typeof record.text === "string" && record.text.trim()).slice(0, options.limit));
     if (selected.length !== options.limit) throw new Error("LANGUAGE_QUALITY_SOURCE_TOO_SHORT");
     const state: State = previous ?? { version: 1, runId: options.runId, sourceRunId: options.sourceRunId, createdAt: new Date().toISOString(),
       sourceHash: fingerprint(source.records), selected: [...selected], attempts: [], ledger: null, status: "running", error: null, primaryRoot, backupRoot };

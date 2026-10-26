@@ -42,9 +42,10 @@ describe("paid language quality CLI", () => {
   }, 30000);
 
   it("freezes explicit source, run and limit options before any paid call", () => {
-    expect(parseLanguageQualityArgs(["--execute", "--run-id=language-quality-a", "--source-run-id=quality-a", "--limit=3"])).toMatchObject({ limit: 3, exportOnly: false });
+    expect(parseLanguageQualityArgs(["--execute", "--run-id=language-quality-a", "--source-run-id=quality-a", "--limit=3", "--case-ids=h01,h02,h03"])).toMatchObject({ limit: 3, caseIds: ["h01", "h02", "h03"], exportOnly: false });
     expect(() => parseLanguageQualityArgs(["--execute", "--run-id=quality-a", "--source-run-id=quality-a"])).toThrow("LANGUAGE_QUALITY_ID_REQUIRED");
     expect(() => parseLanguageQualityArgs(["--execute", "--run-id=language-quality-a", "--source-run-id=quality-a", "--limit=4"])).toThrow("LANGUAGE_QUALITY_LIMIT_INVALID");
+    expect(() => parseLanguageQualityArgs(["--execute", "--run-id=language-quality-a", "--source-run-id=quality-a", "--limit=2", "--case-ids=h01,h01"])).toThrow("LANGUAGE_QUALITY_CASE_SELECTION_INVALID");
     expect(() => parseLanguageQualityArgs(["--execute", "--export-only", "--run-id=language-quality-a", "--source-run-id=quality-a"])).toThrow("EXECUTE_OR_EXPORT_REQUIRED");
   });
 });
