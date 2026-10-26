@@ -1,5 +1,7 @@
 import type { RelationshipStage, QuestionPolicy } from "./reply-plan";
-import { containsUnsupportedScript } from "./language-purity";
+import { containsUnsupportedScript, englishFragment } from "./language-purity";
+import { hasProviderOutputContamination } from "./provider-output-integrity";
+import { hasRepeatedReplySentence } from "./language-purity";
 
 export const proactiveMessageSources = [
   "spontaneous_affection",
@@ -18,6 +20,9 @@ export type ProactiveEligibilityState = Readonly<{
   relationshipStatus: "active" | "inactive";
   relationshipStage: RelationshipStage;
   relationshipSummary: string | null;
+  relationshipSignalsSummary?: string | null;
+  userRomanticIntent?: "unspecified" | "open" | "confirmed" | "friends_only" | "paused";
+  characterProposal?: "none" | "interest_expressed" | "confirmation_pending" | "confirmed";
   proactiveEnabled: boolean;
   lastInteractionAt: Date | null;
   lastProactiveMessageAt: Date | null;
@@ -75,19 +80,28 @@ export type ProactiveReplyPlan = Readonly<{
   preferredLength: "one-line" | "short";
 }>;
 
+type ProactiveRelationshipTone = Readonly<{
+  userRomanticIntent?: ProactiveEligibilityState["userRomanticIntent"];
+  characterProposal?: ProactiveEligibilityState["characterProposal"];
+}>;
+
 export function proactiveReplyPlan(
   source: ProactiveMessageSource,
   relationshipStage: RelationshipStage,
   dailyState: ProactiveDailyState = "available",
+  relationship: ProactiveRelationshipTone = {},
 ): ProactiveReplyPlan {
   const mature = relationshipStage === "familiar" || relationshipStage === "close_friend";
+  const romanceRestricted = relationship.userRomanticIntent === "friends_only" || relationship.userRomanticIntent === "paused";
+  const romanceOpen = relationship.userRomanticIntent === "open" || relationship.userRomanticIntent === "confirmed";
+  const romanceConfirmed = relationship.userRomanticIntent === "confirmed" && relationship.characterProposal === "confirmed";
   const wakingAffection = source === "spontaneous_affection" && dailyState === "waking" && mature;
   if (source === "relationship_milestone") {
     return {
       source,
-      relationshipSignal: "affection",
-      interactionMode: "affectionate",
-      affectionIntensityCeiling: relationshipStage === "close_friend" ? 3 : 2,
+      relationshipSignal: romanceOpen && !romanceRestricted ? "affection" : "warmth",
+      interactionMode: romanceOpen && !romanceRestricted ? "affectionate" : "quiet",
+      affectionIntensityCeiling: romanceRestricted ? 0 : romanceConfirmed && relationshipStage === "close_friend" ? 3 : romanceOpen ? 2 : 1,
       questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
       preferredLength: "short",
     };
@@ -95,9 +109,9 @@ export function proactiveReplyPlan(
   if (source === "spontaneous_affection") {
     return {
       source,
-      relationshipSignal: mature ? "missing" : "warmth",
-      interactionMode: mature ? "affectionate" : "everyday",
-      affectionIntensityCeiling: mature ? 2 : 1,
+      relationshipSignal: romanceRestricted ? "warmth" : mature ? "missing" : "warmth",
+      interactionMode: romanceRestricted ? "everyday" : mature ? "affectionate" : "everyday",
+      affectionIntensityCeiling: romanceRestricted ? 1 : mature ? 2 : 1,
       questionPolicy: { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" },
       preferredLength: wakingAffection ? "one-line" : "short",
     };
@@ -126,6 +140,8 @@ export function proactiveReplyPlan(
 
 /** Hard checks for text generated for an already-qualified proactive message. */
 export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): boolean {
+  if (hasProviderOutputContamination(text)) return false;
+  if (hasRepeatedReplySentence(text)) return false;
   const normalized = text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/gu, "")
@@ -137,6 +153,10 @@ export function isProactiveMessageSafe(text: string, plan: ProactiveReplyPlan): 
   // language, so it must be pure Spanish. A Spanish sentence carrying a stray
   // "随机" is the reported defect; the provider prompt alone did not prevent it.
   if (containsUnsupportedScript(text)) return false;
+  // English uses the Latin script, so the check above cannot see it. The
+  // reported 2026-10-23 message ("Acabo de Wake Up y foster me he acordado de
+  // ti") mixed English words into an otherwise Spanish proactive message.
+  if (englishFragment(text)) return false;
   if (/\b(?:system prompt|memory permissions|provider details|evidence_events|mastery|confidence|app|usuario|sesion|sesión|eliges|seleccionas)\b/iu.test(normalized)) return false;
   if (/\b(?:dejarte una sonrisa(?: pequena)?|solo queria saludarte)\b/iu.test(normalized)) return false;
   if (/\b(?:soy|recuerda que soy)\b.{0,48}\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)) return false;

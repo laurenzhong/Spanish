@@ -1,3 +1,8 @@
+import { DEFAULT_MINIMAX_TEXT_MODEL } from "../../providers/minimax/text-model";
+
+import { coaxesAfterTopicClosure } from "../domain/topic-closure";
+import { hasProviderOutputContamination } from "../domain/provider-output-integrity";
+import { clarifiedCanonicalOccupation, normalizeOccupationText } from "../domain/occupation-clarification";
 import {
   type ConversationErrorEvent,
   type ConversationStreamEvent,
@@ -13,7 +18,7 @@ import {
 import { deriveReplyOpenTopics, type ReplyContext } from "./build-reply-context";
 import { greetingOpener, hasGreetedOnLocalDate } from "../domain/greeting";
 import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
-import { containsUnsupportedScript, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
+import { containsUnsupportedScript, englishFragments, fragmentQuotedFromUserMessage, hasRepeatedReplySentence, malformedSpanishFragment, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
 import { attributesUnconfirmedCoffee, narrowsUnspecifiedWeekendWork, repeatsDailyActivityQuestion, requestsQuestionRepeat } from "../domain/reply-continuity";
 import { getConversationCharacter, isKnownConversationVersion } from "../domain/character-catalog";
 import { replyBubbleIntervalMs, splitReplyBubbles } from "../domain/reply-bubbles";
@@ -40,11 +45,27 @@ export type StreamReplyInput = Readonly<{
   providerName?: ConversationProviderResult["provider"];
   providerModelVersion?: string;
   onProviderResult?: (observation: StreamReplyProviderObservation) => Promise<void> | void;
+  /**
+   * Bounded safety-only rewrites after a provider candidate is rejected.
+   * Product callers keep the default of one; evaluation callers may opt into
+   * a separately budgeted, auditable limit.
+   */
+  safetyRetryLimit?: number;
   signal?: AbortSignal;
   wait?: (milliseconds: number) => Promise<void>;
   /** Persist a complete, validated prefix while this generation still owns delivery. */
   onBubble?: (bubble: Readonly<{ text: string; prefix: string; index: number }>) => Promise<boolean>;
 }>;
+
+const defaultSafetyRetryLimit = 1;
+const maxSafetyRetryLimit = 3;
+
+function resolveSafetyRetryLimit(value: number | undefined): number {
+  if (value === undefined) return defaultSafetyRetryLimit;
+  return Number.isInteger(value) && value >= 0 && value <= maxSafetyRetryLimit
+    ? value
+    : defaultSafetyRetryLimit;
+}
 
 export class StreamReplyError extends Error {
   readonly event: ConversationErrorEvent;
@@ -132,6 +153,7 @@ export async function* streamReply(
     character: getConversationCharacter(input.characterKey).snapshot,
     relationshipStage: "new_contact" as const,
     relationshipSummary: null,
+    relationshipSignalsSummary: null,
     memories: [],
     teachingOpportunity: null,
     questionPolicy: undefined,
@@ -140,12 +162,26 @@ export async function* streamReply(
   if (input.replyProvider) {
     try {
       let generationContext = context;
-      let safetyRetryUsed = false;
+      const safetyRetryLimit = resolveSafetyRetryLimit(input.safetyRetryLimit);
+      let safetyRetries = 0;
       while (true) {
         replyResult = await input.replyProvider.generate(generationContext, { signal: input.signal });
-        if (isGeneratedReplySafe(generationContext, replyResult.text)) break;
-        if (safetyRetryUsed) throw new ReplySafetyGateError();
-        safetyRetryUsed = true;
+        // A repeated low-information style phrase is a quality defect worth a
+        // single rewrite, but it must not turn an otherwise clean second
+        // candidate into a failed stream. Other safety gates remain blocking.
+        if (isGeneratedReplySafe(generationContext, replyResult.text, {
+          allowRepeatedStylePhrase: safetyRetries > 0,
+          // When the provider ignores the activity-question rewrite, the
+          // same candidate often also shares its setup wording. Do not turn
+          // that second, otherwise clean candidate into an empty stream.
+          // A provider that ignores a continuity rewrite may still reuse the
+          // setup wording around a useful follow-up question. Keep the single
+          // retry from becoming an empty stream in that narrow case; repeated
+          // declarative filler remains blocking.
+          allowRecycledPhrase: safetyRetries > 0 && /\?/u.test(replyResult.text),
+        })) break;
+        if (safetyRetries >= safetyRetryLimit) throw new ReplySafetyGateError();
+        safetyRetries += 1;
         await notifyProviderResult(input, {
           provider: replyResult.provider,
           modelVersion: replyResult.modelVersion,
@@ -158,10 +194,33 @@ export async function* streamReply(
         const returnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && (commitment.status === "returned" || commitment.status === "completed"));
         const redundantGreeting = isRedundantGreetingReply(context, replyResult.text);
         const recycledPhrase = isRecycledReplyPhrase(context, replyResult.text);
+        const occupationClarification = clarifiedCanonicalOccupation({
+          authoredOccupation: context.character.identity?.occupation,
+          userMessage: context.userMessage,
+          reply: replyResult.text,
+        });
+        const repeatedStylePhrase = isRepeatedStylePhrase(context, replyResult.text);
         const translationese = translationesePhrase(replyResult.text);
+        const malformedSpanish = malformedSpanishFragment(replyResult.text);
+        const english = englishFragments(replyResult.text);
+        // Name the fragment that actually caused the rejection. The first
+        // fragment may be a quote the user wrote, with an unquoted later one
+        // being the real defect.
+        const retryUnansweredText = context.unansweredUserMessages?.length
+          ? context.unansweredUserMessages.join("\n\n")
+          : context.userMessage;
+        const rejectedEnglish = requestedNonSpanishLanguage(retryUnansweredText)
+          ? null
+          : (english.find((fragment) => !fragmentQuotedFromUserMessage(retryUnansweredText, fragment)) ?? null);
         const repeatedActivityQuestion = repeatsDailyActivityQuestion(context, replyResult.text);
         const unconfirmedCoffee = attributesUnconfirmedCoffee(context, replyResult.text);
         const narrowedWeekend = narrowsUnspecifiedWeekendWork(context, replyResult.text);
+        const questionPolicy = context.questionPolicy ?? questionPolicyForReply({ userMessage: retryUnansweredText });
+        const questionPolicyViolation = !questionPolicyAllows(replyResult.text, questionPolicy);
+        const retryQuestionPolicy: QuestionPolicy = returnedPlan || questionPolicy.maxSubstantiveQuestions > 0
+          || (context.questionPolicy && context.questionPolicy.maxQuestionPressure !== "none")
+          ? questionPolicy
+          : { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
         const greetedToday = context.alreadyGreetedToday
           ?? hasGreetedOnLocalDate(context.recentMessages, context.currentLocalDate, context.conversationTimeZone);
         // The one permitted retry may fix the defect it was told about and still
@@ -174,16 +233,8 @@ export async function* streamReply(
         generationContext = {
           ...context,
           alreadyGreetedToday: greetedToday,
-          ...(returnedPlan || (context.questionPolicy && context.questionPolicy.maxQuestionPressure !== "none")
-            ? {}
-            : {
-                questionPolicy: {
-                  maxSubstantiveQuestions: 0,
-                  allowReciprocalQuestion: false,
-                  maxQuestionPressure: "none" as const,
-                },
-              }),
-          continuityInstruction: `${retryInstruction({ dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, translationese, redundantGreeting, recycledPhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend })}${greetingGuard}`,
+          questionPolicy: retryQuestionPolicy,
+          continuityInstruction: `${retryInstruction({ contaminated: hasProviderOutputContamination(replyResult.text), questionPolicyViolation, closedTopic: coaxesAfterTopicClosure(context.userMessage, replyResult.text), dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, translationese, malformedSpanish, englishFragment: rejectedEnglish?.phrase ?? null, redundantGreeting, recycledPhrase, occupationClarification: occupationClarification !== null, repeatedStylePhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend })}${questionPolicyViolation ? ` ${questionPolicyRetryInstruction(retryQuestionPolicy)}` : ""}${greetingGuard}`.trim(),
         };
       }
       await notifyProviderResult(input, {
@@ -199,7 +250,7 @@ export async function* streamReply(
       if (input.signal?.aborted || providerErrorType === "provider-cancelled") {
         await notifyProviderResult(input, {
           provider: input.providerName ?? "minimax",
-          modelVersion: input.providerModelVersion ?? "MiniMax-M3",
+          modelVersion: input.providerModelVersion ?? DEFAULT_MINIMAX_TEXT_MODEL,
           providerRequestId: null,
           status: "cancelled",
           latencyMs: 0,
@@ -211,7 +262,7 @@ export async function* streamReply(
       }
       await notifyProviderResult(input, {
         provider: input.providerName ?? "minimax",
-        modelVersion: input.providerModelVersion ?? "MiniMax-M3",
+        modelVersion: input.providerModelVersion ?? DEFAULT_MINIMAX_TEXT_MODEL,
         providerRequestId: null,
         status: "failed",
         latencyMs: 0,
@@ -383,10 +434,15 @@ function sharesPhrase(
  * at least four significant words, and for the two shortest sizes it also
  * requires enough characters to be distinctive rather than incidental. A run of
  * six words is always distinctive, which is why no character floor applies
- * there. The worst case for a wrong call is one extra provider call, never a
- * message the user would not have wanted.
+ * there. A false positive can exhaust the single retry and block delivery, so
+ * a requested canonical occupation clarification excludes only that fact;
+ * repeated surrounding wording remains subject to the same phrase checks.
  */
-function isRecycledReplyPhrase(context: ReplyContext, text: string): boolean {
+function isRecycledReplyPhrase(
+  context: ReplyContext,
+  text: string,
+  options: Readonly<{ allowShortOccupationOverlap?: boolean }> = {},
+): boolean {
   const previousCharacterMessage = [...context.recentMessages]
     .reverse()
     .find((message) => message.role === "character" && message.content.trim().length > 0);
@@ -397,12 +453,43 @@ function isRecycledReplyPhrase(context: ReplyContext, text: string): boolean {
   const comparable = requestsQuestionRepeat(context.userMessage)
     ? (value: string) => value.replace(/¿[^?]*\?/gu, "")
     : (value: string) => value;
-  const previous = significantReplyTokens(comparable(previousCharacterMessage.content));
-  const generated = significantReplyTokens(comparable(text));
+  const occupation = clarifiedCanonicalOccupation({ authoredOccupation: context.character.identity?.occupation, userMessage: context.userMessage, reply: text });
+  // Mask only the canonical fact being clarified, with different sentinels so
+  // phrases on either side cannot join into an artificial shared phrase.
+  const previous = significantReplyTokens(occupation
+    ? normalizeOccupationText(comparable(previousCharacterMessage.content)).replaceAll(occupation, "previousoccupationseparator")
+    : comparable(previousCharacterMessage.content));
+  const generated = significantReplyTokens(occupation
+    ? normalizeOccupationText(comparable(text)).replaceAll(occupation, "generatedoccupationseparator")
+    : comparable(text));
   if (previous.length < recycledPhraseMinimumTokens || generated.length < recycledPhraseMinimumTokens) return false;
   return sharesPhrase(previous, generated, 6, 0)
     || sharesPhrase(previous, generated, 5, recycledPhraseMinimumCharacters)
-    || sharesPhrase(previous, generated, 4, recycledPhraseMinimumCharacters);
+    || (!options.allowShortOccupationOverlap && sharesPhrase(previous, generated, 4, recycledPhraseMinimumCharacters));
+}
+
+const lowInformationStylePhrases = ["sin prisas", "sin prisa", "a tu ritmo", "poco a poco", "vale alex"] as const;
+
+function isRepeatedStylePhrase(context: ReplyContext, text: string): boolean {
+  const normalize = (value: string) => value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES");
+  const previous = context.recentMessages
+    .filter((message) => message.role === "character")
+    .map((message) => normalize(message.content));
+  const generated = normalize(text);
+  return lowInformationStylePhrases.some((phrase) => generated.includes(phrase)
+    && previous.filter((message) => message.includes(phrase)).length >= 2);
+}
+
+function questionPolicyRetryInstruction(policy: QuestionPolicy): string {
+  if (policy.maxQuestionPressure === "none") {
+    return "La respuesta anterior excedía el permiso de preguntas. No hagas ninguna pregunta, ni siquiera recíproca, ni invitaciones a contar más como 'cuéntame' o 'dime'. Responde con una afirmación breve, sin presionar para continuar.";
+  }
+  return `La respuesta anterior excedía el permiso de preguntas. Máximo de preguntas sustantivas: ${policy.maxSubstantiveQuestions}. ${policy.allowReciprocalQuestion
+    ? "Solo se permite una devolución recíproca sencilla como '¿Y tú?' cuando encaje; no la conviertas en otra pregunta sustantiva."
+    : "No se permiten preguntas recíprocas."} Responde primero a lo que la persona dijo; puedes terminar sin ninguna pregunta.`;
 }
 
 /**
@@ -411,17 +498,30 @@ function isRecycledReplyPhrase(context: ReplyContext, text: string): boolean {
  * what went wrong. Strings here are asserted by tests; keep them stable.
  */
 function retryInstruction(input: Readonly<{
+  contaminated: boolean;
+  questionPolicyViolation: boolean;
+  closedTopic: boolean;
   dishonestIdentity: boolean;
   returnedPlan: boolean;
   translationese: string | null;
+  malformedSpanish: string | null;
+  englishFragment: string | null;
   redundantGreeting: boolean;
   recycledPhrase: boolean;
+  occupationClarification: boolean;
+  repeatedStylePhrase: boolean;
   repeatedActivityQuestion: boolean;
   unconfirmedCoffee: boolean;
   narrowedWeekend: boolean;
 }>): string {
+  if (input.contaminated) {
+    return "La respuesta anterior contenía marcas internas o caracteres corruptos. Devuelve únicamente un mensaje limpio para la persona, sin etiquetas de protocolo, planificación interna ni fragmentos defectuosos. No reproduzcas el texto descartado.";
+  }
   if (input.dishonestIdentity) {
     return "Responde con honestidad: eres un personaje de IA, no una persona real. No niegues ser una IA ni afirmes ser humana. Contesta de forma breve y directa a la pregunta.";
+  }
+  if (input.closedTopic) {
+    return "La persona ha cerrado el tema. Reconócelo brevemente, sin insistir en hablar de ello ni preguntar por qué. No preguntes qué quiere hablar ni le pidas que elija otro tema. Sigue solo un nuevo tema que ella haya propuesto; si no lo hay, basta con 'Claro, lo dejamos ahí.'.";
   }
   if (input.narrowedWeekend) {
     return "La persona solo dijo fin de semana: no confirmó sábado ni domingo para su trabajo. Mantén su expresión sin inventar el día ni corregirla por el calendario. Responde al último mensaje sin atribuirle otras actividades, emociones o resultados no confirmados.";
@@ -438,12 +538,27 @@ function retryInstruction(input: Readonly<{
   if (input.translationese) {
     return `La respuesta anterior usaba una expresión que no suena natural en español ("${input.translationese}"). Reformúlala con la fórmula corriente que usaría un hablante nativo, sin traducir literalmente del chino ni del inglés.`;
   }
+  if (input.malformedSpanish) {
+    return `La respuesta anterior contenía un fragmento mal formado ("${input.malformedSpanish}"). Reescribe la frase completa en español natural; no conserves ni expliques ese fragmento.`;
+  }
+  if (input.englishFragment) {
+    // The fragment comes from the fixed marker list in language-purity.ts, not
+    // from arbitrary model text, so quoting it here cannot inject instructions.
+    return `La respuesta anterior contenía palabras en inglés ("${input.englishFragment}"). Escribe el mensaje íntegramente en español, sin mezclar palabras ni frases en inglés, y usa la expresión española equivalente.`;
+  }
   if (input.redundantGreeting) {
     return "Ya has saludado en un mensaje anterior de hoy y la persona no te ha saludado ahora. No vuelvas a abrir con un saludo (nada de 'hola', 'buenos días', 'buenas tardes' ni 'buenas noches'): continúa directamente con lo que acaba de decir.";
   }
   if (input.recycledPhrase) {
+    if (input.occupationClarification) {
+      return "La persona está aclarando a qué te dedicas. Confirma solo ese dato en una o dos frases breves; no repitas los detalles, ejemplos ni la explicación de tu mensaje anterior y no añadas otra pregunta.";
+    }
     return "La respuesta anterior reutilizaba casi literalmente una frase de tu mensaje anterior. Dilo con tus propias palabras de otra forma, o añade algo nuevo, en vez de repetir la misma frase.";
   }
+  if (input.repeatedStylePhrase) {
+    return "La respuesta anterior repitió una muletilla que ya has usado varias veces (por ejemplo, 'sin prisas', 'a tu ritmo' o 'poco a poco'). Exprésalo con palabras más concretas y distintas, relacionadas con lo que la persona acaba de decir.";
+  }
+  if (input.questionPolicyViolation) return ""; // The precise budget instruction is appended by the caller.
   return "La respuesta anterior repetía un tema tratado hoy o contradecía un dato que ya dijiste. Reformula sin repetir la misma respuesta y, si algo cambió, explícalo de forma natural y breve.";
 }
 
@@ -455,7 +570,13 @@ function hasDishonestIdentity(text: string): boolean {
   return deniesAi || /\bsoy\s+(?:un(?:a)?\s+)?(?:persona\s+(?:real|humana)|humana?|ser\s+humano)\b/u.test(withoutDenials);
 }
 
-function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
+function isGeneratedReplySafe(
+  context: ReplyContext,
+  text: string,
+  options: Readonly<{ allowRepeatedStylePhrase?: boolean; allowRecycledPhrase?: boolean }> = {},
+): boolean {
+  if (hasProviderOutputContamination(text)) return false;
+  if (/[{}\[\]]/u.test(text)) return false;
   const unansweredText = context.unansweredUserMessages?.length ? context.unansweredUserMessages.join("\n\n") : context.userMessage;
   const normalized = text
     .normalize("NFD")
@@ -467,6 +588,17 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
   // Spanish is the default; a stray Chinese fragment is the reported defect and
   // must not reach the user. Only an explicit in-conversation request unlocks it.
   if (containsUnsupportedScript(text) && !requestedNonSpanishLanguage(unansweredText)) return false;
+  // English is Latin-script, so it needs the marker check. One quoted English
+  // fragment the user themselves wrote in this turn may be repeated back;
+  // several fragments, or any fragment the user did not write, mean the
+  // character switched language on its own.
+  const english = englishFragments(text);
+  if (english.length > 0 && !requestedNonSpanishLanguage(unansweredText)) {
+    const [onlyFragment] = english;
+    const quoted = english.length === 1 && onlyFragment !== undefined
+      && fragmentQuotedFromUserMessage(unansweredText, onlyFragment);
+    if (!quoted) return false;
+  }
   if (hasDishonestIdentity(text)) return false;
   const plan = planReply({
     userMessage: unansweredText,
@@ -481,16 +613,27 @@ function isGeneratedReplySafe(context: ReplyContext, text: string): boolean {
     && (/(?:(?:soy|somos|recuerda que soy)\b.{0,48}|\bcomo\s+(?:personaje\s+de\s+)?|\ben\s+cuanto\s+a\s+)\b(?:ia|inteligencia artificial|personaje)\b/iu.test(normalized)
       || /\bcomo\s+personaje\s+de\s+ia\b/iu.test(normalized))
   ) return false;
-  if (isRepeatedSameDayTopicReply(context, text)) return false;
+  const occupationClarification = clarifiedCanonicalOccupation({
+    authoredOccupation: context.character.identity?.occupation,
+    userMessage: context.userMessage,
+    reply: text,
+  });
+  if (isRepeatedSameDayTopicReply(context, text) && !occupationClarification) return false;
   if (repeatsDailyActivityQuestion(context, text)) return false;
+  if (coaxesAfterTopicClosure(context.userMessage, text)) return false;
   if (attributesUnconfirmedCoffee(context, text)) return false;
   if (narrowsUnspecifiedWeekendWork(context, text)) return false;
   if (isUnexplainedSameDayClaimChange(context, text)) return false;
   if (isPreReturnWishAfterReturn(context, text)) return false;
   if (isUnfoundedGreetingWish(context, text)) return false;
   if (isRedundantGreetingReply(context, text)) return false;
-  if (isRecycledReplyPhrase(context, text)) return false;
+  // isRecycledReplyPhrase masks only the canonical occupation wording when a
+  // clarification is requested, so repeated surrounding filler remains gated.
+  if (isRecycledReplyPhrase(context, text, { allowShortOccupationOverlap: occupationClarification !== null }) && !options.allowRecycledPhrase) return false;
+  if (isRepeatedStylePhrase(context, text) && !options.allowRepeatedStylePhrase) return false;
   if (translationesePhrase(text)) return false;
+  if (malformedSpanishFragment(text)) return false;
+  if (hasRepeatedReplySentence(text)) return false;
   return questionPolicyAllows(text, context.questionPolicy ?? questionPolicyForReply({ userMessage: unansweredText }));
 }
 
@@ -533,7 +676,7 @@ function normalizedReplyTokens(value: string): Set<string> {
 }
 
 function isRepeatedSameDayTopicReply(context: ReplyContext, text: string): boolean {
-  const currentTopic = deriveReplyOpenTopics([{ role: "user", content: context.userMessage }])[0];
+  const currentTopic = deriveReplyOpenTopics([{ role: "user", content: context.userMessage.includes("?") ? context.userMessage : `${context.userMessage}?` }])[0];
   if (!currentTopic) return false;
   const previous = context.openTopics.find((topic) =>
     topic.topicKey === currentTopic.topicKey && topic.status === "answered" && topic.sameLocalDay && topic.lastAnswer,
@@ -577,7 +720,7 @@ function questionPolicyAllows(text: string, policy: QuestionPolicy): boolean {
   const investigativeInvite = /\b(?:cuentame|dime|explicame|que te ha pasado|que es lo que mas te preocupa|si te apetece (?:contar|hablar)|puedo preguntarte)\b/iu.test(normalized);
   if (substantiveCount > policy.maxSubstantiveQuestions) return false;
   if (!policy.allowReciprocalQuestion && reciprocal.length > 0) return false;
-  if (policy.maxQuestionPressure === "none" && questions.length > 0) return false;
+  if (policy.maxQuestionPressure === "none" && /[?？]/u.test(text)) return false;
   if (policy.maxQuestionPressure === "none" && investigativeInvite) return false;
   return true;
 }

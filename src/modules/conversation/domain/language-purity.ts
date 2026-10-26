@@ -11,11 +11,240 @@
  * compatibility ideographs and the rare CJK additions are included.
  */
 const unsupportedScriptPattern =
-  /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul}/u;
+  /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul}|\p{Script=Cyrillic}|\p{Script=Arabic}|\p{Script=Greek}/u;
 
 /** True when text carries characters whose script Spanish does not use. */
 export function containsUnsupportedScript(text: string): boolean {
   return unsupportedScriptPattern.test(text);
+}
+
+/** Normalization shared by the checks below; accents are stripped first. */
+function normalizeForLanguageCheck(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("es-ES");
+}
+
+/**
+ * English shares the Latin script with Spanish, so the script gate above cannot
+ * see it. The reported defect is a live proactive message from 2026-10-23:
+ * "Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has
+ * desayunado ya?" The provider prompt is written in English ("... such as
+ * waking up, coffee, breakfast ..."), and the model copied English words into an
+ * otherwise Spanish message.
+ *
+ * The check is a bounded high-precision heuristic, not a language detector. It
+ * flags reported English phrases and a short list of English function words and
+ * particles, but a single-word hit requires the original token to already be
+ * lowercase (`token.original === token.lower`). Capitalization is how Spanish
+ * text carries proper nouns, titles and acronyms ("It", "The Beatles", "Doctor
+ * Who", "US Open", the Spanish tech acronym "IT", the medical eponym "síndrome
+ * de Down"), and a lowercase English word is what the model writes when it
+ * actually slips language. The same exact-surface rule keeps `aré` (which accent
+ * stripping normalizes to "are") from firing.
+ *
+ * Words with a Spanish reading or ordinary Spanish loanword usage stay out:
+ * "and" ("rock and roll", "Pull and Bear"), "after" ("el after"), "down" ("un
+ * poco down"), "over"/"under" (betting), "on" ("modo on"), plus "in" ("in
+ * situ"), "do" (music note), "as" (playing card), "once" (eleven), "am" (time
+ * abbreviation) and the loanwords/names "will", "can", "out", "off" already
+ * listed in the Spanish frequency corpus.
+ */
+const englishMarkerWords = new Set([
+  "the", "are", "is", "was", "were", "it", "its", "this", "that", "these", "those",
+  "with", "without", "for", "from", "have", "had", "would", "could", "should", "of",
+  "into", "at", "been", "but", "or", "if", "then", "there", "their", "they", "them",
+  "we", "our", "my", "your", "you", "she", "her", "him", "his", "us", "an", "any", "some",
+  "other", "about", "before", "between", "during", "again",
+  "just", "very", "too", "also", "because", "while", "when", "where", "what", "who", "why",
+  "how", "than", "up",
+]);
+
+/** Reported lowercase English words; capitalized "Wake"/"Foster" is a name. */
+const reportedEnglishWords = new Set(["wake", "foster", "comfort", "lately", "talking", "recipes", "complicated", "exchanged"]);
+
+// These malformed or unmistakable English content words were observed in the
+// real baseline. Capitalization does not make `Cooking` or `Somewhere` a
+// plausible proper noun in these reply shapes.
+const caseInsensitiveReportedEnglishWords = new Set([
+  "cooking",
+  "cookin",
+  "hascookin",
+  "somewhere",
+  // Real CONV-EVAL-006 R01 reply: "Recommendation de libros".
+  // This is an English content noun, not a Spanish loanword or title in that
+  // sentence, so capitalization must not allow it through the gate.
+  "recommendation",
+  "recommendations",
+  "cooked",
+  "working",
+  "means",
+  "relaxing",
+  "verification",
+  "cooks",
+  "tongue",
+  "perfectly",
+  "commitments",
+  "dishes",
+  "preparation",
+  "curious",
+  "altogether",
+  "apple",
+  "changed",
+  "often",
+  "resolved",
+  "cute",
+  "cookbook",
+  "task",
+]);
+
+// High-confidence malformed Latin fragments observed in the 006 real run.
+// This remains a tiny regression list, not a general grammar detector.
+const malformedSpanishFragments = new Set(["teargue", "plats", "aoften", "habianchanged", "hancancelado", "librogood", "quedetail", "hastaapis", "seguirathediendo", "irools", "pressionarnos", "falar", "couth", "poderrecommendations", "semad", "habivenido", "yichar", "tocaomc", "itsonga", "sinorpheus", "kerja", "sinuqunhugdias"]);
+const malformedSpanishPatterns: readonly Readonly<{ phrase: string; pattern: RegExp }>[] = [
+  { phrase: "unas contenidos", pattern: /\bunas\s+contenidos\b/u },
+  { phrase: "me ha raro", pattern: /\bme\s+ha\s+raro\b/u },
+  { phrase: "busqueda algo", pattern: /\bbusqueda\s+algo\b/u },
+  { phrase: "decidlo", pattern: /\b(?:hay\s+que|puedes)\s+decidlo\b/u },
+  { phrase: "planes cerradas", pattern: /\bplanes\s+cerradas\b/u },
+];
+
+/** Reported multi-word fragments, matched on lowercase tokens so titles count too. */
+const englishPhraseSequences: readonly (readonly string[])[] = [
+  ["wake", "up"],
+  ["good", "morning"],
+  ["good", "afternoon"],
+  ["good", "evening"],
+  ["good", "night"],
+  ["how", "are", "you"],
+  ["how", "s", "it", "going"],
+  ["what", "s", "up"],
+  ["thank", "you"],
+  ["see", "you"],
+  ["that", "s", "great"],
+  ["that", "s", "nice"],
+  ["that", "s", "good"],
+  ["that", "s", "cool"],
+  ["of", "course"],
+  ["by", "the", "way"],
+  ["never", "mind"],
+  ["i", "love", "you"],
+  ["i", "miss", "you"],
+  ["i", "m", "sorry"],
+  ["oh", "my", "god"],
+];
+
+type LanguageToken = Readonly<{ original: string; lower: string }>;
+
+function languageTokens(value: string): readonly LanguageToken[] {
+  return [...value.matchAll(/[\p{L}\p{N}]+/gu)].map((match) => ({
+    original: match[0],
+    lower: normalizeForLanguageCheck(match[0]),
+  }));
+}
+
+/** Detects a duplicated substantive sentence inside one provider candidate. */
+export function hasRepeatedReplySentence(text: string): boolean {
+  const sentences = text
+    .split(/[.!?。！？]+/u)
+    .map((sentence) => normalizeForLanguageCheck(sentence).replace(/\s+/gu, " ").trim())
+    .filter((sentence) => sentence.length >= 18);
+  return sentences.some((sentence, index) => sentences.indexOf(sentence) !== index);
+}
+
+export function malformedSpanishFragment(text: string): string | null {
+  const token = languageTokens(text).find((candidate) => malformedSpanishFragments.has(candidate.lower));
+  if (token) return token.lower;
+  const normalized = normalizeForLanguageCheck(text);
+  const phrase = malformedSpanishPatterns.find((entry) => entry.pattern.test(normalized));
+  if (phrase) return phrase.phrase;
+  // Parenthesized inline edits such as "te(resulta)" are provider artifacts,
+  // not a character's ordinary chat punctuation. Keep the check narrow enough
+  // to avoid treating a normal sentence with a parenthetical aside as corrupt.
+  const inlineEdit = /\b\p{L}{2,}\(\p{L}{2,}\)(?=\s|[.!?,;:]|$)/u.exec(text);
+  if (inlineEdit?.[0]) return inlineEdit[0].toLocaleLowerCase("es-ES");
+  const starredArtifact = /\*\p{L}{2,}\*/u.exec(text);
+  if (starredArtifact?.[0]) return starredArtifact[0].toLocaleLowerCase("es-ES");
+  const slashArtifact = /\b\p{L}{1,}\/\p{L}{2,}\b/u.exec(text);
+  if (slashArtifact?.[0]) return slashArtifact[0].toLocaleLowerCase("es-ES");
+  const dottedWord = /\bte\.has\b/iu.exec(text);
+  return dottedWord?.[0]?.toLocaleLowerCase("es-ES") ?? null;
+}
+
+function normalizedTokens(value: string): readonly string[] {
+  return languageTokens(value).map((token) => token.lower);
+}
+
+function matchingEnglishPhrase(
+  tokens: readonly LanguageToken[],
+  start: number,
+): Readonly<{ phrase: string; tokens: readonly string[]; length: number }> | null {
+  for (const sequence of englishPhraseSequences) {
+    if (start + sequence.length > tokens.length) continue;
+    let matches = true;
+    for (let offset = 0; offset < sequence.length; offset += 1) {
+      if (tokens[start + offset]?.lower !== sequence[offset]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return { phrase: sequence.join(" "), tokens: sequence, length: sequence.length };
+  }
+  return null;
+}
+
+export type EnglishFragment = Readonly<{
+  /** Matched text built from this module's fixed entries, never arbitrary model text. */
+  phrase: string;
+  tokens: readonly string[];
+}>;
+
+/**
+ * Every English fragment in the text, in order and non-overlapping. Reported
+ * phrases win over their constituent words so the retry can name the whole
+ * fragment and a quoted phrase is not split into two single-word hits.
+ */
+export function englishFragments(text: string): readonly EnglishFragment[] {
+  if (!text.trim()) return [];
+  const tokens = languageTokens(text);
+  const fragments: EnglishFragment[] = [];
+  let index = 0;
+  while (index < tokens.length) {
+    const phrase = matchingEnglishPhrase(tokens, index);
+    if (phrase) {
+      fragments.push({ phrase: phrase.phrase, tokens: phrase.tokens });
+      index += phrase.length;
+      continue;
+    }
+    const token = tokens[index]!;
+    if (caseInsensitiveReportedEnglishWords.has(token.lower)
+      || ((englishMarkerWords.has(token.lower) || reportedEnglishWords.has(token.lower)) && token.original === token.lower)) {
+      fragments.push({ phrase: token.lower, tokens: [token.lower] });
+    }
+    index += 1;
+  }
+  return fragments;
+}
+
+/** The first English fragment in a reply, or null when it reads as Spanish. */
+export function englishFragment(text: string): EnglishFragment | null {
+  return englishFragments(text)[0] ?? null;
+}
+
+/**
+ * True when every token of the fragment is already in the user's message. That
+ * makes the English a quotation of the learner's own words instead of the
+ * character switching language, and only conversation replies use this escape
+ * hatch: an unsolicited proactive message has no user turn to quote.
+ */
+export function fragmentQuotedFromUserMessage(
+  userMessage: string,
+  fragment: EnglishFragment,
+): boolean {
+  if (!userMessage.trim()) return false;
+  const userTokens = new Set(normalizedTokens(userMessage));
+  return fragment.tokens.every((token) => userTokens.has(token));
 }
 
 /**
@@ -57,10 +286,7 @@ const translationesePatterns: readonly Readonly<{ phrase: string; pattern: RegEx
 /** The first literal-translation phrase in a reply, or null when it reads as Spanish. */
 export function translationesePhrase(text: string): string | null {
   if (!text.trim()) return null;
-  const normalized = text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/gu, "")
-    .toLocaleLowerCase("es-ES");
+  const normalized = normalizeForLanguageCheck(text);
   for (const entry of translationesePatterns) {
     if (entry.pattern.test(normalized)) return entry.phrase;
   }
@@ -100,10 +326,7 @@ const languageRequestPatterns: readonly RegExp[] = [
  */
 export function requestedNonSpanishLanguage(userMessage: string): boolean {
   if (!userMessage.trim()) return false;
-  const normalized = userMessage
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/gu, "")
-    .toLocaleLowerCase("es-ES")
+  const normalized = normalizeForLanguageCheck(userMessage)
     .replace(/\s+/gu, " ")
     .trim();
   // Han requests keep their characters through normalization, so one pass over

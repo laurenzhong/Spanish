@@ -1,4 +1,347 @@
+## 2026-10-26 `CONV-EVAL-006`（`review`，本聊天）
+
+- 已完成评估专用安全重试切片：`streamReply` 新增有界 `safetyRetryLimit`（默认仍为 1，最大 3），每次候选仍由评估 runner 先预留并记录；manifest、回放报告和真实批次预算均保存该配置。仅新的 `--r04-only` 真实路线显式使用 2 次，产品默认与 R01/R05 基线保持不变。新增污染两次后第三次干净成功、三次污染仍失败及默认行为回归；聚焦测试 3 文件 **59/59**，TypeScript 通过。当前环境未提供 `MINIMAX_API_KEY`，新的 R04-only 真实复验尚未执行；历史失败批次继续保留。
+
+- 新真实批次 `baseline-r04-20261026retry2` 已按 `MiniMax-M3.1-Flash` 使用独立初识状态完成：R04 普通来回 **24/24**、双评审完成，关系 projection 为 `familiar`、`romance=open`、无角色 proposal/恋爱确认；角色 31 次、评审 2 次，已知 usage ¥0.179535，预留 ¥1.503919。2 次评估安全重试实际拦截 6 个候选并保留调用证据；step 12 主动机会安全门禁失败但按非致命规则继续，未产生关系事实。主档与桌面备份分别位于 `artifacts/conversation-evaluations/baseline-r04-20261026retry2/` 与 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261026retry2\`，清单校验仍需交接时复核。该批次证明 R04 可到熟悉/开放意愿终点，不能证明语言质量、主动消息稳定性、真实 DB/RLS 或真人体验通过。
+
+- `baseline-r04-20261026retry3` 至 `retry6` 均从独立初识完成 R04 **24/24** 普通来回并到 `familiar/open`；每批均双份归档、无传输层预算阻断。新增语言门禁在这些批次中拦截了 `working/means`、`relaxing/Verification`、异语言词、黏连词、异常标点和重复句等多种形态，但每批仍出现新的可见语法/词汇污染（如 `dishes/Preparation`、`perfectly`、`CURIOUS`、`te.has`、`commitments`、`tocaOMC` 等）。这证明有界重试提升了路线执行完成度，却不能替代独立语言质量模型或人工复核；`retry6` 角色 29 次、评审 2 次，已知 usage ¥0.140278，主档/桌面清单 SHA-256 一致。当前应停止按单词无限追补，进入独立语言质量诊断任务。
+
+- 评审证据协议修复：结构化 JSON、`evidenceSteps`、step 归属和可见 transcript 仍严格校验；单条无法逐字核验的 finding 现在会被丢弃并在 notes 标注，保留同一评审中其他可归因 findings，避免一次坏引文吞掉已付费评审。新增回归覆盖错误 step、未编号开场白和“有效+无效引文”混合结果。聚焦 real-provider **45/45**、关系 runner/projection **32/32**，TypeScript 与受影响 ESLint 通过。该修复尚未用新真实批次验证，当前环境未提供 `MINIMAX_API_KEY`；既有 p 批和所有失败证据保持不变。
+
+- 新增独立恋爱确认验收路线 `R06` 与显式 CLI 选项 `--romance-confirmation`：从独立初识开始，要求跨会话熟悉、用户开放、Lucía 独立 proposal、用户明确 confirmation，随后继续两轮普通日常；批次和 manifest 单独标记为 `single-romance-confirmation-route`，不会改变 R01/R04/R05 基线。离线 runner 回归证明 proposal 来源绑定、confirmation 只能关联服务端 proposal，且确认后普通对话仍可完成；real CLI 的真实执行入口已准备，但尚未调用收费模型。
+
+- R06 真实复验已执行四个独立批次并全部双份归档：`baseline-r06-preflight` 在 step 6 因连续污染候选失败；`baseline-r06-20261026b` 完成 9/9、双评审，关系 projection 为 `familiar / confirmed / confirmed`，评审发现 `Quédetail` 拼接错误；`baseline-r06-20261026c` 完成 9/9、双评审，语言门禁拦截了多次混语/内部批注候选，但可见文本仍有 `irools`、`Cute` 等问题；`baseline-r06-20261026d` 完成 9/9、双评审，确认后两轮日常完成，仍有全大写 `DESCUBRIENDO` 与 `pressionarnos` 拼写问题。已知角色调用 31 次、评审 6 次，已知 usage 约 ¥0.1406；这些结果证明确认路径可达和确认后可继续聊天，不能宣称语言质量、真实 DB/RLS 或真人体验通过。
+
+- 新核心批次 `baseline-relationship-20261026q` 使用最新评审裁剪协议和语言门禁：R01、R05 完成 24/24 并双评审到 `familiar`，R05 仍保持 `friends_only`；R04 在 step 7 因两次污染候选失败，未进入评审。R04 单路线入口已加入 `--r04-only`，后续 `baseline-r04-20261026a` 在 step 7、`baseline-r04-20261026b` 在 step 16 再次因供应商混语/中文与内部规划候选耗尽单次重试而失败；三次失败位置不同，说明长 R04 的 provider 输出稳定性仍未达到验收条件。q 批角色 72 次、评审 4 次，已知 usage ¥0.379623；R04 两次补跑角色 30 次，已知 usage 约 ¥0.115646。所有批次主档与桌面备份均保留。
+
+- 为 q/a/b 观察到的 `cookbook`、`task`、`pressionarnos`、`irools` 等污染补充语言门禁回归；新增单路线参数冲突校验。最新受影响聚焦 **135/135**（含 R04/R06 runner、关系候选、语言纯度与 real CLI/provider），TypeScript 与受影响 ESLint 通过。该门禁尚未改变 R04 多回合随机输出稳定性结论。
+
+- 后续真实复验 `baseline-conv-eval-006-20261026e/f/g` 已完成并各自保存工作区主档与桌面备份。新增 `Recommendation` 英文混入门禁；第二次候选中的低信息风格重复不再把消息流直接变成空失败，带实际追问的重复上下文也保留一次可见候选，声明式重复填充仍阻断。
+- `e`：R01/R05 24/24 且双评审完成；R04 24/24 普通回合后因重复 `sin prisas` 的流失败未进入评审。`f`：R04 在第 2 步组合重复候选问题消除，但后续普通回合完成后仍遇 `provider-unavailable`。`g`：R01/R05 24/24 且双评审完成；R04 24/24 普通回合全部完成，step 25 主动消息 `provider-unavailable`，未进入评审。g 已知 usage ¥0.435366，未知调用 0。
+- g 批中 `we'll take our time` 等英文候选被安全门禁拦截，没有进入可见聊天；R04 的主动供应商可用性仍是完整路线阻断。关系阶段仍全部为 `new_contact`，不得把普通回合完成或温暖措辞计为关系成长。
+- runner 修复后，主动消息的 `provider-unavailable` 会记录为非致命 turn，继续完成后续路线与评审；新增 runner/聊天聚焦回归 5 文件 138/138、TypeScript 与 ESLint 通过。`baseline-conv-eval-006-20261026h` 中 R01/R04 均 24/24 并完成双评审，R05 在 step 18 遇 `AMBIGUOUS_CALL`，已知 usage ¥0.356603、未知调用 1，保留为失败证据。关系阶段仍全部为 `new_contact`，下一步转入关系阶段真实端到端验收。
+
+- 真实批次 `baseline-conv-eval-006-20261026b` 已按 `MiniMax-M3.1-Flash` 执行 R01/R04/R05；每条路线从独立空状态与初识开始，主档和桌面备份均已生成。三条路线与批次索引的归档清单内容及 SHA-256 一致。
+- R01 稳定朋友完成 24/24，但因 `REVIEW_EVIDENCE_INVALID` 未完成自动评审；R04 逐渐互相喜欢完成 24/24，两个分开上下文评审返回候选意见；R05 只做朋友在第 0 回合 `stream-failed`，完成 0/24。总计实际预留 60 次（角色 57、评审 3），已知 usage ¥0.338039，未知调用 0。
+- 真实问题：英语/西语混杂和破损表达（含 `HasCookin&apos; somewhere?`）、内部规划污染候选被拦截、`Vale, Álex`/`sin prisas` 等模板重复，以及 R05 首答失败。R04 虽整体尊重少聊、不谈工作和放慢节奏等边界，但不能把自然措辞当作持久关系事实。
+- 三条路线所有执行记录的关系阶段均保持 `new_contact`；关系增长、长期边界、真实 DB/RLS、真实发布人物和真人体验均未被证明。此次不修改人物圣经或关系规则掩盖问题。
+- 交接见 [CONV-EVAL-006](docs/reviews/CONV-EVAL-006.md) 及 [批次索引](artifacts/conversation-evaluations/baseline-conv-eval-006-20261026b/batch-summary/测试问题总结.md)。关系/主动/持久化聚焦 133/133、TypeScript 和限定 diff check 通过；全量 lint/Vitest/E2E/build、远端 RLS、Safari 未执行。下一步先固定语言污染、重复模板和流失败回归并修复，再复验 R01/R05。
+- 后续修复已完成第一小切片：实质问候允许一个低压力贴题问题；英语门禁覆盖真实 `Cooking`/`HasCookin`/`somewhere` 形态；评审 quote 校验容忍换行/空格差异但保持 step 绑定。新增回归后聚焦 4 文件 75/75、聊天/评审补充 4 文件 133/133，TypeScript 通过。尚未重新付费复跑真实路线，R01/R05 的新结果和关系成长仍待验证。
+- 修复后真实复验 `baseline-conv-eval-006-20261026c`：R01/R04/R05 均完成 24/24，R05 首回合流失败已消除；但 R01/R04 仍出现 `REVIEW_EVIDENCE_INVALID`，并观察到韩文混入、`teargue`/`plats` 破损片段及被拦截的内部规划/中西混杂。角色 81 次、评审 5 次，已知 usage ¥0.466041；四组主档/桌面清单一致。关系阶段仍为 `new_contact`，不能判语言质量或关系成长通过。下一步修复评审证据协议并补充破损语言回归。
+- 短回归真实验证 `baseline-conv-eval-006-regression-20261026d`：R01/R04/R05 各完成 4/4，两个评审上下文均完成，`REVIEW_EVIDENCE_INVALID` 不再复现；角色 14 次、评审 6 次，已知 usage ¥0.071271，20 次归档清单主档/桌面一致。污染候选仍会被拦截。该结果只证明短路线执行与评审协议修复，长路线自然度和关系成长仍未通过。
+- 针对长路线模板重复加入有界低信息短语门禁：同一 `sin prisas`/`a tu ritmo`/`poco a poco`/`Vale, Álex` 在历史角色回复中出现两次后才要求改写。聚焦回归 6 文件 170/170、TypeScript/ESLint 通过；零费用完整三路线 `offline-conv-eval-006-style-20261026` 全部完成并双份归档。真实长路线尚未重新付费复验。
+
 # PROJECT_STATUS.md
+
+## 2026-10-26 `CONV-EVAL-006` 关系投影 runner 接入（`in_progress`，本聊天）
+
+- 修复 R04 职业澄清的自然表达变体：`sigo dedicándome a ...` 现在能识别为角色本人职业确认；澄清时只屏蔽规范职业事实的重复比较，周边填充仍受复用门禁约束；若职业澄清复用了上条细节，重试提示要求只用一两句确认职业并避免重复旧例子。新增职业澄清回归后相关聚焦 **176/176**，TypeScript 与限定 ESLint 通过。
+- 真实短回归 `baseline-relationship-regression-20261026g` 使用 `MiniMax-M3.1-Flash` 完成 R01/R04/R05 各 4/4，两个独立上下文评审均完成；R04 第 3 步职业澄清成功，三条路线均双份归档。角色 12 次、评审 6 次，已知 usage ¥0.043264。该短路线只证明执行与门禁重试修复，关系阶段仍不足以证明长期成长、真实数据库/RLS 或真人体验；前一批 `e`/`f` 的失败记录继续保留。
+- 完整真实批次 `baseline-relationship-20261026h` 中 R04/R05 均完成 27/27 并到 `familiar`；R04 为 `romance=open` 未确认，R05 保持 `friends_only`。R01 在第 11 步因 `provider-response-invalid` 失败，阶段停在 `getting_to_know_you`，未进入评审；已知 usage ¥0.331180，角色 64 次、评审 4 次，三路线及批次索引均双份归档。该结果证明 R04/R05 的长路线阶段与边界证据可产生，但不能把 R01 失败或同模型评审当作整体通过；真实数据库/RLS、恋爱确认、真人体验仍待验收。
+- 按模型计划将会话 provider 从额外 `effort=max` 调回统一 `MiniMax-M3.1-Flash / effort=low`，避免长上下文思考耗尽 4,896 token 响应上限；契约与会话聚焦测试通过。短回归 `baseline-relationship-regression-20261026i` 三路线 4/4 完成，随后完整批次 `baseline-relationship-20261026j` 三路线 27/27、双评审均完成，R01/R04/R05 均到 `familiar`。该批次评审仍发现可见乱码、黏连英语、上下文错位和边界回应延迟，不能视为质量通过。
+- 新增语言安全门禁覆盖阿拉伯/西里尔/希腊字符、观察到的 `librogood`/`hancancelado`/括号编辑残留等污染；扩展角色问题投影以识别角色提问和声明式活动回访，并禁止安全重试继续重复当天活动问题。职业确认仅允许较短事实重叠，长模板填充仍阻断。聚焦 **250/250**、TypeScript 与限定 ESLint 通过。
+- 真实批次 `baseline-relationship-regression-20261026m` 三路线短回归 4/4、双评审完成；完整批次 `baseline-relationship-20261026n` 中 R01 对话完成但评审 `REVIEW_EVIDENCE_INVALID`，R04 因两次污染候选安全失败，R05 完成 27/27 并保持 `familiar/friends_only`。`n` 的污染拦截、评审失败和双份归档均保留；R04/R01 仍需后续复验，不能用 R05 单路线替代整体验收。
+- `baseline-relationship-20261026n` 的新评审提示已增加逐条连续原文自检；相关 real-provider/runner 聚焦 **76/76**、TypeScript 与 ESLint 通过。评审仍需在新的完整批次中重新验证，旧批次结果不回写。
+- 完整批次 `baseline-relationship-20261026o` 中 R01 与 R05 完成 27/27 并完成双评审，均到 `familiar`；R01 评审证据校验成功，R05 保持 `friends_only`。R04 在第 8 步因两次候选都含中文/非西语污染而安全失败，停在 `new_contact`；污染未进入可见聊天。角色 66 次、评审 4 次，已知 usage ¥0.294958，三路线双份归档保留。真实 R04 长路线仍需新批次复验，恋爱确认路径尚未由真实模型证明。
+- 完整批次 `baseline-relationship-20261026p` 中 R01/R05 完成 27/27、双评审成功并到 `familiar`；R04 完成 27/27、到 `familiar` 且 `romance=open`，但一个评审因 `REVIEW_EVIDENCE_INVALID` 失败。R04 对话本身的污染候选均被拦截；角色 85 次、评审 6 次，已知 usage ¥0.388045，三路线双份归档保留。评审无效调用消耗了该路线固定两次评审预算，因此未在原档案上隐式重试。
+- 完成 `scripts/conversation-evaluation/runner.ts` 与隔离关系 projection 接入：完整用户—角色回合才写入阶段/边界证据；上下文、turn、checkpoint 和 fork 均保留关系状态并重新绑定 owner。
+- `sandbox` 与归档报告改为显示四阶段/关系摘要；fake 结果只证明执行器投影，不证明真实语言、人设或真人关系体验。
+- 验证：关系 projection + runner 聚焦 **30/30**，TypeScript 通过，4 个改动脚本/测试文件 ESLint 通过；离线批次 `relationship-projection-20261026b` 已保存工作区与桌面双份归档，R05 回放确认朋友边界状态。
+- 未完成：使用 MiniMax-M3.1-Flash 的真实关系路线验收、真实数据库/RLS、全量 lint/Vitest/E2E/build 与 Safari。下一步是从独立初识状态运行真实 R04/R05 关系路线并检查模型是否遵守阶段与朋友边界。
+- 真实批次 `baseline-relationship-20261026` 已启动并完整归档，但首个角色 HTTP 请求约 30 秒后 `CANCELLED`，传输层进入 `AMBIGUOUS_CALL`，三条路线均第 0 回合失败；仅 1 个角色请求、usage 未知。保留为供应商/传输失败证据，不计为语言或关系结论。
+- 将评估专用 provider 超时提高至 90 秒后，真实批次 `baseline-relationship-20261026c` 完成三条路线 24/24 普通回合与双评审；阶段均从 `new_contact` 推进到 `getting_to_know_you`。R05 保持 `friends_only`，R04 为 `open` 但未确认关系。共角色 81 次、评审 6 次，已知 usage ¥0.493619、预留 ¥3.800936；双份归档已生成。结论仍限于合成用户与同模型评审，不能替代真人、数据库/RLS 或完整后续阶段验收。
+- 补充跨会话回访表达识别后，真实批次 `baseline-relationship-20261026d` 的 R04/R05 均推进到 `familiar`；R04 `open` 未确认，R05 `friends_only` 无恋爱提案。R01 第 12 步 `stream-failed`，保留失败证据。该批已知 usage ¥0.365614、预留 ¥3.028588，三路线双份归档均完成。close-friend、恋爱确认、真实 DB/RLS 和真人体验仍待后续验收。
+- 新增 close-friend runner 回归，验证个人锚点、跨会话回访、信任、正向交流和后续独立回访的最小证据组合才能推进到 `close_friend`；同时在角色系统提示中禁止应用/界面元话语，针对 R01 的 `Closing the app` 污染形成修复。相关 runner/provider/候选提取测试通过。
+- 提示修复后的真实批次 `baseline-relationship-20261026e` 中，R01/R05 完成 24/24 并到 `familiar`，R05 保持 `friends_only`；R04 第 6 步再次 `stream-failed`，未进入评审。已知 usage ¥0.320539、预留 ¥2.734426，三路线双份归档完成。R01 元话语污染未再出现，R04 供应商流失败仍待处理。
+- 短回归真实批次 `baseline-relationship-regression-20261026` 中三条路线均完成、双评审完成，未复现 `provider-response-invalid`；已知 usage ¥0.053888、预留 ¥0.660578。长 R04 失败暂定为偶发供应商响应问题，不能用短回归替代长路线验收。
+- 恋爱确认路径已接入 runner：explicit confirmation 只能关联此前已接受的角色 proposal，不能由当前回合伪造来源；新增回归覆盖 `interest/open → proposal → confirmation` 与朋友边界拒绝升级，关系 runner/projection/candidate 聚焦 **37/37**，TypeScript 通过。
+- 新真实批次 `baseline-relationship-20261026f` 中 R01/R04 完成 24/24、双评审完成并到 `familiar`；R04 保持 `open` 未确认。R05 完成 24/24 并保持 `friends_only`，但评审 `REVIEW_EVIDENCE_INVALID`，关系状态仍有效且完整归档。已知 usage ¥0.441347、预留 ¥3.835374。
+- 更新 R04 路线预期，移除“成长机制未实现”的过时表述，明确熟悉或开放意愿可作为合法终点、恋爱确认需独立提案与用户确认来源；离线批次 `relationship-projection-20261026f` 已按新路线哈希重新归档。
+- 评审提示已明确禁止引用安全门禁候选、未发送草稿和 stream 前缀；短回归 `baseline-relationship-regression-20261026b` 的 R05 双评审成功，未复现评审证据错误。该批 R04 第 1 步仍 stream-failed，已保留归档；已知 usage ¥0.038053、预留 ¥0.559462。
+
+## 2026-10-25 `VOCAB-TATOEBA-003`（`review`，本聊天）
+
+- 用户报告“词汇1200左右有一些单词没有例句”。定位为已知残余：前1,200词中55个词在Tatoeba例句资产里记录为“查过但没有例句”（§4.4），其余词均有；本轮只补这55个词，不把资产扩到全部7,922词（全量抓取仍是独立运维任务）。
+- 构建器新增两条有界补问，仅在首屏查询为空的词上触发：沿`paging.next`深翻页（`TATOEBA_DEEP_PAGES`默认12），以及深翻页仍空时按词形补问（名词复数、规则动词现在/过去/分词、自复动词`se`形）；`next`URL跟随前校验host/path。命中排序改为“原词写法→屈折/复数→仅重音同形词”，避免`caso`被`casó`（结婚）顶替；词元规则本身未放松，生成错的词形不会写进资产。
+- 结果：有例句的词1,142→1,175，空词55→22，例句2,232→2,296；两轮合计约320次Tatoeba请求、0失败、无收费。剩余22词是数据/规则边界：10词只有繁体或非简体译文（`cariño`、`canal`、`cárcel`、`patrón`、`defensa`、`referirse`、`ahorita`、`encargarse`、`perra`、`entrenar`，其中`perra`的314条桶与`encargarse`的11条已全部翻完）；11词没有含该词的中文译文句（`oler`、`ey`、`ajá`、`pa`、`wow`、`teniente`、`subtítulo`、`militar`、`papi`、`mam`、`comandante`）；`incluir`的简体译文只出现在规则刻意不匹配的`incluye`不规则形上。
+- 验证：资产校验器全部通过（1,175词/2,296例、22空、文件头计数一致）；聚焦Tatoeba 3文件34/34；全树`tsc --noEmit` exit 0；改动的`scripts/build-tatoeba-example-asset.ts`与新增`tests/unit/tatoeba-example-selection.test.ts` ESLint 0警告。未跑全量Vitest/lint/E2E/build（沿用本机既有OOM/共享树基线限制），未改数据库/RLS/供应商/证据语义。词架只在打开词时按词拉取例句，资产读取器按`mtime+size`检测文件变化并重读，刷新页面即生效、无需重启进程。
+- Commit：无，沿用共享分支`codex/disable-legacy-readlang`，未提交/推送/部署，保留其他在途任务改动。用户验证：重启本地服务后刷新`/read/vocabulary`，打开`caso`、`comida`、`pared`、`tomarse`、`informar`等原空词应看到Tatoeba例句与署名；剩余22词仍诚实显示无例句。下一步建议：由产品决定是否允许把Tatoeba繁体译文转为简体（可再补10词，需标注修改），以及是否启动全量7,922词抓取（约4小时、可断点续跑）。
+
+## 2026-10-25 `CONV-EVAL-004C3`（`in_progress`，本聊天）
+
+- 004C2表结构已review；本片接入事务端口与隐私边界。当前已落head锁/CAS、事件/pending幂等、epoch rotation初版，正在补同一外层UoW调用和数据库回归。
+- 不连接生产数据库、不发布恋爱能力、不调用收费模型；完成/删除/reset/export路由接入需在事务端口可证明原子后再做。
+- 第一切片完成：事务内repository端口支持head锁/CAS、事件与pending幂等、epoch rotation及外层transaction复用；C3仍未完成，聊天/隐私入口尚未接入。C3交接见[报告](docs/reviews/CONV-EVAL-004C3.md)。
+- 第二切片完成：`runRelationshipUnitOfWork`锁定head并校验epoch/revision，真实PGlite验证事件与head revision同事务回滚及epoch rotation；C3仍未接入conversation/privacy入口。C3聚焦测试6/6通过，全树TypeScript和专项ESLint通过。
+- 第三切片完成：reset UoW封装与受限关系导出DTO（limit/truncated、删除来源过滤）；相关聚焦测试增至8项。DTO尚未接入account export，内部ID泄漏复核与路由接入仍待完成。
+- 第四切片完成：Account export contract接受可选`relationships`区块，旧快照保持兼容；关系repository尚未读取并填充该区块，聊天/隐私共同事务仍待接入。
+- 第五切片完成：`finishReplyGeneration` 在助手完成事务中写入幂等 pending receipt；旧 0056 缺表通过目录探测兼容，避免可选查询令外层聊天事务回滚。删除/撤回在同一事务 tombstone 关系来源，账户业务清理与单角色 reset 在同一事务删除 relationship heads 并级联清理事件、边界和 pending receipts。新增 pending receipt 回归 2/2、来源 tombstone 回归并入关系持久化 3/3；聊天 generation 15/15、账号删除 4/4、TypeScript 通过。交接见[第五切片报告](docs/reviews/CONV-EVAL-004C3-pending-receipt.md)。关系状态尚未填充 account export，普通/主动关系事件投影仍待 005。
+- 第六切片完成：账号路由测试 fixture 补齐当前迁移基线，删除/导出路由 **15/15**；account export 已接入当前用户关系 head、边界、事件与仍有效来源元数据，关系区块不读取消息正文，缺少 0056 时安全省略。新增保守投影回归与路由导出断言，关系隐私单测 **3/3**，账号删除数据库 **5/5**，聊天/关系数据库聚焦 **20/20**，TypeScript 通过。关系事件仍未由普通/主动回复应用用例产生，投影只用于最小隐私导出；下一步为 005 的共同读取、候选校验与事件提交。
+- `CONV-EVAL-005` 第一小切片完成：明确“只做朋友”“不要联系我”等用户边界在助手完成事务内经过来源 membership 校验后写入关系事件、来源和边界；失败/取消/无效完成不写关系事实，重复 generation 幂等。边界提取 **2/2**，pending/事件数据库回归 **3/3**，conversation 邻接回归 **94/94**，TypeScript 通过。交接见[005边界提交报告](docs/reviews/CONV-EVAL-005-boundary-commit.md)。普通/主动上下文读取同一关系 head、完整候选 admission 和发送前门禁仍待继续。
+- 005 第二小切片已接入共同读取：普通 Lucía 回复优先读取 relationship head 的阶段与 active 边界信号，主动消息资格同样受 contact/proactive 边界控制；主动候选最终写入前再次读取边界，避免生成期间新设限制后仍发送。旧数据库缺少 0056 时安全回退 legacy projection。聚焦关系/聊天/主动测试 **117/117**，TypeScript 通过。仍未完成更广关系候选 admission、关系提案/确认与完整主动 replay；本轮未提交、未推送、未连接生产库或调用收费 provider。
+- 005 第三小切片扩展完成回合候选：仅对明确“喜欢和你聊天/回来/信任或重视/主动分享个人锚点”的用户表达生成关系候选；普通好感、困难倾诉、消息数量和角色措辞仍不生成事实。候选继续校验 durable turn 来源 membership、事件幂等与边界可选写入。事件 episode 改为完成回合级别，阶段投影要求独立 episode，避免同一轮堆叠信号误升阶段。新增提取、正向事件持久化与阶段投影回归，关系/聊天/主动聚焦 **73/73**，TypeScript 通过。完整领域 reducer 的 DB replay、角色主动提案/确认和删除后重算仍待完成。
+- 005 第四小切片接入持久事件 replay：从 relationship events、event sources、conversation reply membership 重建 reducer receipts；普通/主动上下文优先使用 replay 后的 familiarity、proactiveAllowed 与 reconfirmation 状态，重建失败 fail closed。撤回/tombstone 来源不会继续作为 live evidence。新增 PGlite 上下文 replay 与三回合 familiarity 回归，相关聚焦 **75/75**，TypeScript 通过。角色主动提案/确认及跨多轮删除后完整重算仍待完成。
+- 005 第五小切片加入恋爱信号的受控路径：用户明确恋爱意愿与角色明确偏爱分别提取；角色偏爱只有在 replay 后达到熟悉阶段、无 reconfirmation 且当前关系允许时才写入，关系提案还要求用户已明确开放意愿和既有 interest。用户确认只关联最近已持久化 proposal 的服务端来源，不能由客户端提供任意 related IDs；replay 后可得到 `confirmed`。PGlite 覆盖 interest → openness → proposal → confirmation，并验证 proposal 来源 tombstone 后不再保持 confirmed；主动消息覆盖暂停资格和边界 signals 传递。相关聚焦 **77/77**，TypeScript 通过。
+- 005 第六小切片完成主动关系语义门禁：`friends_only/paused` 会把 milestone 限制为温暖、零恋爱强度；未明确开放或确认时，close-friend 也不会自动获得最高暧昧强度；已确认关系才可使用最高 milestone ceiling。主动资格暂停、边界 signals、计划强度和 provider 输入均有回归。相关组合聚焦 **79/79**，TypeScript 通过。仍需执行完整主动轨迹与 CONV-EVAL-006 的多路线评审。
+- 按计划运行离线三路线 calibration（R01/R04/R05，fake、零收费）`offline-conv-eval-005-20261026`：三条轨迹均 `complete`，批次索引 `index`；每条从独立空状态开始，完整聊天、问题总结、回放数据和归档清单同时保存到工作区与 `C:\Users\master\Desktop\Lucia聊天测试`。该结果只证明执行器/双份归档链路，不证明真实模型、人设或感情语义通过。
+- 最终本轮关系/主动/持久化聚焦回归 **8 files / 133 tests**，TypeScript 与限定 diff check 通过；全量 lint、全量 Vitest、E2E、真实 provider、远端 RLS、Safari 真机仍未执行。
+- CONV-EVAL-006 真实 CLI 预检：当前环境 `MINIMAX_API_KEY`、`OPENAI_API_KEY` 均未配置，且 provider 未启用；未启动真实调用。`MiniMax-M3.1-Flash` 的 real CLI 仍要求显式 `--execute` 和密钥，不能用 fake 或 export-only 冒充真实验收。待配置真实密钥并明确执行窗口后再运行，现有 fake 归档不替代真实结果。
+- 追加安全回归：确认候选即使携带调用方伪造的 `relatedSourceMessageIds`，仓储也会忽略并只从事务内最近 proposal 事件来源建立关联；聚焦关系/主动/持久化测试与 TypeScript 保持通过。
+
+## 2026-10-25 `CONV-EVAL-004C2`（`review`，本聊天）
+
+- 004C1来源契约已完成；本片实现0056关系持久化基础：head/epoch、append-only事件、来源tombstone、边界、pending source、幂等与RLS。沿用共享分支，不应用生产迁移。
+- 验证：PGlite迁移/持久化2/2，C1跨层与领域聚焦仍保持通过；全树TypeScript、schema专项ESLint通过。`drizzle-kit check`未执行成功，当前环境未安装可调用的drizzle-kit命令，不能视为迁移检查通过。
+- 未完成：共同事务、CAS锁、完成/删除/撤回/reset/export接入和真实RLS；下一004C3。
+
+## 2026-10-25 `CONV-EVAL-004C1`（`review`，本聊天）
+
+- 004B已review；C1登记ready后领取，沿用共享分支，保留其他在途任务。实际接入审计发现用户消息跨generation复用及删除后历史CAS误丢独立证据，因此先修必要来源/准入/重放契约，再实施存储，004C完整范围不变。
+- C1范围：真实权威来源读取、canonical消息与回合成员分离、新提交准入和已接受证据重放分离、隔离PGlite/独立对抗验证。C2负责迁移、仓库与共同完成事务，C3负责删除/重置/导出及数据库集成验收；005仍负责语义与发送前校验。不得以这些基础修正声称持久化已完成。
+- 不应用生产迁移、不启用恋爱能力、不调用收费模型、不提交推送；先验证当前来源与删除重算语义再冻结表结构。
+- 完成：权威source loader、canonical用户消息/官方回合分离、admit/replay契约、retained用户限制来源及删除序号保护；真实PGlite→loader→projection→admit/replay链路通过。
+- 验证：7个聚焦文件152/152、全树TypeScript、专项ESLint通过；未迁移/未接完成与隐私事务、RLS、全量lint/build/E2E、真实DB/provider/Safari。详情见[004C1交接](docs/reviews/CONV-EVAL-004C1.md)。下一004C2。
+
+## 2026-10-25 `UI-LOGIN-001`（`review`，本聊天）
+
+- 用户明确要求整个登录页面替换为组件；本轮单一 UI 切片，沿用共享分支 `codex/disable-legacy-readlang`。使用已批准的本地组件方向，不调整认证协议或增加登录方式。
+- 修改 `app/login/page.tsx`、新增 `app/login/login.module.css`、`src/shared/auth/email-otp-form.tsx`：Card 头部/标题/说明/内容/页脚、Separator、Field/FieldLabel/FieldDescription、Alert 与 Button loading；保留 Input/OtpInput、冷却重发、更换邮箱、邀请后的验证码步骤和安全跳转。密码表单不在当前登录路由中，未增加新入口。
+- 验证：认证相关 3 文件 22/22、全仓 TypeScript、专项 ESLint 通过；本地浏览器已检查真实登录首屏的深色卡片与语义结构。没有发送真实验证码或创建账号；全量 lint/Vitest/build/E2E 未重跑（本轮仅布局与组件组合，认证 fake 回归通过），手机/Safari 完整登录仍待验。
+- Commit：无，未提交/推送/部署；保留其他任务改动。体验 `http://localhost:3000/login`；下一步补手机端验证码自动填充实测。
+
+## 2026-10-25 `CONV-EVAL-004B`（`review`，本聊天）
+
+- 用户已明确回复“按推荐规则实现”，004A规则及ADR获认可；本切片登记ready后领取，沿用共享分支。不重复请求批准。
+- 范围：character-network纯领域关系事件/来源校验、确定性重算、友情与恋爱机会、限制/删除保守状态、当轮回应预览；独立对抗回归验证可达性与失败分支。
+- 不连接数据库、不启用人物恋爱能力、不发布或收费。004C再做持久化事务/RLS，005再接提取和普通/主动链路；纯规则不能冒充真实模型语义理解。
+- 完成：来源/完整回合验证、多维确定性重算、即时限制与删除屏障、当轮回应预览、非浪漫重确认及4小时session分段。独立对抗及审查修复旧提议复活、过期授权、同episode重复、删除屏障覆盖和朋友恢复死锁；友情及双向恋爱从空状态可达。
+- 验证：最终领域91/91，连同邻接6文件106/106、全树TypeScript、专项ESLint通过；全量lint此前OOM不重跑，全量Vitest/build/E2E及真实DB/RLS/供应商/Safari未验，具体限制见[004B交接](docs/reviews/CONV-EVAL-004B.md)。无提交/推送/部署/收费，主档与桌面归档。下一004C持久化；整体目标未完成。
+
+## 2026-10-25 `CONV-EVAL-004A`（`review`，本聊天；用户已确认）
+
+- 从004拆出规则与ADR切片，登记ready后领取，沿用共享分支；003已review，保留其他任务状态。依据持续执行目标，先把未定的转换规则形成具体可审阅结果，再实施004B/C。
+- 范围：多维关系状态、来源事件/边界、重算/隐私/竞态、模块归属与验收矩阵；只改设计文档，不写数据库、不发布恋爱能力、不调用收费模型。
+- 已确认的人格、路线与稳定友谊合法终点不再反复询问；新增转换语义按计划先审阅，完成后集中确认关键选择。
+- 已完成[规则v1](docs/superpowers/specs/2026-10-25-character-relationship-rules-v1.md)、[ADR-0027](docs/adr/0027-evidence-based-character-relationships.md)、可达性独立审查及代码事务/隐私核查。两种告白方向、轻度偏爱与确认区分、当轮非持久化回应资格预览均明确；只修改文档，无动态关系实现或测试通过声明。
+- 此前等待确认曾标记goal blocked；用户现已明确回复“按推荐规则实现”，规则接受并进入004B。无收费/真实库写入/提交/推送/发布，交接见[004A](docs/reviews/CONV-EVAL-004A.md)。此确认不等于生产发布或整体目标完成。
+
+## 2026-10-25 `CONV-EVAL-003`（`review`，本聊天；候选未发布）
+
+- 按持续执行目标，依赖002D已交接；本切片登记ready后领取，沿用共享分支。用户明确后续使用MiniMax-M3.1-Flash。
+- 范围：版本绑定的可选行为画像、持久人物到普通/主动provider的安全投影、新Lucía候选修订及来源说明；保留现有v3和真实发布指针，不启用恋爱、不写真实库。
+- 验收：先复现画像丢失，再验证导入/版本绑定/其他角色隔离、普通与主动及两provider一致性、作者来源不外泄、原固定事实透露过滤不变；人格以条件和变化范围表达，不变成固定台词。
+- 委派schema与候选内容，主线程负责运行时/生成投影及集成验证；模型真实稳定性、004关系规则和005–007完整验收仍待完成。
+- 完成：六项条件式画像与作者来源、角色/版本及总量校验，普通/主动两provider共用去来源投影；旧版本不自动补画像，损坏/错绑在请求前失败。v4独立draft，旧v3/capability manifest无改动。独立AI内容审核与修订复核保留，不冒称真人或发布批准。
+- 验证：最终10文件124/124、全树TypeScript、专项ESLint/diff检查通过；全仓lint实际运行约198秒后2GB堆OOM失败。全量Vitest/build/E2E因既有资源/基线限制未重跑，未验真实库/RLS/Safari或真实模型语义。本次零收费，详情[003交接](docs/reviews/CONV-EVAL-003.md)。Commit无、未提交/推送/部署。下一004先形成具体关系规则与ADR，不能用任意轮数或好感分实现升级。
+
+## 2026-10-25 `CONV-EVAL-002D`（`review`，本聊天；M3不晋升）
+
+- 用户“按计划执行”目标持续有效；本切片登记 ready 后领取，沿用共享分支 `codex/disable-legacy-readlang`，依赖 002C 已完成的门禁校准。
+- 范围：完整人物输入、既有问句政策下，Flash/max 与 MiniMax-M3 原生关闭思考配置的独立模型对照；扩展实验工具的模型白名单、计费校验与冻结归档，不更改产品默认、人格或关系阶段。
+- 先 fake 验证后串行真实请求；6诊断与6保留上下文、每配置各2次重复，共最多48次，保守新增预留不超过 ¥3.069264；此前已知 ¥0.527541 与不确定预留 ¥0.038811，合计仍低于既有 ¥7.562784 授权上限。原失败保留，不抽样直到通过。OpenAI只读凭据检查401，不纳入本批。
+- 独立委派计费传输与探针配置，主线程负责协议、集成、实际调用和证据复核；每份输出工作区主档＋桌面一致备份。003–007仍待完成，不以模型对照代替关系成长验收。
+- 完成：诊断24/24，Flash/M3各12条，门禁接受11/8，独立盲审与主线程确认严重语言问题0/4；按预先标准M3不合格，不继续保留阶段、不改默认。usage ¥0.081997，累计已知¥0.609538＋旧不确定预留¥0.038811；100对标准主档/桌面文件一致。
+- 传输/探针/CLI及邻接6文件147/147、全树TypeScript、专项ESLint/diff检查通过；旧v1/v2纯导出兼容。全量Vitest/lint/build/E2E及真实DB/Safari未执行，原因见[002D交接](docs/reviews/CONV-EVAL-002D.md)。Commit无，未提交/推送/部署。下一切片003人格投影；模型稳定性与004–007关系完整验收仍待完成。
+- 用户随后明确选择“flash3.1”；已只读复核本地普通/主动provider默认和真实基线均为 `MiniMax-M3.1-Flash`，保持聊天effort=max，M3只留历史对照，不再作为后续候选。未声称远程已部署。
+
+## 2026-10-25 `CONV-EVAL-002C`（`review`，本聊天；门禁修复完成，生成质量仍未通过）
+
+- 用户同意002B建议继续；单一切片登记ready后领取，沿用共享分支codex/disable-legacy-readlang，不修改其他任务状态。
+- 范围：固定002B真实误拦样例，按canonical事实与分句归属重构必要重复例外，保留否定/改职业/用户归属/套话重复保护；独立审查问候含实质信息时的追问限制，不以放宽所有问句或增加线上重试获取通过。
+- 委派职业领域与应用回归；主线程负责问句审查、冻结样本重放、集成验证与双份报告。人物/关系阶段、provider默认和真实用户数据不变；本任务先确定性重放，不额外付费抽样。
+- 完成：职业例外改为canonical事实与具体分句/工作谓词判断，保持否定、条件、引用、他人/第二职业与套话保护；发现并修复明确当轮禁问仍允许追问的漏洞，补礼貌/引述/话题限定反例。普通问候含实质内容的追问放宽仅提出建议，未启用。
+- 正式重放原72候选，2条脱敏跳过、70条可比：6条正确职业澄清由拒绝转接受，1条已知英语由漏过转拒绝，错误第二职业保持拒绝；未重新生成、未调用收费模型。中间误放已修复且失败记录保留，主档/桌面16对标准文件哈希一致。详见[002C](docs/reviews/CONV-EVAL-002C.md)。
+- 最终10文件220/220、TypeScript/专项ESLint/diff检查通过；初次组合worker spawn失败单列，串行复跑通过。全量Vitest/lint/build/E2E及真实DB/RLS/Safari未验；Commit无，未提交/推送/部署。下一建议独立模型质量对照，先冻结问句节奏政策，不改变人物或感情阶段来掩盖语言缺陷。
+
+## 2026-10-25 `UI-HEATMAP-001`（`review`，本聊天）
+
+- 用户授权选择适合现有页面的热力图组件并接入；单一 UI 切片由 ready 领取，沿用共享分支 `codex/disable-legacy-readlang`。
+- 范围：本地可复用日历热力图接入 `/me` 的最近 84 天活动，月份/星期对齐、键盘日期选择、真实零数据展示与错误区分；复用现有 API、统计口径和当天详情，不新增依赖或更改评分。
+- 验收：84 天按真实日期定位、点击和键盘查看记录、空态无虚构活动、请求失败不展示零活动日历；聚焦 UI 回归、类型及 lint 检查。保留其他任务工作树改动。
+- 完成：新增 `ActivityHeatmap` 与独立 CSS module，接入 profile 面板；月份/周一对齐、单 Tab 入口、方向键与 Home/End、悬停/焦点日期预览、触屏 44px 单元及局部横向滚动；空态保留真实零值日历，失败不渲染伪零值。修改组件出口/README、面板、三项单测文件、profile 专项 E2E、实施计划与组件交接文档。
+- 验证：4 文件 10/10、全仓 TypeScript、专项 ESLint、限定 diff check 通过；扩展领域测试 1 项既有失败（HEAD 实现 84 天，旧测试要求全年，已核实两文件未改）。专项 Playwright 等待约 3 分钟无结果后停止；浏览器连接超时且内嵌浏览器未登录，未完成真实视觉/手机验收，不算通过。全量 Vitest/lint/build 未重跑（本轮 UI 切片，已有共享树基线失败与资源问题记录）。
+- Commit：无，未提交/推送/部署；没有数据库、评分或供应商变更。体验 `/me#profile-progress`；下一步：浏览器连接恢复后复核桌面/手机视觉与专项 E2E。详情见 `docs/reviews/UI-COMPONENTS-001.md`。
+
+## 2026-10-25 `CONV-EVAL-002B`（`review`，本聊天；对照完成，无配置晋升）
+
+- 用户在 002A 交付后明确“继续”；建议任务登记 ready 后领取，沿用共享分支 codex/disable-legacy-readlang。只做生成质量定位，不部署、不改人物/关系阶段，不写真实聊天数据库。
+- 冻结 6 个诊断上下文与 6 个保留上下文；先以完整/精简西语系统指令 × low/max 思考强度四组做 2 次配对重复（48 次），只改两个明确变量，其他角色投影、历史和 payload 相同。随后按预先标准选候选，在保留集与原配置各重复 2 次（24 次）；无可靠候选则报告不足，不抽样到通过。
+- 复用付费账本、污染脱敏和双份归档。单轮探针不更新记忆、不冒充完整关系轨迹；工程测试 fake，真实请求由主线程串行执行。委派独立探针实现/验证，主线程负责冻结输入、实验运行、证据复核与报告。
+- 当前最多 72 次角色调用的保守预留 ¥3.769344，加此前已知 usage ¥0.424461 仍在既有 ¥7.562784 授权范围内；保留超时及不确定交付停止，不以最少调用为目标。
+- 实际：先一条网络交付不确定并停止（预留 ¥0.038811，未知费用不记零），修复进程网络通路后新批次完成 48 诊断＋24 保留首答，已知 usage ¥0.103080。诊断严重问题 full-max/full-low/compact-max/compact-low 为 3/3/2/3（各12）；保留原配置/compact-max 为 1/2（各12），候选还两次在结束话题后追问，故不替换产品默认。不是母语者验收或统计显著结论。
+- 定位：正常职业确认/否认错误职业/冒号分句存在规则误拦，英语与破损词存在漏检；高思考和精简指令均不能消除生成质量问题。独立 AI 盲审与主线程复核分开，门禁接受不当作语义正确；详见 [002B 报告](docs/reviews/CONV-EVAL-002B.md)及其预先协议/选择记录。
+- 验证：新实验10/10、合并7文件104/104、最终TypeScript/专项ESLint/diff检查通过；v1诊断和v2保留纯导出兼容，304对标准主档/桌面归档哈希一致。全量Vitest/lint/build/E2E及真实DB/RLS/Safari未重跑；v1聚合消息数错误已以审计说明更正，新v2修复，不改旧工件。Commit无，未提交/推送/部署。
+- 下一建议单独 CONV-EVAL-002C：先校准 canonical 职业澄清门禁及问候含自我介绍时的问句策略，再用固定输入做模型对照；不先更改Lucía人格或实现感情阶段。
+
+## 2026-10-25 `VOCAB-RECALL-002`（`review`，本聊天）
+
+- 用户确认调研建议，重点要求“不看答案默写对的减少首次待练改为复习，答错的继续练习”；此单一切片由 ready 领取，沿用已登记共享分支 `codex/disable-legacy-readlang`，不改变其他任务状态。
+- 范围：两种默写方向独立的账号进度、小组首次待练/到期复习、独立正确转复习、错词/提示后正确继续练习、幂等保存与失败重试；保留已知标记，不写能力证据。依赖 VOCAB-MARKS-001；后端与客户端同步独立委派，主线程负责原地默写交互、测试和文档集成。
+- 验收：退出/刷新不重置已保存进度，未作答不产生失败，答案曝光后本轮重练不得冒充独立正确；账号隔离、过期响应、重试/CAS、隐私删除和导出可验证。迁移/真实数据库及跨设备验收单列，不混合提交其他在途改动。
+- 完成：独立正确减少首次待练并转复习，错误/提示/自行确认继续练习；10/20小组、两方向隔离、到期与主动自测、账号保存/幂等/CAS/删除epoch/导出齐全。新增0054和前向权限收口0055，均经标准Drizzle迁移应用到本机应用所连项目；真实权限复核anon无权限、authenticated仅SELECT，没有改写用户标记或制造真实成绩。
+- 验证：Hook17/17、页面集成6/6、原交互11/11、领域13项、后端综合40/40；0055最终隔离PGlite6/6。全树TypeScript、专项ESLint、Drizzle check通过；整组复跑150/159后两个worker OOM，旧词页标题断言失败保留。8项Playwright未完整通过（隔离服务OOM、既有服务EPIPE/超时、webpack既有node:crypto导入阻断）；build编译16.6秒通过后类型阶段OOM。全量lint/Vitest/E2E及Safari/真实跨设备未验，不称全仓通过。
+- Commit无，未提交/推送/部署；本次临时配置与tsconfig自动条目已清理。文件清单、测试细节和用户验证见[交接](docs/reviews/VOCAB-RECALL-002.md)、[ADR-0026](docs/adr/0026-vocabulary-recall-progress.md)。下一建议：资源恢复后重跑浏览器/全量门禁及真实跨设备验收。
+
+## 2026-10-25 `CONV-EVAL-002A`（`review`，本聊天；基础修复完成，真实稳定性仍未通过）
+
+- 用户明确“先修复问题”，本切片登记 ready 后由本聊天领取；沿用共享分支 `codex/disable-legacy-readlang`，保留其他任务改动及原真实失败档案。
+- 范围：最终正文污染保护、问句预算对应重试指令、明确职业澄清的窄重复例外、固定测试刺激避免模拟器漂移。先写失败回归；不改关系阶段/人格圣经，不部署或写真实用户数据。
+- 问句/重复门禁与模拟器分别委派，主线程负责输出完整性、集成及复验。用户明确调用次数以达到目的为准；工程测试使用 fake HTTP，真实复验保留费用/超时保护与所有失败，不限制为最少次数，不无改动抽样直到通过。
+- 修复正文污染/断句、实际问句重试与动态指令、canonical 职业确认/澄清误拦、固定刺激、审核 step 引用一致性与阶段错误码。聊天 provider 本地候选 effort=max；其他模块仍 low，不变更人物/关系规则。详细文件与依据见 [002A 交接](docs/reviews/CONV-EVAL-002A.md)。
+- 七批 fix-001 至 fix-007 共 104 次 HTTP，usage 测算 ¥0.347136，完成 57/84 普通来回；fix-005 三条完成，同配置 fix-006 再现误拦并修复，最新 fix-007 为 4/1/4，职业路线仍因生成重复/语言污染失败。不得将其中通过批次当作稳定可用、自然西语或关系成长通过。
+- 验证：19 文件单 worker 344/344；最后修复后 5 文件 96/96；最终 TypeScript、专项 ESLint、限定 diff check 通过。并发验证曾 OOM，不计通过；全量 Vitest/lint/build/E2E 未重跑，真实 DB/RLS/Safari/线上版本未验。原基线纯导出兼容；112 对新归档主档/桌面哈希一致。Commit 无，未提交/推送/部署。
+- 下一建议独立 CONV-EVAL-002B：生成质量的单变量/保留集对照，定位混合语言、虚构词和约束遵循问题，再决定是否需要模型对照；先不扩张到人格或关系实现。
+
+## 2026-10-25 `CONV-EVAL-002`（`review`，本聊天；真实模型现状基线）
+
+- 用户在 001 交付与三条真实路线约 ¥7.56 的具体预算说明后回复“继续”，本切片由 ready 领取；沿用共享分支 `codex/disable-legacy-readlang`，不改变其他任务状态。范围为真实参与者适配、费用门禁和三条现状基线，不修人物/关系规则、不写真实用户数据库。
+- 冻结本地人物投影与 MiniMax-M3.1-Flash；全批最多 72 次模拟用户、156 次角色（含重试）、6 次评审，预留费用上限 ¥7.562784，最长 30 分钟。输入长度、取消、每次网络预留与结果使用量独立记录，无法确认计费的失败保留预留，绝不记为零。
+- 每条路线从独立初识开始，工作区主档与桌面备份保留全文及问题；缺失关系成长/长期边界仍 unsupported。真实模型测试不等于线上已发布人物或真人体验验收。付费传输层与参与者适配委派独立实现并先用 fake HTTP 验证。
+- 实际批次 `baseline-20261025-lucia-001`：R01/R04/R05 分别完成 0/8/1 来回，共尝试 12、完成 **9/72**，三条均在产品一次重试后 stream-failed；主动机会/自动评审为 0，感情分歧未测。29 次真实调用（用户 12、角色 17）、input 67,293/output 2,508，按 usage 测算 **¥0.077325**，未知费用 0，预留 ¥0.986971；无扩跑择优。详见 [002 基线与修复建议](docs/reviews/CONV-EVAL-002.md)。
+- 发现：问句预算拒绝与重试提示不匹配，职业澄清疑似被重复短语门禁误杀，角色可见输出仍有英语/乱码/用词错误；模拟用户自身也语言污染并偏离结束话题等刺激。不能将这批结果归为单纯人格或感情失败；先登记基础可靠性修复，再进入新 ID 基线，不自动修改人物/关系规则。
+- 工作区 `artifacts/conversation-evaluations/baseline-20261025-lucia-001/` 与桌面 `C:\Users\master\Desktop\Lucia聊天测试\baseline-20261025-lucia-001/` 保留全文、失败和费用证据。对一条未显示的候选内部规划正文做哈希式脱敏，31 个相关文件经审计更新，可见对话/失败终态未改；16 对归档文件及审计一致，213 个文件扫描无规划标记，重复脱敏 0 修改、纯导出 exit 0，无新增调用。
+- 验证：最终 **18 文件 203/203**、全仓 TypeScript、专项 ESLint、限定 diff check 通过；未重跑全量 Vitest/lint/E2E/build（001 已记录 OOM/共享树失败/收集阻断，本轮仅测试脚本），真实 DB/RLS/线上人物/Safari 未验。Commit 无，未提交/推送/部署。修改文件与复验方式见交接。账本保守字节界限不是供应商分词证明；历史脱敏若中途文件系统中断需按审计人工恢复，不能声称跨文件事务原子性。
+
+## 2026-10-25 `VOCAB-MARKS-001`（`review`，本聊天）
+
+- 续行实际验证：用户确认使用 localhost:3000；确认应用池化/迁移直连同项目及待迁移仅 0052/0053 后，标准 Drizzle migrate 成功。原 Chrome 自动恢复 **70 条 familiar**，词汇页显示“已标记 70 个”，重新加载后保持；真实库 RLS 只读验证本人 70/他人 0、anon 无读权限、authenticated 无解除删除屏障权限。没有手工改写词目或删除本地备份，不需要 Vercel 发布。见交接新节；下一建议：另一设备同账号同步验收。本轮无代码改动，不重复全量检查；未提交/推送，其他工作树改动保留。
+
+- 用户报告原浏览器的“已知”标记消失，明确要求个人标记保存数据库；本任务由 ready 领取，沿用共享分支 `codex/disable-legacy-readlang`，保留其他任务改动。
+- 范围：账号隔离的词汇标记持久化、鉴权 API、旧账号本地标记幂等迁移、失败重试、取消标记墓碑与隐私导出/删除；修复登录读取超时误用 anonymous 的路径。不改变能力证据或词表排序。
+- 验收：刷新/换设备读取数据库状态，失败不伪报保存；旧数据不覆盖服务器已有状态，匿名旧标记只经用户明确选择导入；隔离、幂等、竞态和页面回归通过。数据库迁移部署与真实跨设备验收单独如实记录。
+- 完成：词汇账号持久化、0052/0053 迁移与 RLS、鉴权/预期账号校验、旧备份补缺和回执、取消墓碑、重试与过期响应隔离、隐私导出/清除屏障；移除 1.5 秒超时转 anonymous，并修复 café 等词卡按显示文本误读标记。修改清单与部署顺序见 [交接](docs/reviews/VOCAB-MARKS-001.md)、[ADR-0025](docs/adr/0025-account-vocabulary-marks.md)。
+- 验证：词汇聚焦 117 通过/2 项旧失败（HEAD 副本复现，不放宽断言），另新增重音词回归先失败后通过；后端/隐私 8 文件 34/34，客户端 17/17；桌面/手机 Chromium 14/14；相关 ESLint、Drizzle check、限定 diff check 通过。全树 TypeScript 复跑通过；build 编译/类型检查后页面收集 OOM，全仓 lint OOM；单 worker 全量 Vitest 超过 15 分钟停止且退出报告 OOM，无完整结果。全套 E2E/Safari/真实 DB 未验。
+- Commit：无，未提交/推送/部署，保留共享树已有改动。下一步：先执行 0052、0053 迁移再部署，用原浏览器登录确认旧标记恢复，再换设备验证；原本地数据已被清除则无法推断恢复。
+
+## 2026-10-25 `CONV-EVAL-001`（`review`，本聊天；离线长期对话执行器）
+
+- 用户指示“继续下一步”，本切片由拟议登记为 ready 后由本聊天领取；沿用已登记共享分支 `codex/disable-legacy-readlang`，不改变其他任务状态。范围仅[实施计划第 3 节](docs/plans/2026-10-25-lucia-longitudinal-conversation-evaluation-plan.md)：fake/合成执行器、manifest、隔离状态、双份归档、校准材料和预算 dry-run。
+- 先写回归验证无隐藏状态泄漏、恢复幂等、无 done 不派生、预算/取消、从初识开始和归档失败保留主档；复用产品领域/application，缺失关系推进保持 unsupported，不假造恋爱成功。不调用收费模型，不写真实数据库，不清空真实聊天，不发布人物。
+- 独立归档实现与测试委派给子代理，主线程负责执行器、产品路径适配、CLI 和集成验收；只读/临时测试目录验证，交付后列出主档与桌面备份。
+- 完成 fake-only CLI、来源指纹/manifest、三条路线与校准材料、产品应用路径适配、隔离记忆、预算/取消、追加检查点/分叉/死进程锁恢复、不可覆盖双份归档。唯一产品改动为提取共享初识文本，原文/历史 key 不变；[文件、用法与交接](docs/reviews/CONV-EVAL-001.md)。
+- 实际离线批次 `offline-20261025-lucia-001`：三路线各 24 来回/4 会话/2 主动机会/51 消息，共 153 消息；[工作区索引](artifacts/conversation-evaluations/offline-20261025-lucia-001/batch-summary/测试问题总结.md)，桌面 `C:\Users\master\Desktop\Lucia聊天测试\offline-20261025-lucia-001`。16 对文件与清单哈希一致，纯导出复验通过，长期保留且 Git 忽略。fake 不构成人格/感情质量通过，关系保持 new_contact，增长与长期边界 unsupported。
+- 验证：最终聚焦 **13 文件 129/129**、受影响严格 ESLint 与限定 diff check 通过。全树 tsc 初次通过，复查遭共享树词汇测试 `exact` 类型错误；全仓 lint OOM；全量 Vitest 观察到 7 文件 10 失败后停止、未完成，未逐项重建 HEAD 基线；Playwright 收集被 lucia.json 导入属性阻断；build 编译通过但类型阶段 OOM。真实 DB/RLS/provider/Safari 未执行，详见交接，不能算全仓通过。
+- Commit：无，未提交/推送/部署。下一建议 `CONV-EVAL-002`：真实模型现状基线；当前估算最多 234 次、约 ¥7.562784、建议 30 分钟，真实费用授权仍为 0，实际模型/输入/重试变化须重算。本任务不扩张为关系规则或人物发布。
+
+## 2026-10-25 `CONV-EVAL-000`（`review`，本聊天；长期角色验收方案）
+
+- 用户确认：Lucía 可主动渐进表达好感、朋友边界长期有效，验收到告白后的日常/修复/降温；数周只是观察假设，不按时间或轮数升级。人格基调与五组校准样例已讨论确认。
+- 用户补充：每条独立轨迹从空对话/记忆和初识开场开始，同轨迹跨会话保留积累；结束后完整聊天和问题总结长期保存在工作区主档，桌面另存一份备份。已写入规格 8.1/8.2 和执行器验收，包括全部派生状态隔离、全历史导出、双份校验、失败恢复与归档成功后才能清理测试空间。本轮只更新方案，未清空任何聊天、未运行测试轨迹或生成结果备份。
+- 本轮仅完成只读核查与[验收规格](docs/superpowers/specs/2026-10-25-lucia-longitudinal-conversation-evaluation-design.md)、[分阶段实施计划](docs/plans/2026-10-25-lucia-longitudinal-conversation-evaluation-plan.md)。后续 `CONV-EVAL-001`–`007` 均为拟议切片，未领取、未进入 ready 队列；不改变其他任务状态和全局排序。
+- 核查：当前关系 stage/summary 有读取与初始化，未找到持续推进链路；恋爱能力声明关闭且执行链路待补齐；记忆以兴趣/地点/背景/习惯为主，缺少明确关系边界持久化；近期消息/字符预算要求跨窗口验证。完整心理画像与旧单轮回放均不能视为长期能力已接通。结论限本地工作树，未验证线上数据或部署。
+- 修改：新增上述两份文档，本页及角色运行时计划、测试策略增加入口。沿用共享分支 `codex/disable-legacy-readlang`，无代码、人物版本、Schema 或数据变更。Commit：无，未提交/推送/部署。
+- 验证：两份新文档的 10 个相对链接、尾空白/结尾换行/编码替换字符检查通过；任务编号无既有冲突，三个既有文件的限定 `git diff --check` 通过。全量 lint/typecheck/Vitest/E2E/build 未运行（仅文档方案）。无收费模型调用，无真实聊天/记忆读取或写入。具体测试规模、费用预算、软质量门槛、关系规则和 ADR 尚待审阅/后续落实，未声称任何长期路线通过。
+- 用户验证：阅读规格第 2、5、7、9 节与计划任务表，确认人格、路线终点和实施顺序。下一建议：规格审阅后登记 `CONV-EVAL-001`，先交付离线执行器与预算 dry-run；真实执行与生产变更分别处理。
+
+## 2026-10-25 `PROVIDER-MINIMAX-001`（`review`，本聊天）
+
+- 所有者明确要求升级当前 MiniMax API，独立任务 ready 后由本聊天领取；沿用共享分支 `codex/disable-legacy-readlang`，保留其他任务改动。
+- 范围：文本模型默认值升级为官方最新 `MiniMax-M3.1-Flash`，兼容强制思考、独立思考块、输出预算与计费；统一运行时、脚本和观测模型名。TTS/ASR 保持各自官方当前模型。
+- 验收：fake 请求验证模型和思考参数，响应隔离推理与正文、拒绝截断，保留显式旧模型覆盖；相关回归、类型和 lint 检查。无数据库变更或历史审计改写。
+- 完成：共享默认模型、11 个文本适配器、内容审核/修订、回填/诊断脚本、运行时观测、环境示例与人民币费率同步；新增思考块隔离、强制思考请求、有限 token 预留与截断/异常 EOF 回归。详见[修改清单与交接](docs/reviews/PROVIDER-MINIMAX-001.md)。
+- 验证：聚焦 32 文件 387/387，通过补充流式回归 3 文件 52/52；全树 TypeScript、生产 build（含 98 页生成）通过。受影响 ESLint 0 errors / 2 个已在 HEAD 复现的旧脚本 warnings；全仓 lint 约 5 分钟后 OOM。全量 Vitest 超过 10 分钟后停止，未完成，已观察 10 文件 15 项失败；未逐项重建改前基线。E2E 因既有 lucia.json 导入缺少 type: json 阻断，未进入浏览器。
+- Commit：无，未提交/推送/部署；未调用真实收费 provider 或写真实数据库。用户可重启开发服务后实聊并尝试翻译/划词，核对新调用模型为 MiniMax-M3.1-Flash。下一步：实际响应质量与延迟验证，处理全量检查基线，再部署；远端显式模型环境覆盖需另行同步。
+
+
+# 2026-10-24 `CONV-ROLE-002`（`review`，本聊天；日常生活为主与通用爱好频率）
+
+- 停聊追问后续：3 项回归先失败；第一版问句匹配在真实 2 轮/3 次调用中仍被变体绕过，失败记录保存在 `CONV-ROLE-002-closure-followup-replay.json`。最终增加有限西语末句仅关闭时的无问题约束，保留新话题与请求选题的例外，聚焦 **106/106**、TypeScript、专项 ESLint 通过。最终规则未再次真实抽样，任务仍 review；全量/E2E/build 未跑，未部署、Commit 无。语言异常确认在 provider 原始结果中已存在，但具体成因未定，不扩张到其他语言任务；详见交接报告新节。
+
+- 显式停聊后续切片：新增纯领域 `topic-closure.ts`，共享 provider 不因停聊消息里的兴趣词激活兴趣/上下文事实；stream-reply 在显示前拒绝有限的继续劝聊模式并最多重试一次。两项回归先失败后修复，覆盖翻译引述、无空闲、主动重开、新主题和失败不泄漏正文。聚焦 **8 文件 98/98**、全树 TypeScript、专项 ESLint、scoped diff check 通过。临时合成脚本的 memory 类型错误已修正后重跑 TypeScript 通过。
+- 后续真实 MiniMax 合成回放 **4 轮、6 次调用**：停聊两组不再劝聊，主动重开两组可承接；仍有替代话题追问、错词/语言混杂。新记录 `docs/reviews/CONV-ROLE-002-closure-replay.json` 保留原失败记录，见[交接报告](docs/reviews/CONV-ROLE-002.md)。检查只覆盖有限模式，不持久化关闭状态，整体自然度仍未通过。无 DB/真实消息写入、未部署；未跑全量 Vitest/E2E/build（局部服务端修复，共享树其他任务在途）。Commit 无。下一建议单独处理语言质量和不必要追问。
+
+- 根因：共享 conversation provider 的 Lucía 上下文把 `fotografía` 作为常驻兴趣，且系统提示多次用摄影举例，模型容易在用户未提及时主动引回该话题。
+- 后续反馈与修复：用户明确“摄影只是业余爱好，不会天天有拍摄机会”，并要求以家中/学校/工作/外出/朋友等日常活动为聊天重心。上一轮“最近用户消息出现即激活”仍会反复带回已答兴趣，现只由当前未回复批次匹配或直接询问角色爱好激活；主动消息不激活旧兴趣。共用提示区分偏好与职业、实际活动、日程和成果，禁止从爱好编造每日事件，已答话题跨日不自动重开。日常选题是自然素材而非轮换问卷，不预设学生/在职/同住/出门或见朋友。历史与可读记忆仍保留用于自然承接和有依据的回接。
+- 修改文件：`src/modules/providers/conversation/conversation.ts`、新增 `tests/unit/conversation-interest-context.test.ts`；上一轮的 3 个测试文件保留，同步架构、角色关系设计、角色运行时实施计划、测试策略与本页。
+- 验证：对话 provider/气泡聚焦 Vitest **36/36**，角色投影/问候/回复规划回归 **25/25**；全树 TypeScript `tsc --noEmit` **exit 0**；受影响 ESLint **exit 0**，`git diff --check` 通过。未运行全量 Vitest、E2E、build、真实 provider 或真实数据库；共享工作树存在其他任务改动，未单独提交。
+- 后续验证：新回归先在旧实现复现 **9 失败/3 通过**；修正后聚焦 6 文件 **71/71**（含新文件 15 项、多爱好/多角色与两个 provider 的请求投影），TypeScript、专项 ESLint 通过。无数据库/人物版本/评分/UI 变更；全量 Vitest、E2E、build 未跑（共享树既有在途改动与 OOM 记录，本轮限定服务端上下文回归）。未调用真实收费 provider、未提交/推送/部署，Commit 无。
+- 限制与下一步：确定性投影仅按关键词识别，不能证明否定、间接承接、频率与事件语义总被模型正确处理；提示测试不等于真实回复验收。下一步真实合成多轮回放：喜欢某爱好→工作/家中/朋友话题→次日问候→近期没机会→主动重开，检查不虚构每日成果、不重复追问且自然承接仍可行。人物圣经和已有关系记忆不改写。
+- 后续真实回放已执行（21:21，用户确认后）：MiniMax-M3，摄影/吉他两组各 6 轮普通对话与 1 条主动消息，共 15 次调用，全部使用合成数据和本地人物快照，无 DB 或真实消息写入。6 轮转聊生活与 2 条主动消息未拉回爱好；用户主动重开 2/2 正常承接。但明确停聊只有 1/2 合格，摄影一组仍提摄影；多条输出混入英语/乱码，另有昨天/性别等无据推断。12 个 done 与 2 次主动安全检查放行不能当语义通过，整体自然聊天验收未通过，保持 review。见[真实回放交接](docs/reviews/CONV-ROLE-002.md)及原始 JSON；下一建议优先修明确停聊，另行归因语言质量，不继续盲目重试取好样本。新增报告/JSON与本页，未改代码；本轮未重跑全量检查或部署，Commit 无。
+
+# 2026-10-24 `MEDIA-WORD-005`（`review`，本聊天；发布门禁与历史回填流程）
+
+- 已实现视频/播客词级时间轴发布门禁：新增 `hasCompleteWordTimeline`，要求至少一个片段、每段合法连续时间轴、词数与 `sourceText` lexical boundaries 完全一致且每个词包含精确 provider `text`。候选 publisher、`drizzle-media-repository` 两个持久化入口和回填发布脚本都 fail closed，直接绕过 publisher 也不能写入无词版本。
+- 已完善回填发布：`publish-media-subtitle-backfill.ts` 现在校验片段索引、时长、翻译和完整词级时间轴；新增 `media:backfill-word-timings`、`media:publish-word-backfill` 命令。回填只创建新 `media_versions` 并切换 `current_version`，不改写旧版本或历史证据。
+- 修改文件：media 领域/发布器/repository、回填脚本、package scripts、视频/播客 publisher 与 repository 测试、架构/运行手册/实施计划。
+- 验证：通过两轮单 worker 聚焦 Vitest（publisher/词级领域 **14/14**；segment timeline/process/词级领域 **14/14**）、全树 TypeScript（`node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit`）和受影响 ESLint。两个 PGlite publisher 集成文件因本机 WASM 初始化内存耗尽失败，未能执行数据库门禁断言；未调用真实 ASR、翻译、生产数据库或生产回填。
+- 已知限制：本任务只提供逐 stable key 的受控 CLI，不批量执行历史回填；真实回填仍需授权音频、MiniMax 成本与独立三维审核。下一步是在依赖可用后完成聚焦验证，再由所有者按 backlog 逐条运行回填。
+
+# 2026-10-24 `CONTENT-WORKFLOW-QUEUE-001`（`review`，修正已发布候选被计入待审核队列）
+
+- 根因：候选发布后保留 acquisition `status='review_ready'` 作为 provenance，但 `publicationStatus` 已变为 `published`；工作流页面原先只按 acquisition status 查询和聚合，所以历史已发布候选被显示为“等待审核”。
+- 修复：审核列表和状态汇总均限定 `publicationStatus='draft'`；已发布/已撤下内容仍可从历史入口查看，但不再占用待审核数量。
+- 验证：`content-workflow-dashboard.test.tsx` **3/3**、TypeScript、受影响 ESLint 与 `git diff --check` 通过；未连接真实数据库，因此未读取当前线上实际 draft 数量。
+
+# 2026-10-24 LEARN-INSIGHTS-001A-VALIDATION（review，本聊天；真实划词与 AI 语境解释）
+
+- 已用已登录本地浏览器真实操作媒体字幕：同一词 `aislamiento` 在第 0 段与第 89 段分别划词并完成 AI 语境解释；只读数据库确认每次同时追加 `selection_explanation`（`source_module=media`）与 `lookup`（`source_module=lexicon-corpus`），词条归一化为 `aislamiento`，媒体引用为稳定 `content_segment`，最新查词 `inputMethod=selection`，metadata 未包含原始字幕、选词、上下文或 AI 输出。
+- 修复字幕词条点击使用当前播放片段导致 `segment:unknown` 的问题：`SegmentTranscript` 现在把被点击行的 `segment.index` 传给媒体工作台；媒体查词请求显式标记 `inputMethod=selection`。新增片段索引回归断言。
+- 验证：聚焦 Vitest `segment-transcript`、`media-lexical-drawer`、`reading-routes` **35/35**；TypeScript 通过；受影响 ESLint 通过；`git diff --check` 通过。未运行全量 Vitest、E2E、build（共享工作树仍有其他在途改动）。
+- 已知限制：`/me` 当前展示的是当天已生成的不可覆盖日报快照，仍显示旧的 2 条无主题轨迹；新增观察已正确写入，候选将在下一本地日报生成时计算。未单独提交，避免混入共享工作树其他任务改动。
+
+# 2026-10-24 LEARN-INSIGHTS-001A-FOLLOWUP（review，本聊天；内容观察入口）
+
+- 在不写 evidence_events、mastery 或 confidence 的前提下，把媒体进度、文章状态和媒体划词解释接入学习观察层：普通媒体/文章行为只写 media_exposure/reading_exposure，明确回放或回看上一片段写 replay weak 信号；媒体划词解释保存归一化词条引用和稳定片段引用，不保存字幕、正文、原始选词或 AI 输出。
+- 媒体进度请求新增可选 learningAction=replay|seek_back，只用于追加观察，不改变 user_media_progress 的 revision/CAS；文章状态写入成功后按文章版本和阅读位置追加去重曝光。
+- 修改文件：媒体进度 route/schema/workbench/划词请求与面板、文章状态 route、词语解释 route、媒体进度请求契约、学习洞察设计/ADR/测试策略、受影响 Route/UI 单元测试。
+- 验证：TypeScript 通过；受影响 ESLint 通过；聚焦媒体/阅读/词语解释/UI 测试 68/68；媒体契约测试 6/6。未运行全量 Vitest、E2E、build（共享工作树已有 OOM/基线失败记录）。真实数据库未写入合成观察。
+- 已知限制：当前旧的两条 selection_explanation 仍是无主题历史快照，按追加式规则不会回填；用户需要产生新的带词条/片段引用的解释或明确回放，报告才会使用这些线索。日报快照按本地日和版本不可变，同一天已经生成的空报告不会被新观察覆盖，新增候选将在下一本地日生成；下一任务：用真实用户动作复核新增观察计数、跨上下文候选和报告反馈，再决定是否进入 LEARN-INSIGHTS-001C 复习编排。
+
+# 2026-10-23 `LEARN-INSIGHTS-001A`（`done`，本聊天；观察层实现）
+
+- 用户提出“后台 agent 监控学习轨迹并每天生成薄弱知识复习报告”。已完成产品级调研与正式设计规格：学习观察、待复习候选、每日报告快照和用户反馈四层对象；规则先确定事实与候选，模型只可在结构化 DTO 内润色；报告默认只对本人可见，所有者后台只看聚合健康指标。
+- 关键边界：观看/阅读/单次查词/AI 助手调用不直接进入 `evidence_events`、`mastery` 或 `confidence`；低置信度转写、技术失败和后台空置不能推断为薄弱能力；AI 助手只记录意图和可关联目标，不保存原始问题、完整聊天或原始选区。
+- 文档：[设计规格](docs/superpowers/specs/2026-10-23-learning-insights-and-daily-review-report-design.md)、[ADR-0023](docs/adr/0023-learning-insights-and-daily-review-reports.md)。本轮实现结构化观察层、服务端去重、RLS/迁移、账号删除/导出边界、隐私偏好 API/UI，并接入查词、划词解释和 AI 助手意图；不生成日报、不写 `evidence_events`/画像。实现提交暂未单独建立，因共享工作树已有其他任务未提交改动，避免混入无关文件。聚焦 9 个文件组 **67/67**、契约 **199/199**、TypeScript 与全仓 ESLint 通过。全量 Vitest 受本机 worker OOM，并伴随既有 `desktop-navigation`、`vocabulary-page`、账号路由和 heatmap 失败；E2E/build 尚未运行。下一任务：`LEARN-INSIGHTS-001B`（确定性报告）。
+
+# 2026-10-23 `LEARN-INSIGHTS-001B`（`review`，本聊天；确定性报告）
+
+- 新增确定性报告领域聚合：读取最近 14 天观察，过滤 exposure/无主题事件，按 strong 或跨来源/上下文的多个 moderate/weak 信号形成候选，使用有界最近性权重排序并最多保留三个重点；没有足够事实时生成 `insufficient_data`。每个重点带结构化来源事件和 choice/judgment/cloze/recall 主动回忆动作。
+- 新增 `learning_insight_reports`、`learning_insight_feedback` 与 `0051_learning_insight_reports.sql`，按用户/本地日期/版本幂等保存快照；反馈支持 `mastered`、`not_relevant`、`review_again`，仅影响后续候选抑制，不修改 evidence/mastery/confidence。新增用户私有 API：`GET /api/v1/profile/daily-learning-report`、`POST /api/v1/profile/daily-learning-report/:reportId/feedback`；报告生成不调用 LLM、FSRS、通知或新队列。
+- 同步学习洞察架构、数据库、测试策略、OpenAPI/JSON Schema，并把报告/反馈加入账号删除和导出。新增领域回归 `tests/unit/learning-insight-report.test.ts` 与 `/me` 的“今日复习”卡片；日报读取使用 `profiles.timezone` 计算本地日期。经所有者授权，已使用 `node node_modules/drizzle-kit/bin.cjs migrate` 应用 `0050`/`0051`；只读复核确认三个 learning-insights 表已存在，迁移记录已更新，真实用户时区为 `Asia/Shanghai`，观察/报告/反馈初始均为 0。验证：`node node_modules/typescript/bin/tsc --noEmit` 通过；受影响 ESLint 通过；学习洞察、观察应用、迁移、账号删除、阅读删除聚焦 **24/24** 通过；Schema/RLS 与迁移聚焦 **11/11** 通过；契约测试 **199/199** 通过；`drizzle-kit check` 通过。已通过已登录浏览器触发真实日报 GET，生成 `insufficient_data` 快照；未运行全量 Vitest（共享树既有 OOM/基线失败记录）、E2E/build。共享工作树已有其他任务改动，未 reset、清理或单独提交。下一步：补充真实数据观察后复核候选和反馈交互。
+
+- 复核真实日报后确认当前账号只有 2 条未关联主题的 `selection_explanation`，因此 `eligibleObservationCount=0` 是规则预期。为改善可解释性，日报模板升级为 `reportVersion=2`，使用中文文案并在“今日复习”卡片显示已记录轨迹数/可用于复习数；旧版本快照保留不可变。真实 GET 已生成 v2 `insufficient_data` 快照，未写入观察或反馈。聚焦报告测试 **4/4** 通过，TypeScript 与学习洞察 ESLint 通过。下一步：用户产生已关联词句的查词、词句考察或 AI 助手观察后，再复核候选门槛和反馈交互。
+- 用户反馈“只有空状态”。进一步将 `reportVersion=3` 的覆盖信息加入快照和 UI：显示观察类型、来源、被排除数量及原因；真实账号目前确认为 `reading/selection_explanation=2`、可用于复习 `0`，不是数据读取失败。真实 GET 已生成 v3 `insufficient_data` 快照；聚焦报告测试 **4/4**、TypeScript、学习洞察 ESLint 通过。下一步：补齐媒体/文章与已关联词句的观察入口，或在产生真实词句观察后复核候选与反馈交互。
+
+- 2026-10-23 `PROFILE-EVIDENCE-ROUTING-001`（`review`，本聊天；所有者报告“我的页面现在仍然没有获取到任何学习数据，没有任何证据和学习活动”）：沿用共享分支 `codex/disable-legacy-readlang`，保留其他在途改动。只读真实库核实（owner `2e85fa70…`）：`evidence_events` 6 条、`user_skill_states` 3 条（skillKey 全是 `daily.campus.*`，10-11 两次完整文字轮次，`modality=typing`、outcome 1、confidence 0.85）、`practice_sessions` 4 条全部停在 `status=active`（09-12、09-18、10-11 两次，`completed_at` 为空）、`practice_attempts` 2 条、`practice_session_activity_events` 仅 1 条 `active` 心跳；最近使用集中在 10-23 的媒体播放（64 条进度，最新 10-23T06:46Z）与聊天（最新 10-23T07:44Z），但不产生证据或热力图时长。**根因一（缺陷，已修）**：四板块投影 `capability-groups.ts` 只识别显式能力前缀（`lexical.`/`communication.`/`pronunciation.` 等），而场景练习证据写入的是场景任务目标键（审核内容包 `daily.*`、生成式私人场景 `personal.goal.*`），因此 6 条真实证据与 3 个快照被全部丢弃，页面显示“0 相关证据 / 能力证据正在等待第一次积累”。修复：新增版本化读取时路由 `CAPABILITY_ROUTING_VERSION = 1`（`daily.`、`personal.goal.` → 交流运用，显式前缀仍权威且保留 `reaction.` 等多板块重叠；未匹配键仍只留审计层），证据事件、技能快照与原始 `skillKey` 不改写、仍可重算。**根因二（按设计如此，未改）**：热力图只统计 ADR-0006 的服务端心跳区间，4 次练习都未完成且只有 1 条 `active` 事件（无相邻区间）→ 有效学习 0 分钟；观看/阅读/聊天不写训练会话活动，故空态真实而非渲染或取数失败。**根因三（潜在漂移，未处理）**：迁移 `0050_parched_nextwave.sql` 未应用到当前库——`learning_observation_events` 表不存在、`user_preferences` 缺 `learning_insights_enabled`/`record_assistant_learning_intent`，LEARN-INSIGHTS-001A 的偏好 API/观察写入会失败（偏好面板静默忽略），与 /me 空态无直接因果，需所有者决定何时 `pnpm db:migrate`。
+  - 修改文件：`src/modules/profile/domain/capability-groups.ts`、`src/modules/profile/domain/index.ts`、`src/modules/profile/ui/four-capability-panel.tsx`（有证据时默认打开首个有证据板块，符合“先看新获得能力”）、新增 `tests/unit/profile-evidence-routing.test.ts`、`tests/unit/profile-four-capability-route.test.ts`（+1 例）、`tests/unit/profile-four-capability-panel.test.tsx`（+1 例）、`docs/architecture.md`、`docs/testing-strategy.md`、`docs/superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md` §13、本页。
+  - 验证：聚焦 6 文件 **20/20**（新路由 6、四板块 domain 5、route 2、panel 2、profile route/page 5）；全树 `tsc --noEmit` **exit 0**；改动 6 个 TS/TSX 文件 ESLint `--max-warnings=0` **exit 0**；真实库只读复跑 `getFourCapabilityOverview` 与真实 `app/api/v1/profile` 路由处理函数（dev-only E2E cookie，无写操作）：owner **capabilitySummary.totalEvidence 6 / 交流运用 developing（mastery 0.586551、confidence 0.514818、3 个子技能、2 条代表性尝试）**，`/api/v1/profile/heatmap` 200 且 totals 全 0（真实结果）；另外两个空账号 0；未改动任何数据库行。旧八维 `summary.totalEvidence` 仍为 0，属历史审计口径（页面只消费 `capabilityGroups`），同一响应两种计数是迁移期既有语义，未在本次扩大修改。独立只读审计（另一会话）复算一致，并额外确认：`learning_goals` 仍有 `communication.*`（11）、`daily.*`（9）、`reading.*`（1）命名空间，当前只有场景练习写入 `daily.*`/`personal.goal.*`，`reading.*` 无写入方故不入路由；迁移 0050 缺失还会使账号数据导出 503、账号注销失败（待所有者决定应用）。未跑全量 Vitest（共享树既有 OOM/基线失败记录；`tests/unit/learning-heatmap.test.ts` 仍有与本次无关的既有 365 天断言过期失败）、未跑 E2E/build、未做 Safari 真机、未调用 provider。**Commit：无，未提交/推送/部署。**
+  - 用户验证：刷新本机 `/me`（3000 服务热更新）→「能力与活动」应显示“从真实使用中看到能力变化”、**6 相关证据**、交流运用「建立中」掌握度 59% / 可信度 51%，板块详情出现 3 个子技能与 2 条 10 月 11 日“校园办事”代表性尝试。热力图仍为空是真实结果（见根因二）；若希望观看/阅读时间也进入“学习活动”，属产品语义变更，需先更新 ADR-0006/设计再实现。下一建议：① 所有者决定是否把媒体观看/文章阅读的有效时间纳入活动热力图（新任务）；② 决定应用迁移 0050 以恢复 LEARN-INSIGHTS-001A 的偏好与观察写入；③ 补齐聊天完整轮次到交流运用证据的采集（规格已要求但尚未实现）。
+
+- 2026-10-23 `CONV-LANG-002`（`review`，本聊天；所有者报告“2026年10月23日 11:29:36，Lucia的一条主动消息里出现了英语 wake up”）：沿用共享分支 `codex/disable-legacy-readlang`，保留其他在途改动。只读真实库与 GitHub Actions 核实：该消息 `messages.id=c4f22ac3…`、`source_type=proactive`、`created_at=2026-10-23T03:29:36.133Z`（北京时间 11:29:36.133）、`generation_id=8d88c62f…`，正文为 `Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?`；对应 `daily_share` 候选 `660d2b6c…`（`dedupe_key=lucia:daily_share:2026-10-23:slot-1`、`status=generated`、`last_error_code=null`）。自然调度 run [`39895246964`](https://github.com/laurenzhong/Spanish/actions/runs/39895246964)（触发时 main `ef78463`，workflow checkout 固定 runtime `0c63a74`，`CONVERSATION_PROVIDER=minimax`）在 03:29:38Z 输出 `{"generated":1,...}` 并包含该 `messageId`。全库仅这一条消息含 `wake`，`foster` 在消息/关系记忆/人物包/仓库内容中零匹配，确认是真实 provider 生成时混入英语，不是回显用户输入或测试夹具。
+  - 根因：① `conversation/domain/language-purity.ts` 的 `containsUnsupportedScript` 只匹配汉字/假名/谚文，英语与西语同属拉丁字母，整条消息直接越过脚本门禁；② 固定 runtime 的该时间槽 `dailyState=waking`，provider system prompt 用英文写着“such as waking up, coffee, breakfast or starting the day”，模型照抄成 `Wake Up` 并额外生成了一个英语词 `foster`；prompt 不是安全边界，而文本门禁不检查英语。普通对话回复链路存在同一缺口（只是本次先在主动消息触发）。
+  - 修复：`language-purity.ts` 新增纯领域 `englishFragments(text)`/`englishFragment(text)`（已报告短语 `wake up`＋`good morning`/`thank you`/`that's great`/`by the way`/`I miss you` 等常见英语反应短语＋高精度英语功能词/小品词整词表＋小写报告词 `wake`/`foster`）与 `fragmentQuotedFromUserMessage`。单词命中要求原文表面与规范化小写完全相同（`token.original === token.lower`），因此首字母大写的英语标题/人名/缩写（`It`、`The Beatles`、`IT`、`síndrome de Down`）与 `aré`（去重音后是 `are`）不会误判；`and`/`after`/`down`/`over`/`under`/`on`/`in`/`do`/`as`/`once`/`am`/`will`/`can`/`out`/`off` 等有西语读法或借词用法的词不进入词表。`isProactiveMessageSafe` 命中即整条候选失败（不写消息）；`stream-reply` 在用户未显式要求其他语言时只放行“恰好一个且全部词元来自用户本轮消息”的引用片段，否则拒绝，重试指令点名第一个未被引用的片段；两家 provider 的 prompt 明确“消息必须全西语、不得从英文指令复制单词”，`waking` 正文示例改为 `Me acabo de despertar`/`el café`/`el desayuno`/`empezar el día`。
+  - 修改文件：`src/modules/conversation/{domain/language-purity.ts,domain/proactive-message.ts,application/stream-reply.ts}`、`src/modules/providers/conversation/{minimax-conversation.ts,openai-conversation.ts}`；测试 `tests/unit/{language-purity,proactive-message,conversation,minimax-conversation,openai-conversation}.test.ts`；文档新增 [交接](docs/reviews/CONV-LANG-002.md)，同步 `docs/architecture.md`、`docs/testing-strategy.md`、`docs/superpowers/specs/2026-08-28-lucia-relationship-growth-and-proactive-messaging-design.md` 与本页。
+  - 验证：聚焦 5 文件 **95/95**（language-purity 10、proactive-message 18、conversation 46、minimax 10、openai 11）；全部 `tests/unit/conversation*` 及邻接 language/continuity/provider 文件 **36 文件 453/453**；主动消息 route/runner/workflow、greeting、reply-continuity/plan、character-provider-projection、对话契约与 PGlite `proactive-message-persistence` **11 文件 102/102**；全树 `node node_modules/typescript/bin/tsc --noEmit` exit 0；改动 10 个 TS/TSX 文件 ESLint `--max-warnings=0` exit 0。真实 MiniMax-M3 有界合成探针（不读真实对话、不写库、不代发，2 次调用）2/2 输出纯西语并通过门禁，例 `Me acabo de despertar. Entre el café y el primer rato sin prisas, va bastante bien.`（2.99 s）。只读扫描真实库 37 条已完成消息，英语检测只命中本次报告消息；2,232 条西语 Tatoeba 例句与 bundle/人物包 8,500+ 条西语文本零误报。变异验证：临时移除两处英语门禁后新增用例 5 项失败，恢复后通过；未删除或放宽既有断言。
+  - 生产部署与验证（已执行）：main 产品代码 `bed6963` 与 workflow pin 更新 `04afff7` 随 PR [#85](https://github.com/laurenzhong/Spanish/pull/85) 于北京时间 15:42 合入 main（merge `e7a3386`）；Lucía runtime Commit `5b83aaa`（tag `lucia-runtime-v3.3`）加入 `english-fragment` 门禁，workflow checkout ref 已指向该提交。GitHub schedule 当日自 03:29Z 后数小时未触发，故用 dispatch run [`39919703135`](https://github.com/laurenzhong/Spanish/actions/runs/39919703135)（main `e7a3386`）受控验证：success、checkout `5b83aaa`、`{"generated":2,...}`——slot-1 幂等返回原消息 `c4f22ac3…`，slot-2 真实生成新消息 `f6962fc8…`；候选 `lucia:daily_share:2026-10-23:slot-2` 为 `generated`、`last_error_code=null`，只读核对新消息为纯西语、不含英语片段（不记录正文）。该生成是当天到期 slot-2 的正常主动消息（真实 provider，计入当日额度）。验证文档提交 `96afe34` 已直接更新 main。
+  - 限制/下一步：英语检测是有界高精度启发式，未报告的单个英语实词、句子开头的首字母大写英语（如 `The best.`）与已移除的常见借词（`and`/`after`/`down`/`over`/`under`/`on` 等）仍可能通过，靠其他标记词兜底；对话引用豁免只允许单个完整片段。生产修复已生效；后续仍需按惯例复核一次自然 schedule 的 checkout SHA 与结果（预期 `5b83aaa`）。未跑全量 Vitest/E2E/build、未做 Safari 真机。本工作树（共享分支）的相同源码改动仍未提交/推送，合并对账时需避免重复或覆盖其他在途改动。**共享分支 Commit：无。** 用户验证：线上 Lucía 主动消息应持续为纯西语；若再出现英语混入，候选应记录 `safety-gate-english-fragment` 且不产生用户可见消息，请把 run 链接或候选时间反馈给协调者。下一建议：`OPS-LUCIA-PIN-001` 移除临时 pin 前，确保 main 保留本修复与既有 safety-gate 重试/连接层硬化。
+
+- 2026-10-22 `CHAT-ASSISTANT-003`（`review`，本聊天；所有者报告“当前对话页面的 AI 助手对同一个句子分析成分每次的拆分都不同”，要求“按句子意群拆分然后再分析”，并给出期望格式：意群 / 中文角色 / 解释，如 Perfecto=感叹词、entonces=连接词、ya estás en la empresa=陈述句、¿El día va tranquilo / o tienes mucho trabajo=选择疑问结构）：根因是 `structure` 意图把拆分完全交给模型自由生成，同一输入也会因采样不同产生不同粒度与片段。修复把拆分上移到服务端纯领域规则：新增 `src/modules/conversation/domain/sense-groups.ts`（句子标点/换行、逗号/分号/冒号、封闭连接词与封闭话语标记；小数/时间/常见缩写不误切；清理边缘标点/引号/emoji 但保留 ¿/¡；超过 12 组合并最短相邻组且不丢词），同一目标句永远得到相同意群。provider 内部输入新增 `senseGroups`，MiniMax 只按编号返回 `{index, role, explanation}` 注解（`temperature:0.2`、`max_tokens:2500`，prompt 明确不得合并/拆分/跳过/重排），adapter 校验注解数量与 index 唯一完整、失败关闭；应用层用确定性片段组装公共 `structure`，孤立的感叹词/连接词角色固定为 `感叹词`/`连接词`，其余角色取模型输出，注解数量/索引不一致 → `provider-response-invalid`（可重试，不退回模型自行拆分）。公共 DTO 仅 `structure[].fragment` 上限 500→2000，其余契约/路由/权限/隐私/日志不变；UI 未改（面板现有“片段 / 角色 / 解释”列表即目标格式）。
+  - 修改文件：新增 `src/modules/conversation/domain/sense-groups.ts`、`tests/unit/sense-groups.test.ts`、`docs/reviews/CHAT-ASSISTANT-003.md`；修改 `src/modules/providers/assistant/{assistant,minimax-assistant}.ts`、`src/modules/conversation/application/consult-conversation-assistant.ts`、`src/modules/conversation/schemas/conversation-assistant.ts`、`contracts/schemas/v1/conversation-assistant-response.schema.json`、`tests/unit/{conversation-assistant-provider,conversation-assistant,conversation-assistant-route}.test.ts`、`tests/contracts/conversation-assistant-contract.test.ts`、设计规格、`docs/architecture.md`、`docs/testing-strategy.md` 与本页。
+  - 验证：聚焦 6 文件 **116/116**（sense-groups 11、provider 26、application 24、route 26、contract 3、panel 26）；全树 `tsc --noEmit` exit 0；改动 10 个 TS/TSX 文件 ESLint `--max-warnings=0` exit 0；真实 MiniMax 手工探针（临时测试已删除，直接调用 provider，不写库）：首轮 2 次中 1 次模型合并相邻意群触发失败关闭，补充原始响应探针 3/3 符合，改为编号 senseGroups + 明确“不得合并看似不完整的意群”后 **6/6** 成功且片段每次一致。
+  - 限制/下一步：意群规则是保守启发式而非完整句法分析器；稳定的是片段与感叹词/连接词角色，其他角色与解释文字仍由模型生成、可能每次措辞不同；模型注解数量/索引不一致时面板显示可重试错误；未在真实登录 UI/真实路由/真实库验证，未跑全量 Vitest/整套 E2E/生产 build/Safari 真机。**Commit：无，未提交/推送/部署。** 用户验证：刷新本机 `127.0.0.1:3000/chat/lucia` →「…」→「AI 助手」→「分析句子成分」，同一句连续分析 2–3 次，片段列表应完全一致，Perfecto=感叹词 / entonces=连接词，其余为陈述句/疑问句等并带主语谓语等解释。下一建议：所有者真实登录实聊目检；若特殊句式仍不理想，再扩充分隔词表。
+
+- 2026-10-22 `CHAT-ASSISTANT-002`（`review`，本聊天；所有者报告“在对话页面的 AI 助手的对话框里输入问题，当前点击问一下可以发送，但消息仍然留在对话框，像是没发出去”，并要求“使用回车键作为发送快捷键”）：根因是 AI 助手面板底部提问框提交后从未清空 `note`，请求已发出且转录出现 pending 条目，但输入框内容不变，视觉上像未发送；提问框也没有 Enter 提交处理（主聊天输入框 `VoiceComposer` 已支持 Enter 发送）。修复只改面板提问框：`askQuestion()` 通过本地校验后立即清空输入再发请求（问题已写入转录 `detail`，错误条目仍可重试）；textarea 新增 Enter 发送、Shift + Enter 换行；`isComposing`/Safari `keyCode 229` 时只确认输入法候选不发送；pending 时 Enter 不派发第二个请求也不清空正在输入的新问题；面板提示补充 Enter 快捷键。不改主聊天输入框、服务端、DTO、provider 或数据。同日所有者追加要求：去掉可见标签「补充说明或提问」与说明行「问怎么回复、检查语法，或分析句子成分。」，提问框参考聊天输入框改为一条圆角框、用框内纸飞机图标代替「问一下」文字按钮：头部只留「AI 助手」标题与关闭；新增单框 `conversation-assistant__field` 复用聊天输入框的边框/焦点环/阴影，textarea 透明无边框、占位「向 AI 助手提问…」、Shift + Enter 自动增高至 120px；图标按钮保留 `aria-label="问一下"`、`type=submit`、pending 禁用；手机维持 44px 触控与 16px 输入字号防 iOS 缩放；发送语义不变。
+  - 修改文件：`src/modules/conversation/ui/{conversation-assistant.tsx,conversation-assistant.css}`、`tests/unit/conversation-assistant-panel.test.tsx`（+5 例）、`tests/e2e/chat-assistant.spec.ts`（+1 例并补首屏断言）、`docs/superpowers/specs/2026-10-21-chat-ai-assistant-design.md`、`docs/testing-strategy.md`、新增 `docs/reviews/CHAT-ASSISTANT-002.md` 与本页。
+  - 验证：先红后绿，新增 3 个行为用例修复前失败（提问框未清空 / Enter 不发送 / pending 时 Enter 无请求），修复后 panel **25/25**；紧凑提问框改版后新增「图标按钮与 textarea 同处单框、submit、首屏无说明行/可见标签」用例，panel **26/26**；全树 `tsc --noEmit` **exit 0**；改动 3 个 TS/TSX 文件 ESLint `--max-warnings=0` **exit 0**；Playwright（mock assistant/stream，隔离 dev server/构建目录）`chat-assistant.spec.ts --project=desktop-chromium` **3 passed (27.6s / 13.2s), exit 0**，含新增「Shift+Enter 换行 → Enter 发送 → 提问框清空」用例；临时 Playwright 探针（已删除）在桌面 1440×900 + Pixel 7、浅/深主题截图与几何测量：桌面框 366×50、手机 380×52、图标 44×44 完全在框内、双行自动增高（70/76）、无横向溢出。
+  - 限制/下一步：未跑全量 Vitest/整套 E2E/生产 build（共享树既有 OOM/基线失败与其他会话在途改动），未调用真实 MiniMax、未做 iPhone Safari/真机输入法验收；发送失败时提问框保持清空、问题保留在转录条目并可重试（有意取舍）。**Commit：无，未提交/推送/部署。** 用户验证：刷新本机 `127.0.0.1:3000/chat/lucia`（dev server 热更新）→「…」→「AI 助手」，头部只显示「AI 助手」和关闭按钮；底部是与聊天输入框同款的一条圆角框，右侧纸飞机图标在框内；Enter 立即发送并清空输入框，转录出现「提问」与「正在思考…」；Shift + Enter 只换行并让框自动增高；中文输入法确认候选时不发送；生成中 Enter 不重复发送；浅/深主题各目检一次。
+
+- 2026-10-22 `CONTENT-REVIEW-UX-001`（`review`，本聊天；所有者报告“内容工作流的审批功能无法使用”，点「批准」收到 `Candidate is not available for review.`）：只读复核、真实库与隔离浏览器复现确认审批 API、CAS 事务与 `candidate_reviews` 约束本身正常，根因是**工作流 UI 与候选状态脱节**：`/me/content-workflow` 按 `lastActivityAt` 混排全部状态候选（当前库 300 review_ready / 87 processing / 60 failed / 111 rejected），列表顶部多为昨日自动处理失败或等待重处理的 processing 候选；候选详情页对所有状态都渲染「批准/请求修改/拒绝」，服务端按既有门禁返回 409 英文错误。修复：新增 `ui/candidate-status.ts`（中文状态/发布标签、`isCandidateReviewable`/`isCandidateReprocessable`、状态说明、稳定错误码→中文提示）；dashboard 拆成「等待你的判断」（review_ready 队列，最多 50 条）与「未进入审核库的候选」两个分区，摘要改用 `countCandidatesByStatus` 的 DB 聚合，空态/说明/中文状态胶囊齐全；候选详情页按状态开放门禁：非审核状态不渲染三个审核按钮、显示中文原因与下一步，「按备注重新处理」仅 review_ready/rejected/failed 草稿可点，发布仅草稿、撤下仅已发布、已撤下两者皆无；状态冲突错误先刷新详情再显示中文提示。无数据库迁移、无 API/契约/权限变更（审核 API 仍是唯一权威门禁）；未提交。
+  - 修改文件：`src/modules/content-acquisition/ui/{candidate-status.ts（新增）,candidate-review-workbench.tsx,content-workflow-dashboard.tsx,index.ts}`、`src/modules/content-acquisition/application/list-candidates.ts`、`src/modules/content-acquisition/repositories/{content-acquisition-repository.ts,drizzle-content-acquisition-repository.ts}`、`app/(product)/me/content-workflow/page.tsx`、`app/globals.css`（状态说明/分区样式）、`tests/unit/{candidate-review-workbench.test.tsx（新增）,content-workflow-dashboard.test.tsx（新增）,content-workflow-page.test.tsx}`、`docs/testing-strategy.md` 与本页。
+  - 验证：聚焦 Vitest 3 文件 **10/10**、邻接内容工作流相关 4 文件 **13/13**；全树 `tsc --noEmit` exit 0；改动 11 个 TS/TSX 文件 ESLint `--max-warnings=0` exit 0。真实 Supabase 库 + 隔离 dev server（`AUTH_E2E_ENABLED=1` + 所有者会话 cookie，读为主）浏览器复验：dashboard 摘要 **300 等待审核 / 87 处理中 / 60 处理失败 / 3 启用来源**，待审核队列 50 条、第二分区 32 条、无横向溢出；processing 候选无审核按钮并显示「自动发现与处理链路」中文说明；failed 候选仅显示「按备注重新处理」（备注前 disabled）；published 候选仅「撤下内容」；review_ready 候选 3 个「批准」可用；新建临时 review_ready 候选出现在队列首位→点「批准」POST 200（约 2.35s）→刷新为「已批准 / 1-of-3」，随后删除临时候选（级联删除审核记录）恢复 300 条；`/me` 入口→工作流、375px 布局、0 pageerror/0 console error 通过。
+  - 限制/下一步：审批写操作只在临时探针候选上验证并已清理，未对真实 backlog 候选写审核；未跑全量 Vitest/E2E/build（共享树既有 OOM/基线失败），未做 Safari 真机、未提交/推送/部署。**Commit：无。** 用户验证：刷新本机 `127.0.0.1:3000/me/content-workflow`，首屏「等待你的判断」里的「查看审核」候选点「批准」应成功保存并刷新为「已批准」；列表顶部其余项进入「未进入审核库的候选」分区，只能查看处理记录/失败原因，处理失败项可按备注重新处理。下一建议：真实 backlog 审批按需人工复核；若希望「已拒绝」也回主审核队列另立任务。
+
+- 2026-10-22 `ADMIN-VISUAL-001` / `ADMIN-VISUAL-002`（`review`，本聊天；所有者反馈“后台看起来不算好看”，要求调研开源后台工具/优秀后台后改进）：把 `/admin` 从消费者产品壳层中的普通页面升级为**独立全屏运营工作台**，并完成一轮独立 UI/UX 评审驱动的修复打磨。路由从 `app/(product)/admin/**` 迁至 `app/admin/**`（URL 不变，旧目录删除）；新增 `AdminShell`（深墨绿分组侧栏 + 暖米白 canvas + 顶部面包屑 + 移动端横向导航）、`admin-primitives`、内联 SVG 图标集，全量重写 `app/admin/admin.css`（admin 作用域 token，浅/深两套）；总览/用户/详情/邀请/AI 用量/内容/诊断/审计全部面板化：每页 1 个 hero 面板 + hero KPI、1px 分隔 metric 网格、密度可切表格（sticky 表头/tabular 数字/移动端卡片化）、控制台式筛选 + chips + segmented 时间窗、0 基线 CSS 条形/柱状图、两套空态、skeleton、错误边界、dialog admin 化、注销“输入公开 UID”双确认、44px 触控与 reduced-motion。**未引入任何 UI 框架/图表库/图标库依赖**（调研 18 个开源后台与 Supabase/Carbon/Primer/Polaris/Stripe/Linear/Sentry/Atlassian 文档后只借鉴模式；图标为 24×24 内联 SVG）。唯一 admin 外改动：`src/shared/ui/primitives/alert-dialog.tsx` 最小修复（`dismissible` 默认 true 兼容、稳定 `setOpen` 修复重渲染抢焦点；Lead 已复核）。文档：[设计规格](docs/superpowers/specs/2026-10-22-admin-console-visual-refresh-design.md)、[调研参考](docs/superpowers/references/2026-10-22-admin-console-visual-references.md)、[交接](docs/reviews/ADMIN-VISUAL-001.md)；`README.md`、`docs/testing-strategy.md` 同步。无数据库迁移、无 API/DTO/权限/数据口径变更。
+  - 验证：全树 `tsc --noEmit` exit 0；改动 161 个 TS/TSX 文件 ESLint `--max-warnings=0` exit 0；admin UI 单测 **52/52**；Playwright `admin-console.spec.ts` desktop **5/5** + mobile **5/5**、`account-join.spec.ts` desktop **5/5**（Lead 独立复跑 desktop 10/10、mobile 5/5）；生产 `next build` exit 0（8 条 `/admin` 路由）；真实数据库只读 smoke 8 页全 200、真实数据、每页恰好 1 个 h1、0 pageerror/0 console error、无横向溢出，并通过深色（overview/users/ai-usage）、375px 用户表卡片态、768px 平板、弹窗打开态、筛选 0 结果态。独立评审第二轮前视觉 6.5/10、可用性 7/10；P0/P1 全部修复（h1 语义、31 组 token WCAG 达标、信息去重、层级、移动端 chrome 195→164px、danger 语义、AI 图表、空态、dialog、触控、宽度、深色/CSS 细节）。截图 15 张 `.tmp-admin-redesign2-*.png`（gitignored），旧版对照 `.tmp-acct-admin-*.png`。
+  - 限制/下一步：视觉验收基于本机 Chrome 1440/768/375 与真实库当前数据；Safari/iPhone 真机未验证；真实库 smoke 为只读、使用 AUTH_E2E cookie，未执行真实写操作（停用/注销/邀请写路径由单测覆盖）；admin 页不再有消费者壳层的 ConnectivityBanner/Toast/账户菜单（有意取舍，保留返回学习/主题切换/owner 标识）；AI 按天图在 UI 层补 0 日/14 桶聚合，服务端 DTO 未改。建议所有者重启本机 dev server 后目检 `/admin`，并按需在手机 Safari 复验横向导航/卡片表/弹窗。**Commit：无，未提交/推送/部署。**
+
+- 2026-10-21 `ACCT-FREE-001`（`review`，本聊天；所有者指令“使用自由注册”，取代同日 ACCT-ADMIN-001 的邀请制登录前置）：注册准入改为**自由注册**。`src/shared/auth/web-auth-repository.ts` 的邮箱 OTP 请求改为 `shouldCreateUser: true`：新邮箱首次请求验证码即由 Supabase Auth 创建账号，数据库触发器写入 `profiles`（默认 `member/active`）与 `user_preferences`；已有邮箱直接登录。`app/login/page.tsx` 文案改为“新邮箱会自动创建账号，已有邮箱直接登录”，并说明 `/join` 邀请码只是可选的预创建渠道；`src/shared/auth/email-otp-form.tsx` 移除“未获邀请/联系所有者获取邀请码”错误文案，改为仅在 Supabase 项目关闭 signup 时提示“当前未开放新账号创建”。邀请体系（一次性邀请码、`/join`、`/admin/invitations`、`ACCOUNT_INVITATIONS_ENABLED`）全部保留但不再是登录前置；账号角色/状态、停用+ban、完整注销、数据导出、owner-only 监管后台与追加式审计不变。新增 [ADR-0022](docs/adr/0022-free-registration.md)（取代 ADR-0021 的注册准入部分，其余决定有效），并同步 ADR-0021 状态注记、[设计规格](docs/superpowers/specs/2026-10-21-invite-accounts-and-owner-admin-console-design.md)、[实施计划](docs/plans/2026-10-21-invite-accounts-and-owner-admin-console-implementation-plan.md) §8、`docs/authentication.md`、`docs/architecture.md`、`docs/operations/account-console-runbook.md`、`.env.example`、`README.md` 与[交接](docs/reviews/ACCT-ADMIN-001.md) §9。无数据库迁移、无 API/契约新增、无角色/评分/证据变更。
+  - 验证：全树 `tsc --noEmit` exit 0；改动 156 个 TS/TSX 文件 ESLint `--max-warnings=0` exit 0；聚焦 Vitest `tests/unit/email-otp-form.test.tsx` + `tests/unit/join-form.test.tsx` **21/21** 通过（更新 OTP `shouldCreateUser:true` 与 signup 关闭文案）；Playwright `tests/e2e/account-join.spec.ts --project=desktop-chromium` **5/5** 通过（新增“登录页展示自由注册文案且不再出现仅限邀请”用例，其余邀请关闭态/OTP 步骤/375px/账号安全用例保持）；生产 `next build` exit 0（含 `/login`、`/join` 与 `/admin`）。
+  - 限制/下一步：自由注册依赖 Supabase 控制台保持 signup 开启并配置 OTP 模板/限流；注册滥用风险由 Supabase 限流、60 秒 OTP 冷却与所有者停用/注销兜底，如出现垃圾账号潮优先启用 CAPTCHA/收紧限流。邀请渠道默认关闭（`ACCOUNT_INVITATIONS_ENABLED=0`），需要预创建账号时再开启。**面向其他真实用户推广前仍须按 AGENTS.md §8 补外部母语/教学复核门槛 ADR**，自由注册不豁免该门闩。未在真实 Supabase 环境验证自由注册 OTP 邮件与实际创建（本机无凭据），建议用真实测试邮箱复核。**Commit：无，未提交/推送/部署。** 用户验证：刷新本机 `/login`，应看到“新邮箱会自动创建账号，已有邮箱直接登录”；用任意未注册邮箱获取验证码后应自动创建账号并进入 `/learn`；`/admin/users` 会出现新账号，可停用/注销。
+
+- 2026-10-21 `ACCT-ADMIN-001`（`review`，本聊天；所有者要求“完善账号系统和做一个后台监管系统”，并确认：准备邀请少量真实用户内测、后台覆盖运营总览/用户管理/AI 用量与成本/内容与采集/安全与诊断/审计日志、后台默认只看聚合与安全元数据）：沿用共享分支，保留其他改动。新增 [ADR-0021](docs/adr/0021-invite-only-accounts-and-owner-admin-console.md)、[设计规格](docs/superpowers/specs/2026-10-21-invite-accounts-and-owner-admin-console-design.md)、[实施计划](docs/plans/2026-10-21-invite-accounts-and-owner-admin-console-implementation-plan.md)、[交接](docs/reviews/ACCT-ADMIN-001.md) 与[运行手册](docs/operations/account-console-runbook.md)。账号：OTP 关闭自由注册（`shouldCreateUser:false`）；新增 `account_invitations`（一次性邀请码只存 SHA-256、绑定邮箱、可撤销/过期、六态状态机、CAS 兑换与失败补偿）、`profiles.role/account_status/deletion_requested_at`、Supabase Admin provisioner（创建/ban/unban/delete，密钥缺失 fail-closed）、`/join` 邀请兑换、owner 邀请管理、停用/恢复、完整注销（业务数据 + Auth 用户，保留 tombstone 可重试）、本人 JSON 数据导出、`/api/v1/me` 扩展 role/accountStatus；共享身份闸门在 `getCurrentUser`/`verifyRequestUser` 统一拦截 suspended/deletion_pending（DB 不可用时按状态未知放行，数据请求自身会失败）。后台：owner 身份 = `OWNER_USER_IDS`（回退 `CONTENT_WORKFLOW_OWNER_USER_IDS`）∪ DB role；`/api/v1/admin/*` 与 `/admin` 每页重新验证；`src/modules/admin` 只读跨模块投影（overview/users/detail/ai-usage/content-health/diagnostics/audit-log，诊断 acknowledge/resolve 为唯一写操作并写追加式 `admin_audit_log`）；`/admin` 布局与 8 页面（总览、用户、用户详情、邀请、AI 用量、内容与采集、诊断、审计），用户路由只用 publicUid、邀请邮箱只掩码、不返回内部 id/正文/录音/转写/记忆/分数明细；共享 `ConfirmActionDialog` 不支持 reason，改用同语义 scoped `AdminReasonDialog`。迁移 `0048_account_access_and_admin_console.sql`（新表 + RLS/REVOKE + 审计不可变触发器）与 `0049_admin_read_indexes.sql` 已通过标准 `drizzle-kit migrate` 应用到当前配置库（迁移行 50→52）；只读复核：新表存在、3 条既有 profile 回填 member/active、两表 RLS 开启、anon/authenticated 无权限、审计触发器与关键索引存在。契约：新增 8 个稳定错误码并同步 registry/JSON Schema/OpenAPI（20 条新路径）；account-profile-response 增加 role/accountStatus；fixtures 同步。文档同步 authentication/database/architecture/testing-strategy/.env.example/README。
+  - 验证：全树 `tsc --noEmit` exit 0；改动 156 个 TS/TSX 文件 ESLint `--max-warnings=0` exit 0；Lead 独立复跑聚焦 Vitest **36 文件 283/283**（账号/admin domain+application+route、UI 5 文件、PGlite 迁移/邀请/注销/聚合、契约、既有 auth/route-access/proxy/product-layout 回归）；Playwright 隔离端口：`admin-console` desktop **5/5** + mobile **5/5**、`account-join` desktop **4/4**、`content-workflow` 回归 **2/2**；生产 `next build` exit 0（含 `/join` 与全部 `/admin` 页面）；真实数据库只读 smoke 以 owner 身份打开 `/admin`、`/admin/users`、`/admin/users/SN-AAP7-VN25`、`/admin/invitations`、`/admin/ai-usage`、`/admin/content`、`/admin/diagnostics`、`/admin/audit`、`/me` 全部 200、真实数据、无 pageerror/console error（截图 `.tmp-acct-*.png` 未跟踪）。
+  - 限制/下一步：审计是业务成功后的 best-effort（跨模块事务未共享）；停用/注销存在已签发 access token ≤1h 窗口；邀请邮件未发送（线下分享邀请码）、邀请重新发送/批量延后；TTS/STT/转写仍未写 `provider_calls`，成本只覆盖已埋点类型；`content_pipeline_runs/steps` 仍是未写入预留表；诊断 triage 直接改 `diagnostic_events` 三列（observability 无 update application）；本机 dev 首次访问 `/admin/content` 出现过约 90s 冷编译/首请求延迟（随后约 1.2s，生产 build 不受影响）；真实 Supabase Admin（邀请创建/兑换/ban/deleteUser）与真实 RLS 跨用户端到端未在真实 GoTrue/双账号下验收；未跑全量 Vitest/整套 E2E（共享树既有 OOM/基线失败），既有基线失败 `account-data-route.test.ts`（请求上下文外 cookies）与 `vocabulary-page`/`product-shell` 部分断言未修改掩盖；本机 node_modules 原为不完整安装，团队从 sibling checkout 补齐 jsdom/eslint/`next.cmd`（gitignored，`pnpm install` 会覆盖，正式环境应按标准安装复验）。**Commit：无，未提交/推送/部署。** 下一建议：所有者在 Supabase 控制台关闭公开 signup/配置 OTP 模板后设 `ACCOUNT_INVITATIONS_ENABLED=1`，用真实测试邮箱走通邀请→登录→停用→恢复→完整注销；对外邀请前先补外部母语/教学复核门槛 ADR；再评估审计事务化、TTS/STT 埋点与 dev 冷编译优化。
+  - 用户验证：刷新本机 `/me`，owner 会看到“所有者工具”（内容工作流 + 监管后台）→ 打开 `/admin` 检查总览/用户/邀请/AI 用量/内容与采集/诊断/审计；`/me → 数据与隐私` 试“导出我的数据 / 退出全部设备 / 注销账号（会真实删除账号，建议先用测试账号）”；`/join` 在邀请开关未开启时显示“邀请注册尚未开启”，开启后可兑换邀请码并回 `/login` 用 OTP 登录。
 
 - 2026-10-21 `WORKSPACE-CHECKPOINT-002`（`review`，例行收口）：把本日共享工作区里已完成并自测的聊天切片提交到共享分支：`4121a10`（37 文件、+4,096/−58）包含 CHAT-ASSISTANT-001（AI 助手面板/路由/provider/契约/测试）、CHAT-GREETING-002（同日问候门禁与 `alreadyGreetedToday` 上下文）、CHAT-READALOUD-001（本人消息右键朗读）与 CHAT-LAYOUT-001（聊天区右缘 scrollbar-gutter 修复）的实现、契约与测试；随后的 docs 提交包含设计/实施计划/交接与架构、测试、README 同步。四个任务仍是 `review`，等所有者真实登录/真实 MiniMax 与目检后验收。
   - 验证：全树 `tsc --noEmit` exit 0；Lead 复跑聚焦 Vitest 6 文件 **142/142** 通过（conversation-thread 30、assistant-panel 21、conversation 41、conversation-bubbles 14、reply-continuity 33、assistant-contract 3）；未重跑全量 Vitest/整套 E2E/build，未调用真实 MiniMax（沿用各任务交接里的限制）。
@@ -2526,3 +2869,10 @@ Commit：abcdef0
 - 实现：`d3830ad`（播客鉴权 Range 代理）与 `2bb27dd`（播放器统一收口）；加入本地 Plyr sprite、自动暂停控件、媒体事件/进度同步和 YouTube no-cookie 配置。
 - 验证：媒体聚焦 Vitest `4 files / 20 tests` 通过；桌面媒体 Playwright `3/3`、移动媒体 Playwright `3/3` 通过；受影响 ESLint 与 diff check 通过。全局 typecheck 仍被并行 `src/modules/media/ui/media-library.tsx:282` 的既有 props 类型错误阻断。
 - 限制：未做生产真实媒体 URL 的逐条浏览器采样或 iPhone Safari 真机验收；正式数据库的 `official_embed` 可播放投影仍需按托管策略复核。
+
+### UI-LOGIN-001 官方模板接入补充（2026-10-25）
+
+- 按用户反馈，以真实 shadcn/ui login-03 官方 MIT 源码替换首版组件布局；固定 revision 为 481d523374745e77d0cf9c53a4115ab5dd7c8481。源码快照、许可证及适配说明见 docs/superpowers/references/shadcn-login-03/。
+- 最终布局为外置品牌、384px 居中卡片与中性色；删除首版 CardDescription/CardFooter/Separator、邀请码宣传和冗余说明。保留现有邮箱 OTP、错误提示、重发冷却与安全跳转，不增加登录方式。
+- 最新验证：email OTP/join 21/21、专项 ESLint、限定 diff 检查通过；浏览器确认桌面深色首屏。全仓 TypeScript 未通过，错误在其他在途 character-network 模块及 artifacts 快照缺失导入，未报告登录文件错误。此前类型检查通过的记录仅对应首版验证时刻。
+- 未运行全量 lint/Vitest/build/E2E（本轮为样式适配，使用聚焦回归）；未发送真实邮件，手机/Safari 待验。未提交、推送或部署。体验 http://localhost:3000/login；下一步手机验证码自动填充验收。
