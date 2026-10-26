@@ -131,6 +131,7 @@ export const languageQualityRubric = [
   "critical（不可发送）：明显非西语段落、内部规划/分析泄漏、无法作为用户消息发送的污染，或会严重破坏身份与可理解性的语言混入。",
   "major（严重问题）：明显非西语或破损词、语法/语义错误导致意思改变或难以理解、明显答非所问或上下文冲突。",
   "minor（可发送但需记录）：重复、机械模板、轻微不自然或轻微上下文贴合问题；不要把个人表达偏好当作错误。",
+  "分类与严重度约束：language-contamination 只能用 critical；repetition-mechanical 和 naturalness 只能用 minor；non-spanish-or-broken、grammar-semantics、context-fit 可用 major 或 minor（只有达到不可发送程度才用 critical）。",
   "没有问题时 findings 必须为空。每条 finding 只能引用 candidate 中连续、逐字可核验的原文；不能引用 userMessage、recentMessages、未发送草稿或改写内容。",
   "通过门槛：0 critical、0 major 且 minor 不超过 2 条；只有 minor 时可标记 sendable-with-notes。3 条以上 minor、任意 major 或 critical 均 not-sendable。证据不足时 status=inconclusive，不得伪装为通过。",
 ].join(" ");

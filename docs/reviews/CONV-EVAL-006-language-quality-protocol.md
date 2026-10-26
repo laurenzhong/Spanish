@@ -28,8 +28,10 @@ R04 `retry2`–`retry6` 证明有界安全重试能让普通回合完成，但�
 - 真实校准批次 `language-quality-20261026-diagnostic-001` 从已归档 `quality-20261025-models-diagnostic-001` 固定选取 3 个样本，每个样本调用两次独立 `MiniMax-M3.1-Flash` reviewer，共 6 次，全部完成；已知 usage **¥0.006158**，未知计费 0。主档和 `C:\Users\master\Desktop\Lucia聊天测试\language-quality-20261026-diagnostic-001` 批次索引与 payload SHA-256 一致。
 - 其中 `d01/full-m3-native/0` 的 `¿Qué cuisine más?` 被两次评审判为 `major / non-spanish-or-broken`，合并结果 `fail/not-sendable`；另两个样本均为 `pass/sendable`。该结果确认协议能捕获已知可见破损词，但样本量不足以代表整批或长路线。
 - 保留集批次 `language-quality-20261026-holdout-001` 按显式 `h01/h02/h03` case 选择运行，每个样本两次独立 reviewer，共 6 次，全部完成；已知 usage **¥0.004435**，未知计费 0。三条合并结果均为 `pass/sendable`，主档和 `C:\Users\master\Desktop\Lucia聊天测试\language-quality-20261026-holdout-001` 的批次文件 SHA-256 一致。
+- R04 长路线抽样来源由 `baseline-r04-20261026retry6/r04` 的前三个普通可见回复固定生成，未重跑角色模型。首个复验 `language-quality-20261026-r04-long-001` 的两次 reviewer 分别返回 schema 无效与类别/严重度不匹配，按协议记为 `inconclusive`；6 次调用和失败证据保留，随后用 export-only 补齐归档。
+- 明确 rubric 的类别/严重度映射后，第二次 `language-quality-20261026-r04-long-002` 完成 6/6，已知 usage **¥0.006562**，未知计费 0，主档和 `C:\Users\master\Desktop\Lucia聊天测试\language-quality-20261026-r04-long-002` 文件 SHA-256 一致。`r04-step-0` 的 `¿Qué tipo de dishes te Preparation?` 被两次评审一致判为 `major / non-spanish-or-broken`、`fail/not-sendable`；后两条均为 `pass/sendable`。这证明协议能在真实长路线可见文本上捕获已知破损候选，但仍只是前三条抽样。
 
 ## 限制与下一步
 
-本协议尚未证明模型能稳定做出正确语言判断，也没有替代真人语言复核。下一步应把诊断失败样本和后续长路线抽样交给所有者复核，并沿用相同 schema 扩大保留集覆盖；不能把这 6 个样本的结果外推到 R04 长路线。历史批次保持原样，不用新评分回写旧结论。
+本协议尚未证明模型能稳定做出正确语言判断，也没有替代真人语言复核。下一步应把诊断失败样本和长路线抽样交给所有者复核，并沿用相同 schema 扩大覆盖；不能把前三条样本外推到完整 R04。历史批次保持原样，不用新评分回写旧结论。
 
