@@ -2,6 +2,8 @@
 
 - 新增独立语言质量诊断协议（尚未调用收费评审）：候选逐字可见、固定 rubric、`critical/major/minor` 严重度、六类语言/语义/重复/贴合分类、quote 校验、候选哈希、双评审一致性和明确通过门槛均已结构化实现。离线 fake replay 聚焦测试 **14/14**、TypeScript 通过；真实批次与历史归档保持不变。下一步冻结 diagnostic/holdout 评审输入后，再决定是否进行受控收费双评审。
 
+- 真实校准批次 `language-quality-20261026-diagnostic-001` 已完成：从已归档 diagnostic 回放固定选 3 个样本，每个样本两次 `MiniMax-M3.1-Flash` reviewer，共 6/6，已知 usage ¥0.006158、未知计费 0；主档与桌面备份 SHA-256 一致。`d01/full-m3-native/0` 的 `¿Qué cuisine más?` 被两次评审判为 `major / non-spanish-or-broken`，合并 `fail/not-sendable`；另两个样本通过。结果仅证明协议可抓到该类缺陷，不代表整体或 R04 长路线语言质量通过。
+
 - 已完成评估专用安全重试切片：`streamReply` 新增有界 `safetyRetryLimit`（默认仍为 1，最大 3），每次候选仍由评估 runner 先预留并记录；manifest、回放报告和真实批次预算均保存该配置。仅新的 `--r04-only` 真实路线显式使用 2 次，产品默认与 R01/R05 基线保持不变。新增污染两次后第三次干净成功、三次污染仍失败及默认行为回归；聚焦测试 3 文件 **59/59**，TypeScript 通过。当前环境未提供 `MINIMAX_API_KEY`，新的 R04-only 真实复验尚未执行；历史失败批次继续保留。
 
 - 实现 Commit：`317a4a7`（`fix: bound conversation evaluation safety retries`）；本切片修改评估 manifest/runner、流式安全重试、语言门禁、关系投影归档与对应回归测试。后续真实批次与测试结果见下方记录。
