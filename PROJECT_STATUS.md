@@ -3267,6 +3267,7 @@ Commit：abcdef0
 
 - 新增 [`CONV-EVAL-005-account-deletion-audit-20261101.md`](docs/reviews/CONV-EVAL-005-account-deletion-audit-20261101.md)。离线代码审计确认 self-service/owner deletion 的 marker、业务清理、Auth 删除、profile tombstone、审计和失败重试顺序；Supabase Admin 凭据缺失时 fail closed，缺失用户按幂等成功处理。
 - 账户删除/导出/路由/provider 聚焦 **6 files / 52 tests** 通过；未调用 Supabase Admin API、未删除真实账户。真实 Auth 删除、真实登录态失效、真实 Storage 清理和删除后再登录拒绝仍未验收，因此没有关闭 005，也未进入 007；整体可用性限制仍在。下一步需独立且明确授权的测试账号端到端删除，未获授权前不执行外部删除。
+- 共享工作树中的 `delete-account.ts` 现将并发 `deleteAccountProfile=false` 视为幂等成功并跳过重复审计；账户删除/路由聚焦 **3 files / 37 tests**、直接 TypeScript、定向 ESLint 通过。该实现未混入其他账户切片提交，真实 Supabase Auth 外部删除仍未执行。
 
 ## 2026-11-01 `CONV-EVAL-006`：R01/R05 retry36 归档审计（`in_progress`）
 
