@@ -3261,6 +3261,7 @@ Commit：abcdef0
 ## 2026-11-01 `CONV-EVAL-005`：生产主动调度 workflow 历史审计（`in_progress`）
 
 - 新增 [`CONV-EVAL-005-production-workflow-audit-20261101.md`](docs/reviews/CONV-EVAL-005-production-workflow-audit-20261101.md)，只读检查 GitHub Actions 最近 20 次真实调度：19 次成功、1 次失败、无取消；成功运行分别证明 1 条主动消息生成、3 个 `weekly-limit` 抑制和无到期槽位；失败运行因 `character_identities` 查询错误正确退出，历史 statement timeout 也正确传播为失败。未 dispatch 新运行、未调用 MiniMax、未写数据库。
+- 后续自然 schedule `41233450457` 也成功完成，输出 `generated=0, suppressed=0, failed=0`，无到期槽位且未产生新的 provider 调用；该轮仍运行在远端 `main=96afe34` 与 pin `5b83aaa`。
 - 该证据只覆盖生产 workflow 的历史生命周期，远端 `main` 当前固定 checkout SHA `5b83aaa`；`1f825c9` 是 workflow 契约测试，真正的 proactive generation 行锁修复为 `97627ab`，且不在 `origin/main=96afe34` 祖先链上，不能证明该修复已部署。未关闭 005：当前代码版本的真实 workflow 重试/去重/取消证据、Auth 最终删除、真实 R01/R05 provider 跨路线语义和真实登录态仍缺失；未进入 007，整体可用性限制仍在。
 
 ## 2026-11-01 `CONV-EVAL-005`：Auth 删除最终步骤离线审计（`in_progress`）

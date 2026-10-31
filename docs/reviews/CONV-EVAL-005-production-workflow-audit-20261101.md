@@ -12,6 +12,7 @@
 - 成功运行 `41143313517`（2026-10-30 23:15 UTC）输出空结果，说明本轮没有到期槽位。
 - 失败运行 `41186421750`（2026-10-31 08:53 UTC）在 `Generate Lucía message` 步骤因 `character_identities` 查询失败退出，job 结论为 `failure`；工作流没有把失败吞掉。
 - 历史失败运行 `39692576920`（2026-10-21）因 PostgreSQL statement timeout 退出，说明数据库级失败也能传播到 workflow 失败状态。
+- 后续自然 schedule `41233450457`（2026-10-31 19:16 UTC）同样成功完成，`Generate Lucía message` 输出 `{"date":"2026-11-01","generated":0,"suppressed":0,"failed":0,"results":[]}`；本轮无到期槽位、无 provider 生成，未产生新的消息或 MiniMax 费用。
 
 所有成功/失败运行的 job 都在 10 分钟限制内结束；最近一次运行的 `Generate Lucía message` 步骤约 12 秒。运行日志只保留了日期、计数、状态、原因和 message id，没有复制正文、令牌或连接串。
 
@@ -23,4 +24,4 @@
 
 ### 结论
 
-这完成了 CONV-EVAL-005 的“生产调度 runner 有真实历史运行”证据切片：slot 轮询、真实 provider 生成、weekly-limit 抑制和失败退出均有远端记录。它不能关闭 005，因为仍缺当前代码版本部署后的 workflow 生命周期、取消/重试/去重的完整证据、Auth 用户最终删除，以及真实 R01/R05 provider 跨路线语义和真实登录态。下一步应先把 `97627ab` 所在的关系/proactive 修复合并到明确的生产 pin，再在不重复收费的前提下观察至少一轮成功、抑制和失败恢复运行；在此之前不要宣称 005 或整体可用。
+这完成了 CONV-EVAL-005 的“生产调度 runner 有真实历史运行”证据切片：slot 轮询、真实 provider 生成、weekly-limit 抑制、无到期槽位和失败退出均有远端记录。它不能关闭 005，因为仍缺当前代码版本部署后的 workflow 生命周期、取消/重试/去重的完整证据、Auth 用户最终删除，以及真实 R01/R05 provider 跨路线语义和真实登录态。下一步应先把 `97627ab` 所在的关系/proactive 修复合并到明确的生产 pin，再在不重复收费的前提下观察至少一轮成功、抑制和失败恢复运行；在此之前不要宣称 005 或整体可用。
