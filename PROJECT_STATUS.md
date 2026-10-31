@@ -3258,3 +3258,8 @@ Commit：abcdef0
 - Lucía `conversation.spec.ts` Playwright 重跑未形成断言结果：首次观察句柄丢失，随后启动在浏览器前因 Windows 虚拟内存分配失败退出；不能记为 E2E 通过或产品失败。此前稳定单文件结果仍需在资源恢复后复核。
 - 浏览器补充：在低堆配置和缓存热身后，`conversation.spec.ts` 的核心“发送消息并完成 Lucía 流”桌面用例 **1/1 通过（7.9s）**。整文件 38 用例复跑时隔离 Next dev server 反复触发内存阈值自动重启，产生 `ERR_CONNECTION_REFUSED`/`page.goto` 超时；已停止连锁失败，不把该批次当作页面断言失败，也不记为完整 E2E 通过。
 - 为降低 E2E 内存尝试了 `next dev --webpack`，但共享树已有客户端 `node:crypto` 导入导致 Webpack `UnhandledSchemeError` 并随后 OOM；该试验已撤回，Playwright 配置保持原 Turbopack 启动命令，不改变产品代码。
+## 2026-11-01 `CONV-EVAL-005`：生产主动调度 workflow 历史审计（`in_progress`）
+
+- 新增 [`CONV-EVAL-005-production-workflow-audit-20261101.md`](docs/reviews/CONV-EVAL-005-production-workflow-audit-20261101.md)，只读检查 GitHub Actions 最近 20 次真实调度：19 次成功、1 次失败、无取消；成功运行分别证明 1 条主动消息生成、3 个 `weekly-limit` 抑制和无到期槽位；失败运行因 `character_identities` 查询错误正确退出，历史 statement timeout 也正确传播为失败。未 dispatch 新运行、未调用 MiniMax、未写数据库。
+- 该证据只覆盖生产 workflow 的历史生命周期，远端 `main` 当前固定 checkout SHA `5b83aaa`，与本工作树 `1f825c9` 不同，不能证明 proactive generation 行锁修复已部署。未关闭 005：当前代码版本的真实 workflow 重试/去重/取消证据、Auth 最终删除、真实 R01/R05 provider 跨路线语义和真实登录态仍缺失；未进入 007，整体可用性限制仍在。
+
