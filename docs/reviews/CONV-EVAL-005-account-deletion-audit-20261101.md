@@ -12,7 +12,7 @@
 
 ### 测试结果
 
-以下 6 个聚焦文件共 **52/52** 通过：
+以下 6 个聚焦文件共 **53/53** 通过（共享工作树新增并发 tombstone 回归后复跑）：
 
 `tests/database/account-deletion.test.ts`、`tests/database/account-data-deletion.test.ts`、`tests/unit/account-http.test.ts`、`tests/unit/account-routes.test.ts`、`tests/unit/account-admin-application.test.ts`、`tests/unit/account-export-application.test.ts`。
 
