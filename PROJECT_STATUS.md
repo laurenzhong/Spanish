@@ -1,8 +1,139 @@
-## 2026-10-26 `CONV-EVAL-006`（`review`，本聊天）
+## 2026-11-01 `CONV-EVAL-005`：真实 PostgreSQL 关系持久化/CAS/RLS 与来源重算审计（`in_progress`）
 
-- 新增独立语言质量诊断协议（尚未调用收费评审）：候选逐字可见、固定 rubric、`critical/major/minor` 严重度、六类语言/语义/重复/贴合分类、quote 校验、候选哈希、双评审一致性和明确通过门槛均已结构化实现。离线 fake replay 聚焦测试 **14/14**、TypeScript 通过；真实批次与历史归档保持不变。下一步冻结 diagnostic/holdout 评审输入后，再决定是否进行受控收费双评审。
+- 新增 `scripts/verify-relationship-postgres.ts`，以 `.env.local`/`.env` 的 `DATABASE_URL` 连接真实 PostgreSQL；所有写入在单事务中显式回滚。审计报告见 [`CONV-EVAL-005-postgres-relationship-audit-20261101.md`](docs/reviews/CONV-EVAL-005-postgres-relationship-audit-20261101.md)。实现与审计文档提交为 `d74c639`（`test: audit relationship replay on postgres`）。
+- 真实数据库 **21/21 PASS**：五张关系表存在；append、同幂等键重放、冲突拒绝、CAS 前进、过期 CAS 拒绝、来源 tombstone 幂等、删除消息后来源置空并保留 tombstone、主动候选生成→完成→幂等完成、账号导出白名单快照、业务数据清理保留 profile tombstone、Lucía 角色数据删除清除会话与关系 head、回滚后关系/会话/消息/候选计数不变，以及 RLS/策略核验均通过。新增三条真实 user/assistant reply-source 轨迹：删除 anchor 来源前 replay 为 `familiar`，撤回后按 live source 重算为 `new_contact`。计数 `0/0/0/3/71/24` 前后相同，未留下业务行。
+- PGlite 关系/主动/隐私聚焦 **5 files / 18 tests**、直接 TypeScript 和脚本定向 ESLint 通过。未调用 MiniMax。
+- 本切片关闭了真实关系、主动候选、账号导出白名单、角色/业务数据删除和撤回来源后的阶段重算回滚审计证据，未关闭 005：生产主动调度、Auth 删除最终步骤、跨路线语义证据和真实登录态仍缺失；未进入 007，整体可用性限制仍在。下一步补齐生产主动调度生命周期与跨路线语义证据，避免重复已通过的基础 CRUD/CAS 审计。
+
+## 2026-11-01 `CONV-EVAL-006`：retry36 R01/R05 归因审计与 `bons días` 精确门禁（`in_progress`）
+
+- 完成新收费批次 `baseline-r01-r05-20261101retry36` 的离线归因审计：R01 在 step 1 的 `Hascookido`、`¿Has cooked?` 两次候选均被现有语言门禁拦截，随后 `stream-failed`；R05 step 7 的首答是已有职业连续性门禁触发，最终可见答承接了 `librería`；step 15 的首答重复近期问题，重试又返回供应商内部规划污染，随后 `stream-failed`。这些没有形成可独立归因的关系规则缺陷。
+- R05 step 13 可见回复含 `bons días`。这是明确的非西语短语，新增 `language-purity.ts` 精确模式与 `streamReply` 回归；不扩充随机词表、不改人物或关系规则、不回写历史归档。
+- 离线验证：语言纯度、对话可靠性与完整 conversation 回归 **3 files / 112 tests** 通过；直接 TypeScript 与定向 ESLint 通过。未追加 MiniMax 调用，未写真实数据库。
+- 归档：工作区 `artifacts/conversation-evaluations/baseline-r01-r05-20261101retry36/`；桌面 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r01-r05-20261101retry36\`。两份归档保持原样并已完成前序逐文件 SHA-256 一致核对。
+- 本切片没有关闭 005 或 006，也没有进入 007。整体可用仍受真人语言复核、稳定全仓 E2E、iPhone Safari、真实登录态、完整 PostgreSQL CRUD/CAS、隐私删除/导出最终验收限制。下一步转向 005 的真实 PostgreSQL CRUD/CAS、主动生命周期与删除后关系重算证据；没有新的结构性语言缺陷前不追加收费复验。
+
+## 2026-11-01 `CONV-EVAL-005`：跨路线与主动轨迹零费用审计（`in_progress`）
+
+- 完成零费用审计，报告见 [`CONV-EVAL-005-20261101-cross-route-proactive-audit.md`](docs/reviews/CONV-EVAL-005-20261101-cross-route-proactive-audit.md)。审计确认已有 `baseline-conv-eval-006-20261026c` 的 R01/R05 各有 24 个普通回合、2 条已完成主动消息、2 个 `generated` 候选和完整 `turns` 序列；工作区/桌面各 5 个文件，逐文件 SHA-256 一致。
+- 该证据只证明评估沙箱保留了主动轨迹，不能证明当前代码下的跨路线语义、生产调度或删除后关系重算。R01/R05 长归档均为 `new_contact`，部分批次含 `REVIEW_EVIDENCE_INVALID`/流失败；同模型评审也不是真人复核。
+- 主动消息 route/runner/workflow、关系 ledger/重放/隐私、数据库持久化、账号导出/删除聚焦验证原有 **17 files / 172 tests** 通过；新增边界竞态回归后为 **18 files / 173 tests** 通过。未调用 MiniMax，未写真实数据库。
+- 本切片没有关闭 005 或 006，也没有进入 007。下一项是隔离数据库中的普通完成、主动候选、撤回/删除与关系源重算事务边界验证；整体可用仍受真人语言复核、稳定全仓 E2E、iPhone Safari、真实登录态、PostgreSQL CRUD/CAS 与隐私删除/导出最终验收限制。
+- 在该审计发现的候选完成竞态上新增 `tests/database/proactive-message-boundary.test.ts`：候选生成后若关系 `proactive/all` 边界已持久化，`completeCandidate` 必须拒绝写入并保持候选 `generating`。这是零费用 PGlite 回归，不代表真实 PostgreSQL/RLS 写路径已验收。
+
+## 2026-11-01 `CONV-EVAL-006`：R01/R05 选择性收费前置（`in_progress`）
+
+- 为避免为缺失的跨路线证据重复支付 R04，评估 CLI 新增 `--routes=r01,r05` 核心路线子集；manifest 写入 `selected-core-routes`，重复、未知或与其他路线模式冲突时 fail-closed。`tests/unit/conversation-evaluation-real-cli.test.ts` **4/4**、直接 TypeScript、定向 ESLint 通过。
+- 本切片未调用 MiniMax。下一步只执行新的 R01/R05 真实批次，使用新 `runId` 并保存工作区/桌面双份归档；结果仍需语言/关系审计，不能直接关闭 006 或宣称整体可用。
+
+## 2026-11-01 `CONV-EVAL-006`：retry32–35 收口与语言质量限制（`in_progress`）
+
+- 在 retry31 的 step 0/3 窄门禁后，使用新 runId `baseline-r04-20261101retry32` 完成 R04 **24/24**、`familiar/open`、无角色 `interest/proposal/confirmation`；角色已知 usage **¥0.166770**。step 0/3/7 均得到可见修复，R04 与来源 `quality-r04-retry32-source-20261101` 工作区/桌面双份归档一致。
+- retry32 的 8 批双评审 `language-quality-20261101-r04-retry32-01` … `-08` 完成 **48/48**，已知 reviewer usage **¥0.062274**，合并 **20 pass、3 fail、1 inconclusive**。三个明确 fail 为 `complication`、`sharing`、`dish`；step 11 分歧保持 inconclusive。新增精确门禁和职业连续性误判修复后，聚焦回归 **161/161**、TypeScript、定向 ESLint 通过，广泛回归曾为 **73 files / 973 tests** 通过。
+- retry33（角色 ¥0.144485）验证语言门禁后仍为 R04 **24/24**、归档双份一致，但 step 7 再次出现旧空闲话题追问；修复 `libre`/`librería` 前缀误匹配后，retry34（角色 ¥0.177011）完成 **24/24**、`familiar/open`，step 7 正常承接书店工作。retry34 来源与 8 批双评审 **48/48**（reviewer 已知 **¥0.059188**）合并 **21 pass、2 fail、1 inconclusive**；明确 fail 为 step 3 的 `novelty`/`Has-owner`，step 11 的收尾争议与 step 17 证据不足不改门禁。
+- retry35（角色 ¥0.134160）再次完成 R04 **24/24**、`familiar/open`、无角色关系信号，双份归档一致；但 provider 又产生新的随机破损 `strayes`、`Filling`、`dejahqsomeSator`。这证明继续逐词扩充列表会产生追逐效应；retry35 未再收费评审，保留为语言稳定性限制。
+- 本切片没有关闭 005 或 006，也没有进入 007。`CONV-EVAL-005` 已有评估沙箱主动轨迹，但仍缺当前代码/生产级主动生命周期、跨路线语义评审和删除后完整重算；整体可用仍受真人语言复核、全仓 E2E 稳定性、iPhone Safari、真实登录态、完整 PostgreSQL CRUD/CAS、隐私删除/导出最终验收限制。广泛回归本轮末次为 **72 files / 973 passed / 1 failed**，唯一失败是 Windows `EPERM` 原子 rename 的既有归档测试环境问题；单测重跑仍复现，未归因于本切片。
+- 后续不再为随机词继续收费重跑；应转向跨路线 R01/R05 与 005 主动/持久化证据审计，只有出现可归因的结构或关系缺陷时再创建独立修复切片。
+
+## 2026-11-01 `CONV-EVAL-006`：retry31 step 0/3 离线缺陷收口（`in_progress`）
+
+- 按 retry31 原文和语言质量协议完成零费用审计：step 0 `una hobby` 是双评审一致的高置信性别错误；step 3 的 `anuncios-consumerista...` 与整句密集连字符是明显破损；step 7 `Trabajo en una librería.` 后的 `Aprovéchalo sin prisas.` 因一侧评审返回 `LANGUAGE_REVIEW_JSON_INVALID`，仍按协议保留 `inconclusive`，没有把证据不足升级为产品门禁。
+- 在 `language-purity.ts` 为 step 0/3 增加三个精确窄模式，并补充纯函数与 `streamReply` retry 回归；不修改关系规则、人物设定或历史归档。收费前聚焦 5 文件 **160/160** 通过，直接 TypeScript 与定向 ESLint 通过；随后扩展 conversation/evaluation/relationship/proactive 相关回归为 **73 files / 973 tests** 通过。
+- 本切片没有调用 MiniMax，也没有新建收费归档。历史 retry31 R04、来源和 8 批评审双份归档保持不变；最新收费证据仍为 retry31 的 24/24、21 pass / 1 fail / 2 inconclusive。
+- `CONV-EVAL-005` 仍未满足关闭条件：完整主动轨迹、跨路线语义评审和删除后完整重算证据仍缺失。`CONV-EVAL-006` 也不能关闭或进入 007；真人语言复核、稳定全仓 E2E、iPhone Safari、真实登录态、完整 PostgreSQL CRUD/CAS 与隐私删除/导出最终验收仍未完成。
+- 下一步先以新窄门禁运行离线回放和现有归档审计；只有在明确需要验证当前修复是否改变真实路线时，才使用全新 `runId` 做一次收费 R04，并保存工作区/桌面双份归档。
+
+## 2026-11-01 `CONV-EVAL-006`：13 小时目标模式收口（`paused`）
+
+- 本次目标模式运行约 13 小时后按用户要求暂停。任务仍停留在 `CONV-EVAL-006` 的语言质量、上下文承接和关系路线验收，不进入 `CONV-EVAL-007`，也不宣称整体可用；本次收口没有新增收费调用或提交。
+- 最新成功证据为 `baseline-r04-20261031retry31`：固定 `MiniMax-M3.1-Flash`、R04 普通回合 **24/24**、终态 `familiar/open`，无角色 `interest/proposal/confirmation`；角色已知 usage **¥0.139675**。对应来源 `quality-r04-retry31-source-20261031` 和 8 批双评审完成 **48/48**，合并 **21 pass、1 fail、2 inconclusive**，reviewer 已知 usage **¥0.065458**。唯一合并失败是 step 0 的 `Cocinar me parece una hobby...`；step 3/7 保持证据不足。retry30/31 的 R04、来源和批次均保存工作区/桌面双份，核心 SHA-256 差异为 0。
+- 已完成的工程证据：任务聚焦 **5 files / 159 tests**、广泛 conversation/evaluation/relationship/proactive **54 files / 782 tests**、契约 **38 files / 203 tests**、直接 TypeScript、定向 ESLint、`drizzle-kit check` 通过；真实 PostgreSQL 17.6 只读核验、迁移 61 和关系五表基础 RLS 通过，未写入业务数据。缓存热身后的 Lucía 核心发送/完成流桌面用例 **1/1** 通过。
+- 尚未完成的整体验收：`una hobby` 真人语言判断、真人语言复核、完整稳定全仓 E2E、全量 lint/Vitest 的稳定终态、iPhone Safari、真实登录态、完整 PostgreSQL CRUD/CAS、隐私删除/导出最终验收；Webpack 页面数据收集和全仓 E2E 仍受 Windows/Next Zone 内存限制。双评审和单次 24/24 不能外推为整体可用。
+- 下一会话从 [CONV-EVAL-006 交接](docs/tasks/CONV-EVAL-006-handoff-20261027.md) 继续：先复核 retry31 的 step 0/3/7 原文和协议，再决定是否需要精确修复；任何新收费复验先跑聚焦回归、使用全新 `runId`，并保存工作区/桌面双份归档。环境事实已澄清：`.env.local` 有 `DATABASE_URL`、`.env` 有 `MINIMAX_API_KEY`，评测脚本显式加载，不要再次把裸 PowerShell 进程为空写成凭据缺失。
+
+## 2026-10-31 `CONV-EVAL-006` retry26 收口（`in_progress`，本聊天）
+
+- 环境配置已核实：裸 PowerShell 进程没有自动导出 `DATABASE_URL`/`MINIMAX_API_KEY`，但仓库 `.env.local`/`.env` 已配置；真实评估脚本在非 `--export-only` 模式显式通过 dotenv 加载，因此此前“当前环境未提供密钥”的表述是进程检查误报，已在任务协议中更正。密钥值未写入文档。
+- `baseline-r04-20261031retry26` 使用固定 `MiniMax-M3.1-Flash` 从独立初识完成 R04 普通回合 **24/24**，终态 `familiar/open`，无角色 `interest/proposal/confirmation`；角色 30 次，已知成本 **¥0.168021**，预留 **¥1.465124**，未知计费 0。工作区与桌面归档路径分别为 `artifacts/conversation-evaluations/baseline-r04-20261031retry26/r04/` 和 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261031retry26\r04\`，SHA-256 一致。
+- 新来源 `quality-r04-retry26-source-20261031` 及 8 批 `language-quality-20261031-r04-retry26-01` … `-08` 均完成工作区/桌面双份归档；48/48 reviewer 调用完成，合并 **22 pass、2 fail、0 inconclusive**，reviewer 已知成本 **¥0.062976**，未知计费 0。失败证据为 step 0 自我修正/主体错位与 step 16 `Podemosknown`，未回写旧归档。
+- 最新聚焦验证为任务要求的 **3 files / 107 tests**（language-purity、provider-output-integrity、conversation）通过；连同 reply-plan、continuity 回归为 **5 files / 156 tests**。直接 TypeScript 与受影响 ESLint 通过。`pnpm` 的 vitest/typecheck 别名仍因共享 bin 缺失未执行成功，等价直接入口已执行。
+- 仍不能宣称整体可用：双评审不是真人语言复核，真实登录态、完整 PostgreSQL CRUD/CAS/隐私路径、iPhone Safari、全仓 E2E 稳定性和全量 Vitest 基线仍未完成。下一步只在当前 `CONV-EVAL-006` 范围内审计这两条高置信缺陷，必要时补精确门禁与回归，再用新 runId 复验；历史归档保持不变。
+
+## 2026-10-31 `CONV-EVAL-006`（对话撤回回归重试）
+
+- 复现了共享树记录的移动端撤回失败：产品使用自定义确认框，旧 Playwright 用例仍只注册原生 `dialog` 回调、没有点击“确认撤回”，因此请求从未发出；未发现客户端撤回状态机缺陷。测试已改为点击 `确认撤回` 后再验证 `data-withdrawn` 与隐私提示。
+- 桌面端同一用例的菜单与气泡右边缘存在稳定的 Chromium 子像素差（实测 `1.609375px`）；保留边界、视口和菜单尺寸断言，仅将右边缘对齐容差从 `1px` 调整为 `2px` 并注明原因。
+- 验证：该对话 E2E 在 `desktop-chromium` **1/1**、`mobile-chromium` **1/1** 通过；对话/语言门禁聚焦 Vitest **149/149** 通过；直接 `tsc --noEmit --pretty false` 与该 E2E 文件 ESLint 通过。
+- 随后整份 `tests/e2e/conversation.spec.ts` 双项目复跑为 **36 passed、0 failed、2 skipped**（38 tests）：搜索入口改按 `/chat/lucia` 会话头部菜单验证，Mateo/Inés 改按 coming-soon 发布门禁验证；撤回回归也保持通过。
+- 全仓 Playwright 收集阶段发现 `chat-expression-assist.spec.ts` 直接导入 JSON catalog 会被 Node 24 loader 拒绝；改为读取同一 authored JSON 后，该文件桌面/移动 **14/14** 通过。该文件与对话 E2E 的定向 ESLint、全树 `tsc --noEmit` 通过。全仓 390-test 批次随后因 Next dev server 在第 10 个测试后退出而中止，后续 `ERR_CONNECTION_REFUSED` 不计为产品失败。
+- 本步未新增 MiniMax 调用、未改动真实路线或历史归档；数据库/RLS、全量 Vitest/lint、全仓 E2E、Safari 与真人语言复核仍未执行。默认 Webpack build 的 15-worker 静态页面生成因 Zone OOM 失败；以 `NEXT_PRIVATE_BUILD_WORKER=1` 重跑后编译、TypeScript、100 个静态页面、优化和 build trace 全部通过。CONV-EVAL-006 仍不能外推为整体可用。
+- 修改文件：`tests/e2e/conversation.spec.ts`。下一步限制仍按本节之前的 CONV-EVAL-006 记录执行，先保持当前任务证据边界。
+
+## 2026-10-28 `CONV-EVAL-006`（下一步：慢节奏边界门禁离线修复）
+
+- 对 gatefix10 step 23 的两个可接受语义变体补充门禁：`me gusta que me digas eso`、`tomarnos el tiempo que necesitas`、`a tu ritmo`。它们仍要求直接承认好感、尊重节奏，并拒绝提案、确认和强制升级。
+- 新增纯函数回归后，聚焦 Vitest **170/170**（含 reply-plan、language-purity、provider-output-integrity、conversation、continuity、baseline reliability）通过；直接 TypeScript 与受影响 ESLint 通过。
+- 本步仅完成离线修复与证据验证，未追加收费 R04；gatefix10 的 22/24 失败归档保持不变。后续如再做真实复验，必须使用新 runId，并先确认 provider 污染重试是否值得继续。
+## 2026-10-28 `CONV-EVAL-006`（`review`，gatefix5 夜间目标模式收束）
+
+- 任务仍限定在 `CONV-EVAL-006`，固定模型为 `MiniMax-M3.1-Flash`；没有进入 `CONV-EVAL-007`，也没有把本轮结果宣称为整体可用。共享工作树其他代理改动与历史归档均保留。
+- 新收费复验 `baseline-r04-20261028gatefix5` 已从独立初识完成 R04 普通回合 **24/24**，状态为 `completed`。`checkpoint.relationship` 精确终态为 `familiar`、`userRomanticIntent=open`、`characterProposal=none`、`reconfirmationSequence=null`；关系证据含用户好感表达，但没有角色 `interest/proposal/confirmation`。角色调用 30 次、评审调用 2 次，已知 usage **¥0.161036**，预留 **¥1.471377**，未知计费 0。step 7 的职业承接候选、step 23 的边界候选被安全门禁拦截，未进入可见聊天。
+- gatefix5 工作区/桌面双份归档分别为 `artifacts/conversation-evaluations/baseline-r04-20261028gatefix5/` 和 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261028gatefix5\`；归档清单为 `content_complete`，双份文件校验一致。
+- 从 gatefix5 重新生成质量来源 `quality-r04-gatefix5-source-20261028`，固定 24 条普通最终角色回复；来源按 `checkpoint.sandbox.messages` 数组顺序截取当前 user 之前的已完成消息，并排除当前 user 与对应 character。工作区/桌面双份归档分别为 `artifacts/conversation-evaluations/quality-r04-gatefix5-source-20261028/` 与 `C:\Users\master\Desktop\Lucia聊天测试\quality-r04-gatefix5-source-20261028\`。旧来源保持不变。
+- 新路线执行 8 批 Flash 双评审：`language-quality-20261028-r04-gatefix5-01` … `-08`，每批 3 条、每条 2 次，共 **48/48** 完成；合并 **19 pass、2 fail、3 inconclusive**，已知 reviewer usage 合计 **¥0.072527**，未知计费 0。每批工作区和桌面归档均为 `content_complete` 且双份校验一致。
+- 新来源的双评审明确失败为 step 7 的 `historiasBindings` 与 step 16 的 `Pay attention`/`meYK`/`recounts` 混语污染；step 0 的 `Cookear`、step 15 的 `trouvéeis`/`acabao`、step 23 的 `A mí también me gustas` 因评审分歧、引用无效或语义分级争议按协议保留为 `inconclusive`，没有改写历史结论，也没有据此泛化添加门禁。本轮人工复核已确认：step 7、step 15、step 16 均为语言缺陷且不可接受；step 23 可接受，且尊重慢节奏边界。
+- 验证：聚焦 Vitest **149/149**（language-purity、provider-output-integrity、conversation、conversation-continuity-regression、conversation-baseline-reliability）通过；全局 `tsc --noEmit` 直接调用通过；受影响 ESLint 通过。`pnpm test`/`pnpm typecheck` 入口仍因共享 `node_modules/.bin` 缺少 vitest/tsc 链接不可用，已用仓库内的 `node_modules` 入口等价执行。未执行全量 lint、全量 Vitest、E2E、build、真实 DB/RLS、Safari。
+- 下一步限制：只处理人工确认的 step 7、step 15、step 16 语言缺陷，新增窄语言门禁和回归；step 23 不改产品行为。修复后必须先跑聚焦测试，再用全新 runId 重新跑 R04 与质量来源。当前语言质量、关系自然度、真实数据库/RLS 和真人体验仍未通过；保持在 `CONV-EVAL-006`。
+- 新门禁后的收费复验 `baseline-r04-20261028gatefix6` 在 step 3 因连续 provider 污染候选失败，普通回合 **3/24**，未进入评审；已知 usage **¥0.033898**，预留 **¥0.328983**，未知计费 0。失败候选包含 `Cooking sounds fun`、`te preparation`、中文片段和旧做饭追问；工作区/桌面双份归档完整。该失败路线不生成新的质量来源，也不把失败位置外推为整体结论。
+
+## 2026-10-28 `MEDIA-AUDIO-HOST-001`（`review`，本聊天）
+
+- 修复范围限定为用户报告的自动播客可靠性：保留已有词级 ASR/旧草稿重处理改动，并把每日媒体 `auto-publish` 接入播客音频 Bunny 自托管。`scripts/migrate-podcasts-to-bunny.ts` 现在可按 `MEDIA_AUDIO_HOSTING_LIMIT`（默认 10）处理所有当前仍使用 `language-reactor`、`podcast-rss` 或历史 Supabase 音频 provider 的正式播客；支持 `MEDIA_AUDIO_HOSTING_SINCE`/`MEDIA_AUDIO_STABLE_KEY` 受控缩小范围，默认按最早发布时间推进外部资产 backlog。
+- 每条音频仍先按固定官方 RSS/授权原地址匹配集数，通过 HTTPS/allowlist、MIME、大小、ffmpeg `-map 0:a:0` 解码时长、Bunny hash、完整 GET 与 bundled Chromium 播放/seek 校验，再在锁定当前资产行后 CAS 切换到不可过期 Bunny URL；失败不切换资产并令媒体 job 失败。旧版本、字幕、证据和用户进度不改写；临时下载目录清理，日志不写原始音频或完整 URL。
+- `.github/workflows/content-acquisition-daily.yml` 在媒体自动发布后运行托管步骤，使用 `MEDIA_AUDIO_HOSTING_CONFIRM`（回退现有视频托管确认 secret），并把结果写入独立 `podcast-host.log`/workflow summary；视频托管和播客托管仍分开统计。
+- 真实生产修复（保留旧版本）：`it_cb46511df2c0` 的错误音频/字幕配对已重新 ASR，发布 v2（31 段/406 词）；`it_bbee432bdfed` 发布 v2（204/2999）；`it_9986987e19e5` 发布 v2（30/862），并将错误的 `390000ms` 时长按 ffprobe 实测 `300957ms` 修正为 v3；`it_b12e47906d86` 发布 v2（92/1396）；`it_487d335fbb19` 和 `it_0ad298c51bf9` 的 ffprobe 时长分别修正为 `923568ms`、`830760ms`，词级草稿经版本化转接后发布 v3（148/2251、181/2348）。新增 `scripts/rebase-media-subtitle-backfill.ts` 仅在资产字节不变且时间轴重新通过门禁时复制待发布草稿，不改写历史版本。
+- Bunny 真实校验与 CAS 已完成 6 条：`it_cb46511df2c0`（v2）、`it_9986987e19e5`（v3）、`it_487d335fbb19`（v3）、`it_0ad298c51bf9`（v3）、`it_b12e47906d86`（v2）、`it_bbee432bdfed`（v2）。每条均通过完整 GET 哈希、解码时长、浏览器播放和末尾 seek；当前资产 provider 为 `bunny-storage`，URL 无签名过期参数。Charlas Hispanas 两条通过授权代理慢速完整下载后切换。`it_cad9f49c7db8`、`it_3f718af25302`、`it_d0a54b37a4ed` 的源站仍不可可靠取得，已用 `scripts/mark-media-asset-unavailable.ts` 将当前音频标记 `unavailable`，资料库不再展示它们；历史版本、字幕和用户进度保留。
+- 验证：聚焦播客/媒体回归 **22/22**；改动脚本 ESLint 通过；全树 `tsc --noEmit` 通过。已执行真实 ffprobe、RSS 匹配、Bunny 上传、完整 GET、浏览器播放/seek 和数据库 CAS。未执行全量 lint/Vitest、E2E、build、生产 workflow 和 iPhone Safari；两个 Charlas Hispanas 条目及另外三个源站阻断项仍需在可访问 runner 上补齐或暂时撤下。
+- 修改文件：`scripts/migrate-podcasts-to-bunny.ts`、`scripts/correct-media-duration.ts`、`scripts/rebase-media-subtitle-backfill.ts`、`scripts/mark-media-asset-unavailable.ts`、`.github/workflows/content-acquisition-daily.yml`、上述架构/运行手册/测试策略/实施计划文档，以及此前词级时间轴防复发文件。Commit：无，未推送或部署。下一步：在授权且网络可达的 runner 上为 3 条 `unavailable` 节目取得准确音频后重新生成词级草稿、发布新版本并恢复可用状态；当前不沿用错误字幕。
+
+## 2026-10-28 `CONV-EVAL-006`（`review`，本聊天；夜间目标模式续跑）
+
+- 继续固定 `MiniMax-M3.1-Flash`，未进入 `CONV-EVAL-007`，也未宣称整体可用。保留共享工作树其他改动与全部历史归档。
+- 语言门禁补入本轮 R04 中的高置信污染：英文 `prepared`、`surround`、`advance`、`enjoying`；破损 `y.GLASS`、`teOE`、`quehjablemos`、`deplantejarlo`、`habéis_cancelado`。`streamReply` 会在发送前拒绝并将固定片段写入 retry instruction；产品默认仍只有有界一次安全重试。新增纯函数和 streamReply 回归覆盖首候选、retry 和最终 done。
+- 新质量来源 `quality-r04-gatefix2-source-20261028` 从 `baseline-r04-20261027gatefix2/r04` 的 `checkpoint.sandbox.messages` 数组顺序生成 24 条普通最终角色回复；当前 user 与对应 character 均被排除在 `recentMessages` 外。旧 `quality-r04-gatefix2-source-20261027` 保持原字节不变。来源主档/桌面副本 SHA-256 一致。
+- 重新执行 8 批 Flash 双评审：`language-quality-20261028-r04-gatefix2-01` … `-08`，每批 3 条、每条 2 次，共 **48/48** 次完成；合并 **16 pass、5 fail、3 inconclusive**，已知 usage **¥0.065357**，未知计费 0。明确高置信破损仍被评审看到但已由产品门禁覆盖；`step-11` 的“收尾后明天见”被评审标为上下文错位，所有者复核认为它是在回应当前“今天收工”而非旧做饭话题，暂不改产品；`step-14`/`step-15` 含评审证据不足或轻微门槛差异，按协议保留为 inconclusive/历史证据。
+- 归档路径：来源 `artifacts/conversation-evaluations/quality-r04-gatefix2-source-20261028/` 与 `C:\Users\master\Desktop\Lucia聊天测试\quality-r04-gatefix2-source-20261028\`；8 批分别位于同名 `artifacts/conversation-evaluations/language-quality-20261028-r04-gatefix2-01`…`-08` 和桌面目录，全部主档/桌面文件 SHA-256 一致。
+- 验证：聚焦 Vitest **149/149**（language-purity、provider-output-integrity、conversation、conversation-continuity-regression、conversation-baseline-reliability）通过；受影响 ESLint 与定向 TypeScript 通过；来源生成脚本实际执行成功。`pnpm typecheck` 入口因共享 `node_modules/.bin` 链接缺失不可用；直接 `tsc --noEmit` 仍被既有 `.next/dev/types/routes.d.ts` 和 `validator.ts` 语法损坏阻断。未执行全量 Vitest/lint、E2E、build、真实 DB/RLS、Safari；真实 R04 24/24 结果沿用上一节并未重新收费。
+- 下一步限制：先由所有者复核 5 个 fail 和 3 个 inconclusive 的逐字证据，必要时仅新增窄门禁或修正评审协议；再用新的 runId 复验当前 Flash R04。语言质量、关系自然度、真实数据库/RLS、真人体验仍未通过，不进入 `CONV-EVAL-007`。
+- 所有者复核后，5 个 fail 均确认属于已覆盖的高置信污染；step-11 因双评审一票 fail/一票 pass 保持 inconclusive，step-14/15 因评审引用或分级无效保持 inconclusive，未新增泛化上下文门禁。
+- 新 R04 复验 `baseline-r04-20261028gatefix3` 使用新 `runId` 但在 step 23 因两次候选未通过安全门禁而失败，普通回合 **22/24**；已知 usage **¥0.166446**、预留 **¥1.316340**，未知计费 0。新 R04 复验 `baseline-r04-20261028gatefix4` 在 step 15 因连续中英混杂/中文污染耗尽重试而失败，普通回合 **14/24**；已知 usage **¥0.080720**、预留 **¥0.917189**，未知计费 0。两批均完成工作区/桌面双份归档，旧归档保持不变；本轮不再继续收费重跑。
+- 新失败归档分别位于 `artifacts/conversation-evaluations/baseline-r04-20261028gatefix3/`、`C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261028gatefix3\`，以及 `artifacts/conversation-evaluations/baseline-r04-20261028gatefix4/`、`C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261028gatefix4\`。两个 run 在不同 step 失败，说明当前 Flash 长路线仍有 provider 输出不稳定，不能宣称 24/24 或整体可用。
+- 失败归因审计另外发现 gatefix4 step 6 的重试候选含重复英语 `enjoying`，原词表未识别；已加入有限英文门禁并补回归。其余 gatefix3/4 安全拦截均能由现有中文、英文、协议污染或职业连续性规则解释；本轮未新增收费重跑。
+- 所有者人工复核确认：`step-11` 为合理收尾；`step-14` 为证据不足；`step-15` 为语言缺陷，继续由 `habéis_cancelado` 窄门禁覆盖。该结论不改写历史评审归档。
+
+## 2026-10-27 `CONV-EVAL-006`（`review`，本聊天；延续 2026-10-26 语言质量切片）
+
+- 当前任务未跑偏，仍处于 Flash 长路线的缺陷修复与复验阶段；新会话交接见 [`docs/tasks/CONV-EVAL-006-handoff-20261027.md`](docs/tasks/CONV-EVAL-006-handoff-20261027.md)。本轮已修复“明确好感但希望慢一点”的承接门禁和“书店工作信息未优先承接”的 continuity 门禁，并用新的 R04 `runId` 完成复验；语言质量仍未通过，不能进入 `CONV-EVAL-007` 或宣称整体可用。
+
+- 新 R04 真实复验：`baseline-r04-20261027gatefix2` 使用 `MiniMax-M3.1-Flash` 从独立初识完成 **24/24** 普通用户回合；最终关系为 `familiar / romance=open`，`characterProposal=none`、`reconfirmationSequence=null`，用户好感证据已记录但未转为角色确认。角色调用 30 次（含安全重试），评审调用 2 次；已知 usage **¥0.167061**，预留 **¥1.446261**，未知计费 0。主动回合 step 25 被安全门禁拦截，未计入 24/24。工作区与桌面归档分别位于 `artifacts/conversation-evaluations/baseline-r04-20261027gatefix2/` 和 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261027gatefix2\`。
+
+- 从该新路线生成质量来源 `quality-r04-gatefix2-source-20261027`（24 条普通最终角色回复，工作区/桌面双份），并执行 8 个 Flash 双评审批次 `language-quality-20261027-r04-gatefix2-01` 至 `-08`；共 48 次 reviewer 调用，已知 usage **¥0.081851**，未知计费 0。合并结果 **12 pass、6 fail、6 inconclusive**（所有批次 6/6 完成）。失败/证据不足仍包括 `prepared`、`.GLASS`、`surround`、`quehjablemos`、`habéis_cancelado`、`deplantejarlo`、`teOE`、`advance` 及上下文错位；来源和批次均未回写历史归档。下一步只限所有者复核这些失败证据并继续当前 CONV-EVAL-006 的语言修复，不能扩张到下一任务。
+
+- 本轮代码回归：聚焦 Vitest **114/114**（language-purity、provider-output-integrity、conversation、conversation-continuity-regression）通过；任务源文件和回归测试的独立 TypeScript 检查通过。全局 `tsc --noEmit` 仍被既有 `.next/dev/types/routes.d.ts` 与 `validator.ts` 生成文件语法损坏阻断；本轮未执行全量 lint、Vitest、E2E 或 build，也未连接真实数据库/RLS。
+
+- 扩展语言质量评审已完成：diagnostic 与 holdout 各固定 12 个候选，拆成 8 个批次、每候选两次 `MiniMax-M3.1-Flash` reviewer，共 48 次调用；合并结果 **19 pass、2 fail、3 inconclusive**，已知 usage **¥0.040938**，未知计费 0。`d01-2` 的 `¿Qué cuisine más?` 与 `d05-2` 的 `Meostaticé aquí` 均被双评审一致判为 `major / non-spanish-or-broken`；`d03-2` 双评审不一致，`h05-2`/`h06-1` 各有一次 `LANGUAGE_REVIEW_QUOTE_INVALID`，均按协议不计为通过。工作区汇总见 `artifacts/conversation-evaluations/language-quality-20261026-expanded-summary/`；8 个批次的主档与桌面备份均已归档。该结果仍不能外推到完整长路线、关系成长、真实 DB/RLS 或真人体验；下一步先进行所有者人工复核并固定失败回归。
+
+- 扩展结果确认 Flash holdout `h05-2` 的黏连词 `niiotro` 曾通过产品语言门禁；已在 `language-purity.ts` 的 malformed-fragment 规则中加入该已确认形态，并补充纯函数与 `streamReply` 重试回归。聚焦 Vitest **38/38**、TypeScript、受影响 ESLint 通过；历史批次和评审归档保持不变。其余失败和证据不足样本仍待所有者复核，不能据此宣称整体语言质量通过。
+
+- R04 长路线扩大语言抽样已完成：从 `baseline-r04-20261026retry6/r04` 固定 24 条普通最终角色回复，8 批共 48 次 `MiniMax-M3.1-Flash` reviewer；合并 **16 pass、5 fail、3 inconclusive**，已知 usage **¥0.067396**，未知计费 0。明确失败为 `dishes/Preparation`、`¿Has}itsonga`、`CURIOUS/sinorpheus`、`kerja`、`sinuqunhughdías`；`te.has`、`habéis podrido cambiar` 和一次评审 JSON/引用错误属于证据不足。三条 inconclusive 另开 recheck 6 次、已知 usage ¥0.005952，只有 `r04-step-11` 双评审通过。汇总见 `artifacts/conversation-evaluations/language-quality-20261027-r04-expanded-summary/`；全部批次主档与桌面备份已归档。该结果证明修复前 R04 可见文本仍不稳定，下一步必须修复并用当前 Flash 配置重新跑长路线，同时检查虚构共同经历，不能进入 CONV-EVAL-007。
+
+- 新增独立语言质量诊断协议并完成首个 diagnostic/holdout 受控校准：候选逐字可见、固定 rubric、`critical/major/minor` 严重度、六类语言/语义/重复/贴合分类、quote 校验、候选哈希、双评审一致性和明确通过门槛均已结构化实现。离线 fake replay 聚焦测试 **14/14**、TypeScript 通过；真实长路线与历史批次保持不变。下一步扩大长路线抽样并进行所有者复核。
 
 - 真实校准批次 `language-quality-20261026-diagnostic-001` 已完成：从已归档 diagnostic 回放固定选 3 个样本，每个样本两次 `MiniMax-M3.1-Flash` reviewer，共 6/6，已知 usage ¥0.006158、未知计费 0；主档与桌面备份 SHA-256 一致。`d01/full-m3-native/0` 的 `¿Qué cuisine más?` 被两次评审判为 `major / non-spanish-or-broken`，合并 `fail/not-sendable`；另两个样本通过。结果仅证明协议可抓到该类缺陷，不代表整体或 R04 长路线语言质量通过。
+
+- 保留集批次 `language-quality-20261026-holdout-001` 已完成：显式选择 h01/h02/h03 三个不同 case，各两次 Flash reviewer，共 6/6，已知 usage ¥0.004435、未知计费 0；三条合并结果均 pass/sendable，主档与桌面备份 SHA-256 一致。两批均为小样本，下一步交所有者抽样复核并扩大长路线覆盖。
+
+- R04 长路线前三条可见回复抽样 `language-quality-20261026-r04-long-002` 已完成 6/6 次 Flash reviewer，已知 usage ¥0.006562、未知计费 0；`¿Qué tipo de dishes te Preparation?` 被两次评审一致判为 `major / non-spanish-or-broken`、`fail/not-sendable`，后两条 pass。前一轮 schema/严重度不合规与归档失败证据保留，不能把抽样结果外推到完整 R04。
 
 - 已完成评估专用安全重试切片：`streamReply` 新增有界 `safetyRetryLimit`（默认仍为 1，最大 3），每次候选仍由评估 runner 先预留并记录；manifest、回放报告和真实批次预算均保存该配置。仅新的 `--r04-only` 真实路线显式使用 2 次，产品默认与 R01/R05 基线保持不变。新增污染两次后第三次干净成功、三次污染仍失败及默认行为回归；聚焦测试 3 文件 **59/59**，TypeScript 通过。当前环境未提供 `MINIMAX_API_KEY`，新的 R04-only 真实复验尚未执行；历史失败批次继续保留。
 
@@ -36,8 +167,6 @@
 - 修复后真实复验 `baseline-conv-eval-006-20261026c`：R01/R04/R05 均完成 24/24，R05 首回合流失败已消除；但 R01/R04 仍出现 `REVIEW_EVIDENCE_INVALID`，并观察到韩文混入、`teargue`/`plats` 破损片段及被拦截的内部规划/中西混杂。角色 81 次、评审 5 次，已知 usage ¥0.466041；四组主档/桌面清单一致。关系阶段仍为 `new_contact`，不能判语言质量或关系成长通过。下一步修复评审证据协议并补充破损语言回归。
 - 短回归真实验证 `baseline-conv-eval-006-regression-20261026d`：R01/R04/R05 各完成 4/4，两个评审上下文均完成，`REVIEW_EVIDENCE_INVALID` 不再复现；角色 14 次、评审 6 次，已知 usage ¥0.071271，20 次归档清单主档/桌面一致。污染候选仍会被拦截。该结果只证明短路线执行与评审协议修复，长路线自然度和关系成长仍未通过。
 - 针对长路线模板重复加入有界低信息短语门禁：同一 `sin prisas`/`a tu ritmo`/`poco a poco`/`Vale, Álex` 在历史角色回复中出现两次后才要求改写。聚焦回归 6 文件 170/170、TypeScript/ESLint 通过；零费用完整三路线 `offline-conv-eval-006-style-20261026` 全部完成并双份归档。真实长路线尚未重新付费复验。
-
-# PROJECT_STATUS.md
 
 ## 2026-10-26 `CONV-EVAL-006` 关系投影 runner 接入（`in_progress`，本聊天）
 
@@ -2882,3 +3011,250 @@ Commit：abcdef0
 - 最终布局为外置品牌、384px 居中卡片与中性色；删除首版 CardDescription/CardFooter/Separator、邀请码宣传和冗余说明。保留现有邮箱 OTP、错误提示、重发冷却与安全跳转，不增加登录方式。
 - 最新验证：email OTP/join 21/21、专项 ESLint、限定 diff 检查通过；浏览器确认桌面深色首屏。全仓 TypeScript 未通过，错误在其他在途 character-network 模块及 artifacts 快照缺失导入，未报告登录文件错误。此前类型检查通过的记录仅对应首版验证时刻。
 - 未运行全量 lint/Vitest/build/E2E（本轮为样式适配，使用聚焦回归）；未发送真实邮件，手机/Safari 待验。未提交、推送或部署。体验 http://localhost:3000/login；下一步手机验证码自动填充验收。
+## 2026-10-28 `CONV-EVAL-006`（`review`，gatefix8 成功路线与复评）
+
+- 在 step 7/15/16 窄门禁和回归通过后，`baseline-r04-20261028gatefix8` 使用固定 `MiniMax-M3.1-Flash` 从独立初识完成 R04 普通回合 **24/24**；关系终态为 `familiar / userRomanticIntent=open`，`characterProposal=none`、`reconfirmationSequence=null`，关系记录没有角色 interest/proposal/confirmation。角色调用 31 次、评审调用 2 次；已知 usage **¥0.162154**，预留 **¥1.509982**，未知计费 0。工作区与桌面双份归档 `content_complete` 且 SHA-256 一致。
+- 从 gatefix8 重新生成质量来源 `quality-r04-gatefix8-source-20261028`，固定 24 条普通最终角色回复；随后执行 `language-quality-20261028-r04-gatefix8-01` … `-08`，共 **48/48** 次 Flash 双评审，合并 **19 pass、4 fail、1 inconclusive**，reviewer 已知 usage **¥0.063733**，未知计费 0。来源及 8 批均有工作区/桌面双份归档，旧来源和旧批次不变。
+- 新评审失败为 step 0 的 `kotliniendo`、step 7 的 `quéCuriosity`、step 9 的 `bougies`、step 20 的 `rarity`；step 11 的 `Vale, Álex. Que descanses y hasta mañana.` 对当前“Voy a cerrar por hoy.” 属于合理收尾，按此前人工判断保留。新四条尚未写入门禁，等待人工复核后再决定是否窄修。
+- gatefix6（3/24，step 3）和 gatefix7（7/24，step 7）失败归档均保留；它们没有生成质量来源。当前仍不进入 `CONV-EVAL-007`，不宣称整体语言质量或关系体验可用。
+
+## 2026-10-28 `CONV-EVAL-006`（`review`，gatefix9 收束证据）
+
+- 所有者已确认 gatefix8 的 step 0、7、9、20 均为缺陷且不可接受；已分别加入 `kotliniendo`、`quecuriosity`、`bougies`、`rarity` 窄门禁和回归。随后 `baseline-r04-20261028gatefix9` 完成 R04 **24/24**，关系仍为 `familiar / open`，无角色 interest/proposal/confirmation；角色调用 31 次、评审调用 2 次，已知 usage **¥0.177261**，预留 **¥1.539471**，未知计费 0，双份归档一致。
+- 从 gatefix9 生成 `quality-r04-gatefix9-source-20261028`，执行 8 批 `language-quality-20261028-r04-gatefix9-01` … `-08`，共 **48/48** Flash 双评审；合并 **19 pass、3 fail、2 inconclusive**，reviewer 已知 usage **¥0.066822**，未知计费 0。来源和 8 批均完成工作区/桌面双份归档，旧归档不变。
+- 新逐字证据：step 1 `¿HasCookeado?`；step 16 `hace faltaKnowing` 与 `lo.byte meant earlier`；step 22 `tenerProtagonismo`。step 3 的 `Entonces hoy no hay nada especial.`、step 14 的 `lo reinterpretan / vais` 属于上下文或语义分级争议，目前不自动加门禁。下一步只在人工确认后处理明确破损词，不再无限追逐 provider 每次生成的新词。
+- gatefix6/7 失败路线和 gatefix8 评审结果均保留；当前仍不进入 `CONV-EVAL-007`，不能宣称整体语言质量可用。
+
+- gatefix10 在新增 step 1/16/22 窄门禁后使用新 runId 执行，但在 step 12 的污染安全门禁和 step 23 的好感慢节奏承接候选连续失败，普通回合 **22/24**；已知 usage **¥0.147623**，预留 **¥1.367087**，未知计费 0。双份失败归档完整，未从该失败路线生成质量来源，也不再继续随机收费重跑。
+
+## 2026-10-29 `CONV-EVAL-006`（gatefix12 R04 与 8 批 Flash 双评审）
+
+- 先以 `baseline-r04-20261028gatefix11` 复验慢节奏边界门禁；该路线在 step 23 的 provider 变体连续被旧门禁拒绝，完成 **22/24** 普通回合后失败。角色调用 29 次，已知 usage **¥0.131115**，预留 **¥1.310128**；工作区与桌面失败归档已保存。
+- 针对真实候选补充纯函数门禁：接受“me gusta conocerte”“iremos despacio”“a nuestro ritmo”“me alegra que me gustes”等直接承接好感、尊重慢节奏的自然表达；仍拒绝关系升级、提问压力和确认。`reply-plan` 回归覆盖这些变体，`stream-reply` 继续使用有界 retry instruction。
+- 新 `runId` `baseline-r04-20261028gatefix12` 完成 R04 **24/24**。终态为 `familiar`、`userRomanticIntent=open`、`characterProposal=none`、`reconfirmationSequence=null`；关系证据包含用户好感，但没有角色 `interest/proposal/confirmation`。角色调用 27 次、评审调用 2 次，已知 usage **¥0.139143**，预留 **¥1.323406**。
+- gatefix12 工作区/桌面归档分别为 `artifacts/conversation-evaluations/baseline-r04-20261028gatefix12/r04/` 和 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261028gatefix12\r04\`；归档清单为 `content_complete`，三份文件双份 SHA-256 一致。gatefix11 失败归档保持不变。
+- 从 gatefix12 生成新来源 `quality-r04-gatefix12-source-20261028`，固定 24 条普通最终角色回复；来源工作区/桌面双份归档一致，旧来源未改写。随后执行 8 批 `language-quality-20261029-r04-gatefix12-01` … `-08`，每批 3 条、每条 2 次，共 **48/48** 次 Flash 双评审；已知 reviewer usage **¥0.057998**，未知计费 0。合并 **19 pass、2 fail、3 inconclusive**。
+- 明确失败逐字证据：step 7 `Qué bien, una librería tiene su encanto. ¿Allí también te toca recomendar libros o mainly Orders?`；step 22 `Vale, entonces que se vayamadurando con calma. No hace falta decidirlo todo ahora.`。两者分别是英语污染和词内粘连；step 13 的 JSON 无效、step 14 的 quote 无效、step 17 的双评审不一致按协议保留为 `inconclusive`；step 23 的慢节奏承接评审为 pass。当前未把新失败自动泛化为门禁。
+- 最新聚焦验证为 **172/172 Vitest**（language-purity、provider-output-integrity、conversation、reply-plan、continuity、baseline reliability），直接 `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。全量 Vitest/lint、E2E、build、真实 DB/RLS、Safari 未执行。
+- 下一步：先由所有者复核 step 7 与 step 22 的逐字缺陷，再决定是否增加窄门禁和回归；在有明确修复前不追加随机收费复验。当前评审仍不能代表真人语言审核、关系体验或整体可用性。`n
+## 2026-10-29 `CONV-EVAL-006`（夜间 nightfix1–4 收束）
+
+- 夜间新增窄语言门禁并补回归：`mainly orders`、`vayamadurando`、`etiquetteado`、`peromarks`、`comedir`、`telanguages`；慢节奏关系门禁补充 `me gusta que me lo digas`。聚焦 Vitest **173/173**，直接 TypeScript 与受影响 ESLint 通过。
+- `baseline-r04-20261029nightfix1` 完成 R04 **24/24**；已知 usage **¥0.166464**，预留 **¥1.375519**，双份归档完整。来源 `quality-r04-nightfix1-source-20261029` 与 8 批 `language-quality-20261029-r04-nightfix1-01` … `-08` 完成 **48/48**；合并 **18 pass、2 fail、4 inconclusive**，reviewer 已知 usage **¥0.068048**。明确失败为 `etiquetteADO`、`peromarks`，无效/不一致证据保持 inconclusive。
+- `baseline-r04-20261029nightfix2` 完成 R04 **24/24**；已知 usage **¥0.136898**，预留 **¥1.326341**，双份归档完整。来源 `quality-r04-nightfix2-source-20261029` 与 8 批 `language-quality-20261029-r04-nightfix2-01` … `-08` 完成 **48/48**；合并 **19 pass、2 fail、3 inconclusive**，reviewer 已知 usage **¥0.061463**。明确失败为 `comedir`、`teLanguages`；step 4/18/22 因 quote/response 无效或不一致保持 inconclusive。
+- 后续两次新 runId 均保留失败证据：`baseline-r04-20261029nightfix3` 在 step 23 因 provider 候选连续不合格完成 **22/24**，已知 usage **¥0.129377**、预留 **¥1.318984**；`baseline-r04-20261029nightfix4` 在 step 1 因英语/中文污染完成 **1/24**，已知 usage **¥0.009587**、预留 **¥0.162174**。两次失败位置不同，未生成质量来源；不再追加随机收费重跑。
+- 所有 nightfix R04、来源和评审归档均写入工作区 `artifacts/conversation-evaluations/` 与桌面 `C:\Users\master\Desktop\Lucia聊天测试\`，历史归档不覆盖。当前证据说明门禁修复有效，但 Flash 长路线仍有 provider 随机不稳定；下一阶段先做离线审计与交接准备。
+
+## 2026-10-29 夜间第二阶段：关系投影与归档审计
+
+- 只读检查 `baseline-r06-*`、`baseline-relationship-*`、`baseline-relationship-regression-*`、`baseline-conv-eval-*` 和本夜 R04 归档，共 **74** 个关系回放，其中 **52** 个已完成；按 R01/R04/R05/R06 路线约束检查，违规 **0** 个。
+- 完成归档状态符合规则：R01 为 `familiar / unspecified / none`；R05 为 `friends_only / none` 且有边界记录；成功 R04 为 `open / none`；R06 的 `interest_expressed`/`confirmed` 只出现在专门路线。
+- 本夜新增 4 个 R04、2 个质量来源和 16 个双评审批次共 **66** 个归档文件，工作区与桌面 SHA-256 全部一致。审计报告见 [`CONV-EVAL-006-overnight-relationship-audit-20261029.md`](docs/reviews/CONV-EVAL-006-overnight-relationship-audit-20261029.md)。
+- 关系域聚焦 Vitest **198/198**，关系持久化聚焦 Vitest **35/35**；未连接真实生产数据库/RLS，未修改关系规则。
+- 下一阶段先交接这些证据与限制；继续收费复验前必须使用新 `runId` 并保留双份归档。
+
+
+
+## 2026-10-29 夜间 10 小时目标推进与离线收口
+
+本阶段目标按 10 小时窗口扩展为：完成 CONV-EVAL-006 的代码、关系投影、归档和语言质量证据闭环；在不覆盖共享工作树改动的前提下完成广泛回归、双份归档校验和交接；剩余时间只做任务文档允许的相邻审计与准备，不把单次收费结果外推为整体可用。
+
+- 修复 `reply-continuity` 的职业连续性误报：职业披露现在只从明确的 `Trabajo/Curro ...` 或 `Me dedico a ...` 开场识别；普通介绍如 `Hola, soy Álex. Me gusta cocinar.` 不再被当作职业信息。对明确工作开场，门禁只在候选重新追问做饭、休息等上一话题且没有承接职业信息时阻断；不编造职位、地点、班次。
+- 更新 R04 离线路线 fixture，使 `Me gustas, pero prefiero que nos demos tiempo.` 的候选直接承认表达并尊重慢节奏，不提问、不提案、不确认关系。
+- 新增/保留职业连续性与普通自我介绍回归；R04/R06/CLI 相关回归 39/39 通过。聚焦语言纯度、provider output integrity、conversation、continuity、reply plan 为 174/174；广泛非 evaluation conversation 为 34 个文件、481/481；全部 evaluation 单测为 15 个文件、231/231；关系/归档组合为 15 个文件、201/201。直接 TypeScript 与受影响 ESLint 通过。
+- 既有收费证据保持原样：`baseline-r04-20261029nightfix1` R04 24/24，已知 ¥0.166464；`baseline-r04-20261029nightfix2` R04 24/24，已知 ¥0.136898；对应 8 批双评审分别 48/48，合并 18/2/4、19/2/3，reviewer 已知成本分别 ¥0.068048、¥0.061463。`nightfix3` 为 22/24、¥0.129377，`nightfix4` 为 1/24、¥0.009587；失败路线未生成新来源或评审。此次离线修复后未追加随机收费 runId。
+- R04 成功路线均检查为 `familiar / open`，无角色 interest/proposal/confirmation；历史归档、来源和评审批次不回写。夜间关系审计检查 74 个 R01/R04/R05/R06 归档，其中 52 个 completed，投影违规 0。
+- 双份归档复核覆盖上述 4 个 R04、2 个来源、16 个双评审批次，共 370 个文件，工作区与 `C:\Users\master\Desktop\Lucia聊天测试\` 对应副本 SHA-256 全部一致。
+
+限制：MiniMax-M3.1-Flash 长路线仍有随机语言污染；18/24、19/24 的双评审通过数不能外推为整体可用，也不能替代真人语言复核。`pnpm typecheck` 在共享工作区因 `tsc` 命令未出现在 `.bin` 失败，已用同一依赖的直接 TypeScript 入口通过。全量 `pnpm test --run`、全仓 lint、E2E、build、真实数据库/RLS、Safari 未执行。下一步先保留这些证据，按任务计划决定是否进入后续阶段；任何新增收费复验必须使用新 runId 并继续双份归档。
+
+- 新增只读失败索引 [`CONV-EVAL-006-flash-failure-index-20261029.md`](docs/reviews/CONV-EVAL-006-flash-failure-index-20261029.md)：整理 nightfix1/2 的 48 条计划候选，其中 43 条有合并结论、5 条因 JSON/quote/response/不一致保持无结论；列出 7 条非 pass 逐字证据与 finding 分类，不改写原归档。
+
+- 新增受控全量 Vitest 记录：直接 Vitest 单 worker（`--maxWorkers=1`）完成 **520 个文件 / 4,024 通过 / 17 失败 / 1 个未处理 jsdom 错误 / 1 个跳过**，约 18 分钟。失败集中在共享工作树已有的 PGlite/迁移缺失、媒体查询计数、Next request scope、UI/词汇 fixture 与 lexicon retry 预算；conversation/evaluation 聚焦套件未出现新增失败，因此不把这些基线失败算作 CONV-EVAL-006 回归。
+
+- 所有者确认 `Cookear` 在本产品的 es-ES 学习标准中不可接受；已加入 `malformedSpanishFragment` 窄门禁，并新增 stream retry 回归。与 `hoyelpas` 一样，这属于明确可命中的语言污染；step-22 `todavía queda en el aire` 保持可接受，不加门禁。新增回归 87/87、直接 TypeScript 与受影响 ESLint 通过。
+
+- 补齐实现一致性：`hoyelpas` 也已加入窄门禁并补充语言回归；语言纯度/对话回归 62/62、直接 TypeScript 通过。此次仍未新增收费复验。
+
+## 2026-10-30 `CONV-EVAL-006`（最新门禁收费复验与双评审完成）
+
+- 最新 `baseline-r04-20261030gatefix-cookear-hoyelpas1` 的 24 个普通用户回合 **24/24** 完成，关系终态 `familiar / open`，无角色 interest/proposal/confirmation；角色调用 30 次，已知 usage **¥0.160488**，预留 **¥1.383647**，未知计费 0。step 25 主动消息因 `INPUT_BOUND_EXCEEDED`/provider-unavailable 失败，整条回放标记 failed，但普通候选和关系审计证据完整。
+- 新来源 `quality-r04-cookear-hoyelpas-source-20261030` 与 8 批 `language-quality-20261030-r04-cookear-hoyelpas-01` … `-08` 均完成双份归档。48/48 次 Flash 双评审合并 **19 pass、2 fail、3 inconclusive**，reviewer 已知 usage **¥0.064427**，未知计费 0。
+- 明确失败为 step 16 `Obligationes` 和 step 17 上下文错误收尾；step 6 `dedicated`、step 11、step 21 按评审分歧或无效响应保持 inconclusive。旧来源、旧批次和共享工作树无关改动未覆盖。
+- CONV-EVAL-006 的本轮收费复验与 8 批评审已完成；不能把 19/24 或 24/24 外推为整体可用。未执行全量 lint、E2E、build、真实 DB/RLS、Safari；主动消息输入边界仍是已知限制。后续若继续，先做明确失败的离线修复和回归，再使用新 runId。
+## 2026-10-30 `CONV-EVAL-006`（retry3-reschedule2：最新 R04 与语言评审续跑）
+
+- 在新增 `heBang`、`Enjoy`、`proposes`、`laAvailability`、`enjoyed` 五个明确污染窄命中及 retry 回归后，聚焦 Vitest **119/119** 通过；直接 TypeScript 与受影响 ESLint 通过。
+- 新收费 RunId `baseline-r04-20261030retry3-reschedule2` 使用固定 `MiniMax-M3.1-Flash` 完成 R04 普通回合 **24/24**，状态 `completed`；关系终态为 `familiar / userRomanticIntent=open`，`characterProposal=none`、`reconfirmationSequence=null`，没有角色 `interest/proposal/confirmation`。角色调用 30 次，已知 usage **¥0.151572**，预留 **¥1.432369**，未知计费 0。工作区与桌面双份归档路径分别为 `artifacts/conversation-evaluations/baseline-r04-20261030retry3-reschedule2/` 与 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261030retry3-reschedule2\`。
+- 从该路线生成质量来源 `quality-r04-retry3-reschedule2-source-20261030`，24 条普通最终角色回复，工作区/桌面双份归档完成。8 批双评审已启动：批次 `...-01` 至 `...-04` 完成 **24/24** 次 reviewer 调用，成本 **¥0.026419**；第 4 批存在 fail/inconclusive，不能把已完成批次当作全量通过。
+- 批次 `...-05`、替代批次 `...-05b` 和等待 60 秒后的 `...-05c` 均在第 1 次调用遇到 `NETWORK_UNCERTAIN` / `AMBIGUOUS_CALL`，各自只完成 1/6，已完整双份归档；未覆盖旧批次。第 6–8 批尚未执行，待供应商传输恢复后用新 batch RunId 继续。该限制属于计费传输不确定，不能重试同一 RunId 或把未知调用记为零成本。
+- 当前仍不能宣称整体可用：语言评审尚未完成 8 批，且已完成样本仍有明确 fail/inconclusive；全量 lint/Vitest、E2E、build、真实 DB/RLS 和 Safari 仍未完成。
+- 本地对话全套回归（49 files）**720/720** 通过；这只覆盖代码路径，不替代剩余 Flash reviewer、真实数据库/RLS、E2E、build 或 Safari 验证。
+- 随后新增 `te has conceder` 窄语法门禁和 retry 回归，聚焦套件 **120/120**、直接 TypeScript、受影响 ESLint 通过。新 R04 `baseline-r04-20261030retry3-reschedule3` 在第 1 个普通回合因同一 `AMBIGUOUS_CALL` 传输阻塞失败（1 次角色调用，预留 **¥0.039952**，已知 usage ¥0），工作区/桌面双份归档已保存；未生成来源或评审。该失败证明 provider 外部状态尚未恢复，不改判代码回归。
+- 受控全量 Vitest（单 worker）结果：520 files，**4029 passed、17 failed、1 unhandled jsdom error、1 skipped**。失败集中在既有 PGlite/迁移基线、媒体/阅读/UI/词汇 fixture 与 Next request scope；对话相关 49 files / 717 tests 独立通过，不归因于本任务。
+
+## 2026-10-31 `CONV-EVAL-006`（retry4/retry5：新路线复评与当前限制）
+
+- 新增窄门禁及回归：`te has conceder`、`nos quedamos en un rato tranquilo`、`techiro`、`satisfaction`、`hoy se pola`、`hascookinado`、`deferred`、`quelques jours`；串行聚焦 Vitest **123/123**，直接 TypeScript 与受影响 ESLint 通过。并发检查曾触发本机 OOM，改串行后通过。
+- `baseline-r04-20261031retry4` 使用固定 MiniMax-M3.1-Flash 完成普通回合 **24/24**，`completed`，关系 `familiar / open`，`characterProposal=none`、无角色 interest/proposal/confirmation；角色调用 34 次，已知 usage **¥0.192030**，预留 **¥1.629982**。来源 `quality-r04-retry4-source-20261031` 与 8 批 `language-quality-20261031-r04-retry4-01` … `-08` 均双份归档，48/48 reviewer，合并 **18 pass、2 fail、4 inconclusive**，reviewer 已知 usage **¥0.062352**。明确失败为 step 10 `Hoy se Pola.`、step 15 的 minor 时态/搭配、step 20 `techiró`；其中 step 10/20 已加入后续窄门禁。
+- 新窄门禁后的 `baseline-r04-20261031retry5` 完成普通回合 **24/24**，终态 `familiar / open`、无角色关系信号，但最后主动消息因 `INPUT_BOUND_EXCEEDED` 使整体状态为 `failed`；角色调用 28 次，已知 usage **¥0.112006**，预留 **¥1.273916**。仍从其 24 条普通回复生成 `quality-r04-retry5-source-20261031`，并完成 8 批 `language-quality-20261031-r04-retry5-01` … `-08`，48/48 reviewer，合并 **18 pass、3 fail、3 inconclusive**，另有 1 个无效响应/quote 纳入 inconclusive，reviewer 已知 usage **¥0.063824**。明确失败为 step 1 `Hascookinado`、step 15 `deferred`、step 22 法语 `quelques jours`，均已加入后续窄门禁。
+- 在上述门禁后，`baseline-r04-20261031retry6`（8/24）和 `baseline-r04-20261031retry7`（5/24）分别因 `AMBIGUOUS_CALL` 提前失败，已双份归档，未生成质量来源；不能用它们替代完整 R04。当前需等待 MiniMax 传输稳定后，再以新 RunId 复验当前门禁。
+- 为处理 retry5 的主动消息 `INPUT_BOUND_EXCEEDED`，MiniMax provider 现在在关系摘要相同的两个兼容字段上只序列化一次；provider/语言/对话聚焦回归 **82/82**，直接 TypeScript 与受影响 ESLint 通过。新 `baseline-r04-20261031retry8` 仍在第 10 步因 `AMBIGUOUS_CALL` 失败（普通回合 9/24，已知 usage **¥0.031060**，预留 **¥0.418658**），已双份归档，未生成来源。该失败仍是外部传输状态，不能归因于摘要去重代码。
+
+## 2026-10-31 retry9–retry12：CONV-EVAL-006 当前收口
+
+- 继续使用固定 `MiniMax-M3.1-Flash`，保留所有历史归档和共享工作树其他代理改动。`baseline-r04-20261031retry9`、`retry10`、`retry11`、`retry12` 均完成 R04 普通回合 **24/24**；最终采用 `retry12`，状态 `completed`，关系终态 `familiar / open`，`characterProposal=none`、`reconfirmationSequence=null`，无角色 `interest/proposal/confirmation`。`retry12` 角色调用 27 次、评审调用 2 次，已知 usage **¥0.155114**，预留 **¥1.333390**。
+- retry12 来源 `quality-r04-retry12-source-20261031` 和 8 批 `language-quality-20261031-r04-retry12-01` … `-08` 均为 48/48 reviewer 调用并完成工作区/桌面双份归档；合并 **17 pass、3 fail、4 inconclusive**，reviewer 已知 usage **¥0.064358**。明确失败：`EstarOi`、`having a free afternoon`、`sin tener que Rush nada`；`plantsarse`、`saver`、`¿Qué parte te ha parezca rara?` 与一条 quote 无效保持 inconclusive。retry9–11 的来源、批次和成本也已记录在语言质量协议，旧归档不变。
+- retry9–11 期间只对高置信结构/污染补充窄门禁：`más-proxy`、重复 `Mandatory`、`acaba outlet bien`、`PuedesOOTPUT`、可见英文规划短语和字母间 `|` 草稿拼接；没有把每个自然度或单次有争议词形加入黑名单。相关文件为 `src/modules/conversation/domain/language-purity.ts`、`src/modules/conversation/domain/provider-output-integrity.ts` 及其测试。
+- 最新验证：聚焦 `language-purity`、`provider-output-integrity`、`conversation` 为 **101/101 Vitest**；直接 `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。全量 Vitest/lint、E2E、build、真实 DB/RLS、Safari 未执行；受控全量 Vitest 的既有共享树基线失败仍不能算本任务通过。
+- 归档根目录：工作区 `D:\workspace\artifacts\conversation-evaluations\baseline-r04-20261031retry12\`、`quality-r04-retry12-source-20261031\`、`language-quality-20261031-r04-retry12-01` … `-08`；桌面对应根目录为 `C:\Users\master\Desktop\Lucia聊天测试\`。每条来源/R04/批次均保存双份。
+
+当前限制：Flash 长路线仍有随机语言污染，双评审不是真人语言审核，17/24 不能外推为整体可用；关系投影证据只说明本路线达到 `familiar/open`，不证明全部关系路线。下一步是离线缺陷审计或真人语言复核，若再收费必须新 runId；保持在 `CONV-EVAL-006`。
+
+## 2026-10-31 retry13：当前最佳语言质量证据
+
+- 新增高置信精确门禁与回归：`EstarOi`、`having a free afternoon`、`sin tener que Rush nada`、`plantsarse`、`querer saver`；没有泛化拦截普通英语标题、借词或自然度争议。聚焦 Vitest **101/101**，串行直接 TypeScript 通过。
+- `baseline-r04-20261031retry13` 完成 R04 普通回合 **24/24**，状态 `completed`，关系 `familiar/open`，无角色 interest/proposal/confirmation；角色调用 28 次，已知 usage **¥0.126614**，预留 **¥1.347625**。来源 `quality-r04-retry13-source-20261031` 双份归档。
+- 8 批有效评审为 `language-quality-20261031-r04-retry13-01`、`-02b`、`-03` … `-08`，共 **48/48**，合并 **24 pass、0 fail、0 inconclusive**，reviewer 已知 usage **¥0.061275**。`-02` 为本地 PowerShell/.NET 进程异常且无归档，未计入结果；`-02b` 完成替代批次。
+- 全量 Vitest 最新尝试仍在本机单 worker 触发 Zone/wasm OOM，已见失败集中于阅读、桌面 UI、词汇 retry 和账户路由等共享工作树基线；它没有提供可归因于本任务的失败终态。全量 lint、E2E、build、真实 DB/RLS、Safari 未完成。
+
+当前状态：retry13 是 CONV-EVAL-006 的最佳可复现语言质量证据，但“整体可用”仍未由全仓和真实环境检查证明；继续保持目标 active。
+
+### 2026-10-31 全仓检查补充
+
+- 任务相关定向 ESLint 通过；全仓 ESLint 直接入口运行约 138 秒后因 Zone OOM 退出，无规则错误输出。
+- 广泛 conversation/evaluation/relationship 回归 **64 files / 962 tests** 通过；聚焦套件 **101/101** 通过；串行直接 TypeScript 通过。
+- 直接 Vitest 全量单 worker 最新尝试因 Zone/wasm OOM 终止，过程中可见阅读、桌面 UI、词汇 retry、账户路由等共享树既有失败；没有完整终态汇总。历史受控全量记录仍为 520 files / 4029 passed / 17 failed / 1 unhandled jsdom error / 1 skipped。
+- `pnpm test --run`、`pnpm typecheck`、`pnpm lint` 入口均因共享 `node_modules/.bin` 缺少命令失败；不能把直接入口结果写成 pnpm 入口通过。
+- Next Turbopack build 因系统资源不足（os error 1450 / heap OOM）失败；Webpack fallback 在 `src/modules/lexicon-corpus/application/submit-assessment-attempt.ts` 的 `node:crypto` 客户端导入处失败。E2E、真实 DB/RLS、Safari 未执行。
+
+## 2026-10-31 Webpack/route 边界重试
+
+- 修复两个客户端边界：`src/modules/conversation/ui/chat-thread.tsx` 不再从会话总 barrel 引入 server-only repository，改为直接引用纯 domain 模块；`app/(product)/read/read-section-nav-host.tsx` 不再从 lexicon-corpus 总 barrel 引入，只引用导航 UI 模块。这样避免客户端追入 `node:crypto`。
+- 修复 Next 16 route 类型检查：将 scenario suggestions、saved expressions、provider preferences、provider status、personal scenario generate 的可注入 handler 移到各自 `handler.ts`，`route.ts` 只保留 HTTP 方法导出；对应单测改从 handler 模块导入。
+- `pnpm exec next build --webpack` 完整通过（Webpack 编译、TypeScript、静态页面生成、优化和 build trace 均完成）。此前 Turbopack 的 os error 1450/heap OOM 仍保留为环境限制，不以 Webpack 成功替代真实 DB/RLS、E2E 或 Safari 验收。
+- 受影响回归 **8 files / 58 tests 全部通过**：conversation thread/typing/bubbles、scenario suggestion、saved expressions、provider status/preferences、personal scenario routes；直接 `node .../typescript/bin/tsc --noEmit --pretty false` 通过。
+- 本次只处理构建边界与既有 route 类型错误，没有修改 R04、语言门禁、关系规则或历史收费归档。当前最佳语言质量证据仍为 `baseline-r04-20261031retry13` 与 8 批双评审（24 pass、0 fail、0 inconclusive），但不是真人语言审核，不能宣称整体可用。
+
+### 当前限制与下一步
+
+`pnpm test --run`、`pnpm typecheck`、`pnpm lint` 入口仍受共享 `node_modules/.bin` 缺少命令影响；全量 Vitest/全仓 lint 曾受 Zone/wasm OOM 或共享树基线失败影响。E2E、真实数据库/RLS、iPhone Safari 和 Turbopack 资源稳定性仍未完成。后续收费复验必须使用新的 runId 并保留工作区/桌面双份归档；继续沿 CONV-EVAL-006 的语言审计与人工复核限制推进。
+
+## 2026-10-31 工程验收补充：迁移与聊天 E2E
+
+- `drizzle-kit check` 通过，迁移静态检查无差异（使用本地默认配置，未连接真实数据库）。
+- 在 `PLAYWRIGHT_PORT=3100`、隔离 Next dev server、无真实 provider/数据库的条件下运行 `tests/e2e/conversation.spec.ts` 的 desktop Chromium：**16/19 通过**。
+- 剩余 3 项已归类：`/chat` 空壳页没有旧版“更多对话操作”搜索入口；Mateo/Inés 当前按产品范围显示“角色尚未开放”，与旧 E2E 期望冲突；用户消息菜单右对齐出现约 1.61px 的浏览器布局差异。它们不改变 Lucía R04 语言/关系验收，不通过放宽断言或伪造数据处理。
+- 本轮没有新增收费调用，没有修改 CONV-EVAL-006 的语言门禁、关系规则或任何历史归档。真实数据库/RLS、iPhone Safari、完整 E2E 仍未完成。
+- 最新重跑：conversation/evaluation/relationship/proactive 相关 **64 files / 890 tests** 通过（Vitest 单 worker）；其中出现一次 jsdom 的 `Not implemented: navigation to another Document` 输出，但 Vitest 无失败/未处理错误终态。契约套件另为 **38 files / 203 tests**，迁移静态检查通过。
+
+## 2026-10-31 鉴权 request-scope 修复
+
+- 修复 `src/shared/auth/server.ts`：直接调用 Route Handler 的单测没有 Next request scope 时，`cookies()` 现在安全降级为匿名用户，让 API 返回稳定的 `AUTH_REQUIRED`，不会泄漏 Next dynamic API 异常。
+- 账户数据与 Lucía 数据清理路由回归 **14/14** 通过；直接 TypeScript 与定向 ESLint 通过。
+- 该修复没有改变有效 bearer、E2E 测试 cookie 或 Supabase cookie 的鉴权顺序，也没有连接真实数据库。真实 DB/RLS 仍需单独验收。
+- 鉴权修复后复跑历史 5 文件套件：账户数据、Lucía 数据、language-reactor、learning-heatmap 共 **13/13** 通过；仅 `desktop-navigation.test.tsx` 的 2 例失败。失败原因是当前组件已移除旧的侧栏折叠按钮，而测试仍断言“收起/展开侧边栏”；未为通过测试恢复该已下线交互。
+- 鉴权 request-scope 修复后的最终 `pnpm exec next build --webpack` 通过：编译、TypeScript、100 个静态页面生成、优化和 build trace 均完成。
+
+## 2026-10-31 账户与 E2E 回归重试
+
+- `tests/e2e/account-join.spec.ts` 已按当前登录与邀请页面行为更新，覆盖欢迎回来、未配置 Supabase 时的 fail-closed 提示、邀请关闭和 OTP 路径；桌面/移动 **10/10** 通过。
+- `tests/e2e/chat-expression-assist.spec.ts` 改为读取已发布 `content/characters/lucia.json`，避免 Node 24 直接 JSON ESM import 的加载错误；`chat-expression-assist` 桌面/移动 **14/14** 通过。
+- `tests/e2e/conversation.spec.ts` 与当前产品行为对齐：从 Lucía 会话头部打开搜索、未发布 Mateo/Inés 保持发布门禁、撤回使用自定义确认框、菜单布局允许实测 1.61px 子像素差异；对话 Playwright 桌面/移动 **36 passed、0 failed、2 skipped**。此前桌面隔离重跑的 16/19 是旧断言批次，不能与本次 36/0/2 混算。
+- 本轮定向 ESLint（上述 3 个 E2E 文件）和直接 TypeScript 通过；语言纯度、provider 输出完整性、conversation 聚焦 Vitest **101/101** 通过。
+- 全仓 Playwright 曾收集 390 tests，但 Next dev server 在前 10 个测试后退出并造成大量 `ERR_CONNECTION_REFUSED`，已中止；该批次不作为产品失败证据。默认 Webpack build 的 15-worker 静态生成曾因 Zone OOM，`NEXT_PRIVATE_BUILD_WORKER=1` 后编译、TypeScript、100 页面、优化与 trace 通过。
+
+本次没有新增收费调用，也没有修改 R04 关系规则、语言门禁或历史归档。当前最佳语言证据仍是 `baseline-r04-20261031retry13` 与 8 批 Flash 双评审；全量 E2E、真实数据库/RLS、iPhone Safari 和真人语言复核仍未完成，不能宣称整体可用。
+
+## 2026-10-31 retry14/retry15：环境更正、英语污染修复与最新复验
+
+- 更正环境判断：之前只检查了当前 PowerShell 进程，未加载项目文件；`.env.local` 实际含可连通的 `DATABASE_URL`（Supabase pooler），`.env` 含 `MINIMAX_API_KEY`。已用文件加载后的凭据完成真实 PostgreSQL 连接、0056 迁移和关系表基础 RLS 复核，未输出密钥或连接串。
+- retry14 已完成 R04 **24/24**、`familiar/open`、无角色 `interest/proposal/confirmation`；其来源 `quality-r04-retry14-source-20261031` 和 8 批评审合并 **21 pass、2 fail、1 inconclusive**。step 9 发现 `increasingly` 英语污染。
+- 离线修复：`src/modules/conversation/domain/language-purity.ts` 将 `increasingly` 加入有限高置信词表；`tests/unit/language-purity.test.ts` 增加纯函数命中回归；`tests/unit/conversation.test.ts` 增加 stream retry 回归，确认重试指令点名该词、首候选不进入流、修正版正常完成。没有强制升级、提问或确认关系。
+- 使用全新 `baseline-r04-20261031retry15` 重新执行固定 `MiniMax-M3.1-Flash` R04：普通回合 **24/24**，状态 `completed`，终态 `familiar/open`，`characterProposal=none`，无角色 `interest/proposal/confirmation`；角色调用 27 次，已知 usage **¥0.128281**，预留 **¥1.309192**。R04、来源和评审均保存工作区与桌面双份归档，SHA-256 一致。
+- 从 `quality-r04-retry15-source-20261031` 执行 8 批 `language-quality-20261031-r04-retry15-01` … `-08`，共 **48/48** Flash 双评审；合并 **18 pass、4 fail、2 inconclusive**，reviewer 已知 usage **¥0.064764**。明确失败为 step 7 `recountes`、step 8 上下文错位、step 16 `sinBombearte`、step 21 `teowelcomes`；step 10 `teXL` 与 step 13 的无效/不一致评审保持 inconclusive。历史 retry14 及更早归档未回写。
+- 最新离线验证：language-purity、provider-output-integrity、conversation **102/102 Vitest**，直接 TypeScript 与受影响 ESLint 通过。`pnpm test --run`、`pnpm typecheck`、`pnpm lint` 入口仍受共享 `.bin` 缺命令影响；全量 Vitest/全仓 lint 的 OOM/基线失败、全量 E2E、iPhone Safari 和真人语言复核仍未完成。
+
+当前限制：retry15 证明 `increasingly` 修复后的 R04 关系门禁和重试生效，但 Flash 长路线仍出现新的随机语言破损与上下文缺陷；18/24 不能外推为整体可用。下一步先对 retry15 明确高置信缺陷做离线审计与回归，是否追加窄门禁需按“明确污染、可精确命中、有回归”原则决定；任何新收费复验都必须使用新 runId 并继续双份归档。
+
+## 2026-10-31 真实数据库迁移与 RLS 复核
+
+- 更正环境判断：当前 PowerShell 进程没有导出变量，但 `.env.local` 含可连通的 `DATABASE_URL`（Supabase pooler），`.env` 含 `MINIMAX_API_KEY`；本轮没有输出任何密钥或连接串。
+- 只读连接检查确认 PostgreSQL 17.6、`read_only=off`、应用连接用户为 `postgres`。迁移表原先停在 0055，工作区的关系持久化迁移 `0056_character_relationship_state.sql` 尚未应用；按版本化迁移执行后成功登记为 migration id 61。
+- 真实数据库复核确认 `relationship_heads`、`relationship_events`、`relationship_event_sources`、`relationship_boundaries`、`relationship_pending_sources` 均已存在并启用 RLS；五张表均有仅 `authenticated` 的 owner SELECT policy。切换 `anon` 读取被拒绝（42501），切换 `authenticated` 并设置测试 JWT subject 后读取为 0 行，未写入业务数据。
+- `drizzle-kit check` 直接入口仍通过；本轮没有新增收费 MiniMax 调用，也没有复用任何历史 runId。真实数据库/RLS 证据从“未执行”推进为“迁移与关系表只读门禁已验证”，但完整 CRUD、并发 CAS、隐私删除/导出和真实登录态仍需继续验收。
+
+## 2026-10-31 继续推进：retry16–21 与工程验收
+
+- retry16–retry21 均使用新的 `runId` 和固定 `MiniMax-M3.1-Flash` 完成 R04 普通回合 24/24，终态均为 `familiar/open`，无角色 `interest/proposal/confirmation`。质量来源与 8 批双评审均保留工作区/桌面双份；详细成本、批次和缺陷见 [`CONV-EVAL-006-language-quality-protocol.md`](docs/reviews/CONV-EVAL-006-language-quality-protocol.md)。
+- 最新 retry21：`baseline-r04-20261031retry21`，角色已知成本 ¥0.152785；来源 `quality-r04-retry21-source-20261031`；48/48 reviewer 调用，合并 20 pass、3 fail、1 inconclusive，reviewer 已知成本 ¥0.065154。明确失败为 `Recommendationes`、`patience`、`obligated`，尚未扩展门禁。
+- retry16–21 的 R04、来源、48 个评审批次共 60 个归档目录、1,050 个文件已逐文件 SHA-256 双份校验，差异 0；旧归档未回写。
+- 本轮重新执行：关系/隐私数据库套件 6 files / 50 tests 通过；`account-join` Playwright 10/10、Lucía `conversation` 36 passed / 2 skipped、`chat-assistant` 6/6、`chat-expression-assist` 14/14。组合 E2E 因隔离 Next 服务中途退出产生连接拒绝连带失败，按服务稳定性记录，不计作页面断言失败。
+- 当前仍未完成：完整 PostgreSQL CRUD/CAS 与真实登录态、iPhone Safari、全仓 E2E 稳定运行、全量测试/Lint 在共享树资源限制下的完整终态、真人语言复核。`CONV-EVAL-006` 仍保持 active，不能宣称整体可用。
+
+## 2026-10-31 全量工程检查终态
+
+- 直接 TypeScript `tsc --noEmit --pretty false` 通过；`next build --webpack` 在 `NEXT_PRIVATE_BUILD_WORKER=1` 下通过（编译、TypeScript、100 个静态页面、优化与 trace）。
+- 契约套件 38 files / 203 tests 通过。
+- 全量 Vitest 单 worker 当前终态为 520 files / 4,043 passed / 14 failed / 1 skipped，另有 1 个未处理 jsdom `scrollIntoView` 错误；失败集中在阅读/媒体 fixture、桌面导航、词汇 retry/词汇页、学习热力图和文章阅读，conversation/evaluation/relationship 聚焦未见失败，不能记为全仓通过。
+- 真实数据库仍只证明 0056 迁移与关系表基础 RLS 读隔离；本地 PGlite 隐私/关系测试通过不替代真实 PostgreSQL CRUD/CAS 和真实登录态。全仓 E2E 稳定运行、iPhone Safari、真人语言复核仍未完成。
+
+## 2026-10-31 真实 PostgreSQL 事务与 RLS 验收
+
+- 使用 `.env.local` 的 `DATABASE_URL` 连接 PostgreSQL 17.6，在单事务中写入临时关系 head/event/source/boundary/pending 记录并以回滚哨兵结束；未留下业务数据。
+- 重复幂等键被拒绝，关系事件 append-only 更新被拒绝，source 置空自动 tombstone；CAS 首次 revision 更新 1 行、过期 revision 更新 0 行。
+- 切换 `authenticated` 并设置 owner JWT subject 后 owner 可见 1 行、foreign 行 0 行；回滚后持久 head 数为 0。
+- 该项补齐真实事务/RLS 的最小证据，但没有删除真实用户数据；真实隐私删除/导出、真实登录态和 iPhone Safari 仍未验收。
+
+## 2026-10-31 CONV-EVAL-006 retry22 与最新双评审
+
+- 针对 `Me gustas, pero prefiero que nos demos tiempo.` 的直接好感承接/慢节奏边界，以及 `Trabajo en una librería.` 的职业连续性，reply-plan、stream-reply、reply-continuity 和 occupation 回归均通过；实现不强制升级、提问或关系确认，也不编造职业细节。
+- 新 `baseline-r04-20261031retry22` 使用固定 `MiniMax-M3.1-Flash` 完成 R04 **24/24**，`completed`，终态 `familiar/open`，无角色 `interest/proposal/confirmation`；角色已知成本 **¥0.157368**、预留 **¥1.372567**。R04 工作区/桌面双份归档 SHA-256 一致。
+- 新来源 `quality-r04-retry22-source-20261031` 与 8 个有效批次（`...-01`…`-04`、`...-05b`、`...-06`…`-08`）完成 **48/48** Flash 双评审；合并 **19 pass、1 fail、4 inconclusive**，reviewer 已知成本 **¥0.066352**。明确失败为 `haENCEdido`；`mejorunen`、step 11 上下文不承接、step 21/22 评审响应无效按协议保留证据，不改写旧归档。
+- 本轮新增聚焦验证：语言/供应商/对话 **3 files / 105 tests**，关系慢节奏、职业连续性、reply-plan/reply-continuity **7 files / 214 tests**；直接 TypeScript 与受影响 ESLint 通过。`pnpm` 入口仍因共享 `.bin` 缺少命令不可用，直接依赖入口可复现通过。
+- 归档路径为 `D:\workspace\artifacts\conversation-evaluations\baseline-r04-20261031retry22\`、`quality-r04-retry22-source-20261031\`、`language-quality-20261031-r04-retry22-01`…`-08`，桌面副本均在 `C:\Users\master\Desktop\Lucia聊天测试\` 下，逐文件校验差异 0。
+
+当前仍未完成：真人语言复核、iPhone Safari、完整全仓 E2E 稳定运行、全量 Vitest/Lint 的共享树基线失败清理、真实登录态及隐私删除/导出最终验收。retry22 的 24/24 和 19/24 双评审不能宣称整体可用；下一步先处理高置信 `haENCEdido`（必要时人工确认 `mejorunen`）并以新 runId 复验，保持历史归档不变。
+
+## 2026-10-31 CONV-EVAL-006 retry23：窄门禁复验与随机污染限制
+
+- `haencedido` 精确窄门禁及 stream retry 回归已通过；聚焦语言/供应商/对话 3 files / 105 tests、直接 TypeScript、受影响 ESLint 通过。该门禁不扩展为通用语言检测。
+- 新 `baseline-r04-20261031retry23` 完成 R04 普通回合 **24/24**，状态 `completed`，`familiar/open`，无角色 `interest/proposal/confirmation`；角色已知成本 **¥0.165270**、预留 **¥1.537426**。step 25 主动消息被安全门禁拦截，未产生关系证据；R04 工作区/桌面归档 5/5 文件 SHA-256 一致。
+- 新来源 `quality-r04-retry23-source-20261031` 与 8 个有效 Flash 双评审批次完成 **48/48**；合并 **19 pass、4 fail、1 inconclusive**，reviewer 已知成本 **¥0.062321**。明确失败为 `pudearu`、`amenable`、`Protein…No matter. Spanish only.`、`seekers`；这是当前 provider 随机污染证据，未回写旧归档。
+- retry23 说明关系/上下文门禁仍能维持 R04 完整普通路线，但语言质量还不稳定；不能用 24/24 或 19/24 证明整体可用。继续处理时只增加有明确语义、可精确命中并有回归价值的门禁，不追逐每个随机词。
+
+当前未完成：真人语言复核、iPhone Safari、全仓 E2E 稳定运行、全量 Vitest/Lint 的共享树基线失败、真实登录态、真实隐私删除/导出。retry22/23 的来源、批次和历史归档均保留双份，下一收费复验仍需新 runId。
+
+## 2026-10-31 retry24：主动消息污染导致失败
+
+- `pudearu`、`amenable`、`seekers`、`No matter. Spanish only.` 的门禁和 106/106 聚焦回归通过后，新 `baseline-r04-20261031retry24` 的普通回合完成 **24/24**，但 step 25 主动消息连续污染候选耗尽安全重试，路线终态 `failed / REVIEW_FAILED`，不能计入成功 R04 或质量来源。
+- retry24 角色已知成本 **¥0.146529**、预留 **¥1.406841**；工作区/桌面各 5 个文件，SHA-256 差异 0。失败候选含 `cookbook`、`quehfill`、`^(0_0)`、`Peronothing` 及中英混杂主动回复，作为 provider 随机不稳定证据保留。
+- 最新完整成功证据仍为 retry23；不继续随机收费重跑。CONV-EVAL-006 继续保持 active，整体可用性仍受主动消息稳定性、真人语言复核、全仓 E2E、Safari、真实登录态和隐私最终验收限制。
+
+## 2026-10-31 retry30：最新门禁后的 R04 与 8 批 Flash 双评审
+
+- 先重跑任务相关聚焦验证：`language-purity`、`provider-output-integrity`、`conversation`、`reply-plan`、`conversation-continuity-regression` 共 **5 files / 159 tests** 通过；直接 `node node_modules/typescript/bin/tsc --noEmit --pretty false` 与受影响 ESLint 通过。`pnpm exec vitest`/`pnpm typecheck` 仍因共享 `node_modules/.bin` 缺少命令不可用，已用直接依赖入口验证。
+- 环境配置已澄清：`.env.local` 含 `DATABASE_URL`，`.env` 含 `MINIMAX_API_KEY`；裸 PowerShell 进程变量为空不等于 dotenv 缺失。R04 与 reviewer 脚本在收费模式显式加载这两个文件，未记录或打印密钥。
+- 使用新 `runId` `baseline-r04-20261031retry30`、固定 `MiniMax-M3.1-Flash` 完成 R04-only：普通用户回合 **24/24**，状态 `completed`；终态 `familiar / userRomanticIntent=open`，`characterProposal=none`、`reconfirmationSequence=null`，无角色 `interest/proposal/confirmation`。角色调用 33 次，已知 usage **¥0.167544**，预留 **¥1.587503**，未知计费 0。
+- R04 双份归档：工作区 `artifacts/conversation-evaluations/baseline-r04-20261031retry30/r04/`，桌面 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261031retry30\r04\`；`content_complete`，聊天记录、问题总结、回放数据 3 个核心文件逐项 SHA-256 一致。旧 retry 归档未改写。
+- 从 retry30 重新生成质量来源 `quality-r04-retry30-source-20261031`，固定 24 条普通最终角色回复；来源工作区/桌面双份一致。8 个新批次 `language-quality-20261031-r04-retry30-01` … `-08` 每批 3 条、每条 2 次独立 Flash reviewer，共 **48/48** 调用完成；reviewer 已知 usage **¥0.066220**，预留 **¥1.362986**，未知计费 0。合并 **22 pass、1 fail、1 inconclusive**。
+- 明确失败为 step 20 `QuéStrange que te dejara esa sensación...`：评审一致判为 critical/major 语言污染与破损。step 13 一次 reviewer 响应无效，按协议保持 `inconclusive`。`QuéStrange` 未在本轮自动追加窄门禁，避免把每个随机 provider 词形都扩成词表；它是当前来源的未解决缺陷，需人工复核后再决定是否精确门禁。历史来源和批次保持不变。
+- 来源、8 批和 R04 的工作区/桌面核心归档共 **27 个文件**逐文件 SHA-256 校验差异为 0。总已知收费 usage **¥0.233764**（R04 + reviewer）。
+
+当前限制与下一步：retry30 证明最新门禁下 R04 可达到 24/24 与 `familiar/open`，但 `QuéStrange` 仍显示 Flash 长路线存在随机语言污染；双评审不是真人语言审核，22/24 不能外推整体可用。全量 Vitest/Lint、全仓 E2E 稳定运行、iPhone Safari、真实登录态及隐私删除/导出最终验收、真人语言复核仍未完成。下一步先人工复核 `QuéStrange` 与 step 13 的证据，再决定是否做精确门禁；任何新收费复验继续使用新 runId 并保存工作区/桌面双份。CONV-EVAL-006 保持 active，不把本轮结果表述为整体可用。
+## 2026-10-31 retry31：QuéStrange 窄门禁后的 R04 与 8 批 Flash 双评审
+
+- 离线修复：`language-purity.ts` 增加 `questrange` 精确词内污染门禁；`language-purity.test.ts` 与 `conversation.test.ts` 增加纯函数和 stream retry 回归。该门禁只拦截 `QuéStrange` 这一明确 provider 粘连，不扩展为通用语法检测。聚焦 5 文件 **159/159**、直接 TypeScript 和受影响 ESLint 通过。
+- 使用新 `runId` `baseline-r04-20261031retry31`、固定 `MiniMax-M3.1-Flash` 执行 R04-only：普通回合 **24/24**，状态 `completed`；终态 `familiar / userRomanticIntent=open`，`characterProposal=none`、`reconfirmationSequence=null`，无角色 `interest/proposal/confirmation`。角色调用 29 次，已知 usage **¥0.139675**，预留 **¥1.425315**，未知计费 0。
+- R04 双份归档：工作区 `artifacts/conversation-evaluations/baseline-r04-20261031retry31/r04/`，桌面 `C:\Users\master\Desktop\Lucia聊天测试\baseline-r04-20261031retry31\r04\`；`content_complete`，3 个核心文件 SHA-256 一致，retry30 及更早归档保持不变。
+- 新来源 `quality-r04-retry31-source-20261031` 固定 24 条普通最终回复，双份归档一致。8 个批次 `language-quality-20261031-r04-retry31-01` … `-08` 完成 **48/48** Flash 双评审；合并 **21 pass、1 fail、2 inconclusive**，reviewer 已知 usage **¥0.065458**，预留 **¥1.373648**，未知计费 0。来源、批次和 R04 共 27 个核心归档文件逐文件 SHA-256 差异为 0。
+- 明确失败为 step 0：`Cocinar me parece una hobby...`，三条 minor（性数错误与搭配不自然）触发协议失败阈值。step 3 的 `anuncios-consumerista-de-que-sea-feliz...` 一侧判 major、另一侧证据不足，按协议为 `inconclusive`；step 7 同样因评审证据不足为 `inconclusive`。这些候选暂不追加泛化窄门禁：`una hobby` 属于语言质量问题而非高置信结构污染，连字符候选缺乏双评审一致性。
+
+当前限制与下一步：retry31 证明 `QuéStrange` 门禁不会破坏 R04 关系路线，但语言质量仍为 21/24 合并通过；同模型双评审不是真人语言审核，不能外推整体可用。下一步应由人工复核 `una hobby`、step 3 密集连字符和 step 7 证据不足样本，决定是否改进生成指导或加入结构性门禁。全量 Vitest/Lint、全仓 E2E 稳定运行、iPhone Safari、真实登录态与隐私最终验收、真人语言复核仍未完成。
+- retry31 后广泛 conversation/evaluation/relationship/proactive 回归使用单 worker 完成 **54 files / 782 tests**，全部通过；直接 TypeScript 已通过。
+- `next build --webpack` 编译与 TypeScript 阶段通过，但页面数据收集阶段因 Next Zone/系统内存不足（15 workers，exit 134）终止；不归因于本轮对话门禁改动。全量 lint、全仓 E2E、Safari 和真人语言复核仍未完成。
+- 追加工程验证：契约套件 **38 files / 203 tests** 通过；`drizzle-kit check` 通过。Webpack build 的页面数据收集仍受 Zone OOM 限制。
+- 真实 PostgreSQL 只读核验：`.env.local` 连接成功，PostgreSQL **17.6**，最新迁移记录 **61**；`relationship_heads`、`relationship_events`、`relationship_event_sources`、`relationship_boundaries`、`relationship_pending_sources` 五表均启用 RLS，各有 1 条策略。本次只读，没有写入业务数据。
+- Lucía `conversation.spec.ts` Playwright 重跑未形成断言结果：首次观察句柄丢失，随后启动在浏览器前因 Windows 虚拟内存分配失败退出；不能记为 E2E 通过或产品失败。此前稳定单文件结果仍需在资源恢复后复核。
+- 浏览器补充：在低堆配置和缓存热身后，`conversation.spec.ts` 的核心“发送消息并完成 Lucía 流”桌面用例 **1/1 通过（7.9s）**。整文件 38 用例复跑时隔离 Next dev server 反复触发内存阈值自动重启，产生 `ERR_CONNECTION_REFUSED`/`page.goto` 超时；已停止连锁失败，不把该批次当作页面断言失败，也不记为完整 E2E 通过。
+- 为降低 E2E 内存尝试了 `next dev --webpack`，但共享树已有客户端 `node:crypto` 导入导致 Webpack `UnhandledSchemeError` 并随后 OOM；该试验已撤回，Playwright 配置保持原 Turbopack 启动命令，不改变产品代码。
