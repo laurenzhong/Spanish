@@ -21,17 +21,19 @@
 11. 显式回滚事务，并比较回滚前后 head/event/pending 行数。
 12. 在同一事务内创建三条带有真实 `conversation_reply_sources` 成员关系的完整 user/assistant 回合，追加 `voluntary_personal_anchor`、`mutual_conversation_welcome`、`user_continuity_return` 三个独立 episode；调用生产 replay 读取器确认 live source 投影为 `familiar`。
 13. 对第一个回合的 user source 执行 tombstone，再次调用生产 replay 读取器，确认撤回来源后阶段按 live source 重算为 `new_contact`。
+14. 对主动候选执行失败→新 generation 重开→完成，确认旧 generation 不能完成重试候选；持久 `proactive/all` 边界在完成事务中拒绝发送。
 
 事务外还核验五张关系表均启用 RLS 且至少存在一条策略。
 
 ## 结果
 
-真实 PostgreSQL **21/21 PASS**：
+真实 PostgreSQL **25/25 PASS**：
 
 - `relationship_heads`、`relationship_events`、`relationship_event_sources`、`relationship_boundaries`、`relationship_pending_sources` 均存在。
 - append、幂等重放、冲突拒绝、CAS 成功与过期 CAS 拒绝均通过。
 - 关系来源 tombstone 首次更新 1 行、重复更新 0 行；删除临时消息后来源保留为 tombstoned 且 `message_id` 为空。
 - 主动候选从 `generating` 到 `generated` 的真实写路径通过；重复完成返回原消息，没有重复插入。
+- 主动候选失败后可用新 `generationId` 重开并完成；旧 generation 的完成请求被 `PROACTIVE_GENERATION_CONFLICT` 拒绝；持久 `proactive/all` 边界在完成事务中返回 `PROACTIVE_BOUNDARY`，没有写入用户可见消息。
 - 真实账号导出返回 scoped snapshot，未暴露 provider calls；业务数据清理保留 profile tombstone，适合后续 Auth 删除重试。
 - Lucía 角色数据删除在同一事务内清除会话与关系 head；随后整体回滚，关系 head/event/pending、会话、消息和主动候选计数均保持不变（`0/0/0/3/71/24` → `0/0/0/3/71/24`）。
 - 三个真实 user/assistant 回合和 reply-source membership 能被生产 `readRelationshipConversationContext` 正确重放：三条 live episode 得到 `familiar`；撤回 anchor 的 source 后再次读取降为 `new_contact`，证明阶段与证据依赖 live source，而不是只信任事件行。
@@ -50,5 +52,5 @@ PGlite 聚焦回归同时通过：
 
 ## 限制
 
-该审计证明真实 PostgreSQL 的关系 append/idempotency/CAS/RLS 基础路径、三回合 replay 以及来源撤回后的阶段重算可执行，并不证明生产主动调度、完整普通/主动消息事务、Auth 用户最终删除、跨路线语义证据或真实登录态。所有测试写入均回滚，未执行线上业务数据删除；账号导出/业务清理仍是事务内回滚审计，不是最终用户验收。
+该审计证明真实 PostgreSQL 的关系 append/idempotency/CAS/RLS 基础路径、三回合 replay、来源撤回后的阶段重算以及主动候选失败/重试/generation/边界事务可执行，并不证明生产主动调度 runner 的真实 workflow 生命周期、完整普通/主动消息事务、Auth 用户最终删除、跨路线语义证据或真实登录态。所有测试写入均回滚，未执行线上业务数据删除；账号导出/业务清理仍是事务内回滚审计，不是最终用户验收。
 

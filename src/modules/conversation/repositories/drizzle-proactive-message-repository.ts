@@ -10,6 +10,7 @@ import {
 import type { ProactiveEligibilityState, ProactiveMessageSource } from "../domain/proactive-message";
 import type { ConversationMessageRecord } from "./conversation-repository";
 import type { ProactiveMessageCandidateRecord, ProactiveMessageRepository, ProactiveCandidateStatus } from "./proactive-message-repository";
+import { readRelationshipConversationContext } from "@/src/modules/character-network/repositories/relationship-context";
 
 type ConversationDatabase<TResult extends PgQueryResultHKT> = PgDatabase<TResult, typeof schema>;
 
@@ -116,13 +117,27 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
       }).from(schema.characterRelationships)
         .where(and(eq(schema.characterRelationships.userId, userId), eq(schema.characterRelationships.identityId, character.identityId)))
         .limit(1);
+      let relationshipContext: Awaited<ReturnType<typeof readRelationshipConversationContext>> = null;
+      try {
+        relationshipContext = await readRelationshipConversationContext(database, { userId, identityId: character.identityId });
+      } catch {
+        // Older local databases may not have the relationship-state tables yet;
+        // keep the legacy projection available until the migration is applied.
+      }
+      const relationshipStage = relationshipContext?.relationshipStage
+        ?? (relationship?.relationshipStage ?? "new_contact") as ProactiveEligibilityState["relationshipStage"];
+      const relationshipSignalsSummary = relationshipContext?.relationshipSignalsSummary ?? null;
+      const proactiveEnabled = relationshipContext?.proactiveAllowed ?? true;
       const conversation = await findLuciaConversation(database, userId, character.identityId);
       if (!conversation) {
         return {
           relationshipStatus: relationship?.status === "active" ? "active" : "inactive",
-          relationshipStage: (relationship?.relationshipStage ?? "new_contact") as ProactiveEligibilityState["relationshipStage"],
+          relationshipStage,
           relationshipSummary: null,
-          proactiveEnabled: true,
+          relationshipSignalsSummary,
+          userRomanticIntent: relationshipContext?.userRomanticIntent,
+          characterProposal: relationshipContext?.characterProposal,
+          proactiveEnabled,
           lastInteractionAt: null,
           lastProactiveMessageAt: null,
           proactiveCount24h: 0,
@@ -146,9 +161,12 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
         .where(and(eq(schema.messages.conversationId, conversation.id), eq(schema.messages.sourceType, "proactive"), eq(schema.messages.status, "completed"), gte(schema.messages.createdAt, week)));
       return {
         relationshipStatus: relationship?.status === "active" ? "active" : "inactive",
-        relationshipStage: (relationship?.relationshipStage ?? "new_contact") as ProactiveEligibilityState["relationshipStage"],
+        relationshipStage,
         relationshipSummary: relationship?.relationshipSummary?.es ?? null,
-        proactiveEnabled: true,
+        relationshipSignalsSummary,
+        userRomanticIntent: relationshipContext?.userRomanticIntent,
+        characterProposal: relationshipContext?.characterProposal,
+        proactiveEnabled,
         lastInteractionAt: lastUser?.createdAt ?? null,
         lastProactiveMessageAt: lastProactive?.createdAt ?? null,
         proactiveCount24h: Number(count24h),
@@ -197,13 +215,22 @@ export function createDrizzleProactiveMessageRepository<TResult extends PgQueryR
     async completeCandidate(input) {
       return database.transaction(async (transaction) => {
         const [candidate] = await transaction.select().from(schema.proactiveMessageCandidates)
-          .where(and(eq(schema.proactiveMessageCandidates.id, input.candidateId), eq(schema.proactiveMessageCandidates.userId, input.userId))).limit(1);
+          .where(and(eq(schema.proactiveMessageCandidates.id, input.candidateId), eq(schema.proactiveMessageCandidates.userId, input.userId))).for("update").limit(1);
         if (!candidate) throw new Error("PROACTIVE_CANDIDATE_UNAVAILABLE");
+        const relationshipContext = await readRelationshipConversationContext(transaction, {
+          userId: input.userId,
+          identityId: candidate.identityId ?? (await findLucia(transaction)).identityId,
+        }).catch(() => null);
+        if (relationshipContext && !relationshipContext.proactiveAllowed) {
+          throw new Error("PROACTIVE_BOUNDARY");
+        }
         if (candidate.status === "generated" && candidate.messageId) {
           const [message] = await transaction.select().from(schema.messages).where(eq(schema.messages.id, candidate.messageId)).limit(1);
           if (!message) throw new Error("PROACTIVE_MESSAGE_UNAVAILABLE");
           return { candidate: toCandidate(candidate), message: toMessage(message) };
         }
+        if (candidate.status !== "generating") throw new Error("PROACTIVE_CANDIDATE_UNAVAILABLE");
+        if (candidate.generationId !== input.generationId) throw new Error("PROACTIVE_GENERATION_CONFLICT");
         const [message] = await transaction.insert(schema.messages).values({
           id: input.messageId,
           userId: input.userId,

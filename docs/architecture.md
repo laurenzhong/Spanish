@@ -1,5 +1,11 @@
 # 个人 Alpha Web/PWA 架构边界
 
+`MEDIA-AUDIO-HOST-001`（2026-10-28）：播客自动发布后的播放资产收口由独立托管脚本完成。脚本只处理当前正式版本仍使用外部音频 provider 的播客，按固定官方 RSS 或已授权原地址匹配集数，下载后通过 MIME/大小、ffmpeg `-map 0:a:0` 解码时长、Bunny 内容哈希、GET/浏览器播放与 seek 门禁，最后在事务中锁定并 CAS 更新 `media_assets` 当前行；旧媒体版本和字幕/evidence 不改写。托管失败保持原资产并让 workflow 失败，避免把半成品标记为可播。每日运行使用 `MEDIA_AUDIO_HOSTING_LIMIT` 控制吞吐，`MEDIA_AUDIO_HOSTING_TIMEOUT_MS` 给单个来源设置有界下载时间，`MEDIA_AUDIO_HOSTING_SINCE`/`MEDIA_AUDIO_STABLE_KEY` 只用于受控人工范围。
+
+`ACCT-ADMIN-001`（2026-10-21，账号系统与所有者监管后台）：个人 Alpha 进入多用户阶段，注册准入为**自由注册**（[ADR-0022](adr/0022-free-registration.md)）：任何邮箱请求 OTP 即由 Supabase Auth 创建账号，数据库触发器写入 `profiles`（默认 `member/active`）与偏好；所有者创建的邀请（一次性邀请码、`/join` 兑换）保留为可选的预创建渠道。`src/shared/auth` 在身份解析后统一执行账号闸门：`account_status='suspended'` 或存在 `deletion_requested_at` 的账号视为未登录（页面跳 `/login`、API 返回 `AUTH_REQUIRED`）；停用同时用 Supabase ban 阻止重新登录。所有者身份 = 服务端环境变量 `OWNER_USER_IDS`（回退 `CONTENT_WORKFLOW_OWNER_USER_IDS`）∪ 数据库 `role='owner'`，后台页面与每条 `/api/v1/admin/*` 都重新验证。新增 auth/privacy application 支持真实注销（业务数据 + Auth 用户删除、可重试）与本人数据 JSON 导出。`src/modules/admin` 是只读跨模块投影读模型，提供运营总览、用户（公开 UID 标识）、AI 用量与成本、内容与采集健康、诊断与安全元数据、审计日志；有限写操作调用 account application 并写追加式 `admin_audit_log`（数据库触发器拒绝改写）。后台 DTO 不返回内部 `profiles.id`、邮箱明文、聊天正文、录音/转写/记忆或能力分数明细；后台计数不是学习能力事实。新表 RLS/REVOKE 与迁移 0048/0049 见 `docs/database.md`，准入与会话边界见 `docs/authentication.md`，设计/计划见[规格](superpowers/specs/2026-10-21-invite-accounts-and-owner-admin-console-design.md)与 ADR-0021/ADR-0022。
+
+`CHAT-ASSISTANT-003`（2026-10-22）：聊天 AI 助手的 `structure`（分析句子成分）改为**服务端确定性意群拆分 + 模型逐组注解**，解决“同一句每次拆分不同”。新增纯领域 `conversation/domain/sense-groups.ts`：按句子标点/换行、逗号/分号/冒号、封闭连接词（`o`/`pero`/`sino`/`aunque`/`porque`/`mientras`/`así que` 等）与封闭话语标记（`entonces`/`además`/`pues`/`o sea` 等）切分，孤立标记记为 `interjection`/`connector`，组数超过 12 时合并最短相邻组；同一输入永远得到相同片段。`providers/assistant` 内部输入新增 `senseGroups`，MiniMax 只按编号返回 `{index, role, explanation}`（可选 `fragment` 被忽略），adapter 校验数量与索引唯一完整，失败关闭；请求固定 `temperature: 0.2`、`max_tokens: 2500`。应用层用确定性片段组装公共 `structure`，`感叹词`/`连接词` 角色固定，其余角色取模型输出；注解数量/索引不一致 → `provider-response-invalid`（可重试，不退回模型自行拆分）。公共响应 DTO 仅把 `structure[].fragment` 上限 500→2000，其他契约不变；无数据库迁移、日志字段不变、不写消息/记忆/证据，UI 组件未改。设计见[规格](superpowers/specs/2026-10-21-chat-ai-assistant-design.md)，验证与限制见[交接](reviews/CHAT-ASSISTANT-003.md)。
+
 `CHAT-READALOUD-001`（2026-10-21）：聊天消息右键/双击菜单里的「朗读」从仅角色消息扩展到学习者自己的消息，用户可回听自己发送的西语。两种角色共用同一 `createReadAloud` 统一鉴权朗读（ADR-0019 固定 MiniMax Serene Woman），沿用既有 `speakingMessageId`、停止与 generation 隔离；消息菜单本身只对已收到正文且未撤回的消息打开，撤回提示不会进入朗读。只有角色消息菜单包含翻译（取消翻译），学习者消息仍只有复制、朗读、引用回复、撤回、删除。不新增 API、provider、数据库迁移、学习评分或证据写入；学习者文本照旧会发送至 MiniMax，隐私边界与既有聊天朗读一致，普通用户消息文本类型不做语言门禁。设计/验证见[交接](reviews/CHAT-READALOUD-001.md)。
 
 `CHAT-ASSISTANT-001`（2026-10-21）：聊天页右上角「更多对话操作」菜单新增「AI 助手」入口，打开非模态学习助手面板，支持 `reply`（要 1–3 条可填入输入框的自然西语回复）、`grammar`（检查学习者自己编辑的西语草稿并给最小修正）、`structure`（拆分句子成分）、`question`（中文自由提问）四类意图。鉴权 `POST /api/v1/conversations/:characterId/assistant` 在 application 层重验静态角色版本、已发布人物/对话能力门禁、当前发布版本与联系人状态，只通过只读 repository 读取本用户本角色最近 8 条已完成且未撤回消息（排除被撤回消息的回复），`structure` 缺目标句时回退到最近一条角色消息；客户端不发送对话上下文，只发送学习者主动写的问题/目标句。内部 `providers/assistant` 适配 MiniMax 非流式 JSON 输出，经 Zod 归一化后返回结构化 `answer` 与可选 `suggestions/corrections/structure/correctedSentence`；可选块缺失不失败，但非法 JSON/Schema 未通过则失败关闭。请求/结果不写消息、关系记忆、人物事实、能力证据或普通日志；`provider_calls` 只记 providerType=assistant、模型、状态、延迟、请求关联与费用估算。助手结果只存在于组件内存，关闭/刷新即丢失；「填入输入框」只写可编辑草稿且必须用户显式发送，朗读统一走 `useReadAloud`（ADR-0019）。无数据库迁移、无公共路由之外的契约变化、无学习评分。设计见[规格](superpowers/specs/2026-10-21-chat-ai-assistant-design.md)，验证与限制见[交接](reviews/CHAT-ASSISTANT-001.md)。
@@ -8,9 +14,13 @@
 
 `CHAT-RHYTHM-001`（2026-10-17）：文字聊天以一个逻辑助手消息保存整轮回复，空行表示语义气泡边界，单换行留在气泡内；服务端先完成全文安全检查，再逐个完整气泡发送 NDJSON delta，气泡间约450ms且可取消。共享 provider 规则要求简短回应、按意思选择1/2/3/更多条，禁止把分条变成逐条追问。客户端120ms合并连续提交；`pendingMessages` 保留较早用户消息的独立ID和辅助来源，顶层正文是最新消息。应用层在事务认领代次后读取历史，将完整验证批次另以 `unansweredUserMessages` 交给 provider，避免8000字符历史预算吞掉尚未回应的内容。最新更正优先，独立话题保留有用意思，相关话题试探连接；这些自然度规则仍依赖模型，不能视为确定性事实校验。
 
+`CONV-ROLE-002`（2026-10-24，含通用爱好频率修正）：provider 的兴趣投影只由当前未回复批次匹配激活，直接询问角色爱好时允许读取兴趣列表；已答历史不再反复激活兴趣或 contextual 事实，主动消息不激活该投影。完整历史和可读记忆仍用于代词承接、用户主动重开及真实计划延续，不删除记忆。两个 provider 共用的行为规则区分稳定偏好、职业、日程、实际活动与成果；爱好不能推导近期参与、每日机会或新成果，职业也不证明当天做过什么。已答话题应休息，跨日不自动重置；日常主动消息不把爱好当常驻切入点，记忆回接可偶尔承认偏好但不能编造活动作为联系理由。规则适用于所有角色及爱好，无账号特例，不改人物圣经/关系记忆。投影是确定性关键词匹配；频率、间接承接、否定与事件语义仍依赖模型，不宣称绝对输出保证。
+
 同会话的短事务锁与现有 `messages.status` 提供持久代次所有权：claim批次幂等、取消旧streaming占位；每个气泡先保存仅能追加的前缀，完成时CAS核验当前代次及用户消息仍有效后才允许done和记忆。`supersedes`只提供旧代次ID及可见气泡数，能够裁短本用户的未完成服务端前缀，不能提交角色正文或改写completed消息；未知旧代次写空取消标记，拒绝晚到旧请求重新认领。取消、错误、断流保留非空前缀但不产生完整轮次记忆；重放完成代次不再次调用provider或提取记忆。有序来源表 `conversation_reply_sources` 将每个助手消息关联到完整批次，严格匹配重试并支撑撤回/删除来源时只清理依赖回复，留下取消标记防止复活；RLS及部署条件见[ADR-0020](adr/0020-durable-conversation-reply-sources.md)。客户端撤回/删除成功后强制重新读取本会话权威历史，取消受影响的活流，清理关联回复而保留无关正在显示的前缀、草稿及待回复消息；刷新失败明确提示，角色切换后的晚到结果失效。客户端按transport和generation隔离所有回调与finally，保留已显示气泡，取消reader/controller/timer；同一逻辑消息的复制、翻译、引用和搜索仍作用于整条正文。不新增学习评分或用户对话诊断日志；浏览器收到内容与屏幕绘制之间仍存在网络确认边界。详见[专项设计](superpowers/specs/2026-10-17-conversation-bubbles-and-followups-design.md)。
 
-`MEDIA-WORD-003`（2026-10-18）：每日媒体采集的 live ASR 现在要求 MiniMax 返回 `timestamp_level=word`，由 media 纯领域 `groupProviderWordsIntoSentences` 仅用 provider 词时间戳生成句子级字幕与精确 UTF-16 词级 offsets（句末标点、>1000ms 间隔或 240 字符切句）；非词级单元、多词元单元、重叠/越界时间必须 fail-closed（`MEDIA_WORD_TIMELINE_INVALID`），不得用平均分配等估算补齐播放时间轴。`media-processing` 以独立小 DTO 透传 words 并做结构校验，`validateSegmentTimeline` 在候选准备、内容审核和发布三处用 `validWordTimings` 严格校验非空时间轴；纯文本 provider 的平均回退保留原有行为但不产生 words。评审与修订 provider 只接收投影掉 `segment.words` 的模型输入（`mediaReviewInputHash` 同步），发布草稿与 contentHash 仍覆盖完整词级时间轴，避免请求体随字幕词数膨胀。历史已发布版本不改写；CLI 修复走 `media_transcript_backfills` 草稿、三维 AI 审核和版本化发布。词级时间轴只在精确 provider 词数据上生成，不能视为对音频内容的独立听审。每日管线发布的外部 signed/动态广告音频仍可能导致播放 rendition 与时间轴漂移，托管到自有 CDN 是后续独立切片。
+`MEDIA-WORD-003`（2026-10-18）：每日媒体采集的 live ASR 现在要求 MiniMax 返回 `timestamp_level=word`，由 media 纯领域 `groupProviderWordsIntoSentences` 仅用 provider 词时间戳生成句子级字幕与精确 UTF-16 词级 offsets（句末标点、>1000ms 间隔或 240 字符切句）；非词级单元、多词元单元、重叠/越界时间必须 fail-closed（`MEDIA_WORD_TIMELINE_INVALID`），不得用平均分配等估算补齐播放时间轴。`media-processing` 以独立小 DTO 透传 words 并做结构校验，`validateSegmentTimeline` 在候选准备、内容审核和发布三处用 `validWordTimings` 严格校验非空时间轴；纯文本 provider 的平均回退保留原有行为但不产生 words。评审与修订 provider 只接收投影掉 `segment.words` 的模型输入（`mediaReviewInputHash` 同步），发布草稿与 contentHash 仍覆盖完整词级时间轴，避免请求体随字幕词数膨胀。历史已发布版本不改写；CLI 修复走 `media_transcript_backfills` 草稿、三维 AI 审核和版本化发布。词级时间轴只在精确 provider 词数据上生成，不能视为对音频内容的独立听审；每日发布后的外部音频由 `MEDIA-AUDIO-HOST-001` 统一托管收口。
+
+`MEDIA-WORD-005`（2026-10-24）：媒体正式发布现在要求至少一个已审核片段，且每个片段都通过 `hasCompleteWordTimeline` 的严格词级门禁：时间轴必须连续、未越界、词数与 `sourceText` 的 UTF-16 lexical boundaries 完全一致，并包含 provider 返回的精确 `text`。候选 publisher、Drizzle 持久化事务和回填发布 CLI 三处重复校验，防止绕过任一层写入无词级版本。历史已发布版本不原地修改；`media:backfill-word-timings` 生成 `media_transcript_backfills` 草稿，`media:publish-word-backfill -- --stable-key <key>` 先校验完整时间轴、时长、片段索引和双语字幕，再以新 `media_versions` 版本发布并切换 `current_version`，旧版本与证据保留。
 
 `LUCIA-BIBLE-RESET-001`（2026-10-16）：Lucía v3 作为新的版本化人物候选保留已发布 Martín 身份，修订完整回应风格；v1/v2 与历史审核不原地覆盖。新修订的 `profile.canonPolicies` 保存按事实键和事实版本绑定的 category/reveal/audience/trigger，不新增表或修改旧事实行。resolver 校验后将公开 identity、traits 及事实策略投影为内部 DTO，旧记录无策略仍按 `never` 处理。两个 provider 的共享 `characterContextForProvider` 在指令和序列化正文前移除 never/敏感事实：contextual 需当前消息匹配已编写主题，gradual 与 relationship audience 需熟悉阶段；这是一项保守的有界规则，不等于理解任意 trigger 或已向用户披露。普通聊天、主动消息生成、预览和定时 runner 统一消费服务端解析的已发布快照，主动消息缺少快照时失败关闭。初识阶段的共享提示禁止亲昵称呼、预设共同回忆或线下见面，角色兴趣不强制成为话题。新发布审核使用明确 AI 身份 `dsh-ai-owner-authorized-review`，保留旧审核身份。初识 authored opening 保留原幂等键，事务锁定会话后仅在没有任何消息时补写自然介绍；已有聊天缺少开场标记也不追加。首次用户消息完成前不发送日常主动消息。真实发布、指定用户重置和首条消息到达必须分别核验，见[交接](reviews/LUCIA-BIBLE-RESET-001.md)。
 
@@ -119,6 +129,8 @@ app/
   api/                    # 薄 Route Handlers
 src/
   modules/
+    account/              # 账号资料、头像、邀请准入、角色/状态、完整注销
+    admin/                # 所有者只读监管投影、诊断处理与追加式审计
     content/              # 内容图谱、导入、发布与文章查询
     content-acquisition/  # 白名单来源、增量运行、候选、处理与审核编排
     media/                # 视频/播客版本、播放资产、片段与用户进度
@@ -205,10 +217,16 @@ UI / Route Handler → Application → Domain
 | training | 当前训练计划、状态机和断点 | practice_sessions、practice_attempts、learning_breakpoints |
 | evidence | 尝试评估和证据强度 | evidence_events |
 | profile | 技能快照、场景状态和四板块能力解释 | user_skill_states、user_scene_states |
+
+四板块投影的 skill key 路由有两层：显式能力前缀（`lexical.`、`communication.`、`pronunciation.`、`shadowing.` 等，允许 `reaction.` 这类有意的多板块重叠）与**版本化内容目标键路由表**。场景练习把每个任务目标键写进证据（审核内容包 `daily.*`、生成式私人场景 `personal.goal.*`），这些键在内容模型中都属于沟通域，因此只投影到交流运用；映射在读取时应用，证据事件、技能快照和原始 key 不被改写，仍可重算。路由表变更是画像语义变更，必须升级 `CAPABILITY_ROUTING_VERSION` 并补路由回归测试；未匹配的内容键不进入任何板块，只留在审计层。
 | recommendation | 候选排序与下一动作 | 默认不拥有持久表，读取其他模块投影 |
+| learning-insights | 结构化学习观察、确定性候选、私有每日报告和反馈 | learning_observation_events、learning_insight_reports、learning_insight_feedback（不写 evidence/profile/mastery/confidence） |
 | characters | 人物圣经、固定事实、揭示策略和跨修订身份 | characters、character_canon_facts、character_identities |
 | memory | 关系记忆、共享权限和冲突 | relationships、memories、permissions |
 | conversation | 会话、消息和回复生命周期 | conversations、messages |
+| account | 账号资料、头像、邀请准入、角色/账号状态、完整注销 | profiles、user_preferences、account_invitations |
+| admin | 所有者监管读模型、诊断事件处理与追加式审计 | admin_audit_log（其他表只读投影） |
+| privacy | 账号数据删除顺序、Storage 清理任务与本人数据导出 | privacy_cleanup_tasks、audio_assets（协作） |
 | providers | 供应商适配、用户能力偏好和统一错误 | provider_calls、user_provider_preferences、audio_assets |
 
 ## 6. 关键领域边界
@@ -250,6 +268,8 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 `VOCAB-SHELF-001` 加载故障续修：参考词表与释义来自已保存内容资产，语料例句是可选附加数据。`load-vocabulary-shelf` application 对例句加载限制为 1500ms，异常/超时/无 DB 时返回同一参考表的完整词架及搜索结果，context/sourceTitle 为 null，展示例句不可用提示；展示 DTO 不编造 occurrenceCount。快速成功保留真实例句，真实搜索空结果保持空态；词频统计的 36h 时效门禁、语料可见性和已有查询缓存生命周期不变。该边界只保证词表与本机默写可用，不把本地展示或标记变成能力事实。
 
 `VOCAB-RECALL-001` 的词架默写是临时自查：进入时从当前渲染词表冻结本浏览器 `familiar` 词及现有释义，以纯 TypeScript `vocabulary-recall` 编排器隔离两种模式的输入、批改、提示、自行确认和重练。React 仅在练习词原行挂载 portal，不把整份词架改成逐词 hydration；退出/卸载恢复原按钮，搜索/用户范围切换重建词架。中文答案只匹配完整释义或明确并列项，未匹配不猜测语义，交给用户对照参考释义确认；自行确认与独立匹配分开显示。查看答案或反馈后修改答案都保留提示依赖。练习时关闭悬浮解释、词卡和自动发音并取消旧声音。答案和反馈只在当前内存会话中存在，退出/刷新即清除；不写 API、用户意图、`evidence_events`、`user_skill_states` 或画像，不自动改变「已知」标记。服务端可信文字考察仍使用 LEX-002 的版本化 assessment/attempt 契约。
+
+2026-10-25 `VOCAB-RECALL-002` 取代上述临时全量队列/不写 API 部分，见 [ADR-0026](adr/0026-vocabulary-recall-progress.md)。词架默写按 word/meaning 保存账号自查进度，默认 10 个（可选 20 个），从首次待练、到期复习或主动全部自测选择；独立正确转复习，错误/提示/自行确认继续练习。已知标记不改；原始输入仍仅内存，不写能力证据。服务端事务执行幂等回执、revision 和删除 epoch 校验，客户端只显示已确认保存的计数，失败同请求重试，冲突退出重开；隐私导出/删除包含进度。未来到期前不自动重复出题，同轮提示与跨方向答案曝光保留。
 
 词架默写的 Enter 导航使用纯函数选择当前模式/轮次的下一空答案，跳过已填写项并回到前面的漏填项；只检查当前词，空答案或待确认不移动。UI 使用挂载输入框引用同步聚焦，不排队异步焦点回调，模式切换、重练、退出和卸载会释放原输入引用。输入法组合阶段不提交或移动。
 
@@ -305,13 +325,15 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 
 词语解释通过 `WordExplanationProvider` 走服务端 provider 边界。`POST /api/v1/read/word-explanation` 接受选中的词语或句子、当前段落上下文、文章语言和 `selectionType`（`word`/`sentence`）；服务端优先从 `content/glossary/es-zh-common-v1.json` 命中已审核的常用词条，未命中时使用 `MINIMAX_API_KEY` 调用 MiniMax M3。MiniMax 请求使用 `stream: true`，Route 以 `application/x-ndjson` 发送 `delta`、最终经完整 Schema 校验的 `done`，浏览器可逐步显示字段；不支持流式 provider 时保留一次性 JSON fallback。浏览器不会接触供应商密钥，阅读器只渲染固定解释字段；句子选择通过拖选正文后立即触发，不在 Explain 面板重复展示上下文。解释结果是临时阅读辅助，不写入 `evidence_events`、`mastery`、`confidence` 或角色记忆；超时、限流、取消、断流和供应商失败只返回稳定错误，正文阅读与本地 glossary fallback 不受影响。
 
-角色对话通过 `CharacterReplyProvider` 走同一服务端 provider 边界。`POST /api/v1/conversations/:characterId/stream` 只把服务端隐私过滤后的角色事实、关系摘要、可读记忆、最近消息、当前用户消息和由最近历史派生的 `alreadyGreetedToday` 交给所选 provider；内部输入 DTO、输出 DTO、错误码和观测字段不随供应商变化。默认仍使用已配置的 MiniMax adapter；只有显式设置 `CONVERSATION_PROVIDER=openai` 且存在服务端 `OPENAI_API_KEY` 时才启用 OpenAI Responses adapter，模型由 `OPENAI_CONVERSATION_MODEL` 指定。模型只返回自然语言消息，应用层继续负责 NDJSON `meta/delta/done`、generation 竞态、取消、完整消息持久化和记忆提取。超时、限流、鉴权、响应损坏或网络失败使用统一错误分类并写入脱敏观测，只发送失败事件，不生成 fallback 角色文本，也不提交完整助手消息或关系记忆；安全门禁拒绝时最多进行一次更严格的 provider 重生成，第二次仍越界则发送失败事件。语言纯度属于安全门禁：回复含汉字、假名或谚文时走同一条拒绝路径，只有用户本轮显式要求其他语言才放行；主动消息没有用户请求可以证明切换，因此由 `isProactiveMessageSafe` 强制纯西语，命中即整条候选失败并记录 `safety-gate`。只有完全没有配置真实 provider 的本地/测试环境才使用确定性回复。供应商不会写入证据、画像或关系记忆，日志不保存 prompt、原始响应或私密正文。角色是否可进入该流程由已发布人物版本和 `CharacterRuntimePolicy` 决定，不能由静态角色目录或客户端 `characterKey` 绕过。
+角色对话通过 `CharacterReplyProvider` 走同一服务端 provider 边界。`POST /api/v1/conversations/:characterId/stream` 只把服务端隐私过滤后的角色事实、关系摘要、可读记忆、最近消息、当前用户消息和由最近历史派生的 `alreadyGreetedToday` 交给所选 provider；内部输入 DTO、输出 DTO、错误码和观测字段不随供应商变化。默认仍使用已配置的 MiniMax adapter；只有显式设置 `CONVERSATION_PROVIDER=openai` 且存在服务端 `OPENAI_API_KEY` 时才启用 OpenAI Responses adapter，模型由 `OPENAI_CONVERSATION_MODEL` 指定。模型只返回自然语言消息，应用层继续负责 NDJSON `meta/delta/done`、generation 竞态、取消、完整消息持久化和记忆提取。超时、限流、鉴权、响应损坏或网络失败使用统一错误分类并写入脱敏观测，只发送失败事件，不生成 fallback 角色文本，也不提交完整助手消息或关系记忆；安全门禁拒绝时最多进行一次更严格的 provider 重生成，第二次仍越界则发送失败事件。语言纯度属于安全门禁：回复含汉字、假名或谚文时走同一条拒绝路径，只有用户本轮显式要求其他语言才放行；英语与西语同属拉丁字母，字符脚本检查看不到，因此 `conversation/domain/language-purity.ts` 另用高精度英语标记词/短语表（报告过的 `wake up` 及常见英语反应短语；单词只在原文小写时判定，首字母大写按专有名词、标题或缩写处理）识别英语片段——对话回复只放行两类英语，即用户本轮显式要求其他语言，或只有恰好一个片段且该片段全部词元都是用户本轮自己写出的引用，重试指令会点名第一个未被引用的片段；主动消息没有用户请求可以证明切换，因此由 `isProactiveMessageSafe` 强制纯西语，命中即整条候选失败并记录 `safety-gate`。只有完全没有配置真实 provider 的本地/测试环境才使用确定性回复。供应商不会写入证据、画像或关系记忆，日志不保存 prompt、原始响应或私密正文。角色是否可进入该流程由已发布人物版本和 `CharacterRuntimePolicy` 决定，不能由静态角色目录或客户端 `characterKey` 绕过。
 
 对话工作区通过 `GET /api/v1/conversations` 返回当前用户实际拥有的会话摘要（角色、最后一条已完成消息和时间），不再用角色目录冒充历史。无会话、数据库未配置和请求失败分别呈现为空状态或可重试状态；未读数没有可靠数据来源时不展示。未读以服务端 `conversation_preferences.last_read_at` 为唯一游标：线程加载或轮询成功即确认已读，回执失败重试一次，只有服务端确认后才刷新列表；导航徽标按当前用户所有会话未读之和渲染，并在挂载、`focus`、`visibilitychange` 和每 60 秒重新读取一次（页面隐藏时跳过），所以已读后的红点不会滞留在旧快照上，新生成的主动消息也不必等整页刷新才出现。语音消息使用 `POST /api/v1/transcriptions` 一次性转写为可编辑草稿，音频仅在 provider 请求生命周期内使用并以 `ephemeral` 策略处理，确认发送后仍复用文字对话流，不产生学习证据。
 
 Lucía 的好友申请通过 `GET/POST /api/v1/character-network/lucia-contact` 管理，不新增关系表：没有当前用户关系记录时返回 `pending` 及固定的虚构初识来源（Lucía 故事里的马德里文化活动、城市摄影；不代表真实活动或线下见面）；接受在同一事务内将 `character_relationships.status` 设为 `active`、幂等创建会话并写入唯一的 authored opening message，拒绝记录为 `declined` 且不创建新会话。好友侧栏只显示真实存在的会话，并以申请状态显示红点/入口。`POST /api/v1/conversations/lucia/stream` 在读取历史、写入用户消息或调用 provider 前再次检查该关系必须为 `active`，否则返回稳定错误 `CONTACT_REQUIRED`；其他角色同样走通用 published/capability 门禁，当前 draft 不可生产聊天。
 
-Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/proactive` 供受控手动触发，`.github/workflows/lucia-proactive-daily.yml` 每 15 分钟调用 `scripts/run-lucia-proactive.ts`；脚本按 Lucía 的 `Europe/Madrid` 时区为每个白名单用户计算每日三个稳定但错开的随机时间槽（上午、下午和晚间），只在到达时间槽后尝试生成。服务端先按关系 active 状态、暂停开关、每日 3 条上限、每周 12 条上限和 4 小时冷却判断资格；用户未回应不再阻止后续自然分享或轻量追问。每个时间槽使用独立 `(user_id, dedupe_key)`，重复调度仍幂等。provider 收到 `inputKind=proactive`、主动消息来源、关系摘要、情绪上限、日常状态、问题预算，以及服务端隐私过滤后的可读记忆、最近已完成消息和由此派生的 `openTopics`/`characterClaims`/`openCommitments`/`currentLocalDate`/会话时区；它不能决定发送资格或关系升级。`daily_share` 允许最多一个低压力问题，其他来源为零问题预算。除 `isProactiveMessageSafe` 的文本门禁外，服务端还执行 `repeatsAnsweredQuestion`：若主动消息的选择问句重问用户已在近期对话中给出的两个选项，或近乎逐字重复已问已答的问题，则最多重生成一次；第二次仍命中时整条候选失败并记录 `safety-gate`，不写入任何用户可见消息。报备型日常分享是默认形式；关系达到 `familiar` 且日常状态为 `waking` 时，允许单句 `Te echo de menos.` 这类低压力想念表达。通过门禁后，候选与 `messages.source_type=proactive` 在同一事务内完成；provider 失败、取消或门禁失败只标记候选失败，不写入半条用户可见消息，也不使用真实运行时 fallback。候选和消息都按用户所有权隔离；当前仍不接 Web Push/APNs/FCM，用户打开聊天页后由现有历史刷新机制看到已生成消息。
+Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/proactive` 供受控手动触发，`.github/workflows/lucia-proactive-daily.yml` 每 15 分钟调用 `scripts/run-lucia-proactive.ts`；脚本按 Lucía 的 `Europe/Madrid` 时区为每个白名单用户计算每日三个稳定但错开的随机时间槽（上午、下午和晚间），只在到达时间槽后尝试生成。服务端先按关系 active 状态、暂停开关、每日 3 条上限、每周 12 条上限和 4 小时冷却判断资格；用户未回应不再阻止后续自然分享或轻量追问。每个时间槽使用独立 `(user_id, dedupe_key)`，重复调度仍幂等。provider 收到 `inputKind=proactive`、主动消息来源、关系摘要、情绪上限、日常状态、问题预算，以及服务端隐私过滤后的可读记忆、最近已完成消息和由此派生的 `openTopics`/`characterClaims`/`openCommitments`/`currentLocalDate`/会话时区；它不能决定发送资格或关系升级。`daily_share` 允许最多一个低压力问题，其他来源为零问题预算。除 `isProactiveMessageSafe` 的文本门禁外，服务端还执行 `repeatsAnsweredQuestion`：若主动消息的选择问句重问用户已在近期对话中给出的两个选项，或近乎逐字重复已问已答的问题，则最多重生成一次；第二次仍命中时整条候选失败并记录 `safety-gate`，不写入任何用户可见消息。该文本门禁同时拒绝汉字/假名/谚文与英语标记词/短语（2026-10-23 的真实主动消息把 `Wake Up`、`foster` 混入西语）；两家 provider 的 system prompt 不再用英语举例描述清晨细节，而给出 `Me acabo de despertar`、`el café`、`el desayuno` 等西语示例，并明确不得从英文指令中复制单词。报备型日常分享是默认形式；关系达到 `familiar` 且日常状态为 `waking` 时，允许单句 `Te echo de menos.` 这类低压力想念表达。通过门禁后，候选与 `messages.source_type=proactive` 在同一事务内完成；provider 失败、取消或门禁失败只标记候选失败，不写入半条用户可见消息，也不使用真实运行时 fallback。候选和消息都按用户所有权隔离；当前仍不接 Web Push/APNs/FCM，用户打开聊天页后由现有历史刷新机制看到已生成消息。
+完成主动候选的事务会锁定候选行并校验当前 `generation_id`；失败候选只能由新 generation 重开，旧 generation 或已持久化 proactive 边界不能写入消息。
+
 开发环境可传 `preview: true` 进行不落库的声音检查；预览仍调用真实 provider 并执行同一安全门禁，但不创建候选、不消耗每日额度，生产环境忽略该字段。
 
 已发送用户消息的上下文操作通过 `DELETE/PATCH /api/v1/conversations/:characterId/messages/:messageId` 进入 conversation repository，并再次执行用户所有权、角色和消息状态校验。删除只移除用户历史；撤回将消息置为 `withdrawn`，历史正文不再进入搜索或角色回复上下文，并删除其来源关系记忆。流式回复完成时还会重新检查用户消息状态，防止回复期间撤回的消息产生介绍候选或记忆；撤回不会生成学习证据。
@@ -323,7 +345,7 @@ Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/p
 - `/read/saved-items` 是个人阅读书架，页签为 `全部 / 文章 / 保存词语 / 短语 / 高亮`，提供搜索、分页、原文段落锚点、来源链接、浏览器 TTS、当前页 CSV 导出、文章取消收藏和私人故事显式删除确认。它与正式词汇/短语 corpus 页面分开，不能把用户点选的 surface text 伪称为已确认 lemma。
 - `/read/vocabulary` 默认视图是可直接学习的词表：条目来自 `content/glossary/es-zh-common-v1.json` 中 `reviewStatus: reviewed` 的已审核常用词条（词目、词性、CEFR、中文释义、用法、搭配、例句和用于语料匹配的词形），因此不依赖数据库是否已索引 lexeme，也不受用户是否收藏过词语影响。其余视图分别是：`?view=frequency` 的**参考词频内容词表**和 `?view=lexicon` 的正式词元词库；已保存词句不再在此页重复呈现，统一由 `/read/saved-items` 承担。**频次视图的排序基准是参考词表 `content/word-lists/es-frequency-v1.json`**（8000 个西语词元、按词频名次排列；来源与授权见同目录 provenance 清单），而非本项目语料自身的词频统计 —— 后者会把 `que`/`los`/`por`/`con` 这类**功能词**顶到最前，而那正是学习者最不需要背的词。因此该视图：① 先从参考词表中**滤除封闭类功能词**（冠词、介词、连词、代词、限定词、纯程度/否定助词；清单与收录标准见 `content/word-lists/es-function-words-v1.json`，**所有动词一律不滤**，`ser`/`estar`/`haber`/`tener`/`ir`/`hacer` 等 15 个必需动词由 `neverFilter` 显式保护并被测试遍历）；② **保持参考表自身的词频名次**，不再按本语料频次重排（客户端也不得重排：`VocabularyWordGrid` 按收到的顺序渲染）；③ 每个词仍附上**本语料中的出现次数**与一条真实例句（复用 `corpus_occurrences` 的可见性谓词与 180 字符截断）。当前规模为参考表 8000 词、词架 7922 词（滤除 78）。**已知限制**：出现次数按词元拼写的**表层形**统计，而语料未做词形还原，故 `estar` 尚不覆盖 `está`/`estoy`；例句上下文在 LEX-INDEX-001 以 `index` 模式运行前为 `null`（`corpus_occurrences` 仍为空），但次数可用；搜索只覆盖参考词表，故 `george`/`pablo` 这类表外词形不再出现。该视图声明自己是**学习骨架**而非全部词形清单。
 - 学习卡片按需调用 `GET /api/v1/read/vocabulary-example?word=<词目>`，服务端只在已发布、版权清晰且字幕审核通过的媒体段落中按词边界匹配，命中不到时回退到已发布版权清晰的文章段落，返回一条真实例句、可用的中文翻译和 `stableKey@version` 来源；结果按词形缓存一小时。查询词形只允许字母、重音符号和撇号，不进入正则以外语义。列表与卡片都不把自动统计的 surface text 伪称为 verified lemma。
-- 词表的“已熟悉 / 想复现 / 暂不学习”标记保存在浏览器本地（按用户 scope 隔离），不写入 `evidence_events`、`user_skill_states`、`mastery`、`confidence` 或角色记忆；向量表写入需要新的 schema 决策。
+- 词表的“已熟悉 / 正在学习 / 想复现 / 暂不学习”标记以 PostgreSQL `user_vocabulary_marks` 为权威，按账号与规范化词目隔离；鉴权 API 校验客户端预期账号，避免旧标签页跨账号导入。清除保存 null 墓碑；旧账号浏览器标记仅补缺，anonymous 旧标记须用户明确认领。保存失败可重试，不伪报成功；登录查询超时不再切换匿名 scope。标记不写入 `evidence_events`、`user_skill_states`、`mastery`、`confidence` 或角色记忆，随隐私导出/删除处理。见 [ADR-0025](adr/0025-account-vocabulary-marks.md)。
 - `VOCAB-PANEL-002` 详情布局试版：1200px 起使用 350–400px 右侧分栏，首次开关以选中词为纵向锚点并在有界渲染帧内补偿 `content-visibility` 高度变化；不注册滚动测量监听。901–1199px 为右侧抽屉，900px 以下保留底部抽屉，均通过 body portal 呈现，背景 inert、焦点限制和关闭恢复具有明确生命周期。详情按词目/发音、释义、个人标记、带署名例句、完整的已有变位/形式、默认折叠用法/搭配、查词排序；变形独立展示，不折叠或截断，仍为既有词形数据而非完整变位表。切词复位详情滚动与折叠。临时历史项在关闭/返回/卸载时释放，并恢复先前的 scrollRestoration；内容、音源、标记存储与证据语义不变。
 - 阅读、TTS、词语查询、笔记和保存操作不会写入 `evidence_events`、`mastery` 或 `confidence`；只有显式口语迁移才进入 training/evidence 链路。
 
@@ -462,6 +484,10 @@ Route Handler 的职责只有：
 对 Web 与 Flutter 开放的 Alpha API 使用显式版本前缀，例如 `/api/v1/`。推荐端点：
 
 - `POST /api/v1/diagnostics`
+- `POST /api/v1/auth/invitations/redeem`（公开邀请兑换；`/join` 页面使用）
+- `GET /api/v1/me/export`（本人数据 JSON 导出）
+- `DELETE /api/v1/me/account`（完整注销：业务数据 + Supabase Auth 用户）
+- `/api/v1/admin/*`（同时要求用户会话和所有者身份；只读监管 + 邀请/停用/注销/诊断处理）
 - `GET /api/v1/internal/diagnostics`（服务端诊断查询，不对普通客户端开放）
 - `GET /api/v1/learning/next-action`
 - `POST /api/v1/practice/sessions`
@@ -510,6 +536,9 @@ API 错误使用稳定代码，不让前端解析供应商原始错误文本。
 ### 8.1 认证与会话边界
 
 - 普通用户通过邮箱六位 OTP 登录；邮箱密码只作为预建测试账号的隐藏备用入口。
+- 注册为自由注册（ADR-0022）：OTP 请求 `shouldCreateUser:true`，新邮箱自动创建账号；所有者创建的邀请是可选预创建渠道，`ACCOUNT_INVITATIONS_ENABLED` 只控制邀请创建/兑换，不控制自由注册。面向其他真实用户前仍须按 AGENTS.md §8 补外部母语/教学复核门槛 ADR。
+- 身份解析后统一经过账号闸门：`profiles.account_status='suspended'` 或 `deletion_requested_at` 非空 → 视为未登录；数据库不可用/无 profile 行按“状态未知”放行（数据请求自身会失败）。停用同时 Supabase ban；恢复、注销与审计通过 account/admin application。
+- 所有者身份 = 服务端 `OWNER_USER_IDS`（回退 `CONTENT_WORKFLOW_OWNER_USER_IDS`）∪ `profiles.role='owner'`；`/admin` 每条页面取数与每条 API 都重新验证，非 owner 页面 404 / API 403。
 - Web 使用 Supabase SSR Cookie。`proxy.ts` 只做会话刷新和乐观路由保护，产品布局和 Route Handler 仍在服务端调用 `auth.getUser()` 做权威验证。
 - Flutter 使用同一 Supabase Auth 项目，并把持久会话交给系统安全存储，不使用普通偏好存储保存刷新会话。
 - Flutter 的 Token Gate 在令牌到期前 60 秒刷新；并发请求共享一次刷新，身份代际变化会使旧刷新结果作废。
@@ -560,6 +589,7 @@ API 错误使用稳定代码，不让前端解析供应商原始错误文本。
 - 所有用户私有表都包含 `user_id`。
 - RLS 默认拒绝，按最小操作开放。
 - Web 和 Flutter 客户端都不能直接写 `evidence_events`、`user_skill_states`、`relationship_memories` 和 `provider_calls`。
+- `account_invitations` 与 `admin_audit_log` 对客户端完全关闭（RLS + REVOKE）；审计由触发器保证追加式；`profiles.role/account_status/deletion_requested_at` 无客户端读写授权。
 - 内容公开查询只返回已发布版本。
 - 管理或导入能力使用服务端专用角色，不暴露到浏览器。
 - 删除账号时按明确顺序删除或匿名化用户数据，并记录不可逆操作结果。
@@ -684,3 +714,28 @@ Alpha 不创建：
 - Alpha 延后范围的提前引入。
 
 ADR 存放于 `docs/adr/`，格式为 `NNNN-short-title.md`。
+# CONV-ROLE-002 补充：显式停聊
+
+当前轮显式停聊通过纯领域 `topic-closure.ts` 的有限模式识别，provider 省略该轮兴趣资料，stream-reply 对劝聊模式在输出前校验并最多重试一次。未创建持久话题禁令，不写关系记忆；以后用户主动重开仍允许。此检查不能替代语义验收，真实回放与限制见 `docs/reviews/CONV-ROLE-002.md`。
+
+## MiniMax 文本模型升级（PROVIDER-MINIMAX-001，2026-10-25）
+
+所有文本适配器、内容审核/修订与操作脚本默认使用 `providers/minimax/text-model.ts` 的 `MiniMax-M3.1-Flash`。官方新模型强制思考；Anthropic 请求使用 `output_config.effort=low`，既有答案 token 上限加 4096 的有限思考预留（该参数仍是总输出上限，并不保证思考占比），显式旧模型覆盖维持旧参数。响应只消费最终 text 块，不向 UI、内容或日志传递思考；`stop_reason=max_tokens` 失败关闭，词语解释流要求 `message_stop` 才成功。保留既有超时、取消、重试与审核/评分门禁。
+
+费用按中国官方 2026-10-25 页面：输入 ¥1/M、输出 ¥4/M，无长上下文加价；只使用实际 usage，缺数据仍为 null，不回填历史记录。TTS 仍为 `speech-2.8-turbo` / `Spanish_SereneWoman`，ASR 仍为 `asr-1.0`。官方依据：[模型与思考](https://platform.minimax.io/docs/guides/text-generation.md)、[人民币定价](https://platform.minimaxi.com/docs/pricing/overview.md)。部署环境若显式设置 `CONTENT_ARTICLE_REVIEW_MODEL`、`CONTENT_MEDIA_REVIEW_MODEL` 或 `MINIMAX_TRANSLATION_MODEL`，应在部署时核对；本次未修改远端配置。
+
+## CONV-EVAL-001 离线验收边界
+
+`scripts/conversation-evaluation` 作为外部测试编排层调用现有 conversation/memory application，用隔离 repository 和时钟替代生产依赖，不形成新产品服务或数据库事实源。人物初识文本共用 `character-network/domain/lucia-opening.ts`，原文及历史 key 不变。每条轨迹使用新 eval 身份；检查点、来源指纹、完整合成对话和双份归档仅存本地文件，生产日志不保存其全文。固定 new_contact 和缺失边界状态明确为 unsupported，不用本工具补造产品关系规则。产品外层事务/RLS/CAS 仍须独立验证，详见 [CONV-EVAL-001](reviews/CONV-EVAL-001.md)。
+
+CONV-EVAL-002 另设显式真实执行入口，所有模拟用户/角色/评审 HTTP 均经本地持久化费用账本，沿用产品角色 provider，不连接真实聊天数据库。保守字节界限只用于预留规划，实际 usage 与未知收费分开保存；取消需先完成账本收尾再发布不可覆盖档案。模型内部规划文本不进入档案，发现错误进入最终 text 字段时仅保留哈希/长度和调用证据；本批历史脱敏由独立审计记录校验变化，不覆盖真实执行源指纹。此工具不增加产品关系持久化或上线新的角色能力。
+
+CONV-EVAL-002A 将新诊断批次的用户侧改为固定刺激，旧批次仍按冻结 manifest 恢复。角色走相同产品应用门禁；正文结构污染、问句预算与明确职业澄清在应用层校验，Prompt 只辅助生成。评审引用只认明确 step，评审失败与对话生成失败分别归档。聊天 MiniMax-M3.1-Flash 单独使用官方支持的 effort=max（其他模块仍 low），总输出 4896、超时及一次安全重试上限不变；这是本地复验的生成配置调整，不代表语言质量保证或线上已部署。具体对照批次与限制见 CONV-EVAL-002A 报告。
+
+CONV-EVAL-002D 的外部实验传输通过显式 flash-m3-v1 策略支持两模型，各自定价、逐条 requestedModel、返回模型一致性与较低批次预算；只接受已计价的纯文本请求，禁止未知服务档位/缓存写入等扩展。旧策略和不可覆盖导出保持兼容。v3 探针冻结原生配置，不改变产品默认；模型首答比较不写关系状态。
+
+CONV-EVAL-003：人物personality可选behaviorProfile与人物key/revision严格绑定，纯TS领域类型与严格Zod分别维护。完整画像包含作者sourceRefs且受总量限制；持久运行时校验后剔除sourceRefs，普通和主动消息共用CharacterBehaviorGuidance。缺失字段兼容旧版本，存在但损坏/错绑则失败关闭；provider再次检查，不允许作者字段或他人画像流入HTTP。条件是表达范围而非当前情绪事实，不授权关系升级。Lucía v4仅独立草稿，v3和发布指针不改，详见[003](reviews/CONV-EVAL-003.md)。
+
+CONV-EVAL-004B按已接受的[ADR-0027](adr/0027-evidence-based-character-relationships.md)新增character-network纯领域规则：服务端来源台账与有序提交重算多维关系，限制guard可独立于失败的助手回合生效，正向成长只接受完整回合。回应资格预览只读，完成时重新校验来源、generation、epoch与边界revision。删除限制来源保留无原文的重新确认屏障，不将删除解释为同意；完整重置使用新epoch。session仅由持久化用户活动元数据按4小时不活跃划分，不产生感情证据。语义核验和episode归属仍由后续应用层负责，不能把模型返回的semanticVerified直接当可信事实。此切片未连接数据库、普通/主动链路或启用恋爱能力；持久化与事务见004C，发送可见性竞态见005。
+
+CONV-EVAL-004C1将关系准入和历史投影分开：新admit检查当前单调控制revision/epoch及官方回合，持久回执只包含实际接受的候选；replay只重放这些回执，按现存来源和业务前置重算，不再以旧CAS拒绝无关有效证据。canonical用户消息可属于多个官方回复回合而不复制ID，来源去重仍按原消息。来源loader只读取messages/characters/conversations/conversation_reply_sources的必要元数据，不读取正文；用户原generation仅审计，助手实际修订和官方batch是回合权威。已接受限制的用户来源可独立保留，助手删除不自动解禁；该保留读取不创建新回合或新准入资格。loader本身不能验证数据库尚未拥有的epoch，C2必须在同一事务锁内检查关系head。未知删除顺序可保守读取，但新写入须先保存明确删除序号，防重确认后的下一次读取又把屏障移到末尾。此处仍无新迁移或生产状态写入。

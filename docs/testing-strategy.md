@@ -1,5 +1,17 @@
 # 测试与质量策略
 
+`MEDIA-AUDIO-HOST-001`（2026-10-28）：每日 workflow 的播客托管步骤按当前外部资产限额运行 `scripts/migrate-podcasts-to-bunny.ts`；脚本复用既有来源匹配、下载、ffmpeg 解码、哈希、Range/完整 GET 与浏览器 seek 门禁，并在 CAS 前锁定当前版本资产。聚焦回归覆盖每日管线把旧的双语无词草稿重新送入 ASR、发布器拒绝缺词草稿和词级时间轴写回（`tests/unit/daily-media-pipeline.test.ts`、`tests/unit/process-media-candidate-word-timeline.test.ts`、`tests/unit/podcast-candidate-publisher.test.ts`、`tests/database/podcast-acquisition-publish.test.ts`，22/22）。默认测试不请求真实 RSS、Bunny、ffmpeg、数据库或收费 provider；生产 workflow 失败/部分迁移需查看独立 `podcast-host.log`，真实 CDN/播放和 Safari 仍需单列验收。
+
+`VOCAB-RECALL-002`：先复现“重练清空提示、自行确认被排除待练”的领域失败，再验证独立正确转复习、两方向队列隔离、10/20 分组、到期/提前自测、空白无写入、同轮反馈/答案/跨方向曝光保留。真实 Hook 组件用例覆盖保存失败不假成功、同 attempt 重试、刷新恢复、CAS 冲突退出重开；独立 transport 测试覆盖 15 秒截止、StrictMode、取消/旧响应/账号变化、跨标签刷新、隐私 epoch。PGlite 执行 0054 检查 RLS 读隔离/拒绝客户端写、事务回滚、幂等/CAS、删除清除与旧请求拒绝；API/JSON Schema/隐私导出删除同步回归。Playwright 桌面/手机验证独立正确、错误/提示、丢失回执重试和小组滚动推进。默认不调用真实 provider、不写真实学习证据；真实迁移和 Safari 必须单列。
+
+`VOCAB-MARKS-001`：页面回归先复现身份读取超过 1.5 秒切到 anonymous 与未登录进入匿名标记。客户端 fake 覆盖数据库确认后显示、失败保留旧状态并重试相同期望值、15 秒超时、过期读取/账号变化/StrictMode、当前账号旧标记补缺、匿名显式认领、成功迁移回执与跨标签刷新。Route tests 覆盖鉴权、预期账号头及无效 bearer 不回退 cookie；PGlite 覆盖实际迁移、RLS、事务回滚、取消墓碑、隐私清除屏障/profile 重建/Auth 注销。OpenAPI/JSON Schema 与 Zod 双向边界校验；浏览器覆盖保存失败重试、清空 localStorage 后恢复与清除后刷新，以及原布局/焦点回归。默认全为 fake 或本地 PGlite，不连接真实数据库、不调用收费 provider；真实数据库迁移、跨设备和 iPhone Safari 另列验收。
+
+`CONV-ROLE-002`：`conversation-interest-context.test.ts` 覆盖摄影/音乐/徒步、跨角色的历史兴趣退出投影、未回复批次承接、直接询问爱好、主动 daily_share/memory_callback 不激活旧兴趣，以及 MiniMax/OpenAI 序列化后保留历史与私有记忆但移除过时兴趣/对应 contextual 事实。先在旧逻辑复现 9 个失败。行为提示共同区分偏好与实际活动、职业及频率；提示内容断言只能证明规则进入模型请求，不能证明模型总是遵守。真实回放应包含：说喜欢某爱好后多轮聊工作、次日问候、说明最近没机会、主动换话题、主动重新谈爱好及询问角色爱好；检查无虚构每日成果、无重复追问、自然继续仍可行。
+
+`CHAT-ASSISTANT-003`（2026-10-22）：先写领域测试再实现 AI 助手“按意群拆分后分析”的确定性改造（所有者报告同一句子每次拆分不同）。新增 `tests/unit/sense-groups.test.ts`（11 例）覆盖所有者示例五组、重复调用与首尾空白差异下片段一致、标点/换行/省略号、逗号停顿、小数 `3,5`、时间 `12:30`、缩写 `Sr.`、连接词与话语标记、emoji/引号清理、空输入、超过 12 组合并后不丢词。`tests/unit/conversation-assistant-provider.test.ts` 26 例（新增 `senseGroups` 序列化与编号、按 `index` 对齐、忽略模型自带的 fragment、数量/索引缺失或重复失败关闭、`temperature: 0.2`、`max_tokens: 2500`）；`tests/unit/conversation-assistant.test.ts` 24 例（新增确定性片段、同一句重复分析片段一致、感叹词/连接词角色固定、注解数量不一致失败关闭、纯标点目标无意群 400、非 structure 意图忽略 structure 块）；route 26、panel 26、contract 3（fragment 上限 500→2000 的合法/越界边界）。聚焦 6 文件 **116/116**；全树 `tsc --noEmit` exit 0；改动 10 个 TS/TSX 文件 ESLint `--max-warnings=0` exit 0。真实 MiniMax 手工探针（临时测试文件，已删除；直接调用 provider，不写数据库）：首轮 2 次中 1 次模型把相邻两个意群合并导致数量校验失败；补充原始响应探针 3/3 符合；改为编号 `senseGroups` + `senseGroupCount` 并明确“不要合并看似不完整的意群”后 **6/6** 符合，且两次分析的片段完全相同。未跑全量 Vitest/整套 E2E/生产 build、未在浏览器/数据库里调用真实路由、未做 Safari 真机；详见[交接](reviews/CHAT-ASSISTANT-003.md)。
+
+`CHAT-ASSISTANT-002`（2026-10-22）：先补失败回归再修复 AI 助手提问发送交互（所有者报告“点击问一下可以发送，但提问仍留在输入框，像是没发出去”，并要求回车发送）。`tests/unit/conversation-assistant-panel.test.tsx` 新增 4 例：点击「问一下」后请求携带 `intent=question` 且提问框立即清空、问题仍保留在转录条目；Shift + Enter 只换行、Enter 发送并清空；中文输入法组合中的 Enter（`isComposing` 与 Safari `keyCode 229`）零请求且保留输入；pending 时 Enter 不派发第二个请求、也不清空正在输入的新问题。panel 单文件 **25/25**；同日按所有者要求把提问区改为聊天输入框式单条圆角框（去掉可见标签「补充说明或提问」与说明行「问怎么回复、检查语法，或分析句子成分。」，用框内纸飞机图标替代「问一下」文字按钮）后新增结构用例（图标按钮与 textarea 同处 `conversation-assistant__field`、`type=submit`、首屏无说明行/可见标签），panel 最终 **26/26**。`tests/e2e/chat-assistant.spec.ts` 新增桌面 Chromium 用例（mock assistant）：Shift + Enter 保留换行、Enter 发送、请求体问题含换行、发送后提问框为空、助手回答可见且不产生 stream/聊天消息，spec **3/3**。全树 `tsc --noEmit` exit 0；改动 3 个 TS/TSX 文件 ESLint `--max-warnings=0` exit 0；紧凑提问框改版后 `chat-assistant.spec.ts` 首屏用例追加说明行/可见标签不存在与框内图标可见断言，桌面 Chromium 仍 **3/3**；另用临时 Playwright 探针（已删除）在桌面 1440×900 与 Pixel 7、浅/深主题截图与测量：桌面框 366×50、手机框 380×52、图标 44×44 完全位于框内，双行输入时框自动增高（70/76），无横向溢出。未调用真实 MiniMax/数据库，未跑全量 Vitest/整套 E2E/生产 build/Safari 真机；详见[交接](reviews/CHAT-ASSISTANT-002.md)。
+
 `CHAT-ASSISTANT-001`（2026-10-21）：聊天页 AI 助手先写设计规格与共享 DTO，再服务端/客户端并行实现。服务端 4 文件 **71 项**：provider fake-fetch 覆盖四类 intent 请求序列化、```json 围栏解析、非法 JSON/缺 answer/超限数组/未知字段、401/403/429/5xx/网络失败、超时/取消（即使 fetch 忽略 abort）/已取消请求/未配置密钥，且断言请求不含客户端伪造上下文；application 覆盖 DTO 校验、目录/发布/对话能力门禁、数据库当前发布版本不符、联系人非 active、版本/上下文读取失败、structure 回退最后一条角色消息与无目标句 400、provider 错误映射、30 秒截止/外部 abort/晚到 provider 结果、响应 DTO 归一化、metadata observer 失败不影响成功，并断言依赖只有只读端口与伪装写端口不可达；route 覆盖 401（无效 bearer 不回退 cookie）、畸形 JSON/32KiB 上限、400/403/404/429/499/503/504 映射、`private, no-store`、attemptId 回显、`provider_calls` 仅元数据且不含问题/回答、零真实 fetch；契约测试用 Ajv 双向校验两份 JSON Schema 与 Zod 一致并断言 OpenAPI 路径存在。客户端 panel/thread **51 项**：菜单顺序 [AI 助手, 搜索消息, 关系资料与清理]、打开/关闭焦点返回与 Escape、四类请求体（reply 可带补充说明、grammar 面板优先回退聊天草稿、structure 空白回退、question 表单）、语法空目标与超长补充说明本地提示且零请求、answer/建议/修正/成分结构化渲染、「填入输入框」只写草稿并恢复焦点且从不请求 stream、朗读走统一 TTS fake 的播放/停止/关闭取消、错误重试新 attemptId、旧响应/已关闭面板不回填、转录跨关闭保留但切角色清空。桌面 Chromium E2E **2/2**（独立 `PLAYWRIGHT_PORT`/`NEXT_DIST_DIR`，避免与并发会话默认 E2E 服务冲突）覆盖从三个点菜单打开、请求回复建议、朗读合成音、填入草稿不发送、显式发送仅产生一个 stream 请求且助手回答不进入聊天、重开保留转录与 Escape 焦点返回。Lead 复跑聚焦 **122**（上述 6 文件；补强后 panel 21/21）、全树 `tsc --noEmit` exit 0、改动文件 ESLint 0、E2E 2/2 独立通过；未调用真实 MiniMax/数据库，未跑全量 Vitest/整套 E2E/生产 build/Safari 真机，见[交接](reviews/CHAT-ASSISTANT-001.md)。
 
 `CHAT-READALOUD-001`（2026-10-21）：先补失败回归再实现。`tests/unit/conversation-thread.test.tsx` 的用户消息菜单断言改为 `复制/朗读/引用回复/撤回/删除`；新增“朗读自己的消息并可停止”用例，断言发往统一朗读客户端的文本与 `es-ES`、`stop` 被调用、停止后菜单重新显示「朗读」。`tests/e2e/shared-read-aloud.spec.ts` 在原角色消息用例后追加学习者消息的右键朗读与累计 trace 断言，桌面/手机 Chromium 均通过（朗读 fake，不发真实收费请求）。`tests/e2e/conversation.spec.ts` 的用户菜单高度上限按五条菜单项更新（桌面 34px 行、手机 44px 行），宽度/贴边/主题色仍保留。注意：该 spec 中“opens sent-message actions…”在本次改动前的共享工作树已有两处与本任务无关的既有失败——菜单水平对齐 1.609px（临时恢复四条菜单后同样复现）与撤回后未确认站内 `AlertDialog` 即断言已撤回（UI-SYSTEM-002 之后未同步）；不能用它作为本任务通过依据，也不能放宽断言掩盖。完整结果与限制见[交接](reviews/CHAT-READALOUD-001.md)。
@@ -7,6 +19,8 @@
 `CHAT-GREETING-002`（2026-10-21）：先补失败回归再修。`tests/unit/conversation.test.ts` 用本次真实 transcript（16:40 问候 → 16:47/16:53 普通消息 → 16:58 用户 `Pues sí, es una buena idea.`）断言同日再以问候开场被拦并重生成、重试改接内容后 done；另一例覆盖“第一次因复用短语被拒、唯一重试却改用问候开场”，断言重试指令追加禁止问候约束，第二次仍问候时无 delta/done 且两次观测均为 `safety-gate`。`tests/unit/greeting.test.ts` 覆盖问候识别、当天任意角色消息命中（上一条不问候也命中）、跨本地日/缺/坏时间戳/仅用户问候不误判，以及 `buildReplyContext` 的 `alreadyGreetedToday` 派生；`tests/unit/conversation-provider-greeting.test.ts` 用两家 provider 的 fake HTTP 验证序列化上下文含该字段、system 指令引用该字段，并验证 false 时正常传递。变异验证：禁用同日扫描后对应回归 3 项失败，去掉重试约束后 1 项失败，恢复后全绿。默认测试不调用真实 provider、不写真实用户数据；真实聊天复聊、全量 Vitest/E2E/build、Safari 真机与任意模型自然度未验证，见[交接](reviews/CHAT-GREETING-002.md)。
 
 `MEDIA-WORD-003`（2026-10-18）：`media-word-sentence-grouping.test.ts` 覆盖 provider 逐词单元分组成句子时的精确 UTF-16 offsets/时间、标点与句末引号、>1000ms 间隔与 240 字符切句、多词元/重叠/非整数/超 duration 的 fail-closed；`content-media-runtime-word-timeline.test.ts` 用 fake `SpeechToTextProvider` 验证 live 词级适配输出合法 words、纯文本 provider 仍走原平均回退且不产生 words；`media-transcript-words.test.ts` 验证 media-processing 小 DTO 透传与非法结构拒绝；`media-review-input-projection.test.ts` 验证评审/修订模型输入与 inputHash 不含 `segment.words` 而真实草稿/contentHash 仍覆盖；`process-media-candidate-word-timeline.test.ts` 走 application 路径验证词级输出写入候选草稿后 contentHash 自洽、准备审核通过；`media-segment-timeline.test.ts` 增加合法 words 通过、非法 words 拒绝、无 words 历史草稿照常通过。约定：默认测试不调用真实 ASR/翻译 provider、不写真实数据库；真实回填、翻译修正、版本化发布与发布后 words 覆盖率另以只读 DB/脚本证据记录，fake 时间戳不能代替真实 provider 词级响应，Chromium 也不能代替真实听音或 iPhone Safari。完整命令、计数与限制见[交接](reviews/MEDIA-WORD-003.md)。
+
+`MEDIA-WORD-005`（2026-10-24）：新增 `hasCompleteWordTimeline` 领域回归，覆盖空片段、缺 `words`、offset-only 和完整 provider lexemes；视频/播客 publisher fixture 改为合法词级时间轴并覆盖缺词拒绝；PGlite publisher tests 增加直接 repository 绕过门禁回归。历史回填发布脚本在事务写入前复验片段索引、duration、翻译和完整词级时间轴。真实 ASR、翻译、数据库生产回填不属于默认测试；本机 PGlite 验证可能因 WASM 内存基线失败，需在有足够资源的环境重跑。
 
 `CHAT-RHYTHM-001`（2026-10-17）：气泡测试覆盖1/2/3/4条、空行/CRLF规范化、单换行不拆、完整安全门禁、全轮提问预算、间隔取消和持久代次失效。上下文回归保留超过历史预算的20条未回应消息，先前AI问询和显式中文请求仍可得到回答；两家provider fake HTTP验证完整批次序列化。客户端用可控流验证首条前追加、已显示前缀后重组、旧响应/旧finally、无done、停止、整批重试、20条上限保留草稿、权限/角色/卸载清理与缓存恢复；删除/撤回后用权威历史清理依赖回复，验证隐藏取消标记、无关活流长前缀及草稿保留、角色切换晚回调与强制读取旧缓存隔离。PGlite使用真实repository验证批次原子性、有序来源/完整批次幂等、代次认领/CAS、取消标记、较早来源撤回/删除、RLS及所有权；route契约验证完成后按各来源提取记忆、重放不收费/不重复记忆。桌面/手机Chromium测试验证实际页面分条、连续发送与删除后即时清理。真实模型仅使用合成输入另做有界检查；远端仅验证版本化迁移、既有数据hash及只读角色RLS，不以此替代真实写入路径验收。不能以fake证明自然度，也不能以Chromium证明iPhone Safari真机。详细命令和最终结果见[专项交接](reviews/CHAT-RHYTHM-001.md)。
 
@@ -94,7 +108,7 @@
 - 视频与播客必须覆盖同一版本化片段和来源位置语义、播放进度、字幕缺失、资产失效、快捷键、自动暂停和移动端词句抽屉。
 - 词句与语料必须覆盖 verified/pending lemma、短语重叠、连续短语与 `all` 多词匹配、KWIC 边界、撤下内容不可见、私人来源所有权和文字考察幂等证据。
 - 阅读页 UI 必须覆盖短语卡默认代表例句、语料查询 URL 恢复、来源跳转位置、无结果恢复动作、过期查询响应隔离，以及 44px 触摸目标和浏览不写能力证据。
-- 四板块画像必须覆盖输出方式路由；文字、低置信度、技术失败和跟读不得污染不适用板块。
+- 四板块画像必须覆盖输出方式路由；文字、低置信度、技术失败和跟读不得污染不适用板块。证据路由还必须覆盖版本化内容目标键映射：场景练习写入的 `daily.*` 目标键和生成场景的 `personal.goal.*` 只进入交流运用，即使模态是语音也不得进入语音表达；`reaction.` 等既有重叠前缀保持原有多板块语义；无法匹配的内容键只保留在审计层，不得伪造板块分数。
 - 高成本 E2E 只覆盖关键纵向路径，细节下沉到单元和集成测试。
 
 ## 2. 工具基线
@@ -110,9 +124,9 @@
 - 词语解释 provider 必须用 fake fetch 覆盖词语/句子 `selectionType` 请求字段、MiniMax M3 响应 Schema、`stream: true`、多段 `delta`、最终 `done`、鉴权/限流/超时/取消、异常断流和无效 JSON；阅读器组件/E2E 通过本站接口拦截验证常用词命中时不调用 API、未命中词和拖选句子的 loading、增量预览、成功和可恢复失败状态，不能触发真实收费调用。
 - 每个角色对话 provider adapter 必须用 fake fetch 覆盖隐私过滤上下文、各自响应 Schema、鉴权/限流/超时/取消、无效响应和请求 ID；契约只断言统一内部结果，不调用真实收费 API。对话流测试必须确认 provider 文本仍只在 `done` 后持久化；失败/取消只产生错误事件，不生成 fallback 角色文本、完整助手消息或关系记忆。
 - 对话流还必须覆盖 safety-gate 拦截：问题压力或身份声明越界时记录 `safety-gate` 观测并发送可恢复错误，不持久化被拒绝文本；低压力 reciprocal question 在策略允许时应通过。
-- 语言纯度是 safety-gate 的一部分：西语回复中出现汉字、假名或谚文时必须拒绝，最多重生成一次，且断言流出的 delta 中不出现被拒绝文本；用户显式要求“用中文回复”或“responde en inglés”时才允许切换语言，普通西语对话不能被误判为切换请求。
+- 语言纯度是 safety-gate 的一部分：西语回复中出现汉字、假名或谚文时必须拒绝，最多重生成一次，且断言流出的 delta 中不出现被拒绝文本；英语与西语同属拉丁字母，另由高精度英语标记词/短语表拒绝（回归 2026-10-23 的 `Wake Up` 真实消息；首字母大写的英语标题/人名/缩写不误判；用户本轮自己写出的英语引用只有单个片段时才放行），重试指令必须点名真正被拒的片段；用户显式要求“用中文回复”或“responde en inglés”时才允许切换语言，普通西语对话不能被误判为切换请求。
 - safety-gate 重生成必须最多执行一次；测试需断言第二次仍失败时不再调用 provider，且只有通过门禁的最终文本才能发送 `done` 和进入持久化。
-- 主动消息必须覆盖 Lucía 关系未 active、暂停、每日/每周频率、4 小时冷却、未回应后仍可继续发送、时间槽 dedupe 重试，以及 provider/安全门禁失败不写入消息；同一候选只能原子地产生一条 `source_type=proactive` 消息。主动消息没有用户轮次可以证明语言切换，因此其安全门禁必须强制纯西语：正文含汉字、假名或谚文时整条候选失败并记录 `safety-gate`，不写入任何用户可见消息。主动消息生成必须读取当前会话已完成消息（与普通回复相同的撤回/空正文过滤），并覆盖：provider 收到 `recentMessages`、`openTopics`、`currentLocalDate` 与 `Europe/Madrid` 时区；用户已答过的选择问句或已问已答问题被 `repeatsAnsweredQuestion` 拦截且最多重生成一次；第二次仍重复时整条候选失败、不写入消息；无历史、无匹配或仅有一个已知选项时不误拦。查询层测试覆盖 `listRecentMessages` 只返回已完成消息、按时间正序并遵守 limit，且不跨用户返回其他会话。
+- 主动消息必须覆盖 Lucía 关系未 active、暂停、每日/每周频率、4 小时冷却、未回应后仍可继续发送、时间槽 dedupe 重试，以及 provider/安全门禁失败不写入消息；同一候选只能原子地产生一条 `source_type=proactive` 消息。主动消息没有用户轮次可以证明语言切换，因此其安全门禁必须强制纯西语：正文含汉字、假名或谚文时整条候选失败并记录 `safety-gate`，不写入任何用户可见消息；英语标记词/短语（报告过的 `Wake Up` 等）同样整条候选失败。英语标记词表必须有测试保证其中每个词都不在 `content/word-lists/es-frequency-v1.json` 的西语词表中，且首字母大写的标题/人名/缩写、`aré` 之类去重音同形词和常见西语借词不得误判。主动消息生成必须读取当前会话已完成消息（与普通回复相同的撤回/空正文过滤），并覆盖：provider 收到 `recentMessages`、`openTopics`、`currentLocalDate` 与 `Europe/Madrid` 时区；用户已答过的选择问句或已问已答问题被 `repeatsAnsweredQuestion` 拦截且最多重生成一次；第二次仍重复时整条候选失败、不写入消息；无历史、无匹配或仅有一个已知选项时不误拦。查询层测试覆盖 `listRecentMessages` 只返回已完成消息、按时间正序并遵守 limit，且不跨用户返回其他会话。
 - 对话消息操作必须覆盖用户所有权校验、复制/引用菜单可访问性、删除与撤回的幂等和过期撤回；撤回后消息不得进入搜索、角色上下文、关系记忆或学习证据，回复流竞态也必须覆盖。
 - 对话工作区必须覆盖真实会话列表 DTO（只返回当前用户会话、最后消息摘要和时间）、无会话/数据库不可用状态、历史加载 skeleton、长列表上滑不被强制滚动和移动端可访问消息操作。语音 composer 必须覆盖录音取消、转写中止/超时、空转写、provider 失败、过期回调和“确认后才发送”；转写音频不得进入持久化或学习证据。
 - 媒体资料库必须覆盖发布/版权/可播放三重投影门禁、稳定版本 ID、过期播放地址、完整已审核片段（含超过 500 条的长媒体）、进度 revision/CAS 与相同请求幂等回放。Route 测试覆盖列表参数、鉴权、400/404/409/503 映射；数据库测试覆盖撤下后不可播放或写进度以及跨用户隔离。页面和 Playwright 必须确认 `/learn` 不再出现旧 Hero、开始/继续 CTA 或任务时间线，并在 320–1440px 直接显示搜索、类型导航、地区/难度/时长筛选、媒体卡或真实空状态；手机顶部不得出现重复头像入口。
@@ -144,6 +158,8 @@
 
 ### 3.1 领域单元测试
 
+`LEARN-INSIGHTS-001B` 的确定性报告测试覆盖最近 14 天窗口、exposure/技术噪声过滤、strong 或跨来源/上下文候选门槛、递减排序、最多三个重点、insufficient_data 和反馈抑制。报告反馈必须保持幂等，且不得写入 evidence 或能力画像。
+
 `VOCAB-SHELF-001` 加载续修：`vocabulary-shelf-load.test.ts` 覆盖完整参考词表同序、无伪造次数/例句、快速真实数据、成功零结果、失败时搜索（含重音）、1500ms 上限、晚成功/异常隔离和 timer 释放。页面回归验证无 DB/异常仍可搜索和默写且提示例句不可用，保持空态与原正常路径。`lexicon-library.spec.ts` 在明确禁用 DB 的桌面/手机环境验证全部 7922 个真实参考词、过滤顺序、本机标记、默写正确反馈/退出恢复、搜索空态与零 API 写入；不以此代替真实 DB 或 Safari 真机验证。
 
 `VOCAB-RECALL-001` 判题反馈补充：UI 回归验证独立正确的喜悦文字、已提示/自行确认成功的区分、错误/重音错误的 aria-invalid、中文待确认不误判、参考重音字母标记、输入描述与编辑后清除旧反馈。Chrome 脚本在浅/深 × 320/375/1440px 中检查四种判题徽章、装饰图标、输入底色变化、重音标记和徽章文字 AA 对比度（至少 4.5:1），并验证普通偏好的 260ms 轻弹及减少动态偏好下禁用动画；继续保留 Enter、重练、退出恢复、44px 和零 API 写入回归。
@@ -155,6 +171,8 @@
 `VOCAB-TATOEBA-002`：`tatoeba-audio.test.ts` 验证音频许可独立、未知/空许可拒绝、官方复数 audios URL/ID/作者校验和 sentence ID 配对；词架测试覆盖复制成功/失败重试、原声加载/实际进度/结束/错误/超时、过期回调和取消资源，不用 TTS 掩盖失败。回归包含 playing 但进度为零、开始后停滞、相同时间事件不能续期、缓冲恢复和结束清除超时。`scripts/verify-tatoeba-audio-browser.ts` 对配置真实词表的 `AUTH_E2E_ENABLED` 服务进行 Playwright 验证（浅/深 × 320/375/1440px、44px 图标、剪贴板、播放/停止），fake 与真实音频检查分开；五条真实 Tatoeba 流播需 playing、currentTime 前进与 ended、非静音且有音量，以及内存解码非零波形，音频不保存。不能把 fake 通过、解码或播放器事件称为扬声器听感/iPhone Safari 验收。
 
 产品本人追加授权无原声例句使用浏览器 TTS 后，该任务增加合成路径：完整西语句子/语言、点击播放不显示准备/加载/播放状态文案（只用按钮图标、停止标签与 aria 状态）、start 后按钮切换为停止、结束复位、错误归属该句及重试、没有 start 的超时、原声/合成互斥、过期回调和隐藏取消。浏览器布局脚本同时覆盖“合成朗读”入口与停止（fake TTS，不称为听感）；真实原声另检查自动发音开启且单词查询延迟时的 generation 互斥。序列化的 Playwright initScript 不使用依赖 tsx `__name` 辅助函数的内部命名闭包；原声捕获的 ended 检查保存的来源，因为应用及时释放 src。
+
+`VOCAB-TATOEBA-003` 例句补问：`tatoeba-example-selection.test.ts` 固定命中排序（`caso` 的原词写法先于同形词 `casó`）、每词 2 条上限、深翻页只跟随 `api.tatoeba.org/v1/sentences` 自己的 `paging.next`（拒绝外部 host/path），以及按形式补问的词形生成（名词复数含 `-z→-ces`、规则动词现在/过去/分词、自复动词保留 `se`，且不重复问名词目本身）；`tatoeba-lemma-rule.test.ts` 继续固定词元规则的召回/精度边界。构建器的真实网络补问与 `scripts/verify-tatoeba-example-asset.ts` 的资产形状/可复现校验属于构建步骤，默认测试不发外部请求；资产增长后必须手动重跑校验器，不能用单测代替。
 
 覆盖纯 TypeScript：
 
@@ -201,6 +219,10 @@
 - 删除账号按政策清除或匿名化数据。
 - 阅读私有表只允许当前用户访问；删除账号不删除公共文章；旧内容哈希不能覆盖当前版本的标注。
 - 迁移可以从空库执行，也可以从上一版本升级。
+- `account_invitations` 与 `admin_audit_log` 对 `anon`/`authenticated` 无任何权限；审计行 UPDATE/DELETE/TRUNCATE 被数据库触发器拒绝；邀请同邮箱待处理唯一、接受/撤销/失败字段一致性由 CHECK 保证；`profiles.role/account_status` 非法值被拒绝。
+- 账号闸门：`suspended` 或存在 `deletion_requested_at` 的身份在 `getCurrentUser`/`verifyRequestUser` 返回匿名；数据库不可用/无 profile 行时按状态未知放行（需测试说明该边界）。
+- 完整注销按顺序删除业务数据与 Auth 用户，失败保留 `deletion_requested_at` 并可重试；数据导出有行数上限、`truncated` 标志且不含录音/Storage 路径/其他用户数据。
+- 监管读模型聚合口径：活跃用户去重、失败率排除 `started`、成本覆盖率与未知成本行、p50/p95 仅成功调用、安全门禁按 distinct generation、发布量按当前版本/最新发布版本。
 
 ### 3.4 供应商契约测试
 
@@ -229,6 +251,9 @@
 - 反馈默认只突出关键问题。
 - 流式聊天停止、重试和草稿保留。
 - 数据不足的四板块能力不会绘制虚假分数；历史八维明细同样保持数据不足语义。
+- 邀请兑换表单在未开启/无效/限流/服务失败时保留输入并给出去重后的安全文案；登录页 OTP 重发有冷却、未获邀请文案不区分账号是否存在。
+- 账号安全操作（导出、退出全部设备、完整注销）使用二次确认、`role="status"` 反馈与幂等键；失败不谎报成功。
+- 监管后台 owner 子导航、用户/邀请列表、停用/诊断操作的确认与失败反馈；非 owner 不渲染后台入口与内容。
 - 键盘和屏幕阅读器可以完成主流程。
 
 以上交互由 React Testing Library 覆盖，不使用页面快照替代状态和行为断言。
@@ -257,6 +282,10 @@
 18. `GET /api/v1/read/vocabulary-example` 必须要求会话、拒绝非西语词形输入（含注入式 payload），命中不到语料时返回空数据而不是错误，并且只返回已发布、版权清晰、审核通过的段落；`?view=frequency` 的语料词频仍覆盖大小写/重音归一、频次排序、搜索和撤下内容不可见，且不能在请求内把全部段落读入内存。
 19. 所有者候选库 → 请求修改/拒绝/双维度批准 → 显式发布/撤下；非所有者全程拒绝。
 20. 四板块能力 → 代表性证据可追溯；数据不足不绘制虚假值。
+21. 邀请开关关闭时 `/join` 显示“邀请注册尚未开启”；管理员创建邀请 → 一次性邀请码可复制 → 列表显示掩码邮箱与状态；普通成员打开 `/admin` 得到 404。
+22. 所有者打开 `/admin` 与各子页面：数据库不可用时显示明确空态与重试；邀请、停用/恢复、诊断 acknowledge/resolve 的确认与失败反馈不谎报成功。
+23. 账号安全页：数据导出下载、退出全部设备、完整注销的确认与失败反馈；注销成功后本地会话清理并回到登录页。
+24. 监管后台独立工作台（ADMIN-VISUAL-001/002）：`/admin` 与 8 个分区渲染独立壳层（无消费者产品主导航/底栏）、每页恰好一个 h1、分区导航 `aria-current` 正确、非 owner 404、数据库不可用显示“监管数据暂时不可用”与“重新读取”；desktop 与 mobile Chromium 均无横向溢出。真实库只读 smoke 另行验证真实数据、深色、375px 卡片表、768px 平板、弹窗与 0 结果态（临时脚本，不进入 CI）。
 
 Playwright 覆盖桌面 Chromium、iPhone 视口和必要的 WebKit 行为；真实 iPhone Safari 另行验证麦克风、音频中断、键盘、安全区、前后台生命周期和主屏 PWA 恢复。
 
@@ -359,6 +388,8 @@ tests/fixtures/evaluation/pronunciation-v1/
 
 ## 7. AI 角色质量评测
 
+`CONV-EVAL-000`（2026-10-25，设计 review）补充[长期对话、人格与关系成长验收规格](superpowers/specs/2026-10-25-lucia-longitudinal-conversation-evaluation-design.md)及[分阶段计划](plans/2026-10-25-lucia-longitudinal-conversation-evaluation-plan.md)：拟采用固定回归、模拟用户连续互动、独立评审与所有者校准；区分从零可达与预设阶段局部测试，核对对话、持久关系状态和跨会话行为，覆盖朋友/互相喜欢/拒绝后的长期稳定性。后续实现尚未领取，当前没有新增测试通过结论。真实运行需冻结代码/人物/模型与全部参与方预算，只使用隔离合成数据；默认检查不调用收费 provider。具体规模与软门槛待审阅，不覆盖下列现行门禁。
+
 Lucía 的 provider A/B 回放基线位于 `tests/fixtures/evaluation/lucia-provider-v1/`。`manifest.json` 和 `cases.json` 固定人物版本、关系阶段、当天状态、用户输入、语义计划、问题预算和情绪上限；回放不得把具体 provider 名称写入场景。每个 provider 的输出另行记录延迟、费用、人工评分和硬门禁结果，不能把某个 provider 的措辞当作标准答案。
 
 固定对话集至少覆盖：
@@ -384,6 +415,8 @@ Lucía 的 provider A/B 回放基线位于 `tests/fixtures/evaluation/lucia-prov
 角色 prompt、人物圣经或记忆策略变更后必须运行该评测集。
 
 ### 7.1 角色运行时与对话闭环门禁
+
+主动候选数据库回归还必须覆盖：候选行锁定、`generationId` 不匹配拒绝、失败候选仅允许新 generation 重开、旧 generation 不能完成重试候选、持久 proactive boundary 在完成事务中拒绝发送，以及最终只存在一条 `source_type=proactive` 消息。
 
 `CONV-ROLE-001` 的测试必须把“角色可生成回复”和“角色可以作为正式联系人”分开验证：
 
@@ -423,6 +456,9 @@ Alpha 性能预算：
 - 日志快照扫描不包含令牌、完整对话或签名 URL。
 - prompt injection 不能绕过地点验证、记忆共享和评分 Schema。
 - 用户删除数据操作要求重新确认身份并记录结果。
+- 邀请码明文、邮箱明文、Supabase token、聊天正文、录音/Storage 路径不出现在日志、审计与后台 DTO；后台响应契约测试做反向字段断言。
+- 审计日志不可被 UPDATE/DELETE/TRUNCATE；停用/注销后共享身份闸门立即拒绝页面与 API。
+- 数据导出只含本人数据、有上限与截断标志，不含录音二进制、签名 URL 或其他用户数据。
 
 ## 10. 测试命令
 
@@ -488,3 +524,56 @@ flutter test
 ### VOCAB-AUDIO-001：2026-10-13 单词统一 TTS
 
 以 suponer 可用媒体 clip 作为回归，先证明旧 UI 失败，再断言只合成显示词/es-ES、零 word-audio 请求/媒体实例。替换旧词音媒体测试为准备/start/end、失败/超时/重试、过期回调、切词/关闭/Escape/隐藏/卸载和双向例句互斥测试，保留领域、路由兼容及 Tatoeba 全部测试。浏览器脚本以真实 Chrome TTS 检查 suponer 手动/自动在 375/1440px 的 start/end、按钮复位和零媒体请求，日志不含签名 URL。原声例句与无录音 TTS 的既有浏览器路径继续验证。Safari 真机和用户扬声器听感另行验收；全量基线限制需在状态页如实记录。
+
+### CONTENT-REVIEW-UX-001：审批门禁可用性回归
+
+`content-workflow-dashboard.test.tsx` 断言 review_ready 待审核队列与「未进入审核库」分区、DB 聚合计数（缺失时回退列表长度）、中文状态与候选链接；`candidate-review-workbench.test.tsx` 断言 processing/failed 候选不渲染审核按钮且显示中文原因、review_ready 批准 POST 与刷新、failed 仅「按备注重新处理」、published 仅「撤下内容」、状态冲突错误的中文提示；`content-workflow-page.test.tsx` 保留候选优先、来源与运行次要的入口断言。真实库/浏览器只读复验 dashboard 计数与各状态门禁；审批端到端只在新建临时候选上执行并在验证后删除（级联清理审核记录），不对真实 backlog 候选写审核。这组回归用于防止“列表顶部非审核候选 + 全状态开放审核按钮”的审批不可用体验复发。
+
+LEARN-INSIGHTS-001A 的观察层测试覆盖严格 metadata 隐私门禁、dedupe key 规范化、用户关闭总开关或 AI 助手意图开关时不写入，以及同一 (user_id, dedupe_key) 的幂等结果。数据库 Schema 测试同时验证 0050 迁移、用户所有权列和观察表索引；查词、划词解释、媒体回放、媒体/文章曝光和 AI 助手的接入只记录结构化意图/引用，不把原始文本、选区、字幕、文章正文或聊天上下文写入观察事件。媒体与阅读 Route 测试还要断言曝光不进入候选信号、显式回放只产生 weak 观察，并保留既有进度幂等/CAS 断言。
+# CONV-ROLE-002 显式停聊回归补充
+
+停聊后追问需覆盖真实变体（想聊什么/想做什么）、最后分句仅关闭时不追加问题、新主题的具体追问、明确请求选题例外，以及一次重试仍失败时无正文/done。真实失败与最终确定性测试分开报告；本轮最终 106 项通过不代表模型自然度验收。
+
+先复现关闭兴趣仍激活资料、模型劝聊未拦截两项失败，再覆盖有限西语/中文识别、翻译引述例外、无空闲并非关闭、主动重开、新主题承接以及重试失败不输出正文/done。真实合成后续记录独立保存于 `docs/reviews/CONV-ROLE-002-closure-replay.json`，保留旧失败记录；done 不等于自然度通过。
+
+## PROVIDER-MINIMAX-001 模型升级回归（2026-10-25）
+
+使用 fake HTTP 验证最新模型 ID、强制思考兼容参数与有界总输出预算；验证显式旧模型覆盖保持旧参数。真实结构的 thinking + text 响应只能产出最终答案，thinking-only/错误结构不能误当成功；完整 JSON 但 stop_reason=max_tokens 仍须拒绝。词语解释 SSE 覆盖 thinking_delta/signature_delta 不泄漏、text_delta、message_stop 完成、截断与异常 EOF。价格回归保留旧模型阶梯并独立验证 Flash 平价。默认测试不调用真实收费供应商；fake/构建通过不代表真实西语质量、延迟或账户权限验证。结果见 PROJECT_STATUS.md。
+
+## CONV-EVAL-001 离线长期对话执行器（2026-10-25）
+
+`conversation-evaluation-*.test.ts` 验证独立初识、跨会话/序列化记忆、隐藏输入隔离、113 条完整历史与 100 条/8000 字符产品投影、无 done 不派生、每角色预算/超时/取消、检查点/分叉/恢复不重放、存活锁保护和死进程锁恢复，以及主档/桌面完整性、不可覆盖、空间不足和复制中断恢复。CLI 默认只运行合成 fake，校准材料不会作为质量分数。每条路线立即归档，工作区主档与桌面备份长期保留；恢复纯导出不追加调用。当前缺失的关系推进/边界持久化明确为 unsupported。129 项聚焦结果与全仓门禁阻碍见 [CONV-EVAL-001 交接](reviews/CONV-EVAL-001.md)，不得将 fake 完成等同真实角色验收。
+
+## CONV-EVAL-002 真实基线与计费门禁（2026-10-25）
+
+默认单元测试只注入 fake HTTP；真实 CLI 必须显式 execute，并固定模型/端点、角色调用上限、全批预留费用与截止时间。每次 HTTP 前先持久化预留，失败计费未知不能记零；模糊交付不重复调用。取消时先等待账本收尾再归档，重复纯导出不需要密钥、不产生新调用。角色继续走原产品门禁，模拟器偏离路线/语言污染单独标记，不计入角色质量通过率。
+
+结构化 thinking 与混入最终正文的规划片段不得归档；后者只保留候选哈希/长度/错误元数据，历史已保存候选须同步处理所有检查点及桌面备份并留下脱敏审计，不能改变可见聊天或掩盖失败。真实 002 的三条轨迹提前终止，主动机会、自动评审和感情发展未测，详见 [002 证据报告](reviews/CONV-EVAL-002.md)。
+
+## CONV-EVAL-002A 基础可靠性回归（2026-10-25）
+
+真实复验使用 manifest 明确冻结的 scripted-user-v2 固定西语刺激，模拟用户不调用模型、不消耗供应商预算，报告不能称为自适应真人模拟。旧 actor-v1 manifest 仍可恢复和纯导出。--regression 为三条各四轮的诊断路线，分别检查日常/收尾、职业确认/误解、朋友/称呼边界；不能代替完整长轨迹。用户明确调用次数以达到测试目的为准，保留费用、超时及不确定交付保护，不以减少调用为验收目标。
+
+测试覆盖正文协议污染与断句、英语漏检、普通符号/人名/引述例外、实际问句预算及重试、canonical 职业澄清的窄重复例外、固定刺激不漂移。污染候选不输出，不从拒绝文本复制内部规划给重试；归档只保留哈希证据。评审引用要求明确 step，不能由时间戳把开场白认作第 0 轮；无效引文整份拒绝，REVIEW_EVIDENCE_INVALID / REVIEW_FAILED 与聊天失败分开。真实失败批次不可覆盖，后续通过不抹除先前失败；completed 仅表示执行结束，不表示自然度、人格或关系状态通过。
+
+## CONV-EVAL-002B 配对生成质量探针
+
+quality-probe 仅生成固定合成上下文的单个首答，用相同 inputHash 配对比较系统指令包和 effort；顺序轮转，保留集在选择记录冻结后执行。产品 streamReply 通过 fake 候选重放仅评估首答是否被门禁接受，不追加付费重试或派生真实记忆。每个结果即时持久化并双份归档；未知交付停止，原 run ID 仅能纯导出，禁止付费恢复重放。评审隐藏配置标签，严重语言/事实问题与产品误拦分别统计；不能由门禁通过推定自然度通过。新 v2 报告包含固定历史的消息出现次数及未知计费数，v1 工件保持原字节并以审计说明更正。104 项聚焦检查及真实对照结论见 [002B](reviews/CONV-EVAL-002B.md)。
+
+## CONV-EVAL-002C 门禁校准
+
+职业澄清使用实际询问分句、canonical事实、局部否定与有限工作谓词回归；覆盖冒号/分号、否认错误职业、条件句、引用、他人归属、并列否定、虚构第二职业和重复套话。显式当轮全局禁问经真实buildReplyContext→streamReply路径验证，不靠测试手工注入policy；包含礼貌尾句、无倒问号、索取信息式邀请，以及翻译/转述/话题限定反例。冻结候选重放跳过已脱敏规划原文，不假造成功；语言漏检与误拦分开统计。正式70条可重放样本中6条误拒绝恢复、1条英语漏检新增拦截；220项工程回归与剩余限制见[002C](reviews/CONV-EVAL-002C.md)。
+
+## CONV-EVAL-002D 模型原生配置对照
+
+新策略 fake 覆盖双模型计费、请求/返回模型不符、未知计费扩展、旧账本字节兼容与独立预算；probe/CLI 验证 M3 native 无 Flash effort、实际配置归档和 v1/v2/v3 纯导出。6 文件147项通过。真实诊断24条只用于选择候选：M3严重语言4条、Flash0条，按冻结协议不进入保留阶段，不证明长期稳定；100对标准档案一致。详见 [002D](reviews/CONV-EVAL-002D.md)。
+
+## CONV-EVAL-003 人格投影验证
+
+新增strict schema/版本绑定/唯一trait/总长度/去来源后仍可投影的导入回归。运行时先复现画像丢失和错误归属未拒绝，再验证缺失兼容、损坏关闭。fake已发布人物经resolve→buildReplyContext→streamReply或主动preview→MiniMax/OpenAI真实adapter抓取HTTP，核查条件、变化范围、禁止推断均传递，作者来源与private/never事实不泄漏；显式停聊和主动零问句门禁仍有效。新候选v4保持draft与不可用，旧v3不变。最终10文件124项与TypeScript通过；真实自然度和关系发展不由这些fake测试证明。
+
+## CONV-EVAL-004B 关系领域验证
+
+所有轨迹由空来源台账开始，用服务端合成receipt与候选验证友情、双方发起的恋爱确认、拒绝后的恢复和失败分支，不直接伪造高级阶段。独立对抗测试覆盖跨owner/identity/epoch、来源角色和turn成员、旧generation、重复来源/episode/提交顺序歧义、无done/失败回合、即时限制、来源删除和预览不落状态。删除屏障与未解决冲突分别保持；纯朋友可明确重确认且选择仅回应用户，不能靠普通关心恢复亲密权限。session测试覆盖4小时边界、长时间离开、序号/时间倒退、重放与序列化恢复，时间本身不提供成长证据。
+
+这些是确定性规则与可达性测试，不检查模型是否正确理解自然语言；semanticVerified必须由005的应用验证产生，episode也不能直接相信模型ID。004C负责真实repository的事务/RLS/删除导出，005负责普通和主动生成的发送前重验，006负责实际多轮对话。执行结果与未验项见[004B交接](reviews/CONV-EVAL-004B.md)。

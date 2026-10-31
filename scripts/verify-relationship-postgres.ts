@@ -242,6 +242,62 @@ try {
     const repeatedCompletion = await proactive.completeCandidate({ userId: pair.userId, candidateId: candidate.id, messageId: randomUUID(), generationId: proactiveGeneration, content: "Debe devolverse el mensaje existente." });
     check("proactive completion is idempotent", repeatedCompletion.message.id === proactiveMessageId);
 
+    const retryGeneration = `verify-proactive-retry-${randomUUID()}`;
+    const retryDedupeKey = `verify-proactive-retry-${retryGeneration}`;
+    const retryCandidate = await proactive.createCandidate({
+      userId: pair.userId,
+      conversationId: pair.conversationId,
+      sourceType: "daily_share",
+      dedupeKey: retryDedupeKey,
+      generationId: `${retryGeneration}-first`,
+      notBefore: new Date(),
+    });
+    await proactive.failCandidate({ userId: pair.userId, candidateId: retryCandidate.id, errorCode: "provider-timeout" });
+    const retried = await proactive.createCandidate({
+      userId: pair.userId,
+      conversationId: pair.conversationId,
+      sourceType: "daily_share",
+      dedupeKey: retryDedupeKey,
+      generationId: retryGeneration,
+      notBefore: new Date(),
+    });
+    check("failed proactive candidate reopens only with a new generation", retried.id === retryCandidate.id && retried.status === "generating" && retried.generationId === retryGeneration);
+    try {
+      await proactive.completeCandidate({ userId: pair.userId, candidateId: retried.id, messageId: randomUUID(), generationId: `${retryGeneration}-first`, content: "Stale proactive candidate." });
+      check("stale proactive completion is rejected", false);
+    } catch (error) {
+      check("stale proactive completion is rejected", error instanceof Error && error.message === "PROACTIVE_GENERATION_CONFLICT", String(error));
+    }
+    const retryCompleted = await proactive.completeCandidate({ userId: pair.userId, candidateId: retried.id, messageId: randomUUID(), generationId: retryGeneration, content: "Retry proactivo verificado." });
+    check("current proactive retry completes", retryCompleted.candidate.status === "generated" && retryCompleted.message.generationId === retryGeneration);
+
+    const boundaryHead = await repository.readHead(scope);
+    if (!boundaryHead) throw new Error("RELATIONSHIP_HEAD_MISSING_FOR_PROACTIVE_BOUNDARY");
+    await tx.insert(schema.relationshipBoundaries).values({
+      headId: boundaryHead.id,
+      userId: pair.userId,
+      identityId: pair.identityId,
+      scope: "proactive",
+      target: "all",
+      status: "active",
+      revision: boundaryHead.controlRevision,
+      idempotencyKey: `verify-proactive-boundary-${randomUUID()}`,
+    });
+    const blockedCandidate = await proactive.createCandidate({
+      userId: pair.userId,
+      conversationId: pair.conversationId,
+      sourceType: "daily_share",
+      dedupeKey: `verify-proactive-boundary-${randomUUID()}`,
+      generationId: `verify-proactive-boundary-${randomUUID()}`,
+      notBefore: new Date(),
+    });
+    try {
+      await proactive.completeCandidate({ userId: pair.userId, candidateId: blockedCandidate.id, messageId: randomUUID(), generationId: blockedCandidate.generationId, content: "No debe cruzar el límite." });
+      check("persisted proactive boundary blocks completion", false);
+    } catch (error) {
+      check("persisted proactive boundary blocks completion", error instanceof Error && error.message === "PROACTIVE_BOUNDARY", String(error));
+    }
+
     const privacy = createDrizzlePrivacyRepository(tx as never);
     const exported = await privacy.readAccountExport(pair.userId, { perCategory: 10, conversations: 10, messages: 25 });
     check("account export returns a scoped snapshot", exported.account !== null && exported.messages.rows.every((row) => typeof row.content === "string") && !("providerCalls" in exported));

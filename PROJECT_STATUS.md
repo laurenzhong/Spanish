@@ -1,9 +1,9 @@
 ## 2026-11-01 `CONV-EVAL-005`：真实 PostgreSQL 关系持久化/CAS/RLS 与来源重算审计（`in_progress`）
 
 - 新增 `scripts/verify-relationship-postgres.ts`，以 `.env.local`/`.env` 的 `DATABASE_URL` 连接真实 PostgreSQL；所有写入在单事务中显式回滚。审计报告见 [`CONV-EVAL-005-postgres-relationship-audit-20261101.md`](docs/reviews/CONV-EVAL-005-postgres-relationship-audit-20261101.md)。实现与审计文档提交为 `d74c639`（`test: audit relationship replay on postgres`）。
-- 真实数据库 **21/21 PASS**：五张关系表存在；append、同幂等键重放、冲突拒绝、CAS 前进、过期 CAS 拒绝、来源 tombstone 幂等、删除消息后来源置空并保留 tombstone、主动候选生成→完成→幂等完成、账号导出白名单快照、业务数据清理保留 profile tombstone、Lucía 角色数据删除清除会话与关系 head、回滚后关系/会话/消息/候选计数不变，以及 RLS/策略核验均通过。新增三条真实 user/assistant reply-source 轨迹：删除 anchor 来源前 replay 为 `familiar`，撤回后按 live source 重算为 `new_contact`。计数 `0/0/0/3/71/24` 前后相同，未留下业务行。
-- PGlite 关系/主动/隐私聚焦 **5 files / 18 tests**、直接 TypeScript 和脚本定向 ESLint 通过。未调用 MiniMax。
-- 本切片关闭了真实关系、主动候选、账号导出白名单、角色/业务数据删除和撤回来源后的阶段重算回滚审计证据，未关闭 005：生产主动调度、Auth 删除最终步骤、跨路线语义证据和真实登录态仍缺失；未进入 007，整体可用性限制仍在。下一步补齐生产主动调度生命周期与跨路线语义证据，避免重复已通过的基础 CRUD/CAS 审计。
+- 真实数据库 **25/25 PASS**：五张关系表存在；append、同幂等键重放、冲突拒绝、CAS 前进、过期 CAS 拒绝、来源 tombstone 幂等、删除消息后来源置空并保留 tombstone、主动候选生成→完成→幂等完成、失败候选用新 generation 重试、旧 generation 完成拒绝、持久 proactive boundary 拒绝、账号导出白名单快照、业务数据清理保留 profile tombstone、Lucía 角色数据删除清除会话与关系 head、回滚后关系/会话/消息/候选计数不变，以及 RLS/策略核验均通过。新增三条真实 user/assistant reply-source 轨迹：删除 anchor 来源前 replay 为 `familiar`，撤回后按 live source 重算为 `new_contact`。计数 `0/0/0/3/71/24` 前后相同，未留下业务行。
+- PGlite 关系/主动/隐私聚焦 **5 files / 19 tests**、直接 TypeScript 和定向 ESLint 通过。新增 repository generation 锁与行锁回归；未调用 MiniMax。
+- 本切片关闭了真实关系、主动候选失败/重试/幂等/边界拒绝、账号导出白名单、角色/业务数据删除和撤回来源后的阶段重算回滚审计；repository 行锁与 generation 校验实现提交为 `319b7df`（`fix: serialize proactive candidate completion`）。未关闭 005：生产调度 runner 的真实 workflow 生命周期、Auth 删除最终步骤、跨路线语义证据和真实登录态仍缺失；未进入 007，整体可用性限制仍在。下一步补齐 runner 的非收费调度契约/失败恢复证据与跨路线语义审计，避免重复已通过的基础 CRUD/CAS 审计。
 
 ## 2026-11-01 `CONV-EVAL-006`：retry36 R01/R05 归因审计与 `bons días` 精确门禁（`in_progress`）
 

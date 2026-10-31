@@ -135,4 +135,54 @@ describe("proactive message persistence", () => {
     const [storedCandidate] = await database.select().from(schema.proactiveMessageCandidates).where(eq(schema.proactiveMessageCandidates.userId, userId));
     expect(storedCandidate).toMatchObject({ characterId, identityId });
   });
+
+  it("rejects stale completion and allows only the failed candidate retry generation", async () => {
+    const repository = createDrizzleProactiveMessageRepository(database);
+    const now = new Date("2026-08-29T10:00:00.000Z");
+    const candidate = await repository.createCandidate({
+      userId,
+      conversationId,
+      sourceType: "daily_share",
+      dedupeKey: "lucia:daily_share:2026-08-29:generation-race",
+      generationId: "generation-first",
+      notBefore: now,
+    });
+    await expect(repository.completeCandidate({
+      userId,
+      candidateId: candidate.id,
+      messageId: "30000000-0000-4000-8000-000000000092",
+      generationId: "generation-stale",
+      content: "No debe publicarse.",
+    })).rejects.toThrow("PROACTIVE_GENERATION_CONFLICT");
+    expect(await database.select().from(schema.messages)).toHaveLength(0);
+
+    await repository.failCandidate({ userId, candidateId: candidate.id, errorCode: "provider-timeout" });
+    const retry = await repository.createCandidate({
+      userId,
+      conversationId,
+      sourceType: "daily_share",
+      dedupeKey: "lucia:daily_share:2026-08-29:generation-race",
+      generationId: "generation-retry",
+      notBefore: now,
+    });
+    expect(retry).toMatchObject({ id: candidate.id, status: "generating", generationId: "generation-retry" });
+
+    await expect(repository.completeCandidate({
+      userId,
+      candidateId: retry.id,
+      messageId: "30000000-0000-4000-8000-000000000093",
+      generationId: "generation-first",
+      content: "La generación antigua no debe completar el reintento.",
+    })).rejects.toThrow("PROACTIVE_GENERATION_CONFLICT");
+    const completed = await repository.completeCandidate({
+      userId,
+      candidateId: retry.id,
+      messageId: "30000000-0000-4000-8000-000000000094",
+      generationId: "generation-retry",
+      content: "Ahora sí, mensaje seguro.",
+    });
+    expect(completed.candidate).toMatchObject({ id: candidate.id, status: "generated", generationId: "generation-retry" });
+    expect(completed.message.content).toBe("Ahora sí, mensaje seguro.");
+    expect(await database.select().from(schema.messages)).toHaveLength(1);
+  });
 });
