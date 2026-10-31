@@ -3268,3 +3268,8 @@ Commit：abcdef0
 - 新增 [`CONV-EVAL-005-account-deletion-audit-20261101.md`](docs/reviews/CONV-EVAL-005-account-deletion-audit-20261101.md)。离线代码审计确认 self-service/owner deletion 的 marker、业务清理、Auth 删除、profile tombstone、审计和失败重试顺序；Supabase Admin 凭据缺失时 fail closed，缺失用户按幂等成功处理。
 - 账户删除/导出/路由/provider 聚焦 **6 files / 52 tests** 通过；未调用 Supabase Admin API、未删除真实账户。真实 Auth 删除、真实登录态失效、真实 Storage 清理和删除后再登录拒绝仍未验收，因此没有关闭 005，也未进入 007；整体可用性限制仍在。下一步需独立且明确授权的测试账号端到端删除，未获授权前不执行外部删除。
 
+## 2026-11-01 `CONV-EVAL-006`：R01/R05 retry36 归档审计（`in_progress`）
+
+- 新增 [`CONV-EVAL-006-r01-r05-retry36-audit-20261101.md`](docs/reviews/CONV-EVAL-006-r01-r05-retry36-audit-20261101.md)。只读复核确认 R01 仅完成 1/24 后因 `Hascookido`/`¿Has cooked?` 门禁重试失败；R05 完成 14/24，曾到 `familiar/friends_only` 并生成 1 条主动消息，但 step 15 因重复问题后又遇 provider 内部规划污染而 `stream-failed`。两条路线均为整批 `failed`，没有评审来源。
+- retry36 只保留为真实 provider 失败和门禁有效性的证据，不作为 005/006 关闭依据；没有新增收费调用。006 仍缺稳定 R01/R05 跨路线语义、真人语言复核和完整环境验收，005 仍缺当前生产 pin 的代码部署与真实 Auth 删除；未进入 007，整体可用性限制仍在。
+
