@@ -1,3 +1,9 @@
+## 2026-11-01 `CONV-EVAL-005/006`：源码分区 ESLint 基线审计（`in_progress`）
+
+- 完成 4 GB Node 堆下的 `src`、`app`、`scripts`、`tests` 分区 ESLint，排除 `.next*`、`.tmp*`、`artifacts` 和 `node_modules`；报告见 [`CONV-EVAL-005-006-source-lint-baseline-20261101.md`](docs/reviews/CONV-EVAL-005-006-source-lint-baseline-20261101.md)。结果为 3 个既有 `prefer-const` 错误（均在共享改动的 `conversation-contact-rail.tsx`）与 4 个既有未使用变量警告，未发现本轮 005/006 代码新增诊断。
+- 根目录未筛选扫描仍会进入生成物并产生数万条诊断，不能作为源码质量结论；本切片不覆盖其他代理的 UI/媒体/数据库改动，也未调用 MiniMax、写真实数据库或修改历史归档。
+- 本切片只关闭 lint 基线分离审计，不关闭 005/006。下一步仍需 005 的当前 production pin workflow 生命周期、真实 Auth 删除/登录失效与 Storage 清理，以及 006 的所有者/真人语言复核；007 未开始，整体可用性仍未证明。
+
 ## 2026-11-01 `CONV-EVAL-005`：真实 PostgreSQL 关系持久化/CAS/RLS 与来源重算审计（`in_progress`）
 
 - 新增 `scripts/verify-relationship-postgres.ts`，以 `.env.local`/`.env` 的 `DATABASE_URL` 连接真实 PostgreSQL；所有写入在单事务中显式回滚。审计报告见 [`CONV-EVAL-005-postgres-relationship-audit-20261101.md`](docs/reviews/CONV-EVAL-005-postgres-relationship-audit-20261101.md)。实现与审计文档提交为 `d74c639`（`test: audit relationship replay on postgres`）。
