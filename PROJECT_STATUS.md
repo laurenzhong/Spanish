@@ -3280,3 +3280,9 @@ Commit：abcdef0
 - 聚焦回归 **5 files / 161 tests** 通过；直接 TypeScript 与受影响 ESLint 通过。没有新增 MiniMax 调用、runId、R04/来源/评审批次或收费归档。详细报告见 [`CONV-EVAL-006-retry31-step0-audit-20261101.md`](docs/reviews/CONV-EVAL-006-retry31-step0-audit-20261101.md)。
 - 本切片只关闭 retry31 step 0 的离线审计准备，**不关闭 CONV-EVAL-006**。step 3/7、真人语言复核、稳定 R01/R05 跨路线、全量 E2E、Safari、真实登录态和隐私最终验收仍未完成；005 仍需当前 production pin 部署、真实 Auth 删除及登录失效证据，007 仍未开始。下一步保持不收费，先获取人工语言复核或明确外部授权，再推进相应验收。
 
+## 2026-11-01 `CONV-EVAL-006`：R01/R05 零费用跨路线结构回放（`in_progress`）
+
+- 完成 R01 与 R05 的完整 fake structural replay：两条路线各 **26 turns**、2/2 proactive opportunities `generated`，均到达 `familiar` 且无角色 proposal；R05 保持 `friends_only`，R01 保持 `unspecified`，关系证据锚点和回放幂等边界均保留。
+- `tests/unit/conversation-evaluation-runner.test.ts` **34/34**，组合评估/关系/沙箱/存储/脱敏 **5 files / 56 tests**，直接 TypeScript 通过；无 MiniMax 调用、数据库写入或新收费归档。详细报告见 [`CONV-EVAL-006-cross-route-structural-replay-20261101.md`](docs/reviews/CONV-EVAL-006-cross-route-structural-replay-20261101.md)。
+- 该切片只补足结构性跨路线证据，不证明真实 provider 语言质量、真人体验或整体可用。006 仍缺真人语言复核、稳定真实 R01/R05、全量 E2E、Safari、真实登录态和隐私最终验收；005 与 007 状态不变。
+
