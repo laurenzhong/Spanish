@@ -17,10 +17,10 @@
 
 ### 生产配置与当前工作树的边界
 
-远端 `main` 的 workflow 使用 `actions/checkout` 固定 SHA `5b83aaab31a6fec983f817ac87857630476c2b6a`，而当前工作树为 `1f825c967828d9856a5860aef0a588bbfce7062f`。因此上述运行证明的是该生产 pin 的调度、资格门禁和失败传播，不证明当前工作树中 proactive candidate 的行锁/generation 校验已经部署。
+远端 `main` 的 workflow 使用 `actions/checkout` 固定 SHA `5b83aaab31a6fec983f817ac87857630476c2b6a`。核对时 `1f825c9` 是 proactive workflow 契约测试提交；真正的 proactive candidate 行锁/generation 修复提交为 `97627ab`（当前共享工作树 HEAD 为 `96d656c`，包含该提交在历史中），且 `97627ab` 不是 `origin/main=96afe34` 的祖先。因此上述运行证明的是该生产 pin 的调度、资格门禁和失败传播，不证明当前工作树中的 generation 校验已经部署。
 
 远端 workflow 的结构仍核实为：每 15 分钟 schedule、支持 `workflow_dispatch`、`cancel-in-progress: false`、10 分钟 timeout、显式 `DATABASE_URL`/`LUCIA_PROACTIVE_USER_IDS`，且 job/step 均 `continue-on-error: false`。本次未触发手工 dispatch，故没有取消、并发重叠和当前代码版本的真实重试证据。
 
 ### 结论
 
-这完成了 CONV-EVAL-005 的“生产调度 runner 有真实历史运行”证据切片：slot 轮询、真实 provider 生成、weekly-limit 抑制和失败退出均有远端记录。它不能关闭 005，因为仍缺当前代码版本部署后的 workflow 生命周期、取消/重试/去重的完整证据、Auth 用户最终删除，以及真实 R01/R05 provider 跨路线语义和真实登录态。下一步应先把当前关系/proactive 修复合并到明确的生产 pin，再在不重复收费的前提下观察至少一轮成功、抑制和失败恢复运行；在此之前不要宣称 005 或整体可用。
+这完成了 CONV-EVAL-005 的“生产调度 runner 有真实历史运行”证据切片：slot 轮询、真实 provider 生成、weekly-limit 抑制和失败退出均有远端记录。它不能关闭 005，因为仍缺当前代码版本部署后的 workflow 生命周期、取消/重试/去重的完整证据、Auth 用户最终删除，以及真实 R01/R05 provider 跨路线语义和真实登录态。下一步应先把 `97627ab` 所在的关系/proactive 修复合并到明确的生产 pin，再在不重复收费的前提下观察至少一轮成功、抑制和失败恢复运行；在此之前不要宣称 005 或整体可用。

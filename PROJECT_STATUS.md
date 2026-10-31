@@ -3261,7 +3261,7 @@ Commit：abcdef0
 ## 2026-11-01 `CONV-EVAL-005`：生产主动调度 workflow 历史审计（`in_progress`）
 
 - 新增 [`CONV-EVAL-005-production-workflow-audit-20261101.md`](docs/reviews/CONV-EVAL-005-production-workflow-audit-20261101.md)，只读检查 GitHub Actions 最近 20 次真实调度：19 次成功、1 次失败、无取消；成功运行分别证明 1 条主动消息生成、3 个 `weekly-limit` 抑制和无到期槽位；失败运行因 `character_identities` 查询错误正确退出，历史 statement timeout 也正确传播为失败。未 dispatch 新运行、未调用 MiniMax、未写数据库。
-- 该证据只覆盖生产 workflow 的历史生命周期，远端 `main` 当前固定 checkout SHA `5b83aaa`，与本工作树 `1f825c9` 不同，不能证明 proactive generation 行锁修复已部署。未关闭 005：当前代码版本的真实 workflow 重试/去重/取消证据、Auth 最终删除、真实 R01/R05 provider 跨路线语义和真实登录态仍缺失；未进入 007，整体可用性限制仍在。
+- 该证据只覆盖生产 workflow 的历史生命周期，远端 `main` 当前固定 checkout SHA `5b83aaa`；`1f825c9` 是 workflow 契约测试，真正的 proactive generation 行锁修复为 `97627ab`，且不在 `origin/main=96afe34` 祖先链上，不能证明该修复已部署。未关闭 005：当前代码版本的真实 workflow 重试/去重/取消证据、Auth 最终删除、真实 R01/R05 provider 跨路线语义和真实登录态仍缺失；未进入 007，整体可用性限制仍在。
 
 ## 2026-11-01 `CONV-EVAL-005`：Auth 删除最终步骤离线审计（`in_progress`）
 
@@ -3273,4 +3273,10 @@ Commit：abcdef0
 
 - 新增 [`CONV-EVAL-006-r01-r05-retry36-audit-20261101.md`](docs/reviews/CONV-EVAL-006-r01-r05-retry36-audit-20261101.md)。只读复核确认 R01 仅完成 1/24 后因 `Hascookido`/`¿Has cooked?` 门禁重试失败；R05 完成 14/24，曾到 `familiar/friends_only` 并生成 1 条主动消息，但 step 15 因重复问题后又遇 provider 内部规划污染而 `stream-failed`。两条路线均为整批 `failed`，没有评审来源。
 - retry36 只保留为真实 provider 失败和门禁有效性的证据，不作为 005/006 关闭依据；没有新增收费调用。006 仍缺稳定 R01/R05 跨路线语义、真人语言复核和完整环境验收，005 仍缺当前生产 pin 的代码部署与真实 Auth 删除；未进入 007，整体可用性限制仍在。
+
+## 2026-11-01 `CONV-EVAL-006`：retry31 step 0 离线缺陷审计（`in_progress`）
+
+- 完成 retry31 step 0 `Cocinar me parece una hobby...` 的离线复核。共享工作树中的 `malformedSpanishFragment` 现在以精确模式拦截 `una hobby`，首候选拒绝后走一次既有 stream retry；没有扩展为泛化 `hobby` 词表或自然度检测。
+- 聚焦回归 **5 files / 161 tests** 通过；直接 TypeScript 与受影响 ESLint 通过。没有新增 MiniMax 调用、runId、R04/来源/评审批次或收费归档。详细报告见 [`CONV-EVAL-006-retry31-step0-audit-20261101.md`](docs/reviews/CONV-EVAL-006-retry31-step0-audit-20261101.md)。
+- 本切片只关闭 retry31 step 0 的离线审计准备，**不关闭 CONV-EVAL-006**。step 3/7、真人语言复核、稳定 R01/R05 跨路线、全量 E2E、Safari、真实登录态和隐私最终验收仍未完成；005 仍需当前 production pin 部署、真实 Auth 删除及登录失效证据，007 仍未开始。下一步保持不收费，先获取人工语言复核或明确外部授权，再推进相应验收。
 
