@@ -3263,3 +3263,8 @@ Commit：abcdef0
 - 新增 [`CONV-EVAL-005-production-workflow-audit-20261101.md`](docs/reviews/CONV-EVAL-005-production-workflow-audit-20261101.md)，只读检查 GitHub Actions 最近 20 次真实调度：19 次成功、1 次失败、无取消；成功运行分别证明 1 条主动消息生成、3 个 `weekly-limit` 抑制和无到期槽位；失败运行因 `character_identities` 查询错误正确退出，历史 statement timeout 也正确传播为失败。未 dispatch 新运行、未调用 MiniMax、未写数据库。
 - 该证据只覆盖生产 workflow 的历史生命周期，远端 `main` 当前固定 checkout SHA `5b83aaa`，与本工作树 `1f825c9` 不同，不能证明 proactive generation 行锁修复已部署。未关闭 005：当前代码版本的真实 workflow 重试/去重/取消证据、Auth 最终删除、真实 R01/R05 provider 跨路线语义和真实登录态仍缺失；未进入 007，整体可用性限制仍在。
 
+## 2026-11-01 `CONV-EVAL-005`：Auth 删除最终步骤离线审计（`in_progress`）
+
+- 新增 [`CONV-EVAL-005-account-deletion-audit-20261101.md`](docs/reviews/CONV-EVAL-005-account-deletion-audit-20261101.md)。离线代码审计确认 self-service/owner deletion 的 marker、业务清理、Auth 删除、profile tombstone、审计和失败重试顺序；Supabase Admin 凭据缺失时 fail closed，缺失用户按幂等成功处理。
+- 账户删除/导出/路由/provider 聚焦 **6 files / 52 tests** 通过；未调用 Supabase Admin API、未删除真实账户。真实 Auth 删除、真实登录态失效、真实 Storage 清理和删除后再登录拒绝仍未验收，因此没有关闭 005，也未进入 007；整体可用性限制仍在。下一步需独立且明确授权的测试账号端到端删除，未获授权前不执行外部删除。
+
