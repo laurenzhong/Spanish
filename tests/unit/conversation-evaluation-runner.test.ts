@@ -86,6 +86,27 @@ describe("offline longitudinal evaluation", () => {
     expect(result.reviews.every((r) => r.verdict === "not_evaluated" && r.reviewer.startsWith("fake"))).toBe(true);
   });
 
+  it.each(coreRoutes.filter((candidate) => candidate.routeId === "R01" || candidate.routeId === "R05"))
+    ("replays %s as a complete cross-route structural trajectory without paid calls", async (route) => {
+      const result = await runTrajectory({
+        manifest: makeOfflineManifest({ runId: "cross-route-structural", trajectoryId: route.routeId.toLowerCase(), route }),
+        route,
+      });
+      expect(result.status).toBe("completed");
+      expect(result.errorCode).toBeNull();
+      expect(result.turns).toHaveLength(26);
+      expect(result.turns.filter((turn) => turn.kind === "proactive")).toEqual([
+        expect.objectContaining({ done: true, result: "generated" }),
+        expect.objectContaining({ done: true, result: "generated" }),
+      ]);
+      expect(result.relationship.state.familiarity).toBe("familiar");
+      expect(result.relationship.state.characterProposal).toBe("none");
+      expect(result.relationship.acceptedKinds).toContain("voluntary_personal_anchor");
+      expect(result.relationship.acceptedKinds).toContain("user_continuity_return");
+      if (route.routeId === "R05") expect(result.relationship.state.userRomanticIntent).toBe("friends_only");
+      else expect(result.relationship.state.userRomanticIntent).toBe("unspecified");
+    });
+
   it("projects completed relationship evidence into context, turns, and checkpoints", async () => {
     const r = route();
     r.steps[0].lifeEvent = "Quiero contarte algo de mi familia.";
