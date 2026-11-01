@@ -1,0 +1,35 @@
+name: temporary remote browser probe
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        required: true
+        type: string
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment: content-production
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
+      - name: Run remote browser probe
+        env:
+          PREVIEW_URL: ${{ inputs.preview_url }}
+          PREVIEW_AUTH_SESSION_JSON: ${{ secrets.PREVIEW_AUTH_SESSION_JSON }}
+          PREVIEW_SUPABASE_URL: ${{ secrets.PREVIEW_SUPABASE_URL }}
+          PREVIEW_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PREVIEW_SUPABASE_PUBLISHABLE_KEY }}
+        run: node --conditions=react-server --import tsx/esm scripts/tmp-remote-browser-probe.ts | tee "$RUNNER_TEMP/remote-browser-result.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remote-browser-result
+          path: ${{ runner.temp }}/remote-browser-result.json
