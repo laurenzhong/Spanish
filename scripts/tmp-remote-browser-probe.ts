@@ -8,6 +8,7 @@ const publishableKey = process.env.PREVIEW_SUPABASE_PUBLISHABLE_KEY;
 if (!preview || !sessionRaw || !supabaseUrl || !publishableKey) throw new Error("missing probe configuration");
 const parsed = JSON.parse(sessionRaw) as Record<string, unknown>;
 const session = (parsed.session ?? parsed) as Record<string, unknown>;
+const accessToken = typeof session.access_token === "string" ? session.access_token : "";
 const cookies: Array<{ name: string; value: string; options?: Record<string, unknown> }> = [];
 const client = createServerClient(supabaseUrl, publishableKey, { cookies: {
   getAll: () => [],
@@ -20,7 +21,7 @@ const result: Record<string, unknown> = { preview, cookieCount: cookies.length, 
 const requestWithRetry = async (page: import("@playwright/test").Page, url: string, attempts = 5) => {
   const statuses: number[] = [];
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const response = await page.request.get(url);
+    const response = await page.request.get(url, accessToken ? { headers: { authorization: `Bearer ${accessToken}` } } : undefined);
     statuses.push(response.status());
     if (response.status() === 200 || attempt === attempts - 1) return { response, statuses, body: await response.text() };
     await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
