@@ -15,7 +15,8 @@ const client = createServerClient(supabaseUrl, publishableKey, { cookies: {
 } });
 const setResult = await client.auth.setSession(session as Parameters<typeof client.auth.setSession>[0]);
 if (setResult.error || !setResult.data.session) throw new Error(`cookie-session:${setResult.error?.message ?? "missing"}`);
-console.log(JSON.stringify({ cookieDebug: cookies.map((cookie) => ({ name: cookie.name, valueLength: cookie.value?.length ?? 0, options: cookie.options ?? null })) }));\nconst browser = await chromium.launch({ headless: true });
+console.log(JSON.stringify({ cookieDebug: cookies.map((cookie) => ({ name: cookie.name, valueLength: cookie.value?.length ?? 0, options: cookie.options ?? null })) }));
+const browser = await chromium.launch({ headless: true });
 const result: Record<string, unknown> = { preview, cookieCount: cookies.length, desktop: {}, mobile: {}, errors: [] };
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -70,6 +71,7 @@ try {
 } finally {
   await browser.close();
 }
+
 
 
 
