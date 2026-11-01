@@ -1,0 +1,6 @@
+# Local evaluation artifacts and one-off fixture scripts must never enter a deployment.
+artifacts/
+tmp-*.ts
+tmp-*.ps1
+scripts/eval-real-*
+tsconfig.candidate.tmp.json
