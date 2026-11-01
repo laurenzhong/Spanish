@@ -172,8 +172,7 @@ function loadConversationList(force = false, scope = getConversationCacheScope()
   cachedStatus = "loading";
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations", controller)
+  const request = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(listRequest, generation, scope, request)) return;
       cachedConversations = payload.data?.conversations ?? [];
@@ -200,8 +199,7 @@ function loadLuciaContact(scope = getConversationCacheScope()): Promise<void> {
   if (cachedLuciaContact !== null) return Promise.resolve();
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact", controller)
+  const request = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(luciaContactRequest, generation, scope, request)) return;
       cachedLuciaContact = payload.data ?? null;
@@ -223,8 +221,7 @@ function loadIntroductionOfferCount(force = false, scope = getConversationCacheS
   if (!force && cachedIntroductionOfferCount !== null) return Promise.resolve();
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions", controller)
+  const request = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(introductionOfferRequest, generation, scope, request)) return;
       cachedIntroductionOfferCount = payload.data?.offers?.length ?? 0;
