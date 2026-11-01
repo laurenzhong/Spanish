@@ -22,7 +22,7 @@ const requestWithRetry = async (page: import("@playwright/test").Page, url: stri
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const response = await page.request.get(url);
     statuses.push(response.status());
-    if (response.status() === 200 || attempt === attempts - 1) return { response, statuses };
+    if (response.status() === 200 || attempt === attempts - 1) return { response, statuses, body: await response.text() };
     await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
   }
   throw new Error("unreachable");
@@ -65,7 +65,7 @@ try {
     await page.getByTestId("conversation-thread").waitFor({ state: "visible", timeout: 60_000 });
     afterReload = await page.locator(".conversation-message__text").count();
   }
-  result.desktop = { pageStatus: response.status(), retryObserved: historyAborted, messageCount: count, firstMessage: text[0], lastMessage: text.at(-1), afterReload, reloadRetry, viewport, apiMe: apiMe.response.status(), apiMeStatuses: apiMe.statuses, apiHistory: apiHistory.response.status(), apiHistoryStatuses: apiHistory.statuses, pageErrors: errors };
+  result.desktop = { pageStatus: response.status(), retryObserved: historyAborted, messageCount: count, firstMessage: text[0], lastMessage: text.at(-1), afterReload, reloadRetry, viewport, apiMe: apiMe.response.status(), apiMeStatuses: apiMe.statuses, apiMeBody: apiMe.body, apiHistory: apiHistory.response.status(), apiHistoryStatuses: apiHistory.statuses, pageErrors: errors };
   await page.close();
   await context.close();
 
