@@ -40,7 +40,7 @@ jobs:
           # foster me he acordado de ti" at 2026-10-23T03:29:36Z). Update this
           # ref whenever the production character revision changes; see
           # docs/operations/lucia-proactive-runbook.md.
-          ref: 5b83aaab31a6fec983f817ac87857630476c2b6a
+          ref: ${{ github.sha }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
