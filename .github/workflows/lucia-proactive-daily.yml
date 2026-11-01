@@ -5,12 +5,6 @@ on:
     # Poll every 15 minutes; each user's stable daily slots decide whether to send.
     - cron: "*/15 * * * *"
   workflow_dispatch:
-    inputs:
-      auth_probe:
-        description: "Run a temporary bearer-auth export/delete probe without the proactive job"
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: lucia-proactive-${{ github.ref }}
@@ -38,61 +32,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Probe current Preview authenticated account lifecycle
-        if: ${{ inputs.auth_probe == true }}
-        env:
-          PREVIEW_URL: https://spanish-ofc7pww2x-zjk159357s-projects.vercel.app
-          PREVIEW_AUTH_BEARER: ${{ secrets.PREVIEW_AUTH_BEARER }}
-        run: |
-          set -u
-          out="$RUNNER_TEMP/auth-probe"
-          mkdir -p "$out"
-          probe() {
-            local name="$1"
-            local method="$2"
-            local path="$3"
-            local body="${4:-}"
-            local status
-            if [ "$method" = "DELETE" ]; then
-              status=$(curl --silent --show-error --location --max-time 30 --request DELETE \
-                --header "authorization: Bearer $PREVIEW_AUTH_BEARER" \
-                --header 'content-type: application/json' --header "idempotency-key: preview-auth-probe-${GITHUB_RUN_ID}" \
-                --data "$body" --output "$out/${name}.body" --dump-header "$out/${name}.headers" --write-out '%{http_code}' \
-                "$PREVIEW_URL$path" || true)
-            else
-              status=$(curl --silent --show-error --location --max-time 30 --request "$method" \
-                --header "authorization: Bearer $PREVIEW_AUTH_BEARER" \
-                --output "$out/${name}.body" --dump-header "$out/${name}.headers" --write-out '%{http_code}' \
-                "$PREVIEW_URL$path" || true)
-            fi
-            printf '%s\t%s\t%s\t%s\n' "$name" "$method" "$status" "$(head -c 300 "$out/${name}.body" | tr '\n' ' ' | tr '\r' ' ')" | tee -a "$out/results.tsv"
-            printf '%s=%s\n' "$name" "$status" >> "$out/status.env"
-          }
-          : > "$out/results.tsv"
-          : > "$out/status.env"
-          probe me_before GET /api/v1/me
-          probe export_before GET /api/v1/me/export
-          probe conversations_before GET /api/v1/conversations
-          probe lucia_before GET /api/v1/conversations/lucia
-          probe delete DELETE /api/v1/me/account '{"confirmation":"DELETE_MY_ACCOUNT"}'
-          probe me_after GET /api/v1/me
-          {
-            echo '## Temporary authenticated Preview probe'
-            echo '- Bearer token was provided as a masked GitHub environment secret and is not archived.'
-            echo '- Results:'
-            echo '```text'
-            cat "$out/results.tsv"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          . "$out/status.env"
-          test "$me_before" = 200
-          test "$export_before" = 200
-          test "$conversations_before" = 200
-          test "$lucia_before" = 200
-          test "$delete" = 200
-          test "$me_after" = 401
       - name: Generate Lucía message
-        if: ${{ inputs.auth_probe != true }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LUCIA_PROACTIVE_USER_IDS: ${{ vars.LUCIA_PROACTIVE_USER_IDS }}
