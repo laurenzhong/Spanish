@@ -21,7 +21,7 @@ const result: Record<string, unknown> = { preview, cookieCount: cookies.length, 
 const requestWithRetry = async (page: import("@playwright/test").Page, url: string, attempts = 5) => {
   const statuses: number[] = [];
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const response = await page.request.get(url, accessToken ? { headers: { authorization: `Bearer ${accessToken}`, "cache-control": "no-cache" } } : { headers: { "cache-control": "no-cache" } });
+    const response = await page.request.get(url, accessToken ? { headers: { authorization: `Bearer ${accessToken}`, "cache-control": "no-cache", "x-lucia-debug": "1" } } : { headers: { "cache-control": "no-cache", "x-lucia-debug": "1" } });
     statuses.push(response.status());
     if (response.status() === 200 || attempt === attempts - 1) return { response, statuses, body: await response.text() };
     await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));

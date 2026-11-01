@@ -50,25 +50,30 @@ async function authenticatedUser(request: NextRequest) {
   return getRequestUser(request, { verifyRequestUser, getCurrentUser });
 }
 
-function errorResponse(requestId: string, code: string, message: string, status: number, retryable = false) {
-  return NextResponse.json({ apiVersion: API_VERSION, error: { code, message, retryable, requestId } }, { status });
+function errorResponse(requestId: string, code: string, message: string, status: number, retryable = false, debug?: string) {
+  return NextResponse.json({
+    apiVersion: API_VERSION,
+    error: { code, message, retryable, requestId },
+    ...(debug ? { debug } : {}),
+  }, { status });
 }
 
 export async function GET(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? randomUUID();
+  const debug = request.headers.get("x-lucia-debug") === "1";
   const user = await authenticatedUser(request);
   if (!user) return errorResponse(requestId, "AUTH_REQUIRED", "A valid user session is required.", 401);
   try {
     const profile = await getAccountProfile(createDrizzleAccountRepository(getDatabase()), user.id);
-    if (!profile) return errorResponse(requestId, "RESOURCE_NOT_FOUND", "Account profile was not found.", 404);
+    if (!profile) return errorResponse(requestId, "RESOURCE_NOT_FOUND", "Account profile was not found.", 404, false, debug ? "profile-missing" : undefined);
     const access = await readAccountAccess(user.id);
-    if (!access) return errorResponse(requestId, "INTERNAL_ERROR", "Account data is temporarily unavailable.", 503, true);
+    if (!access) return errorResponse(requestId, "INTERNAL_ERROR", "Account data is temporarily unavailable.", 503, true, debug ? "account-access-null" : undefined);
     return NextResponse.json({
       apiVersion: API_VERSION,
       data: await toDto(profile, access, isOwnerUserId(user.id) ? "owner" : access.role),
     });
-  } catch {
-    return errorResponse(requestId, "INTERNAL_ERROR", "Account data is temporarily unavailable.", 503, true);
+  } catch (error) {
+    return errorResponse(requestId, "INTERNAL_ERROR", "Account data is temporarily unavailable.", 503, true, debug ? `handler:${error instanceof Error ? error.message : String(error)}` : undefined);
   }
 }
 
