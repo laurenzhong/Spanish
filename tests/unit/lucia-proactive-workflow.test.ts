@@ -18,7 +18,7 @@ describe("Lucía proactive workflow", () => {
     expect(workflow).toContain("timeout-minutes: 10");
     expect(workflow).toContain("DATABASE_URL: ${{ secrets.DATABASE_URL }}");
     expect(workflow).toContain("LUCIA_PROACTIVE_USER_IDS: ${{ vars.LUCIA_PROACTIVE_USER_IDS }}");
-    expect(workflow).toContain("ref: 97627ab52678aa1af469f78869ec599597e494f0");
+    expect(workflow).toContain("ref: 0af175856f699eb5f97525149765a41f1037d04f");
     expect(workflow).toContain("CONVERSATION_PROVIDER: ${{ vars.CONVERSATION_PROVIDER || 'deepseek' }}");
     expect(workflow).toContain("OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT || 'https://api.deepseek.com/v1' }}");
     expect(workflow).toContain("OPENAI_API_STYLE: ${{ vars.OPENAI_API_STYLE || 'chat-completions' }}");
