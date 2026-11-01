@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fbcfa85
+          ref: codex/current-full-candidate
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -35,5 +35,6 @@ jobs:
         with:
           name: remote-browser-result
           path: ${{ runner.temp }}/remote-browser-result.json
+
 
 
