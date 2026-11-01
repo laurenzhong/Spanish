@@ -5,12 +5,6 @@ on:
     # Poll every 15 minutes; each user's stable daily slots decide whether to send.
     - cron: "*/15 * * * *"
   workflow_dispatch:
-    inputs:
-      probe_only:
-        description: "Run a read-only Preview HTTP probe without the proactive job"
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: lucia-proactive-${{ github.ref }}
@@ -38,59 +32,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Probe current Preview HTTP boundaries
-        if: ${{ inputs.probe_only == true }}
-        env:
-          PREVIEW_URL: https://spanish-4kfhqxums-zjk159357s-projects.vercel.app
-        run: |
-          set -u
-          out="$RUNNER_TEMP/preview-probe"
-          mkdir -p "$out"
-          probe() {
-            local name="$1"
-            local method="$2"
-            local path="$3"
-            local body="${4:-}"
-            local body_file="$out/${name}.body"
-            local header_file="$out/${name}.headers"
-            local status
-            if [ "$method" = "POST" ]; then
-              status=$(curl --silent --show-error --location --max-time 20 --request POST \
-                --header 'content-type: application/json' --data "$body" \
-                --dump-header "$header_file" --output "$body_file" --write-out '%{http_code}' \
-                "$PREVIEW_URL$path" || true)
-            else
-              status=$(curl --silent --show-error --location --max-time 20 \
-                --dump-header "$header_file" --output "$body_file" --write-out '%{http_code}' \
-                "$PREVIEW_URL$path" || true)
-            fi
-            printf '%s\t%s\t%s\t%s\n' "$name" "$method" "$status" "$(head -c 240 "$body_file" | tr '\n' ' ' | tr '\r' ' ')" | tee -a "$out/results.tsv"
-          }
-          : > "$out/results.tsv"
-          probe home GET /
-          probe login GET /login
-          probe manifest GET /manifest.webmanifest
-          probe me GET /api/v1/me
-          probe export GET /api/v1/me/export
-          probe conversations GET /api/v1/conversations
-          probe stream POST /api/v1/conversations/lucia/stream '{"text":"","generationId":"preview-probe"}'
-          {
-            echo '## Temporary Preview probe'
-            echo "- Preview: $PREVIEW_URL"
-            echo '- No secrets, provider calls, OTP, or database writes were used.'
-            echo '- Results:'
-            echo '```text'
-            cat "$out/results.tsv"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload Preview probe artifacts
-        if: ${{ inputs.probe_only == true }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-probe-${{ github.run_id }}
-          path: ${{ runner.temp }}/preview-probe
       - name: Generate Lucía message
-        if: ${{ inputs.probe_only != true }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LUCIA_PROACTIVE_USER_IDS: ${{ vars.LUCIA_PROACTIVE_USER_IDS }}
