@@ -266,42 +266,6 @@ async function download(url: string, directory: string): Promise<{ path: string;
   return { path: output, hash: createHash("sha256").update(bytes).digest("hex") };
 }
 
-async function officialPodcastFallback(sourceName: string, currentUrl: string): Promise<string | null> {
-  const feedUrl = sourceName.includes("Charlas Hispanas")
-    ? "https://charlashispanas.com/feed/podcast/"
-    : sourceName.includes("Hoy Hablamos")
-      ? "https://www.hoyhablamos.com/category/podcast/feed/"
-        : sourceName.includes("LearnCraft Spanish")
-          ? "https://rss.libsyn.com/shows/466488/destinations/3943362.xml"
-          : sourceName.includes("Unlimited Spanish")
-            ? "https://unlimitedspanish.libsyn.com/rss"
-          : null;
-  if (!feedUrl) return null;
-  let stem = "";
-  try { stem = decodeURIComponent(new URL(currentUrl).pathname).split("/").pop()?.replace(/\.[^.]+$/u, "").toLowerCase() ?? ""; } catch { return null; }
-  if (!stem) return null;
-  try {
-    const response = await fetch(feedUrl, { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok) return null;
-    const xml = await response.text();
-    for (const item of xml.match(/<item\b[\s\S]*?<\/item>/giu) ?? []) {
-      const raw = /<enclosure\b[^>]*?\burl=["']([^"']+)/iu.exec(item)?.[1];
-      if (!raw) continue;
-      const candidate = new URL(raw);
-      const name = decodeURIComponent(candidate.pathname).split("/").pop()?.replace(/\.[^.]+$/u, "").toLowerCase() ?? "";
-      if (!(name === stem || name.includes(stem) || stem.includes(name))) continue;
-      if (candidate.hostname === "media.blubrry.com" || candidate.hostname === "content.blubrry.com") {
-        const host = sourceName.includes("Charlas Hispanas") ? "https://charlashispanas.com" : "https://www.hoyhablamos.com";
-        const proxy = new URL(`${host}/wp-content/plugins/simple-podcast-press/responsive_audio_player/downloadaudio.php`);
-        proxy.searchParams.set("file", candidate.toString());
-        return proxy.toString();
-      }
-      return candidate.toString();
-    }
-  } catch { /* retain the stored source when the public feed is unavailable */ }
-  return null;
-}
-
 async function refreshLanguageReactorAudio(stableKey: string): Promise<string | null> {
   if (!stableKey.startsWith("podcast.language-reactor.")) return null;
   const docId = stableKey.slice("podcast.language-reactor.".length);
@@ -352,7 +316,7 @@ function deterministicWordPayload(segments: readonly ExistingSegment[]) {
   return segments.map((segment) => {
     const words = Array.isArray(segment.words) ? segment.words : [];
     // Ignore legacy/mismatched text while validating the immutable offsets.
-    const structureWords = words.map(({ text: _text, ...timing }) => timing);
+    const structureWords = words.map(({ startMs, endMs, startOffset, endOffset }) => ({ startMs, endMs, startOffset, endOffset }));
     const valid = validWordTimings({
       sourceText: segment.sourceText,
       startMs: segment.startMs,

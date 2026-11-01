@@ -18,7 +18,7 @@ export function AlertDialog({ children, open: controlledOpen, defaultOpen = fals
   // changes `setOpen`, which re-runs the content focus effect mid-typing and
   // steals focus from a field (e.g. a confirmation input) after one keystroke.
   const onOpenChangeRef = useRef(onOpenChange);
-  onOpenChangeRef.current = onOpenChange;
+  useEffect(() => { onOpenChangeRef.current = onOpenChange; }, [onOpenChange]);
   const setOpen = useCallback((next: boolean) => { if (controlledOpen === undefined) setUncontrolledOpen(next); onOpenChangeRef.current?.(next); }, [controlledOpen]);
   const contextValue = useMemo(() => ({ open, setOpen, triggerRef, contentId, titleId, descriptionId }), [contentId, descriptionId, open, setOpen, titleId, triggerRef]);
   return <AlertDialogContext.Provider value={contextValue}>{children}</AlertDialogContext.Provider>;
@@ -42,7 +42,7 @@ export function AlertDialogContent({ children, className, dismissible = true, ..
   const context = useContext(AlertDialogContext);
   const contentRef = useRef<HTMLDivElement>(null);
   const dismissibleRef = useRef(dismissible);
-  dismissibleRef.current = dismissible;
+  useEffect(() => { dismissibleRef.current = dismissible; }, [dismissible]);
   if (!context) throw new Error("AlertDialogContent must be used inside AlertDialog");
   const { open, setOpen, triggerRef } = context;
   useEffect(() => {

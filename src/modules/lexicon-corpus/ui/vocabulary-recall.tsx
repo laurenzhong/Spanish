@@ -112,8 +112,8 @@ export function VocabularyRecall({ storageScope, marksReady, containerRef, statu
     }
     const keys = next.map((target) => target.item.markKey);
     const selected = {
-      word: selectRecallKeys(keys, progress.progress, "word", queue, batchSize, Date.now()),
-      meaning: selectRecallKeys(keys, progress.progress, "meaning", queue, batchSize, Date.now()),
+      word: selectRecallKeys(keys, progress.progress, "word", queue, batchSize, now),
+      meaning: selectRecallKeys(keys, progress.progress, "meaning", queue, batchSize, now),
     };
     if (!selected[mode].length) {
       setNotice(queue === "review" ? "当前没有到期的复习词。想提前练习可选“全部自测”。" : "当前词表的首次待练已完成，已通过的词会在到期后进入复习。");

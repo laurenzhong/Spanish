@@ -10,7 +10,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import inesSource from "@/content/characters/ines.json";
 import luciaSource from "@/content/characters/lucia.json";
-import mateoSource from "@/content/characters/mateo.json";
 import {
   createDrizzleCharacterRepository,
   importCharacterBible,
@@ -30,7 +29,6 @@ import * as schema from "@/src/shared/db/schema";
 const userId = "00000000-0000-4000-8000-000000000061";
 const luciaId = "10000000-0000-4000-8000-000000000061";
 const mateoId = "10000000-0000-4000-8000-000000000062";
-const inesId = "10000000-0000-4000-8000-000000000063";
 const luciaIdentityId = "40000000-0000-4000-8000-000000000061";
 const mateoIdentityId = "40000000-0000-4000-8000-000000000062";
 const inesIdentityId = "40000000-0000-4000-8000-000000000063";
