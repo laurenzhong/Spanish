@@ -106,7 +106,7 @@ describe("temporary vocabulary recall", () => {
     session = reduceRecall(session, { type: "check" });
     expect(summarizeRecall(session)).toMatchObject({ correct: 0, hinted: 1, retry: 1 });
     session = reduceRecall(session, { type: "retry" });
-    expect(session.rounds.meaning.answers.casa).toMatchObject({ value: "", result: null, hinted: false });
+    expect(session.rounds.meaning.answers.casa).toMatchObject({ value: "", result: null, hinted: true });
     expect(session.rounds.word.answers.casa!.value).toBe("");
   });
 
@@ -119,6 +119,37 @@ describe("temporary vocabulary recall", () => {
     session = reduceRecall(session, { type: "retry" });
     expect(session.rounds.word.ids).toEqual(["other"]);
     expect(session.rounds.meaning.ids).toEqual(["casa", "other"]);
+  });
+
+  it("does not turn a correction after seeing feedback into independent recall on retry", () => {
+    let session = startRecall([casa], "word");
+    session = reduceRecall(session, { type: "input", id: "casa", value: "wrong" });
+    session = reduceRecall(session, { type: "check" });
+    session = reduceRecall(session, { type: "retry" });
+    session = reduceRecall(session, { type: "input", id: "casa", value: "casa" });
+    session = reduceRecall(session, { type: "check" });
+    expect(summarizeRecall(session)).toMatchObject({ correct: 0, hinted: 1, retry: 1 });
+    const fresh = reduceRecall(reduceRecall(startRecall([casa], "word"), { type: "input", id: "casa", value: "casa" }), { type: "check" });
+    expect(summarizeRecall(fresh).correct).toBe(1);
+  });
+
+  it("keeps self-confirmed answers in practice and blank answers independent on retry", () => {
+    let session = startRecall([casa, { ...casa, id: "blank" }], "meaning");
+    session = reduceRecall(session, { type: "input", id: "casa", value: "居所" });
+    session = reduceRecall(session, { type: "check" });
+    session = reduceRecall(session, { type: "confirm", id: "casa", correct: true });
+    expect(summarizeRecall(session).retry).toBe(2);
+    session = reduceRecall(session, { type: "retry" });
+    expect(session.rounds.meaning.answers.casa!.hinted).toBe(true);
+    expect(session.rounds.meaning.answers.blank!.hinted).toBe(false);
+  });
+
+  it("does not count answers exposed by the opposite mode as independent", () => {
+    let session = startRecall([casa], "meaning");
+    session = reduceRecall(session, { type: "switch", mode: "word" });
+    session = reduceRecall(session, { type: "input", id: "casa", value: "casa" });
+    session = reduceRecall(session, { type: "check" });
+    expect(summarizeRecall(session)).toMatchObject({ correct: 0, hinted: 1 });
   });
 
   it("ignores stale item actions and illegal confirmations, and clears edited results", () => {

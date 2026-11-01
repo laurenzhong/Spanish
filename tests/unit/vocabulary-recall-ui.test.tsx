@@ -8,6 +8,16 @@ import { VocabularyShelfList, type VocabularyShelfItem } from "@/src/modules/lex
 const speech = vi.hoisted(() => ({ stop: vi.fn(), speak: vi.fn() }));
 vi.mock("@/src/modules/providers/tts", () => ({ useReadAloud: () => ({ ...speech, speakingId: null, errorMessage: "" }) }));
 vi.mock("@/src/shared/ui/use-media-query", () => ({ useMediaQuery: () => false, wordPanelSheetQuery: "(max-width: 600px)" }));
+// These cases exercise the original portal/keyboard interactions. Account transport
+// and persisted queue transitions have a separate real-hook integration suite.
+vi.mock("@/src/modules/lexicon-corpus/ui/use-vocabulary-marks", () => ({ useVocabularyMarks: (scope: string) => ({
+  statuses: JSON.parse(window.localStorage.getItem(`sueno:vocabulary-status:v1:${scope}`) ?? "{}"),
+  loading: false, pending: false, error: "", hasAnonymousMarks: false,
+}) }));
+vi.mock("@/src/modules/lexicon-corpus/ui/use-vocabulary-recall-progress", () => ({ useVocabularyRecallProgress: () => ({
+  epoch: "00000000-0000-4000-8000-000000000002", progress: [], loading: false, pending: false, error: "", conflict: false,
+  acknowledgedAttemptId: null, lastSavedEntries: [], save: async () => true, retry: () => {}, refresh: () => {},
+}) }));
 
 const items: readonly VocabularyShelfItem[] = [
   { id: "word:casa", markKey: "casa", text: "casa", meaning: "房子、家", context: null, source: null },
@@ -206,7 +216,8 @@ describe("vocabulary shelf recall", () => {
     expect(screen.getByText("待确认", { exact: true })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "我的意思正确" }));
     expect(screen.getByText("自行确认正确")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("独立匹配 0 · 自行确认 1");
+    expect(screen.getByRole("status")).toHaveTextContent("独立匹配 0");
+    expect(screen.getByRole("status")).toHaveTextContent("使用提示 1");
     await user.click(screen.getByRole("button", { name: "看释义写单词" }));
     expect(screen.getByRole("textbox")).toHaveValue("casa");
     expect(screen.getByRole("status")).toHaveTextContent("独立匹配 1");

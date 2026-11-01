@@ -25,14 +25,15 @@ function newRound(items: readonly RecallItem[], generation = 0): RecallRound {
   return { ids: items.map((item) => item.id), answers: Object.fromEntries(items.map((item) => [item.id, emptyAnswer()])), generation };
 }
 
-export function startRecall(items: readonly RecallItem[], mode: RecallMode): RecallSession {
+export function startRecall(items: readonly RecallItem[], mode: RecallMode, modeKeys?: Readonly<Record<RecallMode, readonly string[]>>): RecallSession {
   const seen = new Set<string>();
   const frozen = items.filter((item) => {
     if (!item.word.trim() || !item.meanings.some((meaning) => meaning.trim()) || seen.has(item.id)) return false;
     seen.add(item.id);
     return true;
   }).map((item) => ({ ...item, meanings: item.meanings.map((meaning) => meaning.trim()).filter(Boolean) }));
-  return { mode, items: frozen, rounds: { word: newRound(frozen), meaning: newRound(frozen) } };
+  const forMode = (direction: RecallMode) => modeKeys ? frozen.filter((item) => modeKeys[direction].includes(item.markKey)) : frozen;
+  return { mode, items: frozen, rounds: { word: newRound(forMode("word")), meaning: newRound(forMode("meaning")) } };
 }
 
 function normalizeWord(value: string): string {
@@ -79,7 +80,7 @@ export function checkRecall(item: RecallItem, mode: RecallMode, value: string): 
 }
 
 export function recallNeedsRetry(answer: RecallAnswer): boolean {
-  return answer.result !== "correct" || answer.hinted;
+  return answer.result !== "correct" || answer.hinted || answer.selfConfirmed;
 }
 
 /** Call after checking the current answer; navigation never grades other items. */
@@ -96,7 +97,19 @@ export function nextUnansweredRecallId(session: RecallSession, currentId: string
 }
 
 export function reduceRecall(session: RecallSession, action: RecallAction): RecallSession {
-  if (action.type === "switch") return { ...session, mode: action.mode };
+  if (action.type === "switch") {
+    if (action.mode === session.mode) return session;
+    // The opposite direction displays the answer as its cue. It cannot become
+    // independent recall merely by toggling modes in the same session.
+    const exposedKeys = new Set(session.items.filter((item) => session.rounds[session.mode].ids.includes(item.id)).map((item) => item.markKey));
+    const target = session.rounds[action.mode];
+    const answers = { ...target.answers };
+    for (const item of session.items) {
+      const answer = answers[item.id];
+      if (answer && exposedKeys.has(item.markKey) && answer.result !== "correct") answers[item.id] = { ...answer, hinted: true };
+    }
+    return { ...session, mode: action.mode, rounds: { ...session.rounds, [action.mode]: { ...target, answers } } };
+  }
   const round = session.rounds[session.mode];
   const replaceRound = (next: RecallRound): RecallSession => ({
     ...session, rounds: { ...session.rounds, [session.mode]: next },
@@ -104,7 +117,14 @@ export function reduceRecall(session: RecallSession, action: RecallAction): Reca
   if (action.type === "retry") {
     const ids = new Set(round.ids);
     const items = session.items.filter((item) => ids.has(item.id) && recallNeedsRetry(round.answers[item.id]!));
-    return items.length ? replaceRound(newRound(items, round.generation + 1)) : session;
+    if (!items.length) return session;
+    const next = newRound(items, round.generation + 1);
+    return replaceRound({ ...next, answers: Object.fromEntries(items.map((item) => {
+      const previous = round.answers[item.id]!;
+      const exposed = previous.hinted || previous.revealed || previous.selfConfirmed
+        || (previous.result !== null && previous.result !== "correct" && previous.result !== "unanswered");
+      return [item.id, { ...emptyAnswer(), hinted: exposed }];
+    })) });
   }
   if (action.type === "check") {
     const answers = { ...round.answers };
@@ -122,7 +142,7 @@ export function reduceRecall(session: RecallSession, action: RecallAction): Reca
   let next: RecallAnswer;
   if (action.type === "input") next = {
     ...answer, value: action.value.slice(0, 200), result: null, selfConfirmed: false,
-    hinted: answer.hinted || (answer.result !== null && answer.result !== "correct"),
+    hinted: answer.hinted || answer.selfConfirmed || (answer.result !== null && answer.result !== "correct" && answer.result !== "unanswered"),
   };
   else if (action.type === "reveal") next = { ...answer, hinted: true, revealed: true };
   else {

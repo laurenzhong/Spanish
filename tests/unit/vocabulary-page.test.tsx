@@ -65,9 +65,10 @@ describe("vocabulary page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ data: { marks: {} } }) })));
     mocks.languageReactor.current = {};
     delete process.env.DATABASE_URL;
-    mocks.getCurrentUser.mockResolvedValue(null);
+    mocks.getCurrentUser.mockResolvedValue({ id: "vocabulary-page-user" });
     mocks.getDatabase.mockReturnValue({});
     mocks.createRepository.mockReturnValue(mocks.repository);
     mocks.redirect.mockImplementation((url: string) => { throw new Error(`NEXT_REDIRECT:${url}`); });
@@ -87,6 +88,23 @@ describe("vocabulary page", () => {
   function openWithDatabase() {
     process.env.DATABASE_URL = "postgresql://test.invalid/db";
   }
+
+  it("does not switch a slow authenticated account to anonymous storage", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.getCurrentUser.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ id: "slow-user" }), 1700)));
+      const result = VocabularyPage({ searchParams: Promise.resolve({}) });
+      await vi.advanceTimersByTimeAsync(1800);
+      const page = await result;
+      const shelf = page.props.children.find((child: unknown) => child && typeof child === "object" && "props" in child && (child as { props: { storageScope?: string } }).props.storageScope);
+      expect(shelf.props.storageScope).toBe("slow-user");
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("requires login instead of opening anonymous marks", async () => {
+    mocks.getCurrentUser.mockResolvedValue(null);
+    await expect(VocabularyPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_REDIRECT:/login");
+  });
 
   it("renders the whole shelf on one page, without pagination", async () => {
     openWithDatabase();
@@ -122,7 +140,7 @@ describe("vocabulary page", () => {
     expect(document.querySelectorAll(".vocabulary-study__word small")).toHaveLength(0);
   });
 
-  it("puts Language Reactor's first meaning on the tile and all of them, in LR's order, on hover", async () => {
+  it("puts the dictionary's first meaning on the tile and all of them, in source order, on hover and in the card", async () => {
     const user = userEvent.setup();
     openWithDatabase();
     // LR's own order, which is not a frequency order.
@@ -141,7 +159,9 @@ describe("vocabulary page", () => {
 
     await user.click(tile);
     const card = screen.getByRole("complementary", { name: "item5 词汇卡片" });
-    expect(card).toHaveTextContent("Language Reactor 词典释义");
+    expect([...card.querySelectorAll<HTMLElement>(
+      ".vocabulary-study__meaning-main strong, .vocabulary-study__meaning-terms li",
+    )].map((item) => item.textContent)).toEqual(["五", "第五", "五号"]);
     // Nothing claims the order is by commonness.
     expect(card).not.toHaveTextContent(/最常用|按频率|常用度/u);
   });

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { phrasebookEntries } from "@/src/modules/lexicon-corpus/content/phrasebook-v3";
+import { phrasebookEntries } from "@/src/modules/lexicon-corpus/content/phrasebook-v4";
 import { phrasebookEntries as originalEntries, phrasebookVersion } from "@/src/modules/lexicon-corpus/content/phrasebook-v1";
 import review from "@/src/modules/lexicon-corpus/content/phrasebook-v1.review.json";
 import { matchesPhrasebookSearch, phrasebookEntrySchema, phraseTopics } from "@/src/modules/lexicon-corpus/domain/phrasebook";
@@ -25,10 +25,10 @@ describe("reviewed practical phrasebook", () => {
   });
 
   it("contains complete, unique, validated teaching entries for every topic", () => {
-    expect(phrasebookEntries).toHaveLength(120);
-    expect(new Set(phrasebookEntries.map((item) => item.id)).size).toBe(120);
+    expect(phrasebookEntries).toHaveLength(150);
+    expect(new Set(phrasebookEntries.map((item) => item.id)).size).toBe(150);
     for (const entry of phrasebookEntries) expect(phrasebookEntrySchema.safeParse(entry).success).toBe(true);
-    for (const topic of phraseTopics) expect(phrasebookEntries.filter((entry) => entry.topic === topic.id)).toHaveLength(20);
+    for (const topic of phraseTopics) expect(phrasebookEntries.filter((entry) => entry.topic === topic.id)).toHaveLength(25);
     expect(phrasebookEntrySchema.safeParse({ ...phrasebookEntries[0], dialogue: [] }).success).toBe(false);
   });
 
@@ -50,7 +50,7 @@ describe("reviewed practical phrasebook", () => {
 
   it("filters by purpose and search and gives a working reset for zero matches", async () => {
     const user = userEvent.setup(); render(<Phrasebook userId="owner" />);
-    expect(screen.getByRole("button", { name: /没听懂时/u })).toHaveTextContent("20");
+    expect(screen.getByRole("button", { name: /没听懂时/u })).toHaveTextContent("25");
     await user.click(screen.getByRole("button", { name: /没听懂时/u }));
     expect(screen.getByRole("heading", { name: "¿Puedes repetirlo, por favor?" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "¿Qué tal te va?" })).not.toBeInTheDocument();

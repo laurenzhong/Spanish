@@ -169,13 +169,27 @@ type FetchReply = Readonly<{ ok: boolean; status: number; json: () => Promise<un
 
 /** The lookup route's answer for the word under test; each test sets its own. */
 let wordLookupReply: FetchReply | null = null;
+let accountMarks: Record<string, string | null> = {};
 
 /**
  * One stub for both routes, told apart by URL: reading a word and looking one up are
  * different requests with different answers, and a stub that answered both the same
  * way would let a wiring mistake pass.
  */
-const fetchMock = vi.fn<(input: string, init: RequestInit) => Promise<FetchReply>>(async (input) => {
+const fetchMock = vi.fn<(input: string, init: RequestInit) => Promise<FetchReply>>(async (input, init) => {
+  if (String(input).includes("vocabulary-recall-progress")) {
+    return { ok: true, status: 200, json: async () => ({ apiVersion: "1", data: { epoch: "00000000-0000-4000-8000-000000000002", progress: [] } }) };
+  }
+  if (String(input).includes("vocabulary-marks")) {
+    if (init?.method === "PUT") {
+      const { word, status } = JSON.parse(String(init.body));
+      accountMarks[word] = status;
+    } else if (init?.method === "POST") {
+      const { marks } = JSON.parse(String(init.body));
+      for (const [word, status] of Object.entries(marks)) if (!Object.hasOwn(accountMarks, word)) accountMarks[word] = status as string;
+    }
+    return { ok: true, status: 200, json: async () => ({ apiVersion: "1", data: { marks: { ...accountMarks } } }) };
+  }
   if (String(input).includes("word-lookup")) {
     if (!wordLookupReply) throw new Error("the test did not stage a lookup reply");
     return wordLookupReply;
@@ -230,6 +244,19 @@ const syntheticReply: WordAudioReply = {
 
 
 describe("vocabulary shelf", () => {
+  it("shows and clears an accented word using the persisted normalized key", async () => {
+    const user = userEvent.setup();
+    accountMarks = { cafe: "familiar" };
+    renderShelf("accented-mark", [{ id: "word:cafe", markKey: "cafe", text: "café", context: null, source: null, meaning: "咖啡" }]);
+    await user.click(wordTile("café"));
+    const panel = screen.getByRole("complementary", { name: "café 词汇卡片" });
+    const known = within(panel).getByRole("button", { name: "已熟悉" });
+    await waitFor(() => expect(known).toHaveAttribute("aria-pressed", "true"));
+    await user.click(within(panel).getByRole("button", { name: "清除标记" }));
+    await waitFor(() => expect(accountMarks).toEqual({ cafe: null }));
+    expect(known).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("reads only suponer with Spanish TTS even when a media clip is available", async () => {
     const user = userEvent.setup();
     wordAudioReply = clipReply({ startMs: 164160, stopAtMs: 164930 });
@@ -255,6 +282,7 @@ describe("vocabulary shelf", () => {
     FakeAudio.instances.length = 0;
     wordAudioReply = syntheticReply;
     wordLookupReply = null;
+    accountMarks = {};
     fetchMock.mockClear();
     vi.stubGlobal("Audio", FakeAudio);
     vi.stubGlobal("fetch", fetchMock);
@@ -281,7 +309,7 @@ describe("vocabulary shelf", () => {
     expect(within(screen.getByRole("list", { name: "排名 1 - 100" })).getAllByRole("button")).toHaveLength(100);
     expect(within(screen.getByRole("list", { name: "排名 101 - 105" })).getAllByRole("button")).toHaveLength(5);
     // The whole shelf is one document: no paging control, and nothing that fetches more.
-    expect(screen.getAllByRole("button")).toHaveLength(107);
+    expect(screen.getAllByRole("button")).toHaveLength(112);
     expect(within(screen.getByRole("group", { name: "默写模式" })).getAllByRole("button")).toHaveLength(2);
     expect(screen.queryByRole("navigation", { name: "词句分页" })).not.toBeInTheDocument();
     // The occurrence count is gone and must not come back with the full render.
@@ -396,7 +424,7 @@ describe("vocabulary shelf", () => {
     expect(cardMeanings(card)).toEqual(["房子、家", "家、住所"]);
   });
 
-  it("marks the hovered word from the layer, through the same local storage contract", async () => {
+  it("marks the hovered word from the layer, through the account API", async () => {
     const user = userEvent.setup();
     renderShelf("scope-layer-mark");
 
@@ -405,12 +433,12 @@ describe("vocabulary shelf", () => {
     await user.click(within(actions).getByRole("button", { name: "标为已知" }));
 
     await waitFor(() => {
-      expect(JSON.parse(window.localStorage.getItem("sueno:vocabulary-status:v1:scope-layer-mark") ?? "{}")).toEqual({ casa: "familiar" });
+      expect(accountMarks).toEqual({ casa: "familiar" });
     });
     await waitFor(() => expect(wordTile("casa")).toHaveClass("is-familiar"));
   });
 
-  it("keeps 正在学习 as its own local state instead of reusing 想复现", async () => {
+  it("keeps 正在学习 as its own account state instead of reusing 想复现", async () => {
     const user = userEvent.setup();
     renderShelf("scope-learning");
 
@@ -423,7 +451,7 @@ describe("vocabulary shelf", () => {
     expect(wordTile("casa")).toHaveClass("is-learning");
     expect(wordTile("casa")).not.toHaveClass("is-revisit");
     await waitFor(() => {
-      expect(JSON.parse(window.localStorage.getItem("sueno:vocabulary-status:v1:scope-learning") ?? "{}")).toEqual({ casa: "learning" });
+      expect(accountMarks).toEqual({ casa: "learning" });
     });
   });
 
@@ -431,7 +459,12 @@ describe("vocabulary shelf", () => {
     const user = userEvent.setup();
     renderShelf("scope-layer-keyboard");
 
-    // The autoplay switch, two recall modes and ser precede casa in this harness.
+    // Autoplay, five queue/size choices, two recall modes and ser precede casa.
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    await user.tab();
     await user.tab();
     await user.tab();
     await user.tab();
@@ -467,7 +500,12 @@ describe("vocabulary shelf", () => {
     renderShelf("scope-focus");
 
     // The first tile in order is `ser`, which has no reviewed meaning: focusing
-    // it must not invent one. The autoplay switch and both recall modes precede it.
+    // it must not invent one. Autoplay, queue/size choices and modes precede it.
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    await user.tab();
     await user.tab();
     await user.tab();
     await user.tab();
@@ -1125,7 +1163,7 @@ describe("vocabulary shelf", () => {
     expect(within(card).queryByText(/已发布内容出现/u)).toBeNull();
   });
 
-  it("marks a word in this browser and decorates its server-rendered tile", async () => {
+  it("saves a word to the account and decorates its server-rendered tile", async () => {
     const user = userEvent.setup();
     renderShelf("scope-mark");
 
@@ -1136,19 +1174,19 @@ describe("vocabulary shelf", () => {
     expect(wordTile("casa")).toHaveClass("is-familiar");
     expect(screen.getByText(/已标记 1 个/u)).toBeInTheDocument();
     await waitFor(() => {
-      expect(JSON.parse(window.localStorage.getItem("sueno:vocabulary-status:v1:scope-mark") ?? "{}")).toEqual({ casa: "familiar" });
+      expect(accountMarks).toEqual({ casa: "familiar" });
     });
 
     await user.click(within(marking).getByRole("button", { name: "已熟悉" }));
     expect(wordTile("casa")).not.toHaveClass("is-familiar");
   });
 
-  it("shows a mark made in another session of the same scope without a click", () => {
+  it("imports an old account mark and shows it without a click", async () => {
     window.localStorage.setItem("sueno:vocabulary-status:v1:scope-known", JSON.stringify({ casa: "revisit" }));
 
     renderShelf("scope-known");
 
-    expect(wordTile("casa")).toHaveClass("is-revisit");
+    await waitFor(() => expect(wordTile("casa")).toHaveClass("is-revisit"));
     expect(screen.getByText(/已标记 1 个/u)).toBeInTheDocument();
   });
 
