@@ -6,7 +6,7 @@ const sessionRaw = process.env.PREVIEW_AUTH_SESSION_JSON;
 const supabaseUrl = process.env.PREVIEW_SUPABASE_URL;
 const publishableKey = process.env.PREVIEW_SUPABASE_PUBLISHABLE_KEY;
 if (!preview || !sessionRaw || !supabaseUrl || !publishableKey) throw new Error("missing probe configuration");
-const session = JSON.parse(sessionRaw) as Record<string, unknown>;
+const parsed = JSON.parse(sessionRaw) as Record<string, unknown>;\nconst session = (parsed.session ?? parsed) as Record<string, unknown>;
 const cookies: Array<{ name: string; value: string; options?: Record<string, unknown> }> = [];
 const client = createServerClient(supabaseUrl, publishableKey, { cookies: {
   getAll: () => [],
@@ -69,3 +69,4 @@ try {
 } finally {
   await browser.close();
 }
+
