@@ -17,13 +17,13 @@ const setResult = await client.auth.setSession(session as Parameters<typeof clie
 if (setResult.error || !setResult.data.session) throw new Error(`cookie-session:${setResult.error?.message ?? "missing"}`);
 const browser = await chromium.launch({ headless: true });
 const result: Record<string, unknown> = { preview, cookieCount: cookies.length, desktop: {}, mobile: {}, errors: [] };
-const requestWithRetry = async (page: import("@playwright/test").Page, url: string, attempts = 3) => {
+const requestWithRetry = async (page: import("@playwright/test").Page, url: string, attempts = 5) => {
   const statuses: number[] = [];
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const response = await page.request.get(url);
     statuses.push(response.status());
     if (response.status() === 200 || attempt === attempts - 1) return { response, statuses, body: await response.text() };
-    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
   }
   throw new Error("unreachable");
 };
