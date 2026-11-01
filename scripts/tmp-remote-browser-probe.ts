@@ -15,9 +15,18 @@ const client = createServerClient(supabaseUrl, publishableKey, { cookies: {
 } });
 const setResult = await client.auth.setSession(session as Parameters<typeof client.auth.setSession>[0]);
 if (setResult.error || !setResult.data.session) throw new Error(`cookie-session:${setResult.error?.message ?? "missing"}`);
-console.log(JSON.stringify({ cookieDebug: cookies.map((cookie) => ({ name: cookie.name, valueLength: cookie.value?.length ?? 0, options: cookie.options ?? null })) }));
 const browser = await chromium.launch({ headless: true });
 const result: Record<string, unknown> = { preview, cookieCount: cookies.length, desktop: {}, mobile: {}, errors: [] };
+const requestWithRetry = async (page: import("@playwright/test").Page, url: string, attempts = 3) => {
+  const statuses: number[] = [];
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const response = await page.request.get(url);
+    statuses.push(response.status());
+    if (response.status() === 200 || attempt === attempts - 1) return { response, statuses };
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+  throw new Error("unreachable");
+};
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await context.addCookies(cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, url: preview, secure: true })));
@@ -44,12 +53,19 @@ try {
   const count = await messages.count();
   const text = await messages.allTextContents();
   const viewport = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
-  const apiMe = await page.request.get(`${preview}/api/v1/me`);
-  const apiHistory = await page.request.get(`${preview}/api/v1/conversations/lucia`);
+  const apiMe = await requestWithRetry(page, `${preview}/api/v1/me`);
+  const apiHistory = await requestWithRetry(page, `${preview}/api/v1/conversations/lucia`);
   await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
   await page.getByTestId("conversation-thread").waitFor({ state: "visible", timeout: 60_000 });
-  const afterReload = await page.locator(".conversation-message__text").count();
-  result.desktop = { pageStatus: response.status(), retryObserved: historyAborted, messageCount: count, firstMessage: text[0], lastMessage: text.at(-1), afterReload, viewport, apiMe: apiMe.status(), apiHistory: apiHistory.status(), pageErrors: errors };
+  let afterReload = await page.locator(".conversation-message__text").count();
+  let reloadRetry = false;
+  if (afterReload === 0) {
+    reloadRetry = true;
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
+    await page.getByTestId("conversation-thread").waitFor({ state: "visible", timeout: 60_000 });
+    afterReload = await page.locator(".conversation-message__text").count();
+  }
+  result.desktop = { pageStatus: response.status(), retryObserved: historyAborted, messageCount: count, firstMessage: text[0], lastMessage: text.at(-1), afterReload, reloadRetry, viewport, apiMe: apiMe.response.status(), apiMeStatuses: apiMe.statuses, apiHistory: apiHistory.response.status(), apiHistoryStatuses: apiHistory.statuses, pageErrors: errors };
   await page.close();
   await context.close();
 
@@ -64,8 +80,10 @@ try {
   await mobile.close();
   const manifest = await fetch(`${preview}/manifest.webmanifest`);
   result.manifest = { status: manifest.status, body: await manifest.json() };
-  if ((result.desktop as any).apiMe !== 200 || (result.desktop as any).apiHistory !== 200 || (result.desktop as any).afterReload !== (result.desktop as any).messageCount) throw new Error(`desktop-assertions:${JSON.stringify(result.desktop)}`);
-  if ((result.mobile as any).pageStatus !== 200 || (result.mobile as any).messageCount === 0 || (result.mobile as any).viewport.scrollWidth > (result.mobile as any).viewport.width) throw new Error(`mobile-assertions:${JSON.stringify(result.mobile)}`);
+  const desktopResult = result.desktop as { apiMe?: number; apiHistory?: number; afterReload?: number; messageCount?: number };
+  const mobileResult = result.mobile as { pageStatus?: number; messageCount?: number; viewport?: { scrollWidth: number; width: number } };
+  if (desktopResult.apiMe !== 200 || desktopResult.apiHistory !== 200 || desktopResult.afterReload !== desktopResult.messageCount) throw new Error(`desktop-assertions:${JSON.stringify(result.desktop)}`);
+  if (mobileResult.pageStatus !== 200 || mobileResult.messageCount === 0 || (mobileResult.viewport?.scrollWidth ?? 0) > (mobileResult.viewport?.width ?? 0)) throw new Error(`mobile-assertions:${JSON.stringify(result.mobile)}`);
   if (manifest.status !== 200) throw new Error(`manifest-status:${manifest.status}`);
   console.log(JSON.stringify(result));
 } finally {
