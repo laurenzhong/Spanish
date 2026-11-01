@@ -13,6 +13,8 @@ export type AccountAccess = Readonly<{
   deletionPending: boolean;
 }>;
 
+const ACCOUNT_ACCESS_RETRY_DELAY_MS = 50;
+
 /**
  * Read the account access state that the shared identity gate needs.
  *
@@ -31,27 +33,32 @@ export async function readAccountAccess(
   userId: string,
 ): Promise<AccountAccess | null> {
   if (!process.env.DATABASE_URL) return null;
-  try {
-    const [row] = await getDatabase()
-      .select({
-        role: profiles.role,
-        status: profiles.accountStatus,
-        deletionRequestedAt: profiles.deletionRequestedAt,
-      })
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
-    if (!row) return null;
-    if (row.role !== "owner" && row.role !== "member") return null;
-    if (row.status !== "active" && row.status !== "suspended") return null;
-    return {
-      role: row.role,
-      status: row.status,
-      deletionPending: row.deletionRequestedAt !== null,
-    };
-  } catch {
-    return null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const [row] = await getDatabase()
+        .select({
+          role: profiles.role,
+          status: profiles.accountStatus,
+          deletionRequestedAt: profiles.deletionRequestedAt,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1);
+      if (!row) return null;
+      if (row.role !== "owner" && row.role !== "member") return null;
+      if (row.status !== "active" && row.status !== "suspended") return null;
+      return {
+        role: row.role,
+        status: row.status,
+        deletionPending: row.deletionRequestedAt !== null,
+      };
+    } catch {
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, ACCOUNT_ACCESS_RETRY_DELAY_MS));
+      }
+    }
   }
+  return null;
 }
 
 /**
