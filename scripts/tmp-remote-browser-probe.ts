@@ -20,7 +20,7 @@ const browser = await chromium.launch({ headless: true });
 const result: Record<string, unknown> = { preview, cookieCount: cookies.length, desktop: {}, mobile: {}, errors: [] };
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.addCookies(cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, url: preview, path: "/", secure: true })));
+  await context.addCookies(cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, url: preview, secure: true })));
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -54,7 +54,7 @@ try {
   await context.close();
 
   const mobile = await browser.newContext({ ...devices["iPhone 13"] });
-  await mobile.addCookies(cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, url: preview, path: "/", secure: true })));
+  await mobile.addCookies(cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, url: preview, secure: true })));
   const mobilePage = await mobile.newPage();
   const mobileResponse = await mobilePage.goto(`${preview}/chat/lucia`, { waitUntil: "domcontentloaded", timeout: 90_000 });
   await mobilePage.getByTestId("conversation-thread").waitFor({ state: "visible", timeout: 60_000 });
@@ -71,6 +71,7 @@ try {
 } finally {
   await browser.close();
 }
+
 
 
 
