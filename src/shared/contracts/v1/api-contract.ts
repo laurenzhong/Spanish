@@ -65,6 +65,14 @@ export const API_ERROR_CODES = [
   "MEDIA_SERIES_MEMBERSHIP_CONFLICT",
   "MEDIA_SERIES_CURSOR_INVALID",
   "MEDIA_SERIES_UNAVAILABLE",
+  "ADMIN_FORBIDDEN",
+  "ADMIN_UNAVAILABLE",
+  "INVITATION_INVALID",
+  "INVITATION_CONFLICT",
+  "REGISTRATION_CLOSED",
+  "ACCOUNT_PROVISIONING_FAILED",
+  "ACCOUNT_STATE_CONFLICT",
+  "EXPORT_UNAVAILABLE",
   "INTERNAL_ERROR",
 ] as const;
 
@@ -107,6 +115,9 @@ export type AccountProfileAvatar = Readonly<{
   colorIndex: number;
 }>;
 
+export type AccountProfileRole = "owner" | "member";
+export type AccountProfileStatus = "active" | "suspended";
+
 export type AccountProfileDto = Readonly<{
   publicUid: string;
   displayName: string | null;
@@ -114,23 +125,29 @@ export type AccountProfileDto = Readonly<{
   interfaceLanguage: string;
   targetLanguage: string;
   updatedAt: string;
+  /** Server-granted role (ACCT-ADMIN-001); never writable from the client. */
+  role: AccountProfileRole;
+  /** Active/suspended account state; suspended accounts are gated server-side. */
+  accountStatus: AccountProfileStatus;
   avatar: AccountProfileAvatar;
 }>;
 
 export function parseAccountProfileResponse(input: unknown): AccountProfileDto {
   const response = parseSuccessResponse(input);
   const data = requireRecord(response.data, "Account profile response must include a data object.");
-  requireAllowedKeys(data, ["publicUid", "displayName", "nativeLanguage", "interfaceLanguage", "targetLanguage", "updatedAt", "avatar"]);
+  requireAllowedKeys(data, ["publicUid", "displayName", "nativeLanguage", "interfaceLanguage", "targetLanguage", "updatedAt", "role", "accountStatus", "avatar"]);
   if (typeof data.publicUid !== "string" || !/^SN-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/u.test(data.publicUid)) throw new ContractParseError("VALIDATION_FAILED", "Account profile publicUid is invalid.");
   if (data.displayName !== null && typeof data.displayName !== "string") throw new ContractParseError("VALIDATION_FAILED", "Account profile displayName is invalid.");
   for (const field of ["nativeLanguage", "interfaceLanguage", "targetLanguage", "updatedAt"] as const) if (typeof data[field] !== "string") throw new ContractParseError("VALIDATION_FAILED", `Account profile ${field} is invalid.`);
+  if (data.role !== "owner" && data.role !== "member") throw new ContractParseError("VALIDATION_FAILED", "Account profile role is invalid.");
+  if (data.accountStatus !== "active" && data.accountStatus !== "suspended") throw new ContractParseError("VALIDATION_FAILED", "Account profile accountStatus is invalid.");
   const avatar = requireRecord(data.avatar, "Account profile avatar is required.");
   requireAllowedKeys(avatar, ["kind", "presetId", "url", "initials", "colorIndex"]);
   if (!AVATAR_KINDS_CONTRACT.includes(avatar.kind as (typeof AVATAR_KINDS_CONTRACT)[number])) throw new ContractParseError("VALIDATION_FAILED", "Account profile avatar kind is invalid.");
   if (avatar.presetId !== null && typeof avatar.presetId !== "string") throw new ContractParseError("VALIDATION_FAILED", "Account profile avatar presetId is invalid.");
   if (avatar.url !== null && typeof avatar.url !== "string") throw new ContractParseError("VALIDATION_FAILED", "Account profile avatar url is invalid.");
   if (typeof avatar.initials !== "string" || typeof avatar.colorIndex !== "number") throw new ContractParseError("VALIDATION_FAILED", "Account profile avatar fallback is invalid.");
-  return { publicUid: data.publicUid, displayName: data.displayName as string | null, nativeLanguage: data.nativeLanguage as string, interfaceLanguage: data.interfaceLanguage as string, targetLanguage: data.targetLanguage as string, updatedAt: data.updatedAt as string, avatar: { kind: avatar.kind as AccountProfileAvatar["kind"], presetId: avatar.presetId as string | null, url: avatar.url as string | null, initials: avatar.initials as string, colorIndex: avatar.colorIndex as number } };
+  return { publicUid: data.publicUid, displayName: data.displayName as string | null, nativeLanguage: data.nativeLanguage as string, interfaceLanguage: data.interfaceLanguage as string, targetLanguage: data.targetLanguage as string, updatedAt: data.updatedAt as string, role: data.role, accountStatus: data.accountStatus, avatar: { kind: avatar.kind as AccountProfileAvatar["kind"], presetId: avatar.presetId as string | null, url: avatar.url as string | null, initials: avatar.initials as string, colorIndex: avatar.colorIndex as number } };
 }
 
 const AVATAR_KINDS_CONTRACT = ["upload", "preset", "initials"] as const;
@@ -200,6 +217,14 @@ const retryableByDefault: Readonly<Record<ApiErrorCode, boolean>> = {
   MEDIA_SERIES_MEMBERSHIP_CONFLICT: false,
   MEDIA_SERIES_CURSOR_INVALID: false,
   MEDIA_SERIES_UNAVAILABLE: true,
+  ADMIN_FORBIDDEN: false,
+  ADMIN_UNAVAILABLE: true,
+  INVITATION_INVALID: false,
+  INVITATION_CONFLICT: false,
+  REGISTRATION_CLOSED: false,
+  ACCOUNT_PROVISIONING_FAILED: true,
+  ACCOUNT_STATE_CONFLICT: false,
+  EXPORT_UNAVAILABLE: true,
   INTERNAL_ERROR: true,
 };
 

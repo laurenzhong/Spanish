@@ -11,7 +11,7 @@ export {
   profileOverviewSchema,
 } from "./profile-overview";
 export type { ProfileAxis, ProfileEvidence, ProfileOverview, ProfileRepresentativeAttempt } from "./profile-overview";
-export { CAPABILITY_GROUP_DEFINITIONS, capabilityDefinition, evidenceMatchesCapability, skillBelongsToCapability } from "./capability-groups";
+export { CAPABILITY_GROUP_DEFINITIONS, CAPABILITY_ROUTING_VERSION, capabilityDefinition, evidenceMatchesCapability, routedCapability, skillBelongsToCapability } from "./capability-groups";
 export { buildFourCapabilityOverview, fourCapabilityOverviewSchema } from "./four-capability-overview";
 export type { CapabilityGroup, CapabilitySkill, FourCapabilityOverview } from "./four-capability-overview";
 export type { CapabilityGroupKey } from "./capability-groups";

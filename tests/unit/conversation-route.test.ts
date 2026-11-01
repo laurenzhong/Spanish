@@ -10,6 +10,7 @@ const luciaVersion = conversationCharacterVersion("lucia") ?? 1;
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { POST } from "@/app/api/v1/conversations/[characterId]/stream/route";
 import { GET } from "@/app/api/v1/conversations/[characterId]/route";
+import { createOpenAIConversationProvider } from "@/src/modules/providers/conversation/server";
 
 vi.mock("@/src/shared/auth/server", () => ({
   getCurrentUser: vi.fn(),
@@ -17,11 +18,13 @@ vi.mock("@/src/shared/auth/server", () => ({
 }));
 
 vi.mock("@/src/modules/providers/conversation/server", () => ({
-  createMiniMaxConversationProvider: vi.fn(),
+  createMiniMaxConversationProvider: vi.fn(() => ({ generate: vi.fn(async () => ({ text: "Hola.", provider: "minimax", modelVersion: "test", providerRequestId: null, latencyMs: 1, estimatedCostMicros: null })) })),
+  createOpenAIConversationProvider: vi.fn(() => ({ generate: vi.fn(async () => ({ text: "Hola.", provider: "deepseek", modelVersion: "deepseek-flash", providerRequestId: "deepseek-test", latencyMs: 1, estimatedCostMicros: null })) })),
 }));
 
 const mockedVerifyRequestUser = vi.mocked(verifyRequestUser);
 const mockedGetCurrentUser = vi.mocked(getCurrentUser);
+const mockedCreateOpenAIConversationProvider = vi.mocked(createOpenAIConversationProvider);
 
 describe("conversation stream route authentication", () => {
   beforeEach(() => {
@@ -48,6 +51,22 @@ describe("conversation stream route authentication", () => {
     expect(body).toContain('"type":"meta"');
     expect(body).toContain('"type":"done"');
     expect(mockedGetCurrentUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("selects DeepSeek explicitly for ordinary conversation when configured", async () => {
+    vi.stubEnv("CONVERSATION_PROVIDER", "deepseek");
+    vi.stubEnv("OPENAI_API_KEY", "deepseek-test-key");
+    mockedVerifyRequestUser.mockResolvedValue(null);
+    mockedGetCurrentUser.mockResolvedValue({ id: "deepseek-user", email: "deepseek@example.test" });
+    const request = new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ characterVersion: luciaVersion, text: "hola", clientMessageId: "deepseek-client", generationId: "deepseek-generation" }),
+    });
+    const response = await POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('"text":"Hola."');
+    expect(mockedCreateOpenAIConversationProvider).toHaveBeenCalledWith({ providerName: "deepseek" });
   });
 
   it("refuses a superseded revision instead of opening a second conversation", async () => {

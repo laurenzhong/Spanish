@@ -26,9 +26,11 @@ export async function runLuciaProactiveDaily(now = new Date()): Promise<LuciaPro
 
   const connection = createDatabaseConnection(databaseUrl);
   try {
-    const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();
-    const provider = configuredProvider === "openai" && process.env.OPENAI_API_KEY?.trim()
-      ? createOpenAIConversationProvider()
+    const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase() || "deepseek";
+    const useDeepSeek = configuredProvider === "deepseek" && process.env.OPENAI_API_KEY?.trim();
+    const useOpenAI = configuredProvider === "openai" && process.env.OPENAI_API_KEY?.trim();
+    const provider = useDeepSeek || useOpenAI
+      ? createOpenAIConversationProvider({ providerName: useDeepSeek ? "deepseek" : "openai" })
       : process.env.MINIMAX_API_KEY?.trim()
         ? createMiniMaxConversationProvider()
         : undefined;

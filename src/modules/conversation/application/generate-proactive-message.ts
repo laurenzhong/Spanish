@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type { CharacterReplyProvider, ConversationProviderInput } from "@/src/modules/providers/conversation";
 import type { MemoryRecord } from "@/src/modules/memory";
 import { buildReplyContext, luciaConversationTimeZone, type ReplyCharacterSnapshot, type ReplyContext } from "./build-reply-context";
@@ -39,7 +37,15 @@ const proactiveContinuityInstruction = "Este mensaje es espontáneo y no respond
 /** The single retry a proactive message gets when it repeats an answered question. */
 const proactiveRepeatRetryInstruction = "Tu mensaje anterior repetía una pregunta que la persona ya respondió o pedía un dato que ya está en la conversación. Escribe un mensaje espontáneo nuevo que no vuelva a preguntar eso, sin repetir tus mensajes anteriores y sin convertir la charla en un cuestionario. Puedes compartir una observación breve sin pregunta.";
 
+/** The same bounded retry also repairs a provider candidate rejected by a hard output gate. */
+const proactiveSafetyRetryInstruction = "Tu mensaje anterior no se puede enviar porque contenía contaminación de idioma, caracteres o texto interno. Escribe ahora únicamente un mensaje breve, natural y limpio en español; no incluyas instrucciones, análisis, etiquetas, inglés, chino, símbolos extraños ni fragmentos del mensaje anterior. Respeta la política de preguntas y no inventes hechos.";
+
 const proactiveContextMessageLimit = 100;
+
+function randomId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 type ProactiveMemory = MemoryRecord;
 
@@ -72,6 +78,7 @@ async function buildProactiveReplyContext(
   state: Readonly<{
     relationshipStage: ReplyContext["relationshipStage"];
     relationshipSummary: string | null;
+    relationshipSignalsSummary?: string | null;
   }>,
 ): Promise<ReplyContext> {
   const history = await input.repository.listRecentMessages(input.userId, proactiveContextMessageLimit);
@@ -82,6 +89,7 @@ async function buildProactiveReplyContext(
     character: input.character,
     relationshipStage: state.relationshipStage,
     relationshipSummary: state.relationshipSummary,
+    relationshipSignalsSummary: state.relationshipSignalsSummary,
     recentMessages: completedContextMessages(history),
     now: input.now,
     // Proactive messages are always Lucía's; the character timezone defines
@@ -111,7 +119,7 @@ function proactiveProviderInput(
     character: context.character,
     relationshipStage: context.relationshipStage,
     relationshipSummary: context.relationshipSummary,
-    relationshipSignalsSummary: context.relationshipSummary,
+    relationshipSignalsSummary: context.relationshipSignalsSummary ?? context.relationshipSummary,
     memories: context.memories,
     teachingOpportunity: null,
     questionPolicy: plan.questionPolicy,
@@ -135,10 +143,14 @@ async function generateSafeProactiveText(
 ): Promise<Readonly<{ status: "generated"; text: string } | { status: "blocked" }>> {
   const first = await input.provider.generate(proactiveProviderInput(context, plan, input, proactiveContinuityInstruction));
   const firstText = first.text.trim();
-  if (!isProactiveMessageSafe(firstText, plan)) return { status: "blocked" };
-  if (!repeatsAnsweredQuestion(context.recentMessages, firstText)) return { status: "generated", text: firstText };
+  const firstSafe = isProactiveMessageSafe(firstText, plan);
+  const repeatsQuestion = firstSafe && repeatsAnsweredQuestion(context.recentMessages, firstText);
+  if (!firstSafe || !repeatsQuestion) {
+    if (firstSafe) return { status: "generated", text: firstText };
+  }
 
-  const retry = await input.provider.generate(proactiveProviderInput(context, plan, input, proactiveRepeatRetryInstruction));
+  const retryInstruction = repeatsQuestion ? proactiveRepeatRetryInstruction : proactiveSafetyRetryInstruction;
+  const retry = await input.provider.generate(proactiveProviderInput(context, plan, input, retryInstruction));
   const retryText = retry.text.trim();
   if (!isProactiveMessageSafe(retryText, plan) || repeatsAnsweredQuestion(context.recentMessages, retryText)) {
     return { status: "blocked" };
@@ -164,7 +176,7 @@ export async function previewLuciaProactiveMessage(input: Readonly<{
   if (!input.character || input.character.characterKey !== "lucia") return { status: "failed", reason: "character-runtime-unavailable", text: null };
   if (!input.provider) return { status: "failed", reason: "provider-unavailable", text: null };
   const dailyState = input.dailyState ?? "available";
-  const plan = proactiveReplyPlan(input.source, state.relationshipStage, dailyState);
+  const plan = proactiveReplyPlan(input.source, state.relationshipStage, dailyState, state);
   const scope: ProactiveGenerationScope = {
     userId: input.userId,
     source: input.source,
@@ -174,7 +186,7 @@ export async function previewLuciaProactiveMessage(input: Readonly<{
     provider: input.provider,
     character: input.character,
     memories: input.memories ?? [],
-    generationId: `preview-${randomUUID()}`,
+    generationId: `preview-${randomId()}`,
   };
   try {
     const context = await buildProactiveReplyContext(scope, state);
@@ -210,7 +222,7 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
     sourceEventId: input.sourceEventId,
     calendarDay: now.toISOString().slice(0, 10),
   });
-  const generationId = randomUUID();
+  const generationId = randomId();
   const candidate = await input.repository.createCandidate({
     userId: input.userId,
     conversationId,
@@ -227,7 +239,7 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
   }
 
   const dailyState = input.dailyState ?? "available";
-  const plan = proactiveReplyPlan(input.source, state.relationshipStage, dailyState);
+  const plan = proactiveReplyPlan(input.source, state.relationshipStage, dailyState, state);
   if (!input.provider) {
     await input.repository.failCandidate({ userId: input.userId, candidateId: candidate.id, errorCode: "provider-unavailable" });
     return { status: "failed", reason: "provider-unavailable", candidate, message: null };
@@ -253,7 +265,7 @@ export async function generateLuciaProactiveMessage(input: Readonly<{
     const completed = await input.repository.completeCandidate({
       userId: input.userId,
       candidateId: candidate.id,
-      messageId: randomUUID(),
+      messageId: randomId(),
       generationId,
       content: generated.text,
     });

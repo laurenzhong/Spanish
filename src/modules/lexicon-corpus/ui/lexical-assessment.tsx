@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button, Input, RadioGroup, RadioGroupItem } from "@/src/shared/ui/primitives";
 
 type Assessment = Readonly<{ id: string; assessmentKey: string; version: number; promptType: "choice" | "judgement" | "cloze" | "recall"; prompt: string; options: readonly string[]; sourceReference: Record<string, unknown>; contentVersion: number }>;
 type AttemptResult = Readonly<{ passed: boolean; score: 0 | 1; normalizedAnswer: string; duplicate: boolean; evidence: "recorded" | "duplicate" }>;
@@ -46,6 +47,6 @@ export function LexicalAssessment({ assessmentKey }: Readonly<{ assessmentKey: s
   if (!assessment) return null;
   const isChoice = assessment.promptType === "choice" || assessment.promptType === "judgement";
   return <section className="lexical-assessment" aria-label="文字考察"><div className="lexical-assessment__heading"><h2>文字考察</h2><span>{assessment.promptType === "choice" ? "选择" : assessment.promptType === "judgement" ? "判断" : assessment.promptType === "cloze" ? "填空" : "回忆"}</span></div><p>{assessment.prompt}</p><form onSubmit={submit}>
-    {isChoice && assessment.options.length > 0 ? <fieldset className="lexical-assessment__options"><legend>选择一个答案</legend>{assessment.options.map((option) => <label key={option}><input type="radio" name={`assessment-${assessment.id}`} value={option} checked={answer === option} onChange={(event) => { setAnswer(event.target.value); setResult(null); }} /> <span>{option}</span></label>)}</fieldset> : <input value={answer} onChange={(event) => { setAnswer(event.target.value); setResult(null); }} aria-label="你的答案" autoComplete="off" maxLength={500} />}
-    <button type="submit" disabled={state === "submitting" || !answer.trim()}>{state === "submitting" ? "提交中…" : "提交答案"}</button></form>{submitError ? <p className="lexical-assessment__result is-failed" role="alert">提交失败，答案没有被记录，请重试。</p> : null}{result ? <p className={result.passed ? "lexical-assessment__result is-passed" : "lexical-assessment__result is-failed"} role="status">{result.passed ? "答案通过" : "这次未通过，可以回看语料后再试。"}{result.duplicate ? "（已记录过）" : ""}</p> : null}</section>;
+    {isChoice && assessment.options.length > 0 ? <fieldset className="lexical-assessment__options"><legend>选择一个答案</legend><RadioGroup name={`assessment-${assessment.id}`} value={answer} onValueChange={(value) => { setAnswer(value); setResult(null); }}>{assessment.options.map((option) => <label key={option}><RadioGroupItem value={option} /> <span>{option}</span></label>)}</RadioGroup></fieldset> : <Input value={answer} onChange={(event) => { setAnswer(event.target.value); setResult(null); }} aria-label="你的答案" autoComplete="off" maxLength={500} />}
+    <Button type="submit" disabled={state === "submitting" || !answer.trim()} loading={state === "submitting"}>{state === "submitting" ? "提交中…" : "提交答案"}</Button></form>{submitError ? <p className="lexical-assessment__result is-failed" role="alert">提交失败，答案没有被记录，请重试。</p> : null}{result ? <p className={result.passed ? "lexical-assessment__result is-passed" : "lexical-assessment__result is-failed"} role="status">{result.passed ? "答案通过" : "这次未通过，可以回看语料后再试。"}{result.duplicate ? "（已记录过）" : ""}</p> : null}</section>;
 }

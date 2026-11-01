@@ -60,6 +60,7 @@ export const practiceSessions = pgTable(
       table.startedAt,
     ),
     index("practice_sessions_user_status_idx").on(table.userId, table.status),
+    index("practice_sessions_started_idx").on(table.startedAt),
     check(
       "practice_sessions_content_version_positive_check",
       sql`${table.contentVersion} > 0`,

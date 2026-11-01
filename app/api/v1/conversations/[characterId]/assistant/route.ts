@@ -13,6 +13,8 @@ import { createDrizzleIntroductionRepository, createDrizzleLuciaContactRepositor
 import { ConversationAssistantProviderError } from "@/src/modules/providers/assistant/assistant";
 import { createMiniMaxConversationAssistantProvider } from "@/src/modules/providers/assistant/server";
 import { createDrizzleProviderCallRepository } from "@/src/modules/providers/repositories/drizzle-provider-call-repository";
+import { recordLearningObservation } from "@/src/modules/learning-insights";
+import { createDrizzleLearningObservationRepository } from "@/src/modules/learning-insights/repositories";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getRequestUser } from "@/src/shared/auth/request-user";
 import { API_VERSION, type ApiErrorCode } from "@/src/shared/contracts/v1/api-contract";
@@ -65,6 +67,27 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { characterId } = await context.params;
     const database = process.env.DATABASE_URL ? getDatabase() : undefined;
     const observer = database ? createDrizzleProviderCallRepository(database) : undefined;
+    if (database) {
+      void recordLearningObservation(
+        {
+          repository: createDrizzleLearningObservationRepository(database),
+          id: () => requestId,
+        },
+        user.id,
+        {
+          userId: user.id,
+          eventType: "assistant_intent",
+          sourceModule: "conversation",
+          subjectType: "none",
+          subjectId: null,
+          subjectVersion: null,
+          signalStrength: parsed.data.intent === "grammar" || parsed.data.intent === "structure" ? "moderate" : "weak",
+          metadata: { intent: parsed.data.intent },
+          dedupeKey: `assistant-intent:${parsed.data.attemptId}`,
+          occurredAt: new Date(),
+        },
+      ).catch(() => undefined);
+    }
     const data = await consultConversationAssistant({ ...parsed.data, userId: user.id, characterKey: characterId }, {
       repository: database ? createDrizzleConversationAssistantRepository(database) : undefined,
       allowStaticFallback: isConversationStaticFallbackAllowed(),

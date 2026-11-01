@@ -95,19 +95,143 @@ const caseInsensitiveReportedEnglishWords = new Set([
   "often",
   "resolved",
   "cute",
+  // Retry32 R04: clear English content words leaked into otherwise Spanish
+  // replies. Keep these exact words bounded; accented Spanish equivalents do
+  // not normalize to the same surfaces.
+  "complication",
+  "sharing",
+  "dish",
+  "novelty",
   "cookbook",
   "task",
+  "accomplishment",
+  // Postfix R04: sentence-initial English connector leaked through with a
+  // capital letter, so it cannot rely on the lowercase marker rule.
+  "then",
+  // Clean-source R04 samples: English content words leaked into otherwise
+  // Spanish replies. Keep these explicit to avoid turning this into a broad
+  // language detector.
+  "prepared",
+  "surround",
+  "advance",
+  "enjoying",
+  "reserved",
+  // Gatefix5 R04 review: English content leaked into a Spanish reply.
+  "recounts",
+  "satisfaction",
+  "deferred",
+  // retry14 R04: English adverb leaked into an otherwise Spanish reply.
+  "increasingly",
+  // retry16 R04: English adjective leaked into a Spanish cooking question.
+  "elaborate",
+  // retry18 R04: English participle leaked into a Spanish cooking reply.
+  "benefitted",
+  // retry20 R04: uppercase English pressure noun leaked into a slow-pace reply.
+  "pressure",
+  // retry21 R04: English content words leaked into otherwise Spanish replies.
+  "patience",
+  "obligated",
+  // retry23 R04: English content words leaked into broken Spanish replies.
+  "amenable",
+  "protein",
+  "seekers",
+  // Retry40 R01: English content words leaked into otherwise Spanish replies.
+  "recommending",
+  "enjoys",
+  "substantiate",
+  // Retry35 R04: English placeholder leaked into a Spanish reply.
+  "filling",
+  // retry25 R04: an English participle leaked into a Spanish sentence.
+  "pressured",
+  // Retry29 R04: standalone English leaks in otherwise Spanish replies.
+  "scarce",
+  "descending",
 ]);
 
 // High-confidence malformed Latin fragments observed in the 006 real run.
 // This remains a tiny regression list, not a general grammar detector.
-const malformedSpanishFragments = new Set(["teargue", "plats", "aoften", "habianchanged", "hancancelado", "librogood", "quedetail", "hastaapis", "seguirathediendo", "irools", "pressionarnos", "falar", "couth", "poderrecommendations", "semad", "habivenido", "yichar", "tocaomc", "itsonga", "sinorpheus", "kerja", "sinuqunhugdias"]);
+const malformedSpanishFragments = new Set(["teargue", "plats", "aoften", "habianchanged", "hancancelado", "librogood", "quedetail", "hastaapis", "seguirathediendo", "irools", "pressionarnos", "falar", "parler", "couth", "poderrecommendations", "recommendationes", "semad", "habivenido", "yichar", "tocaomc", "itsonga", "sinorpheus", "kerja", "sinuqunhugdias", "niotro", "niiotro", "cookinado", "hascookinado", "concedecido", "mananatalk", "acabadoposteriorsind", "teoe", "quehjablemos", "deplantejarlo", "historiasbindings", "trouveeis", "acabao", "meyk", "jobsuka", "estrarajes", "kotliniendo", "quecuriosity", "bougies", "rarity", "hascookeado", "faltaknowing", "tenerprotagonismo", "vayamadurando", "etiquetteado", "peromarks", "comedir", "telanguages", "cookear", "hoyelpas", "obligationes", "pressa", "lamanagement", "hebang", "enjoy", "proposes", "laavailability", "enjoyed", "techiro", "texl", "teowelcomes", "lohares", "quested", "sueleneys", "haencedido", "pudearu", "puedearu", "puedeurposeuno", "nosirs", "questionsquestion", "podemosknown", "asiforwardos", "cooksinado", "sinhornear", "tulas", "másspecial", "ydescending", "questrange", "masoparaca", "strayes", "dejandohqsomesator", "bienerrecho"]);
 const malformedSpanishPatterns: readonly Readonly<{ phrase: string; pattern: RegExp }>[] = [
+  // Retry41 R01/R05: provider drafting residue fused punctuation/English into
+  // otherwise Spanish replies. These exact shapes are unambiguously corrupt;
+  // keep them narrow so ordinary names and quoted text remain possible.
+  { phrase: "de_share", pattern: /\bde_share\b/iu },
+  { phrase: "now.handzu", pattern: /\bnow\.handzu\b/iu },
+  { phrase: "que recordá", pattern: /\bquerecorda\b/iu },
+  { phrase: "como ukeep", pattern: /\bcomoukeup\b/iu },
+  { phrase: "freees", pattern: /\bfreees\b/iu },
+  // Retry37 R05: `solo curas que` is a malformed clause in the occupation
+  // reply; match the full shape so the valid Spanish noun/verb `curas` is not
+  // blocked in unrelated sentences.
+  { phrase: "solo curas que", pattern: /\bsolo\s+curas\s+que\b/u },
+  // Retry36 R05 step 13: the provider emitted the Galician/Catalan greeting
+  // `bons días` inside an otherwise Spanish reply. Keep this exact phrase
+  // narrow so valid names or quoted user text are not treated as corruption.
+  { phrase: "bons días", pattern: /\bbons\s+dias\b/u },
+  // Flash reviewer-confirmed grammar corruption: the auxiliary "has" was
+  // followed by an infinitive instead of the participle "concedido".
+  { phrase: "te has conceder", pattern: /\bte\s+has\s+conceder\b/u },
+  { phrase: "nos quedamos en un rato tranquilo", pattern: /\bnos\s+quedamos\s+en\s+un\s+rato\s+tranquilo\b/u },
+  // Flash holdout corruption: "Hoy se Pola." is not a Spanish clause. Keep
+  // the exact shape so the proper name "Pola" remains valid elsewhere.
+  { phrase: "hoy se pola", pattern: /\bhoy\s+se\s+pola\b/u },
+  { phrase: "quelques jours", pattern: /\bquelques\s+jours\b/u },
+  // R04 retry6: "habéis podrido cambiar" is a malformed replacement for
+  // "habéis podido cambiar". "Podrido" remains valid Spanish elsewhere;
+  // require the full auxiliary + infinitive shape to avoid false positives.
+  { phrase: "habéis podrido cambiar", pattern: /\bhabeis\s+podrido\s+cambiar\b/u },
   { phrase: "unas contenidos", pattern: /\bunas\s+contenidos\b/u },
   { phrase: "me ha raro", pattern: /\bme\s+ha\s+raro\b/u },
   { phrase: "busqueda algo", pattern: /\bbusqueda\s+algo\b/u },
   { phrase: "decidlo", pattern: /\b(?:hay\s+que|puedes)\s+decidlo\b/u },
   { phrase: "planes cerradas", pattern: /\bplanes\s+cerradas\b/u },
+  // Clean-source R04 artifacts: punctuation, an underscore, and a fused word
+  // boundary are all high-confidence provider corruption.
+  { phrase: "y.GLASS", pattern: /\by\.glass\b/u },
+  { phrase: "habéis_cancelado", pattern: /\bhabeis_cancelado\b/u },
+  { phrase: "lo.byte", pattern: /\blo\.byte\b/u },
+  { phrase: "nos_unknown", pattern: /\bnos_unknown\b/u },
+  { phrase: "haquitada", pattern: /\bhaquitada\b/iu },
+  // Retry9 R04: an English fragment was glued to a Spanish comparative.
+  { phrase: "más-proxy", pattern: /\bmas-proxy\b/u },
+  // Retry10 R04: a provider output marker was fused into a Spanish verb.
+  { phrase: "puedesootput", pattern: /\bpuedesootput\b/iu },
+  // Retry9 R04: the provider repeated an English placeholder inside a question.
+  { phrase: "mandatory repetition", pattern: /mandatory(?:mandatory){1,}/iu },
+  // Retry9 R04: an English outlet noun was inserted into a broken Spanish clause.
+  { phrase: "acaba outlet bien", pattern: /\bacaba\s+outlet\s+bien\b/iu },
+  // Retry12 R04: fused English-looking fragments in otherwise Spanish words.
+  { phrase: "estaroi", pattern: /\bestaroi\b/iu },
+  { phrase: "plantsarse", pattern: /\bplantsarse\b/iu },
+  { phrase: "querer saver", pattern: /\bquerer\s+saver\b/iu },
+  { phrase: "tener que rush nada", pattern: /\btener\s+que\s+rush\s+nada\b/iu },
+  // Retry19 R04: a fused English fragment appeared in an occupation reply.
+  { phrase: "de-book", pattern: /\bde-book\b/iu },
+  // Retry26 R04: exact English-to-Spanish word fusion.
+  { phrase: "podemosknown", pattern: /\bpodemosknown\b/iu },
+  // Retry28 R04: English `Forward` fused into the Spanish sentence opener.
+  { phrase: "asiforwardos", pattern: /\basiforwardos\b/iu },
+  // Retry26 R04: visible self-correction/literal calque in the opening.
+  { phrase: "me alegra que te deje una pregunta abierta", pattern: /\bme\s+alegra\s+que\s+te\s+deje\s+una\s+pregunta\s+abierta\b/iu },
+  // Retry31 R04 step 0: `hobby` is masculine in this construction; the
+  // provider's `una hobby` is a high-confidence agreement error.
+  { phrase: "una hobby", pattern: /\buna\s+hobby\b/iu },
+  // Retry31 R04 step 3: these fused hyphenated fragments are visible provider
+  // corruption, not ordinary Spanish punctuation. Keep both exact shapes
+  // narrow so legitimate hyphenated compounds are unaffected.
+  { phrase: "anuncios-consumerista-de-que-sea-feliz-o-que-tenga-un-buen-rato-ahora-mismo", pattern: /\bsin\s+anuncios-consumerista-de-que-sea-feliz-o-que-tenga-un-buen-rato-ahora-mismo\b/iu },
+  { phrase: "alguna-vez-te-ha-salido-bien-una-receta-que-te-haya-sorprendido-a-ti-mismo", pattern: /\balguna-vez-te-ha-salido-bien-una-receta-que-te-haya-sorprendido-a-ti-mismo\b/iu },
+  // Retry32 R04 step 20: the provider fused an adverb and adjective into one
+  // token; this exact shape is visibly unreadable and safe to retry.
+  { phrase: "seguramentealgún", pattern: /\bseguramentealgun\b/iu },
+  // Retry34 R04 step 3: English ownership residue fused into a Spanish
+  // question. Keep the exact hyphenated shape narrow.
+  { phrase: "has-owner", pattern: /\bhas-owner\b/iu },
+  // Retry35 R04: internal placeholder residue fused into a question.
+  { phrase: "te dejo_NAMESPACE'll decide", pattern: /\bte\s+dejo_namespace'?ll\s+decide\b/u },
+  // Retry40 R01: malformed auxiliary/verb agreement in an otherwise Spanish
+  // cooking response. Keep the phrase exact to avoid broad grammar guessing.
+  { phrase: "cuando has cocinas", pattern: /\bcuando\s+has\s+cocinas\b/u },
 ];
 
 /** Reported multi-word fragments, matched on lowercase tokens so titles count too. */
@@ -118,6 +242,7 @@ const englishPhraseSequences: readonly (readonly string[])[] = [
   ["good", "evening"],
   ["good", "night"],
   ["how", "are", "you"],
+  ["having", "a", "free", "afternoon"],
   ["how", "s", "it", "going"],
   ["what", "s", "up"],
   ["thank", "you"],
@@ -133,6 +258,13 @@ const englishPhraseSequences: readonly (readonly string[])[] = [
   ["i", "miss", "you"],
   ["i", "m", "sorry"],
   ["oh", "my", "god"],
+  ["pay", "attention"],
+  // Retry41 R01: English clause leaked into a Spanish closing message.
+  ["will", "return"],
+  // Gatefix12 step 7: a provider fused an English clause into a Spanish
+  // occupation reply. Keep this as a phrase so ordinary Spanish uses of
+  // either token are not independently blocked.
+  ["mainly", "orders"],
 ];
 
 type LanguageToken = Readonly<{ original: string; lower: string }>;

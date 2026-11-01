@@ -1,9 +1,12 @@
+import { DEFAULT_MINIMAX_TEXT_MODEL } from "../../providers/minimax/text-model";
+
 import { findCharacterRuntimeDefinition, isCharacterConversationEnabled } from "@/src/modules/characters";
 import {
   ConversationAssistantProviderError,
   type ConversationAssistantProvider,
 } from "@/src/modules/providers/assistant/assistant";
 import { findConversationCharacter } from "../domain/character-catalog";
+import { segmentSpanishSenseGroups, type SenseGroup } from "../domain/sense-groups";
 import type { ConversationAssistantRepository } from "../repositories/conversation-assistant-repository";
 import {
   conversationAssistantDataSchema,
@@ -65,6 +68,36 @@ function cancelledError(timedOut: boolean): ConversationAssistantProviderError {
   return timedOut
     ? new ConversationAssistantProviderError("provider-timeout", "Conversation assistance timed out.", true)
     : new ConversationAssistantProviderError("provider-cancelled", "Conversation assistance was cancelled.", false);
+}
+
+/**
+ * CHAT-ASSISTANT-003: assemble the public `structure` block from the canonical
+ * deterministic sense groups and the provider's annotations. Marker groups
+ * keep the fixed 感叹词/连接词 roles; clause roles come from the provider. A
+ * count mismatch fails closed, so a bad provider call can never return a
+ * different split than the canonical one.
+ */
+function structureForIntent(
+  intent: string,
+  senseGroups: readonly SenseGroup[],
+  annotations: readonly Readonly<{ fragment: string; role: string; explanation: string }>[],
+): readonly Readonly<{ fragment: string; role: string; explanation: string }>[] {
+  if (intent !== "structure") return [];
+  if (annotations.length !== senseGroups.length) {
+    throw new ConversationAssistantProviderError(
+      "provider-response-invalid",
+      "Conversation assistant returned a different number of sense groups.",
+      false,
+    );
+  }
+  return senseGroups.map((group, index) => {
+    const annotation = annotations[index]!;
+    return {
+      fragment: group.fragment,
+      role: group.kind === "interjection" ? "感叹词" : group.kind === "connector" ? "连接词" : annotation.role,
+      explanation: annotation.explanation,
+    };
+  });
 }
 
 /**
@@ -188,6 +221,15 @@ export async function consultConversationAssistant(
         command.intent === "structure" ? "no-target-sentence" : undefined,
       );
     }
+    // CHAT-ASSISTANT-003: the split is decided here, deterministically, so the
+    // same sentence always produces the same sense groups. The provider only
+    // labels and explains these groups and may not re-split them.
+    const senseGroups = command.intent === "structure" && targetText
+      ? segmentSpanishSenseGroups(targetText)
+      : [];
+    if (command.intent === "structure" && senseGroups.length === 0) {
+      throw new ConversationAssistantError("VALIDATION_FAILED", 400, "no-target-sentence");
+    }
     const question = command.question ?? null;
 
     async function produce(signal: AbortSignal): Promise<ConversationAssistantData> {
@@ -197,17 +239,19 @@ export async function consultConversationAssistant(
           intent: command.intent,
           question,
           targetText,
+          senseGroups: senseGroups.map((group) => group.fragment),
           characterDisplayName,
           recentMessages: safeContext,
         }, { signal });
         if (signal.aborted) throw cancelledError(timedOut);
+        const structure = structureForIntent(command.intent, senseGroups, raw.structure);
         const result = conversationAssistantDataSchema.safeParse({
           attemptId: command.attemptId,
           intent: command.intent,
           answer: raw.answer,
           suggestions: raw.suggestions,
           corrections: raw.corrections,
-          structure: raw.structure,
+          structure,
           // An empty corrected sentence is semantically "no correction".
           correctedSentence: raw.correctedSentence?.trim() ? raw.correctedSentence : null,
         });
@@ -230,7 +274,7 @@ export async function consultConversationAssistant(
       } catch (error) {
         observe(dependencies, {
           provider: "minimax",
-          modelVersion: "MiniMax-M3",
+          modelVersion: DEFAULT_MINIMAX_TEXT_MODEL,
           providerRequestId: null,
           latencyMs: Date.now() - startedAt,
           estimatedCostMicros: null,

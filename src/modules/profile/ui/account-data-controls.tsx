@@ -87,7 +87,7 @@ export function AccountDataControls({ onError, retryToken = 0, showError = true 
       <header>
         <p className="eyebrow eyebrow--accent">账号数据</p>
         <h2 id="account-data-controls-title">删除我的账号数据</h2>
-        <p>删除训练、画像、对话、关系记忆和保存的语音资料；共享内容和人物设定不受影响。</p>
+        <p>删除训练、画像、对话、关系记忆和保存的语音资料；共享内容和人物设定不受影响，账号本身会保留。</p>
         {summaryLoading ? <p className="surface-state__message">正在读取账号数据概览……</p> : null}
         {!summaryLoading && summaryError && showError ? <div className="profile-data-warning" role="alert"><span>账号数据概览暂时不可用。</span><button type="button" onClick={() => { setSummaryLoading(true); setReloadToken((token) => token + 1); }}>重试</button></div> : null}
         {summary ? <p>当前包含 {summary.sessions} 次训练、{summary.conversations} 个对话、{summary.relationshipMemories} 条关系记忆和 {summary.savedAudio + summary.savedTranscripts} 条保存的语音资料。</p> : null}

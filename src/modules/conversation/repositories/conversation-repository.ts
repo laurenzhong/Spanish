@@ -44,6 +44,7 @@ export type ConversationPreferencePatch = Readonly<{
 
 export type PendingConversationMessage = Readonly<{ text: string; clientMessageId: string; assistance?: "translation" }>;
 export type ReplyGenerationScope = Readonly<{ userId: string; conversationId: string; generationId: string }>;
+export type RelationshipCompletionCandidate = import("@/src/modules/character-network/domain/relationship-candidate-extraction").RelationshipCompletionCandidate;
 export type ReplyGenerationClaimInput = ReplyGenerationScope & Readonly<{
   characterKey: string;
   messageId: string;
@@ -59,7 +60,7 @@ export type ReplyGenerationClaim = Readonly<{
 export type ConversationRepository = Readonly<{
   claimReplyGeneration?(input: ReplyGenerationClaimInput): Promise<ReplyGenerationClaim>;
   saveReplyPrefix?(input: ReplyGenerationScope & Readonly<{ prefix: string; userMessageIds?: readonly string[] }>): Promise<boolean>;
-  finishReplyGeneration?(input: ReplyGenerationScope & Readonly<{ content: string; userMessageIds?: readonly string[] }>): Promise<ConversationMessageRecord | null>;
+  finishReplyGeneration?(input: ReplyGenerationScope & Readonly<{ content: string; userMessageIds?: readonly string[]; relationshipCandidates?: readonly RelationshipCompletionCandidate[] }>): Promise<ConversationMessageRecord | null>;
   cancelReplyGeneration?(input: ReplyGenerationScope): Promise<boolean>;
   getOrCreateConversation(userId: string, characterKey: string, characterVersion: number): Promise<string>;
   appendUserMessage(input: Readonly<{

@@ -7,11 +7,13 @@ import { SlideableNavigation } from "@/src/shared/ui/slideable-navigation";
 import { SharedMemoryPermissions } from "@/src/modules/character-network/ui/shared-memory-permissions";
 import { ProviderSettingsPanel } from "@/src/modules/providers/ui/provider-settings-panel";
 import { AccountDataControls } from "./account-data-controls";
+import { AccountSecurityControls } from "./account-security-controls";
 import { LearningHeatmap } from "./learning-heatmap";
 import { MemoryDataControls } from "./memory-data-controls";
 import { ProfileOverviewPanel } from "./profile-overview-panel";
 import { VoiceDataControls } from "./voice-data-controls";
 import { PreferencesPanel } from "./preferences-panel";
+import { DailyLearningReport } from "@/src/modules/learning-insights/ui/daily-learning-report";
 
 type ProfileSectionKey = "progress" | "relationships" | "data" | "preferences";
 
@@ -85,6 +87,7 @@ export function ProfileSections() {
         {activeSection === "progress" ? <>
           {errorNotice}
           <ProfileOverviewPanel onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <DailyLearningReport />
           <LearningHeatmap onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
@@ -104,6 +107,7 @@ export function ProfileSections() {
           {errorNotice}
           <VoiceDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
           <AccountDataControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
+          <AccountSecurityControls onError={() => setSectionError(true)} retryToken={retryToken} showError={false} />
         </> : null}
       </section>
 

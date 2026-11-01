@@ -7,10 +7,11 @@ const passingChecks = Object.fromEntries(releaseCandidateCheckNames.map((name) =
 describe("release candidate gate", () => {
   it("requires all required checks, no P0/P1 issues and explicit product confirmation", () => {
     expect(evaluateReleaseCandidateGate({ checks: passingChecks, openP0: 0, openP1: 0, productConfirmed: true })).toMatchObject({ eligible: true, reasons: [] });
-    const blocked = evaluateReleaseCandidateGate({ checks: { ...passingChecks, e2eDesktop: { status: "blocked" } }, openP0: 1, openP1: 2, productConfirmed: false });
+    const blocked = evaluateReleaseCandidateGate({ checks: { ...passingChecks, e2eDesktop: { status: "blocked" }, pwaManifest: { status: "blocked" } }, openP0: 1, openP1: 2, productConfirmed: false });
     expect(blocked.eligible).toBe(false);
     expect(blocked.reasons).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "required-check-not-passed", check: "e2eDesktop" }),
+      expect.objectContaining({ code: "required-check-not-passed", check: "pwaManifest" }),
       expect.objectContaining({ code: "open-p0" }),
       expect.objectContaining({ code: "open-p1" }),
       expect.objectContaining({ code: "product-confirmation-required" }),

@@ -3,6 +3,8 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button, Input, Label } from "@/src/shared/ui/primitives";
+
 import {
   createWebAuthRepository,
   type WebAuthRepository,
@@ -45,8 +47,8 @@ export function PasswordForm({
 
   return (
     <form className="auth-form" onSubmit={submit}>
-      <label htmlFor="reviewer-email">邮箱</label>
-      <input
+      <Label htmlFor="reviewer-email">邮箱</Label>
+      <Input
         autoComplete="email"
         id="reviewer-email"
         onChange={(event) => setEmail(event.target.value)}
@@ -54,8 +56,8 @@ export function PasswordForm({
         type="email"
         value={email}
       />
-      <label htmlFor="reviewer-password">密码</label>
-      <input
+      <Label htmlFor="reviewer-password">密码</Label>
+      <Input
         autoComplete="current-password"
         id="reviewer-password"
         minLength={6}
@@ -64,9 +66,9 @@ export function PasswordForm({
         type="password"
         value={password}
       />
-      <button disabled={busy} type="submit">
+      <Button disabled={busy} type="submit">
         {busy ? "正在登录…" : "登录测试账号"}
-      </button>
+      </Button>
       {error ? <p className="auth-error" role="alert">{error}</p> : null}
     </form>
   );

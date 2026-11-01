@@ -83,6 +83,7 @@ describe("private conversation assistant use case", () => {
       intent: "reply",
       question: input.question,
       targetText: null,
+      senseGroups: [],
       characterDisplayName: "Lucía Martín",
       recentMessages: context,
     }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
@@ -219,12 +220,111 @@ describe("private conversation assistant use case", () => {
   it("falls back to the last character sentence for structure analysis", async () => {
     const deps = dependencies();
     deps.repository.listContext.mockResolvedValue(context);
-    await consultConversationAssistant({ ...input, intent: "structure", question: undefined }, deps);
+    deps.provider.assist.mockResolvedValue({
+      ...providerResult,
+      structure: [{ fragment: "ignored by the application", role: "疑问句", explanation: "询问周六是否有空。" }],
+    });
+    const result = await consultConversationAssistant({ ...input, intent: "structure", question: undefined }, deps);
     expect((deps.provider.assist.mock.calls[0]?.[0] as { targetText: string }).targetText).toBe("¿Te vienes a cenar el sábado?");
+    expect((deps.provider.assist.mock.calls[0]?.[0] as { senseGroups: string[] }).senseGroups).toEqual(["¿Te vienes a cenar el sábado"]);
+    expect(result.structure).toEqual([
+      { fragment: "¿Te vienes a cenar el sábado", role: "疑问句", explanation: "询问周六是否有空。" },
+    ]);
 
     const explicit = dependencies();
-    await consultConversationAssistant({ ...input, intent: "structure", question: undefined, targetText: "  Lucía compró flores ayer.  " }, explicit);
+    explicit.provider.assist.mockResolvedValue({
+      ...providerResult,
+      structure: [{ fragment: "wrong split", role: "陈述句", explanation: "主语是 Lucía。" }],
+    });
+    const explicitResult = await consultConversationAssistant({ ...input, intent: "structure", question: undefined, targetText: "  Lucía compró flores ayer.  " }, explicit);
     expect((explicit.provider.assist.mock.calls[0]?.[0] as { targetText: string }).targetText).toBe("Lucía compró flores ayer.");
+    expect((explicit.provider.assist.mock.calls[0]?.[0] as { senseGroups: string[] }).senseGroups).toEqual(["Lucía compró flores ayer"]);
+    expect(explicitResult.structure).toEqual([
+      { fragment: "Lucía compró flores ayer", role: "陈述句", explanation: "主语是 Lucía。" },
+    ]);
+  });
+
+  it("returns the same deterministic sense groups for repeated analyses of the same sentence", async () => {
+    const targetText = "Perfecto, entonces ya estás en la empresa. ¿El día va tranquilo o tienes mucho trabajo?";
+    const expectedFragments = ["Perfecto", "entonces", "ya estás en la empresa", "¿El día va tranquilo", "o tienes mucho trabajo"];
+    const annotations = expectedFragments.map((_, index) => ({
+      fragment: `model-guess-${index + 1}`,
+      role: `role-${index + 1}`,
+      explanation: `解释 ${index + 1}`,
+    }));
+    const first = dependencies();
+    first.provider.assist.mockResolvedValue({ ...providerResult, structure: annotations });
+    const second = dependencies();
+    // Different wording and roles on the second call must not change the split.
+    second.provider.assist.mockResolvedValue({
+      ...providerResult,
+      structure: annotations.map((part, index) => ({ ...part, role: `另一个角色${index + 1}` })),
+    });
+
+    const firstResult = await consultConversationAssistant({ ...input, intent: "structure", question: undefined, targetText }, first);
+    const secondResult = await consultConversationAssistant({ ...input, intent: "structure", question: undefined, targetText }, second);
+
+    expect(firstResult.structure.map((part) => part.fragment)).toEqual(expectedFragments);
+    expect(secondResult.structure.map((part) => part.fragment)).toEqual(expectedFragments);
+    expect((first.provider.assist.mock.calls[0]?.[0] as { senseGroups: string[] }).senseGroups).toEqual(expectedFragments);
+  });
+
+  it("keeps 感叹词/连接词 roles deterministic and takes clause roles from the provider", async () => {
+    const deps = dependencies();
+    deps.provider.assist.mockResolvedValue({
+      ...providerResult,
+      structure: [
+        { fragment: "x", role: "model-role-1", explanation: "表示认可。" },
+        { fragment: "y", role: "model-role-2", explanation: "表示“那么”。" },
+        { fragment: "z", role: "陈述句", explanation: "主语省略。" },
+      ],
+    });
+
+    const result = await consultConversationAssistant({
+      ...input,
+      intent: "structure",
+      question: undefined,
+      targetText: "Perfecto, entonces ya estás en la empresa.",
+    }, deps);
+
+    expect(result.structure).toEqual([
+      { fragment: "Perfecto", role: "感叹词", explanation: "表示认可。" },
+      { fragment: "entonces", role: "连接词", explanation: "表示“那么”。" },
+      { fragment: "ya estás en la empresa", role: "陈述句", explanation: "主语省略。" },
+    ]);
+  });
+
+  it("fails closed when the provider annotates a different number of sense groups", async () => {
+    const deps = dependencies();
+    deps.provider.assist.mockResolvedValue({
+      ...providerResult,
+      structure: [{ fragment: "x", role: "感叹词", explanation: "只注解了一组。" }],
+    });
+
+    const error = await consultConversationAssistant({
+      ...input,
+      intent: "structure",
+      question: undefined,
+      targetText: "Perfecto, entonces ya estás en la empresa.",
+    }, deps).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: "provider-response-invalid" });
+    expect(deps.onProviderResult).toHaveBeenCalledWith(expect.objectContaining({
+      status: "failed",
+      errorType: "provider-response-invalid",
+    }));
+  });
+
+  it("ignores a provider structure block for intents that were not asked to analyse a sentence", async () => {
+    const deps = dependencies();
+    deps.provider.assist.mockResolvedValue({
+      ...providerResult,
+      structure: [{ fragment: "x", role: "主语", explanation: "不属于回复意图。" }],
+    });
+
+    const result = await consultConversationAssistant(input, deps);
+
+    expect(result.structure).toEqual([]);
   });
 
   it("returns a validation error when there is no sentence to analyse", async () => {
@@ -232,6 +332,17 @@ describe("private conversation assistant use case", () => {
     deps.repository.listContext.mockResolvedValue([{ role: "user" as const, text: "Hola" }]);
     const error = await sameError(
       consultConversationAssistant({ ...input, intent: "structure", question: undefined }, deps),
+      "VALIDATION_FAILED",
+      400,
+    );
+    expect(error.reason).toBe("no-target-sentence");
+    expect(deps.provider.assist).not.toHaveBeenCalled();
+  });
+
+  it("rejects a structure target that contains no analysable sense group", async () => {
+    const deps = dependencies();
+    const error = await sameError(
+      consultConversationAssistant({ ...input, intent: "structure", question: undefined, targetText: "..." }, deps),
       "VALIDATION_FAILED",
       400,
     );

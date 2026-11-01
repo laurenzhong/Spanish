@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { contentSourceHref, type SourcePosition } from "../domain";
+import { Alert, Button, EmptyState, Input, Pagination, Select } from "@/src/shared/ui/primitives";
 
 type MatchMode = "phrase" | "all";
 type EntryKind = "lexeme" | "phrase";
@@ -272,21 +273,21 @@ export function CorpusSearch({ initialState, initialPage = 1 }: CorpusSearchProp
 
   return <section className="corpus-search" aria-label="语料内容浏览">
     <form className="corpus-search__form" onSubmit={submit}>
-      <label className="corpus-search__input"><span>可选：筛选短语或来源</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="不输入也可以直接浏览内容" maxLength={120} /></label>
-      <label className="corpus-search__match"><span>匹配方式</span><select value={match} onChange={(event) => setMatch(event.target.value as MatchMode)}><option value="phrase">连续短语</option><option value="all">包含全部词</option></select></label>
-      <label className="corpus-search__filter"><span>内容类型</span><select value={contentKind || documentKind} onChange={(event) => { const value = event.target.value; if (value === "article") { setContentKind("article"); setDocumentKind(""); } else if (value === "video" || value === "podcast") { setContentKind(value); setDocumentKind(""); } else { setContentKind(""); setDocumentKind(""); } }}><option value="">全部</option><option value="article">文章</option><option value="video">视频</option><option value="podcast">播客</option></select></label>
-      <button type="submit">{loading ? "加载中…" : hasSearch ? "筛选" : "应用筛选"}</button>
+      <label className="corpus-search__input"><span>可选：筛选短语或来源</span><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="不输入也可以直接浏览内容" maxLength={120} /></label>
+      <label className="corpus-search__match"><span>匹配方式</span><Select value={match} onChange={(event) => setMatch(event.target.value as MatchMode)}><option value="phrase">连续短语</option><option value="all">包含全部词</option></Select></label>
+      <label className="corpus-search__filter"><span>内容类型</span><Select value={contentKind || documentKind} onChange={(event) => { const value = event.target.value; if (value === "article") { setContentKind("article"); setDocumentKind(""); } else if (value === "video" || value === "podcast") { setContentKind(value); setDocumentKind(""); } else { setContentKind(""); setDocumentKind(""); } }}><option value="">全部</option><option value="article">文章</option><option value="video">视频</option><option value="podcast">播客</option></Select></label>
+      <Button type="submit">{loading ? "加载中…" : hasSearch ? "筛选" : "应用筛选"}</Button>
     </form>
     <div className="corpus-search__status" aria-live="polite" aria-busy={loading}>
       {loading ? <p className="corpus-search__loading" role="status">正在加载，保留上一组内容…</p> : null}
-      {state === "error" ? <div className="corpus-search__error" role="alert"><span>语料内容暂时不可用，请稍后再试。</span><span>已有内容仍保留。</span><button type="button" onClick={() => { const last = lastRequestRef.current; if (last) void request(last.mode, last.search, last.page); }}>重试</button></div> : null}
-      {state === "idle" && result?.mode === "browse" && browseData?.items.length === 0 ? <div className="corpus-search__empty"><h2>暂时还没有可比较的语料</h2><p>已发布文章、视频或播客形成短语上下文后，会在这里按表达聚类展示。</p><button type="button" onClick={() => void request("browse", normalizeInitialState({ documentKind, contentKind }), 1)}>重新加载内容</button></div> : null}
-      {state === "idle" && result?.mode === "search" && searchData?.items.length === 0 ? <div className="corpus-search__empty"><h2>没有找到匹配的用例</h2><p>没有找到同时包含这些词的内容。</p><p>{submitted?.match === "phrase" ? "当前按连续短语和原始顺序匹配。" : "当前按同一片段包含全部词匹配。"} 可以清除筛选或切换匹配方式再试一次。</p><div className="corpus-search__empty-actions"><button type="button" onClick={clearSearch}>回到全部内容</button><button type="button" onClick={toggleMatch}>切换匹配方式</button></div></div> : null}
+      {state === "error" ? <Alert className="corpus-search__error" variant="danger" title="语料内容暂时不可用，请稍后再试。"><span>已有内容仍保留。</span><Button variant="secondary" type="button" onClick={() => { const last = lastRequestRef.current; if (last) void request(last.mode, last.search, last.page); }}>重试</Button></Alert> : null}
+      {state === "idle" && result?.mode === "browse" && browseData?.items.length === 0 ? <EmptyState className="corpus-search__empty" title="暂时还没有可比较的语料" description="已发布文章、视频或播客形成短语上下文后，会在这里按表达聚类展示。" action={<Button onClick={() => void request("browse", normalizeInitialState({ documentKind, contentKind }), 1)}>重新加载内容</Button>} /> : null}
+      {state === "idle" && result?.mode === "search" && searchData?.items.length === 0 ? <EmptyState className="corpus-search__empty" title="没有找到匹配的用例" description={<><span>没有找到同时包含这些词的内容。</span> <span>{submitted?.match === "phrase" ? "当前按连续短语和原始顺序匹配。" : "当前按同一片段包含全部词匹配。"} 可以清除筛选或切换匹配方式再试一次。</span></>} action={<div className="corpus-search__empty-actions"><Button onClick={clearSearch}>回到全部内容</Button><Button variant="secondary" onClick={toggleMatch}>切换匹配方式</Button></div>} /> : null}
       {state === "idle" && pageData && pageData.items.length > 0 ? <p className="corpus-search__count">{result?.mode === "browse" ? `正在浏览 ${pageData.total} 组真实内容上下文` : <><span>找到 {pageData.total} 条出现记录</span><span> · 当前为{submitted?.match === "phrase" ? "连续短语" : "包含全部词"}匹配</span></>}</p> : null}
     </div>
     {result?.mode === "browse" && browseData?.items.some((item) => item.isContentDiscovery) ? <p className="page-lede" role="note">这些语料片段从已发布内容自动聚类，尚未经过短语审核；请结合来源判断用法。</p> : null}
     {browseData && browseData.items.length > 0 ? <div className="corpus-clusters">{browseData.items.map((cluster) => <ClusterCard key={cluster.entryId} cluster={cluster} />)}</div> : null}
     {searchData && searchData.items.length > 0 ? <div className="corpus-results">{searchData.items.map((item, index) => <ContextCard key={`${item.document.kind}:${item.document.stableKey}:${item.document.version}:${item.location.kind === "media" ? item.location.startMs : item.location.segmentIndex}:${index}`} item={item} />)}</div> : null}
-    {showPagination && pageData ? <nav className="lexicon-pagination" aria-label="语料分页"><button type="button" disabled={loading || currentPage <= 1} onClick={() => { const next = currentPage - 1; const search = submitted ?? normalizeInitialState({ documentKind, contentKind }); writeUrlState(search, next); void request(result?.mode ?? "browse", search, next); }}>上一页</button><span>第 {currentPage} / {totalPages} 页</span><button type="button" disabled={loading || currentPage >= totalPages} onClick={() => { const next = currentPage + 1; const search = submitted ?? normalizeInitialState({ documentKind, contentKind }); writeUrlState(search, next); void request(result?.mode ?? "browse", search, next); }}>下一页</button></nav> : null}
+    {showPagination && pageData ? <Pagination className="lexicon-pagination" page={currentPage} pageCount={totalPages} onPageChange={(next) => { if (loading) return; const search = submitted ?? normalizeInitialState({ documentKind, contentKind }); writeUrlState(search, next); void request(result?.mode ?? "browse", search, next); }} /> : null}
   </section>;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ExpressionAssist } from "./expression-assist";
+import { PromptBar } from "@/src/shared/ui/primitives";
 
 import {
   createBrowserAudioRecorder,
@@ -10,13 +11,11 @@ import {
 } from "@/src/modules/providers/speech";
 
 type VoiceComposerProps = Readonly<{
-  disabled?: boolean;
   unavailable?: boolean;
   characterName?: string;
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onCancel: () => void;
   quotedText?: string | null;
   onClearQuote?: () => void;
   assistance?: Readonly<{
@@ -31,13 +30,11 @@ type VoiceComposerProps = Readonly<{
 const composerBarWeights = [0.5, 0.85, 1, 0.68, 0.92, 0.58, 0.74] as const;
 
 export function VoiceComposer({
-  disabled = false,
   unavailable = false,
   characterName = "Lucía Martín",
   value,
   onChange,
   onSubmit,
-  onCancel,
   quotedText = null,
   onClearQuote,
   assistance,
@@ -206,6 +203,7 @@ export function VoiceComposer({
         </div>
       ) : null}
       <div className="conversation-composer__input">
+      <PromptBar aria-label="消息输入">
       <div className="conversation-composer__shell">
         <button
           aria-label={recording ? "取消录音" : transcribing ? "取消语音整理" : "使用语音输入"}
@@ -244,6 +242,7 @@ export function VoiceComposer({
             lang="es"
             maxLength={2_000}
             ref={textareaRef}
+            spellCheck={false}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
@@ -275,9 +274,9 @@ export function VoiceComposer({
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
           </button>
         )}
-        {disabled && !recording && !transcribing ? <button aria-label="停止回复" className="conversation-composer__control conversation-composer__control--stop" onClick={onCancel} title="停止回复" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8" rx="1" /></svg></button> : null}
         </div>
       </div>
+      </PromptBar>
       </div>
       {notice ? <div className="conversation-composer__meta">
         <span className="conversation-composer__notice" role="status" aria-live="polite">{notice}</span>

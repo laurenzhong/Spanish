@@ -3,7 +3,7 @@ import { mkdtemp, readFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { makeRealManifest, parseRealArgs, runRealBaseline } from "../../scripts/conversation-evaluation/real-cli";
+import { makeRealManifest, parseRealArgs, runRealBaseline, safetyRetryLimitForRealRun } from "../../scripts/conversation-evaluation/real-cli";
 import { coreRoutes } from "../../scripts/conversation-evaluation/routes";
 import { runTrajectory } from "../../scripts/conversation-evaluation/runner";
 
@@ -15,12 +15,17 @@ describe("real baseline orchestration with fake HTTP only", () => {
     expect(parseRealArgs(["--resume=baseline-a", "--export-only"])).toMatchObject({ exportOnly: true, resume: true });
     expect(parseRealArgs(["--execute", "--romance-confirmation", "--run-id=baseline-r06"]).romanceConfirmation).toBe(true);
     expect(parseRealArgs(["--execute", "--r04-only", "--run-id=baseline-r04"]).r04Only).toBe(true);
+    expect(parseRealArgs(["--execute", "--routes=r01,r05", "--run-id=baseline-r01-r05"]).routes).toEqual(["r01", "r05"]);
+    expect(() => parseRealArgs(["--execute", "--routes=r01,r01", "--run-id=baseline-duplicate-routes"])).toThrow("INVALID_ROUTE_SELECTION");
+    expect(() => parseRealArgs(["--execute", "--routes=r01,r05", "--r04-only", "--run-id=baseline-route-conflict"])).toThrow("CONFLICTING_ROUTE_SET");
     expect(() => parseRealArgs(["--execute", "--regression", "--romance-confirmation", "--run-id=baseline-conflict"])).toThrow("CONFLICTING_ROUTE_SET");
     const manifest = makeRealManifest("baseline-a", coreRoutes[0], "a".repeat(64));
     expect(manifest.safetyRetryLimit).toBe(1);
     const extended = makeRealManifest("baseline-r04-retry", coreRoutes[1], "a".repeat(64), 2);
     expect(extended.safetyRetryLimit).toBe(2);
     expect(extended.budget.character.maxCalls).toBeGreaterThan(manifest.budget.character.maxCalls);
+    expect(safetyRetryLimitForRealRun(parseRealArgs(["--execute", "--routes=r01,r05", "--run-id=baseline-selected"]))).toBe(3);
+    expect(safetyRetryLimitForRealRun(parseRealArgs(["--execute", "--run-id=baseline-core"]))).toBe(1);
     await expect(runTrajectory({ manifest, route: coreRoutes[0] })).rejects.toThrow("REAL_PARTICIPANTS_REQUIRED");
   });
 

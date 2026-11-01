@@ -63,8 +63,9 @@ const correctionSchema = z.object({
 }).strict();
 
 const structurePartSchema = z.object({
-  fragment: z.string().max(500).trim().min(1),
-  /** Simplified Chinese name, e.g. 主语 / 谓语 / 直接宾语 / 状语. */
+  /** One deterministic sense group of the analysed sentence (CHAT-ASSISTANT-003). */
+  fragment: z.string().max(2_000).trim().min(1),
+  /** Simplified Chinese group role, e.g. 感叹词 / 连接词 / 陈述句 / 疑问句 / 原因从句. */
   role: z.string().max(120).trim().min(1),
   explanation: z.string().max(1_000).trim().min(1),
 }).strict();

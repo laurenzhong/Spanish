@@ -17,9 +17,9 @@ import {
 } from "./generate-character-reply";
 import { deriveReplyOpenTopics, type ReplyContext } from "./build-reply-context";
 import { greetingOpener, hasGreetedOnLocalDate } from "../domain/greeting";
-import { planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
+import { acknowledgesPacedAffection, hasPacedAffectionDisclosure, planReply, questionPolicyForReply, type QuestionPolicy } from "../domain/reply-plan";
 import { containsUnsupportedScript, englishFragments, fragmentQuotedFromUserMessage, hasRepeatedReplySentence, malformedSpanishFragment, requestedNonSpanishLanguage, translationesePhrase } from "../domain/language-purity";
-import { attributesUnconfirmedCoffee, narrowsUnspecifiedWeekendWork, repeatsDailyActivityQuestion, requestsQuestionRepeat } from "../domain/reply-continuity";
+import { attributesUnconfirmedCoffee, missesLatestOccupationContinuity, missesLatestQuietConversationContinuity, missesLatestTentativeCookingContinuity, narrowsUnspecifiedWeekendWork, overstatesTentativeUserPlan, repeatsDailyActivityQuestion, requestsQuestionRepeat } from "../domain/reply-continuity";
 import { getConversationCharacter, isKnownConversationVersion } from "../domain/character-catalog";
 import { replyBubbleIntervalMs, splitReplyBubbles } from "../domain/reply-bubbles";
 
@@ -192,6 +192,11 @@ export async function* streamReply(
           errorType: "safety-gate",
         });
         const returnedPlan = context.openCommitments.some((commitment) => commitment.owner === "user" && (commitment.status === "returned" || commitment.status === "completed"));
+        const pacedAffection = hasPacedAffectionDisclosure(context.userMessage);
+        const pacedAffectionViolation = pacedAffection && !acknowledgesPacedAffection(context.userMessage, replyResult.text);
+        const occupationContinuity = missesLatestOccupationContinuity(context.userMessage, replyResult.text);
+        const quietConversationContinuity = missesLatestQuietConversationContinuity(context, replyResult.text);
+        const tentativeCookingContinuity = missesLatestTentativeCookingContinuity(context, replyResult.text);
         const redundantGreeting = isRedundantGreetingReply(context, replyResult.text);
         const recycledPhrase = isRecycledReplyPhrase(context, replyResult.text);
         const occupationClarification = clarifiedCanonicalOccupation({
@@ -209,12 +214,14 @@ export async function* streamReply(
         const retryUnansweredText = context.unansweredUserMessages?.length
           ? context.unansweredUserMessages.join("\n\n")
           : context.userMessage;
+        const unsupportedScript = containsUnsupportedScript(replyResult.text) && !requestedNonSpanishLanguage(retryUnansweredText);
         const rejectedEnglish = requestedNonSpanishLanguage(retryUnansweredText)
           ? null
           : (english.find((fragment) => !fragmentQuotedFromUserMessage(retryUnansweredText, fragment)) ?? null);
         const repeatedActivityQuestion = repeatsDailyActivityQuestion(context, replyResult.text);
         const unconfirmedCoffee = attributesUnconfirmedCoffee(context, replyResult.text);
         const narrowedWeekend = narrowsUnspecifiedWeekendWork(context, replyResult.text);
+        const overstatesTentativePlan = overstatesTentativeUserPlan(context, replyResult.text);
         const questionPolicy = context.questionPolicy ?? questionPolicyForReply({ userMessage: retryUnansweredText });
         const questionPolicyViolation = !questionPolicyAllows(replyResult.text, questionPolicy);
         const retryQuestionPolicy: QuestionPolicy = returnedPlan || questionPolicy.maxSubstantiveQuestions > 0
@@ -234,7 +241,7 @@ export async function* streamReply(
           ...context,
           alreadyGreetedToday: greetedToday,
           questionPolicy: retryQuestionPolicy,
-          continuityInstruction: `${retryInstruction({ contaminated: hasProviderOutputContamination(replyResult.text), questionPolicyViolation, closedTopic: coaxesAfterTopicClosure(context.userMessage, replyResult.text), dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, translationese, malformedSpanish, englishFragment: rejectedEnglish?.phrase ?? null, redundantGreeting, recycledPhrase, occupationClarification: occupationClarification !== null, repeatedStylePhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend })}${questionPolicyViolation ? ` ${questionPolicyRetryInstruction(retryQuestionPolicy)}` : ""}${greetingGuard}`.trim(),
+          continuityInstruction: `${retryInstruction({ contaminated: hasProviderOutputContamination(replyResult.text), unsupportedScript, questionPolicyViolation, closedTopic: coaxesAfterTopicClosure(context.userMessage, replyResult.text), dishonestIdentity: hasDishonestIdentity(replyResult.text), returnedPlan, pacedAffectionViolation, occupationContinuity, quietConversationContinuity, tentativeCookingContinuity, translationese, malformedSpanish, englishFragment: rejectedEnglish?.phrase ?? null, redundantGreeting, recycledPhrase, occupationClarification: occupationClarification !== null, repeatedStylePhrase, repeatedActivityQuestion, unconfirmedCoffee, narrowedWeekend, overstatesTentativePlan })}${questionPolicyViolation ? ` ${questionPolicyRetryInstruction(retryQuestionPolicy)}` : ""}${greetingGuard}`.trim(),
         };
       }
       await notifyProviderResult(input, {
@@ -499,10 +506,15 @@ function questionPolicyRetryInstruction(policy: QuestionPolicy): string {
  */
 function retryInstruction(input: Readonly<{
   contaminated: boolean;
+  unsupportedScript: boolean;
   questionPolicyViolation: boolean;
   closedTopic: boolean;
   dishonestIdentity: boolean;
   returnedPlan: boolean;
+  pacedAffectionViolation: boolean;
+  occupationContinuity: boolean;
+  quietConversationContinuity: boolean;
+  tentativeCookingContinuity: boolean;
   translationese: string | null;
   malformedSpanish: string | null;
   englishFragment: string | null;
@@ -513,9 +525,13 @@ function retryInstruction(input: Readonly<{
   repeatedActivityQuestion: boolean;
   unconfirmedCoffee: boolean;
   narrowedWeekend: boolean;
+  overstatesTentativePlan: boolean;
 }>): string {
   if (input.contaminated) {
     return "La respuesta anterior contenía marcas internas o caracteres corruptos. Devuelve únicamente un mensaje limpio para la persona, sin etiquetas de protocolo, planificación interna ni fragmentos defectuosos. No reproduzcas el texto descartado.";
+  }
+  if (input.unsupportedScript) {
+    return "La respuesta anterior mezclaba caracteres de otro alfabeto. Escribe únicamente en español con caracteres latinos y puntuación normal; no uses chino, japonés, coreano, cirílico, árabe ni otros alfabetos. No reproduzcas el texto descartado.";
   }
   if (input.dishonestIdentity) {
     return "Responde con honestidad: eres un personaje de IA, no una persona real. No niegues ser una IA ni afirmes ser humana. Contesta de forma breve y directa a la pregunta.";
@@ -523,8 +539,26 @@ function retryInstruction(input: Readonly<{
   if (input.closedTopic) {
     return "La persona ha cerrado el tema. Reconócelo brevemente, sin insistir en hablar de ello ni preguntar por qué. No preguntes qué quiere hablar ni le pidas que elija otro tema. Sigue solo un nuevo tema que ella haya propuesto; si no lo hay, basta con 'Claro, lo dejamos ahí.'.";
   }
+  if (input.pacedAffectionViolation) {
+    const pacedInstruction = "La persona ha expresado que le gustas, pero quiere ir despacio. Reconoce directamente ese afecto y deja claro que respetas el ritmo y que no hace falta poner una etiqueta ahora. No hagas preguntas, no propongas ser pareja y no confirmes una relación.";
+    return input.malformedSpanish
+      ? `${pacedInstruction} Además, elimina el fragmento mal formado ("${input.malformedSpanish}") y reescribe la frase completa en español natural.`
+      : pacedInstruction;
+  }
+  if (input.occupationContinuity) {
+    return "La persona acaba de decir a qué se dedica. Responde primero a esa información concreta y mantente en lo que realmente ha dicho; no vuelvas a preguntar por cocinar, descansar u otra actividad anterior y no inventes detalles de su puesto, horario o lugar.";
+  }
+  if (input.quietConversationContinuity) {
+    return "La persona acaba de decir que prefiere conversaciones tranquilas. Responde a esa preferencia y no vuelvas al tema anterior de cambiar o encontrar otro momento, salvo que la persona lo haya retomado ahora.";
+  }
+  if (input.tentativeCookingContinuity) {
+    return "La persona acaba de mencionar que quizá vuelva a cocinar mañana. Responde primero a ese plan de cocina y no retomes el libro, el final ni el título de un mensaje anterior; mantén la posibilidad abierta y no inventes que ya ocurrió.";
+  }
   if (input.narrowedWeekend) {
     return "La persona solo dijo fin de semana: no confirmó sábado ni domingo para su trabajo. Mantén su expresión sin inventar el día ni corregirla por el calendario. Responde al último mensaje sin atribuirle otras actividades, emociones o resultados no confirmados.";
+  }
+  if (input.overstatesTentativePlan) {
+    return "La persona ha dicho que lo de mañana sigue siendo solo una idea. No lo conviertas en un plan cerrado ni en una obligación: responde con una posibilidad o reconoce la incertidumbre, sin afirmar que le toca hacerlo ni que seguro lo hará.";
   }
   if (input.unconfirmedCoffee) {
     return "Has atribuido a la persona haber tomado café, pero solo tú habías mencionado esa opción; la persona no la ha confirmado. Responde al último mensaje sobre el trabajo sin convertir tus propuestas o tus propias experiencias en actividades de la persona. No inventes que ha terminado ni cómo se siente.";
@@ -619,10 +653,15 @@ function isGeneratedReplySafe(
     reply: text,
   });
   if (isRepeatedSameDayTopicReply(context, text) && !occupationClarification) return false;
+  if (missesLatestOccupationContinuity(context.userMessage, text)) return false;
+  if (missesLatestQuietConversationContinuity(context, text)) return false;
+  if (missesLatestTentativeCookingContinuity(context, text)) return false;
+  if (!acknowledgesPacedAffection(context.userMessage, text)) return false;
   if (repeatsDailyActivityQuestion(context, text)) return false;
   if (coaxesAfterTopicClosure(context.userMessage, text)) return false;
   if (attributesUnconfirmedCoffee(context, text)) return false;
   if (narrowsUnspecifiedWeekendWork(context, text)) return false;
+  if (overstatesTentativeUserPlan(context, text)) return false;
   if (isUnexplainedSameDayClaimChange(context, text)) return false;
   if (isPreReturnWishAfterReturn(context, text)) return false;
   if (isUnfoundedGreetingWish(context, text)) return false;

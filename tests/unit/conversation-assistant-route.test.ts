@@ -87,6 +87,7 @@ describe("conversation assistant HTTP boundary", () => {
       intent: "reply",
       question: command.question,
       targetText: null,
+      senseGroups: [],
       characterDisplayName: "Lucía Martín",
       recentMessages: [{ role: "assistant", text: "¿Te vienes a cenar el sábado?" }],
     });

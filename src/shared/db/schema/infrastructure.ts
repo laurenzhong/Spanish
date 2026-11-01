@@ -94,6 +94,11 @@ export const providerCalls = pgTable(
   },
   (table) => [
     index("provider_calls_user_started_idx").on(table.userId, table.startedAt),
+    index("provider_calls_started_idx").on(table.startedAt),
+    index("provider_calls_type_started_idx").on(
+      table.providerType,
+      table.startedAt,
+    ),
     index("provider_calls_provider_status_idx").on(
       table.providerType,
       table.status,

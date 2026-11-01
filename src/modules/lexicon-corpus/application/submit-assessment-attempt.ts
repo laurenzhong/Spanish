@@ -1,10 +1,10 @@
-import { createHash } from "node:crypto";
-
 import type { LexiconCorpusRepository } from "../repositories/lexicon-corpus-repository";
 import { idempotencyKeySchema, lexicalAssessmentAnswerSchema, lexicalAssessmentKeySchema } from "../schemas/lexicon";
 
-function requestHash(assessmentKey: string, answer: string): string {
-  return createHash("sha256").update(JSON.stringify({ assessmentKey, answer })).digest("hex");
+async function requestHash(assessmentKey: string, answer: string): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify({ assessmentKey, answer }));
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export async function submitAssessmentAttempt(
@@ -20,6 +20,6 @@ export async function submitAssessmentAttempt(
   return repository.submitAssessment(userId, parsedKey, {
     answer: parsed.answer,
     idempotencyKey: parsedIdempotencyKey,
-    requestHash: requestHash(parsedKey, parsed.answer),
+    requestHash: await requestHash(parsedKey, parsed.answer),
   });
 }

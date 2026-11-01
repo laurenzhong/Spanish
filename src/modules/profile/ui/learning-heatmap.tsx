@@ -9,6 +9,7 @@ import {
   type LearningHeatmap,
 } from "@/src/modules/profile/domain";
 import { SurfaceState } from "@/src/shared/ui/surface-state";
+import { ActivityHeatmap, type ActivityHeatmapDay } from "@/src/shared/ui/primitives/activity-heatmap";
 
 function emptyHeatmap(): LearningHeatmap {
   return buildLearningHeatmap([]);
@@ -31,7 +32,7 @@ function formatDate(dateKey: string): string {
   }).format(date);
 }
 
-function intensity(durationMinutes: number): number {
+function intensity(durationMinutes: number): ActivityHeatmapDay["level"] {
   if (durationMinutes === 0) return 0;
   if (durationMinutes <= 10) return 1;
   if (durationMinutes <= 25) return 2;
@@ -153,7 +154,7 @@ export function LearningHeatmap({ onError, retryToken = 0, showError = true }: L
         <div>
           <p className="eyebrow eyebrow--accent">有效学习</p>
           <h2 id="learning-heatmap-title">最近 12 周活动</h2>
-          <p>只记录前台且有近期活动的有效学习时间，不参与能力评分，也不惩罚中断。</p>
+          <p>颜色表示有效学习时长，不参与能力评分。</p>
         </div>
         <div className="learning-heatmap__totals" aria-label="学习活动摘要">
           <strong>{heatmap.totals.activeDays}</strong>
@@ -174,44 +175,20 @@ export function LearningHeatmap({ onError, retryToken = 0, showError = true }: L
         ) : (
           <div className="learning-heatmap__empty" data-testid="learning-heatmap-empty">
             <strong>还没有有效学习记录</strong>
-            <span>这里只统计被记录下来的有效学习：在前台完成、且有实际表达或活动的练习。学习时长不参与能力评分，也不惩罚中断。</span>
+            <span>完成一次有效学习后，活动会出现在这里。</span>
           </div>
         )
-      ) : <>
-      <div className="learning-heatmap__scroll" role="group" aria-label="最近 12 周学习活动">
-        <div className="learning-heatmap__weekdays" aria-hidden="true">
-          <span>一</span><span>三</span><span>五</span>
-        </div>
-        <div className="learning-heatmap__grid">
-          {visibleDays.map((day) => {
-            const level = intensity(day.durationMinutes);
-            return (
-              <button
-                aria-label={dayLabel(day)}
-                aria-pressed={selectedDay?.date === day.date}
-                className={`learning-heatmap__cell learning-heatmap__cell--level-${level}`}
-                data-date={day.date}
-                data-level={level}
-                key={day.date}
-                onClick={() => setSelectedDate(day.date)}
-                title={dayLabel(day)}
-                type="button"
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="learning-heatmap__legend" aria-label="有效学习时长图例">
-        <span>少</span>
-        {[0, 1, 2, 3, 4].map((level) => (
-          <i aria-label={level === 0 ? "没有记录" : `${level} 级学习时长`} className={`learning-heatmap__cell learning-heatmap__cell--level-${level}`} key={level} />
-        ))}
-        <span>多</span>
-      </div>
-
-      {selectedDay ? <DayDetail day={selectedDay} /> : null}
-      </>}
+      ) : null}
+      {!error ? <>
+        <ActivityHeatmap
+          label="最近 12 周学习活动"
+          days={visibleDays.map((day) => ({ date: day.date, level: intensity(day.durationMinutes), label: dayLabel(day) }))}
+          selectedDate={selectedDay?.date}
+          onSelect={setSelectedDate}
+          legend={["没有记录", "1–10 分钟", "11–25 分钟", "26–45 分钟", "超过 45 分钟"]}
+        />
+        {selectedDay && (heatmap.totals.activeDays > 0 || selectedDate) ? <DayDetail day={selectedDay} /> : null}
+      </> : null}
     </section>
   );
 }

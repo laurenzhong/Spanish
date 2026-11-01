@@ -16,7 +16,7 @@ export function parseRealArgs(args: string[]) {
   const values = new Map<string, string>();
   for (const arg of args) {
     const flag = /^--(execute|export-only|recover-locks|regression|romance-confirmation|r04-only)$/u.exec(arg);
-    const value = /^--(run-id|resume|primary-root|backup-root)=(.+)$/u.exec(arg);
+    const value = /^--(run-id|resume|primary-root|backup-root|routes)=(.+)$/u.exec(arg);
     const key = flag?.[1] ?? value?.[1];
     if (!key || values.has(key)) throw new Error("INVALID_OR_DUPLICATE_OPTION");
     values.set(key, value?.[2] ?? "true");
@@ -26,21 +26,28 @@ export function parseRealArgs(args: string[]) {
   if ((values.has("export-only") || values.has("recover-locks")) && !values.has("resume")) throw new Error("RESUME_REQUIRED");
   const runId = safeId.parse(values.get("resume") ?? values.get("run-id") ?? `baseline-${new Date().toISOString().replace(/[^0-9]/gu, "").slice(0, 14)}-${randomUUID().slice(0, 8)}`);
   if (!runId.startsWith("baseline-")) throw new Error("BASELINE_ID_REQUIRED");
-  if (["regression", "romance-confirmation", "r04-only"].filter((key) => values.has(key)).length > 1) throw new Error("CONFLICTING_ROUTE_SET");
-  return { runId, resume: values.has("resume"), exportOnly: values.has("export-only"), recoverLocks: values.has("recover-locks"), regression: values.has("regression"), romanceConfirmation: values.has("romance-confirmation"), r04Only: values.has("r04-only"),
+  if (["regression", "romance-confirmation", "r04-only", "routes"].filter((key) => values.has(key)).length > 1) throw new Error("CONFLICTING_ROUTE_SET");
+  const routes = values.get("routes")?.split(",") ?? undefined;
+  if (routes && (routes.length < 1 || routes.some((route) => !["r01", "r04", "r05"].includes(route)) || new Set(routes).size !== routes.length)) throw new Error("INVALID_ROUTE_SELECTION");
+  return { runId, resume: values.has("resume"), exportOnly: values.has("export-only"), recoverLocks: values.has("recover-locks"), regression: values.has("regression"), romanceConfirmation: values.has("romance-confirmation"), r04Only: values.has("r04-only"), routes: routes as ("r01" | "r04" | "r05")[] | undefined,
     primaryRoot: values.get("primary-root"), backupRoot: values.get("backup-root") };
 }
 
-export function makeRealManifest(runId: string, route: EvaluationRoute, codeFingerprint: string, safetyRetryLimit = 1) {
+export function makeRealManifest(runId: string, route: EvaluationRoute, codeFingerprint: string, safetyRetryLimit = 1, budgetScope?: "selected-core-routes") {
   const base = makeOfflineManifest({ runId, trajectoryId: route.routeId.toLowerCase(), route, codeFingerprint });
   if (!Number.isInteger(safetyRetryLimit) || safetyRetryLimit < 0 || safetyRetryLimit > 3) throw new Error("INVALID_SAFETY_RETRY_LIMIT");
   const characterMaxCalls = route.steps.reduce((sum, step) => sum + (step.kind === "user" ? 1 + safetyRetryLimit : 2), 0);
   return realManifestSchema.parse({ ...base, schemaVersion: 2, mode: "real", maxCostMicros: 7562784, maxWallMs: 1800000,
     safetyRetryLimit,
-    budgetScope: route.routeId === "R06" ? "single-romance-confirmation-route" : "entire-three-trajectory-batch", authorization: "owner-continue-after-2026-10-25-budget-proposal",
+    budgetScope: budgetScope ?? (route.routeId === "R06" ? "single-romance-confirmation-route" : "entire-three-trajectory-batch"), authorization: "owner-continue-after-2026-10-25-budget-proposal",
     participants: { user: "scripted-user-v2", character: "MiniMax-M3.1-Flash/product", reviewer: "MiniMax-M3.1-Flash/reviewer-v1" },
     budget: { ...base.budget, user: { ...base.budget.user, maxReservedTokens: 0 }, character: { ...base.budget.character, maxCalls: characterMaxCalls, inputTokensPerCall: 32768, maxReservedTokens: characterMaxCalls * (32768 + 4896) } },
   });
+}
+
+/** Selected diagnostic routes may use the bounded retry maximum; product callers keep one retry. */
+export function safetyRetryLimitForRealRun(options: Pick<ReturnType<typeof parseRealArgs>, "r04Only" | "routes">) {
+  return options.r04Only || options.routes ? 3 : 1;
 }
 
 export function trajectoryBilling(ledger: PaidLedger, trajectoryId: string) {
@@ -53,7 +60,7 @@ export function trajectoryBilling(ledger: PaidLedger, trajectoryId: string) {
 }
 
 const batchSchema = z.object({ version: z.literal(1), mode: z.literal("real"), runId: safeId,
-  scope: z.enum(["fixed-core-v2", "fixed-regression-v1", "fixed-romance-confirmation-v1", "fixed-r04-only-v1"]).optional(),
+  scope: z.enum(["fixed-core-v2", "fixed-selected-v1", "fixed-regression-v1", "fixed-romance-confirmation-v1", "fixed-r04-only-v1"]).optional(),
   createdAt: z.iso.datetime(), primaryRoot: z.string(), backupRoot: z.string(), source: z.object({ hash: z.string(), sources: z.array(z.object({ file: z.string(), hash: z.string() })) }),
   estimate: z.unknown(), trajectories: z.array(z.object({ manifest: realManifestSchema, route: routeSchema })).min(1).max(3),
 }).strict();
@@ -73,20 +80,23 @@ export async function runRealBaseline(options: ReturnType<typeof parseRealArgs> 
     if (!options.resume && previous) throw new Error("RUN_EXISTS_USE_RESUME_OR_NEW_ID");
     const batch = previous ? batchSchema.parse(previous) : await (async () => {
       const source = await evaluationSourceFingerprint(options.repoRoot);
-      const routes = options.romanceConfirmation ? [romanceConfirmationRoute] : options.r04Only ? [coreRoutes.find((route) => route.routeId === "R04")] : options.regression ? regressionRoutes : coreRoutes;
+      const routes = options.romanceConfirmation ? [romanceConfirmationRoute] : options.r04Only ? [coreRoutes.find((route) => route.routeId === "R04")] : options.regression ? regressionRoutes : options.routes ? options.routes.map((routeId) => coreRoutes.find((route) => route.routeId.toLowerCase() === routeId)) : coreRoutes;
       if (routes.some((route): route is undefined => !route)) throw new Error("ROUTE_SET_UNAVAILABLE");
       const selectedRoutes = routes as EvaluationRoute[];
-      const safetyRetryLimit = options.r04Only ? 2 : 1;
+      // Evaluation diagnostics may use the bounded maximum so a malformed
+      // provider candidate does not end a selected route before its ordinary
+      // turns. Product callers keep their one-retry default.
+      const safetyRetryLimit = safetyRetryLimitForRealRun(options);
       const plannedCharacterCalls = selectedRoutes.reduce((sum, route) => sum + route.steps.reduce((routeCalls, step) => routeCalls + (step.kind === "user" ? 1 + safetyRetryLimit : 2), 0), 0);
       const model = "MiniMax-M3.1-Flash";
       const characterCost = estimateMiniMaxCostMicros({ modelVersion: model, inputTokens: 32768, outputTokens: 4896 })!;
       const reviewCost = estimateMiniMaxCostMicros({ modelVersion: model, inputTokens: 64000, outputTokens: 5596 })!;
-      return batchSchema.parse({ version: 1, mode: "real", scope: options.romanceConfirmation ? "fixed-romance-confirmation-v1" : options.r04Only ? "fixed-r04-only-v1" : options.regression ? "fixed-regression-v1" : "fixed-core-v2", runId: options.runId, createdAt: new Date().toISOString(), primaryRoot,
+      return batchSchema.parse({ version: 1, mode: "real", scope: options.romanceConfirmation ? "fixed-romance-confirmation-v1" : options.r04Only ? "fixed-r04-only-v1" : options.regression ? "fixed-regression-v1" : options.routes ? "fixed-selected-v1" : "fixed-core-v2", runId: options.runId, createdAt: new Date().toISOString(), primaryRoot,
         backupRoot: path.resolve(options.backupRoot ?? desktopRoot()), source, estimate: { ...estimateBaselineBudget(),
           roles: { user: { calls: 0 }, character: { calls: plannedCharacterCalls }, reviewer: { calls: 6 } }, totalCalls: plannedCharacterCalls + 6,
         totalCny: Math.min(7562784, plannedCharacterCalls * characterCost + 6 * reviewCost) / 1000000, authorizedRealCostMicros: 7562784,
           safetyRetryLimit, assumptions: `Fixed user stimuli, no user model calls. At most ${1 + safetyRetryLimit} character calls per user step and two calls per proactive opportunity; all attempts are budgeted and archived.` },
-        trajectories: selectedRoutes.map((route) => ({ route, manifest: makeRealManifest(options.runId, route, source.hash, safetyRetryLimit) })) });
+        trajectories: selectedRoutes.map((route) => ({ route, manifest: makeRealManifest(options.runId, route, source.hash, safetyRetryLimit, options.routes ? "selected-core-routes" : undefined) })) });
     })();
     if (batch.runId !== options.runId || path.resolve(batch.primaryRoot) !== primaryRoot) throw new Error("BATCH_SCOPE_MISMATCH");
     if (options.regression && batch.scope !== "fixed-regression-v1") throw new Error("BATCH_SCOPE_MISMATCH");

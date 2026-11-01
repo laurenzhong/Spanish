@@ -3,6 +3,7 @@ export const releaseCandidateCheckNames = [
   "typecheck",
   "unit",
   "e2eDesktop",
+  "pwaManifest",
   "build",
   "databaseRls",
   "contentPrivacy",

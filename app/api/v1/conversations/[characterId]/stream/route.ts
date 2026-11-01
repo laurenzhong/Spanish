@@ -1,6 +1,10 @@
+import { DEFAULT_MINIMAX_TEXT_MODEL } from "@/src/modules/providers/minimax/text-model";
+
 import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+import * as schema from "@/src/shared/db/schema";
 
 import {
   buildReplyContext,
@@ -25,6 +29,8 @@ import {
 import {
   createDrizzleIntroductionRepository,
   createDrizzleLuciaContactRepository,
+  extractRelationshipCandidates,
+  readRelationshipConversationContext,
   proposeIntroduction,
   type LuciaContactRecord,
 } from "@/src/modules/character-network";
@@ -109,6 +115,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   let luciaContact: LuciaContactRecord | null = null;
   let relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend" | undefined;
+  let relationshipSignalsSummary: string | null = null;
   if (database && characterId === "lucia") {
     try {
       luciaContact = await createDrizzleLuciaContactRepository(database).get(user.id);
@@ -116,6 +123,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
         return jsonError("CONTACT_REQUIRED", "Accept Lucia's friend request before starting this conversation.", 403);
       }
       relationshipStage = luciaContact.relationshipStage;
+      try {
+        const [identity] = await database.select({ id: schema.characterIdentities.id })
+          .from(schema.characterIdentities)
+          .where(eq(schema.characterIdentities.stableKey, "lucia"))
+          .limit(1);
+        if (identity) {
+          const relationshipContext = await readRelationshipConversationContext(database, { userId: user.id, identityId: identity.id });
+          if (relationshipContext) {
+            relationshipStage = relationshipContext.relationshipStage;
+            relationshipSignalsSummary = relationshipContext.relationshipSignalsSummary;
+          }
+        }
+      } catch {
+        // Keep legacy contact projection when the relationship-state migration
+        // is not present in a local database.
+      }
     } catch {
       return jsonError("CONTACT_UNAVAILABLE", "Lucia's contact status is temporarily unavailable.", 503);
     }
@@ -179,6 +202,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       recentMessages,
       relationshipStage,
       relationshipSummary: luciaContact?.relationshipSummary,
+      relationshipSignalsSummary,
       now: new Date(),
       memoryRepository: readableMemoryRepository,
     });
@@ -193,14 +217,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
       recentMessages,
       relationshipStage,
       relationshipSummary: luciaContact?.relationshipSummary,
+      relationshipSignalsSummary,
       now: new Date(),
     });
   }
-  const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();
+  const configuredProvider = (process.env.CONVERSATION_PROVIDER?.trim().toLowerCase() || "deepseek");
+  const useDeepSeek = configuredProvider === "deepseek" && Boolean(process.env.OPENAI_API_KEY?.trim());
   const useOpenAI = configuredProvider === "openai" && Boolean(process.env.OPENAI_API_KEY?.trim());
-  const useMiniMax = !useOpenAI && Boolean(process.env.MINIMAX_API_KEY?.trim());
-  const replyProvider = useOpenAI
-    ? createOpenAIConversationProvider()
+  const useMiniMax = !useDeepSeek && !useOpenAI && Boolean(process.env.MINIMAX_API_KEY?.trim());
+  const replyProvider = useDeepSeek || useOpenAI
+    ? createOpenAIConversationProvider({ providerName: useDeepSeek ? "deepseek" : "openai" })
     : useMiniMax
       ? createMiniMaxConversationProvider()
       : undefined;
@@ -221,10 +247,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     messageId,
     replyContext,
     replyProvider,
-    providerName: useOpenAI ? "openai" : useMiniMax ? "minimax" : "deterministic-fake",
-    providerModelVersion: useOpenAI
+    providerName: useDeepSeek ? "deepseek" : useOpenAI ? "openai" : useMiniMax ? "minimax" : "deterministic-fake",
+    providerModelVersion: useDeepSeek || useOpenAI
       ? (process.env.OPENAI_CONVERSATION_MODEL?.trim() || "gpt-5.6sol")
-      : "MiniMax-M3",
+      : DEFAULT_MINIMAX_TEXT_MODEL,
     signal: transportAbort.signal,
   };
   const correlation = createCorrelationIds({ requestId, generationId });
@@ -268,7 +294,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
           if (readerCancelled) break;
           if (event.type === "delta") assistantText += event.text;
           if (event.type === "done" && repository && conversationId && userMessageId) {
-            const assistantMessage = transportAbort.signal.aborted ? null : await repository.finishReplyGeneration?.({ userId: user.id, conversationId, generationId, content: assistantText, userMessageIds });
+            const relationshipCandidates = [
+              ...claimedUserMessages.flatMap((message) => extractRelationshipCandidates({ text: message.content, userMessageId: message.id })),
+              ...extractRelationshipCandidates({ text: assistantText, messageId, role: "assistant" }),
+            ];
+            const assistantMessage = transportAbort.signal.aborted ? null : await repository.finishReplyGeneration?.({ userId: user.id, conversationId, generationId, content: assistantText, userMessageIds, relationshipCandidates });
             if (!assistantMessage) {
               controller.enqueue(encoder.encode(encodeConversationEvent({ type: "error", generationId, messageId, code: "stream-aborted", retryable: true })));
               break;

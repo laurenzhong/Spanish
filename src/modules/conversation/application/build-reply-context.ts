@@ -1,4 +1,5 @@
 import type { MemoryRecord, MemoryRepository } from "@/src/modules/memory";
+import type { CharacterBehaviorGuidance } from "@/src/modules/characters/domain/behavior-profile";
 import { getConversationCharacter } from "../domain/character-catalog";
 import { hasGreetedOnLocalDate } from "../domain/greeting";
 import { localDateInTimeZone } from "../domain/local-date";
@@ -12,6 +13,8 @@ export type ReplyCharacterSnapshot = Readonly<{
   /** Authored public identity; its presence does not mean the user was told it. */
   identity?: Readonly<{ age: number; growthLocation: string; education: string; occupation: string }>;
   traits?: readonly string[];
+  /** Revision-bound expression tendencies, without private author provenance. */
+  behaviorProfile?: CharacterBehaviorGuidance;
   initiative: "low" | "balanced" | "high";
   tone: readonly string[];
   /**
@@ -98,6 +101,7 @@ export type ReplyContext = Readonly<{
   character: ReplyCharacterSnapshot;
   relationshipStage: "new_contact" | "getting_to_know_you" | "familiar" | "close_friend";
   relationshipSummary: string | null;
+  relationshipSignalsSummary?: string | null;
   memories: readonly ReplyMemory[];
   teachingOpportunity: Readonly<{
     skillKey: string;
@@ -114,6 +118,7 @@ export type BuildReplyContextInput = Readonly<{
   character?: ReplyCharacterSnapshot;
   relationshipStage?: ReplyContext["relationshipStage"];
   relationshipSummary?: string | null;
+  relationshipSignalsSummary?: string | null;
   recentMessages?: readonly ReplyContextMessage[];
   rollingSummary?: string | null;
   openTopics?: readonly ReplyOpenTopic[];
@@ -155,7 +160,7 @@ function normalizedTopicText(value: string): string {
 function topicKeyForQuestion(value: string): string {
   const normalized = normalizedTopicText(value);
   if (/\b(?:comer|comida|almuerzo|mediodia|cena|desayuno)\b/iu.test(normalized)) return "daily:meal";
-  if (/\b(?:hacer|haces|haciendo|dia|tarde|manana|noche)\b/iu.test(normalized)) return "daily:activity";
+  if (/\b(?:hacer|haces|haciendo|salir|saliste|salgo|caminar|caminas|quedarte|quedarse|planes|casa|dia|tarde|manana|noche)\b/iu.test(normalized)) return "daily:activity";
   if (/\b(?:estar|estas|estado|bien|tal)\b/iu.test(normalized)) return "wellbeing";
   return `question:${normalized.slice(0, 96)}`;
 }
@@ -189,16 +194,18 @@ export function deriveReplyOpenTopics(
   const topics = new Map<string, ReplyOpenTopic>();
   for (let index = 0; index < messages.length; index += 1) {
     const message = messages[index];
-    if (!message || message.role !== "user" || !message.content.includes("?")) continue;
+    if (!message || !message.content.includes("?")) continue;
     const label = topicLabel(message.content);
     if (!label) continue;
-    const answer = messages[index + 1]?.role === "character" ? messages[index + 1]?.content.trim() : "";
+    const answer = message.role === "user"
+      ? (messages[index + 1]?.role === "character" ? messages[index + 1]?.content.trim() : "")
+      : (messages[index + 1]?.role === "user" ? messages[index + 1]?.content.trim() : "");
     const topicKey = topicKeyForQuestion(label);
     topics.set(topicKey, {
       topicKey,
       label,
       status: answer ? "answered" : "open",
-      lastMentionedBy: "user",
+      lastMentionedBy: message.role,
       ...(answer ? { lastAnswer: answer.slice(0, 240) } : {}),
       ...(message.sentAt ? { lastAskedAt: message.sentAt } : {}),
       ...(answer && messages[index + 1]?.sentAt ? { lastAnsweredAt: messages[index + 1]?.sentAt } : {}),
@@ -422,6 +429,7 @@ export async function buildReplyContext(input: BuildReplyContextInput): Promise<
     character,
     relationshipStage: input.relationshipStage ?? "new_contact",
     relationshipSummary: input.relationshipSummary ?? null,
+    relationshipSignalsSummary: input.relationshipSignalsSummary ?? null,
     memories: readableMemories(memories, character.characterKey),
     teachingOpportunity: input.teachingOpportunity ?? null,
     questionPolicy: questionPolicyForReply({ userMessage: unansweredText }),

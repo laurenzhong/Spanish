@@ -1,0 +1,3 @@
+import { cn } from "./utils";
+
+export function Pagination({ page, pageCount, onPageChange, className }: Readonly<{ page: number; pageCount: number; onPageChange: (page: number) => void; className?: string }>) { const safePage = Math.max(1, Math.min(pageCount, page)); return <nav aria-label="分页" className={cn("ui-pagination", className)}><button type="button" disabled={safePage <= 1} onClick={() => onPageChange(safePage - 1)}>上一页</button><span aria-live="polite">第 {safePage} / {Math.max(1, pageCount)} 页</span><button type="button" disabled={safePage >= pageCount} onClick={() => onPageChange(safePage + 1)}>下一页</button></nav>; }

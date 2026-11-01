@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 
 import { readSupabasePublicConfig } from "./config";
+import { isBlockedAccess, readAccountAccess } from "./account-access";
 import {
   isRetryableAuthError,
   type AuthUserLookupError,
@@ -56,6 +57,22 @@ function testUserFromCookie(
   return { id: cookieValue, email: "e2e@example.test" };
 }
 
+/**
+ * Shared account gate (ACCT-ADMIN-001, ADR-0021). A suspended account or an
+ * account with an in-flight deletion is treated as unauthenticated everywhere
+ * the product or API resolves the user, so server components redirect to
+ * /login and Route Handlers return the existing AUTH_REQUIRED error instead of
+ * leaking the account's data. An unknown account state (database unavailable)
+ * keeps the session usable: every data-backed request still fails on the
+ * database itself.
+ */
+async function applyAccountGate(
+  user: AuthenticatedUser,
+): Promise<AuthenticatedUser | null> {
+  const access = await readAccountAccess(user.id);
+  return isBlockedAccess(access) ? null : user;
+}
+
 export function createSupabaseAccessTokenVerifier(): AccessTokenVerifier | null {
   const config = readSupabasePublicConfig();
   if (!config) {
@@ -83,7 +100,16 @@ export function createSupabaseAccessTokenVerifier(): AccessTokenVerifier | null 
 }
 
 async function readCurrentUser(): Promise<AuthenticatedUser | null> {
-  const cookieStore = await cookies();
+  // Route handlers run inside a Next request scope, but direct unit calls to a
+  // handler do not. Treat a missing scope as an anonymous request instead of
+  // allowing Next's dynamic API error to escape before the route can return
+  // its stable AUTH_REQUIRED response.
+  let cookieStore: Awaited<ReturnType<typeof cookies>>;
+  try {
+    cookieStore = await cookies();
+  } catch {
+    return null;
+  }
   const testUser = testUserFromCookie(
     cookieStore.get("spanish-e2e-user")?.value,
   );
@@ -117,7 +143,10 @@ async function readCurrentUser(): Promise<AuthenticatedUser | null> {
     return null;
   }
 
-  return { id: data.user.id, email: data.user.email ?? null };
+  return applyAccountGate({
+    id: data.user.id,
+    email: data.user.email ?? null,
+  });
 }
 
 // Layouts and server pages in the same render frequently need the current
@@ -143,14 +172,15 @@ export async function verifyRequestUser(
       return null;
     }
 
-    return verifier.verify(accessToken);
+    const verified = await verifier.verify(accessToken);
+    return verified ? applyAccountGate(verified) : null;
   }
 
   const testUser = testUserFromCookie(
     request.cookies.get("spanish-e2e-user")?.value,
   );
   if (testUser) {
-    return testUser;
+    return applyAccountGate(testUser);
   }
 
   return null;

@@ -233,15 +233,14 @@ describe("natural conversation bubbles and follow-ups", () => {
     expect(document.querySelector('[data-status="completed"]')).toBeInTheDocument();
   });
 
-  it("does not restart while merely typing and never pumps after an explicit stop", async () => {
+  it("does not restart while merely typing and does not expose a stop control", async () => {
     mount(); send("Hola.");
     await waitFor(() => expect(requests).toHaveLength(1));
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Otra idea" } });
-    fireEvent.click(screen.getByRole("button", { name: "停止回复" }));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 180)); });
     expect(requests).toHaveLength(1);
-    expect(streams[0]!.cancel).toHaveBeenCalled();
-    expect(screen.getByText("回复已停止，已保留目前收到的内容。")).toBeInTheDocument();
+    expect(streams[0]!.cancel).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "停止回复" })).not.toBeInTheDocument();
   });
 
   it("retains the complete batch for a manual retry after a failed stream", async () => {
@@ -309,11 +308,10 @@ describe("natural conversation bubbles and follow-ups", () => {
     expect(requests[0]?.text).toBe("Mensaje 20");
   });
 
-  it("clears the debounce on stop before any request is sent", async () => {
+  it("keeps queued drafts without exposing a stop control", async () => {
     mount(); send("Uno"); send("Dos");
-    fireEvent.click(screen.getByRole("button", { name: "停止回复" }));
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 180)); });
-    expect(requests).toHaveLength(0);
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: "停止回复" })).not.toBeInTheDocument();
     expect(document.querySelectorAll(".conversation-message--user")).toHaveLength(2);
   });
 

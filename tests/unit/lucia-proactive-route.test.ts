@@ -24,6 +24,7 @@ vi.mock("@/src/modules/providers/conversation/server", () => ({ createMiniMaxCon
 
 import { POST } from "@/app/api/v1/conversations/lucia/proactive/route";
 import { getConversationCharacter } from "@/src/modules/conversation/domain/character-catalog";
+import { createOpenAIConversationProvider } from "@/src/modules/providers/conversation/server";
 
 describe("Lucía proactive route published context", () => {
   const character = { ...getConversationCharacter("lucia").snapshot, characterVersion: 3, tone: ["voz publicada"] };
@@ -45,6 +46,16 @@ describe("Lucía proactive route published context", () => {
     }));
     expect(response.status).toBe(preview ? 200 : 201);
     expect(preview ? mocks.preview : mocks.generate).toHaveBeenCalledWith(expect.objectContaining({ character, userId: "user-1" }));
+  });
+
+  it("selects DeepSeek for proactive generation when configured", async () => {
+    vi.stubEnv("CONVERSATION_PROVIDER", "deepseek");
+    vi.stubEnv("OPENAI_API_KEY", "deepseek-test-key");
+    const response = await POST(new NextRequest("http://localhost/api/v1/conversations/lucia/proactive", {
+      method: "POST", body: JSON.stringify({ sourceType: "daily_share" }),
+    }));
+    expect(response.status).toBe(201);
+    expect(vi.mocked(createOpenAIConversationProvider)).toHaveBeenCalledWith({ providerName: "deepseek" });
   });
 
   it("does not generate when the published runtime cannot be resolved", async () => {

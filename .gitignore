@@ -29,3 +29,5 @@ sueno1-recording-script.txt
 # Partial install directories left by interrupted pnpm runs.
 .pnpm-store/
 node_modules.incomplete/
+.vercel
+.env*

@@ -68,6 +68,7 @@ export const acquisitionRuns = pgTable(
   (table) => [
     uniqueIndex("acquisition_runs_source_generation_uidx").on(table.sourceId, table.generationId),
     index("acquisition_runs_source_started_idx").on(table.sourceId, table.startedAt),
+    index("acquisition_runs_started_idx").on(table.startedAt),
     check("acquisition_runs_status_check", sql`${table.status} in ('running', 'succeeded', 'failed', 'cancelled')`),
     check("acquisition_runs_counts_nonnegative_check", sql`${table.insertedCount} >= 0 and ${table.duplicateCount} >= 0 and ${table.conflictCount} >= 0`),
     check("acquisition_runs_cost_nonnegative_check", sql`${table.estimatedCostMicros} >= 0`),
@@ -108,6 +109,7 @@ export const contentCandidates = pgTable(
     uniqueIndex("content_candidates_normalized_url_uidx").on(table.normalizedUrl),
     uniqueIndex("content_candidates_content_hash_uidx").on(table.contentHash).where(sql`${table.contentHash} is not null`),
     index("content_candidates_status_activity_idx").on(table.status, table.lastActivityAt),
+    index("content_candidates_publication_idx").on(table.publicationStatus, table.publishedAtInternal),
     check("content_candidates_revision_positive_check", sql`${table.revision} > 0`),
     check("content_candidates_type_check", sql`${table.contentType} in ('video', 'podcast', 'article')`),
     check("content_candidates_status_check", sql`${table.status} in ('discovered', 'screened', 'acquiring', 'processing', 'review_ready', 'failed', 'rejected')`),

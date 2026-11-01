@@ -13,7 +13,12 @@ export interface StorageObjectDeleter {
 
 export function createSupabaseStorageObjectDeleter(): StorageObjectDeleter {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  // Unified server-only credential resolution (ACCT-ADMIN-001): the new
+  // `SUPABASE_SECRET_KEY` name wins, legacy projects may still use
+  // `SUPABASE_SERVICE_ROLE_KEY`. Missing values fail closed (deferred cleanup).
+  const serviceRoleKey = (
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
+  )?.trim();
 
   if (!url || !serviceRoleKey) {
     return {

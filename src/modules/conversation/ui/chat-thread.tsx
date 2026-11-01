@@ -10,12 +10,12 @@ import { createReadAloud } from "@/src/modules/providers/tts";
 import { speechCapabilityErrorCode } from "@/src/modules/providers/speech";
 
 import {
-  ConversationNdjsonParser,
   createConversationState,
   findRetryableUserMessage,
   transitionConversationState,
   type ConversationState,
-} from "@/src/modules/conversation";
+} from "@/src/modules/conversation/domain/conversation-state";
+import { ConversationNdjsonParser } from "@/src/modules/conversation/domain/stream-protocol";
 import { VoiceComposer } from "./voice-composer";
 import { ConversationSearch } from "./conversation-search";
 import { ConversationAssistant } from "./conversation-assistant";
@@ -1093,7 +1093,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {historyLockMessage}
         </div>
       ) : (
-        <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft}
+        <VoiceComposer characterName={characterName} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft}
           assistance={{ contextKey: `${characterKey}:${characterVersion}:${cacheScope}:${assistEpoch}`, characterKey, characterVersion,
             onAssisted: () => { assistedRef.current = true; } }} />
       )}

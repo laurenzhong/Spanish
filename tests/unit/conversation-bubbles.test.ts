@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { splitReplyBubbles } from "@/src/modules/conversation/domain/reply-bubbles";
 import { streamReply } from "@/src/modules/conversation/application/stream-reply";
-import { buildConversationSystemPrompt } from "@/src/modules/providers/conversation/conversation";
+import { buildConversationSystemPrompt, characterContextForProvider } from "@/src/modules/providers/conversation/conversation";
 import { getConversationCharacter } from "@/src/modules/conversation/domain/character-catalog";
 import { buildReplyContext } from "@/src/modules/conversation/application/build-reply-context";
 
@@ -56,8 +56,21 @@ describe("natural reply bubbles", () => {
     const prompt = buildConversationSystemPrompt({ character: getConversationCharacter("lucia").snapshot });
     expect(prompt).toContain("Separate message bubbles with a blank line");
     expect(prompt).toContain("unanswered user messages together");
-    expect(prompt).toContain("photography book");
+    expect(prompt).toContain("related to that activity");
     expect(prompt).toContain("not a confirmed fact");
+    expect(prompt).toContain("only bring up an interest when the user has mentioned it");
+  });
+  it("keeps specialized interests user-led in the provider projection", () => {
+    const character = getConversationCharacter("lucia").snapshot;
+    expect(characterContextForProvider({
+      character,
+      userMessage: "Hoy he tenido un día difícil.",
+      recentMessages: [{ role: "user", content: "He estado trabajando todo el día." }],
+    }).topics).toEqual([]);
+    expect(characterContextForProvider({
+      character,
+      userMessage: "Me apetece hablar de fotografía urbana.",
+    }).topics).toContain("fotografía urbana");
   });
   it("preserves every unanswered submission independently of the recent history budget", async () => {
     const batch = Array.from({ length: 20 }, (_, i) => `${i}: ${"detalle ".repeat(200)}`);

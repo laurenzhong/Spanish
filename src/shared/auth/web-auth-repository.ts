@@ -20,6 +20,10 @@ export class SupabaseWebAuthRepository implements WebAuthRepository {
   async requestEmailOtp(email: string) {
     const { error } = await this.client.auth.signInWithOtp({
       email: normalizeEmailAddress(email),
+      // Free registration (ADR-0022): an unknown email creates a Supabase Auth
+      // user on the first OTP request. The database trigger provisions the
+      // profile/preferences as `member/active`; owner-created invitations remain
+      // an optional pre-provisioning channel rather than a login requirement.
       options: { shouldCreateUser: true },
     });
     if (error) throw error;

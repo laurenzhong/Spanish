@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { characterBehaviorProfileSchema } from "./behavior-profile";
 
 const stableKeySchema = z
   .string()
@@ -47,6 +48,7 @@ const personalitySchema = z
     initiative: z.enum(["low", "balanced", "high"]),
     responseStyle: z.array(z.string().trim().min(2).max(120)).min(1).max(8),
     topicPreferences: z.array(topicPreferenceSchema).min(1).max(12),
+    behaviorProfile: characterBehaviorProfileSchema.optional(),
   })
   .strict();
 
@@ -107,7 +109,17 @@ export const characterBibleSchema = z
     facts: z.array(canonFactSchema).min(1).max(100),
     changeLog: z.array(changeLogEntrySchema).max(30),
   })
-  .strict();
+  .strict()
+  .superRefine((bible, context) => {
+    const profile = bible.personality.behaviorProfile;
+    if (!profile) return;
+    if (profile.characterKey !== bible.stableKey) {
+      context.addIssue({ code: "custom", path: ["personality", "behaviorProfile", "characterKey"], message: "Behavior profile must belong to this character" });
+    }
+    if (profile.characterVersion !== bible.version) {
+      context.addIssue({ code: "custom", path: ["personality", "behaviorProfile", "characterVersion"], message: "Behavior profile must match the character revision" });
+    }
+  });
 
 export type CharacterBible = z.infer<typeof characterBibleSchema>;
 export type CharacterIdentity = CharacterBible["identity"];

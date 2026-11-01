@@ -207,6 +207,57 @@ describe("real baseline failure regressions with public streamReply and fake pro
     expect(result.events.at(-1)?.type).toBe("done");
   });
 
+  it.each([
+    ["¿Te has prepared algo para cenar?", "¿Has preparado algo para cenar?", "prepared"],
+    ["Tienes un surround de libros.", "Tienes muchos libros alrededor.", "surround"],
+    ["Me gusta advance a tu ritmo.", "Me gusta avanzar a tu ritmo.", "advance"],
+    ["Yo estoy enjoying la tarde.", "Yo estoy disfrutando la tarde.", "enjoying"],
+    ["Entonces llegar a casa y.GLASS", "Entonces llegar a casa y descansar.", "y.GLASS"],
+    ["Me gusta quehjablemos sin prisas.", "Me gusta que hablemos sin prisas.", "quehjablemos"],
+    ["¿Habéis_cancelado el plan?", "¿Habéis cancelado el plan?", "habéis_cancelado"],
+    ["Una forma bonita deplantejarlo.", "Una forma bonita de plantearlo.", "deplantejarlo"],
+    ["Mañana teOE que cocines.", "Mañana te digo que cocines.", "teoe"],
+  ] as const)("blocks the clean-source R04 artifact %s before delivery", async (bad, good, marker) => {
+    const result = await replay("Hoy tengo un rato libre.", [bad, good]);
+    expect(result.generate).toHaveBeenCalledTimes(2);
+    expect(result.requests[1].continuityInstruction).toContain(marker);
+    expect(result.text).toBe(good);
+    expect(result.events.at(-1)?.type).toBe("done");
+  });
+
+  it("blocks the holdout merged token niiotro before delivery", async () => {
+    const result = await replay("¿Podemos seguir como amigos, sin llamarnos cariño?", [
+      "Sí, claro. Seguimos como amigos y nos llamamos por nuestros nombres, sin cariño niiotro apodo íntimo.",
+      "Sí, claro. Seguimos como amigos, sin usar apodos íntimos.",
+    ]);
+    expect(result.generate).toHaveBeenCalledTimes(2);
+    expect(result.text).toBe("Sí, claro. Seguimos como amigos, sin usar apodos íntimos.");
+    expect(result.events.at(-1)?.type).toBe("done");
+    expect(result.requests[1].continuityInstruction).toContain("fragmento mal formado");
+  });
+
+  it("blocks the R04 podrido/podido semantic corruption before delivery", async () => {
+    const result = await replay("Un amigo ha cambiado nuestros planes.", [
+      "Vaya, qué rabia. ¿Lo habéis podrido cambiar para otro día?",
+      "Vaya, qué rabia. ¿Lo habéis podido cambiar para otro día?",
+    ]);
+    expect(result.generate).toHaveBeenCalledTimes(2);
+    expect(result.text).toBe("Vaya, qué rabia. ¿Lo habéis podido cambiar para otro día?");
+    expect(result.events.at(-1)?.type).toBe("done");
+    expect(result.requests[1].continuityInstruction).toContain("fragmento mal formado");
+  });
+
+  it("blocks the retry36 R05 non-Spanish greeting before delivery", async () => {
+    const result = await replay("Buenas, vuelvo después de unos días.", [
+      "¡Hola, Álex! Espero que hayan sido bons días. No me has contado qué tal llevas estos días.",
+      "¡Hola, Álex! Espero que hayan sido buenos días. No me has contado qué tal llevas estos días.",
+    ]);
+    expect(result.generate).toHaveBeenCalledTimes(2);
+    expect(result.text).toBe("¡Hola, Álex! Espero que hayan sido buenos días. No me has contado qué tal llevas estos días.");
+    expect(result.events.at(-1)?.type).toBe("done");
+    expect(result.requests[1].continuityInstruction).toContain("bons días");
+  });
+
   it("keeps the bounded evaluation retry auditable and fails after all candidates are unsafe", async () => {
     const result = await replay("Hoy tengo un rato libre.", ["你好。", "中文。", "内部规划。"], {}, 2);
     expect(result.generate).toHaveBeenCalledTimes(3);

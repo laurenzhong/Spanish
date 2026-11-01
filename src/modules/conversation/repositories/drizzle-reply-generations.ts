@@ -3,6 +3,8 @@ import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "@/src/shared/db/schema";
 import type { ConversationMessageRecord, ConversationRepository, ReplyGenerationScope } from "./conversation-repository";
+import { recordRelationshipPendingReceipt } from "@/src/modules/character-network/repositories/relationship-pending-receipt";
+import { tombstoneRelationshipSourcesForMessage } from "@/src/modules/character-network/repositories/relationship-source-invalidation";
 
 type Database<TResult extends PgQueryResultHKT> = PgDatabase<TResult, typeof schema>;
 function message(row: typeof schema.messages.$inferSelect): ConversationMessageRecord {
@@ -44,6 +46,7 @@ async function liveBatch<TResult extends PgQueryResultHKT>(database: Database<TR
 
 /** Called under the same owned conversation lock as generation writes. Source deletion never removes unrelated replies. */
 export async function invalidateConversationReplies<TResult extends PgQueryResultHKT>(database: Database<TResult>, input: Readonly<{ userId: string; conversationId: string; userMessageId: string }>) {
+  await tombstoneRelationshipSourcesForMessage(database, { userMessageId: input.userMessageId });
   const linkedIds = database.select({ id: schema.conversationReplySources.assistantMessageId }).from(schema.conversationReplySources).where(and(
     eq(schema.conversationReplySources.userId, input.userId), eq(schema.conversationReplySources.conversationId, input.conversationId), eq(schema.conversationReplySources.userMessageId, input.userMessageId),
   ));
@@ -167,6 +170,7 @@ export function createDrizzleReplyGenerationRepository<TResult extends PgQueryRe
         const [row] = await transaction.select().from(schema.messages).where(generationWhere(input)).for("update");
         if (!row || row.status !== "streaming" || !input.content.trim() || row.content !== input.content || !await liveParent(transaction, input, row.replyToMessageId) || !await liveBatch(transaction, input, row.id, input.userMessageIds)) return null;
         const [completed] = await transaction.update(schema.messages).set({ status: "completed", completedAt: new Date(), updatedAt: new Date() }).where(eq(schema.messages.id, row.id)).returning();
+        await recordRelationshipPendingReceipt(transaction as unknown as Database<TResult>, { userId: input.userId, conversationId: input.conversationId, generationId: input.generationId, assistantMessageId: row.id, relationshipCandidates: input.relationshipCandidates });
         return message(completed);
       });
     },

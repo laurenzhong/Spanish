@@ -4,6 +4,7 @@
     "typecheck": { "status": "passed" },
     "unit": { "status": "passed" },
     "e2eDesktop": { "status": "passed" },
+    "pwaManifest": { "status": "passed" },
     "build": { "status": "passed" },
     "databaseRls": { "status": "passed" },
     "contentPrivacy": { "status": "passed" }

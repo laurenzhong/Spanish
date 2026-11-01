@@ -1,4 +1,4 @@
-const publicRoutes = ["/", "/login", "/login/password"] as const;
+const publicRoutes = ["/", "/login", "/login/password", "/join"] as const;
 
 export function isPublicRoute(pathname: string): boolean {
   return publicRoutes.some(
@@ -14,7 +14,10 @@ export function resolveAuthRedirect(
     return `/login?next=${encodeURIComponent(pathname)}`;
   }
 
-  if (isAuthenticated && pathname.startsWith("/login")) {
+  if (
+    isAuthenticated &&
+    (pathname.startsWith("/login") || pathname.startsWith("/join"))
+  ) {
     return "/learn";
   }
 

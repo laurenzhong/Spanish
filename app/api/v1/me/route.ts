@@ -8,6 +8,8 @@ import { initialsForDisplayName } from "@/src/modules/account/domain/avatar";
 import { publicUidColorIndex } from "@/src/modules/account/domain/public-uid";
 import { createDrizzleAccountRepository } from "@/src/modules/account/repositories";
 import { createSupabaseAvatarStorage } from "@/src/modules/account/storage";
+import { readAccountAccess, type AccountAccess } from "@/src/shared/auth/account-access";
+import { isOwnerUserId } from "@/src/shared/auth/owner";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getRequestUser } from "@/src/shared/auth/request-user";
 import { API_VERSION } from "@/src/shared/contracts/v1/api-contract";
@@ -15,7 +17,11 @@ import { getDatabase } from "@/src/shared/db/client";
 
 const AVATAR_PALETTE_SIZE = 5;
 
-async function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>>>) {
+async function toDto(
+  profile: NonNullable<Awaited<ReturnType<typeof getAccountProfile>>>,
+  access: AccountAccess,
+  effectiveRole: "owner" | "member",
+) {
   const storage = profile.avatar.path ? createSupabaseAvatarStorage() : null;
   const url = profile.avatar.path && storage ? await storage.publicUrl(profile.avatar.path) : null;
   return {
@@ -25,6 +31,11 @@ async function toDto(profile: NonNullable<Awaited<ReturnType<typeof getAccountPr
     interfaceLanguage: profile.interfaceLanguage,
     targetLanguage: profile.targetLanguage,
     updatedAt: profile.updatedAt.toISOString(),
+    // Effective role: the environment allowlist is the bootstrap root of trust,
+    // so an env owner is shown as owner even when profiles.role stays 'member'.
+    // Status comes from the shared auth projection; neither is client-writable.
+    role: effectiveRole,
+    accountStatus: access.status,
     avatar: {
       kind: profile.avatar.kind,
       presetId: profile.avatar.presetId,
@@ -50,7 +61,12 @@ export async function GET(request: NextRequest) {
   try {
     const profile = await getAccountProfile(createDrizzleAccountRepository(getDatabase()), user.id);
     if (!profile) return errorResponse(requestId, "RESOURCE_NOT_FOUND", "Account profile was not found.", 404);
-    return NextResponse.json({ apiVersion: API_VERSION, data: await toDto(profile) });
+    const access = await readAccountAccess(user.id);
+    if (!access) return errorResponse(requestId, "INTERNAL_ERROR", "Account data is temporarily unavailable.", 503, true);
+    return NextResponse.json({
+      apiVersion: API_VERSION,
+      data: await toDto(profile, access, isOwnerUserId(user.id) ? "owner" : access.role),
+    });
   } catch {
     return errorResponse(requestId, "INTERNAL_ERROR", "Account data is temporarily unavailable.", 503, true);
   }
@@ -78,7 +94,12 @@ export async function PATCH(request: NextRequest) {
       const storage = createSupabaseAvatarStorage();
       if (storage) await storage.remove(previous.avatar.path).catch(() => undefined);
     }
-    return NextResponse.json({ apiVersion: API_VERSION, data: await toDto(result.profile) });
+    const access = await readAccountAccess(user.id);
+    if (!access) return errorResponse(requestId, "INTERNAL_ERROR", "Account data is temporarily unavailable.", 503, true);
+    return NextResponse.json({
+      apiVersion: API_VERSION,
+      data: await toDto(result.profile, access, isOwnerUserId(user.id) ? "owner" : access.role),
+    });
   } catch (error) {
     if (error instanceof SyntaxError) return errorResponse(requestId, "VALIDATION_FAILED", "Request body must be valid JSON.", 400);
     if (error instanceof Error && error.message.startsWith("invalid-")) return errorResponse(requestId, "VALIDATION_FAILED", "Account profile input is invalid.", 400);

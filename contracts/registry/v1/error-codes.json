@@ -63,5 +63,13 @@
   { "code": "MEDIA_SERIES_MEMBERSHIP_CONFLICT", "defaultRetryable": false },
   { "code": "MEDIA_SERIES_CURSOR_INVALID", "defaultRetryable": false },
   { "code": "MEDIA_SERIES_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "ADMIN_FORBIDDEN", "defaultRetryable": false },
+  { "code": "ADMIN_UNAVAILABLE", "defaultRetryable": true },
+  { "code": "INVITATION_INVALID", "defaultRetryable": false },
+  { "code": "INVITATION_CONFLICT", "defaultRetryable": false },
+  { "code": "REGISTRATION_CLOSED", "defaultRetryable": false },
+  { "code": "ACCOUNT_PROVISIONING_FAILED", "defaultRetryable": true },
+  { "code": "ACCOUNT_STATE_CONFLICT", "defaultRetryable": false },
+  { "code": "EXPORT_UNAVAILABLE", "defaultRetryable": true },
   { "code": "INTERNAL_ERROR", "defaultRetryable": true }
 ]

@@ -43,6 +43,13 @@ export type ConversationAssistantProviderInput = Readonly<{
   question: string | null;
   /** Sentence to check or analyse; null is only valid where a fallback exists. */
   targetText: string | null;
+  /**
+   * CHAT-ASSISTANT-003: the deterministic sense groups the application already
+   * cut from targetText, in order. Non-empty only for `structure`; the
+   * provider must return exactly one structure annotation per entry and must
+   * never decide its own segmentation.
+   */
+  senseGroups: readonly string[];
   characterDisplayName: string;
   /** Read-only completed, non-withdrawn context from the learner's own chat. */
   recentMessages: readonly ConversationAssistantProviderMessage[];
@@ -57,6 +64,11 @@ export type ConversationAssistantStructuredResult = Readonly<{
     corrected: string;
     explanation: string;
   }>[];
+  /**
+   * Aligned one-to-one, in the same order as `input.senseGroups`: `fragment`
+   * is always the application's deterministic sense group, never the model's
+   * own split.
+   */
   structure: readonly Readonly<{ fragment: string; role: string; explanation: string }>[];
   correctedSentence: string | null;
 }>;
@@ -94,11 +106,24 @@ export class ConversationAssistantProviderError extends Error {
 }
 
 /** Bounds mirror the public DTO and the repository context projection. */
+export const maxAssistantSenseGroups = 12;
+const maxSenseGroupLength = 2_000;
+
 export function validateConversationAssistantProviderInput(
   input: ConversationAssistantProviderInput,
 ): void {
   const question = input.question;
   const targetText = input.targetText;
+  const senseGroups = input.senseGroups;
+  const senseGroupsValid =
+    Array.isArray(senseGroups) &&
+    (input.intent === "structure"
+      ? senseGroups.length >= 1 &&
+        senseGroups.length <= maxAssistantSenseGroups &&
+        senseGroups.every(
+          (group) => typeof group === "string" && group.trim().length > 0 && group.length <= maxSenseGroupLength,
+        )
+      : senseGroups.length === 0);
   const invalid =
     !assistantProviderIntents.includes(input.intent) ||
     typeof input.characterDisplayName !== "string" ||
@@ -109,6 +134,8 @@ export function validateConversationAssistantProviderInput(
     (targetText !== null &&
       (typeof targetText !== "string" || !targetText.trim() || targetText.length > 2_000)) ||
     (input.intent === "grammar" && !targetText) ||
+    (input.intent === "structure" && !targetText) ||
+    !senseGroupsValid ||
     (input.intent === "question" && !question) ||
     !Array.isArray(input.recentMessages) ||
     input.recentMessages.length > 8 ||

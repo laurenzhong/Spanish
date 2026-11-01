@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { phrasebookEntries } from "../content/phrasebook-v3";
+import { phrasebookEntries } from "../content/phrasebook-v4";
 import { matchesPhrasebookSearch, phraseTopics, type PhrasebookEntry, type PhraseTopic } from "../domain/phrasebook";
 import { useReadAloud } from "@/src/modules/providers/tts/use-read-aloud";
+import { Button, EmptyState, Input } from "@/src/shared/ui/primitives";
 
 function Icon({ name }: Readonly<{ name: "sound" | "bookmark" | "arrow" | "search" | "eye" | "close" }>) {
   const paths: Record<typeof name, ReactNode> = {
@@ -146,8 +147,8 @@ export function Phrasebook({ userId, initialSearch = "" }: Readonly<{ userId: st
       </aside>
       <div className="phrasebook-main">
         <div className="phrasebook-toolbar">
-          <label className="phrasebook-search"><Icon name="search" /><span className="sr-only">搜索短语</span><input type="search" value={search} maxLength={120} placeholder="搜西语、中文，或你想说的事…" onChange={(event) => { speech.stop(); setSearch(event.target.value); }} />{search ? <button type="button" aria-label="清空搜索" onClick={() => setSearch("")}><Icon name="close" /></button> : null}</label>
-          <button className="phrasebook-primary" type="button" ref={practiceButton} disabled={!visible.length || Boolean(practice)} onClick={startPractice}>情境自测<Icon name="arrow" /></button>
+          <label className="phrasebook-search"><Icon name="search" /><span className="sr-only">搜索短语</span><Input type="search" value={search} maxLength={120} placeholder="搜西语、中文，或你想说的事…" onChange={(event) => { speech.stop(); setSearch(event.target.value); }} />{search ? <Button variant="quiet" size="sm" type="button" aria-label="清空搜索" onClick={() => setSearch("")}><Icon name="close" /></Button> : null}</label>
+          <Button className="phrasebook-primary" type="button" ref={practiceButton} disabled={!visible.length || Boolean(practice)} onClick={startPractice}>情境自测<Icon name="arrow" /></Button>
         </div>
         <div className="phrasebook-feedback" role="status" aria-live="polite">{message || speech.errorMessage}</div>
         {practice ? <section className="phrasebook-practice" aria-label="情境自测" onKeyDown={(event) => { if (event.key === "Escape") closePractice(); }}>
@@ -162,7 +163,7 @@ export function Phrasebook({ userId, initialSearch = "" }: Readonly<{ userId: st
           <p className="phrasebook-practice__disclaimer">这是自我回想，不计入能力评分；自然的其他说法同样可以。</p>
         </section> : <>
           <div className="phrasebook-results"><p><strong>{topic === "saved" ? "我的收藏" : activeTopic?.title ?? "全部表达"}</strong><span>{visible.length} 条{activeTopic ? ` · ${activeTopic.description}` : " · 为真实交流准备"}</span></p><button type="button" aria-pressed={hideSpanish} onClick={() => { speech.stop(); setHideSpanish(!hideSpanish); setRevealed([]); }}><Icon name="eye" />{hideSpanish ? "显示西语" : "遮住西语"}</button></div>
-          {!visible.length ? <div className="phrasebook-empty"><Icon name={topic === "saved" && !search ? "bookmark" : "search"} /><h2>{topic === "saved" && !search ? "把想用的表达留在这里" : "换个说法试试"}</h2><p>{topic === "saved" && !search ? "点一下表达旁的书签，就能收进自己的口语备忘录。" : "试试“没听懂”“约时间”，或直接搜索西语。也可以清除当前筛选。"}</p><button className="phrasebook-primary" type="button" onClick={reset}>查看全部表达<Icon name="arrow" /></button></div> : phraseTopics.map((group, groupIndex) => {
+          {!visible.length ? <EmptyState className="phrasebook-empty" title={topic === "saved" && !search ? "把想用的表达留在这里" : "换个说法试试"} description={topic === "saved" && !search ? "点一下表达旁的书签，就能收进自己的口语备忘录。" : "试试“没听懂”“约时间”，或直接搜索西语。也可以清除当前筛选。"} action={<Button className="phrasebook-primary" type="button" onClick={reset}>查看全部表达<Icon name="arrow" /></Button>} /> : phraseTopics.map((group, groupIndex) => {
             const entries = visible.filter((entry) => entry.topic === group.id);
             if (!entries.length) return null;
             return <section className="phrasebook-group" key={group.id} aria-label={group.title}>

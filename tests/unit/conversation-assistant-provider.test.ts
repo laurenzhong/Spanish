@@ -27,6 +27,7 @@ const input: ConversationAssistantProviderInput = {
   intent: "reply",
   question: "想拒绝她的邀请，怎么回？",
   targetText: null,
+  senseGroups: [],
   characterDisplayName: "Lucía Martín",
   recentMessages: [{ role: "assistant", text: "¿Te vienes a cenar el sábado?" }],
 };
@@ -72,6 +73,30 @@ afterEach(() => {
 });
 
 describe("MiniMax conversation assistant provider", () => {
+  it("uses M3.1 thinking without exposing it in the structured answer", async () => {
+    const { provider, fetchImplementation } = fixture(vi.fn<typeof fetch>().mockResolvedValue(response({
+      stop_reason: "end_turn",
+      content: [
+        { type: "thinking", thinking: "PRIVATE_REASONING", signature: "test-signature" },
+        { type: "text", text: JSON.stringify(structured) },
+      ],
+    })), { modelVersion: undefined });
+    const result = await provider.assist(input);
+    expect(result.answer).toBe(structured.answer);
+    expect(JSON.stringify(result)).not.toContain("PRIVATE_REASONING");
+    const body = requestBody(fetchImplementation);
+    expect(body).toMatchObject({ model: "MiniMax-M3.1-Flash", output_config: { effort: "low" }, max_tokens: 6_596 });
+    expect(body).not.toHaveProperty("thinking");
+  });
+
+  it("rejects a truncated response even when it contains valid JSON", async () => {
+    const { provider } = fixture(vi.fn<typeof fetch>().mockResolvedValue(response({
+      stop_reason: "max_tokens",
+      content: [{ type: "text", text: JSON.stringify(structured) }],
+    })));
+    await expect(provider.assist(input)).rejects.toMatchObject({ code: "provider-response-invalid" });
+  });
+
   it("serializes the Anthropic request and validates the JSON answer", async () => {
     const clock = vi.fn<() => number>().mockReturnValueOnce(1_000).mockReturnValueOnce(1_042);
     const { provider, fetchImplementation } = fixture(undefined, { clock });
@@ -98,7 +123,9 @@ describe("MiniMax conversation assistant provider", () => {
     const body = requestBody(fetchImplementation);
     expect(body).toMatchObject({
       model: "test-model",
-      max_tokens: 1_500,
+      max_tokens: 2_500,
+      // Stable role wording across repeated analyses of the same sentence.
+      temperature: 0.2,
       thinking: { type: "disabled" },
       stream: false,
       messages: [{ role: "user" }],
@@ -107,12 +134,15 @@ describe("MiniMax conversation assistant provider", () => {
     expect(system).toContain("Simplified Chinese");
     expect(system).toContain("es-ES");
     expect(system).toContain("JSON object");
+    expect(system).toContain("senseGroups");
     expect(system).toContain("Never invent facts");
     expect(system).toContain("untrusted conversation data");
     expect(promptPayload(fetchImplementation)).toEqual({
       intent: "reply",
       question: input.question,
       targetText: null,
+      senseGroupCount: 0,
+      senseGroups: [],
       characterDisplayName: "Lucía Martín",
       recentMessages: input.recentMessages,
     });
@@ -121,13 +151,115 @@ describe("MiniMax conversation assistant provider", () => {
   it.each([
     ["reply", { question: "怎么礼貌地答应？", targetText: null }],
     ["grammar", { question: null, targetText: "Yo soy cansado." }],
-    ["structure", { question: null, targetText: "Lucía compró flores ayer." }],
+    ["structure", { question: null, targetText: "Lucía compró flores ayer.", senseGroups: ["Lucía compró flores ayer"] }],
     ["question", { question: "querer 和 amar 有什么区别？", targetText: null }],
   ] as const)("answers the %s intent with a validated JSON payload", async (intent, patch) => {
-    const { provider, fetchImplementation } = fixture();
+    const annotations = [{ index: 1, role: "陈述句", explanation: "“Lucía”是主语，“compró”是谓语。" }];
+    const { provider, fetchImplementation } = fixture(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        contentResponse(intent === "structure" ? { ...structured, structure: annotations } : structured),
+      ),
+    );
     const result = await provider.assist({ ...input, intent, ...patch });
     expect(result.answer).toBe(structured.answer);
-    expect(promptPayload(fetchImplementation)).toMatchObject({ intent, ...patch });
+    if (intent === "structure") {
+      expect(result.structure).toEqual([
+        { fragment: "Lucía compró flores ayer", role: "陈述句", explanation: "“Lucía”是主语，“compró”是谓语。" },
+      ]);
+    }
+    const payload = promptPayload(fetchImplementation);
+    expect(payload).toMatchObject({ intent, question: patch.question, targetText: patch.targetText });
+    if (intent === "structure") {
+      expect(payload.senseGroupCount).toBe(1);
+      expect(payload.senseGroups).toEqual([{ index: 1, fragment: "Lucía compró flores ayer" }]);
+    }
+  });
+
+  it("annotates the application's deterministic sense groups without re-splitting them", async () => {
+    const senseGroups = ["Perfecto", "entonces", "ya estás en la empresa"] as const;
+    const annotations = [
+      { index: 1, role: "感叹词", explanation: "表示认可或满意，承接对方说已经去公司上班了。" },
+      { index: 2, role: "连接词", explanation: "表示“那么”，把前面的信息与当前话题连接起来。" },
+      { index: 3, role: "陈述句", explanation: "“tú”是省略的主语，“estás”是谓语动词，“en la empresa”是地点状语。" },
+    ];
+    const { provider, fetchImplementation } = fixture(
+      vi.fn<typeof fetch>().mockResolvedValue(contentResponse({ ...structured, structure: annotations })),
+    );
+
+    const result = await provider.assist({
+      ...input,
+      intent: "structure",
+      question: null,
+      targetText: "Perfecto, entonces ya estás en la empresa.",
+      senseGroups,
+    });
+
+    expect(result.structure).toEqual([
+      { fragment: "Perfecto", role: annotations[0].role, explanation: annotations[0].explanation },
+      { fragment: "entonces", role: annotations[1].role, explanation: annotations[1].explanation },
+      { fragment: "ya estás en la empresa", role: annotations[2].role, explanation: annotations[2].explanation },
+    ]);
+    expect(promptPayload(fetchImplementation)).toMatchObject({
+      intent: "structure",
+      targetText: "Perfecto, entonces ya estás en la empresa.",
+      senseGroupCount: 3,
+      senseGroups: [
+        { index: 1, fragment: "Perfecto" },
+        { index: 2, fragment: "entonces" },
+        { index: 3, fragment: "ya estás en la empresa" },
+      ],
+    });
+  });
+
+  it("keeps the deterministic fragment even when the model repeats its own fragment", async () => {
+    const { provider } = fixture(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        contentResponse({
+          ...structured,
+          structure: [
+            { index: 1, fragment: "Perfecto, entonces", role: "表达", explanation: "第一部分。" },
+            { index: 2, fragment: "ya estás", role: "陈述句", explanation: "第二部分。" },
+          ],
+        }),
+      ),
+    );
+
+    const result = await provider.assist({
+      ...input,
+      intent: "structure",
+      question: null,
+      targetText: "Perfecto, entonces ya estás en la empresa.",
+      senseGroups: ["Perfecto, entonces", "ya estás en la empresa"],
+    });
+
+    expect(result.structure.map((part) => part.fragment)).toEqual(["Perfecto, entonces", "ya estás en la empresa"]);
+  });
+
+  it("fails closed when the model does not annotate every sense group exactly once", async () => {
+    for (const structure of [
+      [],
+      [{ index: 1, role: "感叹词", explanation: "表示认可。" }],
+      [{ index: 1, role: "感叹词", explanation: "a" }, { index: 2, role: "连接词", explanation: "b" }],
+      [
+        { index: 1, role: "感叹词", explanation: "a" },
+        { index: 2, role: "连接词", explanation: "b" },
+        { index: 2, role: "陈述句", explanation: "重复索引。" },
+      ],
+      [
+        { index: 1, role: "感叹词", explanation: "a" },
+        { index: 2, role: "连接词", explanation: "b" },
+        { index: 4, role: "陈述句", explanation: "跳过了第三个意群。" },
+      ],
+    ]) {
+      const { provider } = fixture(vi.fn<typeof fetch>().mockResolvedValue(contentResponse({ ...structured, structure })));
+      await expect(provider.assist({
+        ...input,
+        intent: "structure",
+        question: null,
+        targetText: "Perfecto, entonces ya estás en la empresa.",
+        senseGroups: ["Perfecto", "entonces", "ya estás en la empresa"],
+      })).rejects.toMatchObject({ code: "provider-response-invalid", retryable: false });
+    }
   });
 
   it("parses a JSON object wrapped in a markdown code fence", async () => {
@@ -165,7 +297,9 @@ describe("MiniMax conversation assistant provider", () => {
     const oversize = [
       { ...structured, suggestions: Array.from({ length: 4 }, () => ({ spanish: "Hola", chinese: "你好" })) },
       { ...structured, corrections: Array.from({ length: 9 }, () => ({ original: "a", corrected: "b", explanation: "c" })) },
-      { ...structured, structure: Array.from({ length: 13 }, () => ({ fragment: "a", role: "主语", explanation: "b" })) },
+      { ...structured, structure: Array.from({ length: 13 }, (_, index) => ({ index: index + 1, role: "陈述句", explanation: "b" })) },
+      { ...structured, structure: [{ role: "陈述句", explanation: "缺少 index。" }] },
+      { ...structured, structure: [{ index: 1, role: "陈述句", explanation: "b", unexpected: "extra" }] },
       { ...structured, unexpected: "extra" },
       { ...structured, answer: "x".repeat(4_001) },
     ];
@@ -210,6 +344,12 @@ describe("MiniMax conversation assistant provider", () => {
       { ...input, intent: "grammar", targetText: null },
       { ...input, intent: "question", question: null },
       { ...input, characterDisplayName: " " },
+      { ...input, senseGroups: ["Hola"] },
+      { ...input, intent: "structure", targetText: "Hola.", senseGroups: [] },
+      { ...input, intent: "structure", targetText: "Hola.", senseGroups: [" "] },
+      { ...input, intent: "structure", targetText: "Hola.", senseGroups: ["x".repeat(2_001)] },
+      { ...input, intent: "structure", targetText: null, senseGroups: ["Hola"] },
+      { ...input, intent: "structure", targetText: "Hola.", senseGroups: Array.from({ length: 13 }, () => "Hola") },
       { ...input, recentMessages: Array.from({ length: 9 }, () => ({ role: "user" as const, text: "Hola" })) },
       { ...input, recentMessages: [{ role: "user" as const, text: "x".repeat(2_001) }] },
       { ...input, recentMessages: [{ role: "system" as const, text: "Hola" }] },

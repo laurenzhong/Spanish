@@ -5,8 +5,10 @@ import { createPortal } from "react-dom";
 
 import { useReadAloud } from "@/src/modules/providers/tts";
 import type { TatoebaExample } from "@/src/modules/lexicon-corpus/application/tatoeba-examples";
+import { useVocabularyMarks } from "./use-vocabulary-marks";
 import { TatoebaExampleRow } from "./tatoeba-example-row";
 import { useMediaQuery } from "@/src/shared/ui/use-media-query";
+import { Button, Input } from "@/src/shared/ui/primitives";
 
 // Medium desktops use an overlay too, so the word grid keeps its full width.
 const wordPanelOverlayQuery = "(max-width: 1199px)";
@@ -140,7 +142,7 @@ type WordLookupResponse = Readonly<{
 /**
  * The wording the server-backed shelves use for three of these states
  * (`lexicon-shelf-controls.tsx`, `vocabulary-library.tsx`, `phrase-library.tsx`)
- * so one state never reads two ways. `learning` is local to this shelf: the
+ * so one state never reads two ways. `learning` belongs to vocabulary marks: the
  * server's `user_lexical_intents` triad has no equivalent, and mapping "正在学习"
  * onto 想复现 ("want to see it again") would make the button's label say
  * something the stored state does not mean.
@@ -155,29 +157,12 @@ const statusOptions = [
 const statusLabels: Record<VocabularyShelfStatus, string> = { familiar: "已熟悉", learning: "正在学习", revisit: "想复现", ignore: "暂不学习" };
 
 /**
- * Browser-local marks, deliberately the same storage contract the study shelf
- * used (`sueno:vocabulary-status:v1:<scope>`, a flat `{ headword: status }`
- * map, the same cross-tab event), so a reader's existing marks stay valid.
- * `learning` is an extra value in that same map: existing keys and values are
- * untouched, and a build that predates it ignores the new value rather than
- * losing the map.
- *
- * The server-side `user_lexical_intents` mechanism cannot serve this shelf: it
- * keys on a lexeme or phrase row, and the corpus still contains zero lexemes
- * because the indexing pipeline has never run.
- */
-const storagePrefix = "sueno:vocabulary-status:v1:";
-const statusEvent = "sueno:vocabulary-status-changed";
-const emptyStatuses: Record<string, VocabularyShelfStatus> = {};
-const statusSnapshots = new Map<string, Record<string, VocabularyShelfStatus>>();
-
-/**
  * Whether opening a word also says it. On by default, as Language Reactor has it,
  * because that is what makes a click feel like "show me this word" — but it is a
  * preference and not a fixed behaviour: a reader working through a long list, or in
  * a quiet room, must be able to turn the sound off without losing the read button.
  *
- * Stored per storage scope alongside the marks, in the reader's own browser: the
+ * Stored per account in the reader's own browser (marks sync separately): the
  * server holds no preference for this shelf, and the setting is not user data.
  */
 const autoplayStoragePrefix = "sueno:vocabulary-autoplay:v1:";
@@ -214,6 +199,7 @@ type ReadAloud =
  */
 function WordPanelContent(props: Readonly<{
   word: string;
+  markKey: string;
   meanings: ReturnType<typeof displayMeanings> | null;
   usageNotes: readonly string[];
   entry: VocabularyShelfGlossary | null;
@@ -236,11 +222,13 @@ function WordPanelContent(props: Readonly<{
     onSubmit: () => void;
   }>;
   onToggleRead: () => void;
+  marksDisabled: boolean;
+  markFeedback: React.ReactNode;
   onMark: (status: VocabularyShelfStatus) => void;
   onClearMark: (status: VocabularyShelfStatus) => void;
   onClose: () => void;
 }>): React.ReactElement {
-  const { meanings, entry, statuses, word } = props;
+  const { meanings, entry, statuses, word, markKey } = props;
   return <>
     <div className="vocabulary-study__card-head">
       <div>
@@ -290,10 +278,12 @@ function WordPanelContent(props: Readonly<{
       : <p className="vocabulary-study__muted">这个词还没有可显示的中文释义，先按下面的语境理解它。</p>}
 
     <div className="vocabulary-study__marking" role="group" aria-label={`标记 ${word}`}>
-      {statusOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={statuses[word] === value} className={statuses[word] === value ? "is-active" : undefined} onClick={() => props.onMark(value)}>{label}</button>)}
-      {statuses[word] ? <button type="button" onClick={() => props.onClearMark(statuses[word]!)}>清除标记</button> : null}
-      <span className="vocabulary-study__muted">{statuses[word] ? `当前：${statusLabels[statuses[word]!]}` : "还没有标记"}</span>
+      {statusOptions.map(([value, label]) => <button key={value} type="button" disabled={props.marksDisabled} aria-pressed={statuses[markKey] === value} className={statuses[markKey] === value ? "is-active" : undefined} onClick={() => props.onMark(value)}>{label}</button>)}
+      {statuses[markKey] ? <button type="button" disabled={props.marksDisabled} onClick={() => props.onClearMark(statuses[markKey]!)}>清除标记</button> : null}
+      <span className="vocabulary-study__muted">{statuses[markKey] ? `当前：${statusLabels[statuses[markKey]!]}` : "还没有标记"}</span>
     </div>
+
+    {props.markFeedback}
 
     {entry?.examples.length || props.tatoeba.length ? <section className="vocabulary-study__block vocabulary-study__example-section">
       <h4>例句</h4>
@@ -352,7 +342,7 @@ function WordPanelContent(props: Readonly<{
       onSubmit={(event) => { event.preventDefault(); props.lookup.onSubmit(); }}
     >
       <label className="sr-only" htmlFor="vocabulary-lookup-input">查另一个词</label>
-      <input
+      <Input
         id="vocabulary-lookup-input"
         type="search"
         autoComplete="off"
@@ -361,9 +351,9 @@ function WordPanelContent(props: Readonly<{
         value={props.lookup.value}
         onChange={(event) => props.lookup.onChange(event.target.value)}
       />
-      <button type="submit" disabled={props.lookup.state === "loading" || !props.lookup.value.trim()}>
+      <Button type="submit" disabled={props.lookup.state === "loading" || !props.lookup.value.trim()}>
         {props.lookup.state === "loading" ? "查询中" : "查"}
-      </button>
+      </Button>
     </form>
     {props.lookup.notice ? <p className="vocabulary-study__lookup-notice" role="status">{props.lookup.notice}</p> : null}
 
@@ -395,58 +385,6 @@ function stopExampleAudio(element: HTMLAudioElement | null): void {
   element.pause();
   element.removeAttribute("src");
   element.load();
-}
-
-function statusStorageKey(scope: string): string {
-  return `${storagePrefix}${scope}`;
-}
-
-function parseStatuses(scope: string): Record<string, VocabularyShelfStatus> {
-  const next: Record<string, VocabularyShelfStatus> = {};
-  try {
-    const raw = window.localStorage.getItem(statusStorageKey(scope));
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    if (parsed && typeof parsed === "object") {
-      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        if (value === "familiar" || value === "learning" || value === "revisit" || value === "ignore") next[key] = value;
-      }
-    }
-  } catch {
-    return {};
-  }
-  return next;
-}
-
-/** `useSyncExternalStore` needs one cached object per scope, not a fresh map. */
-function readStatuses(scope: string): Record<string, VocabularyShelfStatus> {
-  const cached = statusSnapshots.get(scope);
-  if (cached) return cached;
-  const next = parseStatuses(scope);
-  statusSnapshots.set(scope, next);
-  return next;
-}
-
-function subscribeStatuses(callback: () => void): () => void {
-  const onChange = () => {
-    statusSnapshots.clear();
-    callback();
-  };
-  window.addEventListener("storage", onChange);
-  window.addEventListener(statusEvent, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(statusEvent, onChange);
-  };
-}
-
-function writeStatuses(scope: string, next: Record<string, VocabularyShelfStatus>): void {
-  statusSnapshots.set(scope, next);
-  try {
-    window.localStorage.setItem(statusStorageKey(scope), JSON.stringify(next));
-  } catch {
-    // Ignore storage failures; the current session keeps its marks.
-  }
-  window.dispatchEvent(new Event(statusEvent));
 }
 
 /** The word tile an event happened on, or null when it happened elsewhere. */
@@ -628,7 +566,9 @@ export function VocabularyShelf({
   const [readAloud, setReadAloud] = useState<ReadAloud | null>(null);
   const [activeMilestone, setActiveMilestone] = useState(1);
   const [practiceActive, setPracticeActive] = useState(false);
-  const statuses = useSyncExternalStore(subscribeStatuses, () => readStatuses(storageScope), () => emptyStatuses);
+  const marks = useVocabularyMarks(storageScope);
+  const { statuses } = marks;
+  const marksDisabled = marks.loading || marks.pending || Boolean(marks.error);
   // The third argument is the server render: a reader with no choice stored yet
   // gets the default, and the markup matches what the server sent.
   const autoplay = useSyncExternalStore(
@@ -989,12 +929,7 @@ export function VocabularyShelf({
     }));
   }, [entryFor, hideTranslation, stopReadAloud, withExamples, rememberShelfPosition]);
 
-  const markStatus = useCallback((markKey: string, status: VocabularyShelfStatus) => {
-    const next = { ...readStatuses(storageScope) };
-    if (next[markKey] === status) delete next[markKey];
-    else next[markKey] = status;
-    writeStatuses(storageScope, next);
-  }, [storageScope]);
+  const markStatus = marks.toggle;
 
   /** Word pronunciation always reads the displayed word, within the user gesture. */
   const startRead = useCallback((origin: ReadOrigin, key: string, word: string) => {
@@ -1294,10 +1229,16 @@ export function VocabularyShelf({
     : null;
   const milestones = ranked && total > vocabularyRankBandSize ? reachableRankMilestones(total) : [];
 
+  const markFeedback = <>
+    {marks.loading ? <p className="sr-only" role="status">正在读取账号标记…</p> : null}
+    {marks.pending ? <p className="sr-only" role="status">正在保存标记…</p> : null}
+    {marks.error ? <p className="vocabulary-recall__help" role="alert">{marks.error} <button type="button" onClick={marks.retry}>重试标记同步</button></p> : null}
+  </>;
+
   return <section className="vocabulary-study" aria-label="词汇表">
     <div className="vocabulary-toolbar">
       {practiceActive ? <span className="vocabulary-recall__help">退出默写后可搜索词表</span> : controls}
-      {marked ? <p className="vocabulary-study__summary" aria-live="polite" title="标记仅保存在当前浏览器">已标记 {marked} 个</p> : null}
+      {marked ? <p className="vocabulary-study__summary" aria-live="polite" title="标记已保存到账号">已标记 {marked} 个</p> : null}
     <label className="vocabulary-study__autoplay" title="点击单词时自动朗读">
       <input
         type="checkbox"
@@ -1311,8 +1252,16 @@ export function VocabularyShelf({
     </label>
     </div>
 
+    {!selected ? markFeedback : null}
+    {marks.hasAnonymousMarks ? <div className="vocabulary-recall__help">
+      此浏览器还留有未归属账号的旧标记。确认这些标记属于你后，可恢复到当前账号。
+      <button type="button" disabled={marksDisabled} onClick={marks.importAnonymous}>这些是我的标记，恢复到账号</button>
+    </div> : null}
+
     <VocabularyRecall
       key={storageScope}
+      storageScope={storageScope}
+      marksReady={!marksDisabled}
       containerRef={containerRef}
       statuses={statuses}
       meaningsFor={(key) => displayMeanings({ languageReactor: dictionary[key], glossary: glossary[key]?.meanings }).meanings.map((meaning) => meaning.meaning)}
@@ -1376,6 +1325,7 @@ export function VocabularyShelf({
         <WordPanelContent
           key={selected.word}
           word={selected.word}
+          markKey={selected.key}
           meanings={selected.meanings}
           usageNotes={selected.usageNotes}
           entry={selectedEntry}
@@ -1390,6 +1340,8 @@ export function VocabularyShelf({
           readNotice={visibleNotice}
           lookup={{ value: lookupValue, state: lookupState, notice: lookupNotice, onChange: setLookupValue, onSubmit: requestLookup }}
           onToggleRead={() => toggleReadAloud("card", selected.key, selected.word)}
+          marksDisabled={marksDisabled}
+          markFeedback={markFeedback}
           onMark={(status) => markStatus(selected.key, status)}
           onClearMark={(status) => markStatus(selected.key, status)}
           onClose={closePanel}
@@ -1444,6 +1396,7 @@ export function VocabularyShelf({
           {quickStatusOptions.map(([value, label]) => <button
             key={value}
             type="button"
+            disabled={marksDisabled}
             aria-label={label}
             aria-pressed={statuses[hovered.key] === value}
             className={statuses[hovered.key] === value ? "is-active" : undefined}
@@ -1475,6 +1428,7 @@ export function VocabularyShelf({
         <WordPanelContent
           key={selected.word}
           word={selected.word}
+          markKey={selected.key}
           meanings={selected.meanings}
           usageNotes={selected.usageNotes}
           entry={selectedEntry}
@@ -1489,6 +1443,8 @@ export function VocabularyShelf({
           readNotice={visibleNotice}
           lookup={{ value: lookupValue, state: lookupState, notice: lookupNotice, onChange: setLookupValue, onSubmit: requestLookup }}
           onToggleRead={() => toggleReadAloud("card", selected.key, selected.word)}
+          marksDisabled={marksDisabled}
+          markFeedback={markFeedback}
           onMark={(status) => markStatus(selected.key, status)}
           onClearMark={(status) => markStatus(selected.key, status)}
           onClose={closePanel}

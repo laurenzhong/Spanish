@@ -1,3 +1,4 @@
+export * from "./account-admin";
 export * from "./characters";
 export * from "./conversation-reply-sources";
 export * from "./common";
@@ -11,4 +12,8 @@ export * from "./training";
 export * from "./users";
 export * from "./reading";
 export * from "./lexicon-corpus";
+export * from "./vocabulary-marks";
+export * from "./vocabulary-recall-progress";
+export * from "./learning-insights";
+export * from "./character-relationships";
 export * from "./scenario-practice";

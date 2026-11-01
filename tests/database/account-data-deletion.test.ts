@@ -82,6 +82,15 @@ describe("account data deletion", () => {
       "0018_dusty_sue_storm.sql",
       "0040_happy_wolverine.sql",
       "0045_lumpy_medusa.sql",
+      // The profile schema now includes role/account_status/deletion_requested_at
+      // (ACCT-ADMIN-001); apply 0048 so the shared Drizzle profile shape matches
+      // the test database.
+      "0048_account_access_and_admin_console.sql",
+      "0050_parched_nextwave.sql",
+      "0051_learning_insight_reports.sql",
+      "0052_user_vocabulary_marks.sql",
+      "0053_vocabulary_mark_import_boundary.sql",
+      "0054_vocabulary_recall_progress.sql",
     ]) {
       const migrationName = name.includes("*")
         ? (await readdir(path.join(process.cwd(), "drizzle"))).find((file) => new RegExp(`^${name.replace("*", ".*")}$`, "u").test(file))
@@ -227,6 +236,17 @@ describe("account data deletion", () => {
   });
 
   it("deletes private facts, anonymizes provider calls, and records storage cleanup", async () => {
+    await database.insert(schema.userVocabularyRecallProgress).values([
+      { userId: userA, word: "cafe", mode: "word", stage: "review", revision: 1, successfulReviews: 1, nextReviewAt: new Date() },
+      { userId: userB, word: "cafe", mode: "word", stage: "learning", revision: 1, successfulReviews: 0 },
+    ]);
+    const oldEpoch = "00000000-0000-4000-8000-000000000111";
+    await database.insert(schema.userVocabularyRecallSync).values({ userId: userA, epoch: oldEpoch });
+    await database.insert(schema.userVocabularyRecallReceipts).values({ userId: userA, attemptId: oldEpoch, payloadHash: "hash-only" });
+    await database.insert(schema.userVocabularyMarks).values([
+      { userId: userA, word: "cafe", status: "familiar" },
+      { userId: userB, word: "cafe", status: "learning" },
+    ]);
     const result = await deleteAccountData(
       createDrizzlePrivacyRepository(database),
       storageDeleter,
@@ -239,6 +259,17 @@ describe("account data deletion", () => {
       evidenceDeleted: 1,
       providerCallsAnonymized: 1,
     });
+    expect(await database.select().from(schema.userVocabularyMarks)).toEqual([
+      expect.objectContaining({ userId: userB, word: "cafe", status: "learning" }),
+    ]);
+    expect(await database.select().from(schema.userVocabularyRecallProgress)).toEqual([
+      expect.objectContaining({ userId: userB, stage: "learning" }),
+    ]);
+    expect(await database.select().from(schema.userVocabularyRecallReceipts)).toEqual([]);
+    const [recallSync] = await database.select().from(schema.userVocabularyRecallSync).where(eq(schema.userVocabularyRecallSync.userId, userA));
+    expect(recallSync.epoch).not.toBe(oldEpoch);
+    expect(await database.select().from(schema.userVocabularyMarkSyncState).where(eq(schema.userVocabularyMarkSyncState.userId, userA)))
+      .toEqual([{ userId: userA, legacyImportBlocked: true }]);
     await expect(
       database.select().from(schema.profiles).where(eq(schema.profiles.id, userA)),
     ).resolves.toHaveLength(0);
@@ -264,6 +295,7 @@ describe("account data deletion", () => {
       expect.objectContaining({ status: "completed" }),
     ]);
   });
+
 
   it("is idempotent and does not touch another user's data", async () => {
     const repository = createDrizzlePrivacyRepository(database);

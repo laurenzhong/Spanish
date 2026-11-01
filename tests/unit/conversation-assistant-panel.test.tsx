@@ -87,14 +87,32 @@ describe("conversation assistant panel", () => {
 
     expect(dialog()).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "AI 助手" })).toBeInTheDocument();
-    expect(screen.getByText("问怎么回复、检查语法，或分析句子成分。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "关闭 AI 助手" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "帮我回复" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "检查语法" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "分析句子成分" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "问一下" })).toBeInTheDocument();
+    // The owner asked for a compact panel: no header description and no visible
+    // composer label; the placeholder and icon carry the affordance instead.
+    expect(screen.queryByText("问怎么回复、检查语法，或分析句子成分。")).not.toBeInTheDocument();
+    expect(screen.queryByText("补充说明或提问")).not.toBeInTheDocument();
     expect(screen.getByText(/不知道怎么回复、想检查一句西语/)).toBeInTheDocument();
     expect(requests).toHaveLength(0);
+  });
+
+  it("keeps the send icon inside the chat-style composer field", () => {
+    renderPanel();
+
+    const form = screen.getByRole("form", { name: "向 AI 助手提问" });
+    const textarea = within(form).getByRole("textbox", { name: "向 AI 助手提问" });
+    const field = textarea.closest(".conversation-assistant__field");
+    expect(field).not.toBeNull();
+    expect(within(field as HTMLElement).getByRole("textbox")).toBe(textarea);
+
+    const ask = within(field as HTMLElement).getByRole("button", { name: "问一下" });
+    expect(ask).toHaveAttribute("type", "submit");
+    expect(ask.parentElement).toBe(field);
+    expect(ask.querySelector("svg")).not.toBeNull();
   });
 
   it("sends a reply request with the panel note as its optional question", async () => {
@@ -198,6 +216,71 @@ describe("conversation assistant panel", () => {
     expect(screen.getByText("请先写下你想问的问题。")).toBeInTheDocument();
     expect(requests).toHaveLength(0);
     await waitFor(() => expect(note()).toHaveFocus());
+  });
+
+  it("clears the free-form question from the composer once it is sent", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.type(note(), "虚拟式和条件式有什么区别？");
+    await user.click(screen.getByRole("button", { name: "问一下" }));
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({ intent: "question", question: "虚拟式和条件式有什么区别？" });
+    // The textarea must not keep the sent question: leaving it there reads as an
+    // unsent message even though the request already went out.
+    expect(note()).toHaveValue("");
+    // The transcript keeps the question, so clearing the composer loses nothing.
+    expect(screen.getByText(/虚拟式和条件式有什么区别/)).toBeInTheDocument();
+    expect(await screen.findByText(answer)).toBeInTheDocument();
+  });
+
+  it("sends with Enter and keeps Shift+Enter for a line break", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.type(note(), "第一行{Shift>}{Enter}{/Shift}第二行");
+    expect(note()).toHaveValue("第一行\n第二行");
+    expect(requests).toHaveLength(0);
+
+    await user.type(note(), "{Enter}");
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({ intent: "question", question: "第一行\n第二行" });
+    expect(note()).toHaveValue("");
+  });
+
+  it("does not send on Enter while a Chinese IME composition is active", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.type(note(), "虚拟式");
+    fireEvent.keyDown(note(), { key: "Enter", isComposing: true });
+    // Safari reports the composition-confirming Enter with keyCode 229 and may
+    // already have cleared `isComposing`, so both signals must be ignored.
+    fireEvent.keyDown(note(), { key: "Enter", keyCode: 229 });
+
+    expect(requests).toHaveLength(0);
+    expect(note()).toHaveValue("虚拟式");
+  });
+
+  it("does not send or clear a second question while the first one is pending", async () => {
+    const user = userEvent.setup();
+    let release!: (response: Response) => void;
+    respond = () => new Promise<Response>((resolve) => { release = resolve; });
+    renderPanel();
+
+    await user.type(note(), "第一个问题{Enter}");
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(note()).toHaveValue("");
+
+    // The textarea stays editable while thinking; Enter must neither dispatch a
+    // second request nor wipe the question the learner is preparing.
+    await user.type(note(), "第二个问题{Enter}");
+    expect(requests).toHaveLength(1);
+    expect(note()).toHaveValue("第二个问题");
+
+    await act(async () => release(assistantResponse(requests[0])));
+    expect(await screen.findByText(answer)).toBeInTheDocument();
   });
 
   it("renders reply suggestions and applies one to the draft without sending", async () => {

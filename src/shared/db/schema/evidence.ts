@@ -70,6 +70,7 @@ export const evidenceEvents = pgTable(
       table.occurredAt,
     ),
     index("evidence_events_attempt_idx").on(table.practiceAttemptId),
+    index("evidence_events_occurred_idx").on(table.occurredAt),
     check(
       "evidence_events_outcome_score_range_check",
       sql`${table.outcomeScore} >= 0 and ${table.outcomeScore} <= 1`,

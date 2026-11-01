@@ -25,8 +25,21 @@ export type QuestionPolicy = Readonly<{
   maxQuestionPressure: "none" | "low" | "medium";
 }>;
 
+/** Explicit current-turn refusal only; quotations and topic-specific limits are not global refusals. */
+function explicitlyDeclinesQuestions(userMessage: string): boolean {
+  const unquoted = normalized(userMessage).replace(/«[^»]*»|“[^”]*”|"[^"]*"|'[^']*'/gu, "");
+  return unquoted.split(/[.!?。！？;；\n]/u).some(clause => {
+    if (/\b(?:traduce|traducir|como se dice|que significa)\b|翻译|怎么说|什么意思/u.test(clause)) return false;
+    return /^(?:(?:por favor|hoy)[,\s]+)?(?:no me hagas(?: mas)? preguntas|no quiero(?: mas)? preguntas|prefiero que no me preguntes(?: nada)?|no mas preguntas)(?:[,:\s]+(?:por favor|gracias|ahora|hoy|solo escucha(?:me)?))*\s*$/u.test(clause.trim())
+      || /^(?:请)?(?:别|不要)再?问我(?:问题|了)[，\s]*(?:谢谢)?\s*$/u.test(clause.trim());
+  });
+}
+
 export function questionPolicyForReply(input: Readonly<{ userMessage: string }>): QuestionPolicy {
   const text = normalized(input.userMessage);
+  if (explicitlyDeclinesQuestions(input.userMessage)) {
+    return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
+  }
   if (/(?:eres|es)\s+(?:una?\s+)?(?:ia|bot|persona real)|inteligencia artificial|eres real/iu.test(text)) {
     return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: false, maxQuestionPressure: "none" };
   }
@@ -45,10 +58,28 @@ export function questionPolicyForReply(input: Readonly<{ userMessage: string }>)
   if (requestsQuestionRepeat(input.userMessage) || requestsActivityAdvice(input.userMessage)) {
     return { maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" };
   }
+  // A greeting that also supplies a concrete topic is an opening, not a
+  // request to avoid initiative. The old `starts with Hola` shortcut treated
+  // "Hola, soy Alex. Me gusta cocinar." like a bare "Hola" and rejected the
+  // natural one-question follow-up that the topic invites. Direct questions
+  // and explicit boundaries remain handled above this branch.
+  if (!text.includes("?") && hasSubstantiveGreetingContent(text)) {
+    return { maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" };
+  }
   if (text.includes("?") || /^(?:hola|hey|buenas)\b/iu.test(text)) {
     return { maxSubstantiveQuestions: 0, allowReciprocalQuestion: true, maxQuestionPressure: "low" };
   }
   return { maxSubstantiveQuestions: 1, allowReciprocalQuestion: true, maxQuestionPressure: "low" };
+}
+
+function hasSubstantiveGreetingContent(text: string): boolean {
+  const remainder = text
+    .replace(/^(?:hola|hey|buenas)(?:\s+(?:dias|tardes|noches))?\b[\s,¡!¿?]*/u, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  // A name alone is still a greeting; require at least two content tokens so
+  // "Hola, Lucía" keeps the low-pressure greeting policy.
+  return remainder.split(/\s+/u).filter(Boolean).length >= 2;
 }
 
 export type ReplyPlan = Readonly<{
@@ -87,6 +118,29 @@ function normalized(value: string): string {
     .replace(/[\u0300-\u036f]/gu, "")
     .toLocaleLowerCase("es-ES")
     .trim();
+}
+
+/**
+ * The user can express attraction while explicitly asking to slow the pace.
+ * This is a distinct turn shape: it needs acknowledgement and respect for the
+ * boundary, but it must not make Lucía confirm or escalate the relationship.
+ */
+export function hasPacedAffectionDisclosure(userMessage: string): boolean {
+  const text = normalized(userMessage);
+  const affection = /\b(?:me gustas|me encantas|creo que me gustas|me estoy enamorando|me he enamorado|me atraes|siento algo por ti)\b/u.test(text);
+  const slowerPace = /\b(?:demos? tiempo|dar(?:nos|me) tiempo|con calma|sin prisa|sin prisas|poco a poco|vamos despacio|ir despacio|no (?:quiero|hace falta) apresur|sin poner(?:le)? (?:una )?(?:etiqueta|nombre)|no (?:quiero|hace falta) definir|sin presion)\b/u.test(text);
+  return affection && slowerPace;
+}
+
+/** Pure semantic gate for a paced-affection response. */
+export function acknowledgesPacedAffection(userMessage: string, reply: string): boolean {
+  if (!hasPacedAffectionDisclosure(userMessage)) return true;
+  const text = normalized(reply);
+  const acknowledgement = /\b(?:gracias por (?:decirlo|decirmelo|compartirlo)|me alegra saberlo|me alegra que (?:me lo digas|me gustes)|aprecio que me lo digas|te entiendo|lo entiendo|entiendo lo que (?:sientes|me dices)|me gusta (?:saberlo|que me (?:lo )?digas(?: (?:eso|lo))?|conocerte|hablar contigo)|me hace ilusion saberlo|tu sinceridad|lo que me dices)\b/u.test(text)
+    || /\b(?:me gustas|me encantas|tambien me gustas)\b/u.test(text);
+  const boundary = /\b(?:con calma|sin prisa|sin prisas|poco a poco|vamos despacio|(?:ir|iremos|avancemos|avanzar) despacio|darnos (?:nuestro )?tiempo|darme tiempo|tomarnos? (?:(?:el|nuestro) )?tiempo(?: que necesitas)?|a (?:tu|nuestro) ritmo|sin (?:poner|tener) (?:una )?(?:etiqueta|nombre)|no (?:hay|hace) falta (?:apresur|definir|decidir)|sin presion)\b/u.test(text);
+  const escalates = /\b(?:quieres ser mi pareja|somos pareja|ser(?:emos)? novios|te propongo|confirm(?:ar|emos)? (?:la )?relacion|confirm(?:ar|emos)? (?:lo nuestro)|hacerlo oficial)\b/u.test(text);
+  return acknowledgement && boundary && !escalates;
 }
 
 function hasQuestion(value: string): boolean {

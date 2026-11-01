@@ -32,6 +32,93 @@ async function replay(replies: readonly string[], signal?: AbortSignal, currentU
 }
 
 describe("reported weekend conversation regression", () => {
+  it.each([
+    "Claro, las fotos pueden esperar. ¿Qué te apetece hablar?",
+    "Claro, lo dejamos ahí. ¿Qué te apetece hablar ahora?",
+    "Vale. ¿De qué quieres hablar?",
+    "Claro, lo dejamos ahí. ¿Qué te gustaría hablar?",
+    "Claro, lo dejamos ahí. ¿Qué te apetece hacer un rato?",
+  ])("does not turn topic closure into a replacement-topic interview: %s", async reply => {
+    const message = "Ahora no me apetece hablar de eso.";
+    const replayed = await replay([reply, "Claro, lo dejamos ahí."], undefined, message);
+    expect(replayed.generate).toHaveBeenCalledTimes(2);
+    expect(replayed.streamed).toBe("Claro, lo dejamos ahí.");
+    const failed = await replay([reply], undefined, message);
+    expect(failed.streamed).toBe("");
+    expect(failed.events.some(event => event.type === "done")).toBe(false);
+  });
+
+  it("keeps a newly stated tentative cooking plan from reopening the old book topic", async () => {
+    const context = await buildReplyContext({
+      generationId: "tentative-cooking-topic-test", userId: "synthetic-user", userMessage: "Creo que mañana volveré a cocinar.",
+      recentMessages: [
+        { role: "user", content: "Hola, hoy he terminado un libro.", sentAt: "2026-11-09T10:00:00Z" },
+        { role: "character", content: "Llegar al final de una historia tiene algo especial.", sentAt: "2026-11-09T10:00:00Z" },
+      ], now: new Date("2026-11-09T10:10:00Z"),
+    });
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce(result("Eso pasa con algunos finales; el título tampoco ayuda mucho."))
+        .mockResolvedValueOnce(result("Qué bien, quizá mañana te apetezca preparar algo sencillo.")),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 2, text: "Creo que mañana volveré a cocinar.", clientMessageId: "tentative-cooking-topic-client",
+      generationId: "tentative-cooking-topic-test", messageId: "tentative-cooking-topic-message", replyContext: context,
+      replyProvider: { generate: provider.generate }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0].continuityInstruction).toContain("plan de cocina");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("retries a stale rescheduling reply after a calm-conversation preference", async () => {
+    const currentUserMessage = "Prefiero las conversaciones tranquilas.";
+    const context = await buildReplyContext({
+      generationId: "quiet-conversation-test", userId: "synthetic-user", userMessage: currentUserMessage,
+      recentMessages: [
+        { role: "user", content: "Tuvimos que cambiarlo para otro momento.", sentAt: "2026-10-16T10:00:00Z" },
+        { role: "character", content: "Al final habéis podido encontrar otro momento.", sentAt: "2026-10-16T10:00:10Z" },
+      ], now: new Date("2026-10-16T10:10:00Z"),
+    });
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce(result("Qué bien, al menos habéis podido encontrar otro momento."))
+        .mockResolvedValueOnce(result("Claro, podemos hablar con calma y sin prisas.")),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 2, text: currentUserMessage, clientMessageId: "quiet-conversation-client",
+      generationId: "quiet-conversation-test", messageId: "quiet-conversation-message", replyContext: context,
+      replyProvider: { generate: provider.generate }, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0].continuityInstruction).toContain("conversaciones tranquilas");
+    expect(events.filter((event) => event.type === "delta").map((event) => event.text).join("")).toBe("Claro, podemos hablar con calma y sin prisas.");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+  it("allows a concrete follow-up about the new subject supplied by the user", async () => {
+    const reply = "¿Qué película habéis visto?";
+    const replayed = await replay([reply], undefined, "No quiero hablar de guitarra. Hoy he ido al cine con una amiga.");
+    expect(replayed.generate).toHaveBeenCalledTimes(1);
+    expect(replayed.streamed).toBe(reply);
+  });
+  it("allows a supplied new subject after closure", async () => {
+    const reply = "Qué bien que hayas visto a tu amiga.";
+    const replayed = await replay([reply], undefined, "No quiero hablar de guitarra. Hoy he visto a una amiga.");
+    expect(replayed.generate).toHaveBeenCalledTimes(1);
+    expect(replayed.streamed).toBe(reply);
+  });
+  it("respects explicit topic closure before emitting the reported coaxing reply", async () => {
+    const bad = "Perfecto, no hace falta hacer fotos para hablar de ellas. ¿Qué te apetece charlar?";
+    const message = "Últimamente no tengo ocasión de hacer fotos y prefiero hablar de otras cosas.";
+    const replayed = await replay([bad, "Claro, lo dejamos ahí."], undefined, message);
+    expect(replayed.generate).toHaveBeenCalledTimes(2);
+    expect(replayed.streamed).toBe("Claro, lo dejamos ahí.");
+    const failed = await replay([bad], undefined, message);
+    expect(failed.streamed).toBe("");
+    expect(failed.events.some(event => event.type === "done")).toBe(false);
+  });
   it.each([staleQuestion, `¡Bienvenido al finde! 😊 ${staleQuestion}`])("retries the stale question before emitting any of it: %s", async (reply) => {
     const replayed = await replay([reply, groundedReply]);
     expect(replayed.generate).toHaveBeenCalledTimes(2);
@@ -64,11 +151,115 @@ describe("reported weekend conversation regression", () => {
     expect(replayed.streamed).toBe(groundedReply);
   });
 
+  it("prioritizes a newly stated occupation over the previous activity topic", async () => {
+    const replayed = await replay([
+      "¿Y después has descansado?",
+      "Ah, trabajas en una librería; debe de ser interesante estar entre libros.",
+    ], undefined, "Trabajo en una librería.");
+    expect(replayed.generate).toHaveBeenCalledTimes(2);
+    expect(replayed.generate.mock.calls[1]?.[0].continuityInstruction).toContain("a qué se dedica");
+    expect(replayed.streamed).toContain("librería");
+    expect(replayed.streamed).not.toContain("descansado");
+    expect(replayed.events.at(-1)?.type).toBe("done");
+  });
+
+  it("fails when the retry still ignores the newly stated occupation", async () => {
+    const replayed = await replay(["Qué tal, ¿has podido descansar?"], undefined, "Trabajo en una librería.");
+    expect(replayed.generate).toHaveBeenCalledTimes(2);
+    expect(replayed.streamed).toBe("");
+    expect(replayed.events.at(-1)).toMatchObject({ type: "error" });
+    expect(replayed.events.some(event => event.type === "done")).toBe(false);
+  });
+
+  it("fails when the retry reopens the previous free-time topic after an occupation disclosure", async () => {
+    const replayed = await replay(["Qué bueno, Álex. ¿Y tú, qué tal llevas el rato libre?"], undefined, "Trabajo en una librería.");
+    expect(replayed.generate).toHaveBeenCalledTimes(2);
+    expect(replayed.streamed).toBe("");
+    expect(replayed.events.at(-1)).toMatchObject({ type: "error" });
+    expect(replayed.events.some(event => event.type === "done")).toBe(false);
+  });
+
+  it("does not treat an ordinary self-introduction as an occupation disclosure", async () => {
+    const replayed = await replay(["La cocina da para muchas historias."], undefined, "Hola, soy Álex. Me gusta cocinar.");
+    expect(replayed.generate).toHaveBeenCalledTimes(1);
+    expect(replayed.streamed).toBe("La cocina da para muchas historias.");
+    expect(replayed.events.at(-1)?.type).toBe("done");
+  });
+
   it("does not narrow unspecified weekend work to Saturday", async () => {
     const replayed = await replay(["Vaya, así que currando en sábado por la tarde.", groundedReply]);
     expect(replayed.generate).toHaveBeenCalledTimes(2);
     expect(replayed.generate.mock.calls[1]?.[0].continuityInstruction).toContain("sábado");
     expect(replayed.streamed).toBe(groundedReply);
+  });
+
+  it("keeps a tentative tomorrow cooking idea tentative", async () => {
+    const context = await buildReplyContext({
+      generationId: "tentative-plan-test", userId: "synthetic-user", userMessage: "De momento solo es una idea.",
+      recentMessages: [
+        { role: "user", content: "Creo que mañana volveré a cocinar.", sentAt: "2026-11-09T09:10:00Z" },
+        { role: "character", content: "Ya verás qué te apetece preparar mañana.", sentAt: "2026-11-09T09:10:10Z" },
+      ], now: new Date("2026-11-09T09:15:00Z"),
+    });
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce(result("Vale, Álex. Mañana te toca volver a la cocina. Seguro que encuentras algo rico que preparar."))
+        .mockResolvedValueOnce(result("Sí, todavía no es un plan cerrado; ya verás si al final te apetece cocinar.")),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 2, text: "De momento solo es una idea.", clientMessageId: "tentative-plan-client",
+      generationId: "tentative-plan-test", messageId: "tentative-plan-message", replyContext: context,
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0].continuityInstruction).toContain("solo una idea");
+    expect(events.at(-1)?.type).toBe("done");
+    expect(events.filter((event) => event.type === "delta").map((event) => event.type === "delta" ? event.text : "").join(""))
+      .toContain("no es un plan cerrado");
+  });
+
+  it("fails when the retry still turns a tentative plan into a certainty", async () => {
+    const context = await buildReplyContext({
+      generationId: "tentative-plan-fail-test", userId: "synthetic-user", userMessage: "De momento solo es una idea.",
+      recentMessages: [{ role: "user", content: "Creo que mañana volveré a cocinar.", sentAt: "2026-11-09T09:10:00Z" }],
+      now: new Date("2026-11-09T09:15:00Z"),
+    });
+    const provider = { generate: vi.fn().mockResolvedValue(result("Mañana te toca volver a la cocina.")) };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 2, text: "De momento solo es una idea.", clientMessageId: "tentative-plan-fail-client",
+      generationId: "tentative-plan-fail-test", messageId: "tentative-plan-fail-message", replyContext: context,
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(events.filter((event) => event.type === "delta")).toHaveLength(0);
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "stream-failed" });
+  });
+
+  it.each([
+    "Mañana vuelve la cocina. A ver qué sale.",
+    "Vale, la cocina recupera mañana.",
+  ])("rejects retry40 certainty wording: %s", async (reply) => {
+    const context = await buildReplyContext({
+      generationId: "tentative-plan-retry40-test", userId: "synthetic-user", userMessage: "De momento solo es una idea.",
+      recentMessages: [{ role: "user", content: "Creo que mañana volveré a cocinar.", sentAt: "2026-11-09T09:10:00Z" }],
+      now: new Date("2026-11-09T09:15:00Z"),
+    });
+    const provider = {
+      generate: vi.fn()
+        .mockResolvedValueOnce(result(reply))
+        .mockResolvedValueOnce(result("Sí, todavía no es un plan cerrado; ya verás si al final te apetece cocinar.")),
+    };
+    const events = [];
+    for await (const event of streamReply({
+      characterKey: "lucia", characterVersion: 2, text: "De momento solo es una idea.", clientMessageId: "tentative-plan-retry40-client",
+      generationId: "tentative-plan-retry40-test", messageId: "tentative-plan-retry40-message", replyContext: context,
+      replyProvider: provider, wait: async () => {},
+    })) events.push(event);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.generate.mock.calls[1]?.[0].continuityInstruction).toContain("solo una idea");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
   });
 
   it.each([

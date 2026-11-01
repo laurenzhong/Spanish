@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { createdAt, updatedAt, type JsonObject } from "./common";
 
@@ -13,13 +13,29 @@ export const profiles = pgTable("profiles", {
   nativeLanguage: text("native_language").default("zh-CN").notNull(),
   interfaceLanguage: text("interface_language").default("zh-CN").notNull(),
   timezone: text("timezone").default("Asia/Shanghai").notNull(),
+  // Account access model (ACCT-ADMIN-001, ADR-0021). Role and status are only
+  // writable by server application code; clients never receive write grants on
+  // these columns. `member` + `active` keeps every pre-existing profile valid.
+  role: text("role").default("member").notNull(),
+  accountStatus: text("account_status").default("active").notNull(),
+  deletionRequestedAt: timestamp("deletion_requested_at", {
+    withTimezone: true,
+    mode: "date",
+  }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
   uniqueIndex("profiles_public_uid_uidx").on(table.publicUid),
+  index("profiles_role_status_idx").on(table.role, table.accountStatus),
+  index("profiles_created_idx").on(table.createdAt),
   check(
     "profiles_avatar_kind_check",
     sql`${table.avatarKind} in ('upload', 'preset', 'initials')`,
+  ),
+  check("profiles_role_check", sql`${table.role} in ('owner', 'member')`),
+  check(
+    "profiles_account_status_check",
+    sql`${table.accountStatus} in ('active', 'suspended')`,
   ),
 ]);
 
@@ -49,6 +65,12 @@ export const userPreferences = pgTable(
     personalityPreferences: jsonb("personality_preferences")
       .$type<JsonObject>()
       .default(sql`'{}'::jsonb`)
+      .notNull(),
+    learningInsightsEnabled: boolean("learning_insights_enabled")
+      .default(true)
+      .notNull(),
+    recordAssistantLearningIntent: boolean("record_assistant_learning_intent")
+      .default(true)
       .notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

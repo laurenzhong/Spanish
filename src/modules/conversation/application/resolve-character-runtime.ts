@@ -14,6 +14,7 @@ import {
 } from "../domain/character-catalog";
 import type { ReplyCharacterSnapshot } from "./build-reply-context";
 import { characterBibleSchema } from "@/src/modules/characters/schemas";
+import { characterBehaviorProfileSchema } from "@/src/modules/characters/schemas/behavior-profile";
 
 export class CharacterRuntimeError extends Error {
   constructor(
@@ -37,6 +38,7 @@ function persistedSnapshot(
 ): ReplyCharacterSnapshot {
   const personality = (persisted.profile?.personality ?? {}) as Partial<{
     traits: readonly string[];
+    behaviorProfile: unknown;
     initiative: ReplyCharacterSnapshot["initiative"];
     tone: readonly string[];
     responseStyle: readonly string[];
@@ -48,6 +50,23 @@ function persistedSnapshot(
   const topics = (personality.topicPreferences ?? []).map((item) => item.topic).filter(Boolean);
   const identity = characterBibleSchema.shape.identity.safeParse(persisted.profile?.identity);
   const traits = characterBibleSchema.shape.personality.shape.traits.safeParse(personality.traits);
+  const behavior = personality.behaviorProfile === undefined ? undefined
+    : characterBehaviorProfileSchema.safeParse(personality.behaviorProfile);
+  if (behavior && (!behavior.success || behavior.data.characterKey !== persisted.stableKey
+    || behavior.data.characterVersion !== persisted.version)) {
+    throw new CharacterRuntimeError("CHARACTER_RUNTIME_UNAVAILABLE");
+  }
+  // Author evidence stays with the bible, never in a character's chat context.
+  const behaviorProfile = behavior?.success ? {
+    schemaVersion: behavior.data.schemaVersion,
+    characterKey: behavior.data.characterKey,
+    characterVersion: behavior.data.characterVersion,
+    profileVersion: behavior.data.profileVersion,
+    traits: behavior.data.traits.map(({ sourceRefs: _sources, ...guidance }) => {
+      void _sources;
+      return guidance;
+    }),
+  } : undefined;
   const facts = persisted.facts
     .filter((fact) => fact.isActive)
     .map((fact) => {
@@ -91,6 +110,7 @@ function persistedSnapshot(
     homeLocation: persisted.homeLocation,
     ...(identity.success ? { identity: identity.data } : {}),
     ...(traits.success ? { traits: traits.data } : {}),
+    ...(behaviorProfile ? { behaviorProfile } : {}),
     initiative,
     tone: personality.tone?.length ? personality.tone : fallback.snapshot.tone,
     // The expression rules are what keeps a voice recognisable across replies.

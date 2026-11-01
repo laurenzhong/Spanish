@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import { useReadAloud } from "@/src/modules/providers/tts";
+import { Button, Textarea } from "@/src/shared/ui/primitives";
 import type {
   ConversationAssistantData,
   ConversationAssistantIntent,
@@ -106,7 +107,6 @@ export function ConversationAssistant({
   const speakingRef = useRef<string | null>(null);
   const generation = useRef(0);
   const entrySequence = useRef(0);
-  const noteId = useId();
   const { speak, stop, clearError, speakingId, errorMessage } = useReadAloud();
   useEffect(() => { speakingRef.current = speakingId; }, [speakingId]);
 
@@ -144,6 +144,15 @@ export function ConversationAssistant({
     const timer = window.setTimeout(() => noteRef.current?.focus({ preventScroll: true }), 0);
     return () => window.clearTimeout(timer);
   }, [open]);
+
+  // The composer is one rounded field like the chat composer: a single line at
+  // rest, growing with Shift+Enter line breaks up to the CSS max-height.
+  useEffect(() => {
+    const textarea = noteRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+  }, [note, open]);
 
   useEffect(() => () => {
     generation.current += 1;
@@ -239,6 +248,9 @@ export function ConversationAssistant({
   }
 
   function askQuestion() {
+    // Enter stays available while a request is pending; it must not dispatch a
+    // second question or wipe the text the learner is preparing.
+    if (pending) return;
     const question = note.trim();
     if (!question) {
       showNotice(QUESTION_REQUIRED_NOTICE);
@@ -248,7 +260,21 @@ export function ConversationAssistant({
       showNotice(`问题请控制在 ${MAX_QUESTION_LENGTH} 字以内。`);
       return;
     }
+    // Clear the composer as soon as the question is sent. The transcript entry
+    // keeps the question, so nothing is lost and the panel no longer reads as
+    // an unsent message.
+    setNote("");
     void run({ intent: "question", question });
+  }
+
+  function handleNoteKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    // Enter also confirms Chinese IME candidates; that Enter belongs to the
+    // input method, not to the question form. Safari may report the composing
+    // Enter with isComposing already cleared but keyCode 229.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    askQuestion();
   }
 
   function retry(entry: TranscriptEntry) {
@@ -285,20 +311,17 @@ export function ConversationAssistant({
         role="dialog"
       >
         <header className="conversation-assistant__header">
-          <div>
-            <h2 className="conversation-assistant__title">AI 助手</h2>
-            <p className="conversation-assistant__description">问怎么回复、检查语法，或分析句子成分。</p>
-          </div>
+          <h2 className="conversation-assistant__title">AI 助手</h2>
           <button aria-label="关闭 AI 助手" className="conversation-assistant__close" onClick={requestClose} type="button">×</button>
         </header>
 
         <div className="conversation-assistant__body">
           <div aria-label="快捷操作" className="conversation-assistant__actions" role="group">
-            <button className="conversation-assistant__action" disabled={pending} onClick={askReply} type="button">帮我回复</button>
-            <button className="conversation-assistant__action" disabled={pending} onClick={askGrammar} type="button">检查语法</button>
-            <button className="conversation-assistant__action conversation-assistant__action--structure" disabled={pending} onClick={askStructure} type="button">分析句子成分</button>
+            <Button size="sm" className="conversation-assistant__action" disabled={pending} onClick={askReply} type="button">帮我回复</Button>
+            <Button size="sm" className="conversation-assistant__action" disabled={pending} onClick={askGrammar} type="button">检查语法</Button>
+            <Button size="sm" className="conversation-assistant__action conversation-assistant__action--structure" disabled={pending} onClick={askStructure} type="button">分析句子成分</Button>
           </div>
-          <p className="conversation-assistant__hint">分析句子成分时不填写内容，会分析对方最后一句；检查语法会优先使用这里的文字，没有时使用聊天输入框的草稿。</p>
+          <p className="conversation-assistant__hint">分析句子成分时不填写内容，会分析对方最后一句；检查语法会优先使用这里的文字，没有时使用聊天输入框的草稿；提问框按 Enter 发送，Shift + Enter 换行。</p>
           {notice ? <p className="conversation-assistant__notice" role="status">{notice}</p> : null}
           {errorMessage ? <p className="conversation-assistant__notice conversation-assistant__notice--error" role="alert">{errorMessage}</p> : null}
 
@@ -320,7 +343,7 @@ export function ConversationAssistant({
                 </p> : null}
                 {entry.status === "error" ? <>
                   <p className="conversation-assistant__error" role="alert">{entry.errorMessage}</p>
-                  <button className="conversation-assistant__retry" onClick={() => retry(entry)} type="button">重试</button>
+                  <Button size="sm" variant="secondary" className="conversation-assistant__retry" onClick={() => retry(entry)} type="button">重试</Button>
                 </> : null}
                 {entry.status === "success" && entry.data ? <AssistantResult data={entry.data} entryKey={entry.key} onApply={applyText} speakingId={speakingId} onToggleReadAloud={toggleReadAloud} /> : null}
               </section>)}
@@ -332,19 +355,22 @@ export function ConversationAssistant({
           className="conversation-assistant__composer"
           onSubmit={(event) => { event.preventDefault(); askQuestion(); }}
         >
-          <label className="conversation-assistant__composer-label" htmlFor={noteId}>补充说明或提问</label>
-          <textarea
-            aria-label="向 AI 助手提问"
-            className="conversation-assistant__note"
-            id={noteId}
-            maxLength={MAX_NOTE_LENGTH}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="写下你的问题，或为上面的快捷操作补充说明…"
-            ref={noteRef}
-            rows={2}
-            value={note}
-          />
-          <button className="conversation-assistant__ask" disabled={pending} type="submit">问一下</button>
+          <div className="conversation-assistant__field">
+            <Textarea
+              aria-label="向 AI 助手提问"
+              className="conversation-assistant__note"
+              maxLength={MAX_NOTE_LENGTH}
+              onChange={(event) => setNote(event.target.value)}
+              onKeyDown={handleNoteKeyDown}
+              placeholder="向 AI 助手提问…"
+              ref={noteRef}
+              rows={1}
+              value={note}
+            />
+            <Button size="sm" aria-label="问一下" className="conversation-assistant__ask" disabled={pending} title="问一下" type="submit">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
+            </Button>
+          </div>
         </form>
       </section>
     </>
@@ -371,8 +397,8 @@ function AssistantResult({ data, entryKey, speakingId, onApply, onToggleReadAlou
           <p className="conversation-assistant__spanish" lang="es">{suggestion.spanish}</p>
           <p className="conversation-assistant__chinese">{suggestion.chinese}</p>
           <div className="conversation-assistant__suggestion-actions">
-            <button className="conversation-assistant__apply" onClick={() => onApply(suggestion.spanish)} type="button">填入输入框</button>
-            <button aria-label={speaking ? "停止朗读这条建议" : "朗读这条建议"} onClick={() => onToggleReadAloud(readAloudId, suggestion.spanish)} type="button">{speaking ? "停止朗读" : "听一遍"}</button>
+            <Button className="conversation-assistant__apply" onClick={() => onApply(suggestion.spanish)} type="button">填入输入框</Button>
+            <Button variant="secondary" aria-label={speaking ? "停止朗读这条建议" : "朗读这条建议"} onClick={() => onToggleReadAloud(readAloudId, suggestion.spanish)} type="button">{speaking ? "停止朗读" : "听一遍"}</Button>
           </div>
         </li>;
       })}
@@ -381,7 +407,7 @@ function AssistantResult({ data, entryKey, speakingId, onApply, onToggleReadAlou
     {data.correctedSentence ? <div className="conversation-assistant__corrected">
       <p className="conversation-assistant__label">修正后的句子</p>
       <p className="conversation-assistant__corrected-text" lang="es">{data.correctedSentence}</p>
-      <button className="conversation-assistant__apply" onClick={() => onApply(data.correctedSentence!)} type="button">使用修正句</button>
+      <Button className="conversation-assistant__apply" onClick={() => onApply(data.correctedSentence!)} type="button">使用修正句</Button>
     </div> : null}
 
     {data.corrections.length > 0 ? <ul aria-label="语法修正" className="conversation-assistant__corrections">

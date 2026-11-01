@@ -1,3 +1,5 @@
+import { DEFAULT_MINIMAX_TEXT_MODEL } from "../../providers/minimax/text-model";
+
 import { z } from "zod";
 
 import { findCharacterRuntimeDefinition, isCharacterConversationEnabled } from "@/src/modules/characters";
@@ -89,7 +91,7 @@ export async function assistExpression(
         observe(dependencies, { provider: result.data.provider, modelVersion: result.data.modelVersion, providerRequestId: result.data.providerRequestId, latencyMs: result.data.latencyMs, estimatedCostMicros: result.data.estimatedCostMicros, status: "succeeded" });
         return result.data;
       } catch (error) {
-        observe(dependencies, { provider: "minimax", modelVersion: "MiniMax-M3", providerRequestId: null, latencyMs: Date.now() - startedAt, estimatedCostMicros: null, status: signal.aborted ? "cancelled" : "failed", errorType: error instanceof TranslationError ? error.code : "provider-unavailable" });
+        observe(dependencies, { provider: "minimax", modelVersion: DEFAULT_MINIMAX_TEXT_MODEL, providerRequestId: null, latencyMs: Date.now() - startedAt, estimatedCostMicros: null, status: signal.aborted ? "cancelled" : "failed", errorType: error instanceof TranslationError ? error.code : "provider-unavailable" });
         throw error;
       }
     }

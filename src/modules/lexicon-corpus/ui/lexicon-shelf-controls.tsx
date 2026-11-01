@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { PhraseQuery } from "../schemas";
+import { Button, Input, Select } from "@/src/shared/ui/primitives";
 
 const intentOptions = [
   ["", "全部状态"],
@@ -16,7 +17,7 @@ const intentOptions = [
  * There is no view selector: the page has one shelf, so the form submits only the
  * reader's search. The lexicon variant (`intent` / `lemmaStatus` against
  * `user_lexical_intents`) went with the lexicon view — the shelf's marks are
- * browser-local, and the corpus holds no lexeme rows to filter yet.
+ * keyed by account and word independently of the corpus lexeme index.
  *
  * The field is the control: no card around it, no submit button, no reset link.
  * The magnifier stays on the left; an active search gets a clear control on the
@@ -35,7 +36,7 @@ export function VocabularyShelfControls({ query, total }: Readonly<{ query: Read
           <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20"><path d="M6 6l8 8M14 6l-8 8" /></svg>
         </Link>
         : null}
-      <input id="vocabulary-search" defaultValue={search} maxLength={80} name="search" placeholder="搜索单词" />
+      <Input id="vocabulary-search" defaultValue={search} maxLength={80} name="search" placeholder="搜索单词" />
     </form>
     <p className="lexicon-result-count" aria-live="polite" title="按参考词频排序">{total.toLocaleString("zh-CN")} 词</p>
   </div>;
@@ -44,15 +45,15 @@ export function VocabularyShelfControls({ query, total }: Readonly<{ query: Read
 export function PhraseShelfControls({ query, total, discovery = false }: Readonly<{ query: PhraseQuery; total: number; discovery?: boolean }>) {
   return <div className="lexicon-shelf-controls">
     <form action="/read/phrases" className="lexicon-filter-form lexicon-filter-form--phrases" method="get" role="search">
-      <label className="lexicon-filter-form__search"><span>{discovery ? "可选：筛选片段" : "可选：筛选短语"}</span><input defaultValue={query.search ?? ""} maxLength={120} name="search" placeholder={discovery ? "可选：输入片段筛选" : "可选：输入短语筛选"} /></label>
+      <label className="lexicon-filter-form__search"><span>{discovery ? "可选：筛选片段" : "可选：筛选短语"}</span><Input defaultValue={query.search ?? ""} maxLength={120} name="search" placeholder={discovery ? "可选：输入片段筛选" : "可选：输入短语筛选"} /></label>
       {!discovery ? <>
-        <label><span>学习状态</span><select defaultValue={query.intent ?? ""} name="intent">{intentOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
-        <label><span>语用目的</span><input defaultValue={query.pragmaticPurpose ?? ""} maxLength={80} name="pragmaticPurpose" placeholder="例如：saludo" /></label>
-        <label><span>语域</span><input defaultValue={query.register ?? ""} maxLength={40} name="register" placeholder="neutral" /></label>
-        <label><span>地区</span><input defaultValue={query.region ?? ""} maxLength={40} name="region" placeholder="es-ES" /></label>
-        <label><span>CEFR</span><select defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部级别</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
+        <label><span>学习状态</span><Select defaultValue={query.intent ?? ""} name="intent">{intentOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</Select></label>
+        <label><span>语用目的</span><Input defaultValue={query.pragmaticPurpose ?? ""} maxLength={80} name="pragmaticPurpose" placeholder="例如：saludo" /></label>
+        <label><span>语域</span><Input defaultValue={query.register ?? ""} maxLength={40} name="register" placeholder="neutral" /></label>
+        <label><span>地区</span><Input defaultValue={query.region ?? ""} maxLength={40} name="region" placeholder="es-ES" /></label>
+        <label><span>CEFR</span><Select defaultValue={query.cefr ?? ""} name="cefr"><option value="">全部级别</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</Select></label>
       </> : null}
-      <button type="submit">应用筛选</button><Link href="/read/phrases">重置</Link>
+      <Button type="submit">应用筛选</Button><Link href="/read/phrases">重置</Link>
     </form>
     <p className="lexicon-result-count" aria-live="polite">正在浏览来自文章、视频和播客的 {total} 条{discovery ? "语料片段" : "短语"}</p>
   </div>;

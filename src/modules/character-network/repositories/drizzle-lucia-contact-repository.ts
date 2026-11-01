@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/src/shared/db/schema";
+import { luciaAuthoredOpening as authoredOpening } from "../domain/lucia-opening";
 import {
   findCharacterRuntimeDefinition,
   isCharacterConversationEnabled,
@@ -20,12 +21,6 @@ const source = {
   kind: "cultural-event" as const,
   city: "Madrid" as const,
   topic: "urban-photography" as const,
-};
-
-const authoredOpening = {
-  clientMessageId: "lucia-authored-opening-v1",
-  generationId: "lucia-authored-opening-v1",
-  content: "¡Hola! Soy Lucía, de Madrid. Me gusta fijarme en los pequeños detalles de la ciudad. ¿Qué te gusta hacer en tu tiempo libre?",
 };
 
 /**

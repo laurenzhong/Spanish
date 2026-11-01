@@ -34,7 +34,7 @@ function makeRoute(routeId: EvaluationRoute["routeId"], label: string, expectedO
   if (routeId === "R04") {
     pairs[9] = ["Cada vez me hace más ilusión hablar contigo.", "Me alegra que estemos a gusto hablando."];
     pairs[15] = ["Quiero conocerte mejor, sin ir demasiado deprisa.", "Podemos seguir conociéndonos con calma."];
-    pairs[22] = ["Me gustas, pero prefiero que nos demos tiempo.", "Gracias por decirlo con tanta claridad."];
+    pairs[22] = ["Me gustas, pero prefiero que nos demos tiempo.", "Me alegra que me lo digas; podemos ir despacio y sin presión."];
   }
   if (routeId === "R05") {
     pairs[9] = ["Me gusta hablar contigo, pero solo quiero amistad.", "Gracias por aclararlo; podemos seguir hablando como amigos."];

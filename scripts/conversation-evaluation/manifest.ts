@@ -31,9 +31,13 @@ export const fakeManifestSchema = z.object({
 }).strict();
 export const realManifestSchema = fakeManifestSchema.extend({
   schemaVersion: z.literal(2), mode: z.literal("real"),
-  participants: z.object({ user: z.enum(["MiniMax-M3.1-Flash/actor-v1", "scripted-user-v2"]), character: z.literal("MiniMax-M3.1-Flash/product"), reviewer: z.literal("MiniMax-M3.1-Flash/reviewer-v1") }).strict(),
+  participants: z.object({
+    user: z.enum(["MiniMax-M3.1-Flash/actor-v1", "scripted-user-v2"]),
+    character: z.enum(["MiniMax-M3.1-Flash/product", "DeepSeek/deepseek-flash/product"]),
+    reviewer: z.enum(["MiniMax-M3.1-Flash/reviewer-v1", "DeepSeek/deepseek-flash/reviewer-v1"]),
+  }).strict(),
   maxCostMicros: z.literal(7562784),
-  budgetScope: z.enum(["entire-three-trajectory-batch", "single-romance-confirmation-route"]),
+  budgetScope: z.enum(["entire-three-trajectory-batch", "selected-core-routes", "single-romance-confirmation-route"]),
   authorization: z.literal("owner-continue-after-2026-10-25-budget-proposal"),
 }).strict();
 export const manifestSchema = z.discriminatedUnion("mode", [fakeManifestSchema, realManifestSchema]);
