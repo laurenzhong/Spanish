@@ -196,11 +196,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       now: new Date(),
     });
   }
-  const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();
+  const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase() || "deepseek";
+  const useDeepSeek = configuredProvider === "deepseek" && Boolean(process.env.OPENAI_API_KEY?.trim());
   const useOpenAI = configuredProvider === "openai" && Boolean(process.env.OPENAI_API_KEY?.trim());
-  const useMiniMax = !useOpenAI && Boolean(process.env.MINIMAX_API_KEY?.trim());
-  const replyProvider = useOpenAI
-    ? createOpenAIConversationProvider()
+  const useMiniMax = !useDeepSeek && !useOpenAI && Boolean(process.env.MINIMAX_API_KEY?.trim());
+  const replyProvider = useDeepSeek || useOpenAI
+    ? createOpenAIConversationProvider({ providerName: useDeepSeek ? "deepseek" : "openai" })
     : useMiniMax
       ? createMiniMaxConversationProvider()
       : undefined;
@@ -221,8 +222,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     messageId,
     replyContext,
     replyProvider,
-    providerName: useOpenAI ? "openai" : useMiniMax ? "minimax" : "deterministic-fake",
-    providerModelVersion: useOpenAI
+    providerName: useDeepSeek ? "deepseek" : useOpenAI ? "openai" : useMiniMax ? "minimax" : "deterministic-fake",
+    providerModelVersion: useDeepSeek || useOpenAI
       ? (process.env.OPENAI_CONVERSATION_MODEL?.trim() || "gpt-5.6sol")
       : "MiniMax-M3",
     signal: transportAbort.signal,

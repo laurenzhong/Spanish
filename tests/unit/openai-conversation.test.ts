@@ -83,6 +83,37 @@ describe("OpenAIConversationProvider", () => {
     expect(JSON.stringify(body)).not.toContain("test-openai-key");
   });
 
+  it("uses DeepSeek Chat Completions with high reasoning and rejects truncated output", async () => {
+    let requestUrl = "";
+    let body: Record<string, unknown> = {};
+    const fetchImplementation = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      requestUrl = String(url);
+      body = JSON.parse(String(init?.body));
+      return response({ choices: [{ message: { content: "Hola desde DeepSeek." }, finish_reason: "stop" }] });
+    });
+    const provider = createOpenAIConversationProvider({
+      apiKey: "deepseek-test-key",
+      providerName: "deepseek",
+      endpoint: "https://api.deepseek.com/v1",
+      modelVersion: "deepseek-flash",
+      fetchImplementation,
+    });
+    await expect(provider.generate(input)).resolves.toMatchObject({ provider: "deepseek", modelVersion: "deepseek-flash", text: "Hola desde DeepSeek." });
+    expect(requestUrl).toBe("https://api.deepseek.com/v1/chat/completions");
+    expect(body.model).toBe("deepseek-flash");
+    expect(body.reasoning_effort).toBe("high");
+    expect(body.max_tokens).toBe(4896);
+    expect(body.stream).toBe(false);
+
+    const truncated = createOpenAIConversationProvider({
+      apiKey: "deepseek-test-key",
+      endpoint: "https://api.deepseek.com/v1",
+      modelVersion: "deepseek-flash",
+      fetchImplementation: vi.fn(async () => response({ choices: [{ message: { content: "incompleto" }, finish_reason: "length" }] })),
+    });
+    await expect(truncated.generate(input)).rejects.toMatchObject({ code: "provider-response-invalid", retryable: false });
+  });
+
   it("keeps the latest declarative update and chronological history distinct from character rules", async () => {
     let body: Record<string, unknown> = {};
     const latest = "Por la tarde me fui a currar.";

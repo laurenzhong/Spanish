@@ -51,11 +51,13 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LUCIA_PROACTIVE_USER_IDS: ${{ vars.LUCIA_PROACTIVE_USER_IDS }}
-          CONVERSATION_PROVIDER: ${{ vars.CONVERSATION_PROVIDER || 'minimax' }}
+          CONVERSATION_PROVIDER: ${{ vars.CONVERSATION_PROVIDER || 'deepseek' }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_API_ENDPOINT: ${{ vars.MINIMAX_API_ENDPOINT }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT }}
-          OPENAI_CONVERSATION_MODEL: ${{ vars.OPENAI_CONVERSATION_MODEL }}
+          OPENAI_API_ENDPOINT: ${{ vars.OPENAI_API_ENDPOINT || 'https://api.deepseek.com/v1' }}
+          OPENAI_API_STYLE: ${{ vars.OPENAI_API_STYLE || 'chat-completions' }}
+          OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT || 'high' }}
+          OPENAI_CONVERSATION_MODEL: ${{ vars.OPENAI_CONVERSATION_MODEL || 'deepseek-flash' }}
         continue-on-error: false
         run: pnpm conversation:proactive

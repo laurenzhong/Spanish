@@ -18,14 +18,42 @@ vi.mock("@/src/shared/auth/server", () => ({
 
 vi.mock("@/src/modules/providers/conversation/server", () => ({
   createMiniMaxConversationProvider: vi.fn(),
+  createOpenAIConversationProvider: vi.fn(() => ({
+    generate: vi.fn(async () => ({
+      text: "Hola.",
+      provider: "deepseek",
+      modelVersion: "deepseek-flash",
+      providerRequestId: "deepseek-test",
+      latencyMs: 1,
+      estimatedCostMicros: null,
+    })),
+  })),
 }));
 
 const mockedVerifyRequestUser = vi.mocked(verifyRequestUser);
 const mockedGetCurrentUser = vi.mocked(getCurrentUser);
+const { createOpenAIConversationProvider: mockedCreateOpenAIConversationProvider } = await import("@/src/modules/providers/conversation/server");
 
 describe("conversation stream route authentication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("defaults to DeepSeek when its key is configured", async () => {
+    vi.stubEnv("CONVERSATION_PROVIDER", "");
+    vi.stubEnv("OPENAI_API_KEY", "deepseek-test-key");
+    vi.stubEnv("OPENAI_CONVERSATION_MODEL", "deepseek-flash");
+    mockedVerifyRequestUser.mockResolvedValue(null);
+    mockedGetCurrentUser.mockResolvedValue({ id: "deepseek-user", email: null });
+    const request = new NextRequest("http://localhost/api/v1/conversations/lucia/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ characterVersion: luciaVersion, text: "hola", clientMessageId: "deepseek-client", generationId: "deepseek-generation" }),
+    });
+    const response = await POST(request, { params: Promise.resolve({ characterId: "lucia" }) });
+    expect(response.status).toBe(200);
+    expect(mockedCreateOpenAIConversationProvider).toHaveBeenCalledWith({ providerName: "deepseek" });
+    vi.unstubAllEnvs();
   });
 
   it("accepts the Web session cookie when no bearer token is present", async () => {

@@ -35,8 +35,12 @@ type Clock = () => number;
 
 export type OpenAIConversationProviderOptions = Readonly<{
   apiKey: string;
+  providerName?: "openai" | "deepseek";
   endpoint?: string;
   modelVersion?: string;
+  apiStyle?: "responses" | "chat-completions";
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+  maxOutputTokens?: number;
   timeoutMs?: number;
   fetchImplementation?: FetchImplementation;
   clock?: Clock;
@@ -58,13 +62,21 @@ const responseSchema = z.object({
 export class OpenAIConversationProvider implements CharacterReplyProvider {
   private readonly endpoint: string;
   private readonly modelVersion: string;
+  private readonly apiStyle: "responses" | "chat-completions";
+  private readonly reasoningEffort: "low" | "medium" | "high" | "xhigh" | undefined;
+  private readonly maxOutputTokens: number;
   private readonly timeoutMs: number;
   private readonly fetchImplementation: FetchImplementation;
   private readonly clock: Clock;
 
   constructor(private readonly options: OpenAIConversationProviderOptions) {
-    this.endpoint = normalizeEndpoint(options.endpoint, defaultEndpoint);
     this.modelVersion = options.modelVersion ?? defaultModelVersion;
+    this.apiStyle = options.apiStyle ?? inferApiStyle(options.endpoint, this.modelVersion);
+    this.endpoint = this.apiStyle === "chat-completions"
+      ? normalizeChatCompletionsEndpoint(options.endpoint ?? defaultEndpoint)
+      : normalizeEndpoint(options.endpoint, defaultEndpoint);
+    this.reasoningEffort = options.reasoningEffort;
+    this.maxOutputTokens = options.maxOutputTokens ?? (this.apiStyle === "chat-completions" ? 4_896 : 800);
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
     this.clock = options.clock ?? Date.now;
@@ -93,13 +105,25 @@ export class OpenAIConversationProvider implements CharacterReplyProvider {
           "content-type": "application/json",
           authorization: `Bearer ${this.options.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.modelVersion,
-          instructions: systemPrompt + " " + buildConversationSystemPrompt(input),
-          input: buildPrompt(input),
-          max_output_tokens: 800,
-          stream: false,
-        }),
+        body: JSON.stringify(this.apiStyle === "chat-completions"
+          ? {
+              model: this.modelVersion,
+              messages: [
+                { role: "system", content: systemPrompt + " " + buildConversationSystemPrompt(input) },
+                { role: "user", content: buildPrompt(input) },
+              ],
+              max_tokens: this.maxOutputTokens,
+              ...(this.reasoningEffort ? { reasoning_effort: this.reasoningEffort } : {}),
+              stream: false,
+            }
+          : {
+              model: this.modelVersion,
+              instructions: systemPrompt + " " + buildConversationSystemPrompt(input),
+              input: buildPrompt(input),
+              max_output_tokens: this.maxOutputTokens,
+              ...(this.reasoningEffort ? { reasoning: { effort: this.reasoningEffort } } : {}),
+              stream: false,
+            }),
         signal: requestSignal.signal,
       });
       const providerRequestId = response.headers.get("x-request-id") ?? response.headers.get("request-id");
@@ -111,12 +135,12 @@ export class OpenAIConversationProvider implements CharacterReplyProvider {
       } catch {
         throw invalidResponse();
       }
-      const text = extractText(payload);
+      const text = this.apiStyle === "chat-completions" ? extractChatCompletionText(payload) : extractText(payload);
       if (!text || text.length > maxReplyLength) throw invalidResponse();
 
       return {
         text,
-        provider: "openai",
+        provider: this.options.providerName ?? "openai",
         modelVersion: this.modelVersion,
         providerRequestId,
         latencyMs: Math.max(0, this.clock() - startedAt),
@@ -146,7 +170,29 @@ export function createOpenAIConversationProvider(
     apiKey: options.apiKey ?? process.env.OPENAI_API_KEY ?? "",
     endpoint: options.endpoint ?? process.env.OPENAI_API_ENDPOINT,
     modelVersion: options.modelVersion ?? process.env.OPENAI_CONVERSATION_MODEL ?? defaultModelVersion,
+    apiStyle: options.apiStyle ?? (process.env.OPENAI_API_STYLE as OpenAIConversationProviderOptions["apiStyle"] | undefined),
+    reasoningEffort: options.reasoningEffort ?? configuredReasoningEffort(options.modelVersion ?? process.env.OPENAI_CONVERSATION_MODEL),
   });
+}
+
+function inferApiStyle(endpoint: string | undefined, modelVersion: string): "responses" | "chat-completions" {
+  if (modelVersion.toLocaleLowerCase("en-US").startsWith("deepseek-")) return "chat-completions";
+  if (endpoint?.includes("/chat/completions")) return "chat-completions";
+  return "responses";
+}
+
+function normalizeChatCompletionsEndpoint(endpoint: string): string {
+  const trimmed = endpoint.replace(/\/+$/u, "");
+  if (trimmed.endsWith("/chat/completions")) return trimmed;
+  if (trimmed.endsWith("/v1")) return `${trimmed}/chat/completions`;
+  return `${trimmed}/chat/completions`;
+}
+
+function configuredReasoningEffort(modelVersion?: string): OpenAIConversationProviderOptions["reasoningEffort"] {
+  const value = process.env.OPENAI_REASONING_EFFORT?.trim().toLocaleLowerCase("en-US");
+  if (value === "low" || value === "medium" || value === "high" || value === "xhigh") return value;
+  const model = modelVersion?.trim().toLocaleLowerCase("en-US");
+  return model?.startsWith("deepseek-") ? "high" : undefined;
 }
 
 const systemPrompt = [
@@ -211,6 +257,23 @@ function extractText(value: unknown): string {
   if (outputText) return outputText;
   const parts = parsed.data.output?.flatMap((item) => item.content?.map((block) => block.text) ?? []) ?? [];
   const text = parts.join("\n").trim();
+  if (!text) throw invalidResponse();
+  return text;
+}
+
+const chatCompletionSchema = z.object({
+  choices: z.array(z.object({
+    finish_reason: z.string().nullable().optional(),
+    message: z.object({ content: z.string().nullable().optional() }).passthrough(),
+  }).passthrough()).min(1),
+}).passthrough();
+
+function extractChatCompletionText(value: unknown): string {
+  const parsed = chatCompletionSchema.safeParse(value);
+  if (!parsed.success) throw invalidResponse();
+  const choice = parsed.data.choices[0];
+  if (choice.finish_reason === "length") throw invalidResponse();
+  const text = choice.message.content?.trim();
   if (!text) throw invalidResponse();
   return text;
 }

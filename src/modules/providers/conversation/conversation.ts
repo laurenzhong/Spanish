@@ -108,7 +108,7 @@ export type ConversationProviderInput = Readonly<{
 
 export type ConversationProviderResult = Readonly<{
   text: string;
-  provider: "minimax" | "openai" | "deterministic-fake";
+  provider: "minimax" | "openai" | "deepseek" | "deterministic-fake";
   modelVersion: string;
   providerRequestId: string | null;
   latencyMs: number;

@@ -94,11 +94,12 @@ export async function POST(request: NextRequest) {
       const unavailable = error instanceof CharacterRuntimeError && error.code === "CHARACTER_UNAVAILABLE";
       return errorResponse(unavailable ? "CHARACTER_UNAVAILABLE" : "PROACTIVE_UNAVAILABLE", unavailable ? 404 : 503);
     }
-    const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase();
+    const configuredProvider = process.env.CONVERSATION_PROVIDER?.trim().toLowerCase() || "deepseek";
+    const useDeepSeek = configuredProvider === "deepseek" && Boolean(process.env.OPENAI_API_KEY?.trim());
     const useOpenAI = configuredProvider === "openai" && Boolean(process.env.OPENAI_API_KEY?.trim());
-    const useMiniMax = !useOpenAI && Boolean(process.env.MINIMAX_API_KEY?.trim());
-    const provider = useOpenAI
-      ? createOpenAIConversationProvider()
+    const useMiniMax = !useDeepSeek && !useOpenAI && Boolean(process.env.MINIMAX_API_KEY?.trim());
+    const provider = useDeepSeek || useOpenAI
+      ? createOpenAIConversationProvider({ providerName: useDeepSeek ? "deepseek" : "openai" })
       : useMiniMax
         ? createMiniMaxConversationProvider()
         : undefined;
