@@ -33,7 +33,11 @@ try {
   await context.addCookies(cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, url: preview, secure: true })));
   const page = await context.newPage();
   const errors: string[] = [];
+  const historyResponses: Array<{ status: number; url: string }> = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("response", (response) => {
+    if (response.url().includes("/api/v1/conversations/lucia")) historyResponses.push({ status: response.status(), url: response.url() });
+  });
   let historyAborted = false;
   await page.route("**/api/v1/conversations/lucia", async (route) => {
     if (!historyAborted && route.request().method() === "GET") {
@@ -60,13 +64,16 @@ try {
   await page.getByTestId("conversation-thread").waitFor({ state: "visible", timeout: 60_000 });
   let afterReload = await page.locator(".conversation-message__text").count();
   let reloadRetry = false;
+  if (afterReload === 0) await page.locator(".conversation-message__text").first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => undefined);
+  afterReload = await page.locator(".conversation-message__text").count();
   if (afterReload === 0) {
     reloadRetry = true;
     await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.getByTestId("conversation-thread").waitFor({ state: "visible", timeout: 60_000 });
+    await page.locator(".conversation-message__text").first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => undefined);
     afterReload = await page.locator(".conversation-message__text").count();
   }
-  result.desktop = { pageStatus: response.status(), retryObserved: historyAborted, messageCount: count, firstMessage: text[0], lastMessage: text.at(-1), afterReload, reloadRetry, viewport, apiMe: apiMe.response.status(), apiMeStatuses: apiMe.statuses, apiMeBody: apiMe.body, apiHistory: apiHistory.response.status(), apiHistoryStatuses: apiHistory.statuses, pageErrors: errors };
+  result.desktop = { pageStatus: response.status(), retryObserved: historyAborted, messageCount: count, firstMessage: text[0], lastMessage: text.at(-1), afterReload, reloadRetry, viewport, apiMe: apiMe.response.status(), apiMeStatuses: apiMe.statuses, apiMeBody: apiMe.body, apiHistory: apiHistory.response.status(), apiHistoryStatuses: apiHistory.statuses, historyResponses, pageErrors: errors };
   await page.close();
   await context.close();
 
