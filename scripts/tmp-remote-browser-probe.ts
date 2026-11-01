@@ -80,11 +80,16 @@ try {
   const mobile = await browser.newContext({ ...devices["iPhone 13"] });
   await mobile.addCookies(cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, url: preview, secure: true })));
   const mobilePage = await mobile.newPage();
+  const mobileHistoryResponses: Array<{ status: number; url: string }> = [];
+  mobilePage.on("response", (response) => {
+    if (response.url().includes("/api/v1/conversations/lucia")) mobileHistoryResponses.push({ status: response.status(), url: response.url() });
+  });
   const mobileResponse = await mobilePage.goto(`${preview}/chat/lucia`, { waitUntil: "domcontentloaded", timeout: 90_000 });
   await mobilePage.getByTestId("conversation-thread").waitFor({ state: "visible", timeout: 60_000 });
+  await mobilePage.locator(".conversation-message__text").first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => undefined);
   const mobileMessages = await mobilePage.locator(".conversation-message__text").count();
   const mobileViewport = await mobilePage.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
-  result.mobile = { pageStatus: mobileResponse?.status() ?? null, messageCount: mobileMessages, viewport: mobileViewport, pageErrors: [] };
+  result.mobile = { pageStatus: mobileResponse?.status() ?? null, messageCount: mobileMessages, viewport: mobileViewport, historyResponses: mobileHistoryResponses, pageErrors: [] };
   await mobile.close();
   const manifest = await fetch(`${preview}/manifest.webmanifest`);
   result.manifest = { status: manifest.status, body: await manifest.json() };
