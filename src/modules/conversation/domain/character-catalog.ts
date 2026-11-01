@@ -1,5 +1,5 @@
 import type { ReplyCharacterSnapshot } from "../application/build-reply-context";
-import luciaBible from "@/content/characters/lucia.json";
+import luciaBible from "@/content/characters/lucia.json" with { type: "json" };
 import {
   findCharacterRuntimeDefinition,
   isCharacterConversationEnabled,
