@@ -42,6 +42,9 @@ async function setupDatabase() {
     "0009_oval_namora.sql",
     "0010_watery_ogun.sql",
     "0011_early_colleen_wing.sql",
+    "0012_wakeful_spiral.sql",
+    "0013_smart_stick.sql",
+    "0014_parallel_liz_osborn.sql",
     "0023_article_acquisition.sql",
   ]) {
     const sql = (await readFile(path.join(process.cwd(), "drizzle", name), "utf8"))

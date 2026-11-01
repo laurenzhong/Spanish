@@ -9,7 +9,7 @@
     "data": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["publicUid", "displayName", "nativeLanguage", "interfaceLanguage", "targetLanguage", "updatedAt", "avatar"],
+      "required": ["publicUid", "displayName", "nativeLanguage", "interfaceLanguage", "targetLanguage", "updatedAt", "role", "accountStatus", "avatar"],
       "properties": {
         "publicUid": { "type": "string", "pattern": "^SN-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$" },
         "displayName": { "type": ["string", "null"], "maxLength": 80 },
@@ -17,6 +17,8 @@
         "interfaceLanguage": { "type": "string" },
         "targetLanguage": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" },
+        "role": { "enum": ["owner", "member"] },
+        "accountStatus": { "enum": ["active", "suspended"] },
         "avatar": {
           "type": "object",
           "additionalProperties": false,

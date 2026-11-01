@@ -7,6 +7,8 @@
     "interfaceLanguage": "zh-CN",
     "targetLanguage": "es-ES",
     "updatedAt": "2026-08-28T08:00:00.000Z",
+    "role": "owner",
+    "accountStatus": "active",
     "avatar": { "kind": "initials", "presetId": null, "url": null, "initials": "A", "colorIndex": 2 }
   }
 }
