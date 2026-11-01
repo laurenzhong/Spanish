@@ -51,7 +51,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LUCIA_PROACTIVE_USER_IDS: ${{ vars.LUCIA_PROACTIVE_USER_IDS }}
-          CONVERSATION_PROVIDER: ${{ vars.CONVERSATION_PROVIDER || 'deepseek' }}
+          CONVERSATION_PROVIDER: deepseek
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_API_ENDPOINT: ${{ vars.MINIMAX_API_ENDPOINT }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
