@@ -117,6 +117,75 @@ describe("Readlang links adapter contract", () => {
     expect(result.nextCursor).toContain('"offset":1');
   });
 
+  it.each([1, 162])("restarts when a saved cursor at offset %i is exhausted", async (offset) => {
+    const article = policy.allowlist.urls[0]!;
+    const cursor = JSON.stringify({ url: policy.sourceUrl, offset });
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      return url === policy.sourceUrl
+        ? response('<a href="https://news.example.test/one">Uno</a>', { headers: { "content-type": "text/html" }, url })
+        : response("<title>Una noticia</title><article><p>La biblioteca abre una sala nueva.</p></article>", { headers: { "content-type": "text/html" }, url });
+    });
+
+    const adapter = new ReadlangLinksAdapter({ fetch: fetchMock, policy });
+    const result = await adapter.discover({ sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, cursor, limit: 1 });
+
+    expect(result.cursor).toBe(cursor);
+    expect(result.items.map((item) => item.canonicalUrl)).toEqual([article]);
+    expect(JSON.parse(result.nextCursor!)).toEqual({ url: policy.sourceUrl, offset: 1 });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([policy.sourceUrl, article]);
+  });
+
+  it("starts another sweep after scanning an empty tail and retries unavailable links on later pages", async () => {
+    const [first, second] = ["https://news.example.test/one", "https://news.example.test/two"] as const;
+    const localPolicy = { ...policy, allowlist: { ...policy.allowlist, urls: [first, second] } };
+    let unavailable = true;
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === policy.sourceUrl) {
+        return response('<a href="https://news.example.test/one">Uno</a>', { headers: { "content-type": "text/html" }, url });
+      }
+      if (url === second && unavailable) return response(null, { status: 503, url });
+      return response("<title>Una noticia</title><article><p>La biblioteca abre una sala nueva.</p></article>", { headers: { "content-type": "text/html" }, url });
+    });
+
+    const adapter = new ReadlangLinksAdapter({ fetch: fetchMock, policy: localPolicy });
+    const input = { sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, limit: 1 };
+
+    const empty = await adapter.discover({ ...input, cursor: JSON.stringify({ url: policy.sourceUrl, offset: 1 }) });
+    expect(empty.items).toEqual([]);
+    expect(JSON.parse(empty.nextCursor!).offset).toBe(0);
+
+    unavailable = false;
+    const restarted = await adapter.discover({ ...input, cursor: empty.nextCursor });
+    const recovered = await adapter.discover({ ...input, cursor: restarted.nextCursor });
+    expect(restarted.items.map((item) => item.canonicalUrl)).toEqual([first]);
+    expect(recovered.items.map((item) => item.canonicalUrl)).toEqual([second]);
+  });
+
+  it("respects the candidate limit after skipped links and resumes at the first unvisited URL", async () => {
+    const urls = ["one", "two", "three", "four"].map((path) => "https://news.example.test/" + path);
+    const localPolicy = { ...policy, allowlist: { ...policy.allowlist, urls } };
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === policy.sourceUrl) {
+        return response('<a href="https://news.example.test/one">Uno</a>', { headers: { "content-type": "text/html" }, url });
+      }
+      if (url === urls[0]) return response(null, { status: 429, url });
+      return response("<title>Una noticia</title><article><p>La biblioteca abre una sala nueva.</p></article>", { headers: { "content-type": "text/html" }, url });
+    });
+    const adapter = new ReadlangLinksAdapter({ fetch: fetchMock, policy: localPolicy });
+    const input = { sourceStableKey: "readlang.links", externalSourceId: policy.sourceUrl, limit: 2 };
+
+    const first = await adapter.discover({ ...input, cursor: null });
+    expect(first.items.map((item) => item.canonicalUrl)).toEqual(urls.slice(1, 3));
+    expect(JSON.parse(first.nextCursor!).offset).toBe(3);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain(urls[3]);
+
+    const next = await adapter.discover({ ...input, cursor: first.nextCursor });
+    expect(next.items.map((item) => item.canonicalUrl)).toEqual(urls.slice(3));
+  });
+
   it("reads exact Readlang library URLs through the public book and chunk APIs", async () => {
     const libraryUrl = "https://readlang.com/library/abc123";
     const libraryPolicy = readlangLinksPolicySchema.parse({
