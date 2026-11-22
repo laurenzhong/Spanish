@@ -577,6 +577,13 @@
 - 本轮收口实现 Commit：`cbd786e`。MiniMax 作为 live STT 默认值与示例/workflow/运行手册一致；ASR 与翻译对可重试 provider 错误执行最多 3 次有界退避并保持取消可传播；Language Reactor 临时音频处理策略可显式登记；长媒体字幕时间轴上限提升到 2,000 段；MiniMax 审核说明在存储边界截断而不误判长响应失败。新增默认配置、超长审核说明、长时间轴和 workflow 目标断言回归测试。
 - 本轮验证：定向 Vitest `7 files / 35 tests`、`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；内容 workflow Playwright 桌面/移动 `2/2`、视频/播客学习页 Playwright 桌面/移动 `6/6` 通过。真实来源抓取、生产数据库写入、Bunny 托管和收费 provider 运行仍以实际环境凭据与当天正式 `publishedByType` 为准。
 
+### 2026-11-22 `OPS-003E`（`review`，Readlang 发现游标恢复）
+
+- 从生产 `main@ad1ae9f` 创建 `codex/readlang-cursor-recovery`。实现提交 `5a0a504` 修改 Readlang adapter 和合约测试。到达或超出列表尾部的历史游标从头恢复；扫完空尾页后下一轮重试；跳过不可用链接时仍严格遵守候选限额。白名单、历史数据、去重、审核与发布门禁沿用既有路径。
+- 新增 4 条回归在生产基线全部失败，修复后聚焦 Vitest 6 文件 37 项通过，包含采集事务。全树 TypeScript、定向 ESLint 和生产 build 通过。全仓 ESLint 重现 3 个既有错误与 4 个警告。全仓 Vitest 和 E2E 本轮未重跑，同一生产基线的词频、对话和浏览器收集问题已在上一切片复现。
+- 生产库只读 + 白名单 GET 复核使用已存 offset 162，单条探针发现 1 个西语候选并返回 offset 1。该候选已有记录。100 个优先 library URL 均已有候选或文章来源记录。额外的非首页白名单位置抽查也命中已有候选，因此发现恢复不代表发布增量。没有持久化游标、调用收费审核、改生产配置或运行发布。
+- 下一步在合并后先观察一次 discover-only，核对 discovered、inserted、duplicates 和保存的新游标。新增发布量以未去重并通过审核的候选为准。
+
 ### 2026-09-20：SOURCE-PRIORITY-001 来源优先级与 Readlang v6
 
 - 状态：`done`（待合并）

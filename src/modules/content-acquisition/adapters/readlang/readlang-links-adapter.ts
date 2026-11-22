@@ -366,10 +366,12 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
     });
     links = [...new Set([...snapshotArticleLinks, ...links])];
     const items: ContentSourcePage["items"][number][] = [];
-    let scanOffset = cursor.offset;
-    while (items.length < input.limit && scanOffset < links.length) {
-      const selected = links.slice(scanOffset, scanOffset + input.limit);
-      for (const url of selected) {
+    // The directory can shrink between runs. A cursor at or beyond the end
+    // starts a new pass so an exhausted list does not stall discovery.
+    let scanOffset = cursor.offset < links.length ? cursor.offset : 0;
+    for (; items.length < input.limit && scanOffset < links.length; scanOffset += 1) {
+      requestOptions?.signal?.throwIfAborted();
+      const url = links[scanOffset]!;
       let article;
       const libraryMatch = new URL(url).pathname.match(/^\/library\/([A-Za-z0-9_-]+)$/u);
       try {
@@ -440,11 +442,11 @@ export class ReadlangLinksAdapter implements ContentSourceAdapter {
       } catch {
         // A malformed page remains outside the candidate pool; the cursor still advances.
       }
-      }
-      scanOffset += selected.length;
     }
-    // Keep failed pages retryable; advancing an empty batch would silently lose an allowlisted source.
-    const nextOffset = items.length === 0 ? cursor.offset : scanOffset;
+    requestOptions?.signal?.throwIfAborted();
+    // An empty pass reached the end. Start the next one from the beginning,
+    // where skipped links remain eligible for retry.
+    const nextOffset = items.length === 0 ? 0 : scanOffset;
     return {
       sourceStableKey: input.sourceStableKey,
       cursor: input.cursor,
