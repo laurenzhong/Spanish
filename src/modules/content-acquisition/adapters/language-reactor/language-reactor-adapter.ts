@@ -24,7 +24,7 @@ const documentSchema = z.object({
   }).passthrough().default({}),
   image: z.object({ src: z.string().optional() }).passthrough().optional(),
   audioFileURL: z.string().optional(),
-  duration_ms: z.number().positive(),
+  duration_ms: z.number(), // The per-item duration policy filters unusable entries.
   diocoDocId: z.string().min(1).max(200),
   diocoDocName: z.string().min(1).max(500),
   description: z.string().optional().default(""),
