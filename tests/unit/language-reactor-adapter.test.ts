@@ -57,6 +57,32 @@ describe("Language Reactor adapter", () => {
     });
   });
 
+  it("uses the full directory page for pagination while skipping podcasts with unusable durations", async () => {
+    const documents = [0, -1, 120_000].map((duration, index) => ({
+      mediaClass: "AUDIO_FILE",
+      audioFileURL: `https://audio.example.test/episode-${index}.mp3`,
+      duration_ms: duration,
+      diocoDocId: `it_episode_${index}`,
+      diocoDocName: "Un episodio",
+    }));
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ status: "success", data: { docs_metadata: documents } }))
+      .mockResolvedValueOnce(new Response(null, { headers: { "content-type": "audio/mpeg", "content-length": "1000" } }));
+    const adapter = new LanguageReactorAdapter({
+      fetch: fetchImpl,
+      source: { sourceKind: "podcast-feed", playlistId: "t_pd_mix_es", displayName: "Language Reactor", region: "es-ES", policy },
+    });
+
+    const page = await adapter.discover({ sourceStableKey: "language-reactor.podcast-mix-es", externalSourceId: "t_pd_mix_es", cursor: null, limit: 3 });
+
+    expect(page.items.map((item) => item.externalItemId)).toEqual(["it_episode_2"]);
+    expect(page.nextCursor).toBe(JSON.stringify({ offset: 3 }));
+    expect(fetchImpl.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api-cdn.dioco.io/base_media_getMediaDocs_5",
+      documents[2].audioFileURL,
+    ]);
+  });
+
   it("skips one unavailable enclosure without aborting the directory page", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({
@@ -82,8 +108,6 @@ describe("Language Reactor adapter", () => {
         }] },
       }), { status: 200, headers: { "content-type": "application/json" } }))
       .mockRejectedValueOnce(new TypeError("socket closed"))
-      .mockRejectedValueOnce(new TypeError("socket closed"))
-      .mockRejectedValueOnce(new TypeError("socket closed"))
       .mockResolvedValueOnce(new Response(null, { status: 200, headers: { "content-type": "audio/mpeg", "content-length": "1000" } }));
     const adapter = new LanguageReactorAdapter({
       fetch: fetchImpl,
@@ -94,7 +118,11 @@ describe("Language Reactor adapter", () => {
 
     expect(page.items).toHaveLength(1);
     expect(page.items[0]).toMatchObject({ contentType: "podcast", externalItemId: "it_available" });
-    expect(fetchImpl).toHaveBeenCalledTimes(5);
+    expect(fetchImpl.mock.calls.map(([url, init]) => [String(url), init?.method])).toEqual([
+      ["https://api-cdn.dioco.io/base_media_getMediaDocs_5", "POST"],
+      ["https://audio.example.test/episode.mp3", "HEAD"],
+      ["https://audio.example.test/episode-2.mp3", "HEAD"],
+    ]);
   });
 
   it("follows the authorized multi-hop CDN redirect chain for podcast audio", async () => {

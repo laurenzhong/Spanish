@@ -1,3 +1,9 @@
+## 2026-11-22 `MEDIA-WORD-005`（每日播客采集故障，分支待审）
+
+- [定时运行 45017075558](https://github.com/laurenzhong/Spanish/actions/runs/45017075558) 在 `main@f9e5cc6` 的播客阶段失败。复核该次游标 offset 100 的真实目录页，HTTP 200 的 10 条中有 1 条时长为 0，触发整页校验失败。分支 `codex/media-word-005-directory-duration` 的实现提交 `a2d04eb` 将数值时长交给逐条来源策略筛选，并增加混合时长及游标回归。只读复验同页，适配器返回下一游标 110，本机探测得到 0 条合格候选；未提交生产游标。
+- 两个媒体阶段还各记录 10 项 `MEDIA_PROCESSING_NOT_AUTHORIZED`。只读核对：来源缺少 `rightsPolicy.mediaProcessing`，自动发布阶段的 10 条来自 6 个节目，均不在此前三集 CNN 的授权范围内。本次未更改来源授权或触发生产重跑。
+- 相关测试 3 文件 28 项、TypeScript、改动文件 ESLint 和 diff 检查通过。全仓 ESLint 仍有既有 3 错 4 警告；全量 Vitest 在既有 `conversation-rhythm` 发送按钮用例首次失败后停止。仅改目录适配器和测试，未跑 E2E 或构建。下一步审入发现修复，并按可核实的单集或节目授权决定后续处理范围。
+
 ## 2026-11-22 `MEDIA-WORD-005`（三条 CNN 播客生产回填，已验证）
 
 - 所有者确认已有来源授权覆盖这三条实际播放音频的 MiniMax 转写和修订后的双语字幕展示。范围限定为 `it_b8b1acc77b58`、`it_85e12064ed9a`、`it_e8a7d612f616`，没有改动 Language Reactor 来源配置和其他媒体。
