@@ -116,9 +116,11 @@ Remove-Item -LiteralPath 'C:\secure\youtube-cookies.b64'
 
 Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v6.json` 的 `policyVersion`、164 个精确 URL 快照和授权证据。v6 将已授权的 100 个 `https://readlang.com/library/<id>` URL 放在快照队列首位；其余精确 URL 仍完整保留。文章全局配额会先分配给该 Readlang 来源，再分配给其他文章 RSS 来源；这不会把 `https://readlang.com/es/library` 页面本身扩展为新的授权范围。该适配器只读取快照 URL；页面新增 URL 或主机前不得自动采集。v6 的 `automatedPublication.enabled=true` 只表示这些精确 URL 已获所有者授权进入分阶段自动发布；仍必须通过 MiniMax 内容/教学审核、结构校验、revision/hash CAS 和显式 publisher，不能按 host 扩大抓取范围。
 
-Readlang 入口目前由客户端渲染，适配器在先读取入口 HTML 后，只允许请求同站固定的 `https://readlang.com/api/popularDomains?language=es&limit=50`，再把返回的域名/路径逐条套用既有快照 allowlist；不会把 API 返回内容当作新的授权来源。每个外部页面有 15 秒超时和正文大小限制，未抽取出合规文章时保留当前游标以便重试，不把网站首页简介伪装成文章候选。
+Readlang 入口目前由客户端渲染，适配器在先读取入口 HTML 后，只允许请求同站固定的 `https://readlang.com/api/popularDomains?language=es&limit=50`，再把返回的域名/路径逐条套用既有快照 allowlist；不会把 API 返回内容当作新的授权来源。每个外部页面有 15 秒超时和正文大小限制。候选仍须通过正文提取和结构校验。来源目录请求失败时保留已存游标。
 
 策略快照中已经明确列出的非首页 URL 会优先于 API 返回的域名首页尝试，其中 Readlang library URL 优先于其他精确快照 URL；这只改变已授权 URL 的处理顺序，不增加 host、路径或自动发现范围。仍需通过正文结构、语言、哈希和审核门禁后才能进入发布流程。
+
+Readlang 游标到达或超出本次链接列表尾部时从头开始。扫描到尾部且本轮没有候选时，下一轮也从头开始。跳过的链接因此能在后续轮次重试。达到候选限额时只推进到第一条未访问的链接，取消的运行不会提交游标。候选去重和审核发布门禁继续由现有链路执行。
 
 ## 首次受控运行
 
