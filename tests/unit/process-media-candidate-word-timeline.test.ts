@@ -173,4 +173,54 @@ describe("processMediaCandidate word timeline", () => {
     expect(prepared.status).toBe("review_ready");
     expect(prepared.contentHash).toBe(draft.contentHash);
   });
+
+  it("retranscribes legacy bilingual podcast drafts instead of preserving bad sentence captions", async () => {
+    const base = makeDraft();
+    const normalized = podcastCandidateDraftSchema.parse({
+      ...base,
+      transcriptStatus: "asr",
+      transcriptUrl: null,
+      segments: [{
+        index: 0,
+        startMs: 0,
+        endMs: 1_500,
+        sourceText: "Texto antiguo incorrecto.",
+        translation: "旧的错误字幕。",
+        speaker: null,
+        confidence: null,
+        sourceKind: "asr",
+      }],
+      contentHash: "0".repeat(64),
+    });
+    const legacy = { ...normalized, contentHash: calculatePodcastCandidateContentHash(normalized) };
+    const state = makeRepository(makeCandidate(legacy));
+    const updated = await processMediaCandidate(state.repository, state.getCurrent().id, {
+      policy,
+      artifactStore: artifactStore(),
+      transcriptionProvider: new FakeMediaTranscriptionProvider([
+        {
+          type: "segment",
+          segment: {
+            startMs: 0,
+            endMs: 1_200,
+            text: "Texto nuevo.",
+            confidence: 0.9,
+            words: [
+              { startMs: 0, endMs: 500, startOffset: 0, endOffset: 5, text: "Texto" },
+              { startMs: 500, endMs: 1_200, startOffset: 6, endOffset: 11, text: "nuevo" },
+            ],
+          },
+        },
+        { type: "done", providerRequestId: "request-retranscribe", modelVersion: "fake-v1", estimatedCostMicros: 20 },
+      ]),
+      translationProvider: new FakeMediaTranslationProvider(() => "新字幕。"),
+      makeAttemptId: () => "00000000-0000-4000-8000-000000000944",
+      now: () => new Date("2026-10-14T11:00:00.000Z"),
+    });
+
+    const draft = podcastCandidateDraftSchema.parse(updated.metadata.podcastDraft);
+    expect(draft.segments[0]?.sourceText).toBe("Texto nuevo.");
+    expect(draft.segments[0]?.translation).toBe("新字幕。");
+    expect(draft.segments[0]?.words).toHaveLength(2);
+  });
 });

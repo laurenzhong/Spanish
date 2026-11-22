@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { isMediaCandidateProcessable, MediaProcessingError, processMediaTranscript, type MediaAsrPolicy, type MediaProcessingArtifactStore } from "@/src/modules/media-processing";
+import { hasCompleteWordTimeline } from "@/src/modules/media/domain";
 import type { MediaTranscriptionProvider } from "@/src/modules/media-processing/providers/media-transcription";
 import type { MediaTranslationProvider } from "@/src/modules/media-processing/providers/media-translation";
 import { calculatePodcastCandidateContentHash, podcastCandidateDraftSchema } from "../normalizers/podcast-candidate";
@@ -43,6 +44,11 @@ export async function processMediaCandidate(
   const video = candidate.contentType === "video" ? parseVideo(candidate.metadata.videoDraft) : null;
   const draft = podcast?.draft ?? video!.draft;
   const captionStatus = podcast?.captionStatus ?? video!.captionStatus;
+  // Legacy podcast drafts can contain bilingual sentence text but no exact
+  // provider word timings. Re-running the candidate must transcribe the
+  // source audio again; treating those sentences as captions would preserve
+  // the wrong text and merely translate it a second time.
+  const forcePodcastAsr = Boolean(podcast && !hasCompleteWordTimeline(podcast.draft.segments));
   const sourceUrl = podcast ? podcast.draft.enclosureUrl : String((candidate.metadata as Record<string, unknown>).processingAssetUrl ?? video?.draft.canonicalUrl ?? "");
   if (!sourceUrl) throw new MediaCandidateProcessingError("no downloadable processing asset is available.");
   const startedAt = (dependencies.now ?? (() => new Date()))();
@@ -74,8 +80,8 @@ export async function processMediaCandidate(
         language: candidate.language,
         durationMs: draft.durationMs,
         assetBytes: podcast ? podcast.draft.enclosureByteSize : Number((candidate.metadata as Record<string, unknown>).processingAssetBytes ?? 0),
-        captionStatus,
-        existingSegments: draft.segments,
+        captionStatus: forcePodcastAsr ? "unavailable" : captionStatus,
+        existingSegments: forcePodcastAsr ? [] : draft.segments,
         estimatedCostMicros: Number((candidate.metadata as Record<string, unknown>).estimatedAsrCostMicros ?? 0),
       },
       policy: dependencies.policy,

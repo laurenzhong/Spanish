@@ -8,6 +8,7 @@ import * as schema from "@/src/shared/db/schema";
 
 import {
   MediaProgressConflictError,
+  hasCompleteWordTimeline,
   validateSegmentTimeline,
   MediaUnavailableError,
   matchesMediaTopic,
@@ -366,7 +367,14 @@ export function createDrizzleMediaRepository(
       if (!transcriptMatches) {
         throw new AcquiredPodcastPersistenceConflictError("The podcast transcript state does not match its reviewed timeline.");
       }
-      if (input.draft.segments.length > 0) validateSegmentTimeline(input.draft.segments, input.draft.durationMs);
+      try {
+        validateSegmentTimeline(input.draft.segments, input.draft.durationMs);
+      } catch {
+        throw new AcquiredPodcastPersistenceConflictError("The podcast publication requires a valid transcript timeline.");
+      }
+      if (!hasCompleteWordTimeline(input.draft.segments)) {
+        throw new AcquiredPodcastPersistenceConflictError("The podcast publication requires a complete word-level transcript.");
+      }
 
       return database.transaction(async (transaction) => {
         const [existing] = await transaction
@@ -532,10 +540,13 @@ export function createDrizzleMediaRepository(
       ) {
         throw new AcquiredVideoPersistenceConflictError("The video must use the official privacy-enhanced YouTube embed.");
       }
-      if (input.draft.segments.length > 0) {
+      try {
         validateSegmentTimeline(input.draft.segments, input.draft.durationMs);
-      } else if (input.draft.captionStatus !== "unavailable") {
-        throw new AcquiredVideoPersistenceConflictError("A captioned video must include a reviewed timeline.");
+      } catch {
+        throw new AcquiredVideoPersistenceConflictError("The video publication requires a valid transcript timeline.");
+      }
+      if (!hasCompleteWordTimeline(input.draft.segments)) {
+        throw new AcquiredVideoPersistenceConflictError("The video publication requires a complete word-level transcript.");
       }
 
       return database.transaction(async (transaction) => {

@@ -8,6 +8,7 @@ import { runMediaReview } from "./run-media-review";
 import { reviseMediaCandidateAfterReview } from "./revise-media-candidate";
 import { autoPublishMediaCandidate } from "./auto-publish-media";
 import { processDailyMediaCandidate } from "./process-daily-media-candidate";
+import { hasCompleteWordTimeline, type MediaWordTiming } from "@/src/modules/media/domain";
 import type { ContentMediaRuntime } from "./content-media-runtime";
 import type { MediaReviewProvider } from "../providers/media-review";
 import type { MediaRevisionProvider } from "../providers/media-revision";
@@ -154,12 +155,30 @@ export function hasBilingualSubtitleTimeline(candidate: Readonly<Pick<ContentCan
   const draftKey = candidate.contentType === "video" ? "videoDraft" : "podcastDraft";
   const draft = candidate.metadata[draftKey];
   if (!draft || typeof draft !== "object" || !("segments" in draft) || !Array.isArray(draft.segments)) return false;
-  return draft.segments.length > 0 && draft.segments.every((segment) => {
+  const hasBilingualSegments = draft.segments.length > 0 && draft.segments.every((segment) => {
     if (!segment || typeof segment !== "object") return false;
     const value = segment as Record<string, unknown>;
     return typeof value.sourceText === "string" && value.sourceText.trim().length > 0
       && typeof value.translation === "string" && value.translation.trim().length > 0;
   });
+  if (!hasBilingualSegments) return false;
+  // Podcasts expose word selection and auto-follow in the player. A legacy
+  // review_ready draft may already have bilingual sentence text while still
+  // carrying only estimated/offset-less timings. Treat it as unprocessed so
+  // the daily run re-enters ASR before review and publication instead of
+  // retrying the same invalid candidate forever.
+  if (candidate.contentType === "podcast") {
+    return hasCompleteWordTimeline(draft.segments.map((segment) => {
+      const value = segment as Record<string, unknown>;
+      return {
+        sourceText: String(value.sourceText),
+        startMs: Number(value.startMs),
+        endMs: Number(value.endMs),
+        words: Array.isArray(value.words) ? value.words as readonly MediaWordTiming[] : null,
+      };
+    }));
+  }
+  return true;
 }
 
 export async function runDailyMediaPipeline(
