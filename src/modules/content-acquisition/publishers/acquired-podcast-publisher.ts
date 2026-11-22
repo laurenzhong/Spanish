@@ -1,5 +1,5 @@
 import { publishAcquiredPodcast, archiveAcquiredPodcast } from "@/src/modules/media/application";
-import { validateSegmentTimeline } from "@/src/modules/media/domain";
+import { hasCompleteWordTimeline, validateSegmentTimeline } from "@/src/modules/media/domain";
 import type { AcquiredMediaReview, AcquiredPodcastRepository } from "@/src/modules/media/repositories";
 import type { MediaArtworkStorage } from "@/src/modules/media/storage/artwork-storage";
 
@@ -45,9 +45,10 @@ export class AcquiredPodcastPublisher implements CandidatePublisher {
     let draft;
     try {
       draft = podcastCandidateDraftSchema.parse(input.metadata.podcastDraft);
-      if (draft.segments.length > 0) validateSegmentTimeline(draft.segments, draft.durationMs);
+      validateSegmentTimeline(draft.segments, draft.durationMs);
+      if (!hasCompleteWordTimeline(draft.segments)) throw new Error("MEDIA_WORD_TIMELINE_REQUIRED");
     } catch {
-      throw new PodcastPublicationConflictError("The reviewed podcast draft or transcript timeline is invalid.");
+      throw new PodcastPublicationConflictError("The reviewed podcast draft must contain a complete word-level transcript before publication.");
     }
     const processingReview = input.metadata.mediaProcessingReview;
     if (processingReview && typeof processingReview === "object" && "status" in processingReview && processingReview.status === "blocked") {

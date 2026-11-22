@@ -39,7 +39,10 @@ function draft() {
     publicationDate: "2026-09-13T08:00:00.000Z", fetchedAt: "2026-09-14T10:00:00.000Z", license: "licensed",
     attribution: "Café de cada día", licenseEvidence: "https://podcast.example.test/license", copyrightStatus: "cleared",
     transcriptStatus: "platform_manual", transcriptUrl: "https://transcripts.example.test/42.vtt",
-    segments: [{ index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días.", translation: null, speaker: null, confidence: null, sourceKind: "platform_manual" }],
+    segments: [{ index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días.", translation: null, speaker: null, confidence: null, sourceKind: "platform_manual", words: [
+      { startMs: 0, endMs: 800, startOffset: 0, endOffset: 6, text: "Buenos" },
+      { startMs: 800, endMs: 1_600, startOffset: 7, endOffset: 11, text: "días" },
+    ] }],
     changeReason: "Reviewed podcast candidate.",
   });
 }
@@ -112,5 +115,19 @@ describe("reviewed podcast publication persistence", () => {
     await repository().archiveAcquiredPodcast({ candidateId, publication, archivedAt: new Date("2026-09-14T14:00:00.000Z") });
     await expect(repository().list({ pageSize: 24, sort: "recently_added" })).resolves.toMatchObject({ items: [] });
     await expect(repository().archiveAcquiredPodcast({ candidateId: "00000000-0000-4000-8000-000000000999", publication, archivedAt: new Date("2026-09-14T15:00:00.000Z") })).rejects.toBeInstanceOf(AcquiredPodcastPersistenceConflictError);
+  });
+
+  it("keeps the persistence gate closed when a caller bypasses the candidate publisher", async () => {
+    const podcast = draft();
+    const withoutWords = createPodcastCandidateDraft({
+      ...podcast,
+      segments: podcast.segments.map((segment) => ({ ...segment, words: undefined })),
+    });
+    await expect(repository().publishAcquiredPodcast({
+      candidateId, candidateRevision: 6, contentHash: withoutWords.contentHash,
+      draft: withoutWords, reviews, publishedAt: new Date("2026-09-14T12:00:00.000Z"),
+    })).rejects.toThrow(/complete word-level transcript/u);
+    const [versions] = await database.select({ value: count() }).from(schema.mediaVersions);
+    expect(versions?.value).toBe(0);
   });
 });

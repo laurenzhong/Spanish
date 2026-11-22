@@ -62,6 +62,32 @@ describe("SpeechToMediaTranscriptionProvider word timeline", () => {
     expect(sttServerMocks.createMiniMaxTranscriptionProvider).toHaveBeenCalledWith(expect.objectContaining({ timestampLevel: "word" }));
   });
 
+  it("fails closed when the live MiniMax adapter returns no word timeline", async () => {
+    sttServerMocks.createMiniMaxTranscriptionProvider.mockReturnValue(new FakeSpeechToTextProvider({
+      text: "Hola mundo.",
+      detectedLanguages: ["es"],
+      confidence: null,
+      confidenceAvailability: "unavailable",
+      provider: "minimax",
+      modelVersion: "asr-1.0",
+      providerRequestId: null,
+      latencyMs: 0,
+      estimatedCostMicros: 0,
+      retentionPolicy: "ephemeral",
+    }));
+    const runtime = createContentMediaRuntime({
+      NODE_ENV: "test",
+      CONTENT_MEDIA_PROVIDER_MODE: "live",
+      CONTENT_MEDIA_STT_PROVIDER: "minimax",
+      MINIMAX_API_KEY: "test-key",
+      CONTENT_MEDIA_TRANSLATION_PROVIDER: "minimax",
+    });
+
+    await expect(collect(runtime.transcriptionProvider.transcribe(input()))).rejects.toMatchObject({
+      code: "provider-response-invalid",
+    });
+  });
+
   it("groups provider word units into raw sentence segments that carry exact words", async () => {
     const events = await collect(provider({
       text: "Hola, ¿qué tal?",
@@ -163,6 +189,29 @@ describe("SpeechToMediaTranscriptionProvider word timeline", () => {
       { startMs: 2_000, endMs: 4_000, text: "Adiós.", confidence: null },
     ]);
     expect(segments.every((segment) => segment.words === undefined)).toBe(true);
+  });
+
+  it("fails closed when the live word-level provider omits its timeline", async () => {
+    const liveProvider = new SpeechToMediaTranscriptionProvider(
+      new FakeSpeechToTextProvider({
+        text: "Hola mundo.",
+        detectedLanguages: ["es"],
+        confidence: null,
+        confidenceAvailability: "unavailable",
+        provider: "minimax",
+        modelVersion: "asr-1.0",
+        providerRequestId: null,
+        latencyMs: 0,
+        estimatedCostMicros: 0,
+        retentionPolicy: "ephemeral",
+      }),
+      { provider: "minimax", modelVersion: "asr-1.0" },
+      { requireWordTimeline: true },
+    );
+
+    await expect(collect(liveProvider.transcribe(input()))).rejects.toMatchObject({
+      code: "provider-response-invalid",
+    });
   });
 
   it("fails closed when provider word timings exceed the candidate duration", async () => {

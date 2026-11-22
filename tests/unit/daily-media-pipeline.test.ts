@@ -49,6 +49,36 @@ describe("runDailyMediaPipeline", () => {
     expect(hasBilingualSubtitleTimeline({ ...base, metadata: { videoDraft: { segments: [] } } })).toBe(false);
   });
 
+  it("reprocesses legacy bilingual podcast drafts until exact word timings exist", () => {
+    const podcast = {
+      contentType: "podcast" as const,
+      metadata: {
+        podcastDraft: {
+          segments: [{
+            sourceText: "Buenos días.", translation: "早上好。", startMs: 0, endMs: 2_000,
+            // The old daily pipeline persisted sentence timing without words.
+            words: undefined,
+          }],
+        },
+      },
+    };
+    expect(hasBilingualSubtitleTimeline(podcast)).toBe(false);
+    expect(hasBilingualSubtitleTimeline({
+      ...podcast,
+      metadata: {
+        podcastDraft: {
+          segments: [{
+            ...podcast.metadata.podcastDraft.segments[0],
+            words: [
+              { startMs: 0, endMs: 800, startOffset: 0, endOffset: 6, text: "Buenos" },
+              { startMs: 800, endMs: 1_600, startOffset: 7, endOffset: 11, text: "días" },
+            ],
+          }],
+        },
+      },
+    })).toBe(true);
+  });
+
   it("fails closed for disabled mode and ignores unverified media sources", async () => {
     const repo = repository([
       source(),

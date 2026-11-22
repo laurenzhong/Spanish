@@ -46,7 +46,10 @@ function draft() {
     canonicalUrl: "https://www.youtube.com/watch?v=publicVideo1", embedUrl: "https://www.youtube-nocookie.com/embed/publicVideo1?enablejsapi=1",
     title: "Cómo pedir un café", summary: "Una conversación breve.", sourceName: "Español con calma", language: "es", region: "es-ES", cefr: "A2", topics: ["topic.daily-life"], durationMs: 245_000,
     publicationDate: "2026-09-13T08:00:00.000Z", fetchedAt: "2026-09-13T10:00:00.000Z", license: "licensed", attribution: "Español con calma en YouTube", licenseEvidence: "https://www.youtube.com/t/terms", copyrightStatus: "cleared",
-    captionStatus: "platform_manual", segments: [{ index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, confidence: null, sourceKind: "platform_manual" }], changeReason: "Reviewed YouTube candidate.",
+    captionStatus: "platform_manual", segments: [{ index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, confidence: null, sourceKind: "platform_manual", words: [
+      { startMs: 0, endMs: 800, startOffset: 0, endOffset: 6, text: "Buenos" },
+      { startMs: 800, endMs: 1_600, startOffset: 7, endOffset: 11, text: "días" },
+    ] }], changeReason: "Reviewed YouTube candidate.",
   });
 }
 
@@ -85,6 +88,21 @@ describe("reviewed YouTube video publication persistence", () => {
     const [reviewCount] = await database.select({ value: count() }).from(schema.contentReviews).where(eq(schema.contentReviews.entityType, "media"));
     expect(reviewCount?.value).toBe(2);
     await expect(repository().publishAcquiredVideo({ ...input, contentHash: "f".repeat(64) })).rejects.toBeInstanceOf(AcquiredVideoPersistenceConflictError);
+  });
+
+  it("rejects a directly persisted reviewed video without provider words", async () => {
+    const fixture = draft();
+    const video = createVideoCandidateDraft({
+      ...fixture,
+      segments: fixture.segments.map((segment) => ({ ...segment, words: undefined })),
+    });
+
+    await expect(repository().publishAcquiredVideo({
+      candidateId, candidateRevision: 6, contentHash: video.contentHash, draft: video,
+      hostedAsset: hostedVideoAsset, reviews, publishedAt: new Date("2026-09-13T12:00:00.000Z"),
+    })).rejects.toThrow(/complete word-level transcript/u);
+    const [versions] = await database.select({ value: count() }).from(schema.mediaVersions);
+    expect(versions?.value).toBe(0);
   });
 
   it("archives only the publication owned by the candidate and removes it from public playback", async () => {

@@ -63,10 +63,16 @@ export type ContentMediaRuntime = Readonly<{
 export class SpeechToMediaTranscriptionProvider implements RuntimeTranscriber {
   readonly providerName: string;
   readonly modelVersion: string;
+  private readonly requireWordTimeline: boolean;
 
-  constructor(private readonly provider: SpeechToTextProvider, identity: Readonly<{ provider: string; modelVersion: string }>) {
+  constructor(
+    private readonly provider: SpeechToTextProvider,
+    identity: Readonly<{ provider: string; modelVersion: string }>,
+    options: Readonly<{ requireWordTimeline?: boolean }> = {},
+  ) {
     this.providerName = identity.provider;
     this.modelVersion = identity.modelVersion;
+    this.requireWordTimeline = options.requireWordTimeline ?? false;
   }
 
   async *transcribe(input: Parameters<MediaTranscriptionProvider["transcribe"]>[0], options?: Readonly<{ signal?: AbortSignal }>): AsyncIterable<MediaTranscriptionEvent> {
@@ -96,6 +102,18 @@ export class SpeechToMediaTranscriptionProvider implements RuntimeTranscriber {
       bytes.fill(0);
     }
     const providerSegments = result.segments ?? [];
+    // The live MiniMax media path requests word timestamps because playback
+    // selection depends on them. Do not silently turn a provider response that
+    // omitted its timeline into estimated sentence timings: that would let an
+    // ASR response look reviewable while making every published podcast lose
+    // its word-level highlight data.
+    if (this.requireWordTimeline && providerSegments.length === 0) {
+      throw new SpeechToTextError(
+        "provider-response-invalid",
+        "The ASR provider did not return a word-level timeline.",
+        false,
+      );
+    }
     const segments = providerSegments.length > 0
       ? this.providerWordSegments(providerSegments, input.durationMs, result)
       : splitTranscriptText(result.text.trim(), input.durationMs).map((segment) => ({ ...segment, confidence: result.confidence }));
@@ -477,7 +495,7 @@ export function createContentMediaRuntime(environment: NodeJS.ProcessEnv = proce
       // Daily live media publication requires real word timings; do not rely
       // on the optional provider environment variable for this path.
       timestampLevel: "word",
-    }), { provider: "minimax", modelVersion: minimaxTranscriptionModel })
+    }), { provider: "minimax", modelVersion: minimaxTranscriptionModel }, { requireWordTimeline: true })
     : new SpeechToMediaTranscriptionProvider(createOpenAITranscriptionProvider({ apiKey: openAiKey ?? "", model: transcriptionModel, endpoint: environment.OPENAI_TRANSCRIPTION_ENDPOINT }), { provider: "openai", modelVersion: transcriptionModel });
   return {
     transcriptionProvider,

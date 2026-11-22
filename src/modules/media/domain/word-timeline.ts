@@ -51,6 +51,23 @@ export function hasExactWordLexemes(segment: Readonly<{ sourceText: string; star
   return words.length > 0 && words.every((word) => typeof word.text === "string" && word.text === segment.sourceText.slice(word.startOffset, word.endOffset));
 }
 
+/**
+ * Publication gate for media that exposes word-level transcript selection.
+ * A version is publishable only when it has at least one cue and every cue
+ * carries provider-confirmed lexical timings. Empty or legacy offset-only
+ * timelines remain readable as historical data, but cannot become current.
+ */
+export function hasCompleteWordTimeline(
+  segments: readonly Readonly<{
+    sourceText: string;
+    startMs: number;
+    endMs: number;
+    words?: readonly MediaWordTiming[] | null;
+  }>[],
+): boolean {
+  return segments.length > 0 && segments.every((segment) => hasExactWordLexemes(segment));
+}
+
 export function activeWordAt(words: readonly MediaWordTiming[], positionMs: number): MediaWordTiming | null {
   return words.find((word) => positionMs >= word.startMs && positionMs < word.endMs) ?? null;
 }

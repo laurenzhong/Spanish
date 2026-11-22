@@ -21,7 +21,10 @@ function draft() {
     publicationDate: "2026-09-13T08:00:00.000Z", fetchedAt: "2026-09-14T10:00:00.000Z", license: "licensed",
     attribution: "Café de cada día", licenseEvidence: "https://podcast.example.test/license", copyrightStatus: "cleared",
     transcriptStatus: "platform_manual", transcriptUrl: "https://transcripts.example.test/42.vtt",
-    segments: [{ index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días.", translation: null, speaker: null, confidence: null, sourceKind: "platform_manual" }],
+    segments: [{ index: 0, startMs: 0, endMs: 2_200, sourceText: "Buenos días.", translation: null, speaker: null, confidence: null, sourceKind: "platform_manual", words: [
+      { startMs: 0, endMs: 800, startOffset: 0, endOffset: 6, text: "Buenos" },
+      { startMs: 800, endMs: 1_600, startOffset: 7, endOffset: 11, text: "días" },
+    ] }],
     changeReason: "Reviewed podcast candidate.",
   });
 }
@@ -110,6 +113,24 @@ describe("acquired podcast publisher", () => {
     await expect(publisher.publish({ ...input, reviews: reviews.map((review) => ({ ...review, candidateRevision: 4 })) })).rejects.toBeInstanceOf(PodcastPublicationConflictError);
     await expect(publisher.publish({ ...input, metadata: { podcastDraft: { ...podcast, playbackExpiresAt: "2026-09-14T10:30:00.000Z" } } })).rejects.toBeInstanceOf(PodcastPublicationConflictError);
     await expect(publisher.publish({ ...input, metadata: { podcastDraft: { ...podcast, transcriptUrl: null } } })).rejects.toBeInstanceOf(PodcastPublicationConflictError);
+    expect(publishAcquiredPodcast).not.toHaveBeenCalled();
+  });
+
+  it("rejects an approved bilingual transcript whose time ranges have no provider words", async () => {
+    const fixture = draft();
+    const podcast = createPodcastCandidateDraft({
+      ...fixture,
+      segments: fixture.segments.map((segment) => ({ ...segment, words: undefined, translation: "早上好。" })),
+    });
+    const publishAcquiredPodcast = vi.fn(async () => ({ kind: "media" as const, stableKey: podcast.stableKey, version: 1 }));
+    const repository = { publishAcquiredPodcast, archiveAcquiredPodcast: vi.fn() } as unknown as AcquiredPodcastRepository;
+    const publisher = new AcquiredPodcastPublisher(repository, { now: () => new Date("2026-09-14T11:00:00.000Z") });
+
+    await expect(publisher.publish({
+      candidateId: "candidate-1", candidateRevision: 5, contentHash: podcast.contentHash, contentType: "podcast",
+      title: podcast.title, language: podcast.language, normalizedUrl: podcast.canonicalUrl,
+      metadata: { podcastDraft: podcast }, reviews, requireBilingualSubtitles: true,
+    })).rejects.toThrow(/complete word-level transcript/u);
     expect(publishAcquiredPodcast).not.toHaveBeenCalled();
   });
 

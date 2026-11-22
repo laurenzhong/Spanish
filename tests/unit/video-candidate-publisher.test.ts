@@ -32,7 +32,10 @@ function draft() {
     licenseEvidence: "https://www.youtube.com/t/terms",
     copyrightStatus: "cleared",
     captionStatus: "platform_manual",
-    segments: [{ index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, confidence: null, sourceKind: "platform_manual" }],
+    segments: [{ index: 0, startMs: 0, endMs: 1_800, sourceText: "Buenos días.", translation: "早上好。", speaker: null, confidence: null, sourceKind: "platform_manual", words: [
+      { startMs: 0, endMs: 800, startOffset: 0, endOffset: 6, text: "Buenos" },
+      { startMs: 800, endMs: 1_600, startOffset: 7, endOffset: 11, text: "días" },
+    ] }],
     changeReason: "Reviewed YouTube candidate.",
   });
 }
