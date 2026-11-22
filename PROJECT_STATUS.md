@@ -1,3 +1,10 @@
+## 2026-11-22 `MEDIA-WORD-005`（`review`，生产词级发布门禁）
+
+- 隔离分支 `codex/media-word-005-production-gate` 从生产 `main@ad1ae9f` 创建。实现提交为 `13b8b95`。MiniMax 日常媒体转写缺词级时间戳时停止，旧播客草稿按实际处理需求重新通过授权及 ASR 门禁。候选发布器及媒体 repository 都拒绝缺词视频/播客。修改范围为采集 application、视频/播客 publisher、媒体时间轴与 repository、对应单元及数据库回归。
+- 生产基线上的新增回归确认原代码会接受已审核的双语草稿，即使所有段落都缺少词级时间戳。修复后聚焦 Vitest（含 PGlite）9 文件 / 74 项、全树 TypeScript、定向 ESLint 和生产 build 通过。定向 Chromium 22/24，两个既有工作流冒烟断言仍期待 60 分钟；生产工作流按 PR #82 使用 180 分钟。全仓 ESLint 仍受 3 个既有错误和 4 个警告阻塞。全仓 Vitest 在词频新鲜度和对话输入交互处报告 2 项失败，未跑完。全量 Playwright 在收集阶段因 Lucía JSON import 缺少类型属性停止。
+- 生产样本 `it_b8b1acc77b58`、`it_85e12064ed9a`、`it_e8a7d612f616` 仍是 v1，三集完整解码为 304248 / 290090 / 311040 ms，现有 94 段均为估算句时且缺词级时间轴。生产播客来源还缺 `rightsPolicy.mediaProcessing`，本轮未登记授权、调用真实供应商、写生产数据库、重新发布或触发 Actions。
+- 下一步先复核来源授权范围，在已有授权的音频上取证并用新版本同时替换错误时长和字幕，审核后从只读详情与实际播放验证。Readlang 游标故障另行处理。
+
 # PROJECT_STATUS.md
 
 - 2026-10-23 `CONV-LANG-002`（`review`，本聊天；所有者报告“2026年10月23日 11:29:36，Lucia的一条主动消息里出现了英语 wake up”）：只读真实库与 GitHub Actions 核实：该消息 `messages.id=c4f22ac3…`、`source_type=proactive`、`created_at=2026-10-23T03:29:36.133Z`（北京时间 11:29:36.133）、`generation_id=8d88c62f…`，正文为 `Buenos días. Acabo de Wake Up y foster me he acordado de ti. Oye, ¿has desayunado ya?`；对应 `daily_share` 候选 `660d2b6c…`（`dedupe_key=lucia:daily_share:2026-10-23:slot-1`、`status=generated`、无错误码）。自然调度 run [`39895246964`](https://github.com/laurenzhong/Spanish/actions/runs/39895246964)（main `ef78463`，checkout 固定 runtime `0c63a74`，`CONVERSATION_PROVIDER=minimax`）03:29:38Z 输出 `{"generated":1,...}` 并包含该 `messageId`；全库只有这一条消息含 `wake`，`foster` 在消息/关系记忆/人物包/仓库内容中零匹配，确认是真实 provider 生成时混入英语，不是用户回显或测试夹具。
