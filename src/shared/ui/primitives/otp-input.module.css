@@ -1,0 +1,30 @@
+/*
+ * OtpInput is a single accessible input with a segmented visual layer. Keep
+ * these rules scoped to the component because the legacy stylesheet also has
+ * an `.otp-input` grid for the retired per-slot implementation.
+ */
+.root.root {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.slots {
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+.root .field.field {
+  grid-column: 1;
+  grid-row: 1;
+  inset: 0 !important;
+  width: 100% !important;
+  min-height: 50px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  color: transparent !important;
+  background: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}

@@ -1,9 +1,12 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EmailOtpForm } from "@/src/shared/auth/email-otp-form";
-import type { WebAuthRepository } from "@/src/shared/auth/web-auth-repository";
+import {
+  SupabaseWebAuthRepository,
+  type WebAuthRepository,
+} from "@/src/shared/auth/web-auth-repository";
 
 const replace = vi.fn();
 const refresh = vi.fn();
@@ -22,11 +25,28 @@ function repository(overrides: Partial<WebAuthRepository> = {}) {
 }
 
 describe("EmailOtpForm", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   beforeEach(() => {
     replace.mockReset();
     refresh.mockReset();
+  });
+
+  it("requests an OTP and enables free-registration account creation", async () => {
+    const signInWithOtp = vi.fn().mockResolvedValue({ error: null });
+    const auth = new SupabaseWebAuthRepository({
+      auth: { signInWithOtp },
+    } as never);
+
+    await auth.requestEmailOtp(" Learner@Example.Test ");
+
+    expect(signInWithOtp).toHaveBeenCalledWith({
+      email: "learner@example.test",
+      options: { shouldCreateUser: true },
+    });
   });
 
   it("moves from email submission to six-digit verification", async () => {
@@ -72,6 +92,50 @@ describe("EmailOtpForm", () => {
     expect(replace).toHaveBeenCalledWith("/chat/lucia");
   });
 
+  it("prefills the email from the joined invitation link", () => {
+    render(
+      <EmailOtpForm
+        initialEmail="learner@example.test"
+        initialStep="otp"
+        repository={repository()}
+      />,
+    );
+
+    expect(screen.getByLabelText("邮箱")).toHaveValue("learner@example.test");
+    expect(screen.getByLabelText("邮箱")).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "邀请已激活，请输入邮箱验证码。",
+    );
+  });
+
+  it("sends the first code from the invitation OTP step, then verifies it", async () => {
+    const auth = repository();
+    const user = userEvent.setup();
+    render(
+      <EmailOtpForm
+        initialEmail="learner@example.test"
+        initialStep="otp"
+        repository={auth}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "发送验证码" }));
+
+    expect(auth.requestEmailOtp).toHaveBeenCalledWith("learner@example.test");
+    expect(
+      await screen.findByRole("button", { name: "重新发送（60 秒）" }),
+    ).toBeDisabled();
+
+    await user.type(screen.getByLabelText("六位验证码"), "123456");
+    await user.click(screen.getByRole("button", { name: "进入学习" }));
+
+    expect(auth.verifyEmailOtp).toHaveBeenCalledWith(
+      "learner@example.test",
+      "123456",
+    );
+    expect(replace).toHaveBeenCalledWith("/learn");
+  });
+
   it("keeps the verification step available after an invalid code", async () => {
     const auth = repository({
       verifyEmailOtp: vi.fn().mockRejectedValue(new Error("otp_expired")),
@@ -89,6 +153,26 @@ describe("EmailOtpForm", () => {
     );
     expect(screen.getByLabelText("六位验证码")).toBeVisible();
     expect(screen.queryByRole("button", { name: "获取验证码" })).not.toBeInTheDocument();
+  });
+
+  it("explains when the Supabase project disables new account creation", async () => {
+    const auth = repository({
+      requestEmailOtp: vi.fn().mockRejectedValue({
+        code: "signup_disabled",
+        message: "Signups not allowed for otp",
+        status: 400,
+      }),
+    });
+    const user = userEvent.setup();
+    render(<EmailOtpForm repository={auth} />);
+
+    await user.type(screen.getByLabelText("邮箱"), "new@example.test");
+    await user.click(screen.getByRole("button", { name: "获取验证码" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "当前未开放新账号创建，请稍后再试或联系所有者。",
+    );
+    expect(screen.getByLabelText("邮箱")).toHaveValue("new@example.test");
   });
 
   it("shows a stable error when sending fails", async () => {
@@ -159,5 +243,39 @@ describe("EmailOtpForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "暂时无法连接认证服务，请检查网络后重试。",
     );
+  });
+
+  it("counts down the resend cooldown and clears its timer on unmount", async () => {
+    vi.useFakeTimers();
+    const auth = repository();
+    const view = render(<EmailOtpForm repository={auth} />);
+
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "learner@example.test" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+    });
+
+    expect(
+      screen.getByRole("button", { name: "重新发送（60 秒）" }),
+    ).toBeDisabled();
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(
+      screen.getByRole("button", { name: "重新发送（59 秒）" }),
+    ).toBeDisabled();
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(
+      screen.getByRole("button", { name: "重新发送（58 秒）" }),
+    ).toBeDisabled();
+
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

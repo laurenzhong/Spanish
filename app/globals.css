@@ -14185,3 +14185,90 @@ body {
 .media-transcript__words-hint { margin: 8px 16px 12px; color: var(--learn-muted, var(--muted)); font-size: 12px; line-height: 1.6; }
 .media-transcript__words-error { margin-top: 8px; }
 
+/* Shared primitives used by the email OTP login. */
+.otp-input {
+  position: relative;
+  display: grid;
+  gap: 7px;
+}
+.otp-input__label { color: var(--muted); font-size: .76rem; font-weight: 700; }
+.otp-input__slots { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; }
+.otp-input__slot {
+  display: grid;
+  min-height: 50px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--surface, #fff);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+.otp-input__slot.is-filled { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface, #fff)); }
+.otp-input__field {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  min-height: 50px;
+  padding: 0;
+  border: 0;
+  color: transparent;
+  background: transparent;
+  caret-color: var(--accent);
+  font-size: 1px;
+  outline: 0;
+}
+.otp-input__field:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 12px; }
+.otp-input:focus-within .otp-input__slot { border-color: var(--accent); }
+.auth-form .otp-input__field { margin: 0; border: 0; }
+
+.ui-button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border: 1px solid transparent; border-radius: 9px; font: inherit; font-size: .82rem; font-weight: 750; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
+.ui-button--sm { min-height: 32px; padding-inline: 10px; font-size: .75rem; }
+.ui-button--lg { min-height: 48px; padding-inline: 18px; }
+.ui-button--primary { color: #fff; background: var(--accent); }
+.ui-button--secondary { border-color: var(--border-strong); color: var(--foreground); background: var(--surface); }
+.ui-button--quiet { color: var(--muted); background: transparent; }
+.ui-button--danger { color: #fff; background: var(--danger, #b33b31); }
+.ui-button--loading { color: var(--muted); background: var(--surface-soft); }
+.ui-button:hover:not(:disabled) { filter: brightness(.97); }
+.ui-button:disabled { cursor: not-allowed; opacity: .55; }
+.ui-button__spinner { width: 13px; height: 13px; border: 2px solid currentcolor; border-right-color: transparent; border-radius: 50%; animation: ui-spin .8s linear infinite; }
+
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+
+.ui-input { width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 9px; color: var(--foreground); background: var(--surface); font: inherit; }
+
+.ui-field { display: grid; gap: 7px; }
+.ui-field__label { display: inline-flex; color: var(--foreground); font-size: .8rem; font-weight: 750; }
+.ui-field__description { margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.ui-field__error { margin: 0; color: var(--danger, #b33b31); font-size: .75rem; line-height: 1.5; }
+
+.ui-card { display: grid; gap: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-soft, 0 10px 28px rgb(31 50 81 / 5%)); }
+.ui-card__header, .ui-card__content, .ui-card__footer { padding: 16px 18px; }
+.ui-card__header { display: grid; gap: 5px; }
+.ui-card__title { margin: 0; color: var(--foreground); font-size: 1rem; font-weight: 800; }
+.ui-card__description { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.55; }
+.ui-card__footer { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--border); }
+
+.ui-alert { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 9px; color: var(--foreground); background: var(--surface); font-size: .8rem; line-height: 1.5; }
+.ui-alert strong { font-size: .82rem; }
+.ui-alert--success { border-left-color: var(--success, #17765d); }
+.ui-alert--warning { border-left-color: var(--warning, #946016); }
+.ui-alert--danger { border-left-color: var(--danger, #b33b31); }
+.ui-button:focus-visible, .ui-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .ui-button, .ui-button__spinner { animation: none; transition: none; } }
+
+/* Fix segmented OTP layout: the legacy .otp-input rule defines six parent
+   columns, so the slots container must explicitly occupy one full-width row. */
+.otp-input {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}
+.otp-input__slots {
+  width: 100%;
+  min-width: 0;
+}
+.otp-input__slot {
+  min-width: 0;
+}
