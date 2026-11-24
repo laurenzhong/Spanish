@@ -144,7 +144,7 @@
 - 标出重读词、弱读、连读、音节和容易受母语影响的点。
 - 默认只给最影响理解的发音提示。
 - 严格纠音内容可以更详细，但每次反馈仍限制关键问题数量。
-- 浏览器 TTS 只作为发音输入，不替代独立的语言审核。
+- 合成朗读使用统一西语音色，语言审核须独立完成。[ADR-0019](adr/0019-unified-minimax-read-aloud.md)
 
 ## 7. 沉浸式内容包
 
@@ -158,8 +158,7 @@
 - 来源、作者、许可和版权状态。
 - 与角色世界的关联方式。
 
-Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生成全文或分段播放，
-不提交或长期保存音频文件；TTS 不构成语言审核，也不产生口语能力证据。内容包的
+Web 内容包的全文和分段合成朗读使用 ADR-0019 的统一入口。合成朗读不构成语言审核，也不产生口语能力证据。内容包的
 听力、阅读、打字和迁移断点只保存在带内容版本的客户端本地存储中，不写入
 `evidence_events`、`mastery` 或 `confidence`。需要生产发布时，内容包必须先从
 `draft` 进入审核和发布状态。
@@ -185,13 +184,13 @@ Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生�
 
 自动内容供应只读取项目所有者明确启用的白名单来源：YouTube 官方 API/RSS、播客 RSS、文章 RSS 和有记录的专用适配器。每个来源必须保存适配器、语言/地区、频率、速率限制、允许字段、权利策略、启用状态和增量游标。
 
-每日自动化只创建或更新候选草稿，不能自动发布。候选先通过来源 ID、规范化 URL 和内容哈希去重，再依次执行相关性、语言、长度/时长、质量和权利初筛。权利不明时只保留允许取得的最小元数据，不下载大型媒体或抓取全文。
+每日发现与处理先创建或更新候选草稿。[ADR-0010](adr/0010-reviewed-article-auto-publication.md) 在个人 Alpha 授权范围内单独规定已授权文章的受控发布。媒体发布边界见[内容采集运行手册](operations/content-acquisition-runbook.md#范围)。候选先通过来源 ID、规范化 URL 和内容哈希去重，再依次执行相关性、语言、长度/时长、质量和权利初筛。权利不明时只保留允许取得的最小元数据，不下载大型媒体或抓取全文。
 
 没有可用字幕的媒体只有在来源、相关性、语言、时长、权利和预算门禁全部通过后才能执行 ASR。来源人工字幕优先于自动字幕，自动字幕优先于 ASR。所有自动转写、翻译、切句、词形归一和词句说明都是草稿；低置信度片段必须在审核时明确标记。
 
-候选状态、权利状态、审核状态和发布状态分开保存。只有候选处理完成、权利已验证、`es-ES` 内容审核与 `zh-CN` 教学审核均通过、结构校验成功且所有者显式执行发布时，才能创建不可变正式版本。
+候选状态、权利状态、审核状态和发布状态分开保存。创建不可变正式版本前须完成候选处理、权利验证、`es-ES` 内容审核、`zh-CN` 教学审核与结构校验。所有者工作台要求显式执行发布。
 
-候选审核记录绑定具体 candidate revision。请求修改、拒绝和后续批准必须保留已有备注；重新处理产生新 generation/revision，旧版本批准不能沿用。候选生成者信息、Provider 输出或客户端提交的角色字段都不能自动生成批准。当前个人 Alpha 的工作台明确显示审核身份为 DSH AI（所有者授权），新记录使用 `dsh-ai-owner-authorized-review`，历史 `codex-ai-owner-authorized-review` 记录保持不变；批准后仍需单独点击发布，且缺少类型专用正式 publisher 时保持草稿并明确报告不可发布原因。
+候选审核记录绑定具体 candidate revision。请求修改、拒绝和后续批准必须保留已有备注；重新处理产生新 generation/revision，旧版本批准不能沿用。候选生成者信息、Provider 输出或客户端提交的角色字段都不能自动生成批准。当前个人 Alpha 的工作台明确显示审核身份为 DSH AI（所有者授权），新记录使用 `dsh-ai-owner-authorized-review`，历史 `codex-ai-owner-authorized-review` 记录保持不变；在所有者工作台，批准后仍需单独点击发布。缺少类型专用正式 publisher 时保持草稿并报告原因。
 
 文章 RSS 来源只有在 `rights_status=verified` 且 `rights_policy.contentMode=full_text` 时才允许抓取正文。策略还必须记录许可类型、署名、可核验的 HTTPS 许可证据、feed/文章主机 allowlist、CEFR、主题、地区、语域、格式和口语迁移默认值。文章 feed 与正文页的 HTTPS 请求不得跟随到 allowlist 之外的主机，也不得绕过 Content-Type、响应体积或字符编码限制；付费墙、登录墙、正文缺失和许可字段不完整的条目不能进入可审核草稿。
 
@@ -199,7 +198,7 @@ Alpha 首个 Web 内容包可以使用浏览器现有的 `speechSynthesis` 生�
 
 YouTube 来源必须使用 `adapter_type=youtube`、`source_kind=video-channel`、官方 `UC…` channel ID、`language=es`、`rights_status=verified`，并在 `rights_policy` 中保存 `contentMode=official_embed`、`license`、`attribution`、HTTPS `licenseEvidence`、CEFR、主题、允许地区以及最短/最长时长。`YOUTUBE_DATA_API_KEY` 只放服务端环境，不得写入来源策略、候选 metadata、日志或客户端响应。Creative Commons 策略还要验证每条视频的官方许可字段；`licensed` 策略必须由来源记录中的授权证据覆盖频道及拟发布内容。
 
-频道 Atom feed 只负责增量发现，Data API 再确认频道、公开状态、可嵌入状态、声明语言、区域限制和时长。当前真实适配器不读取非公开字幕或下载接口，因此默认候选为 `captionStatus=unavailable` 且片段为空；这类内容可以在三维审核后以“仅播放”方式发布。以后从平台允许渠道取得的人工/自动字幕仍必须标记 `platform_manual`/`platform_auto`，解析成最多 500 段、不重叠且不越过视频时长的毫秒时间轴，再独立审核后发布。
+频道 Atom feed 只负责增量发现，Data API 再确认频道、公开状态、可嵌入状态、声明语言、区域限制和时长。当前真实适配器不读取非公开字幕或下载接口，因此默认候选为 `captionStatus=unavailable` 且片段为空；当前视频和播客新版本须有已审核片段，并通过完整词级时间轴门禁。以后从平台允许渠道取得的人工/自动字幕仍必须标记 `platform_manual`/`platform_auto`，解析成最多 500 段、不重叠且不越过视频时长的毫秒时间轴，再独立审核后发布。
 
 播客来源必须使用 `adapter_type=podcast-rss`、`source_kind=podcast-feed`、credential-free HTTPS feed URL、`language=es` 和 `rights_status=verified`。`rights_policy` 必须声明 `contentMode=enclosure_playback`、许可、署名、HTTPS 许可证据、feed/episode/audio/transcript 主机 allowlist、允许的音频 MIME、enclosure 与 transcript 体积上限、播放校验有效期、CEFR、主题及最短/最长时长。发现阶段只对 enclosure 发起 `HEAD` 并逐跳校验 HTTPS、主机、重定向、Content-Type 和 Content-Length，不下载完整音频；URL 不进入普通日志。
 
@@ -273,7 +272,7 @@ YouTube 只允许精确匹配 `https://www.youtube-nocookie.com/embed/{videoId}`
 
 Tatoeba 例句录音依 ADR-0015 单独保存许可与署名，不继承句子许可；官方音频导出空许可禁止站外使用，未知许可亦拒绝。当前 `CC BY-NC` / `CC BY-NC-ND` 仅限所有者非商业 Alpha，ND 完整原样播放，不裁切/变速。现有例句不因新增音频被覆盖；官方撤下/失效给可重试不可用状态，可重新构建元数据撤除地址。
 
-无可用授权录音的句子可按所有者 2026-10-13 明确授权提供浏览器 TTS，使用原来的西语文本和句子署名，按钮标注“合成朗读例句”，例句旁不单列“暂无录音”提示（2026-10-18 所有者要求移除该行）。它不是 Tatoeba 录音，不能附加不存在的录音作者或把合成播放当作口语/跟读证据。有原声的句子播放失败时仍给重试提示，不自动替换成合成音。
+无可用授权录音的句子可按所有者 2026-10-13 明确授权提供统一 MiniMax 朗读，使用原来的西语文本和句子署名，按钮标注“合成朗读例句”，例句旁不单列“暂无录音”提示（2026-10-18 所有者要求移除该行）。它不是 Tatoeba 录音，不能附加不存在的录音作者或把合成播放当作口语/跟读证据。有原声的句子播放失败时仍给重试提示，不自动替换成合成音。
 
 - 正式词元和短语必须保存语言、词性/类型、地区、语域、核心释义、自然变体、来源和审核版本。
 - 不可靠的词形归一保持 `pending`，不能猜测 lemma 后合并同形异义词。
@@ -322,7 +321,7 @@ draft → review → approved → published → archived
 - AI 生成变式必须先作为草稿，通过 Schema、重复和禁用词检查，再由 DSH 作为独立审核步骤逐项复核；生成不能自动等于审核通过。
 - 修改已发布内容必须增加版本并记录变更原因。
 - 自动采集、ASR、翻译或词句抽取的生成步骤与两个审核步骤必须是独立记录；不得因均由同一代理平台执行而省略独立复核。
-- 所有者的“批准审核”和“发布”是两个显式动作；publisher 必须在发布事务中再次校验权利、审核、结构、内容哈希和 revision。
+- 在所有者工作台，“批准审核”和“发布”是两个显式动作。publisher 必须在发布事务中再次校验权利、审核、结构、内容哈希和 revision。
 
 项目所有者已于 2026-09-12 授权上述个人产品阶段的正式 AI 审核。代理平台于 2026-10-10 从 Codex 迁移到 DSH：历史 `codex-ai-temporary-review` 和 `codex-ai-owner-authorized-review` 记录是追加式审计证据，禁止改写、迁移或回填，已发布 bundle、数据库记录和 `docs/reviews/` 报告保持原值；发布门禁同时接受历史身份与当前身份，权威定义在 `src/modules/content-acquisition/domain/review-identity.ts`。新的正式记录使用 `dsh-ai-owner-authorized-review`。产品开始邀请、允许或面向其他真实用户使用前，必须新增 ADR 重新决定是否恢复外部母语与教学复核，不能自动沿用本授权。
 
@@ -368,6 +367,6 @@ Alpha 首批内容满足：
 - 所有内容包版权状态清楚。
 - 首批阅读文章的来源、许可、署名、版本和审核状态完整；阅读行为不写入口语证据。
 - 固定测试集包含自然替代表达、常见错误和低置信度转写样本。
-- 每日自动化从至少一个视频频道、一个播客 RSS 和一个文章 RSS 形成可去重候选，且不会自动发布。
+- 每日发现从至少一个视频频道、一个播客 RSS 和一个文章 RSS 形成可去重候选。正式发布须通过适用的发布授权与审核门禁。
 - 至少一篇文章、一个视频和一个播客完成来源、处理、双维度审核、显式发布和撤下验证。
 - 候选草稿最后活动后保留 30 天；拒绝候选的大型产物 7 天后删除；ASR 临时音频在成功、失败、取消或超时后立即删除。
