@@ -44,7 +44,7 @@ test("redirects anonymous product traffic to email OTP login", async ({
 
   await expect(page).toHaveURL(/\/login\?next=%2Flearn$/);
   await expect(
-    page.getByRole("heading", { name: "欢迎回来" }),
+    page.getByRole("heading", { name: "¡Bienvenido!" }),
   ).toBeVisible();
 });
 
@@ -53,7 +53,7 @@ test("preserves the requested page through the login handoff", async ({ page }) 
 
   await expect(page).toHaveURL(/\/login\?next=%2Fchat%2Flucia$/);
   await expect(
-    page.getByRole("heading", { name: "欢迎回来" }),
+    page.getByRole("heading", { name: "¡Bienvenido!" }),
   ).toBeVisible();
 });
 
