@@ -236,19 +236,20 @@ export function EmailOtpForm({
       {otpSent ? (
         <>
           <Field>
-          <FieldLabel htmlFor="otp">六位验证码</FieldLabel>
-          <OtpInput
-            autoFocus
-            disabled={busy}
-            id="otp"
-            minLength={6}
-            onChange={setToken}
-            pattern="[0-9]{6}"
-            required
-            value={token}
-            aria-label="六位验证码"
-            aria-describedby={error ? "login-error" : undefined}
-          />
+            <FieldLabel htmlFor="otp">六位验证码</FieldLabel>
+            {notice ? <p className="email-otp-form__notice" role="status">{notice}</p> : null}
+            <OtpInput
+              autoFocus
+              disabled={busy}
+              id="otp"
+              minLength={6}
+              onChange={setToken}
+              pattern="[0-9]{6}"
+              required
+              value={token}
+              aria-label="六位验证码"
+              aria-describedby={error ? "login-error" : undefined}
+            />
           </Field>
           {showSendCodeAction ? (
             <Button loading={busy} disabled={busy || email.trim().length === 0} type="button" onClick={() => void sendOtp()}>
@@ -288,7 +289,6 @@ export function EmailOtpForm({
         </Button>
       )}
 
-      {notice ? <Alert variant="success" className="auth-message">{notice}</Alert> : null}
       {error ? <Alert variant="danger" id="login-error" className="auth-error">{error}</Alert> : null}
     </form>
   );

@@ -14219,8 +14219,6 @@ body {
   font-size: 1px;
   outline: 0;
 }
-.otp-input__field:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 12px; }
-.otp-input:focus-within .otp-input__slot { border-color: var(--accent); }
 .auth-form .otp-input__field { margin: 0; border: 0; }
 
 .ui-button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border: 1px solid transparent; border-radius: 9px; font: inherit; font-size: .82rem; font-weight: 750; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }

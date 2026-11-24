@@ -26,21 +26,21 @@ export default async function LoginPage({
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-      <Link href="/" className={styles.brand} aria-label="Sueño 首页">
-        <span className={styles.mark} aria-hidden="true">S</span>Sueño
-      </Link>
-      <Card className={styles.card} aria-labelledby="login-title">
-        <CardHeader className={styles.header}>
-          <CardTitle><h1 id="login-title" className={styles.title}>欢迎回来</h1></CardTitle>
-        </CardHeader>
-        <CardContent className={styles.content}>
-          <EmailOtpForm
-          initialEmail={email}
-          initialStep={startsAtOtpStep ? "otp" : "email"}
-          redirectTo={next}
-          />
-        </CardContent>
-      </Card>
+        <Link href="/" className={styles.brand} aria-label="Sueño 首页">
+          <span className={styles.mark} aria-hidden="true">S</span>Sueño
+        </Link>
+        <Card className={styles.card} aria-labelledby="login-title">
+          <CardHeader className={styles.header}>
+            <CardTitle><h1 id="login-title" className={styles.title} lang="es">¡Bienvenido!</h1></CardTitle>
+          </CardHeader>
+          <CardContent className={styles.content}>
+            <EmailOtpForm
+              initialEmail={email}
+              initialStep={startsAtOtpStep ? "otp" : "email"}
+              redirectTo={next}
+            />
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

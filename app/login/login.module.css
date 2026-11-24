@@ -1,22 +1,54 @@
 /* Adapted from shadcn/ui login-03 (MIT); see docs/superpowers/references/shadcn-login-03/. */
-.page { --login-bg: #f5f5f5; --login-card: #fff; --login-ink: #18181b; --login-muted: #71717a; --login-border: #e4e4e7; display: flex; min-height: 100svh; align-items: center; justify-content: center; padding: 24px; color: var(--login-ink); background: var(--login-bg); }
+.page {
+  --login-bg: #eee7dc;
+  --login-glow: #faf5ec;
+  --login-card: #fffcf7;
+  --login-ink: #24211e;
+  --login-muted: #625b51;
+  --login-border: #d8cec0;
+  --login-field-muted: #f5eee3;
+  --login-action: #304c40;
+  --login-status: #3e6253;
+  --otp-focus: var(--login-status);
+  --otp-surface: var(--login-card);
+  display: flex;
+  min-height: 100svh;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--login-ink);
+  background: radial-gradient(ellipse at 50% 0%, var(--login-glow), transparent 70%), var(--login-bg);
+}
 .shell { display: flex; width: 100%; max-width: 384px; flex-direction: column; gap: 24px; }
 .brand { display: inline-flex; align-self: center; align-items: center; gap: 9px; color: var(--login-ink); font-size: 16px; font-weight: 600; text-decoration: none; }
-.mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; color: var(--login-card); background: var(--login-ink); font-size: 17px; }
-.page .card { padding: 24px; border: 1px solid var(--login-border); border-radius: 12px; background: var(--login-card); box-shadow: 0 1px 2px rgb(0 0 0 / 4%); }
+.mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; color: var(--login-card); background: var(--login-action); font-size: 17px; }
+.page .card { padding: 24px; border: 1px solid var(--login-border); border-radius: 12px; background: var(--login-card); box-shadow: 0 8px 24px rgb(50 39 23 / 8%); }
 .card .header { padding: 0; text-align: center; }
 .title { margin: 0; color: var(--login-ink); font-size: 22px; font-weight: 600; line-height: 1.4; letter-spacing: -.04em; }
 .card .content { padding: 0; }
 .card :global(.auth-form) { display: grid; gap: 18px; margin-top: 24px; }
 .card :global(.ui-field) { min-width: 0; gap: 8px; }
 .card :global(.auth-form label) { margin: 0; color: var(--login-ink); font-size: 14px; font-weight: 500; }
-.card :global(.auth-form input) { min-height: 40px; padding: 8px 12px; border: 1px solid var(--login-border); border-radius: 6px; background: transparent; color: var(--login-ink); font-size: 14px; box-shadow: 0 1px 2px rgb(0 0 0 / 3%); }
-.card :global(.auth-form input:focus-visible) { outline: 2px solid var(--login-muted); outline-offset: 2px; }
-.card :global(.auth-form button:not(.text-button)) { min-height: 40px; margin: 0; padding: 8px 16px; border-radius: 6px; background: var(--login-ink); color: var(--login-card); font-size: 14px; font-weight: 500; box-shadow: none; transform: none; }
+.card :global(.auth-form .ui-input) { min-height: 44px; padding: 8px 12px; border: 1px solid var(--login-border); border-radius: 6px; background: transparent; color: var(--login-ink); font-size: 16px; }
+.card :global(.auth-form .ui-input:disabled) { background: var(--login-field-muted); opacity: 1; }
+.card :global(.auth-form .ui-input:disabled:-webkit-autofill) { -webkit-text-fill-color: var(--login-ink); box-shadow: inset 0 0 0 40px var(--login-field-muted); }
+.card :global(.auth-form .ui-input:focus-visible) { outline: 2px solid var(--login-status); outline-offset: 2px; }
+.card :global(.auth-form button:not(.text-button)) { min-height: 44px; margin: 0; padding: 8px 16px; border-radius: 6px; background: var(--login-action); color: var(--login-card); font-size: 14px; font-weight: 500; box-shadow: none; transform: none; }
 .card :global(.auth-form button:not(.text-button):hover:not(:disabled)) { opacity: .88; }
-.card :global(.auth-form .text-button) { min-height: 36px; margin: 0; color: var(--login-muted); font-size: 13px; }
-.card :global(.auth-form .otp-input__field) { border: 0; background: transparent; color: transparent; box-shadow: none; }
-.card :global(.otp-input__slot) { border-color: var(--login-border); background: var(--login-card); color: var(--login-ink); border-radius: 6px; }
+.card :global(.auth-form .text-button) { min-height: 44px; margin: 0; color: var(--login-muted); font-size: 13px; }
+.card :global(.auth-form .otp-input__field) { box-shadow: none; }
+.page .card :global(.otp-input__slot) { border: 1px solid var(--login-border); background: var(--login-card); color: var(--login-ink); border-radius: 6px; }
+.card :global(.email-otp-form__notice) { margin: 0; color: var(--login-status); font-size: 13px; line-height: 1.5; }
 .card :global(.ui-alert) { margin: 0; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-:global(:root[data-theme="dark"]) .page { --login-bg: #09090b; --login-card: #18181b; --login-ink: #fafafa; --login-muted: #a1a1aa; --login-border: #3f3f46; }
+:global(:root[data-theme="dark"]) .page {
+  --login-bg: #151914;
+  --login-glow: #2a3025;
+  --login-card: #21251f;
+  --login-ink: #f7f1e7;
+  --login-muted: #c1b9ab;
+  --login-border: #53594b;
+  --login-field-muted: #2a3027;
+  --login-action: #bad3c3;
+  --login-status: #a5c9b7;
+}
 @media (max-width: 400px) { .page { padding: 20px; } .page .card { padding: 24px 20px; } }
