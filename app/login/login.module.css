@@ -1,0 +1,22 @@
+/* Adapted from shadcn/ui login-03 (MIT); see docs/superpowers/references/shadcn-login-03/. */
+.page { --login-bg: #f5f5f5; --login-card: #fff; --login-ink: #18181b; --login-muted: #71717a; --login-border: #e4e4e7; display: flex; min-height: 100svh; align-items: center; justify-content: center; padding: 24px; color: var(--login-ink); background: var(--login-bg); }
+.shell { display: flex; width: 100%; max-width: 384px; flex-direction: column; gap: 24px; }
+.brand { display: inline-flex; align-self: center; align-items: center; gap: 9px; color: var(--login-ink); font-size: 16px; font-weight: 600; text-decoration: none; }
+.mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; color: var(--login-card); background: var(--login-ink); font-size: 17px; }
+.page .card { padding: 24px; border: 1px solid var(--login-border); border-radius: 12px; background: var(--login-card); box-shadow: 0 1px 2px rgb(0 0 0 / 4%); }
+.card .header { padding: 0; text-align: center; }
+.title { margin: 0; color: var(--login-ink); font-size: 22px; font-weight: 600; line-height: 1.4; letter-spacing: -.04em; }
+.card .content { padding: 0; }
+.card :global(.auth-form) { display: grid; gap: 18px; margin-top: 24px; }
+.card :global(.ui-field) { min-width: 0; gap: 8px; }
+.card :global(.auth-form label) { margin: 0; color: var(--login-ink); font-size: 14px; font-weight: 500; }
+.card :global(.auth-form input) { min-height: 40px; padding: 8px 12px; border: 1px solid var(--login-border); border-radius: 6px; background: transparent; color: var(--login-ink); font-size: 14px; box-shadow: 0 1px 2px rgb(0 0 0 / 3%); }
+.card :global(.auth-form input:focus-visible) { outline: 2px solid var(--login-muted); outline-offset: 2px; }
+.card :global(.auth-form button:not(.text-button)) { min-height: 40px; margin: 0; padding: 8px 16px; border-radius: 6px; background: var(--login-ink); color: var(--login-card); font-size: 14px; font-weight: 500; box-shadow: none; transform: none; }
+.card :global(.auth-form button:not(.text-button):hover:not(:disabled)) { opacity: .88; }
+.card :global(.auth-form .text-button) { min-height: 36px; margin: 0; color: var(--login-muted); font-size: 13px; }
+.card :global(.auth-form .otp-input__field) { border: 0; background: transparent; color: transparent; box-shadow: none; }
+.card :global(.otp-input__slot) { border-color: var(--login-border); background: var(--login-card); color: var(--login-ink); border-radius: 6px; }
+.card :global(.ui-alert) { margin: 0; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+:global(:root[data-theme="dark"]) .page { --login-bg: #09090b; --login-card: #18181b; --login-ink: #fafafa; --login-muted: #a1a1aa; --login-border: #3f3f46; }
+@media (max-width: 400px) { .page { padding: 20px; } .page .card { padding: 24px 20px; } }
