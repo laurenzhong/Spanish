@@ -1,127 +1,43 @@
-# Sueño — 西班牙语沉浸式口语学习平台
+# Sueño · 西班牙语沉浸式口语学习平台
 
-这是一个面向 A2–B1 西班牙语学习者的口语优先学习产品。它帮助已经认识不少单词、理解一定语法，却在真实交流中反应慢、造句困难或无法自然开口的人，把被动知识转化为可迁移的沟通能力。
+Sueño 面向已有西语基础的 A2–B1 学习者。你可以用真实视频、播客和文章积累表达，在场景实战和与 AI 好友 Lucía 的对话里练习把意思说完整。
 
-当前仓库已进入个人 Alpha 实施阶段。产品首先服务项目所有者自己的学习；当前只推进 Next.js 响应式 Web/PWA，覆盖桌面浏览器与 iPhone Safari。Flutter 和原生应用保留为后续路线，不在本阶段同步实现。
+Sueño 当前提供响应式 Web/PWA。使用邮箱六位验证码登录，启用 Supabase 注册的环境允许新邮箱请求验证码时创建账号。直接登录后默认打开影音资料库。Flutter 代码保留在 `apps/mobile`，功能同步暂停。iPhone Safari/PWA 的真机验收见项目状态。[认证与会话](docs/authentication.md) · [项目状态](PROJECT_STATUS.md)
 
-## 核心体验
+## 登录后可以做什么
 
-- 登录后打开“学习”直接看到视频与播客资料库，像桌面 YouTube/B站一样选择内容；不经过“开始学习”“继续学习”、Hero 或模式选择器。
-- 围绕打招呼、建立关系、表达需要、维持对话和修复沟通等通用交际能力训练。
-- 通过情境输入、独立输出、渐进提示、变式迁移和真实对话形成听说闭环。
-- 在不方便发声时用听力、阅读和打字继续学习，之后补充口语验证。
-- “阅读”集中承载文章、词汇、短语、文字考察和跨来源语料查询；阅读行为本身不计为口语证据。
-- 用词汇与短语、交流运用、语音表达、跟读表现四个能力板块说明真实进步，而不是只展示经验值或打卡。
-- 与长期 AI 好友 Lucía 在接近真实私信的环境中持续交流，并自然认识其他角色。
-- 通过白名单 YouTube 频道、播客 RSS、文章 RSS 和专用适配器每日增量发现素材；自动化只进入候选库，所有者审核后才发布。
+| 入口 | 当前功能 |
+| --- | --- |
+| 学习 · `/learn` | 直接挑选已发布的视频或播客，按主题、难度等筛选或换一批。打开内容后可逐句播放、点词、查看可用的双语字幕和恢复播放位置。有系列的内容可查看选集。 |
+| 阅读 · `/read` | 阅读文章、划词查义和记录笔记。用高频词表和双向默写练单词，用短语手册练日常表达，在语料页对照真实用例并回到出处。个人书架收纳已保存内容和私人 AI 故事。 |
+| 探索 · `/explore` | 浏览公开场景与表达，或生成私人场景。与临时人物进行多轮文字或语音实战，结束后查看复盘和练习历史。 |
+| 对话 · `/chat` | 与长期 AI 角色 Lucía 发文字或语音消息。可按需使用翻译、朗读和 AI 助手，助手能给回复建议、检查草稿和分析句子。 |
+| 我的 · `/me` | 查看四板块能力和活动热力图，调整偏好、关系和语音隐私，按需删除个人学习数据。 |
 
-## 产品原则
+能力画像分为词汇与短语、交流运用、语音表达、跟读表现。口语和交流评估在用户完成表达后进行，接受符合语境的自然替代表达。浏览、查词、收藏、朗读和个人自查不写入能力评分。文字不能提供发音证据，跟读证据只用于跟读表现，低置信度转写和技术失败不产生负面证据。[架构边界](docs/architecture.md)
 
-- 开口优先，语境优先，证据优先。
-- 不在用户说话过程中纠错。
-- 不要求匹配唯一标准答案。
-- 学习时长不参与能力评分。
-- AI 好友首先像朋友一样回应，教学目标隐藏在后台。
-- 技术失败和低置信度转写不能造成错误扣分。
+授权所有者可使用“我的”中的内容工作流审核候选、显式发布或撤下。白名单内容供应和发布模式见[内容采集运行手册](docs/operations/content-acquisition-runbook.md)。
 
-## 个人 Alpha
+## 本地开发
 
-Alpha 当前计划包含：
+使用 Node.js 24.x 和 `package.json` 指定的 pnpm 版本（当前为 11.19.0）。应用使用 Next.js、React、TypeScript 和 Tailwind CSS，服务端通过 Drizzle 访问 Supabase PostgreSQL，使用 Supabase Auth 管理会话。
 
-- 保留已审核的正式表达、场景和历史沉浸式内容包，不静默改写已有版本或证据。
-- 可持续扩充的视频、播客和西语文章库，以及每日白名单候选供应链。
-- 文章、媒体共用的词汇/短语出现索引、语料查询和纯文字词句考察。
-- 听说核心训练、静默读写替代和抽样口语复核。
-- Web MiniMax 女声合成朗读、浏览器录音、转写和基础评估。全站朗读共用 `createReadAloud` / `useReadAloud`，固定 Serene Woman，服务端需 `MINIMAX_API_KEY`；详见 [ADR-0019](docs/adr/0019-unified-minimax-read-aloud.md)。
-- 四板块学习画像和有效学习热力图。
-- 计划中的 Lucía 及未来角色；当前 Alpha 只正式开放 Lucía，其他角色在独立人物包和发布审核完成前保持 coming-soon。
-- 长期关系记忆、好友介绍和隐私控制。
-- Next.js PWA 在桌面浏览器与 iPhone Safari 上的核心学习闭环。
+首次配置时从 `.env.example` 创建本地 `.env`，填入独立开发或测试项目的配置。
 
-支付、通用内容管理后台、实时双向语音、大规模角色网络、微服务、本地离线 ASR、Flutter/原生移动客户端和商店发布属于后续路线。当前只允许所有者使用的轻量内容工作流；手机端通过 iPhone Safari 与添加到主屏幕后的 PWA 使用。
+- `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 用于邮箱 OTP。Supabase 项目需启用注册，并配置发送六位验证码的邮件模板。
+- `DATABASE_URL` 用于应用访问数据库。迁移连接和已有内容的校验、导入见下方文档。空库需准备已发布数据才会有真实影音和文章可浏览。
+- `MINIMAX_API_KEY` 用于全站合成朗读。Web/PWA 统一调用鉴权的 `/api/v1/tts`，使用 MiniMax `speech-2.8-turbo` 和 `Spanish_SereneWoman`。其他语音或 AI 功能的配置见 `.env.example`。
 
-## 技术路线
-
-- Web：Next.js、React、TypeScript、Tailwind CSS、PWA
-- 手机网页：响应式布局、iPhone Safari、PWA 安全区与麦克风适配
-- 服务端与数据：Next.js Route Handlers、Supabase PostgreSQL/Auth/Storage、Drizzle、Zod
-- 接口边界：版本化 API 契约、共享内容源和稳定错误码
-- 测试：Vitest、React Testing Library、Playwright；真实 iPhone Safari 人工验收
-- 部署：Vercel 与 Supabase
-
-Alpha 使用单仓库和远程模块化单体。训练、证据、画像、推荐、角色、记忆和供应商通过明确模块接口协作，不提前拆分独立服务。服务端规则、内容、API 协议和学习数据保持单一权威来源；版本化 API 继续保留，为未来恢复其他客户端提供边界。
-
-自动内容供应继续运行在同一仓库和模块化单体边界内：`content-acquisition` 负责来源、候选和处理编排，`media` 负责视频/播客版本与播放，`lexicon-corpus` 负责词句和语料。长任务由定时 CI runner 调用 TypeScript CLI，不在 Vercel 请求中运行，也不提前引入微服务或消息队列。
-
-## 文档
-
-- [当前任务与项目状态](PROJECT_STATUS.md)
-- [完整产品设计](docs/superpowers/specs/2026-08-20-spanish-speaking-learning-platform-design.md)
-- [Web 优先的个人学习产品与场景实战设计](docs/superpowers/specs/2026-09-11-web-first-personal-learning-and-scenario-practice-design.md)
-- [自动内容供应与词句学习重构设计](docs/superpowers/specs/2026-09-12-automated-content-supply-and-lexical-learning-redesign.md)
-- [阅读页短语与语料页面设计](docs/superpowers/specs/2026-10-12-reading-phrase-and-corpus-page-design.md)
-- [自动内容供应与词句学习重构实施计划](docs/plans/2026-09-12-automated-content-supply-and-lexical-learning-implementation-plan.md)
-- [Web/PWA 场景学习闭环实施计划](docs/plans/2026-09-11-web-first-scenario-practice-implementation-plan.md)
-- [阅读库与西语文章内容体系设计](docs/superpowers/specs/2026-08-26-reading-library-and-article-content-design.md)
-- [UI-009：Readlang 阅读工作台技术设计](docs/superpowers/specs/2026-08-26-readlang-reading-workbench-technical-design.md)
-- [Web UI 设计研究与页面方案](docs/superpowers/specs/2026-08-26-web-ui-design-research-and-scheme.md)
-- [探索页桌面 Web 技术调研](docs/superpowers/specs/2026-08-28-explore-page-desktop-web-technical-research.md)
-- [探索页桌面 Web 视觉与交互方案](docs/superpowers/specs/2026-08-28-explore-page-desktop-web-design.md)
-- [探索页桌面 Web 实施计划](docs/plans/2026-08-28-explore-page-desktop-web-implementation-plan.md)
-- [电脑端 Web 界面密度与操作层级收敛设计](docs/superpowers/specs/2026-09-12-desktop-web-interface-density-and-action-hierarchy-design.md)
-- [电脑端 Web 界面密度与操作层级收敛实施计划](docs/plans/2026-09-12-desktop-web-interface-density-and-action-hierarchy-implementation-plan.md)
-- [历史：Web 与 Flutter 多平台架构设计](docs/superpowers/specs/2026-08-20-multiplatform-client-architecture-design.md)
-- [个人 Alpha 实施计划](docs/plans/2026-08-20-personal-alpha-implementation-plan.md)
-- [架构边界](docs/architecture.md)
-- [数据库与迁移](docs/database.md)
-- [认证与会话](docs/authentication.md)
-- [跨客户端 API 契约](contracts/README.md)
-- [ADR-0002：个人 Alpha 改为 Web/PWA 优先](docs/adr/0002-web-pwa-first-personal-alpha.md)
-- [ADR-0008：内容驱动学习入口与自动采集审核链路](docs/adr/0008-content-led-learning-and-automated-ingestion.md)
-- [ADR-0012：阅读区短语与语料工作区分工及查询语义](docs/adr/0012-reading-phrase-and-corpus-workspace.md)
-- [历史 ADR-0001：Next.js Web 与 Flutter 客户端](docs/adr/0001-nextjs-web-flutter-clients.md)
-- [内容制作与审核规范](docs/content-authoring.md)
-- [测试与质量策略](docs/testing-strategy.md)
-- [角色运行时与对话闭环设计](docs/superpowers/specs/2026-09-26-character-runtime-and-conversation-closure-design.md)
-- [聊天 AI 助手设计](docs/superpowers/specs/2026-10-21-chat-ai-assistant-design.md)
-- [聊天 AI 助手实施计划](docs/plans/2026-10-21-chat-ai-assistant-implementation-plan.md)
-- [CONV-ROLE-001 角色运行时与对话闭环实施计划](docs/plans/2026-09-26-character-runtime-and-conversation-closure-implementation-plan.md)
-- [ADR-0009：版本化角色运行时与对话闭环边界](docs/adr/0009-character-runtime-and-conversation-boundary.md)
-- [Echo-Loop 参考评审](docs/references/echo-loop-review.md)
-- [编码代理工作规范](AGENTS.md)
-
-## 参考项目
-
-[Echo-Loop](https://github.com/echo-loop/Echo-Loop) 对自动学习闭环、流程状态机、断点续学、复习事件、流式聊天可靠性和测试组织提供了有价值的参考。
-
-本项目与它的产品核心不同：Echo-Loop 围绕一段音频练透，本项目围绕交际目标、自由表达和长期 AI 社交关系建立可迁移口语能力。Echo-Loop 使用 AGPL-3.0；当前仓库没有复制其实现代码或资源。用户说明自己曾参与该项目并得到作者允许，未来如需源码复用，将先把授权范围、涉及文件、其他贡献者权利和发布义务记录清楚，再单独实施。
-
-## 开发状态
-
-实时进展、活动分支、当前验收条件和接下来三个任务统一记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。其他模型进入仓库后应先阅读该文件和 `AGENTS.md`。
-
-基础工程已经包含 Next.js App Router、React、TypeScript、Tailwind CSS、Vitest 和 Playwright。响应式 Web/PWA 产品壳层保留“学习、阅读、探索、对话、我的”五项导航；“学习”已是视频/播客资料库，词汇、短语和语料将在后续任务纳入“阅读”。Flutter 代码保留但暂停同步。
-
-本地环境要求：
-
-- Node.js 24.x，仓库通过 `.nvmrc` 和 `engines` 固定大版本。
-- pnpm 11.x，精确版本记录在 `package.json`。
-- 执行 E2E 时需要本机安装 Google Chrome。
-- `pnpm test:e2e` 默认使用隔离的 `127.0.0.1:3100` 和 `.next/e2e` 构建目录，不会抢占正在运行的 3000 开发服务；如需更换端口可设置 `PLAYWRIGHT_PORT`。
-- iPhone Safari 的麦克风、键盘、安全区、前后台恢复和 PWA 主屏模式需要真实设备验收。
-
-首次运行：
+配置示例和权限边界见[环境变量模板](.env.example)、[认证与会话](docs/authentication.md)、[数据库与迁移](docs/database.md)、[版本化内容源](content/README.md)和[统一朗读 ADR](docs/adr/0019-unified-minimax-read-aloud.md)。
 
 ```powershell
 pnpm install
 pnpm dev
 ```
 
-Web 登录需要在本地 `.env` 中配置公开的 Supabase 项目 URL 和 publishable key：
+打开 `http://localhost:3000`。配置好 Auth 和数据库后，用测试邮箱登录，确认进入“学习”，再切换“阅读”“探索”“对话”和“我的”。
 
-普通用户入口是邮箱六位 OTP；密码登录只保留给预建测试账号，不在普通入口并列展示。完整配置、安全边界和本地测试说明见 [认证与会话](docs/authentication.md)。
-
-质量检查：
+## 检查
 
 ```powershell
 pnpm lint
@@ -133,27 +49,10 @@ pnpm test:e2e
 pnpm build
 ```
 
-数据库 Schema 变更使用 `pnpm db:generate` 生成向前迁移；只有在明确配置本地或测试 PostgreSQL 连接后才运行 `pnpm db:migrate`。真实连接信息只放在未提交的本地 `.env` 中。
+Playwright 使用本机 Google Chrome，默认启动隔离服务 `127.0.0.1:3101`，构建目录为 `.next/e2e`。需要更换端口时设置 `PLAYWRIGHT_PORT`。本地 E2E 使用测试会话和 fake，真实供应商、数据库权限和 iPhone Safari/PWA 验收分别记录。[测试与质量策略](docs/testing-strategy.md)
 
-版本化内容在写库前先校验，正式语料从 ALPHA-006 开始放入 `content/bundles/`：
+## 文档
 
-```powershell
-pnpm content:validate -- content/bundles/alpha-core-v1.json
-pnpm content:import -- content/bundles/alpha-core-v1.json
-```
-
-内容契约、幂等与版本规则见 [版本化内容源](content/README.md) 和 [内容制作规范](docs/content-authoring.md)。
-
-只有任务明确修改暂停维护的 Flutter 代码时，才额外运行：
-
-```powershell
-cd apps/mobile
-flutter analyze
-flutter test
-```
-
-完整路线以实施计划为准，实时任务以 `PROJECT_STATUS.md` 为准。
-
-## 开发协作
-
-开始任何编码任务前先阅读 [AGENTS.md](AGENTS.md) 和 [PROJECT_STATUS.md](PROJECT_STATUS.md)。每次只完成一个任务 ID，保留用户及其他模型已有改动，并把评分、隐私、角色一致性和失败降级作为核心质量要求。
+- 开发协作与当前任务 [AGENTS.md](AGENTS.md) · [PROJECT_STATUS.md](PROJECT_STATUS.md)
+- 产品功能、运营手册、发布范围和历史设计 [文档索引](docs/README.md)
+- 版本化接口 [API 契约](contracts/README.md)

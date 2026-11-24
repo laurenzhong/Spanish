@@ -20,9 +20,11 @@
 
 ## 范围
 
-每日任务只从已启用且权利状态为 `verified` 的白名单来源发现候选，并推进到审核库。文章和媒体都按受保护的分阶段策略运行；视频和播客可在 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true` 且当前版本通过内容、西语教学和结构三维审核时进入 `auto-publish`，否则最多停在 `review_ready`。自动发布仍不能绕过来源权利、结构校验、审核记录、revision/hash CAS 或资产可播放性门禁。
+每日发现从已启用且权利状态为 `verified` 的白名单来源创建候选。[ADR-0010](../adr/0010-reviewed-article-auto-publication.md) 在个人 Alpha 授权范围内允许符合来源策略的文章通过独立双维度审核、结构校验和受保护配置后自动发布。
 
-GitHub Actions 使用 UTC `03:17` 运行，对应 Asia/Shanghai 每日 `11:17`。同一 ref 使用 concurrency 互斥，前一次运行结束前不会启动第二个运行；整条文章、媒体、托管和报告流水线的硬上限为 60 分钟，避免 10 条视频与 10 条播客候选在完整审核和托管阶段被 30 分钟总超时截断。
+当前媒体工作流也有依赖受保护开关的 `auto-publish` 路径，校验来源权利、西语内容审核、中文教学审核、结构、revision/hash 和可播放性。[ADR-0008](../adr/0008-content-led-learning-and-automated-ingestion.md) 与 [AGENTS.md](../../AGENTS.md) 对每日媒体发布仍要求所有者显式发布。媒体自动发布的实现与规则存在差异。下文的开关及参数记录代码路径，实际启用情况以受保护环境的配置为准。
+
+GitHub Actions 使用 UTC `03:17` 运行，对应 Asia/Shanghai 每日 `11:17`。同一 ref 使用 concurrency 互斥，前一次运行结束前不会启动第二个运行；主分支中每日内容任务的超时配置为 180 分钟，覆盖文章与媒体的处理、审核、托管和报告。
 
 ## 命令
 
@@ -39,9 +41,9 @@ pnpm content:pipeline -- report --limit 100
 
 媒体每日运行使用 `pnpm content:media-daily -- --mode <disabled|discover-only|review-only|auto-publish>`。自动发布目标按类型独立计算：`CONTENT_MEDIA_VIDEO_DAILY_LIMIT=10` 和 `CONTENT_MEDIA_PODCAST_DAILY_LIMIT=10`，合计目标为每天 10 条视频和 10 条播客；未显式设置环境变量时 CLI 也默认使用总计 20、视频 10、播客 10。将受保护 Environment 的 `CONTENT_MEDIA_VIDEO_DAILY_LIMIT` 设为 `0` 可暂停每日视频发现、处理、托管和发布，同时让播客按独立额度继续运行；workflow 会跳过 yt-dlp/PO Token 与视频托管步骤。恢复时将额度设为正数。`CONTENT_MEDIA_SOURCE_LIMIT` 仍限制单来源，最大 50。`auto-publish` 还要求受保护 Environment 的 `CONTENT_MEDIA_AUTO_PUBLISH_KILL_SWITCH=true`，缺失或非 `true` 时 CLI fail closed。
 
-当 `CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES=true`（生产默认值）时，流水线会先为无字幕或单语字幕的授权媒体创建临时音频，使用配置的 ASR 生成时间轴，再用 MiniMax 逐句翻译为简体中文；临时音频在成功、失败、取消和超时后删除。当前 revision 必须存在至少一个合法时间轴、每句同时有西语原文和中文翻译才允许自动发布；缺少字幕、只有单语字幕或翻译不完整的候选会记录 `MEDIA_BILINGUAL_SUBTITLES_REQUIRED`，不计入视频/播客完成数。该门禁不会把无字幕候选伪装成已完成，也不会绕过 ASR、翻译或审核流程。报告返回 `publishedByType` 和 `targetDeficitByType`，用于区分两类缺口；数据库配额计数同样只统计已发布正式媒体版本中完整双语时间轴的条目，不统计历史无字幕版本。
+当 `CONTENT_MEDIA_REQUIRE_BILINGUAL_SUBTITLES=true`（生产默认值）时，流水线会先为无字幕或单语字幕的授权媒体创建临时音频，使用配置的 ASR 生成时间轴，再用 MiniMax 逐句翻译为简体中文；临时音频在成功、失败、取消和超时后删除。当前 revision 的双语门禁要求至少一个合法时间轴，且每句同时有西语原文和中文翻译。新发布的视频和播客还须通过已审核片段和完整词级时间轴门禁；缺少字幕、只有单语字幕或翻译不完整的候选会记录 `MEDIA_BILINGUAL_SUBTITLES_REQUIRED`，不计入视频/播客完成数。该门禁不会把无字幕候选伪装成已完成，也不会绕过 ASR、翻译或审核流程。报告返回 `publishedByType` 和 `targetDeficitByType`，用于区分两类缺口；数据库配额计数同样只统计已发布正式媒体版本中完整双语时间轴的条目，不统计历史无字幕版本。
 
-生产媒体转写配置使用受保护的 GitHub Environment 变量/secret：`CONTENT_MEDIA_PROVIDER_MODE=live`、`CONTENT_MEDIA_STT_PROVIDER=minimax|openai`、`CONTENT_MEDIA_TRANSLATION_PROVIDER=minimax`，默认使用 MiniMax ASR；只有显式设置 `CONTENT_MEDIA_STT_PROVIDER=openai` 时才切换到 OpenAI。默认 provider 需要 `MINIMAX_API_KEY`，显式切换 OpenAI 时需要 `OPENAI_API_KEY`。OpenAI 使用 `OPENAI_TRANSCRIPTION_ENDPOINT` 与 `OPENAI_TRANSCRIPTION_MODEL`；MiniMax ASR 使用 `MINIMAX_TRANSCRIPTION_API_ENDPOINT`（默认 `https://api.minimax.cn/v1/speech_to_text`）和 `MINIMAX_TRANSCRIPTION_MODEL=asr-1.0`。`CONTENT_MEDIA_ASR_MAX_DURATION_MS`、`CONTENT_MEDIA_ASR_MAX_ASSET_BYTES`、`CONTENT_MEDIA_ASR_MAX_COST_MICROS` 和 `CONTENT_MEDIA_ASR_MIN_CONFIDENCE` 控制单条媒体的时长、临时文件大小、预算和最低置信度，默认时长上限与 Language Reactor 播客策略一致为 60 分钟。默认临时媒体上限为 50 MB；超过转写 provider 输入限制的音频会在临时目录内转换为 48 kbps 单声道 MP3，转换后的文件仍必须不超过 25 MB。默认测试使用 `CONTENT_MEDIA_PROVIDER_MODE=fake`，不会请求收费 Provider。缺少 live provider 凭据时 `auto-publish` fail closed，不会把候选或审核通过计为正式发布。
+生产媒体转写配置使用受保护的 GitHub Environment 变量/secret：`CONTENT_MEDIA_PROVIDER_MODE=live`、`CONTENT_MEDIA_STT_PROVIDER=minimax|openai`、`CONTENT_MEDIA_TRANSLATION_PROVIDER=minimax`，默认使用 MiniMax ASR；只有显式设置 `CONTENT_MEDIA_STT_PROVIDER=openai` 时才切换到 OpenAI。默认 provider 需要 `MINIMAX_API_KEY`，显式切换 OpenAI 时需要 `OPENAI_API_KEY`。OpenAI 使用 `OPENAI_TRANSCRIPTION_ENDPOINT` 与 `OPENAI_TRANSCRIPTION_MODEL`；MiniMax ASR 使用 `MINIMAX_TRANSCRIPTION_API_ENDPOINT`（默认 `https://api.minimax.cn/v1/speech_to_text`）和 `MINIMAX_TRANSCRIPTION_MODEL=asr-1.0`。`CONTENT_MEDIA_ASR_MAX_DURATION_MS`、`CONTENT_MEDIA_ASR_MAX_ASSET_BYTES`、`CONTENT_MEDIA_ASR_MAX_COST_MICROS` 和 `CONTENT_MEDIA_ASR_MIN_CONFIDENCE` 控制单条媒体的时长、临时文件大小、预算和最低置信度，默认时长上限为 60 分钟。默认临时媒体上限为 50 MB；超过转写 provider 输入限制的音频会在临时目录内转换为 48 kbps 单声道 MP3，转换后的文件仍必须不超过 25 MB。默认测试使用 `CONTENT_MEDIA_PROVIDER_MODE=fake`，不会请求收费 Provider。缺少 live provider 凭据时 `auto-publish` fail closed，不会把候选或审核通过计为正式发布。
 
 已托管的 Bunny 视频在字幕回填时使用带 ETag 校验的分块 Range 下载，避免长视频单次下载中断；每个分片仍需通过响应范围、大小和媒体类型校验后才会合并，失败时不会生成或发布不完整音频。
 
@@ -112,7 +114,7 @@ Get-Content -Raw 'C:\secure\youtube-cookies.b64' | gh secret set YOUTUBE_COOKIES
 Remove-Item -LiteralPath 'C:\secure\youtube-cookies.b64'
 ```
 
-配置后先用 `limit=1` 的 `review-only` 或单候选托管 canary，确认候选带有 `bunnyVideoAsset`、Bunny HEAD 与浏览器播放/seek 校验通过，再开启媒体 `auto-publish`。若 cookies 未配置、过期或格式不正确，流程会稳定失败关闭；不会把审核通过、托管失败或候选数量计为正式发布。
+配置后先用 `limit=1` 的 `review-only` 或单候选托管 canary，确认候选带有 `bunnyVideoAsset`、Bunny HEAD 与浏览器播放/seek 校验通过。媒体 `auto-publish` 的授权边界见上文「范围」。若 cookies 未配置、过期或格式不正确，流程会稳定失败关闭；不会把审核通过、托管失败或候选数量计为正式发布。
 
 Readlang 页面来源使用 `adapter_type=readlang-links`、`source_kind=article-site`，`external_source_id` 必须精确为 `https://readlang.com/es/links`，`rights_status=verified`，并在 `rights_policy` 保存 `readlang-links-v6.json` 的 `policyVersion`、164 个精确 URL 快照和授权证据。v6 将已授权的 100 个 `https://readlang.com/library/<id>` URL 放在快照队列首位；其余精确 URL 仍完整保留。文章全局配额会先分配给该 Readlang 来源，再分配给其他文章 RSS 来源；这不会把 `https://readlang.com/es/library` 页面本身扩展为新的授权范围。该适配器只读取快照 URL；页面新增 URL 或主机前不得自动采集。v6 的 `automatedPublication.enabled=true` 只表示这些精确 URL 已获所有者授权进入分阶段自动发布；仍必须通过 MiniMax 内容/教学审核、结构校验、revision/hash CAS 和显式 publisher，不能按 host 扩大抓取范围。
 

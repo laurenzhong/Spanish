@@ -1,5 +1,7 @@
 # 个人 Alpha Web/PWA 架构边界
 
+当前页面与开发入口见[文档索引](README.md)。带日期或任务编号的条目保留对应切片的实现背景。
+
 `CHAT-READALOUD-001`（2026-10-21）：聊天消息右键/双击菜单里的「朗读」从仅角色消息扩展到学习者自己的消息，用户可回听自己发送的西语。两种角色共用同一 `createReadAloud` 统一鉴权朗读（ADR-0019 固定 MiniMax Serene Woman），沿用既有 `speakingMessageId`、停止与 generation 隔离；消息菜单本身只对已收到正文且未撤回的消息打开，撤回提示不会进入朗读。只有角色消息菜单包含翻译（取消翻译），学习者消息仍只有复制、朗读、引用回复、撤回、删除。不新增 API、provider、数据库迁移、学习评分或证据写入；学习者文本照旧会发送至 MiniMax，隐私边界与既有聊天朗读一致，普通用户消息文本类型不做语言门禁。设计/验证见[交接](reviews/CHAT-READALOUD-001.md)。
 
 `CHAT-ASSISTANT-001`（2026-10-21）：聊天页右上角「更多对话操作」菜单新增「AI 助手」入口，打开非模态学习助手面板，支持 `reply`（要 1–3 条可填入输入框的自然西语回复）、`grammar`（检查学习者自己编辑的西语草稿并给最小修正）、`structure`（拆分句子成分）、`question`（中文自由提问）四类意图。鉴权 `POST /api/v1/conversations/:characterId/assistant` 在 application 层重验静态角色版本、已发布人物/对话能力门禁、当前发布版本与联系人状态，只通过只读 repository 读取本用户本角色最近 8 条已完成且未撤回消息（排除被撤回消息的回复），`structure` 缺目标句时回退到最近一条角色消息；客户端不发送对话上下文，只发送学习者主动写的问题/目标句。内部 `providers/assistant` 适配 MiniMax 非流式 JSON 输出，经 Zod 归一化后返回结构化 `answer` 与可选 `suggestions/corrections/structure/correctedSentence`；可选块缺失不失败，但非法 JSON/Schema 未通过则失败关闭。请求/结果不写消息、关系记忆、人物事实、能力证据或普通日志；`provider_calls` 只记 providerType=assistant、模型、状态、延迟、请求关联与费用估算。助手结果只存在于组件内存，关闭/刷新即丢失；「填入输入框」只写可编辑草稿且必须用户显式发送，朗读统一走 `useReadAloud`（ADR-0019）。无数据库迁移、无公共路由之外的契约变化、无学习评分。设计见[规格](superpowers/specs/2026-10-21-chat-ai-assistant-design.md)，验证与限制见[交接](reviews/CHAT-ASSISTANT-001.md)。
@@ -50,9 +52,9 @@
 
 `CORPUS-REDESIGN-001`（2026-10-15，ADR-0017）：`/read/corpus` 以完整原段/字幕为主体，独立 `CorpusWorkbench` 调用鉴权只读 `/api/v1/corpus/examples`，application + 专用repository直接检索当前可见原文，不依赖旧出现索引。单条SQL重验发布/版权/字幕审核/私人文章所有权，文章最新已发布版本、媒体currentVersion，窗口函数取得同版本可见前后文；按片段轮次、各类型文档轮次、类型交错分页，计数与内容同一快照。参数/DTO/JSON Schema版本化，private/no-store；旧search/browse API保持兼容。媒体已有译文可隐藏，浏览器合成朗读与临时最多三条对照无存储/证据写入。文章来源URL包含 `stableKey@version`，显式段落锚点与媒体时间/稳定字幕index优先旧进度。真实库约49,247条，分页允许至100,000页而非旧1,000页上限；无需迁移或新增provider。
 
-`PHRASE-CONTENT-003`（2026-10-15）：当前短语UI明确读取 `lexicon-corpus/content/phrasebook-v3.ts` 的120条，六主题各20条，新增60条经过独立双维AI复核并绑定7个内容依赖哈希。历史v1/v2及其审核保持原值；`phrasebook.ts` 已被v2审计绑定，保留为v2兼容入口。对话逐句、主表达和自测共用一个浏览器TTS实例；仅播放当前西语，条目因取消收藏或外部存储变化离开可见列表时也停止。仍不访问数据库或写入能力证据。
+`PHRASE-CONTENT-003`（2026-10-15）：当前短语UI明确读取 `lexicon-corpus/content/phrasebook-v3.ts` 的120条，六主题各20条，新增60条经过独立双维AI复核并绑定7个内容依赖哈希。历史v1/v2及其审核保持原值；`phrasebook.ts` 已被v2审计绑定，保留为v2兼容入口。对话逐句、主表达和自测共用统一 MiniMax 朗读。仅播放当前西语，条目因取消收藏或外部存储变化离开可见列表时也停止。仍不访问数据库或写入能力证据。
 
-`PHRASE-CONTENT-002`（2026-10-15）：当前短语手册通过稳定入口 `lexicon-corpus/content/phrasebook.ts` 读取 v2 的60条；v1的24条及审核冻结，新增36条独立双维复核并绑定全部内容依赖哈希。主题计数由内容派生，收藏继续使用原v1存储键和稳定ID。自测参考句与核心句分别调用已有浏览器TTS，切题/退出/收起正在朗读的核心句时停止；不新增API、数据库或评分证据。
+`PHRASE-CONTENT-002`（2026-10-15）：当时的短语手册通过稳定入口 `lexicon-corpus/content/phrasebook.ts` 读取 v2 的60条；v1的24条及审核冻结，新增36条独立双维复核并绑定全部内容依赖哈希。主题计数由内容派生，收藏继续使用原v1存储键和稳定ID。自测参考句与核心句分别调用已有浏览器TTS，切题/退出/收起正在朗读的核心句时停止；不新增API、数据库或评分证据。
 
 `PHRASE-REDESIGN-001`（2026-10-15）：`/read/phrases` 依照 ADR-0016 改读 `lexicon-corpus/content/phrasebook-v1.ts` 的 24 条原创、双维度独立审核内容，通过 domain Zod 与审计哈希校验。SSR 仅取得当前用户和初始搜索，不发起语料数据库扫描；客户端提供主题、搜索、渐进展开、本地收藏和无评分回想。收藏 localStorage key 按服务端用户 ID 隔离，无云同步；它是个人偏好，不是能力事实。朗读复用现有浏览器 TTS。旧 `PhraseLibrary`/`PhraseShelfData` 仅为旧协议兼容代码，不再挂载于当前路由；真实来源比较仍属于 `/read/corpus`。公共 API、DB、RLS、内容索引和评分边界保持。见 `docs/adr/0016-practical-phrasebook.md`。
 
@@ -87,7 +89,7 @@
 Next.js 响应式 Web / PWA
   ├─ 桌面 React 页面与组件
   ├─ iPhone Safari / 主屏 PWA
-  ├─ 浏览器 TTS、录音、权限
+  ├─ 鉴权合成朗读、浏览器录音与权限
   └─ Web 平台适配器
              │ HTTPS / NDJSON
              ▼
@@ -223,7 +225,7 @@ UI / Route Handler → Application → Domain
 
 浏览模式由页面 `view=browse` 标识，正常时间排序 API 不变。可取消客户端编排以 generation 隔离换批、频道、翻页、预取及恢复；浏览器历史仅存最多 1000 个公开稳定 ID、seed、筛选、页数（最多恢复 100 页）和位置，返回时重新请求并鉴权，不存私人卡片进度。显示状态不作为学习证据。`topic` 在页面和普通列表 API 也完整转发，避免保存的筛选在换批/搜索后丢失。
 
-`content-acquisition` 只负责白名单来源、增量游标、发现、去重、初筛、处理编排、成本门禁和候选审核状态。它不能直接把候选标为正式文章或媒体，也不能写学习证据。每日自动化最多推进到候选审核库；正式 publisher 必须调用 `content`/article 或 `media` 的 application，并再次验证权利、两个审核维度、结构、哈希和 revision。`content_candidates.publication_status` 与采集状态独立，只保存正式模块返回的版本引用、发布时的候选 revision/hash 和撤下时间；正式内容实体仍由 article/media 模块拥有。
+`content-acquisition` 只负责白名单来源、增量游标、发现、去重、初筛、处理编排、成本门禁和候选审核状态。它不能直接把候选标为正式文章或媒体，也不能写学习证据。每日采集先形成候选。已授权文章的受控发布由 [ADR-0010](adr/0010-reviewed-article-auto-publication.md) 定义。媒体工作流与仓库规则的差异见[内容采集运行手册](operations/content-acquisition-runbook.md#范围)。各正式 publisher 必须调用 `content`/article 或 `media` 的 application，并再次验证权利、两个审核维度、结构、哈希和 revision。`content_candidates.publication_status` 与采集状态独立，只保存正式模块返回的版本引用、发布时的候选 revision/hash 和撤下时间；正式内容实体仍由 article/media 模块拥有。
 
 所有者工作流通过服务端 `CONTENT_WORKFLOW_OWNER_USER_IDS` UUID allowlist 授权。页面隐藏只改善信息架构，每个 Route 和 application 都重新验证所有者身份，客户端角色字段不参与授权。审核按候选 revision 保存，`content-es-ES`、`teaching-zh-CN` 和结构结论不能互相替代；重新处理创建新 generation/revision 并保留旧备注。`ARTICLE-001`、`VIDEO-001` 与 `PODCAST-001` 已分别注册 article、YouTube video 和 podcast publisher。publisher 必须原子创建不可变正式版本；若随后工作流 CAS 失败，application 调用撤下补偿，避免半发布投影。
 
@@ -253,11 +255,11 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 
 词架默写的 Enter 导航使用纯函数选择当前模式/轮次的下一空答案，跳过已填写项并回到前面的漏填项；只检查当前词，空答案或待确认不移动。UI 使用挂载输入框引用同步聚焦，不排队异步焦点回调，模式切换、重练、退出和卸载会释放原输入引用。输入法组合阶段不提交或移动。
 
-`/learn` 是视频/播客目录和媒体学习器，不再读取推荐器生成“开始/继续”任务。`/read` 在文章之外提供词汇、短语、语料和文字考察。`training` 继续提供 attempt、录音、状态机和证据编排，但不再拥有任务式学习首页。
+`/learn` 是视频/播客目录和媒体学习器，不再读取推荐器生成“开始/继续”任务。`/read` 提供文章、词汇、短语、语料和已保存五个入口。词架默写和短语自测用于个人复习。语料页收到指定考察键时加载正式文字考察。`training` 继续提供 attempt、录音、状态机和证据编排，但不再拥有任务式学习首页。
 
 词汇页单词发音遵循 ADR-0013 的 2026-10-13 修订与 ADR-0019 的统一合成朗读：手动朗读和点词自动发音均只读显示词本身，不请求媒体 word-audio/切片。准备可取消，start 后确认朗读，结束复位，错误/超时可重试；generation 隔离，切词/关闭/Escape/隐藏/卸载停止，例句与词音互斥。2026-10-20 所有者要求词卡不再显示“合成音 · 准备中…”/“合成音”状态行：加载、播放与停止只由按钮的停止标签、`aria-busy` 与 `aria-pressed` 表达，失败仍在词卡内显示可重试提示；不把合成声音称为真人、母语者或标准发音。旧服务端解析接口保留兼容；本修订无供应商、DB 或能力证据变更。
 
-词汇侧栏的 Tatoeba 例句录音遵循 ADR-0015：官方导出预先按 sentence ID/audio ID 配对，独立元数据资产保存各录音作者、许可及署名；查词 DTO 补充可空 `audio`，运行时不请求外部元数据。点击才流播官方完整录音（`api.tatoeba.org/v1/audios/{id}/file`），未知/空许可不复用该录音。缺少可用授权录音时提供按钮标注“合成朗读例句”的浏览器西语 TTS，例句旁不单列“暂无录音”提示（2026-10-18 所有者要求移除该行）；原声播放失败不自动改用合成音。点击播放按钮不显示准备/加载/播放状态文案（2026-10-18 所有者要求），状态只由按钮图标、停止标签、aria-busy 与 aria-pressed 表达；原声只有实际媒体进度才确认播放中，加载或中途停滞均有 20 秒无进度超时。TTS 复用 `useBrowserSpeech`，可选 start/end/error 回调按 generation 隔离，例句错误落在对应行；只有确认 start 才把合成朗读按钮视为正在播放。失败重试与复制反馈仍可见。词音与两种例句音互斥，共用词架取消生命周期；切词、关闭、隐藏或卸载均取消并释放事件/计时器/src。播放或复制不写学习证据；没有新供应商或录音存储，元数据构建无需数据库写入。
+词汇侧栏的 Tatoeba 例句录音遵循 ADR-0015：官方导出预先按 sentence ID/audio ID 配对，独立元数据资产保存各录音作者、许可及署名；查词 DTO 补充可空 `audio`，运行时不请求外部元数据。点击才流播官方完整录音（`api.tatoeba.org/v1/audios/{id}/file`），未知/空许可不复用该录音。缺少可用授权录音时通过统一 MiniMax 朗读提供“合成朗读例句”，例句旁不单列“暂无录音”提示（2026-10-18 所有者要求移除该行）；原声播放失败不自动改用合成音。点击播放按钮不显示准备/加载/播放状态文案（2026-10-18 所有者要求），状态只由按钮图标、停止标签、aria-busy 与 aria-pressed 表达；原声只有实际媒体进度才确认播放中，加载或中途停滞均有 20 秒无进度超时。合成朗读复用 `useReadAloud`，按 generation 隔离，例句错误落在对应行；只有确认 start 才把合成朗读按钮视为正在播放。失败重试与复制反馈仍可见。词音与两种例句音互斥，共用词架取消生命周期；切词、关闭、隐藏或卸载均取消并释放事件/计时器/src。播放或复制不写学习证据；没有新供应商或录音存储，元数据构建无需数据库写入。
 
 `media` 的公开列表和详情只投影当前 `published + cleared + playable` 版本，稳定引用为 `stableKey@version`。播放接口要求用户会话，只返回 HTTPS 播放信息和当前版本的全部已审核片段；临时播放地址过期、资产撤下或版本不可用时失败关闭。旧播客 CDN 地址由鉴权的 Range 代理转发，并在跳转后再次校验允许主机。正式视频和播客详情统一由 `Plyr` 渲染；YouTube、托管视频和播客只把各自的 iframe/HTML5 media node 作为 Plyr 的底层媒体源。它们都通过 play/pause/seek/currentTime/destroy 小型端口驱动同一工作台，并用 generation 隔离旧播放器回调。工作台提供 A/S/D 逐句控制、Q 自动暂停、西语/双语/隐藏字幕和保留上下文的词句抽屉；无已审核 transcript 的播客仍可播放，但逐句控制禁用并明确提示。词义与保存仍由后续词句任务负责。
 
@@ -320,8 +322,9 @@ Lucía 的主动消息暂限 App 内可见。`POST /api/v1/conversations/lucia/p
 - `/api/v1/read/articles/:articleId/state` 使用内容哈希做乐观版本检查。哈希过期返回 `409 CONFLICT`，客户端保留本地状态并提示重新定位，不静默覆盖标注。
 - `/api/v1/read/saved` 和 `/api/v1/read/sources` 只返回当前用户的明确 DTO。外部来源接口目前只保存规范化 URL、标题、作者、许可和版权状态等元数据，绝不抓取 URL 或保存未经验证的全文。
 - `/api/v1/read/saved-items` 是个人阅读书架的单一入口：默认（`全部`）按 `createdAt` 倒序合并“文章类”与“标注类”两个来源，`itemType=article` 只返回文章类（当前用户收藏的已发布文章 + 当前用户的私人生成故事），`itemType=phrase|highlight` 只返回 `user_article_highlights` 标注。文章类条目带稳定 `stableKey@version`、标题、来源、`origin`（`public`/`generated`）与 `saved` 标记；标注类条目带段落位置、上下文和来源。两个来源在 PostgreSQL 各自分页：单类型页签使用该来源真实的 `page/pageSize/total`；`全部` 会先读取两个来源各自的 `page * pageSize` 行（上限 500）再在应用层合并切片，`total` 为两来源之和，因此深于该窗口的 `全部` 页只覆盖窗口内最新的行，而单类型页签在任意深度都精确。阅读状态同步按条目标识差异更新，未变化标注保留 UUID 与 `createdAt`，避免进度同步改变书架排序。`/api/v1/read/saved-items/:itemId` 只按当前用户所有权幂等移除一条标注（文章收藏仍走 `/api/v1/read/saved`，私人故事删除走 `/api/v1/read/generated-stories/:articleId`）。撤下版本、未清权来源和其他用户的私人生成文章不会进入投影。
-- `/read/saved-items` 是个人阅读书架，页签为 `全部 / 文章 / 保存词语 / 短语 / 高亮`，提供搜索、分页、原文段落锚点、来源链接、浏览器 TTS、当前页 CSV 导出、文章取消收藏和私人故事显式删除确认。它与正式词汇/短语 corpus 页面分开，不能把用户点选的 surface text 伪称为已确认 lemma。
-- `/read/vocabulary` 默认视图是可直接学习的词表：条目来自 `content/glossary/es-zh-common-v1.json` 中 `reviewStatus: reviewed` 的已审核常用词条（词目、词性、CEFR、中文释义、用法、搭配、例句和用于语料匹配的词形），因此不依赖数据库是否已索引 lexeme，也不受用户是否收藏过词语影响。其余视图分别是：`?view=frequency` 的**参考词频内容词表**和 `?view=lexicon` 的正式词元词库；已保存词句不再在此页重复呈现，统一由 `/read/saved-items` 承担。**频次视图的排序基准是参考词表 `content/word-lists/es-frequency-v1.json`**（8000 个西语词元、按词频名次排列；来源与授权见同目录 provenance 清单），而非本项目语料自身的词频统计 —— 后者会把 `que`/`los`/`por`/`con` 这类**功能词**顶到最前，而那正是学习者最不需要背的词。因此该视图：① 先从参考词表中**滤除封闭类功能词**（冠词、介词、连词、代词、限定词、纯程度/否定助词；清单与收录标准见 `content/word-lists/es-function-words-v1.json`，**所有动词一律不滤**，`ser`/`estar`/`haber`/`tener`/`ir`/`hacer` 等 15 个必需动词由 `neverFilter` 显式保护并被测试遍历）；② **保持参考表自身的词频名次**，不再按本语料频次重排（客户端也不得重排：`VocabularyWordGrid` 按收到的顺序渲染）；③ 每个词仍附上**本语料中的出现次数**与一条真实例句（复用 `corpus_occurrences` 的可见性谓词与 180 字符截断）。当前规模为参考表 8000 词、词架 7922 词（滤除 78）。**已知限制**：出现次数按词元拼写的**表层形**统计，而语料未做词形还原，故 `estar` 尚不覆盖 `está`/`estoy`；例句上下文在 LEX-INDEX-001 以 `index` 模式运行前为 `null`（`corpus_occurrences` 仍为空），但次数可用；搜索只覆盖参考词表，故 `george`/`pablo` 这类表外词形不再出现。该视图声明自己是**学习骨架**而非全部词形清单。
+- `/read/saved-items` 是个人阅读书架，页签为 `全部 / 文章 / 保存词语 / 短语 / 高亮`，提供搜索、分页、原文段落锚点、来源链接、统一合成朗读、当前页 CSV 导出、文章取消收藏和私人故事显式删除确认。它与正式词汇/短语 corpus 页面分开，不能把用户点选的 surface text 伪称为已确认 lemma。
+- 当前 `/read/vocabulary` 使用单一高频词架，提供搜索、按浏览器保存的词汇标记和双向默写。参考词频与词典资产提供词架本体，语料例句作为补充。
+- 早期的多视图词汇页记录。旧默认视图是可直接学习的词表：条目来自 `content/glossary/es-zh-common-v1.json` 中 `reviewStatus: reviewed` 的已审核常用词条（词目、词性、CEFR、中文释义、用法、搭配、例句和用于语料匹配的词形），因此不依赖数据库是否已索引 lexeme，也不受用户是否收藏过词语影响。其余视图分别是：`?view=frequency` 的**参考词频内容词表**和 `?view=lexicon` 的正式词元词库；已保存词句不再在此页重复呈现，统一由 `/read/saved-items` 承担。**频次视图的排序基准是参考词表 `content/word-lists/es-frequency-v1.json`**（8000 个西语词元、按词频名次排列；来源与授权见同目录 provenance 清单），而非本项目语料自身的词频统计 —— 后者会把 `que`/`los`/`por`/`con` 这类**功能词**顶到最前，而那正是学习者最不需要背的词。因此该视图：① 先从参考词表中**滤除封闭类功能词**（冠词、介词、连词、代词、限定词、纯程度/否定助词；清单与收录标准见 `content/word-lists/es-function-words-v1.json`，**所有动词一律不滤**，`ser`/`estar`/`haber`/`tener`/`ir`/`hacer` 等 15 个必需动词由 `neverFilter` 显式保护并被测试遍历）；② **保持参考表自身的词频名次**，不再按本语料频次重排（客户端也不得重排：`VocabularyWordGrid` 按收到的顺序渲染）；③ 每个词仍附上**本语料中的出现次数**与一条真实例句（复用 `corpus_occurrences` 的可见性谓词与 180 字符截断）。当前规模为参考表 8000 词、词架 7922 词（滤除 78）。**已知限制**：出现次数按词元拼写的**表层形**统计，而语料未做词形还原，故 `estar` 尚不覆盖 `está`/`estoy`；例句上下文在 LEX-INDEX-001 以 `index` 模式运行前为 `null`（`corpus_occurrences` 仍为空），但次数可用；搜索只覆盖参考词表，故 `george`/`pablo` 这类表外词形不再出现。该视图声明自己是**学习骨架**而非全部词形清单。
 - 学习卡片按需调用 `GET /api/v1/read/vocabulary-example?word=<词目>`，服务端只在已发布、版权清晰且字幕审核通过的媒体段落中按词边界匹配，命中不到时回退到已发布版权清晰的文章段落，返回一条真实例句、可用的中文翻译和 `stableKey@version` 来源；结果按词形缓存一小时。查询词形只允许字母、重音符号和撇号，不进入正则以外语义。列表与卡片都不把自动统计的 surface text 伪称为 verified lemma。
 - 词表的“已熟悉 / 想复现 / 暂不学习”标记保存在浏览器本地（按用户 scope 隔离），不写入 `evidence_events`、`user_skill_states`、`mastery`、`confidence` 或角色记忆；向量表写入需要新的 schema 决策。
 - `VOCAB-PANEL-002` 详情布局试版：1200px 起使用 350–400px 右侧分栏，首次开关以选中词为纵向锚点并在有界渲染帧内补偿 `content-visibility` 高度变化；不注册滚动测量监听。901–1199px 为右侧抽屉，900px 以下保留底部抽屉，均通过 body portal 呈现，背景 inert、焦点限制和关闭恢复具有明确生命周期。详情按词目/发音、释义、个人标记、带署名例句、完整的已有变位/形式、默认折叠用法/搭配、查词排序；变形独立展示，不折叠或截断，仍为既有词形数据而非完整变位表。切词复位详情滚动与折叠。临时历史项在关闭/返回/卸载时释放，并恢复先前的 scrollRestoration；内容、音源、标记存储与证据语义不变。
@@ -591,7 +594,7 @@ Web 使用浏览器适配器。Flutter 优先使用成熟插件；插件不能�
 
 训练 Alpha 的 Web 适配器位于 `src/modules/providers/speech/browser-recorder.ts` 和 `src/modules/providers/tts/browser-tts.ts`。录音适配器只在内存中返回当前尝试的音频 Blob 与 `mimeType`/`sizeBytes` 元数据，不创建长期媒体资产。麦克风权限拒绝、格式不支持、录音失败和 TTS 不可用分别映射为稳定能力错误；麦克风启动失败直接把当前输出方式切换为文字，不产生能力证据。
 
-`READ-TTS-002`：浏览器 TTS 在用户点击的同步调用中先 `speak()` 排入，再 `resume()` 恢复；Chrome 曾暂停的引擎可能将 `paused` 清为 false，却仍不开始朗读，不能只根据该标志跳过恢复。文章划词按钮显示当前播放状态，再点停止；朗读、试听与停止通过 generation 隔离过期回调，卸载时停止并使旧 generation 失效。保留启动/结束看门狗及可重试错误，不增加供应商调用、录音保留或学习证据。
+`READ-TTS-002`（历史实现，后由 ADR-0019 取代）：浏览器 TTS 在用户点击的同步调用中先 `speak()` 排入，再 `resume()` 恢复；Chrome 曾暂停的引擎可能将 `paused` 清为 false，却仍不开始朗读，不能只根据该标志跳过恢复。文章划词按钮显示当前播放状态，再点停止；朗读、试听与停止通过 generation 隔离过期回调，卸载时停止并使旧 generation 失效。保留启动/结束看门狗及可重试错误，不增加供应商调用、录音保留或学习证据。
 
 2026-10-13 同任务续修：`speaking/pending` 仅代表队列活动，只有 utterance 的 start 才通知 UI 播放开始。默认音色尊重已保存西语偏好，其后优先本地 es-ES/本地西语。未开始的音色超时或报告语言/合成/网络不可用时，在取消原请求后尝试其他列出的西语音色，本地优先、最多三次；已经开始、用户取消或权限拒绝不触发自动回放。没有其他列出音色时保留一次同音色重试和指定 `lang` 的引擎兜底。启动总预算为本地 4 秒/在线 12 秒（无队列活动时分别在 2/6 秒先判失败）；已开始的长文保留原运行预算。适配器自己的 generation 防止旧失败在下一次点击/停止后发起回退。缺失 start 但实际已有音频的引擎仍可能被预算取消，不能把队列标志当作实际听感验证。
 
