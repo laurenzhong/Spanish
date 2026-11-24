@@ -1,3 +1,9 @@
+## 2026-11-24 UI-LOGIN-001（已部署生产）
+
+- 依所有者要求，将本地「欢迎回来」卡片、六格邮箱验证码输入、状态反馈和 60 秒重发倒计时同步到线上。隔离分支为 codex/ui-login-001，实现提交 de20a29，PR #89 合入 main（72655e8）。变更限定于登录页、OTP 表单、所需组件和样式、模板许可及登录回归。
+- 验证通过。认证聚焦 Vitest 16/16，桌面和移动 Chromium 登录路径 8/8，TypeScript、改动文件 ESLint、本地生产 build 和 Vercel Preview 通过。全仓 ESLint 报告 3 个既有错误和 4 个警告。全量 Playwright 在收集时因既有 Lucía JSON import 缺少类型属性退出。全量 Vitest 在生产基线也能复现的 11 项词频、对话和词汇页失败后停止，未完成全量。
+- Vercel Production 部署 8022663498 为 success。当前工作站直连正式域名和部署直链超时，未完成线上页面实看、真实邮件收发或 iPhone Safari 自动填充。下一步在可达网络打开 [线上登录页](https://spanish-self.vercel.app/login)，用自己的邮箱验证验证码收取和自动填充。
+
 ## 2026-11-22 `MEDIA-WORD-005`（三条 CNN 播客生产回填，已验证）
 
 - 所有者确认已有来源授权覆盖这三条实际播放音频的 MiniMax 转写和修订后的双语字幕展示。范围限定为 `it_b8b1acc77b58`、`it_85e12064ed9a`、`it_e8a7d612f616`，没有改动 Language Reactor 来源配置和其他媒体。
