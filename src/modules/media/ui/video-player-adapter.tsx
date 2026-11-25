@@ -4,19 +4,21 @@ import { useEffect, useEffectEvent, useRef } from "react";
 
 import {
   applyPlyrSpeed,
+  bindNativeMediaEvents,
   DEFAULT_MEDIA_PLAYBACK_SPEED,
   disableNativeMediaControls,
   markPlyrContainer,
   mountPlyrAutoPauseControl,
   videoPlyrOptions,
   type MountedAutoPauseControl,
+  type MediaPlayerState,
   type PlyrConstructor,
   type PlyrInstance,
 } from "./media-plyr";
 
 export { mountPlyrAutoPauseControl } from "./media-plyr";
 
-export type VideoPlayerState = "ready" | "playing" | "paused" | "ended";
+export type VideoPlayerState = MediaPlayerState;
 export type VideoPlayerLifecycle = Readonly<{ onReady: () => void; onStateChange: (state: VideoPlayerState) => void; onError: (message: string) => void; onPositionChange?: () => void }>;
 export interface VideoPlayerPort { play(): void; pause(): void; seek(positionMs: number): void; currentTime(): number; /** Optional so existing controlled test fakes keep working unchanged. */ setSpeed?(speed: number): void; destroy(): void }
 export type VideoPlayerFactory = (target: HTMLElement, input: Readonly<{ videoId: string; lifecycle: VideoPlayerLifecycle }>) => VideoPlayerPort;
@@ -354,10 +356,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
     let autoPauseMountTimer: number | null = null;
     let autoPauseMountAttempts = 0;
 
-    const ready = () => { if (current()) { onError(null); onStateChange("ready"); } };
-    const playing = () => { if (current()) onStateChange("playing"); };
-    const paused = () => { if (current()) onStateChange("paused"); };
-    const ended = () => { if (current()) onStateChange("ended"); };
+    const changeState = (state: VideoPlayerState) => { if (current()) onStateChange(state); };
     const positionChanged = () => { if (current()) onPositionChange?.(); };
     const error = () => { if (current()) onError("本站视频资源暂时无法播放，请重试或检查媒体托管状态。"); };
     const destroyPlayer = () => {
@@ -379,6 +378,12 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
     };
 
     disableNativeMediaControls(video);
+    onError(null);
+    const mediaEvents = factory ? null : bindNativeMediaEvents(video, {
+      onStateChange: changeState,
+      onPositionChange: positionChanged,
+      onError: error,
+    });
     video.dataset.mediaPlayerState = "loading";
     video.src = videoUrl;
     video.dataset.source = videoUrl;
@@ -389,13 +394,8 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
         port = factory(video, {
           url: videoUrl,
           lifecycle: {
-            onReady: ready,
-            onStateChange: (state) => {
-              if (state === "playing") playing();
-              else if (state === "paused") paused();
-              else if (state === "ended") ended();
-              else ready();
-            },
+            onReady: () => changeState("ready"),
+            onStateChange: changeState,
             onPositionChange: positionChanged,
             onError: (message) => { if (current()) onError(message); },
           },
@@ -411,16 +411,6 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
     } else {
       void import("plyr").then((module) => {
         if (cancelled || !current()) return;
-        video.addEventListener("canplay", ready);
-        video.addEventListener("loadedmetadata", ready);
-        video.addEventListener("play", playing);
-        video.addEventListener("playing", playing);
-        video.addEventListener("pause", paused);
-        video.addEventListener("ended", ended);
-        video.addEventListener("timeupdate", positionChanged);
-        video.addEventListener("seeking", positionChanged);
-        video.addEventListener("seeked", positionChanged);
-        video.addEventListener("error", error);
         const candidate = module as unknown as { default?: PlyrConstructor };
         const Plyr = candidate.default ?? module as unknown as PlyrConstructor;
         player = new Plyr(video, { ...videoPlyrOptions, speed: { options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], selected: speedRef.current } });
@@ -428,13 +418,16 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
         playerContainer.dataset.mediaPlayerState = "ready";
         playerContainer.setAttribute("aria-label", title);
         video.removeAttribute("aria-label");
-        player.on("ready", ready);
         mountAutoPause();
         const plyrInstance = player;
         port = {
           play: () => {
             if (!plyrInstance) return;
-            void Promise.resolve(plyrInstance.play()).catch(() => { if (current()) onError("浏览器阻止了视频播放，请再次点击播放。"); });
+            void Promise.resolve(plyrInstance.play()).catch((error: unknown) => {
+              if (current() && !video.error && error instanceof DOMException && error.name === "NotAllowedError") {
+                onError("浏览器阻止了视频播放，请再次点击播放。");
+              }
+            });
           },
           pause: () => {
             plyrInstance?.pause();
@@ -455,7 +448,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
         applyPlyrSpeed(plyrInstance, speedRef.current);
         portRef.current = port;
         onPortChange(port);
-        if (video.readyState >= 1) ready();
+        mediaEvents?.attachPort();
       }).catch(() => {
         video.dataset.mediaPlayerState = "error";
         if (current()) onError("统一视频播放器加载失败，请重试或检查媒体资源。");
@@ -466,19 +459,7 @@ export function HostedVideoPlayerAdapter({ videoUrl, title, factory, speed = DEF
       if (generationRef.current === generation) generationRef.current += 1;
       if (autoPauseMountTimer !== null) window.clearTimeout(autoPauseMountTimer);
       autoPauseControl?.destroy();
-      if (player) {
-        player.off("ready", ready);
-      }
-      video.removeEventListener("canplay", ready);
-      video.removeEventListener("loadedmetadata", ready);
-      video.removeEventListener("play", playing);
-      video.removeEventListener("playing", playing);
-      video.removeEventListener("pause", paused);
-      video.removeEventListener("ended", ended);
-      video.removeEventListener("timeupdate", positionChanged);
-      video.removeEventListener("seeking", positionChanged);
-      video.removeEventListener("seeked", positionChanged);
-      video.removeEventListener("error", error);
+      mediaEvents?.destroy();
       portRef.current = null;
       onPortChange(null);
       if (port) port.destroy();

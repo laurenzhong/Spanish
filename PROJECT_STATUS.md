@@ -1,3 +1,9 @@
+## 2026-11-25 `MOBILE-INTERACTION-FIX`（移动端媒体和按钮修复，`review`）
+
+- 实现提交 `f9c4f16`，分支 `codex/mobile-interaction-fix` 基于线上 `main@cf99531`。托管视频和播客保留早期资源错误及重试入口，区分缓冲和起播。字幕跟随仅滚动列表。窄屏视频控制条独立显示，进度条和主要控制支持点按。文章筛选、学习筛选和阅读／我的窄屏入口修复裁切或遮挡。
+- 隔离候选聚焦 Vitest 154/154（含内存 PostgreSQL 权限与隐私、媒体合同）、TypeScript、改动文件 ESLint 和生产构建 77/77 通过。桌面／手机 Chromium 与手机 WebKit 扩展 Playwright 61 通过、1 个手机专用用例在桌面跳过、1 个 WebKit 播客长文本居中用例失败；该用例在同一线上基线以相同断言值失败。全仓 ESLint 仍报告既有 3 错误、4 警告，涉及文件与基线一致。
+- 发布只包含以上移动端修复与对应测试。全量 Vitest、全量 Playwright、真实生产账号及 iPhone Safari/PWA 真机尚未验收。下一步通过 Vercel 对同一代码改动做预览和生产烟测，并在 iPhone 真机确认触控和弱网播放。
+
 ## 2026-11-25 `HOME-OPT-001`（公开首页入口修复，`review`）
 
 - 实现提交 `f449dfb`，分支 `codex/home-entry-navigation`。公开首页三个「进入学习」直接导航到 `/learn`。有效会话直达影音资料库，匿名访问由现有鉴权跳到 `/login?next=%2Flearn`。页头和页脚「登录」通过浏览器直接打开 `/login`。公开首页导航保留滑动下划线，并增加触屏按下反馈。

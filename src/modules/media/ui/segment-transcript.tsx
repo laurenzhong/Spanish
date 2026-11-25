@@ -141,9 +141,6 @@ export function SegmentTranscript({ segments, activeIndex, captionMode, currentP
       const top = transcript.scrollTop + rowBounds.top - transcript.getBoundingClientRect().top - transcript.clientTop;
       const centeredTop = top - Math.max(0, (transcript.clientHeight - rowBounds.height) / 2);
       transcript.scrollTop = Math.max(0, Math.min(centeredTop, transcript.scrollHeight - transcript.clientHeight));
-    } else {
-      // Narrow layouts let the full transcript participate in page scrolling.
-      row.scrollIntoView?.({ block: "center", inline: "nearest" });
     }
   }, [activeIndex, follow, captionMode, segments, mountedCount]);
   if (state === "loading") return <TranscriptLoading expectedCount={expectedCount} />;

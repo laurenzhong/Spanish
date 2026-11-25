@@ -63,6 +63,21 @@ describe("segment transcript following", () => {
     expect(list.scrollTop).toBe(360);
   });
 
+  it("does not scroll the page when a short transcript already fits in its pane", () => {
+    const { props, view, list } = setup();
+    Object.defineProperty(list, "scrollHeight", { configurable: true, value: list.clientHeight });
+    const previous = HTMLElement.prototype.scrollIntoView;
+    const pageScroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = pageScroll;
+    try {
+      view.rerender(<SegmentTranscript {...props} activeIndex={1} />);
+      expect(pageScroll).not.toHaveBeenCalled();
+      expect(list.scrollTop).toBe(0);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = previous;
+    }
+  });
+
   it("clamps to transcript boundaries and recenters after changing caption mode", () => {
     const { props, view, list } = setup();
     view.rerender(<SegmentTranscript {...props} activeIndex={19} />);

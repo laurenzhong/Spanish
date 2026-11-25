@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MediaLearningWorkbench } from "@/src/modules/media";
@@ -73,6 +73,61 @@ afterEach(() => {
 });
 
 describe("default media player", () => {
+  it.each(["video", "podcast"] as const)("keeps an early %s resource failure visible until a fresh retry", async (kind) => {
+    const setSource = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src")!.set!;
+    let fail = true;
+    const source = vi.spyOn(HTMLMediaElement.prototype, "src", "set").mockImplementation(function (this: HTMLMediaElement, url) {
+      setSource.call(this, url);
+      if (!fail) return;
+      Object.defineProperty(this, "error", { value: { code: 4 } });
+      this.dispatchEvent(new Event("error"));
+    });
+    try {
+      render(<MediaLearningWorkbench playback={media(kind)} />);
+      await waitFor(() => expect(plyrMock.instances).toHaveLength(1));
+      act(() => plyrMock.instances[0]!.emit("ready"));
+      expect(screen.getByRole("alert")).toHaveTextContent(/暂时无法播放/);
+      const first = plyrMock.instances[0]!.target;
+      fail = false;
+      fireEvent.click(screen.getByRole("button", { name: "重试播放" }));
+      await waitFor(() => expect(plyrMock.instances).toHaveLength(2));
+      const second = plyrMock.instances[1]!.target;
+      expect(second).not.toBe(first);
+      fireEvent(second, new Event("canplay"));
+      expect(screen.getByText("播放器已就绪")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "重试播放" })).not.toBeInTheDocument();
+    } finally {
+      source.mockRestore();
+    }
+  });
+
+  it.each(["video", "podcast"] as const)("distinguishes the %s play request, rebuffering and actual playback", async (kind) => {
+    render(<MediaLearningWorkbench playback={media(kind)} />);
+    await waitFor(() => expect(plyrMock.instances).toHaveLength(1));
+    const player = plyrMock.instances[0]!;
+    act(() => player.emit("ready"));
+    expect(screen.getByText("播放器准备中…")).toBeInTheDocument();
+
+    const element = player.target as HTMLMediaElement;
+    let paused = false;
+    Object.defineProperty(element, "paused", { get: () => paused });
+    fireEvent(element, new Event("play"));
+    expect(screen.getByText("正在缓冲…")).toBeInTheDocument();
+    fireEvent(element, new Event("canplay"));
+    expect(screen.getByText("正在缓冲…")).toBeInTheDocument();
+    fireEvent(element, new Event("playing"));
+    expect(screen.getByText("正在播放")).toBeInTheDocument();
+    fireEvent(element, new Event("waiting"));
+    expect(screen.getByText("正在缓冲…")).toBeInTheDocument();
+
+    paused = true;
+    fireEvent(element, new Event("pause"));
+    fireEvent(element, new Event("waiting"));
+    fireEvent(element, new Event("playing"));
+    expect(screen.queryByText("正在缓冲…")).not.toBeInTheDocument();
+    expect(screen.queryByText("正在播放")).not.toBeInTheDocument();
+  });
+
   it.each(["hosted", "youtube", "podcast"] as const)("creates a connected fresh %s input on source replacement and ignores old events", async (kind) => {
     const onStateChange = vi.fn();
     const onPortChange = vi.fn();
@@ -89,7 +144,10 @@ describe("default media player", () => {
     view.rerender(adapter(false));
     act(() => {
       if (kind === "youtube") first.emit("playing");
-      else first.target.dispatchEvent(new Event("playing"));
+      else {
+        Object.defineProperty(first.target, "paused", { value: false });
+        first.target.dispatchEvent(new Event("playing"));
+      }
     });
     expect(first.destroy).not.toHaveBeenCalled();
     expect(latestState).toHaveBeenCalledWith("playing");
@@ -109,7 +167,10 @@ describe("default media player", () => {
     expect(latestState).not.toHaveBeenCalled();
     act(() => {
       if (kind === "youtube") second.emit("playing");
-      else second.target.dispatchEvent(new Event("playing"));
+      else {
+        Object.defineProperty(second.target, "paused", { value: false });
+        second.target.dispatchEvent(new Event("playing"));
+      }
     });
     expect(latestState).toHaveBeenCalledWith("playing");
     view.unmount();
