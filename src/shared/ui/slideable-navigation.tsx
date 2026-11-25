@@ -32,6 +32,8 @@ type SlideableNavigationProps = Readonly<{
    * pointer or keyboard is inside the navigation.
    */
   restingIndicator?: "first" | "hidden";
+  /** Lets the browser navigate without waiting for the Next.js router. */
+  documentNavigation?: boolean;
   /**
    * Intercepts a click so a caller can load the destination itself (the media
    * library switches kind without a server round trip). A false return lets the
@@ -60,8 +62,10 @@ export function SlideableNavigation({
   activeKey,
   indicatorClassName = "slideable-navigation__indicator",
   restingIndicator = "first",
+  documentNavigation = false,
   onSelect,
 }: SlideableNavigationProps) {
+  const NavigationLink = documentNavigation ? "a" : Link;
   const navigationRef = useRef<HTMLElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);
   const selectedIndexRef = useRef<number | null>(null);
@@ -150,7 +154,7 @@ export function SlideableNavigation({
   return (
     <nav className={className} aria-label={label} ref={navigationRef}>
       {items.map((item) => (
-        <Link
+        <NavigationLink
           key={item.key}
           className={item.className}
           href={item.href}
@@ -170,7 +174,7 @@ export function SlideableNavigation({
             : undefined}
         >
           {item.label}
-        </Link>
+        </NavigationLink>
       ))}
       <span className={indicatorClassName} aria-hidden="true" ref={indicatorRef} />
     </nav>

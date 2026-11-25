@@ -34,7 +34,7 @@ test("shows the public introduction without requiring a session", async ({
     await expect(publicNavigation.getByRole("link", { name: "阅读" })).toHaveAttribute("href", "/login?next=%2Fread");
     await expect(publicNavigation.getByRole("link", { name: "登录" })).toHaveAttribute("href", "/login");
   }
-  await expect(page.getByRole("link", { name: /进入学习/ }).first()).toHaveAttribute("href", "/login?next=%2Flearn");
+  await expect(page.getByRole("link", { name: /进入学习/ }).first()).toHaveAttribute("href", "/learn");
 });
 
 test("redirects anonymous product traffic to email OTP login", async ({

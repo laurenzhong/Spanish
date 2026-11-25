@@ -1,5 +1,57 @@
 import { expect, test } from "@playwright/test";
 
+test.describe("public home entry navigation", () => {
+  test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+  const entries = [
+    ["header learning link", ".landing-nav", "进入学习", "/learn", "/login?next=%2Flearn"],
+    ["hero learning link", ".landing-hero__actions", "进入学习", "/learn", "/login?next=%2Flearn"],
+    ["closing learning link", ".landing-closing", "进入学习", "/learn", "/login?next=%2Flearn"],
+    ["header login link", ".landing-nav", "登录", "/login", "/login"],
+    ["footer login link", ".landing-footer", "登录", "/login", "/login"],
+  ] as const;
+
+  for (const [entry, container, label, path, destination] of entries) {
+    test(`${entry} starts a document navigation while route data is stalled`, async ({ page }) => {
+      await page.route(/\/(?:learn|login)(?:\?|$)/, async (route) => {
+        // Leave RSC requests unanswered to model a slow Next.js transition.
+        if (route.request().headers().rsc !== "1") await route.continue();
+      });
+      await page.goto("/");
+      await expect(page.locator(".landing-nav__links")).toHaveAttribute("data-indicator", "ready");
+
+      const [request] = await Promise.all([
+        page.waitForRequest((request) => request.isNavigationRequest(), { timeout: 5000 }),
+        page.locator(container).getByRole("link", { name: label, exact: true }).click(),
+      ]);
+      expect(new URL(request.url()).pathname).toBe(path);
+      await expect(page).toHaveURL(destination);
+      await expect(page.getByRole("heading", { name: "¡Bienvenido!" })).toBeVisible();
+    });
+  }
+
+  test("opens the library directly with an existing session", async ({ page, baseURL }) => {
+    await page.context().addCookies([{
+      name: "spanish-e2e-user",
+      value: "00000000-0000-4000-8000-000000000001",
+      url: baseURL,
+    }]);
+    await page.goto("/");
+
+    const loginRequests: string[] = [];
+    page.on("request", (request) => {
+      const { pathname } = new URL(request.url());
+      if (request.isNavigationRequest() && pathname === "/login") loginRequests.push(pathname);
+    });
+    await page.locator(".landing-nav__cta").click();
+    await expect(page).toHaveURL("/learn");
+    const channels = page.getByRole("navigation", { name: "学习频道" });
+    await expect(channels.getByRole("link", { name: "视频" })).toBeVisible();
+    await expect(channels.getByRole("link", { name: "播客" })).toBeVisible();
+    expect(loginRequests).toEqual([]);
+  });
+});
+
 /**
  * The public home is the only surface an anonymous visitor sees, and its whole
  * argument is a silent recording of the real product. These checks cover what a

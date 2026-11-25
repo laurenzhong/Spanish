@@ -39,6 +39,10 @@ const demo = {
   poster: "/public-home/midnight-sun-kiruna-poster.webp",
 };
 
+// Start document navigation on the first tap. The protected route handles
+// anonymous visitors and preserves their destination through sign-in.
+const learnHref = "/learn";
+
 type Capability = Readonly<{
   title: string;
   detail: string;
@@ -120,7 +124,7 @@ export default function PublicHomeExperience() {
           <header className="landing-nav">
             <Link className="landing-wordmark" href="/" aria-label="Sueño 首页">Sue<span>ñ</span>o</Link>
             <PublicHomeNavigation />
-            <Link className="landing-nav__cta" href="/login?next=%2Flearn">进入学习</Link>
+            <a className="landing-nav__cta" href={learnHref}>进入学习</a>
           </header>
 
           <section className="landing-hero" aria-labelledby="public-home-title">
@@ -129,7 +133,7 @@ export default function PublicHomeExperience() {
               <h1 id="public-home-title"><span>把认识的<span className="landing-hero__keep">西语</span>，</span><span>变成真正说得出口的话。</span></h1>
               <p className="landing-lede">真实语速的视频和播客，配上逐句字幕与词语回看：先听懂，再把完整意思说出口。</p>
               <div className="landing-hero__actions">
-                <Link className="landing-button landing-button--accent" href="/login?next=%2Flearn">进入学习 <span aria-hidden="true">↗</span></Link>
+                <a className="landing-button landing-button--accent" href={learnHref}>进入学习 <span aria-hidden="true">↗</span></a>
                 <a className="landing-text-button" href="#how-it-works">它怎么用 <span aria-hidden="true">↓</span></a>
               </div>
             </div>
@@ -197,13 +201,13 @@ export default function PublicHomeExperience() {
             <h2 id="closing-title">下一句话，从你自己的声音开始。</h2>
             <p>打开就是资料库，选一段顺眼的开始就好。</p>
           </div>
-          <Link className="landing-button landing-button--accent" href="/login?next=%2Flearn">进入学习 <span aria-hidden="true">↗</span></Link>
+          <a className="landing-button landing-button--accent" href={learnHref}>进入学习 <span aria-hidden="true">↗</span></a>
         </section>
 
         <footer className="landing-footer">
           <Link className="landing-wordmark" href="/" aria-label="Sueño 首页">Sue<span>ñ</span>o</Link>
           <span>把话说出来</span>
-          <Link href="/login">登录</Link>
+          <a href="/login">登录</a>
         </footer>
       </div>
     </main>

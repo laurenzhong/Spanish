@@ -30,7 +30,9 @@ describe("public home", () => {
     expect(screen.getByRole("heading", { name: "把认识的西语，变成真正说得出口的话。" })).toBeInTheDocument();
 
     // Every entry point the header, hero and closing section offer.
-    expect(screen.getAllByRole("link", { name: /进入学习/ })[0]).toHaveAttribute("href", "/login?next=%2Flearn");
+    const learningLinks = screen.getAllByRole("link", { name: /^进入学习$/ });
+    expect(learningLinks).toHaveLength(3);
+    for (const link of learningLinks) expect(link).toHaveAttribute("href", "/learn");
     const publicNavigation = screen.getByRole("navigation", { name: "公开页面导航" });
     expect(within(publicNavigation).getByRole("link", { name: "产品方式" })).toHaveAttribute("href", "#how-it-works");
     expect(within(publicNavigation).getByRole("link", { name: "阅读" })).toHaveAttribute("href", "/login?next=%2Fread");
