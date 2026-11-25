@@ -60,8 +60,13 @@ test.beforeEach(async ({ page }) => {
     const playAudio = HTMLMediaElement.prototype.play;
     const pauseAudio = HTMLMediaElement.prototype.pause;
     const loadAudio = HTMLMediaElement.prototype.load;
+    const nativePaused = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "paused")!.get!;
     const positions = new WeakMap<HTMLMediaElement, number>();
     const sources = new WeakMap<HTMLMediaElement, string>();
+    Object.defineProperty(HTMLMediaElement.prototype, "paused", {
+      configurable: true,
+      get() { return this instanceof HTMLAudioElement ? nativePaused.call(this) : this.dataset.playing !== "true"; },
+    });
     Object.defineProperty(HTMLMediaElement.prototype, "currentTime", {
       configurable: true,
       get() { return positions.get(this) ?? 0; },
@@ -76,6 +81,7 @@ test.beforeEach(async ({ page }) => {
       set(value: string) {
         sources.set(this, value);
         (this as HTMLMediaElement).dataset.source = value;
+        queueMicrotask(() => this.dispatchEvent(new Event("loadedmetadata")));
       },
     });
     HTMLMediaElement.prototype.load = function () {
@@ -86,6 +92,7 @@ test.beforeEach(async ({ page }) => {
       if (this instanceof HTMLAudioElement) return playAudio.call(this);
       this.dataset.playing = "true";
       this.dispatchEvent(new Event("play"));
+      this.dispatchEvent(new Event("playing"));
       return Promise.resolve();
     };
     HTMLMediaElement.prototype.pause = function () {
@@ -200,6 +207,42 @@ test("follows long subtitles in the center and respects the follow switch", asyn
   await expect(transcript).toHaveCount(0);
   await page.getByRole("button", { name: "西语", exact: true }).click();
   await expect.poll(async () => (await geometry()).centerError).toBeLessThan(2);
+});
+
+test("keeps playback controls in reach while short subtitles follow on a phone", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "Phone-only playback layout");
+  for (const width of [320, 375, 430]) {
+    await page.setViewportSize({ width, height: 667 });
+    await page.goto(`/learn/media/${nativeFixtureStableKey}`);
+    await expect(page.getByText("播放器已就绪")).toBeVisible();
+    const bar = page.locator(".plyr__controls");
+    const play = bar.locator('button[data-plyr="play"]');
+    const seek = bar.locator('input[data-plyr="seek"]');
+    for (const target of [play, seek]) {
+      const box = (await target.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThan(600);
+    }
+    expect((await seek.boundingBox())!.width).toBeGreaterThan(width / 2);
+    const before = await page.evaluate(() => scrollY);
+    await play.tap();
+    await page.locator("video").evaluate((video: HTMLVideoElement) => {
+      video.currentTime = 2;
+      video.dispatchEvent(new Event("timeupdate"));
+    });
+    await expect(page.locator(".segment-transcript .is-active")).toHaveAttribute("id", "segment-1");
+    expect(await page.evaluate(() => scrollY)).toBe(before);
+    await play.tap();
+    await expect(page.locator("video")).toHaveAttribute("data-playing", "false");
+    if (width === 320) {
+      await bar.locator('.plyr__menu > button[data-plyr="settings"]').tap();
+      await page.getByRole("menuitem", { name: /Speed/ }).tap();
+      await page.locator('button[data-plyr="speed"][value="1.5"]').tap();
+      await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.playbackRate)).toBe(1.5);
+    }
+  }
 });
 
 test("opens exact corpus time and segment before restoring media progress", async ({ page }) => {

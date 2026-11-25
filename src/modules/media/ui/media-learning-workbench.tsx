@@ -13,6 +13,18 @@ import { HostedVideoPlayerAdapter, type NativeVideoPlayerFactory, VideoPlayerAda
 
 type ProgressSnapshot = Readonly<{ lastPositionMs: number; lastSegmentIndex: number | null; status: "in_progress" | "completed" }>;
 type ProgressSyncState = "idle" | "saving" | "saved" | "conflict" | "error";
+const playerStatusLabels = {
+  loading: "播放器准备中…",
+  ready: "播放器已就绪",
+  buffering: "正在缓冲…",
+  playing: "正在播放",
+  paused: "播放器已就绪",
+  ended: "播放结束",
+} as const;
+
+function isPlaybackActive(state: VideoPlayerState | "loading"): boolean {
+  return state === "playing" || state === "buffering";
+}
 
 export function MediaLearningWorkbench({ playback, playerFactory, nativeVideoFactory, audioPlayerFactory, initialPositionMs, initialSegmentIndex, transcriptState, transcriptExpectedSegments, onTranscriptRetry }: Readonly<{
   playback: MediaPlayback;
@@ -323,7 +335,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
         // is still booting is what leaves a black, unresponsive frame. Inputs are
         // excluded above, so typing a space in the lexical drawer still works.
         if (playerStateRef.current !== "loading") {
-          if (playerStateRef.current === "playing") playerRef.current?.pause();
+          if (isPlaybackActive(playerStateRef.current)) playerRef.current?.pause();
           else playerRef.current?.play();
         }
       } else if (key === "a") previous();
@@ -340,7 +352,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
   }, [next, previous, replay, toggleAutoPause]);
 
   useEffect(() => {
-    if (!playerRef.current || playerState === "loading" || playerState === "ended") return;
+    if (!playerRef.current || playerState === "loading" || playerState === "buffering" || playerState === "ended") return;
     const timer = window.setInterval(() => {
       const current = readCurrentPosition();
       if (current === null) return;
@@ -368,30 +380,34 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
   const handlePortChange = useCallback((port: VideoPlayerPort | AudioPlayerPort | null) => {
     if (playerRef.current !== port) {
       clearCompletion();
-      playerFailedRef.current = false;
     }
     playerRef.current = port;
     if (port && playerStateRef.current !== "loading") syncPosition();
   }, [clearCompletion, syncPosition]);
   const handlePositionChange = useCallback(() => {
-    const position = syncPosition(!(playerStateRef.current === "playing" && autoPauseRef.current));
+    const position = syncPosition(!(isPlaybackActive(playerStateRef.current) && autoPauseRef.current));
     if (completedRef.current && position !== null && position < playback.media.durationMs) clearCompletion();
   }, [clearCompletion, playback.media.durationMs, syncPosition]);
   const handleStateChange = useCallback((state: VideoPlayerState | AudioPlayerState) => {
-    if (state === "ended" && playerRef.current && !playerFailedRef.current) {
+    const recovered = playerFailedRef.current && (state === "ready" || state === "playing");
+    if (recovered) {
+      playerFailedRef.current = false;
+      setPlayerError(null);
+    }
+    if (playerFailedRef.current) return;
+    if (state === "ended" && playerRef.current) {
       completedRef.current = true;
       setCompleted(true);
-    } else if (state === "playing" || state === "ready") {
-      playerFailedRef.current = false;
+    } else if (isPlaybackActive(state)) {
       clearCompletion();
     }
-    syncPosition(!(state === "playing" && autoPauseRef.current));
-    playerStateRef.current = state;
-    setPlayerState(state);
-    // Apply the saved position exactly once per media mount. Plyr announces
-    // `ready` again after a source reload (a seek into an unbuffered range, for
-    // example), and re-seeking on every announcement yanked the video backwards
-    // over and over — the picture tore while the player still claimed to play.
+    if (state !== "ready" || playerStateRef.current === "loading" || recovered) {
+      playerStateRef.current = state;
+      setPlayerState(state);
+    }
+    syncPosition(!(isPlaybackActive(playerStateRef.current) && autoPauseRef.current));
+    // Apply the saved position once. Metadata can arrive while a play request
+    // is already buffering, so readiness must not replace the playback state.
     // A deep-linked `?segment=` that only became resolvable after the transcript
     // arrived takes over from the saved position at this first ready.
     if (state === "ready" && restoredPositionKeyRef.current !== playback.media.stableKey) {
@@ -461,7 +477,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
     return () => { cancelled = true; };
   }, [currentPositionMs, playback.media.stableKey, playback.segments, readCurrentPosition, requestedPositionMs, requestedSegmentIndex, updateActiveIndex]);
   const pauseForWord = useCallback(() => {
-    if (playerStateRef.current === "playing") playerRef.current?.pause();
+    if (isPlaybackActive(playerStateRef.current)) playerRef.current?.pause();
   }, []);
   const openWord = useCallback((word: string, sentence: string, trigger: HTMLButtonElement) => {
     pauseForWord();
@@ -500,7 +516,7 @@ function MediaLearningWorkbenchSession({ playback, playerFactory, nativeVideoFac
         <span className="media-loading-line media-loading-line--segment-label" />
         <span className="media-loading-line media-loading-line--segment" />
       </div> : null}
-      <p className="media-player-status" role={playerError ? "alert" : "status"}>{playerError ?? (playerState === "loading" ? "播放器准备中…" : playerState === "playing" ? "正在播放" : playerState === "ended" ? "播放结束" : "播放器已就绪")}</p>
+      <p className="media-player-status" role={playerError ? "alert" : "status"}>{playerError ?? playerStatusLabels[playerState]}</p>
       {playerError ? <button aria-label="重试播放" className="media-player-retry" onClick={retryPlayer} type="button">重试播放</button> : null}
       {progressSyncState === "conflict" ? <div className="media-progress-status is-error" role="alert">
         <p>进度已在其他页面更新。重新读取服务器进度后即可继续同步，不需要刷新整个页面。</p>

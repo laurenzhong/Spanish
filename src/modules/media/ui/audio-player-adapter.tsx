@@ -6,16 +6,18 @@ import type { MediaArtwork } from "../domain";
 import {
   applyPlyrSpeed,
   audioPlyrOptions,
+  bindNativeMediaEvents,
   DEFAULT_MEDIA_PLAYBACK_SPEED,
   disableNativeMediaControls,
   markPlyrContainer,
   mountPlyrAutoPauseControl,
   type MountedAutoPauseControl,
+  type MediaPlayerState,
   type PlyrConstructor,
   type PlyrInstance,
 } from "./media-plyr";
 
-export type AudioPlayerState = "ready" | "playing" | "paused" | "ended";
+export type AudioPlayerState = MediaPlayerState;
 export type AudioPlayerLifecycle = Readonly<{
   onReady: () => void;
   onStateChange: (state: AudioPlayerState) => void;
@@ -175,15 +177,7 @@ export function AudioPlayerAdapter({
       port = nextPort;
       portRef.current = nextPort;
       onPortChange(nextPort);
-      onError(null);
     };
-    const ready = () => lifecycle.onReady();
-    const playing = () => lifecycle.onStateChange("playing");
-    const paused = () => { if (!audio.ended) lifecycle.onStateChange("paused"); };
-    const ended = () => lifecycle.onStateChange("ended");
-    const timeUpdate = () => lifecycle.onPositionChange?.();
-    const seeking = () => lifecycle.onPositionChange?.();
-    const seeked = () => lifecycle.onPositionChange?.();
     const failed = () => lifecycle.onError("播客音频暂时无法播放，请检查网络后重试。");
     const destroyPlayer = () => {
       if (!player || playerDestroyed) return;
@@ -206,6 +200,12 @@ export function AudioPlayerAdapter({
       }
     };
     disableNativeMediaControls(audio);
+    onError(null);
+    const mediaEvents = factory ? null : bindNativeMediaEvents(audio, {
+      onStateChange: lifecycle.onStateChange,
+      onPositionChange: () => lifecycle.onPositionChange?.(),
+      onError: failed,
+    });
     audio.dataset.mediaPlayerState = "loading";
     audio.src = audioUrl;
     audio.dataset.source = audioUrl;
@@ -222,21 +222,6 @@ export function AudioPlayerAdapter({
         if (current()) onError(error instanceof Error ? error.message : "播客播放器初始化失败。");
       }
     } else {
-      // HTMLMediaElement events are the source of truth for the HTML5
-      // provider. Plyr proxies these events through its container in normal
-      // browsers, but listening to the media node as well keeps lifecycle
-      // updates reliable for controlled media seams that do not bubble media
-      // events through Plyr.
-      audio.addEventListener("canplay", ready);
-      audio.addEventListener("loadedmetadata", ready);
-      audio.addEventListener("play", playing);
-      audio.addEventListener("playing", playing);
-      audio.addEventListener("pause", paused);
-      audio.addEventListener("ended", ended);
-      audio.addEventListener("timeupdate", timeUpdate);
-      audio.addEventListener("seeking", seeking);
-      audio.addEventListener("seeked", seeked);
-      audio.addEventListener("error", failed);
       void import("plyr").then((module) => {
         if (cancelled || !current()) return;
         const Plyr = resolvePlyrConstructor(module);
@@ -245,13 +230,16 @@ export function AudioPlayerAdapter({
         playerContainer.dataset.mediaPlayerState = "ready";
         playerContainer.setAttribute("aria-label", title);
         audio.removeAttribute("aria-label");
-        player.on("ready", ready);
         mountAutoPause();
         const plyrInstance = player;
         attachPort({
           play: () => {
             if (!plyrInstance) return;
-            void Promise.resolve(plyrInstance.play()).catch(() => lifecycle.onError("浏览器阻止了音频播放，请再次点击播放。"));
+            void Promise.resolve(plyrInstance.play()).catch((error: unknown) => {
+              if (!audio.error && error instanceof DOMException && error.name === "NotAllowedError") {
+                lifecycle.onError("浏览器阻止了音频播放，请再次点击播放。");
+              }
+            });
           },
           pause: () => {
             // Plyr delegates to the media node, but calling the node as well
@@ -277,7 +265,7 @@ export function AudioPlayerAdapter({
           destroy: destroyPlayer,
         });
         applyPlyrSpeed(plyrInstance, speedRef.current);
-        if (audio.readyState >= 1) ready();
+        mediaEvents?.attachPort();
       }).catch(() => {
         audio.dataset.mediaPlayerState = "error";
         if (current()) onError("统一音频播放器加载失败，请重试。");
@@ -290,19 +278,7 @@ export function AudioPlayerAdapter({
       if (autoPauseMountTimer !== null) window.clearTimeout(autoPauseMountTimer);
       autoPauseControl?.destroy();
       if (autoPauseControlRef.current === autoPauseControl) autoPauseControlRef.current = null;
-      if (player) {
-        player.off("ready", ready);
-      }
-      audio.removeEventListener("canplay", ready);
-      audio.removeEventListener("loadedmetadata", ready);
-      audio.removeEventListener("play", playing);
-      audio.removeEventListener("playing", playing);
-      audio.removeEventListener("pause", paused);
-      audio.removeEventListener("ended", ended);
-      audio.removeEventListener("timeupdate", timeUpdate);
-      audio.removeEventListener("seeking", seeking);
-      audio.removeEventListener("seeked", seeked);
-      audio.removeEventListener("error", failed);
+      mediaEvents?.destroy();
       portRef.current = null;
       onPortChange(null);
       if (port) port.destroy();

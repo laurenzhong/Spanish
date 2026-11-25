@@ -13,6 +13,9 @@ test.beforeEach(async ({ context, page, baseURL }) => {
   await page.addInitScript(() => {
     const positions = new WeakMap<HTMLMediaElement, number>();
     const sources = new WeakMap<HTMLMediaElement, string>();
+    Object.defineProperty(HTMLMediaElement.prototype, "paused", {
+      configurable: true, get() { return this.dataset.playing !== "true"; },
+    });
     Object.defineProperty(HTMLMediaElement.prototype, "currentTime", {
       configurable: true,
       get() { return positions.get(this) ?? 0; },
@@ -27,6 +30,7 @@ test.beforeEach(async ({ context, page, baseURL }) => {
       set(value: string) {
         sources.set(this, value);
         (this as HTMLMediaElement).dataset.source = value;
+        queueMicrotask(() => this.dispatchEvent(new Event("loadedmetadata")));
       },
     });
     HTMLMediaElement.prototype.load = function () {
@@ -35,6 +39,7 @@ test.beforeEach(async ({ context, page, baseURL }) => {
     HTMLMediaElement.prototype.play = function () {
       this.dataset.playing = "true";
       this.dispatchEvent(new Event("play"));
+      this.dispatchEvent(new Event("playing"));
       return Promise.resolve();
     };
     HTMLMediaElement.prototype.pause = function () {
@@ -112,11 +117,11 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
 
   await page.keyboard.press("q");
   await expect(page.getByRole("button", { name: "关闭自动暂停" })).toHaveAttribute("aria-pressed", "true");
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const element = document.querySelector("audio")!;
     element.currentTime = 2.2;
     element.dispatchEvent(new Event("timeupdate"));
-    element.dispatchEvent(new Event("play"));
+    await element.play();
   });
   await page.waitForTimeout(800);
   await expect(audio).toHaveAttribute("data-paused-by-app", "true");
@@ -124,10 +129,10 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
 
   await page.getByRole("button", { name: "双语" }).click();
   await expect(page.getByText("早上好，你要买点什么？")).toBeVisible();
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const audio = document.querySelector("audio")!;
     audio.currentTime = 0.9;
-    audio.dispatchEvent(new Event("play"));
+    await audio.play();
   });
   await expect(page.getByRole("button", { name: "查看词语 qué" })).toHaveAttribute("data-active-word", "true");
 

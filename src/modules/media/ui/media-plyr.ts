@@ -24,6 +24,68 @@ export type PlyrConstructor = new (target: HTMLElement, options: Readonly<Record
  */
 export const PLYR_VERSION = "3.8.4" as const;
 export type PlyrMediaKind = "audio" | "video";
+export type MediaPlayerState = "ready" | "buffering" | "playing" | "paused" | "ended";
+
+/** Bind before assigning src. Plyr's ready event only describes its controls. */
+export function bindNativeMediaEvents(element: HTMLMediaElement, callbacks: Readonly<{
+  onStateChange: (state: MediaPlayerState) => void;
+  onPositionChange: () => void;
+  onError: () => void;
+}>) {
+  let failed = false;
+  let portAttached = false;
+  let metadataLoaded = false;
+  let readyReported = false;
+  const error = () => {
+    if (failed) return;
+    failed = true;
+    callbacks.onError();
+  };
+  const state = (next: MediaPlayerState) => {
+    if (!failed) callbacks.onStateChange(next);
+  };
+  const reportReady = () => {
+    if (element.error) error();
+    if (failed || !portAttached || readyReported || !metadataLoaded) return;
+    readyReported = true;
+    state("ready");
+  };
+  const ready = () => {
+    metadataLoaded = true;
+    reportReady();
+  };
+  const buffer = () => {
+    if (!element.paused && !element.ended) state("buffering");
+  };
+  const position = () => {
+    if (!failed) callbacks.onPositionChange();
+  };
+
+  const listeners = {
+    loadedmetadata: ready,
+    canplay: ready,
+    play: buffer,
+    waiting: buffer,
+    playing: () => { if (!element.paused && !element.ended) state("playing"); },
+    pause: () => { if (!element.ended) state("paused"); },
+    ended: () => state("ended"),
+    error,
+    timeupdate: position,
+    seeking: position,
+    seeked: position,
+  };
+  for (const [event, listener] of Object.entries(listeners)) element.addEventListener(event, listener);
+  return {
+    attachPort: () => {
+      portAttached = true;
+      if (element.readyState >= HTMLMediaElement.HAVE_METADATA) metadataLoaded = true;
+      reportReady();
+    },
+    destroy: () => {
+      for (const [event, listener] of Object.entries(listeners)) element.removeEventListener(event, listener);
+    },
+  };
+}
 
 /**
  * Speeds offered by the visible workbench control. Keep every value inside
