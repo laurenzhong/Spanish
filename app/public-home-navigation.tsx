@@ -29,6 +29,7 @@ export function PublicHomeNavigation() {
       items={destinations}
       indicatorClassName="landing-nav__indicator"
       restingIndicator="hidden"
+      documentNavigation
     />
   );
 }

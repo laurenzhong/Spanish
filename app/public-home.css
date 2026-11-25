@@ -27,6 +27,10 @@ main.landing-page {
   --home-accent-bg: var(--landing-coral);
 }
 .landing-page a { color: inherit; text-decoration: none; }
+.landing-page :is(.landing-nav__links a, .landing-nav__cta, .landing-button--accent, .landing-footer > a:last-child) {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgb(229 116 89 / 30%);
+}
 .landing-shell { width: min(100%, 1120px); margin-inline: auto; padding-inline: clamp(16px, 4vw, 32px); }
 
 /* --- Top band: header + hero ------------------------------------------- */

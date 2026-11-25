@@ -1,3 +1,9 @@
+## 2026-11-25 `HOME-OPT-001`（公开首页入口修复，`review`）
+
+- 实现提交 `f449dfb`，分支 `codex/home-entry-navigation`。公开首页三个「进入学习」直接导航到 `/learn`。有效会话直达影音资料库，匿名访问由现有鉴权跳到 `/login?next=%2Flearn`。页头和页脚「登录」通过浏览器直接打开 `/login`。公开首页导航保留滑动下划线，并增加触屏按下反馈。
+- 线上旧版通过 WebKit 的 375 × 812 触屏视口和延迟 4 秒的路由数据请求复现了等待。修复后，本地生产构建在同视口阻塞路由数据的情况下，五个入口首次触按均发起页面请求，开关 JavaScript 各 5/5。桌面和移动 Chromium 定向回归 22/22（含模拟登录直达资料库）、聚焦 Vitest 25/25、TypeScript、受影响 ESLint 和生产构建 77/77 全部通过。
+- 全仓 ESLint 仍有既有 3 错误、4 警告。全量 Vitest 在词频数据新鲜度测试失败时停止。全量 Playwright 收集仍被 Lucía JSON 缺少导入类型属性阻塞。下一步在 iPhone XS Safari 上复核未登录跳转和有效会话直达。
+
 ## 2026-11-24 `DOCS-OVERVIEW-001`（`done`，产品文档复核）
 
 - 文档提交 `1f5bf35`，分支 `codex/docs-product-overview` 基于 `origin/main@b99e9c5`。更新 README、文档索引、架构、认证、内容审核与采集手册、内容入口两份设计和 ADR-0008 的背景说明。
