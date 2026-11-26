@@ -1,3 +1,9 @@
+## 2026-11-26 `HOME-OPT-001`（公开首页入口和视频位置调整，`review`）
+
+- 实现提交 `be346b3`，分支 `codex/home-layout-refinement`。将首屏下方的珊瑚色「进入学习」按钮移到页头右侧，移除页头的「登录」和页面下方重复操作。保留 `/learn` 的原生导航及登录回跳。
+- 本地生产构建对照线上旧版。375px WebKit 中视频上移 76px，1440px Chromium 中上移 20px。两个视口的单一学习入口均为 44px 高，首次触按或点击均发起页面请求，未登录时正确回跳。聚焦 Vitest 25/25、桌面和移动 Chromium 回归 16/16、TypeScript、改动文件 ESLint、生产构建 77/77 通过。
+- 全仓 ESLint 报告既有 3 错误和 4 警告。全量 Vitest 在既有词频数据新鲜度断言失败后停止。全量 Playwright 收集被既有 Lucía JSON 导入类型属性阻塞。后续在 iPhone XS Safari 真机刷新首页验证排版与触按。
+
 ## 2026-11-25 `MOBILE-INTERACTION-FIX`（移动端媒体和按钮修复，`review`）
 
 - 实现提交 `f9c4f16`，分支 `codex/mobile-interaction-fix` 基于线上 `main@cf99531`。托管视频和播客保留早期资源错误及重试入口，区分缓冲和起播。字幕跟随仅滚动列表。窄屏视频控制条独立显示，进度条和主要控制支持点按。文章筛选、学习筛选和阅读／我的窄屏入口修复裁切或遮挡。
