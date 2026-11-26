@@ -297,6 +297,8 @@ podcast publisher 在播放校验未过期时调用 `media` application/reposito
 
 ### 6.4 收藏表达与私人场景生成
 
+探索的正式表达目录同时读取通用表达包和场景实战包。场景表达必须属于可见场景并通过自身的发布状态过滤，继续使用原有稳定键、内容版本及收藏接口。客户端根据原句匹配关联场景，试听使用统一的鉴权朗读接口。
+
 `scenario-practice` 通过 `GET/POST /api/v1/expressions/saved` 和归档接口拥有私人表达收藏。客户端只能提交版本化正式表达引用、本人阅读选区 ID、本人场景复盘 ID，或明确标记的手工文本；application 重新解析来源并以 `clientSaveId` 幂等保存，收藏行为不写学习证据。正式公共表达在生产环境仍必须为 `published`，开发环境的草稿预览不会改变公开发布状态。
 
 `POST /api/v1/scenarios/generate` 只在用户确认后调用 `ScenarioGenerationProvider`。输入为主题或当前用户拥有的单个来源 ID；repository 最小化投影文本，application 以请求内容指纹校验 `Idempotency-Key`，再验证 Provider 返回的临时人物、开场、沟通目标、条件变化和表达 Schema，并确认选中的来源表达没有被丢弃。成功结果完整写入 `personal_scenarios` 后才返回，失败不保存半成品。私人场景以 `personal.<uuid>` 作为 Web/API 稳定引用，只能由拥有者读取、归档、开始实战或进入 Explore 建议候选；它保持私人 draft，不进入公共内容 API，也不创建长期角色或关系记忆。
