@@ -1,0 +1,263 @@
+.explore-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.explore-view-tabs,
+.explore-navigation__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.explore-view-tabs button,
+.explore-navigation__actions :is(a, button) {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0 12px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: .82rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.explore-view-tabs button {
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.explore-view-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.explore-navigation__actions button,
+.explore-expression-scenario {
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.explore-view-tabs button:hover,
+.explore-navigation__actions :is(a, button):hover {
+  color: var(--foreground);
+  background: var(--surface-soft);
+}
+
+.explore-navigation :is(a, button):focus-visible,
+.explore-expression-scenario:focus-visible,
+.personal-scenario-generator__choices label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.explore-page .explore-intent__field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.explore-page .explore-library__filter-trigger,
+.explore-page .explore-library__filter-panel button,
+.explore-page .explore-library__active-filters button {
+  min-height: 44px;
+}
+
+.explore-private-state,
+.explore-expression-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.explore-private-state p {
+  margin: 0;
+}
+
+.explore-page .explore-scenario-card__goal {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.explore-page .explore-expression-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.explore-expression-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explore-expression-card__copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.explore-expression-card__copy h3 {
+  margin: 0;
+  font-family: var(--font-serif);
+  overflow-wrap: anywhere;
+}
+
+.explore-expression-card__copy small {
+  color: var(--muted);
+}
+
+.explore-expression-tools {
+  justify-content: flex-end;
+}
+
+.explore-expression-tools button {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.explore-expression-tools button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.explore-expression-tools svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.explore-expression-scenario {
+  display: inline-flex;
+  min-height: 44px;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  font-size: .8rem;
+}
+
+.explore-expression-scenario:is(button) {
+  padding-inline: 0;
+}
+
+.explore-page .personal-scenario-generator__heading h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+}
+
+.explore-page .personal-scenario-generator__choices label {
+  position: relative;
+  display: grid;
+  min-height: 52px;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.explore-page .personal-scenario-generator__choices label.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.personal-scenario-generator__sources {
+  min-inline-size: 0;
+}
+
+.personal-scenario-generator__options {
+  display: grid;
+  max-height: min(216px, 30dvh);
+  align-content: start;
+  gap: 7px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.personal-scenario-generator__options strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.personal-scenario-generator__options label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.personal-scenario-generator__actions .primary-action {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .explore-navigation {
+    gap: 0;
+  }
+
+  .explore-view-tabs button,
+  .explore-navigation__actions :is(a, button) {
+    padding-inline: 8px;
+  }
+
+  .explore-navigation__actions {
+    margin-left: auto;
+  }
+
+  .explore-page .personal-scenario-generator {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .explore-page .personal-scenario-generator__choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .explore-page .personal-scenario-generator__choices label {
+    min-height: 44px;
+  }
+
+  .personal-scenario-generator__choices label small {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .personal-scenario-generator__options {
+    max-height: min(136px, 22dvh);
+  }
+}
+
+@media (max-width: 360px) {
+  .explore-navigation {
+    display: grid;
+  }
+
+  .explore-navigation__actions {
+    margin-left: 0;
+  }
+
+  .personal-scenario-generator__options {
+    max-height: min(112px, 18dvh);
+  }
+}

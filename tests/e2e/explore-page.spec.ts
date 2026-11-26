@@ -14,7 +14,7 @@ test("keeps the desktop discovery workspace focused while exposing three content
   await page.goto("/explore");
 
   await expect(page.getByRole("heading", { name: "探索场景" })).toHaveClass(/sr-only/u);
-  await expect(page.getByRole("link", { name: "练习历史" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "练习历史" })).toHaveAttribute("href", "/explore/history");
   await expect(page.getByRole("tablist", { name: "探索内容" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "场景" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("searchbox", { name: "搜索场景" })).toHaveAttribute("placeholder", "搜索场景");
@@ -92,7 +92,6 @@ test("offers explicit source choices and generates a private scenario only after
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
   let generationRequest: { header: string | undefined; body: { source?: { sourceType?: string; topic?: string } } } | null = null;
-  await page.route("**/api/v1/explore/scenario-suggestions", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { requestId: "request-12345678", suggestionSessionId: "session-12345678", scenario: null, reasons: [], eligibleCount: 0, canSwap: false, limitReached: false, fallback: { canGeneratePersonalScenario: true, topicChips: ["日常生活", "学习办事", "社交沟通"] } } }) }));
   await page.route("**/api/v1/scenarios", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apiVersion: "v1", data: { scenarios: [], generationSources: { savedExpressions: [{ id: "10000000-0000-4000-8000-000000000001", label: "Quisiera pedir ayuda.", detail: "我想请求帮助。" }], readingHighlights: [], recentErrors: [] }, generationAvailable: true } }) }));
   await page.route("**/api/v1/scenarios/generate", async (route) => {
     generationRequest = { header: route.request().headers()["idempotency-key"], body: route.request().postDataJSON() as { source?: { sourceType?: string; topic?: string } } };
@@ -100,13 +99,15 @@ test("offers explicit source choices and generates a private scenario only after
   });
 
   await page.goto("/explore");
-  await page.getByRole("button", { name: /随机来一个/u }).click();
   const generatorTrigger = page.getByRole("button", { name: "生成私人场景" });
+  await expect(generatorTrigger).toBeVisible();
   await generatorTrigger.click();
+  await expect(page.getByLabel("练习主题")).toBeFocused();
+  expect(generationRequest).toBeNull();
   await page.getByRole("button", { name: "关闭私人场景生成" }).click();
   await expect(generatorTrigger).toBeFocused();
   await generatorTrigger.click();
-  await expect(page.getByRole("radio", { name: /按主题/u })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: /按主题/u })).toBeChecked();
   await expect(page.getByRole("radio", { name: /用收藏表达/u })).toBeVisible();
   await expect(page.getByRole("radio", { name: /从阅读迁移/u })).toBeVisible();
   await expect(page.getByRole("radio", { name: /练近期难点/u })).toBeVisible();
@@ -117,6 +118,86 @@ test("offers explicit source choices and generates a private scenario only after
   expect(generationRequest).toMatchObject({ header: expect.stringMatching(/^generate-/u), body: { source: { sourceType: "topic", topic: "在药店询问用法" } } });
   const dimensions = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
   expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client + 1);
+});
+
+test("keeps the generation action near the selection with a long saved expressions list", async ({ page }) => {
+  await authenticate(page);
+  const sources = Array.from({ length: 20 }, (_, index) => ({
+    id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    label: `¿Podría ayudarme con el trámite número ${index + 1}?`,
+    detail: "我想确认办理手续需要带哪些材料。",
+  }));
+  await page.route("**/api/v1/scenarios", (route) => route.fulfill({
+    json: { data: { generationAvailable: true, generationSources: { savedExpressions: sources, readingHighlights: [], recentErrors: [] } } },
+  }));
+  for (const width of [320, 375, 1024]) {
+    await page.setViewportSize({ width, height: width === 320 ? 640 : 720 });
+    await page.goto("/explore");
+    await page.getByRole("button", { name: "生成私人场景", exact: true }).click();
+    await page.getByText("用收藏表达", { exact: true }).click();
+    const fieldset = page.getByRole("group", { name: "选择一项" });
+    await expect(fieldset.getByRole("radio")).toHaveCount(20);
+    await fieldset.getByText(sources[0]!.label, { exact: true }).click();
+    const confirm = page.getByRole("button", { name: "确认生成私人场景" });
+    await expect(confirm).toBeEnabled();
+    const actionBounds = await confirm.evaluate((element) => {
+      const action = element.getBoundingClientRect();
+      const navigation = document.querySelector(".primary-navigation")?.getBoundingClientRect();
+      const visibleBottom = navigation && navigation.height > 0 && navigation.bottom >= innerHeight - 1
+        ? navigation.top : innerHeight;
+      return { top: action.top, bottom: action.bottom, visibleBottom };
+    });
+    expect(actionBounds.top).toBeGreaterThanOrEqual(0);
+    expect(actionBounds.bottom).toBeLessThanOrEqual(actionBounds.visibleBottom);
+    const lastOption = fieldset.getByText(sources[19]!.label, { exact: true });
+    await lastOption.click();
+    await expect(fieldset.getByRole("radio", { name: /número 20\?/u })).toBeChecked();
+    expect(await fieldset.locator(".personal-scenario-generator__options").evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  }
+});
+
+test("supports keyboard tabs and provides a return path from practice history", async ({ page }) => {
+  await authenticate(page);
+  await page.goto("/explore");
+  const tabs = page.getByRole("tablist", { name: "探索内容" });
+  await tabs.getByRole("tab", { name: "场景" }).focus();
+  await page.keyboard.press("ArrowRight");
+  const expressions = tabs.getByRole("tab", { name: "表达", selected: true });
+  await expect(expressions).toBeFocused();
+  await expect(page.getByRole("tabpanel", { name: "表达" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^朗读表达：/u }).first()).toBeVisible();
+  await page.keyboard.press("End");
+  await expect(tabs.getByRole("tab", { name: "内容包", selected: true })).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(tabs.getByRole("tab", { name: "场景", selected: true })).toBeFocused();
+  await page.getByRole("link", { name: "练习历史" }).click();
+  await expect(page.getByRole("heading", { name: "场景练习历史" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "到期复现" })).toBeVisible();
+  await page.getByRole("link", { name: "返回探索" }).click();
+  await expect(page.getByRole("searchbox", { name: "搜索场景" })).toBeVisible();
+});
+
+test("uses the shared Spanish read-aloud endpoint and recovers when it is unavailable", async ({ page }) => {
+  await authenticate(page);
+  const requests: unknown[] = [];
+  await page.route("**/api/v1/tts", async (route) => {
+    requests.push(route.request().postDataJSON());
+    await route.fulfill({ status: 503, json: { error: { code: "PROVIDER_UNAVAILABLE" } } });
+  });
+  await page.goto("/explore?view=expressions");
+  const first = page.locator(".explore-expression-card").first();
+  const text = await first.locator("[lang=es]").innerText();
+  const readAloud = first.getByRole("button", { name: /^朗读表达：/u });
+  await readAloud.click();
+  await expect(page.getByRole("status").filter({ hasText: "朗读" })).toBeVisible();
+  await expect(readAloud).toBeEnabled();
+  expect(requests).toEqual([{ text, languageTag: "es-ES" }]);
+  await expect(first.getByRole("heading")).toHaveText(text);
+  const scenario = first.getByRole("link", { name: "进入关联场景" });
+  await expect(scenario).toHaveAttribute("href", "/explore/scenarios/scenario.restaurant-ordering");
+  await scenario.click();
+  await expect(page).toHaveURL(/\/explore\/scenarios\/scenario\.restaurant-ordering$/u);
+  await expect(page.getByRole("heading", { name: "餐厅沟通：点单与饮食限制" })).toBeVisible();
 });
 
 test("keeps communication themes inside the scenario filter instead of a long index", async ({ page }) => {

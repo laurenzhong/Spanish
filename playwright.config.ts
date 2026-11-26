@@ -32,12 +32,11 @@ export default defineConfig({
   ],
   webServer: {
     // Keep E2E isolated from the developer's long-running server on port 3000.
-    // Windows installs in this workspace expose pnpm through Corepack rather
-    // than a standalone pnpm executable. Keeping the shim in the command lets
-    // Playwright start the same Next process from both PowerShell and cmd.exe.
-    command: `corepack pnpm exec next dev --hostname 127.0.0.1 --port ${e2ePort}`,
+    command: `node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${e2ePort}`,
     env: {
       ...process.env,
+      // Windows filesystem notifications can leave nested routes out of the dev manifest.
+      ...(process.platform === "win32" ? { WATCHPACK_POLLING: process.env.WATCHPACK_POLLING ?? "true" } : {}),
       AUTH_E2E_ENABLED: "1",
       CONTENT_WORKFLOW_OWNER_USER_IDS: "00000000-0000-4000-8000-000000000001",
       // Keep E2E deterministic and prevent accidental writes to the local .env database.

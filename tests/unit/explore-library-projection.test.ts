@@ -108,7 +108,7 @@ describe("explore library projection", () => {
     );
     expect(
       library.expressions.filter((item) => item.sourceKind === "formal"),
-    ).toHaveLength(12);
+    ).toHaveLength(36);
     expect(library.expressions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -133,7 +133,16 @@ describe("explore library projection", () => {
 
     expect(library.privateState).toBe("unavailable");
     expect(library.scenarios).toHaveLength(9);
-    expect(library.expressions).toHaveLength(11);
+    expect(library.expressions).toHaveLength(35);
+    const restaurant = library.scenarios.find((item) => item.stableKey === "scenario.restaurant-ordering");
+    expect(restaurant?.expressionTexts).toContain("Quería pedir el menú del día.");
+    expect(library.expressions).toContainEqual(expect.objectContaining({
+      text: "Quería pedir el menú del día.",
+      sourceKind: "formal",
+      translation: expect.any(String),
+      categoryLabel: "日常生活",
+      saveSource: { sourceType: "formal-expression", expressionKey: "restaurant.queria-pedir", version: 1 },
+    }));
   });
 
   it("degrades to the authorized public catalog when private storage is unavailable", async () => {

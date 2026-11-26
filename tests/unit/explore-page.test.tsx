@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ExploreDashboardDto } from "@/src/modules/explore/domain";
@@ -127,7 +127,7 @@ describe("ExplorePageContent", () => {
 
     const heading = screen.getByRole("heading", { name: "探索场景" });
     expect(heading).toHaveClass("sr-only");
-    expect(screen.queryByRole("link", { name: "练习历史" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "练习历史" })).toHaveAttribute("href", "/explore/history");
     expect(screen.queryByText("选择辅助")).not.toBeInTheDocument();
     expect(screen.queryByText("暂时不知道练什么？")).not.toBeInTheDocument();
     expect(screen.queryByText("根据可信学习状态和收藏表达推荐")).not.toBeInTheDocument();
@@ -221,6 +221,37 @@ describe("ExplorePageContent", () => {
     expect(screen.getByRole("tab", { name: "内容包" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("咖啡馆里的新朋友")).toBeInTheDocument();
     expect(screen.queryByText("¿Cómo va todo?")).not.toBeInTheDocument();
+  });
+
+  it("links exact scene expressions and opens the generator with an owned expression", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      data: { generationAvailable: true, generationSources: { savedExpressions: [], readingHighlights: [], recentErrors: [] } },
+    })));
+    const associatedLibrary: ExploreLibraryDto = {
+      ...library,
+      scenarios: [{ ...library.scenarios[0]!, expressionTexts: ["Como va todo."] }],
+    };
+    render(<ExplorePageContent dashboard={dashboard} library={associatedLibrary} initialView="expressions" />);
+    expect(screen.getByRole("link", { name: "进入关联场景" })).toHaveAttribute("href", "/explore/scenarios/scenario.campus-administration");
+    const [trigger] = screen.getAllByRole("button", { name: "用这句生成场景" });
+    fireEvent.click(trigger!);
+    expect(screen.getByRole("radio", { name: /用收藏表达/u })).toBeChecked();
+    await waitFor(() => expect(screen.getByRole("button", { name: "确认生成私人场景" })).toBeEnabled());
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["/api/v1/scenarios"]);
+    fireEvent.click(screen.getByRole("button", { name: "关闭私人场景生成" }));
+    expect(trigger).toHaveFocus();
+  });
+
+  it("offers a private-library retry without hiding the public catalogue", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(privatePayload());
+    render(<ExplorePageContent userId="owner" dashboard={dashboard} library={publicLibrary} />);
+    expect(await screen.findByText("私人内容暂不可用，当前显示公共内容。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /校园办事/u })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重试加载" }));
+    expect(await screen.findByRole("link", { name: /药店沟通/u })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试加载" })).not.toBeInTheDocument();
   });
 
   it("uses expressions as scenario search metadata without listing them separately", () => {

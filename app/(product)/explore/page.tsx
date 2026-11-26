@@ -59,5 +59,5 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
   const filter = first(params.filter);
   const view = first(params.view);
   const initialView: ExploreView | undefined = view === "scenarios" || view === "expressions" || view === "packs" ? view : undefined;
-  return <ExplorePageContent allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} library={library} userId={user.id} initialView={initialView} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} initialFilter={filter === "formal" || filter === "saved" || filter === "recent-error" || filter === "reading" || filter === "available" ? filter : "all"} />;
+  return <ExplorePageContent key={user.id} allowDraftPreview={process.env.NODE_ENV !== "production"} dashboard={dashboard} library={library} userId={user.id} initialView={initialView} initialQuery={first(params.q) ?? ""} initialPack={first(params.pack) ?? null} initialSaved={first(params.saved) === "1"} initialFilter={filter === "formal" || filter === "saved" || filter === "recent-error" || filter === "reading" || filter === "available" ? filter : "all"} />;
 }
