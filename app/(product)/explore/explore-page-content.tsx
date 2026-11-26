@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 import type { ExploreDashboardDto } from "@/src/modules/explore/domain";
-import type { ExploreLibraryDto, ExploreLibraryFilter, ExplorePrivateState } from "@/src/modules/explore/domain/explore-library";
+import type { ExploreExpressionGenerationSource, ExploreLibraryDto, ExploreLibraryFilter, ExplorePrivateState } from "@/src/modules/explore/domain/explore-library";
+import { Button, Input, Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/shared/ui/primitives";
 
 import { ExploreLibraryPanel } from "./explore-library-panel";
+import { PersonalScenarioGenerator } from "./personal-scenario-generator";
 import { ScenarioSuggestionPanel } from "./scenario-suggestion-panel";
+import "./explore.css";
 
 const emptyLibrary: ExploreLibraryDto = { scenarios: [], expressions: [], privateState: "unavailable" };
 
@@ -30,6 +34,7 @@ type ExplorePageContentProps = Readonly<{
 export type ExploreView = "scenarios" | "expressions" | "packs";
 
 type ExplorePrivatePayload = Readonly<{ dashboard: ExploreDashboardDto; library: ExploreLibraryDto }>;
+type GeneratorSource = Readonly<{ source: ExploreExpressionGenerationSource; label: string }>;
 
 /** The route spreads the dashboard fields beside `library`, so both live at `data`. */
 type ExplorePrivateResponse = Readonly<{
@@ -52,8 +57,8 @@ type ExplorePrivateResponse = Readonly<{
  * per-user reads it defers are the 250-600 ms round trip that used to sit in
  * front of the first paint.
  */
-async function fetchPrivateExploreData(): Promise<ExplorePrivatePayload> {
-  const response = await fetch("/api/v1/explore/dashboard", { credentials: "same-origin" });
+async function fetchPrivateExploreData(signal: AbortSignal): Promise<ExplorePrivatePayload> {
+  const response = await fetch("/api/v1/explore/dashboard", { credentials: "same-origin", signal });
   if (!response.ok) throw new Error("explore-private-unavailable");
   const payload = (await response.json()) as { data?: ExplorePrivateResponse };
   const { library, goals, packs, resume, userState } = payload.data ?? {};
@@ -123,23 +128,29 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, userId, 
   const [filter, setFilter] = useState<ExploreLibraryFilter>(resolvedInitialFilter);
   const [selectedPack, setSelectedPack] = useState<string | null>(resolvedInitialView === "packs" ? initialPack : null);
   const [privateLoader, setPrivateLoader] = useState<PrivateLoader>({ status: "loading" });
+  const [privateRequest, setPrivateRequest] = useState(0);
+  const [generator, setGenerator] = useState<{ initialSource?: GeneratorSource } | null>(null);
+  const generatorTrigger = useRef<HTMLButtonElement>(null);
+  const generatorOpener = useRef<HTMLButtonElement | null>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Without a viewer there is nothing owned to read. With one, the request
     // starts after the public tree has painted; a late response from an
     // unmounted or replaced page is dropped.
     if (!userId) return;
-    let cancelled = false;
-    void fetchPrivateExploreData()
-      .then((data) => { if (!cancelled) setPrivateLoader({ status: "loaded", data }); })
-      .catch(() => { if (!cancelled) setPrivateLoader({ status: "failed" }); });
-    return () => { cancelled = true; };
-  }, [userId]);
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]);
+    void fetchPrivateExploreData(signal)
+      .then((data) => { if (!signal.aborted) setPrivateLoader({ status: "loaded", data }); })
+      .catch(() => { if (!controller.signal.aborted) setPrivateLoader({ status: "failed" }); });
+    return () => controller.abort();
+  }, [privateRequest, userId]);
 
   const privateState = privateStateOf(privateLoader);
   // The owned payload replaces the shell's bundle-only copy wholesale; a failed
   // read keeps the public catalogue exactly as the server sent it.
-  const activeLibrary: ExploreLibraryDto = privateLoader.status === "loaded"
+  const activeLibrary: ExploreLibraryDto = !userId ? library : privateLoader.status === "loaded"
     ? privateLoader.data.library
     : { ...library, privateState };
   const activeDashboard = privateLoader.status === "loaded" ? privateLoader.data.dashboard : dashboard;
@@ -172,7 +183,8 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, userId, 
     updateUrl({ query: "", filter: "all", pack: null });
   }
 
-  function selectView(nextView: ExploreView) {
+  function selectView(nextView: string) {
+    if (nextView !== "scenarios" && nextView !== "expressions" && nextView !== "packs") return;
     const nextFilter = filterForView(nextView, filter);
     setView(nextView);
     setFilter(nextFilter);
@@ -180,65 +192,97 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, userId, 
     updateUrl({ view: nextView, filter: nextFilter, pack: nextView === "packs" ? selectedPack : null });
   }
 
+  function searchScenarios(topic: string) {
+    setView("scenarios");
+    setQuery(topic);
+    setFilter("all");
+    setSelectedPack(null);
+    updateUrl({ view: "scenarios", query: topic, filter: "all", pack: null });
+    searchInput.current?.focus();
+  }
+
+  function refreshPrivateLibrary() {
+    setPrivateRequest((current) => current + 1);
+  }
+
+  function openGenerator(trigger: HTMLButtonElement, initialSource?: GeneratorSource) {
+    generatorOpener.current = trigger;
+    setGenerator({ initialSource });
+  }
+
+  function closeGenerator() {
+    setGenerator(null);
+    const opener = generatorOpener.current;
+    (opener?.isConnected ? opener : generatorTrigger.current)?.focus();
+  }
+
+  const searchLabel = view === "scenarios" ? "搜索场景" : view === "expressions" ? "搜索表达" : "搜索内容包";
+
   return (
-    <div className="page-stack explore-page">
+    <Tabs className="page-stack explore-page" defaultValue="scenarios" value={view} onValueChange={selectView}>
       <h1 className="sr-only">探索场景</h1>
+      <div className="explore-navigation">
+        <TabsList className="explore-view-tabs" aria-label="探索内容">
+          {views.map((item) => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}
+        </TabsList>
+        <div className="explore-navigation__actions">
+          <Link href="/explore/history" prefetch={false}>练习历史</Link>
+          <button ref={generatorTrigger} type="button" aria-expanded={generator !== null} aria-controls={generator ? "explore-generator" : undefined} onClick={(event) => generator ? closeGenerator() : openGenerator(event.currentTarget)}>生成私人场景</button>
+        </div>
+      </div>
+      {generator ? <PersonalScenarioGenerator
+        key={generator.initialSource?.source.sourceId ?? "topic"}
+        initialSource={generator.initialSource?.source}
+        initialLabel={generator.initialSource?.label}
+        onClose={closeGenerator}
+        onCreated={refreshPrivateLibrary}
+      /> : null}
       <div className="explore-discovery-controls">
-        <section className="explore-intent" aria-label="按意图查找">
-          <label className="explore-intent__field">
-            <span className="sr-only">{view === "scenarios" ? "搜索场景" : view === "expressions" ? "搜索表达" : "搜索内容包"}</span>
-            <input
+        <div className="explore-intent" role="search" aria-label="按意图查找">
+          <div className="explore-intent__field">
+            <Input
+              ref={searchInput}
+              aria-label={searchLabel}
               type="search"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
                 updateUrl({ query: event.target.value });
               }}
-              placeholder={view === "scenarios" ? "搜索场景" : view === "expressions" ? "搜索表达" : "搜索内容包"}
+              placeholder={searchLabel}
             />
             {query
-              ? <button type="button" aria-label="清除搜索" onClick={() => { setQuery(""); updateUrl({ query: "" }); }}><CloseIcon /></button>
+              ? <Button variant="quiet" size="sm" type="button" aria-label="清除搜索" onClick={() => { setQuery(""); updateUrl({ query: "" }); searchInput.current?.focus(); }}><CloseIcon /></Button>
               : <span aria-hidden="true"><SearchIcon /></span>}
-          </label>
-        </section>
-        <ScenarioSuggestionPanel onTopicSelected={(topic) => { setQuery(topic); updateUrl({ query: topic }); }} />
+          </div>
+        </div>
+        {view === "scenarios" ? <ScenarioSuggestionPanel onTopicSelected={searchScenarios} /> : null}
       </div>
-
-      <div className="explore-view-tabs" role="tablist" aria-label="探索内容">
-        {views.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            role="tab"
-            id={`explore-tab-${item.value}`}
-            aria-selected={view === item.value}
-            aria-controls={`explore-panel-${item.value}`}
-            tabIndex={view === item.value ? 0 : -1}
-            onClick={() => selectView(item.value)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <ExploreLibraryPanel
-        dashboard={activeDashboard}
-        library={activeLibrary}
-        view={view}
-        query={query}
-        filter={filter}
-        selectedPack={selectedPack}
-        onFilterChange={(nextFilter) => {
-          const validFilter = filterForView(view, nextFilter);
-          setFilter(validFilter);
-          updateUrl({ filter: validFilter });
-        }}
-        onPackSelected={(pack) => {
-          setSelectedPack(pack);
-          updateUrl({ pack });
-        }}
-        onClear={clearSearchAndFilters}
-      />
-    </div>
+      {views.map((item) => (
+        <TabsContent key={item.value} value={item.value}>
+          <ExploreLibraryPanel
+            dashboard={activeDashboard}
+            library={activeLibrary}
+            view={item.value}
+            query={query}
+            filter={filter}
+            selectedPack={selectedPack}
+            onFilterChange={(nextFilter) => {
+              const validFilter = filterForView(view, nextFilter);
+              setFilter(validFilter);
+              updateUrl({ filter: validFilter });
+            }}
+            onPackSelected={(pack) => {
+              setSelectedPack(pack);
+              updateUrl({ pack });
+            }}
+            onClear={clearSearchAndFilters}
+            onSaved={refreshPrivateLibrary}
+            onUseExpression={(source, label, trigger) => openGenerator(trigger, { source, label })}
+            onRetryPrivate={userId ? () => { setPrivateLoader({ status: "loading" }); refreshPrivateLibrary(); } : undefined}
+          />
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }

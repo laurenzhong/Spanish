@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 
+import { createServerProviderRegistrations } from "@/src/modules/providers/routing/provider-registry";
 import { createDrizzleScenarioLibraryRepository } from "@/src/modules/scenario-practice";
 import { getCurrentUser, verifyRequestUser } from "@/src/shared/auth/server";
 import { getDatabase } from "@/src/shared/db/client";
@@ -12,6 +13,8 @@ export async function GET(request: NextRequest) {
   try {
     const repository = createDrizzleScenarioLibraryRepository(getDatabase());
     const [candidates, generationSources] = await Promise.all([repository.listPersonalSuggestionCandidates(user.id), repository.listGenerationSources(user.id)]);
-    return scenarioData({ scenarios: candidates.map((item) => ({ ...item, route: `/explore/scenarios/personal.${item.id}` })), generationSources, generationAvailable: Boolean(process.env.MINIMAX_API_KEY) || (process.env.NODE_ENV !== "production" && process.env.AUTH_E2E_ENABLED === "1") }, { headers: { "cache-control": "private, no-store" } });
+    const generationAvailable = (process.env.NODE_ENV !== "production" && process.env.AUTH_E2E_ENABLED === "1")
+      || createServerProviderRegistrations().some((provider) => provider.configured && provider.capabilities.includes("scenario-generation"));
+    return scenarioData({ scenarios: candidates.map((item) => ({ ...item, route: `/explore/scenarios/personal.${item.id}` })), generationSources, generationAvailable }, { headers: { "cache-control": "private, no-store" } });
   } catch { return scenarioError(request, "PERSONAL_SCENARIO_UNAVAILABLE", "Private scenarios are temporarily unavailable.", 503, true); }
 }

@@ -1,5 +1,6 @@
 import historicCoreBundle from "@/content/bundles/alpha-core-v1.json";
 import coreBundle from "@/content/bundles/alpha-core-v2.json";
+import scenarioPracticeBundle from "@/content/bundles/scenario-practice-alpha-v4.json";
 
 import { validateContentBundle } from "@/src/modules/content/import";
 import type { ContentBundle } from "@/src/modules/content/schemas";
@@ -13,6 +14,7 @@ import type {
 
 const content = validateContentBundle(coreBundle) as ContentBundle;
 const historicContent = validateContentBundle(historicCoreBundle) as ContentBundle;
+const scenarioContent = validateContentBundle(scenarioPracticeBundle) as ContentBundle;
 
 export type ExploreLibraryRepositoryOptions = Readonly<{ allowDraft?: boolean }>;
 export type ExplorePrivateLibrarySource = Pick<
@@ -36,9 +38,12 @@ function categoryFor(relationshipType: string): Readonly<{ key: string; label: s
   return { key: "social", label: "社交沟通" };
 }
 
+function publicScenarioDetails(allowDraft: boolean) {
+  return listScenarioPracticeDetails().filter((scenario) => scenario.status === "published" || (allowDraft && scenario.status !== "archived"));
+}
+
 function publicScenarios(allowDraft: boolean): ExploreScenarioLibraryCard[] {
-  return listScenarioPracticeDetails()
-    .filter((scenario) => scenario.status === "published" || (allowDraft && scenario.status !== "archived"))
+  return publicScenarioDetails(allowDraft)
     .map((scenario) => {
       const category = categoryFor(scenario.relationshipType);
       return {
@@ -64,38 +69,57 @@ function publicExpressions(
 ): ExploreExpressionLibraryCard[] {
   const goals = new Map(content.goals.map((goal) => [goal.stableKey, goal]));
   const domains = new Map(content.domains.map((domain) => [domain.stableKey, domain]));
-  return content.expressions
-    .filter((expression) => expression.status === "published" || (allowDraft && expression.status !== "archived"))
-    .map((expression) => {
-      const goal = goals.get(expression.goalKey);
-      const domain = goal ? domains.get(goal.domainKey) : undefined;
-      const saved = savedByFormalKey.get(`${expression.stableKey}@${expression.version}`);
-      return {
-        id: `formal:${expression.stableKey}@${expression.version}`,
-        text: expression.text,
-        translation: localized(expression.translations),
-        intent: localized(expression.communicativeIntent),
-        cefr: expression.cefr,
-        region: expression.region,
-        category: domain?.stableKey ?? expression.goalKey,
-        categoryLabel: domain ? localized(domain.title) : goal ? localized(goal.title) : "正式表达",
-        sourceKind: "formal" as const,
-        saved: Boolean(saved),
-        ...(saved ? {
-          savedExpressionId: saved.id,
-          generationSource: { sourceType: "saved-expression" as const, sourceId: saved.id },
-        } : {
-          saveSource: { sourceType: "formal-expression" as const, expressionKey: expression.stableKey, version: expression.version },
-        }),
-      };
-    });
+  const categoryByScenarioExpression = new Map<string, ReturnType<typeof categoryFor>>();
+  for (const scenario of publicScenarioDetails(allowDraft)) {
+    const category = categoryFor(scenario.relationshipType);
+    for (const expression of scenario.expressions) {
+      if (!categoryByScenarioExpression.has(expression.stableKey)) categoryByScenarioExpression.set(expression.stableKey, category);
+    }
+  }
+
+  function card(expression: ContentBundle["expressions"][number], category: string, categoryLabel: string): ExploreExpressionLibraryCard {
+    const versionedKey = `${expression.stableKey}@${expression.version}`;
+    const saved = savedByFormalKey.get(versionedKey);
+    return {
+      id: `formal:${versionedKey}`,
+      text: expression.text,
+      translation: localized(expression.translations),
+      intent: localized(expression.communicativeIntent),
+      cefr: expression.cefr,
+      region: expression.region,
+      category,
+      categoryLabel,
+      sourceKind: "formal",
+      saved: Boolean(saved),
+      ...(saved ? {
+        savedExpressionId: saved.id,
+        generationSource: { sourceType: "saved-expression", sourceId: saved.id },
+      } : {
+        saveSource: { sourceType: "formal-expression", expressionKey: expression.stableKey, version: expression.version },
+      }),
+    };
+  }
+
+  const visible = (expression: ContentBundle["expressions"][number]) =>
+    expression.status === "published" || (allowDraft && expression.status !== "archived");
+
+  const sceneCards = scenarioContent.expressions.filter(visible).flatMap((expression) => {
+    const category = categoryByScenarioExpression.get(expression.stableKey);
+    return category ? [card(expression, category.key, category.label)] : [];
+  });
+  const coreCards = content.expressions.filter(visible).map((expression) => {
+    const goal = goals.get(expression.goalKey);
+    const domain = goal ? domains.get(goal.domainKey) : undefined;
+    return card(expression, domain?.stableKey ?? expression.goalKey, domain ? localized(domain.title) : goal ? localized(goal.title) : "正式表达");
+  });
+  return [...sceneCards, ...coreCards];
 }
 
 function historicalSavedFormalExpressions(
   saved: Awaited<ReturnType<ExplorePrivateLibrarySource["listSavedExpressions"]>>,
 ): ExploreExpressionLibraryCard[] {
   const currentKeys = new Set(
-    content.expressions.map(
+    [...content.expressions, ...scenarioContent.expressions].map(
       (expression) => `${expression.stableKey}@${expression.version}`,
     ),
   );
