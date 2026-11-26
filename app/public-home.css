@@ -27,7 +27,7 @@ main.landing-page {
   --home-accent-bg: var(--landing-coral);
 }
 .landing-page a { color: inherit; text-decoration: none; }
-.landing-page :is(.landing-nav__links a, .landing-nav__cta, .landing-button--accent, .landing-footer > a:last-child) {
+.landing-page :is(.landing-nav__links a, .landing-nav__cta, .landing-footer > a:last-child) {
   touch-action: manipulation;
   -webkit-tap-highlight-color: rgb(229 116 89 / 30%);
 }
@@ -61,23 +61,26 @@ main.landing-page {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
-  padding: 0 16px;
-  border: 1px solid rgb(255 255 255 / 26%);
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 0;
   border-radius: 999px;
   color: #fff !important;
-  background: rgb(255 255 255 / 8%);
-  font-size: .78rem;
+  background: var(--home-accent-bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 22%);
+  font-size: .82rem;
   font-weight: 700;
-  transition: background 160ms ease, border-color 160ms ease;
+  transition: transform 160ms ease, background 160ms ease;
 }
-.landing-page .landing-nav__cta:hover { border-color: transparent; background: var(--home-accent-bg); }
+.landing-page .landing-nav__cta:hover { background: #e57459; }
 
 .landing-page .landing-hero {
   display: grid;
   grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
   gap: clamp(24px, 4vw, 52px);
   align-items: center;
-  padding: clamp(28px, 4.5vw, 56px) 0 0;
+  padding: clamp(18px, 3vw, 36px) 0 0;
   background: none;
 }
 .landing-page .landing-hero__intro { display: grid; align-content: center; gap: 0; }
@@ -99,25 +102,6 @@ main.landing-page {
    accessible name of the heading between breakpoints. */
 .landing-page .landing-hero__keep { white-space: nowrap; }
 .landing-lede { max-width: 38ch; margin: 12px 0 0; color: rgb(247 243 235 / 72%); font-size: .88rem; line-height: 1.75; }
-.landing-page .landing-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 20px; animation: none; }
-.landing-page .landing-button {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 18px;
-  border-radius: 999px;
-  font-size: .82rem;
-  font-weight: 700;
-  transition: transform 160ms ease, background 160ms ease;
-}
-.landing-page .landing-button:hover { transform: translateY(-1px); }
-.landing-page .landing-button--accent { color: #fff !important; background: var(--home-accent-bg); box-shadow: 0 6px 20px rgb(0 0 0 / 22%); }
-.landing-page .landing-button--accent:hover { background: #e57459; }
-.landing-page .landing-text-button { display: inline-flex; min-height: 44px; align-items: center; color: rgb(247 243 235 / 78%) !important; font-size: .8rem; font-weight: 650; }
-.landing-page .landing-text-button span { display: inline-block; margin-left: 4px; color: var(--landing-gold); transition: transform 160ms ease; }
-.landing-page .landing-text-button:hover span { transform: translateY(3px); }
 
 /* --- The recording ------------------------------------------------------ */
 .landing-demo { margin: 0; display: grid; gap: 10px; }
@@ -261,10 +245,9 @@ main.landing-page {
 .landing-trust__rules span { color: var(--landing-muted); font-size: .78rem; line-height: 1.6; }
 
 /* --- Closing ------------------------------------------------------------ */
-.landing-page .landing-closing { display: flex; min-height: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--landing-line); }
+.landing-page .landing-closing { display: block; min-height: 0; border-top: 1px solid var(--landing-line); }
 .landing-page .landing-closing h2 { max-width: 26ch; }
 .landing-page .landing-closing p { margin: 8px 0 0; color: var(--landing-muted); font-size: .84rem; }
-.landing-page .landing-closing .landing-button--accent { color: #fff !important; background: var(--home-accent-bg); }
 .landing-page .landing-footer { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid var(--landing-line); color: var(--landing-muted); font-size: .74rem; }
 .landing-page .landing-footer a { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
 .landing-page .landing-footer .landing-wordmark { color: var(--landing-ink); font-size: 1.15rem; }
@@ -272,8 +255,6 @@ main.landing-page {
 
 /* --- Focus -------------------------------------------------------------- */
 .landing-page .landing-nav__cta:focus-visible,
-.landing-page .landing-button:focus-visible,
-.landing-page .landing-text-button:focus-visible,
 .landing-page .landing-loop__step:focus-visible,
 .landing-demo__video:focus-visible,
 .landing-page .landing-footer a:focus-visible {
@@ -284,7 +265,7 @@ main.landing-page {
 
 /* --- Phone / tablet ----------------------------------------------------- */
 @media (max-width: 900px) {
-  .landing-page .landing-hero { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .landing-page .landing-hero { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .landing-page h1 { max-width: 24ch; }
   .landing-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .landing-loop__body,
@@ -292,11 +273,9 @@ main.landing-page {
 }
 @media (max-width: 620px) {
   .landing-page .landing-nav { min-height: 58px; }
-  .landing-page .landing-nav nav { font-size: .74rem; }
-  /* The first two destinations are hidden at phone widths; the CTA stays. */
-  .landing-page .landing-nav__links a:nth-child(1),
-  .landing-page .landing-nav__links a:nth-child(2) { display: none; }
-  .landing-page .landing-hero { padding-top: 22px; }
+  .landing-page .landing-nav nav { display: none; }
+  .landing-page .landing-nav__cta { margin-inline-start: auto; }
+  .landing-page .landing-hero { padding-top: 16px; }
   .landing-page h1 { font-size: 1.45rem; }
   /* Break between the two headline clauses instead of inside a word. */
   .landing-page h1 > span:first-child { white-space: nowrap; }
@@ -304,8 +283,6 @@ main.landing-page {
   .landing-demo__caption { font-size: .66rem; }
   .landing-cards { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .landing-loop__sample { padding: 16px; }
-  .landing-closing { display: grid; }
-  .landing-page .landing-closing .landing-button--accent { justify-self: start; }
 }
 
 /* --- Dark ---------------------------------------------------------------
