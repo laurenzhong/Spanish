@@ -5,9 +5,6 @@ test.describe("public home entry navigation", () => {
 
   const entries = [
     ["header learning link", ".landing-nav", "进入学习", "/learn", "/login?next=%2Flearn"],
-    ["hero learning link", ".landing-hero__actions", "进入学习", "/learn", "/login?next=%2Flearn"],
-    ["closing learning link", ".landing-closing", "进入学习", "/learn", "/login?next=%2Flearn"],
-    ["header login link", ".landing-nav", "登录", "/login", "/login"],
     ["footer login link", ".landing-footer", "登录", "/login", "/login"],
   ] as const;
 
@@ -18,7 +15,6 @@ test.describe("public home entry navigation", () => {
         if (route.request().headers().rsc !== "1") await route.continue();
       });
       await page.goto("/");
-      await expect(page.locator(".landing-nav__links")).toHaveAttribute("data-indicator", "ready");
 
       const [request] = await Promise.all([
         page.waitForRequest((request) => request.isNavigationRequest(), { timeout: 5000 }),
@@ -82,12 +78,16 @@ test("plays the real product recording in the first viewport", async ({ page }) 
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("The test project must define a viewport size.");
 
-  // The primary action belongs above the fold on both projects.
-  const callToAction = page.locator(".landing-hero__intro").getByRole("link", { name: /进入学习/ });
+  const header = page.locator(".landing-nav");
+  const callToAction = header.getByRole("link", { name: "进入学习", exact: true });
+  await expect(page.getByRole("link", { name: "进入学习", exact: true })).toHaveCount(1);
+  await expect(header.getByRole("link", { name: "登录", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "它怎么用", exact: true })).toHaveCount(0);
   await expect(callToAction).toBeVisible();
   const callToActionBox = await callToAction.boundingBox();
-  if (!callToActionBox) throw new Error("The hero call to action must have a box.");
-  expect(callToActionBox.y + callToActionBox.height).toBeLessThan(viewport.height);
+  const headerBox = await header.boundingBox();
+  if (!callToActionBox || !headerBox) throw new Error("The header and learning link must have boxes.");
+  expect(callToActionBox.x + callToActionBox.width).toBeCloseTo(headerBox.x + headerBox.width, 0);
 
   // Chinese breaks anywhere by default, and 西语 used to be split across two
   // lines on phones. A nowrap span reports exactly one client rect. (Whether the
@@ -104,8 +104,14 @@ test("plays the real product recording in the first viewport", async ({ page }) 
   await expect(video).toBeVisible();
   const videoBox = await video.boundingBox();
   if (!videoBox) throw new Error("The recording must have a box.");
-  // The recording is the hero visual, so it starts inside the first viewport.
-  expect(videoBox.y).toBeLessThan(viewport.height * 0.8);
+  if (viewport.width <= 900) {
+    const lede = await page.locator(".landing-lede").boundingBox();
+    if (!lede) throw new Error("The introduction must have a box.");
+    expect(videoBox.y - (lede.y + lede.height)).toBeLessThanOrEqual(20);
+    expect(videoBox.y).toBeGreaterThan(lede.y + lede.height);
+  } else {
+    expect(videoBox.y - (headerBox.y + headerBox.height)).toBeLessThanOrEqual(36);
+  }
   expect(Math.abs(videoBox.width / videoBox.height - 1280 / 720)).toBeLessThan(0.02);
 
   // The poster is the largest paint; exactly one request, and it landed.
@@ -120,7 +126,7 @@ test("plays the real product recording in the first viewport", async ({ page }) 
   }, undefined, { timeout: 30000 });
 
   // Every primary control is a 44px target, the way the stylesheet claims.
-  for (const selector of [".landing-nav__cta", ".landing-hero__actions .landing-button", ".landing-hero__actions .landing-text-button", ".landing-demo__mark", ".landing-demo__sound"]) {
+  for (const selector of [".landing-nav__cta", ".landing-demo__mark", ".landing-demo__sound"]) {
     const target = await page.locator(selector).first().boundingBox();
     expect(target, `${selector} must be laid out`).not.toBeNull();
     expect(target?.height ?? 0, `${selector} must be a 44px target`).toBeGreaterThanOrEqual(44);
