@@ -5181,6 +5181,21 @@ button {
   max-width: calc(100% - 42px);
 }
 
+.conversation-message--user .conversation-message__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+@media (pointer: coarse) {
+  .conversation-message:not([data-withdrawn]) {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
 .conversation-message__bubble {
   width: fit-content;
   max-width: 100%;
@@ -5229,6 +5244,10 @@ button {
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .conversation-message__translation button { min-height: 44px; }
 }
 
 .conversation-message__more {
