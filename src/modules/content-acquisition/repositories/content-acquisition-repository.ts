@@ -189,7 +189,7 @@ export interface ContentAcquisitionRepository {
   recordProcessingAttempt(input: ProcessingAttemptInput): Promise<void>;
   listCandidatesForCleanup?(input: Readonly<{ limit: number }>): Promise<readonly ContentCandidateRecord[]>;
   listCandidateArtifactsForCleanup?(candidateId: string): Promise<readonly ContentCleanupArtifactRecord[]>;
-  deleteCandidateArtifact?(artifactId: string): Promise<void>;
+  deleteCandidateArtifact?(artifactId: string): Promise<boolean>;
   purgeCandidate?(candidateId: string): Promise<void>;
 }
 

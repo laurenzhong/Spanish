@@ -16,13 +16,24 @@ describe("content cleanup runner", () => {
     const repository = {
       listCandidatesForCleanup: vi.fn(async () => [candidate()]),
       listCandidateArtifactsForCleanup: vi.fn(async () => [{ id: "artifact-1", kind: "asr-temporary-audio", byteSize: 2_000_000, ephemeral: true, processingStatus: "succeeded" as const }]),
-      deleteCandidateArtifact: vi.fn(async () => undefined),
+      deleteCandidateArtifact: vi.fn(async () => true),
       purgeCandidate: vi.fn(async () => undefined),
     };
     const result = await runContentCleanup({ repository, now: new Date("2026-09-01T00:00:00Z"), largeArtifactThresholdBytes: 1_000_000, limit: 10, dryRun: false });
     expect(result).toMatchObject({ candidates: 1, attemptedArtifacts: 1, deletedArtifacts: 1, purgedCandidates: 1 });
     expect(repository.deleteCandidateArtifact).toHaveBeenCalledWith("artifact-1");
     expect(repository.purgeCandidate).toHaveBeenCalledWith("candidate-1");
+  });
+
+  it("does not count a concurrently deleted artifact as a deletion or a retry", async () => {
+    const repository = {
+      listCandidatesForCleanup: vi.fn(async () => [candidate({ publicationStatus: "archived" })]),
+      listCandidateArtifactsForCleanup: vi.fn(async () => [{ id: "artifact-1", kind: "asr-temporary-audio", byteSize: 1, ephemeral: true, processingStatus: "failed" as const }]),
+      deleteCandidateArtifact: vi.fn(async () => false),
+      purgeCandidate: vi.fn(async () => undefined),
+    };
+    const result = await runContentCleanup({ repository, now: new Date("2026-09-01"), largeArtifactThresholdBytes: 1_000_000, limit: 10, dryRun: false });
+    expect(result).toMatchObject({ attemptedArtifacts: 1, deletedArtifacts: 0, deferredArtifacts: 0, purgedCandidates: 0 });
   });
 
   it("keeps failed deletes retryable and dry-runs free of writes", async () => {
