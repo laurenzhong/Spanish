@@ -6,7 +6,8 @@ export type CleanupArtifact = ContentCleanupArtifactRecord;
 export type ContentCleanupRepository = Readonly<{
   listCandidatesForCleanup(input: Readonly<{ limit: number }>): Promise<readonly ContentCandidateRecord[]>;
   listCandidateArtifactsForCleanup(candidateId: string): Promise<readonly CleanupArtifact[]>;
-  deleteCandidateArtifact(artifactId: string): Promise<void>;
+  /** Returns false if a concurrent cleanup already completed the deletion. */
+  deleteCandidateArtifact(artifactId: string): Promise<boolean>;
   purgeCandidate(candidateId: string): Promise<void>;
 }>;
 
@@ -59,8 +60,7 @@ export async function runContentCleanup(
       }
       attemptedArtifacts += 1;
       try {
-        await input.repository.deleteCandidateArtifact(instruction.targetId);
-        deletedArtifacts += 1;
+        if (await input.repository.deleteCandidateArtifact(instruction.targetId)) deletedArtifacts += 1;
       } catch (error) {
         deferredArtifacts += 1;
         await input.recordFailure?.({

@@ -227,7 +227,8 @@ jobs:
               : 0;
             const publishedByType = result.publishedByType ?? {};
             const targetDeficitByType = result.targetDeficitByType ?? {};
-            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, reviewed=${counts.reviewed ?? 0}, approved=${counts.approved ?? 0}, changesRequested=${counts.changesRequested ?? 0}, rejected=${counts.rejected ?? 0}, published=${counts.published ?? 0}, videoPublished=${publishedByType.video ?? 0}, podcastPublished=${publishedByType.podcast ?? 0}, videoDeficit=${targetDeficitByType.video ?? 0}, podcastDeficit=${targetDeficitByType.podcast ?? 0}, failures=${failures}, sourceFailures=${sourceFailures}`);
+            const processingNotAuthorized = result.skippedReasons?.MEDIA_PROCESSING_NOT_AUTHORIZED ?? 0;
+            console.log(`- ${label}: status=${result.status ?? "unknown"}, discovered=${counts.discovered ?? 0}, reviewed=${counts.reviewed ?? 0}, approved=${counts.approved ?? 0}, changesRequested=${counts.changesRequested ?? 0}, rejected=${counts.rejected ?? 0}, published=${counts.published ?? 0}, videoPublished=${publishedByType.video ?? 0}, podcastPublished=${publishedByType.podcast ?? 0}, videoDeficit=${targetDeficitByType.video ?? 0}, podcastDeficit=${targetDeficitByType.podcast ?? 0}, processingNotAuthorized=${processingNotAuthorized}, failures=${failures}, sourceFailures=${sourceFailures}`);
           }
           NODE
           }
