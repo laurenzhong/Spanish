@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ExpressionAssist } from "./expression-assist";
 
 import {
@@ -10,13 +10,11 @@ import {
 } from "@/src/modules/providers/speech";
 
 type VoiceComposerProps = Readonly<{
-  disabled?: boolean;
   unavailable?: boolean;
   characterName?: string;
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onCancel: () => void;
   quotedText?: string | null;
   onClearQuote?: () => void;
   assistance?: Readonly<{
@@ -31,18 +29,17 @@ type VoiceComposerProps = Readonly<{
 const composerBarWeights = [0.5, 0.85, 1, 0.68, 0.92, 0.58, 0.74] as const;
 
 export function VoiceComposer({
-  disabled = false,
   unavailable = false,
   characterName = "Lucía Martín",
   value,
   onChange,
   onSubmit,
-  onCancel,
   quotedText = null,
   onClearQuote,
   assistance,
 }: VoiceComposerProps) {
   const recorderRef = useRef<BrowserAudioRecorder | null>(null);
+  const startingRef = useRef(false);
   const [recording, setRecording] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
@@ -55,20 +52,31 @@ export function VoiceComposer({
   const [inputLevel, setInputLevel] = useState<number | null>(null);
   const levelUnsubscribeRef = useRef<(() => void) | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  // Streaming only blocks submitting another turn and recording. The text
-  // field remains a normal composer so the user can prepare their next reply
-  // while the character is responding.
   const blocked = unavailable;
 
+  const resetRecordingState = useCallback(() => {
+    levelUnsubscribeRef.current?.();
+    levelUnsubscribeRef.current = null;
+    setInputLevel(null);
+    setRecording(false);
+    setRecordingStartedAt(null);
+    setRecordingSeconds(0);
+  }, []);
+
   useEffect(() => {
-    recorderRef.current = createBrowserAudioRecorder();
+    const recorder = createBrowserAudioRecorder(() => {
+      resetRecordingState();
+      setNotice("录音已中断。你可以重新录音或改用文字。");
+    });
+    recorderRef.current = recorder;
     return () => {
+      recorderRef.current = null;
       levelUnsubscribeRef.current?.();
       levelUnsubscribeRef.current = null;
-      void recorderRef.current?.cancel();
+      void recorder.cancel();
       transcriptionAbortRef.current?.abort();
     };
-  }, []);
+  }, [resetRecordingState]);
 
   useEffect(() => {
     if (!recording || recordingStartedAt === null) return;
@@ -97,19 +105,6 @@ export function VoiceComposer({
     return () => observer.disconnect();
   }, [value, recording, transcribing]);
 
-  function stopLevelMeter() {
-    levelUnsubscribeRef.current?.();
-    levelUnsubscribeRef.current = null;
-    setInputLevel(null);
-  }
-
-  function resetRecordingState() {
-    stopLevelMeter();
-    setRecording(false);
-    setRecordingStartedAt(null);
-    setRecordingSeconds(0);
-  }
-
   async function cancelRecording() {
     try {
       await recorderRef.current?.cancel();
@@ -127,7 +122,8 @@ export function VoiceComposer({
     setNotice("正在整理语音……");
     try {
       const form = new FormData();
-      form.append("audio", audio.blob, "conversation.webm");
+      const extension = audio.metadata.mimeType.startsWith("audio/mp4") ? "m4a" : "webm";
+      form.append("audio", audio.blob, `conversation.${extension}`);
       form.append("languageTag", "es-ES");
       const response = await fetch("/api/v1/transcriptions", { method: "POST", body: form, signal: controller.signal });
       const payload = await response.json().catch(() => null) as { data?: { text?: string }; error?: { code?: string } } | null;
@@ -149,7 +145,7 @@ export function VoiceComposer({
 
   async function toggleRecording() {
     const recorder = recorderRef.current;
-    if (!recorder || blocked) return;
+    if (!recorder || blocked || startingRef.current) return;
     if (transcribing) {
       transcriptionAttemptRef.current += 1;
       transcriptionAbortRef.current?.abort();
@@ -168,8 +164,13 @@ export function VoiceComposer({
       if (audio) void transcribeAudio(audio);
       return;
     }
+    startingRef.current = true;
     try {
       await recorder.start();
+      if (recorderRef.current !== recorder) {
+        await recorder.cancel();
+        return;
+      }
       setNotice(null);
       setRecordingStartedAt(Date.now());
       setRecordingSeconds(0);
@@ -180,6 +181,7 @@ export function VoiceComposer({
         ? recorder.subscribeLevel((level) => setInputLevel(level))
         : null;
     } catch (error) {
+      if (recorderRef.current !== recorder) return;
       resetRecordingState();
       const code = speechCapabilityErrorCode(error, "microphone-not-supported");
       setNotice(
@@ -187,6 +189,8 @@ export function VoiceComposer({
           ? "麦克风权限未开启，请改用文字输入。"
           : "当前设备暂不支持录音，请改用文字输入。",
       );
+    } finally {
+      startingRef.current = false;
     }
   }
 
@@ -246,7 +250,7 @@ export function VoiceComposer({
             ref={textareaRef}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
               event.preventDefault();
               if (!blocked && !transcribing && value.trim()) onSubmit();
             }}
@@ -269,12 +273,6 @@ export function VoiceComposer({
         ) : transcribing ? (
           <button aria-label="取消语音整理" className="conversation-composer__control conversation-composer__control--trailing conversation-composer__control--stop" onClick={() => void toggleRecording()} title="取消语音整理" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17" /></svg>
-          </button>
-        ) : disabled ? (
-          // While a reply streams the trailing slot stops it instead of sending:
-          // both controls must never be on screen at once.
-          <button aria-label="停止回复" className="conversation-composer__control conversation-composer__control--trailing conversation-composer__control--stop" onClick={onCancel} title="停止回复" type="button">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8" rx="1" /></svg>
           </button>
         ) : (
           <button aria-label="发送消息" className="conversation-composer__control conversation-composer__control--trailing" disabled={unavailable || !value.trim()} title="发送消息" type="submit">

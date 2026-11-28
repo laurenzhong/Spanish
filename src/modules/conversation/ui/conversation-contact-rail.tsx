@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ConversationSearch } from "./conversation-search";
 import { IntroductionInbox } from "@/src/modules/character-network/ui/introduction-inbox";
 import { prefetchConversationHistory } from "./conversation-history-cache";
 import { getConversationCacheScope } from "./conversation-cache-scope";
 import { ConversationTypingIndicator } from "@/src/shared/ui/conversation-typing-indicator";
+import { trapFocus } from "@/src/shared/ui/primitives/utils";
 import type { ConversationPreview } from "../application/list-previews";
 
 type ConversationContactRailProps = Readonly<{
   activeCharacterKey?: string;
+  onNavigate?: () => void;
   initialConversations?: readonly ConversationPreview[];
   cacheScope?: string;
 }>;
@@ -167,13 +169,12 @@ type DragState = Readonly<{
 
 function loadConversationList(force = false, scope = getConversationCacheScope()): Promise<void> {
   ensureCacheScope(scope);
-  if (listRequest) return listRequest.promise;
   if (!force && (cachedConversations !== null || cachedStatus === "unavailable")) return Promise.resolve();
+  if (listRequest) return listRequest.promise;
   cachedStatus = "loading";
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations", controller)
+  const request: Promise<void> = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(listRequest, generation, scope, request)) return;
       cachedConversations = payload.data?.conversations ?? [];
@@ -200,8 +201,7 @@ function loadLuciaContact(scope = getConversationCacheScope()): Promise<void> {
   if (cachedLuciaContact !== null) return Promise.resolve();
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact", controller)
+  const request: Promise<void> = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(luciaContactRequest, generation, scope, request)) return;
       cachedLuciaContact = payload.data ?? null;
@@ -223,8 +223,7 @@ function loadIntroductionOfferCount(force = false, scope = getConversationCacheS
   if (!force && cachedIntroductionOfferCount !== null) return Promise.resolve();
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions", controller)
+  const request: Promise<void> = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(introductionOfferRequest, generation, scope, request)) return;
       cachedIntroductionOfferCount = payload.data?.offers?.length ?? 0;
@@ -252,12 +251,15 @@ function syncCachedConversationPreferences(
   });
 }
 
-export function ConversationContactRail({ activeCharacterKey, initialConversations, cacheScope }: ConversationContactRailProps) {
+export function ConversationContactRail({ activeCharacterKey, initialConversations, cacheScope, onNavigate }: ConversationContactRailProps) {
   const resolvedCacheScope = ensureCacheScope(cacheScope ?? getConversationCacheScope());
-  const [conversations, setConversations] = useState<readonly ConversationPreview[]>(initialConversations ?? cachedConversations ?? []);
-  const [status, setStatus] = useState(initialConversations ? "available" : cachedStatus);
+  const cacheGeneration = contactCacheGeneration;
+  // The first render must match the server even when another rail has already
+  // populated the client cache while this rail's Suspense boundary hydrates.
+  const [conversations, setConversations] = useState<readonly ConversationPreview[]>(initialConversations ?? []);
+  const [status, setStatus] = useState<"loading" | "available" | "unavailable">(initialConversations ? "available" : "loading");
   const [showIntroductions, setShowIntroductions] = useState(false);
-  const [pendingIntroductionCount, setPendingIntroductionCount] = useState(0);
+  const [inboxSummary, setInboxSummary] = useState<number | "available" | null>(null);
   const [preferences, setPreferences] = useState<ConversationPreferences>({});
   const [markedUnread, setMarkedUnread] = useState<ReadonlySet<string>>(() => new Set());
   const [typingCharacters, setTypingCharacters] = useState<ReadonlySet<string>>(() => new Set());
@@ -266,7 +268,10 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
   const suppressClickFor = useRef<string | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const introductionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const introductionsDialogRef = useRef<HTMLDialogElement>(null);
+  const closeIntroductionsRef = useRef<HTMLButtonElement>(null);
   const acknowledgedUnreadRef = useRef<{ characterKey: string; unreadCount: number } | null>(null);
   const dragState = useRef<DragState | null>(null);
   const dragOverCharacterKeyRef = useRef<string | null>(null);
@@ -275,6 +280,19 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
   const [draggedCharacterKey, setDraggedCharacterKey] = useState<string | null>(null);
   const [dragOverCharacterKey, setDragOverCharacterKey] = useState<string | null>(null);
 
+  const syncInboxSummary = useCallback(() => {
+    if (cachedScope !== resolvedCacheScope || contactCacheGeneration !== cacheGeneration) return;
+    const count = (cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0);
+    const unknown = cachedIntroductionOfferCount === null || cachedLuciaContact === null;
+    const canReconsider = cachedLuciaContact?.status === "declined";
+    if (count === 0 && unknown && !canReconsider && (introductionOfferRequest || luciaContactRequest)) return;
+    const showEntry = unknown || canReconsider;
+    if (count === 0 && !showEntry && document.activeElement === introductionsTriggerRef.current) {
+      headingRef.current?.focus();
+    }
+    setInboxSummary(count === 0 && showEntry ? "available" : count);
+  }, [cacheGeneration, resolvedCacheScope]);
+
   useEffect(() => {
     let active = true;
     if (initialConversations && cachedConversations === null) {
@@ -282,23 +300,26 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
       cachedStatus = "available";
     }
     void loadConversationList(false, resolvedCacheScope).then(() => {
-      if (!active) return;
+      if (!active || cachedScope !== resolvedCacheScope || contactCacheGeneration !== cacheGeneration) return;
       const nextConversations = cachedConversations ?? [];
       setConversations(nextConversations);
       setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }])))
       setStatus(cachedStatus);
       window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
     });
-    void Promise.all([loadLuciaContact(resolvedCacheScope), loadIntroductionOfferCount(false, resolvedCacheScope)]).then(() => {
-      if (!active) return;
-      setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0));
-    });
+    const syncWhileActive = () => {
+      if (active) syncInboxSummary();
+    };
+    void loadLuciaContact(resolvedCacheScope).then(syncWhileActive);
+    void loadIntroductionOfferCount(false, resolvedCacheScope).then(syncWhileActive);
     return () => { active = false; };
-  }, [initialConversations, resolvedCacheScope]);
+  }, [cacheGeneration, initialConversations, resolvedCacheScope, syncInboxSummary]);
 
   useEffect(() => {
     const refresh = () => {
+      if (cachedScope !== resolvedCacheScope || contactCacheGeneration !== cacheGeneration) return;
       void loadConversationList(true, resolvedCacheScope).then(() => {
+        if (cachedScope !== resolvedCacheScope || contactCacheGeneration !== cacheGeneration) return;
         const nextConversations = cachedConversations ?? [];
         setConversations(nextConversations);
         setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, { isPinned: conversation.isPinned ?? conversation.characterKey === "lucia", isMuted: conversation.isMuted ?? false, sortRank: conversation.sortRank ?? null }])));
@@ -321,7 +342,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [resolvedCacheScope]);
+  }, [cacheGeneration, resolvedCacheScope]);
 
   // Opening a conversation marks it read. The signature guard keeps the
   // patch → list-refresh → effect cycle bounded: each new unread count is
@@ -340,24 +361,32 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
     void markConversationRead(conversation.characterKey);
   }, [activeCharacterKey, conversations]);
 
+  const closeIntroductions = useCallback(() => {
+    introductionsDialogRef.current?.close();
+    setShowIntroductions(false);
+    (inboxSummary === 0 ? headingRef.current : introductionsTriggerRef.current)?.focus();
+    if (cachedScope !== resolvedCacheScope || contactCacheGeneration !== cacheGeneration) return;
+    void Promise.all([loadLuciaContact(resolvedCacheScope), loadIntroductionOfferCount(true, resolvedCacheScope)])
+      .then(syncInboxSummary);
+  }, [cacheGeneration, inboxSummary, resolvedCacheScope, syncInboxSummary]);
+
+  useEffect(() => {
+    const dialog = introductionsDialogRef.current;
+    if (!showIntroductions || !dialog) return;
+    if (!dialog.open) dialog.showModal();
+    closeIntroductionsRef.current?.focus();
+  }, [showIntroductions]);
+
   useEffect(() => {
     if (!showIntroductions) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setShowIntroductions(false);
-      introductionsTriggerRef.current?.focus();
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      closeIntroductions();
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showIntroductions]);
-
-  function closeIntroductions() {
-    setShowIntroductions(false);
-    introductionsTriggerRef.current?.focus();
-    void loadIntroductionOfferCount(true, resolvedCacheScope).then(() => {
-      setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (cachedLuciaContact?.status === "pending" ? 1 : 0));
-    });
-  }
+  }, [closeIntroductions, showIntroductions]);
 
   useEffect(() => {
     const handleTyping = (event: Event) => {
@@ -452,19 +481,28 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
     : null;
   const contextPreference = contextConversation ? preferenceFor(contextConversation) : null;
 
-  function refreshAfterLuciaContactAccepted(contact: LuciaContactPreview): void {
+  function refreshAfterContactAdded(): void {
+    // Reads already in flight can still reflect the state before the approval.
+    listRequest?.controller.abort();
+    listRequest = null;
+    window.dispatchEvent(new Event(CONVERSATION_LIST_UPDATED_EVENT));
+  }
+
+  function handleIntroductionResolved(decision: "accept" | "decline"): void {
+    if (cachedScope !== resolvedCacheScope || contactCacheGeneration !== cacheGeneration) return;
+    introductionOfferRequest?.controller.abort();
+    introductionOfferRequest = null;
+    void loadIntroductionOfferCount(true, resolvedCacheScope).then(syncInboxSummary);
+    if (decision === "accept") refreshAfterContactAdded();
+  }
+
+  function handleLuciaContactChanged(contact: LuciaContactPreview): void {
+    if (cachedScope !== resolvedCacheScope || contactCacheGeneration !== cacheGeneration) return;
+    luciaContactRequest?.controller.abort();
+    luciaContactRequest = null;
     cachedLuciaContact = contact;
-    setPendingIntroductionCount((cachedIntroductionOfferCount ?? 0) + (contact.status === "pending" ? 1 : 0));
-    void loadConversationList(true, resolvedCacheScope).then(() => {
-      const nextConversations = cachedConversations ?? [];
-      setConversations(nextConversations);
-      setPreferences(Object.fromEntries(nextConversations.map((conversation) => [conversation.characterKey, {
-        isPinned: conversation.isPinned ?? conversation.characterKey === "lucia",
-        isMuted: conversation.isMuted ?? false,
-        sortRank: conversation.sortRank ?? null,
-      }])));
-      setStatus(cachedStatus);
-    });
+    syncInboxSummary();
+    if (contact.status === "active") refreshAfterContactAdded();
   }
 
   function openContextMenu(event: React.MouseEvent, characterKey: string) {
@@ -557,16 +595,20 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
   return (
     <aside ref={railRef} className="conversation-contact-rail" aria-label="联系人">
       <div className="conversation-contact-rail__heading">
-        <h2>对话</h2>
-        {pendingIntroductionCount > 0 ? <button
+        <h2 ref={headingRef} tabIndex={-1}>对话</h2>
+        {showIntroductions || (inboxSummary !== null && inboxSummary !== 0) ? <button
           ref={introductionsTriggerRef}
           type="button"
           className="conversation-contact-rail__request"
+          aria-haspopup="dialog"
+          aria-label={typeof inboxSummary === "number" && inboxSummary > 0 ? undefined : "好友申请与介绍"}
           aria-expanded={showIntroductions}
           onClick={() => setShowIntroductions(true)}
         >
-          <span>待处理</span>
-          <span className="conversation-contact-rail__request-count" aria-label={`${pendingIntroductionCount} 项待处理`}>{pendingIntroductionCount}</span>
+          {typeof inboxSummary === "number" && inboxSummary > 0 ? <>
+            <span>待处理</span>
+            <span className="conversation-contact-rail__request-count" aria-label={`${inboxSummary} 项待处理`}>{inboxSummary}</span>
+          </> : <span>好友申请</span>}
         </button> : null}
       </div>
 
@@ -594,6 +636,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
               onPointerCancel={handlePointerUp}
               onContextMenu={(event) => openContextMenu(event, conversation.characterKey)}
               onTouchStart={(event) => {
+                suppressClickFor.current = null;
                 if (event.touches.length !== 1) return;
                 const touch = event.touches[0];
                 longPressTimer.current = window.setTimeout(() => {
@@ -610,6 +653,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                 className={`conversation-contact-row ${activeCharacterKey === conversation.characterKey ? "conversation-contact-row--active" : ""} ${isUnread ? "conversation-contact-row--unread" : ""}`}
                 href={`/chat/${conversation.characterKey}`}
                 draggable={false}
+                onNavigate={onNavigate}
                 onClick={(event) => {
                   if (suppressClickFor.current === conversation.characterKey) {
                     event.preventDefault();
@@ -661,12 +705,19 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
         </div>
       ) : null}
 
-      {showIntroductions ? <div className="conversation-introductions-dialog" role="dialog" aria-modal="true" aria-labelledby="conversation-introductions-dialog-title" onMouseDown={(event) => { if (event.target === event.currentTarget) closeIntroductions(); }}>
-        <div className="conversation-introductions-dialog__panel">
-          <div className="conversation-introductions-dialog__heading"><h2 id="conversation-introductions-dialog-title">好友申请与介绍</h2><button type="button" aria-label="关闭好友申请与介绍" onClick={closeIntroductions}>×</button></div>
-          <IntroductionInbox alwaysVisible onLuciaContactAccepted={refreshAfterLuciaContactAccepted} />
+      {showIntroductions ? <dialog
+        ref={introductionsDialogRef}
+        className="conversation-introductions-dialog"
+        aria-modal="true"
+        aria-labelledby="conversation-introductions-dialog-title"
+        onClick={(event) => { if (event.target === event.currentTarget) closeIntroductions(); }}
+        onCancel={(event) => { event.preventDefault(); closeIntroductions(); }}
+      >
+        <div className="conversation-introductions-dialog__panel" onKeyDown={(event) => trapFocus(event, event.currentTarget)}>
+          <div className="conversation-introductions-dialog__heading"><h2 id="conversation-introductions-dialog-title">好友申请与介绍</h2><button ref={closeIntroductionsRef} type="button" aria-label="关闭好友申请与介绍" onClick={closeIntroductions}>×</button></div>
+          <IntroductionInbox alwaysVisible onIntroductionResolved={handleIntroductionResolved} onLuciaContactChanged={handleLuciaContactChanged} />
         </div>
-      </div> : null}
+      </dialog> : null}
     </aside>
   );
 }

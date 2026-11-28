@@ -367,10 +367,47 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   const restoreFocus = useCallback(() => {
     const target = previouslyFocusedRef.current;
     previouslyFocusedRef.current = null;
-    // Word tokens are only focusable while the reader is driven from the keyboard.
-    target?.focus({ preventScroll: true });
+    if (!target?.isConnected) return;
+    if (target.matches(".reader-token") && !target.hasAttribute("tabindex")) {
+      // Restore focus without putting every word in the tab order or letting
+      // a focusable token interfere with the next pointer text selection.
+      target.tabIndex = -1;
+      const removeTemporaryTabIndex = () => {
+        if (target.getAttribute("tabindex") === "-1") target.removeAttribute("tabindex");
+        target.removeEventListener("blur", removeTemporaryTabIndex);
+        target.removeEventListener("pointerdown", removeTemporaryTabIndex);
+      };
+      target.addEventListener("blur", removeTemporaryTabIndex);
+      target.addEventListener("pointerdown", removeTemporaryTabIndex);
+    }
+    target.focus({ preventScroll: true });
   }, []);
   useLayoutEffect(() => { if (!toolsOpen) { explanationRequestRef.current?.controller.abort(); restoreFocus(); return; } const pin = toolsPinRef.current; if (activeTool === "explain" && pin && window.getComputedStyle(pin).display !== "none") pin.focus(); else toolsRef.current?.focus(); }, [activeTool, restoreFocus, toolsOpen]);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const panel = toolsRef.current;
+    if (!toolsOpen || activeTool !== "saved" || !viewport || !panel) return;
+
+    const sync = () => {
+      const inset = window.innerHeight - viewport.offsetTop - viewport.height;
+      if (viewport.scale === 1 && window.innerHeight - viewport.height > 90) {
+        panel.style.setProperty("--reader-keyboard-inset", `${Math.max(0, inset)}px`);
+        panel.style.setProperty("--reader-keyboard-height", `${viewport.height}px`);
+      } else {
+        panel.style.removeProperty("--reader-keyboard-inset");
+        panel.style.removeProperty("--reader-keyboard-height");
+      }
+    };
+    sync();
+    viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    return () => {
+      viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+      panel.style.removeProperty("--reader-keyboard-inset");
+      panel.style.removeProperty("--reader-keyboard-height");
+    };
+  }, [activeTool, toolsOpen]);
   useEffect(() => {
     if (!toolsOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -582,7 +619,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     setCommonEntry(entry);
     setSelectedToken(token);
     setActiveTool("explain");
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : trigger;
+    previouslyFocusedRef.current = trigger;
     setToolsOpenState(true);
     cancelStreamPreview();
     setStreamPreview({});
@@ -712,7 +749,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
       <div className="article-reader__progress" role="progressbar" aria-label="文章阅读进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}><span style={{ width: `${progressPercent}%` }} /></div>
     </header>
     {!online ? <aside className="article-reader__notice" role="status">当前离线，阅读位置和标注会先保存在本机。</aside> : null}
-    {status ? <aside className="article-reader__notice" role="status">{status}</aside> : null}
+    {status && !(toolsOpen && activeTool === "saved") ? <aside className="article-reader__notice" role="status">{status}</aside> : null}
     <div className="article-reader__layout">
       <main className="article-reader__content" ref={contentRef} aria-label="西语文章正文">
         <div className="article-reader__body">{article.segments.map((segment) => <ReaderParagraph
@@ -728,7 +765,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
         <div className="article-reader__complete"><strong>已读完</strong><span>本次只记录阅读活动，不会增加口语能力。</span>{article.attribution ? <span>{article.attribution}</span> : null}</div>
         <details className="article-reader__transfer-disclosure" open={transferOpen}><summary onClick={(event) => { event.preventDefault(); setTransferOpen((current) => !current); }}>读完后练口语</summary>{transferOpen ? renderTransferPanel() : null}</details>
       </main>
-      {toolsOpen ? <aside ref={toolsRef} tabIndex={-1} id="article-reader-tool-panel" className={["article-reader__tools", "is-open", activeTool === "explain" && !toolsPinned ? "is-draggable" : "", draggingTranslator ? "is-dragging" : ""].filter(Boolean).join(" ")} style={activeTool === "explain" && !toolsPinned && translatorPosition ? { left: `${translatorPosition.left}px`, top: `${translatorPosition.top}px`, right: "auto", bottom: "auto", transform: "none" } satisfies CSSProperties : undefined} aria-label="阅读工具" role="dialog" aria-labelledby="article-reader-tools-title"><div className="article-reader__tools-header" data-testid={activeTool === "explain" ? "translator-drag-handle" : undefined} onPointerDown={startTranslatorDrag}><h2 id="article-reader-tools-title">{toolLabels[activeTool]}</h2>{activeTool === "explain" ? <button ref={toolsPinRef} className="article-reader__tools-pin" type="button" aria-label={toolsPinned ? "取消固定翻译器" : "固定翻译器"} aria-pressed={toolsPinned} title={toolsPinned ? "取消固定" : "固定在右侧"} onClick={() => { setTranslatorPosition(null); setToolsPinned((current) => !current); }}><PinIcon pinned={toolsPinned} /></button> : null}</div><div className="article-reader__tool-panel">{renderToolPanel()}</div></aside> : null}
+      {toolsOpen ? <aside ref={toolsRef} tabIndex={-1} id="article-reader-tool-panel" className={["article-reader__tools", "is-open", activeTool === "explain" && !toolsPinned ? "is-draggable" : "", draggingTranslator ? "is-dragging" : ""].filter(Boolean).join(" ")} style={activeTool === "explain" && !toolsPinned && translatorPosition ? { left: `${translatorPosition.left}px`, top: `${translatorPosition.top}px`, right: "auto", bottom: "auto", transform: "none" } satisfies CSSProperties : undefined} aria-label="阅读工具" role="dialog" aria-labelledby="article-reader-tools-title"><div className="article-reader__tools-header" data-testid={activeTool === "explain" ? "translator-drag-handle" : undefined} onPointerDown={startTranslatorDrag}><h2 id="article-reader-tools-title">{toolLabels[activeTool]}</h2>{activeTool === "explain" ? <button ref={toolsPinRef} className="article-reader__tools-pin" type="button" aria-label={toolsPinned ? "取消固定翻译器" : "固定翻译器"} aria-pressed={toolsPinned} title={toolsPinned ? "取消固定" : "固定在右侧"} onClick={() => { setTranslatorPosition(null); setToolsPinned((current) => !current); }}><PinIcon pinned={toolsPinned} /></button> : null}</div><div className="article-reader__tool-panel">{renderToolPanel()}{activeTool === "saved" && status ? <p className="article-reader__tool-note" role="status">{status}</p> : null}</div></aside> : null}
     </div>
     {toolsOpen && !toolsPinned ? <div className="article-reader__scrim" aria-hidden="true" onClick={closeTools} /> : null}
   </div>;

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { buildLearningHeatmap } from "../../src/modules/profile/domain/learning-heatmap";
 
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
@@ -55,7 +56,7 @@ test("preserves the requested page through the login handoff", async ({ page }) 
   ).toBeVisible();
 });
 
-test("navigates between all four product areas", async ({ page }) => {
+test("navigates between all five product areas", async ({ page }) => {
   await authenticate(page);
   await page.goto("/learn");
 
@@ -66,8 +67,9 @@ test("navigates between all four product areas", async ({ page }) => {
   );
 
   for (const destination of [
+    { name: "阅读", path: "/read", heading: "阅读" },
     { name: "探索", path: "/explore", heading: "校园办事：注册与材料" },
-    { name: "对话", path: "/chat", heading: "Lucía Martín" },
+    { name: "对话", path: "/chat", heading: "对话" },
     { name: "我的", path: "/me", heading: "我的进步" },
     { name: "学习", path: "/learn", testId: "media-library" },
   ]) {
@@ -76,7 +78,7 @@ test("navigates between all four product areas", async ({ page }) => {
     if ("testId" in destination) {
       await expect(page.getByTestId(destination.testId!)).toBeVisible();
     } else {
-      await expect(page.getByRole("heading", { name: destination.heading! })).toBeVisible();
+      await expect(page.getByRole("heading", { name: destination.heading!, exact: true })).toBeVisible();
     }
     await expect(
       navigation.getByRole("link", { name: destination.name }),
@@ -141,6 +143,7 @@ test("keeps the desktop rail beside the content without covering it", async ({ p
 
 test("keeps discovery and conversation entry points visible", async ({
   page,
+  isMobile,
 }) => {
   await authenticate(page);
   await page.goto("/explore");
@@ -151,7 +154,18 @@ test("keeps discovery and conversation entry points visible", async ({
   await learnLink.click();
   await expect(page).toHaveURL(/\/learn$/);
 
+  await page.route("**/api/v1/conversations", (route) => route.fulfill({ json: { data: { conversations: [{
+    conversationId: "conversation-lucia", characterKey: "lucia", characterName: "Lucía Martín",
+    avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null,
+  }] } } }));
+  await page.route("**/api/v1/conversations/lucia", (route) => route.fulfill({
+    json: { data: { characterKey: "lucia", messages: [] } },
+  }));
   await page.goto("/chat");
+  const contact = page.getByRole("navigation", { name: "好友列表" }).getByRole("link", { name: /Lucía Martín/ });
+  if (isMobile) await contact.tap();
+  else await contact.click();
+  await expect(page).toHaveURL(/\/chat\/lucia$/u);
   await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeVisible();
 });
 
@@ -165,16 +179,17 @@ test("keeps themes and content packs out of the default scenario surface", async
   await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toHaveCount(0);
 });
 
-test("adds Lucía as a pinned contact only after explicit approval", async ({ page }) => {
+test("adds Lucía as a pinned contact only after explicit approval", async ({ page, isMobile }) => {
   await authenticate(page);
-  let accepted = false;
+  const decisions: string[] = [];
+  let status: "pending" | "declined" | "active" = "pending";
   await page.route("**/api/v1/conversations", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         data: {
-          conversations: accepted ? [{
+          conversations: status === "active" ? [{
             conversationId: "conversation-lucia",
             characterKey: "lucia",
             characterName: "Lucía Martín",
@@ -197,8 +212,10 @@ test("adds Lucía as a pinned contact only after explicit approval", async ({ pa
   });
   await page.route("**/api/v1/character-network/lucia-contact", async (route) => {
     if (route.request().method() === "POST") {
-      expect(route.request().postDataJSON()).toEqual({ decision: "accept" });
-      accepted = true;
+      const { decision } = route.request().postDataJSON();
+      expect(decision).toBe(status === "pending" ? "decline" : "accept");
+      decisions.push(decision);
+      status = decision === "accept" ? "active" : "declined";
     }
     await route.fulfill({
       status: 200,
@@ -206,9 +223,9 @@ test("adds Lucía as a pinned contact only after explicit approval", async ({ pa
       body: JSON.stringify({
         data: {
           characterKey: "lucia",
-          status: accepted ? "active" : "pending",
+          status,
           relationshipStage: "new_contact",
-          conversationId: accepted ? "conversation-lucia" : null,
+          conversationId: status === "active" ? "conversation-lucia" : null,
           source: { kind: "cultural-event", city: "Madrid", topic: "urban-photography" },
         },
       }),
@@ -219,24 +236,56 @@ test("adds Lucía as a pinned contact only after explicit approval", async ({ pa
   await expect(page.getByRole("navigation", { name: "好友列表" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Lucía Martín.*主要好友/ })).toHaveCount(0);
   await expect(page.getByText("还没有联系人。你可以先查看新的好友申请。")).toBeVisible();
-  await page.getByRole("button", { name: /待处理/ }).click();
+  const open = page.getByRole("button", { name: /待处理/ });
+  if (isMobile) await open.tap();
+  else await open.click();
   await expect(page.getByTestId("lucia-contact-request")).toBeVisible();
-  await page.getByRole("button", { name: "通过申请" }).click();
   const luciaContact = page.getByRole("link", { name: /Lucía Martín.*主要好友/ });
-  await expect(luciaContact).toHaveAttribute("aria-current", "page");
-  await page.getByRole("button", { name: "关闭好友申请与介绍" }).click();
+  const inbox = page.getByRole("dialog", { name: "好友申请与介绍" });
+  const close = inbox.getByRole("button", { name: "关闭好友申请与介绍" });
+  const decline = inbox.getByRole("button", { name: "暂不接受" });
+  if (isMobile) await decline.tap();
+  else await decline.click();
+  await expect(inbox.getByRole("status")).toContainText("已暂不接受");
+  await close.click();
+  await expect(luciaContact).toHaveCount(0);
+  await expect(open).toHaveCount(0);
+  const reconsider = page.getByRole("button", { name: "好友申请与介绍", exact: true });
+  if (isMobile) await reconsider.tap({ timeout: 5000 });
+  else await reconsider.click({ timeout: 5000 });
+  await expect(inbox.getByText("你仍可以通过这项申请。", { exact: false })).toBeVisible();
+  const approve = inbox.getByRole("button", { name: "通过申请" });
+  if (isMobile) await approve.tap();
+  else await approve.click();
+  await expect(inbox.getByRole("status")).toContainText("已通过 Lucía 的好友申请");
+  await close.click();
+  await expect(luciaContact).toHaveAttribute("href", "/chat/lucia");
+  await expect(page.getByRole("heading", { name: "对话", exact: true })).toBeFocused();
+  expect(decisions).toEqual(["decline", "accept"]);
+  if (isMobile) {
+    await luciaContact.tap();
+    await expect(page).toHaveURL(/\/chat\/lucia$/u);
+    return;
+  }
   await luciaContact.click({ button: "right" });
   await expect(page.getByRole("menuitem", { name: "取消置顶" })).toBeVisible();
 });
 
-test("shows a contextual friend introduction and requires explicit consent", async ({ page }) => {
+test("requires explicit consent and refreshes the new contact without reloading", async ({ page, isMobile }) => {
   await authenticate(page);
+  let accepted = false;
+  let responses = 0;
+  await page.route("**/api/v1/conversations", (route) => route.fulfill({ json: { data: { conversations: accepted ? [{
+    conversationId: "conversation-test", characterKey: "mateo", characterName: "Mateo Ruiz", avatarClass: "avatar--mateo",
+    roleLabel: "好友", lastMessageAt: null, lastMessage: null,
+  }] : [] } } }));
+  await page.route("**/api/v1/character-network/lucia-contact", (route) => route.fulfill({ json: { data: { status: "active" } } }));
   await page.route("**/api/v1/character-network/introductions", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: { offers: [{ offerKey: "intro-test", targetCharacterKey: "mateo", reasonCode: "shared-interest", reasonText: "你们刚好有一个共同感兴趣的话题，介绍会很自然。" }] } }),
+        body: JSON.stringify({ data: { offers: accepted ? [] : [{ offerKey: "intro-test", targetCharacterKey: "mateo", reasonCode: "shared-interest", reasonText: "你们刚好有一个共同感兴趣的话题，介绍会很自然。" }] } }),
       });
       return;
     }
@@ -245,21 +294,34 @@ test("shows a contextual friend introduction and requires explicit consent", asy
   await page.route("**/api/v1/character-network/introductions/intro-test", async (route) => {
     expect(route.request().method()).toBe("POST");
     expect(route.request().postDataJSON()).toEqual({ decision: "accept", memoryIds: [] });
+    responses += 1;
+    accepted = true;
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { status: "accepted", targetCharacterKey: "mateo", relationshipStage: "new_contact", conversationId: "conversation-test", sharedMemoryIds: [] } }) });
   });
 
   await page.goto("/chat");
-  await page.getByRole("button", { name: "查看好友申请和介绍" }).click();
+  const open = page.getByRole("button", { name: /待处理/ });
+  const mateo = page.getByRole("navigation", { name: "好友列表" }).getByRole("link", { name: /Mateo Ruiz/ });
+  await expect(mateo).toHaveCount(0);
+  if (isMobile) await open.tap();
+  else await open.click();
   await expect(page.getByRole("heading", { name: "认识一个新朋友" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Mateo Ruiz" })).toBeVisible();
-  await page.getByRole("button", { name: "同意介绍" }).click();
+  expect(responses).toBe(0);
+  const accept = page.getByRole("button", { name: "同意介绍" });
+  if (isMobile) await accept.tap();
+  else await accept.click();
   await expect(page.locator(".conversation-introductions").getByRole("status")).toContainText("已同意介绍");
+  await page.getByRole("button", { name: "关闭好友申请与介绍" }).click();
+  await expect(mateo).toHaveAttribute("href", "/chat/mateo");
+  expect(responses).toBe(1);
 });
 
-test("recovers the friend introduction inbox after a failed request", async ({ page }) => {
+test("opens and recovers the friend introduction inbox after the initial read fails", async ({ page, isMobile }) => {
   await authenticate(page);
   let attempts = 0;
   let allowSuccess = false;
+  await page.route("**/api/v1/character-network/lucia-contact", (route) => route.fulfill({ json: { data: { status: "active" } } }));
   await page.route("**/api/v1/character-network/introductions", async (route) => {
     attempts += 1;
     if (!allowSuccess) {
@@ -274,12 +336,18 @@ test("recovers the friend introduction inbox after a failed request", async ({ p
   });
 
   await page.goto("/chat");
-  await page.getByRole("button", { name: "查看好友申请和介绍" }).click();
+  await expect.poll(() => attempts).toBeGreaterThanOrEqual(1);
+  const open = page.getByRole("button", { name: "好友申请与介绍", exact: true });
+  if (isMobile) await open.tap({ timeout: 5000 });
+  else await open.click({ timeout: 5000 });
   await expect(page.locator(".conversation-introductions [role=alert]")).toContainText("暂时无法读取好友介绍");
+  await expect(page.getByText("目前没有新的介绍请求。")).toHaveCount(0);
   allowSuccess = true;
-  await page.getByRole("dialog", { name: "介绍请求" }).getByRole("button", { name: "重试" }).click();
+  const retry = page.getByRole("dialog", { name: "好友申请与介绍" }).getByRole("button", { name: "重试" });
+  if (isMobile) await retry.tap();
+  else await retry.click();
   await expect(page.getByRole("heading", { name: "Mateo Ruiz" })).toBeVisible();
-  expect(attempts).toBeGreaterThanOrEqual(2);
+  expect(attempts).toBeGreaterThanOrEqual(3);
 });
 
 test("shares only the memory explicitly selected in an introduction", async ({ page }) => {
@@ -297,7 +365,7 @@ test("shares only the memory explicitly selected in an introduction", async ({ p
   });
 
   await page.goto("/chat");
-  await page.getByRole("button", { name: "查看好友申请和介绍" }).click();
+  await page.getByRole("button", { name: /待处理/ }).click();
   const memory = page.getByRole("checkbox", { name: /喜欢摄影/ });
   await expect(memory).not.toBeChecked();
   await memory.check();
@@ -342,14 +410,13 @@ test("lets the user delete an owned relationship memory", async ({ page }) => {
     expect(route.request().url()).toContain("memoryId=00000000-0000-4000-8000-000000000071");
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { deleted: true } }) });
   });
-  page.on("dialog", (dialog) => void dialog.accept());
-
   await page.goto("/me#profile-relationships");
   await expect(page.getByRole("heading", { name: "我的关系记忆" })).toBeVisible();
   await expect(page.getByText("喜欢摄影")).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "删除记忆" });
   await deleteButton.scrollIntoViewIfNeeded();
-  await deleteButton.click({ force: true });
+  await deleteButton.click();
+  await page.getByRole("alertdialog", { name: "删除这条关系记忆？" }).getByRole("button", { name: "确认删除记忆" }).click();
   await expect(page.getByTestId("memory-data-controls").getByRole("status")).toContainText("已删除");
   await expect(page.getByText("喜欢摄影")).not.toBeVisible();
 });
@@ -370,20 +437,20 @@ test("lets the user delete a saved speech transcript", async ({ page }) => {
     expect(route.request().url()).toContain("id=00000000-0000-4000-8000-000000000072");
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { deleted: true, kind: "transcript", id: "00000000-0000-4000-8000-000000000072" } }) });
   });
-  page.on("dialog", (dialog) => void dialog.accept());
-
   await page.goto("/me#profile-data");
   await expect(page.getByRole("heading", { name: "已保存的录音与转写" })).toBeVisible();
   await expect(page.getByText("¿Cómo va todo?")).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "删除转写" });
   await deleteButton.scrollIntoViewIfNeeded();
-  await deleteButton.click({ force: true });
+  await deleteButton.click();
+  await page.getByRole("alertdialog", { name: "删除这条转写？" }).getByRole("button", { name: "确认删除转写" }).click();
   await expect(page.getByTestId("voice-data-controls").getByRole("status")).toContainText("已删除");
   await expect(page.getByText("¿Cómo va todo?")).not.toBeVisible();
 });
 
 test("requires explicit confirmation before deleting account data", async ({ page }) => {
   await authenticate(page);
+  let deleteRequests = 0;
   await page.route("**/api/v1/me/data", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
@@ -396,20 +463,28 @@ test("requires explicit confirmation before deleting account data", async ({ pag
     expect(route.request().method()).toBe("DELETE");
     expect(route.request().headers()["idempotency-key"]).toBeTruthy();
     expect(route.request().postDataJSON()).toEqual({ confirmation: "DELETE_MY_DATA" });
+    deleteRequests += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ data: { alreadyDeleted: false, cleanupDeferred: 0, evidenceDeleted: 2, providerCallsAnonymized: 1 } }),
     });
   });
-  page.on("dialog", (dialog) => void dialog.accept());
-
   await page.goto("/me#profile-data");
   await expect(page.getByRole("heading", { name: "删除我的账号数据" })).toBeVisible();
   const deleteAccountButton = page.getByRole("button", { name: "删除账号数据" });
   await deleteAccountButton.scrollIntoViewIfNeeded();
-  await deleteAccountButton.click({ force: true });
+  await deleteAccountButton.click();
+  const confirmation = page.getByRole("alertdialog", { name: "删除我的账号数据？" });
+  await expect(confirmation).toBeVisible();
+  expect(deleteRequests).toBe(0);
+  await confirmation.getByRole("button", { name: "取消" }).click();
+  await expect(confirmation).toHaveCount(0);
+  expect(deleteRequests).toBe(0);
+  await deleteAccountButton.click();
+  await confirmation.getByRole("button", { name: "确认删除账号数据" }).click();
   await expect(page.getByTestId("account-data-controls").getByRole("status")).toHaveText("账号数据已删除。");
+  expect(deleteRequests).toBe(1);
 });
 
 test("keeps legacy learning query state from restoring the former task card", async ({
@@ -456,7 +531,9 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   // search box must neither sit flush against it nor be reintroduced behind a
   // section rule.
   const underlinedTab = page.locator('.read-section-navigation a[aria-current="page"]');
-  const searchFieldBox = await page.locator(".read-search__field").boundingBox();
+  const searchField = page.locator(".read-search__field").filter({ has: page.getByRole("searchbox", { name: "搜索文章" }) });
+  await expect(searchField).toBeVisible();
+  const searchFieldBox = await searchField.boundingBox();
   const underlinedTabBox = await underlinedTab.boundingBox();
   expect(searchFieldBox).not.toBeNull();
   expect(underlinedTabBox).not.toBeNull();
@@ -539,13 +616,16 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   });
   const firstArticleTop = await firstArticleRow.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
   const firstArticleSave = page.getByRole("button", { name: /收藏文章：Una conversación que empieza con un café/ });
+  const saveToast = page.getByRole("status").filter({ hasText: "已收藏。" });
+  await page.clock.install();
   await firstArticleSave.click();
   await page.evaluate(() => document.fonts?.ready);
   const firstArticleTopAfterSave = await firstArticleRow.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
   expect(Math.abs(firstArticleTopAfterSave - firstArticleTop)).toBeLessThan(5);
   await expect(page.getByRole("button", { name: /取消收藏：Una conversación que empieza con un café/ })).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("已收藏。");
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4000 });
+  await expect(saveToast.getByRole("button", { name: "撤销" })).toBeVisible();
+  await page.clock.fastForward(4_000);
+  await expect(saveToast).toHaveCount(0);
   await firstArticleLink.click();
   await expect(page).toHaveURL(/\/read\/article\/article\.sueno-first-cafe%401$/);
   await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
@@ -591,8 +671,12 @@ test("redirects readers to login when their save session expires", async ({ page
 
 test("keeps the profile empty state focused before evidence exists", async ({
   page,
+  isMobile,
 }) => {
   await authenticate(page);
+  await page.route("**/api/v1/profile/heatmap", (route) => route.fulfill({
+    json: { apiVersion: "v1", data: buildLearningHeatmap([], new Date("2026-11-28T12:00:00Z")) },
+  }));
   await page.goto("/me");
 
   const overview = page.getByTestId("profile-overview");
@@ -610,30 +694,39 @@ test("keeps the profile empty state focused before evidence exists", async ({
   const heatmap = page.getByTestId("learning-heatmap");
   await expect(heatmap).toBeVisible();
   await expect(heatmap.getByTestId("learning-heatmap-empty")).toBeVisible();
+  await expect(heatmap.getByTestId("learning-heatmap-unavailable")).toHaveCount(0);
   await expect(heatmap.locator("[data-date]")).toHaveCount(0);
 
-  // The section navigation shares the one sliding underline: it rests on the
-  // active section and moves with the pointer without leaving a static
-  // underline behind on the first item.
   const sectionNavigation = page.getByRole("navigation", { name: "我的页面分区" });
   const sectionIndicator = page.locator(".profile-page__section-nav-indicator");
-  await expect(sectionNavigation).toHaveAttribute("data-indicator", "ready");
-  await expect(sectionIndicator).toHaveCSS("opacity", "1");
-  const sectionIndicatorBox = await sectionIndicator.boundingBox();
-  const activeSectionBox = await sectionNavigation.getByRole("link", { name: "能力与活动" }).boundingBox();
-  expect(sectionIndicatorBox).not.toBeNull();
-  expect(activeSectionBox).not.toBeNull();
-  expect(Math.abs((sectionIndicatorBox?.x ?? 0) - (activeSectionBox?.x ?? 0))).toBeLessThan(1);
-  // The width is read while the 240ms transform/width transition settles, so a
-  // sub-pixel difference is expected; anything wider would mean a mis-measure.
-  expect(Math.abs((sectionIndicatorBox?.width ?? 0) - (activeSectionBox?.width ?? 0))).toBeLessThan(2);
+  const activeTab = sectionNavigation.getByRole("link", { name: "能力与活动" });
   const relationshipsTab = sectionNavigation.getByRole("link", { name: "关系隐私" });
-  await relationshipsTab.hover();
-  await expect.poll(async () => (await sectionIndicator.boundingBox())?.x ?? 0).toBeGreaterThan((sectionIndicatorBox?.x ?? 0) + 10);
-  await relationshipsTab.click();
+  await expect(sectionNavigation).toHaveAttribute("data-indicator", "ready");
+  const twoRows = (page.viewportSize()?.width ?? 0) <= 420;
+  if (twoRows) {
+    await expect(sectionIndicator).toBeHidden();
+    await expect(activeTab).not.toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+    expect((await relationshipsTab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  } else {
+    await expect(sectionIndicator).toHaveCSS("opacity", "1");
+    const assertIndicator = async (tab: typeof activeTab) => expect.poll(async () => {
+      const [indicator, bounds] = await Promise.all([sectionIndicator.boundingBox(), tab.boundingBox()]);
+      if (!indicator || !bounds) return Number.POSITIVE_INFINITY;
+      return Math.max(Math.abs(indicator.x - bounds.x), Math.abs(indicator.width - bounds.width));
+    }).toBeLessThan(1);
+    await assertIndicator(activeTab);
+    await relationshipsTab.hover();
+    await assertIndicator(relationshipsTab);
+  }
+  if (isMobile) await relationshipsTab.tap();
+  else await relationshipsTab.click();
   await expect(page).toHaveURL(/#profile-relationships$/);
   await expect(relationshipsTab).toHaveAttribute("aria-current", "page");
-  await expect(sectionNavigation.getByRole("link", { name: "能力与活动" })).not.toHaveAttribute("aria-current");
+  await expect(activeTab).not.toHaveAttribute("aria-current");
+  if (twoRows) {
+    await expect(relationshipsTab).not.toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+    await expect(activeTab).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+  }
 });
 
 test("shows provider settings and keeps them usable across the release viewport matrix", async ({ page }) => {

@@ -26,18 +26,23 @@ function Avatar({ profile, size = "sm" }: Readonly<{ profile: AccountProfileDto 
   return <span className={`account-avatar account-avatar--${size}`} aria-hidden="true" style={style}>{profile?.avatar.initials ?? "你"}</span>;
 }
 
-export function AccountMenu() {
+export function AccountMenu({ inline = false }: Readonly<{ inline?: boolean }>) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<AccountProfileDto | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setOpen(false); };
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => { document.removeEventListener("pointerdown", onPointerDown); document.removeEventListener("keydown", onKeyDown); };
@@ -102,9 +107,9 @@ export function AccountMenu() {
   const language = profile?.targetLanguage === "es-ES" ? "西班牙语" : profile?.targetLanguage ?? "西班牙语";
 
   return (
-    <div className="account-menu" ref={menuRef}>
-      <button className="account-menu__trigger" type="button" aria-expanded={open} aria-haspopup="menu" aria-label="打开账户菜单" onClick={() => setOpen((current) => !current)}>
-        <Avatar profile={profile} />
+    <div className={inline ? "account-menu account-menu--inline" : "account-menu"} ref={menuRef}>
+      <button ref={triggerRef} className="account-menu__trigger" type="button" aria-expanded={open} aria-haspopup="menu" aria-label={inline ? "账户设置" : "打开账户菜单"} onClick={() => setOpen((current) => !current)}>
+        {inline ? "账户设置" : <Avatar profile={profile} />}
       </button>
       {open ? (
         <div className="account-menu__popover" role="menu" aria-label="账户菜单">
@@ -114,7 +119,7 @@ export function AccountMenu() {
             {notice ? <p className="account-menu__notice" role="status">{notice}</p> : null}
           </div>
           <Link href="/me/profile" role="menuitem" onClick={() => setOpen(false)}>编辑个人资料 <span aria-hidden="true">↗</span></Link>
-          <Link href="/me" role="menuitem" onClick={() => setOpen(false)}>我的进步与隐私 <span aria-hidden="true">↗</span></Link>
+          {!inline ? <Link href="/me" role="menuitem" onClick={() => setOpen(false)}>我的进步与隐私 <span aria-hidden="true">↗</span></Link> : null}
           <Link href="/me#preferences" role="menuitem" onClick={() => setOpen(false)}>偏好设置 <span aria-hidden="true">↗</span></Link>
           <Link href="/help" role="menuitem" onClick={() => setOpen(false)}>帮助与反馈 <span aria-hidden="true">↗</span></Link>
           <div className="account-menu__divider" />

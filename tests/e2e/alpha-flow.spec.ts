@@ -94,7 +94,7 @@ test("retries an incomplete Lucía stream without duplicating the character mess
   let attempts = 0;
   await page.route("**/api/v1/conversations/lucia", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not configured" }) });
+      await route.fulfill({ json: { data: { messages: [], readOnly: false, canSend: true, contactStatus: "active" } } });
       return;
     }
     await route.continue();
@@ -102,7 +102,7 @@ test("retries an incomplete Lucía stream without duplicating the character mess
   await page.route("**/api/v1/conversations/lucia/stream", async (route) => {
     attempts += 1;
     const body = route.request().postDataJSON() as { generationId: string };
-    const messageId = "e2e-lucia-message";
+    const messageId = `e2e-lucia-${body.generationId}`;
     if (attempts === 1) {
       await route.fulfill({
         status: 200,
@@ -134,6 +134,8 @@ test("retries an incomplete Lucía stream without duplicating the character mess
 
   await page.getByRole("button", { name: "重新发送" }).click();
   await expect(page.locator('[data-status="completed"]')).toBeVisible();
-  await expect(page.locator(".conversation-message--character")).toHaveCount(1);
+  await expect(page.locator(".conversation-message--user")).toHaveCount(1);
+  await expect(page.locator('.conversation-message--character[data-complete="false"]')).toContainText("Parcial");
+  await expect(page.locator('.conversation-message--character[data-complete="true"]')).toHaveCount(1);
   await expect(page.locator('.conversation-message--character[data-complete="true"]')).toContainText("Qué alegría");
 });

@@ -64,7 +64,7 @@ test.beforeEach(async ({ context, page, baseURL }) => {
 });
 
 test("shows the compact podcast loading skeleton before the content arrives", async ({ page }, testInfo) => {
-  await page.setViewportSize({ width: testInfo.project.name === "mobile-chromium" ? 375 : 1440, height: 900 });
+  await page.setViewportSize({ width: testInfo.project.use.isMobile ? 375 : 1440, height: 900 });
   await page.goto("/learn/media/podcast.e2e-loading", { waitUntil: "commit" });
   const loading = page.locator(".media-detail--loading");
   await expect(loading).toBeVisible();
@@ -148,7 +148,7 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
   await drawer.getByRole("button", { name: "朗读单词" }).click();
   await expect(drawer.getByText("正在朗读 · 合成音", { exact: true })).toBeVisible();
   await drawer.getByRole("button", { name: "停止朗读" }).click();
-  if (testInfo.project.name === "mobile-chromium") {
+  if (testInfo.project.use.isMobile) {
     const drawerBox = await drawer.boundingBox();
     const navigationBox = await page.getByRole("navigation", { name: "主要导航" }).boundingBox();
     expect(drawerBox).not.toBeNull();
@@ -160,7 +160,7 @@ test("learns from a reviewed podcast with audio, transcript, words, and progress
 });
 
 test("keeps a compact player above the text while long transcripts follow and scroll", async ({ page }, testInfo) => {
-  const mobile = testInfo.project.name === "mobile-chromium";
+  const mobile = testInfo.project.use.isMobile;
   const widths = mobile ? [320, 375, 768] : [1024, 1440, 1920];
   await page.goto(`/learn/media/${longFixtureStableKey}`);
   await expect(page.getByText("播放器已就绪", { exact: true })).toBeVisible();
@@ -227,12 +227,11 @@ test("keeps a compact player above the text while long transcripts follow and sc
       audio.dispatchEvent(new Event("timeupdate"));
     });
     await expect(page.locator("#segment-20")).toHaveClass("is-active");
-    const centering = await transcript.evaluate((element) => {
+    await expect.poll(() => transcript.evaluate((element) => {
       const pane = element.getBoundingClientRect();
       const active = element.querySelector(".is-active")!.getBoundingClientRect();
       return Math.abs(active.y + active.height / 2 - pane.y - pane.height / 2);
-    });
-    expect(centering).toBeLessThan(3);
+    })).toBeLessThan(3);
     const afterFollow = (await player.boundingBox())!;
     expect(Math.abs(afterFollow.y - playerBox.y)).toBeLessThan(2);
     await page.screenshot({ path: testInfo.outputPath(`podcast-${width}.png`), fullPage: true });

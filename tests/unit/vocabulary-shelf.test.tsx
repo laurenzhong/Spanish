@@ -715,6 +715,57 @@ describe("vocabulary shelf", () => {
     expect(screen.getByRole("complementary", { name: "casa 词汇卡片" })).toBeInTheDocument();
   });
 
+  it.each(["close", "switch"] as const)("discards a pending lookup after %s", async (action) => {
+    const user = userEvent.setup();
+    renderShelf("scope-lookup-cancel");
+    await user.click(wordTile("casa"));
+    let resolveLookup!: (payload: unknown) => void;
+    const lookup = new Promise<unknown>((resolve) => { resolveLookup = resolve; });
+    wordLookupReply = { ok: true, status: 200, json: () => lookup };
+
+    await user.type(screen.getByRole("searchbox", { name: "查另一个词" }), "parque");
+    await user.click(screen.getByRole("button", { name: "查" }));
+    expect(screen.getByRole("button", { name: "查询中" })).toBeDisabled();
+    const [, init] = callsTo("/api/v1/read/word-lookup").find(([url]) => !url.includes("?"))!;
+
+    if (action === "close") await user.click(screen.getByRole("button", { name: "关闭" }));
+    else await user.click(wordTile("vez"));
+    await act(async () => { resolveLookup({ data: { found: true, word: "parque" } }); });
+
+    expect(screen.queryByRole("complementary", { name: "parque 词汇卡片" })).not.toBeInTheDocument();
+    expect(init.signal?.aborted).toBe(true);
+    if (action === "switch") {
+      const card = screen.getByRole("complementary", { name: "vez 词汇卡片" });
+      expect(within(card).getByRole("searchbox")).toHaveValue("");
+    } else {
+      expect(screen.queryByRole("searchbox", { name: "查另一个词" })).not.toBeInTheDocument();
+    }
+  });
+
+  it("lets the reader retry a lookup whose response stalls", async () => {
+    const user = userEvent.setup();
+    renderShelf("scope-lookup-timeout");
+    await user.click(wordTile("casa"));
+    wordLookupReply = { ok: true, status: 200, json: () => new Promise(() => undefined) };
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(screen.getByRole("searchbox", { name: "查另一个词" }), { target: { value: "parque" } });
+      fireEvent.click(screen.getByRole("button", { name: "查" }));
+      const [, init] = callsTo("/api/v1/read/word-lookup").find(([url]) => !url.includes("?"))!;
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+      expect(init.signal?.aborted).toBe(true);
+      expect(screen.getByRole("status")).toHaveTextContent("查询暂时不可用");
+      expect(screen.getByRole("button", { name: "查" })).toBeEnabled();
+
+      wordLookupReply = { ok: true, status: 200, json: async () => ({ data: { found: true, word: "parque" } }) };
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "查" })); });
+      expect(screen.getByRole("heading", { name: "parque" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("closes the panel when the reader presses Back, and does not leave a history step behind", async () => {
     const user = userEvent.setup();
     renderShelf("scope-back");

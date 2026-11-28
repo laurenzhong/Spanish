@@ -1,6 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-test("keeps the six OTP slots aligned with the accessible input", async ({ page }) => {
+test("keeps the reading destination when an anonymous reader is sent to login", async ({ page }) => {
+  for (const path of ["/read", "/read/vocabulary"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL((url) => url.pathname === "/login" && url.searchParams.get("next") === path);
+    await expect(page.getByRole("heading", { name: "¡Bienvenido!" })).toBeVisible();
+  }
+});
+
+test("keeps the six OTP slots aligned with the accessible input", async ({ page, browserName }) => {
   await page.goto("/login?email=otp-layout%40example.com&step=otp");
 
   const slots = page.locator(".otp-input__slot");
@@ -24,9 +32,15 @@ test("keeps the six OTP slots aligned with the accessible input", async ({ page 
   await expect(slots.nth(5)).toHaveAttribute("data-caret", "empty");
   await code.press("ControlOrMeta+A");
   await expect(page.locator('.otp-input__slot[data-selected="true"]')).toHaveCount(5);
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.evaluate(() => navigator.clipboard.writeText("289135"));
-  await code.press("ControlOrMeta+V");
+  if (browserName === "webkit") {
+    // The Windows WebKit runner does not offer Chromium's clipboard grant.
+    // Insert the six digits in one input event to exercise committed code fill.
+    await page.keyboard.insertText("289135");
+  } else {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.evaluate(() => navigator.clipboard.writeText("289135"));
+    await code.press("ControlOrMeta+V");
+  }
   await expect(slots).toHaveText(["2", "8", "9", "1", "3", "5"]);
   await expect(slots.nth(5)).toHaveAttribute("data-caret", "after");
 
@@ -37,12 +51,14 @@ test("keeps the six OTP slots aligned with the accessible input", async ({ page 
       textFillColor: styles.webkitTextFillColor,
       caretColor: styles.caretColor,
       outlineStyle: styles.outlineStyle,
+      fontSize: parseFloat(styles.fontSize),
     };
   });
   expect(inputStyles.color).toBe("rgba(0, 0, 0, 0)");
   expect(inputStyles.textFillColor).toBe("rgba(0, 0, 0, 0)");
   expect(inputStyles.caretColor).toBe("rgba(0, 0, 0, 0)");
   expect(inputStyles.outlineStyle).toBe("none");
+  expect(inputStyles.fontSize).toBeGreaterThanOrEqual(16);
   await expect(slots.nth(5)).toHaveCSS("outline-style", "solid");
 
   const boxes = await slots.evaluateAll((elements) =>
@@ -74,4 +90,21 @@ test("shows a light inline confirmation below the code label after sending", asy
   await expect(notice).toHaveCSS("border-left-width", "0px");
   const code = page.getByLabel("六位验证码");
   expect((await notice.boundingBox())!.y).toBeLessThan((await code.boundingBox())!.y);
+});
+
+test("keeps the password login form usable and shows a recoverable error", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.route("**/auth/v1/token?grant_type=password", (route) => route.fulfill({
+    status: 400,
+    json: { code: "invalid_credentials", message: "Invalid login credentials" },
+  }));
+  await page.goto("/login/password");
+  await page.getByLabel("邮箱").fill("reviewer@example.test");
+  const password = page.getByLabel("密码", { exact: true });
+  await password.fill("wrong-test-password");
+  await page.getByRole("button", { name: "登录测试账号" }).click();
+  await expect(page.locator(".auth-form").getByRole("alert")).toHaveText("邮箱或密码不正确。");
+  await expect(password).toHaveValue("wrong-test-password");
+  await expect(page.getByRole("button", { name: "登录测试账号" })).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });

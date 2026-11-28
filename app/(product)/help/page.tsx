@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { z } from "zod";
 
 export const metadata: Metadata = { title: "帮助与反馈" };
 
 export default function HelpPage() {
+  const feedbackEmail = z.email().safeParse(process.env.SUPPORT_EMAIL?.trim());
   return (
     <div className="page-stack help-page">
       <header className="page-header page-header--simple">
@@ -18,7 +20,7 @@ export default function HelpPage() {
         <article className="help-page__card">
           <span className="eyebrow">账户</span>
           <h2>修改头像和显示名</h2>
-          <p>打开左下角头像，选择“编辑个人资料”。公开 UID 不会因改名或换头像而改变。</p>
+          <p>在「我的」打开「账户设置」，选择「编辑个人资料」。电脑上也可以从左下角头像进入。公开 UID 不会因改名或换头像而改变。</p>
           <Link className="button button--quiet" href="/me/profile">打开个人资料</Link>
         </article>
         <article className="help-page__card">
@@ -31,7 +33,9 @@ export default function HelpPage() {
           <span className="eyebrow">反馈</span>
           <h2>告诉我们哪里需要改进</h2>
           <p>请附上复现步骤、浏览器或设备，以及出现问题的大致时间。不要发送验证码或私密对话原文。</p>
-          <a className="button button--primary" href="mailto:feedback@sueno.example?subject=Sue%C3%B1o%20%E5%8F%8D%E9%A6%88">发送反馈邮件</a>
+          {feedbackEmail.success
+            ? <a className="button button--primary" href={`mailto:${feedbackEmail.data}?subject=${encodeURIComponent("Sueño 反馈")}`}>发送反馈邮件</a>
+            : <p>反馈邮箱尚未开放。</p>}
         </article>
       </section>
     </div>

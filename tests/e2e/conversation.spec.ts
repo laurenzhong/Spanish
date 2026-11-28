@@ -413,8 +413,8 @@ test("opens the mobile conversation list without a redundant back link", async (
   await expect(page.getByRole("dialog", { name: "会话列表" })).toBeVisible();
 });
 
-test("persists contact menu changes and keeps the menu inside the workspace", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-chromium", "The desktop contact context menu is not rendered in the mobile layout.");
+test("persists contact menu changes and keeps the menu inside the workspace", async ({ page, isMobile }) => {
+  test.skip(isMobile, "The desktop contact context menu is not rendered in the mobile layout.");
   await authenticate(page);
   const preferenceBodies: string[] = [];
   await page.route("**/api/v1/conversations/preferences", async (route) => {
@@ -443,8 +443,8 @@ test("persists contact menu changes and keeps the menu inside the workspace", as
   expect(preferenceBodies.some((body) => body.includes('"isPinned":false'))).toBe(true);
 });
 
-test("supports direct desktop contact reordering without navigating away", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-chromium", "Direct pointer reordering is a desktop interaction; mobile uses long press for contact actions.");
+test("supports direct desktop contact reordering without navigating away", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Direct pointer reordering is a desktop interaction; mobile uses long press for contact actions.");
   await authenticate(page);
   await page.route("**/api/v1/conversations", async (route) => {
     await route.fulfill({
@@ -502,7 +502,7 @@ test("searches conversation history and opens the matching message", async ({ pa
     });
   });
 
-  await page.goto("/chat");
+  await page.goto("/chat/lucia");
   await page.getByRole("button", { name: "更多对话操作" }).click();
   await page.getByRole("menuitem", { name: "搜索消息" }).click();
   await page.getByRole("searchbox", { name: "搜索对话" }).fill("café");
@@ -513,13 +513,25 @@ test("searches conversation history and opens the matching message", async ({ pa
   await expect(page.locator(`[data-message-id="${messageId}"]`)).toHaveAttribute("data-highlighted", "true");
 });
 
-test("renders the selected character identity for Mateo and Inés", async ({ page }) => {
+test("keeps draft characters behind the direct conversation gate", async ({ page }) => {
   await authenticate(page);
+  const historyRequests: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (/^\/api\/v1\/conversations\/(mateo|ines)(\/|$)/u.test(path)) historyRequests.push(path);
+  });
   for (const character of [{ key: "mateo", name: "Mateo Ruiz" }, { key: "ines", name: "Inés García" }]) {
     await page.goto(`/chat/${character.key}`);
-    await expect(page.getByRole("heading", { name: character.name })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: `写下你想对 ${character.name} 说的话` })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "角色尚未开放" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "角色尚未开放" })).toContainText(character.name);
+    await expect(page.getByTestId("conversation-thread")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: `写下你想对 ${character.name} 说的话` })).toHaveCount(0);
+    const chat = page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "对话", exact: true });
+    await chat.click();
+    await expect(page).toHaveURL(/\/chat$/u);
+    await expect(page.getByRole("navigation", { name: "好友列表" })).toBeVisible();
   }
+  expect(historyRequests).toEqual([]);
 });
 
 test("opens sent-message actions and marks a withdrawn message without memory text", async ({ page }) => {

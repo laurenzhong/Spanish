@@ -233,7 +233,7 @@ function WordPanelContent(props: Readonly<{
     state: "idle" | "loading" | "missing" | "error";
     notice: string;
     onChange: (value: string) => void;
-    onSubmit: () => void;
+    onSubmit: (word: string) => void;
   }>;
   onToggleRead: () => void;
   onMark: (status: VocabularyShelfStatus) => void;
@@ -349,11 +349,16 @@ function WordPanelContent(props: Readonly<{
         A form, not a bare button, so Enter submits and a phone keyboard offers 前往. */}
     <form
       className="vocabulary-study__lookup"
-      onSubmit={(event) => { event.preventDefault(); props.lookup.onSubmit(); }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const word = new FormData(event.currentTarget).get("word");
+        if (typeof word === "string") props.lookup.onSubmit(word);
+      }}
     >
       <label className="sr-only" htmlFor="vocabulary-lookup-input">查另一个词</label>
       <input
         id="vocabulary-lookup-input"
+        name="word"
         type="search"
         autoComplete="off"
         spellCheck={false}
@@ -371,6 +376,7 @@ function WordPanelContent(props: Readonly<{
 }
 
 const wordLookupEndpoint = "/api/v1/read/word-lookup";
+const wordLookupTimeoutMs = 20_000;
 const unsupportedSpeechNotice = "当前浏览器不支持音频播放，单词仍可正常学习。";
 
 function loadTatoebaRecording(element: HTMLAudioElement, url: string, onProgress: () => void, onWaiting: () => void, onEnded: () => void, onError: () => void): void {
@@ -763,7 +769,20 @@ export function VocabularyShelf({
   /** The lookup form's own state; the panel renders it and the frame owns it. */
   const [lookupValue, setLookupValue] = useState("");
   const [lookupState, setLookupState] = useState<"idle" | "loading" | "missing" | "error">("idle");
-  const lookupGenerationRef = useRef(0);
+  const lookupRequestRef = useRef<{ controller: AbortController; timeout: number } | null>(null);
+  const cancelLookupRequest = useCallback(() => {
+    const request = lookupRequestRef.current;
+    if (!request) return;
+    lookupRequestRef.current = null;
+    window.clearTimeout(request.timeout);
+    request.controller.abort();
+  }, []);
+  const resetLookup = useCallback(() => {
+    cancelLookupRequest();
+    setLookupValue("");
+    setLookupState("idle");
+  }, [cancelLookupRequest]);
+  useEffect(() => cancelLookupRequest, [cancelLookupRequest]);
   /**
    * Tatoeba examples, fetched the first time a word is opened.
    *
@@ -820,59 +839,64 @@ export function VocabularyShelf({
    * Look up a word the shelf is not showing.
    *
    * The route answers with exactly what the page would have put on a tile and in the
-   * frame's glossary, so a looked-up word gets the same panel as a clicked one. The
-   * generation counter drops a reply whose form was already submitted again — the
-   * same discipline `startRead` uses for audio, and the same one Language Reactor
-   * uses for its drawer.
+   * frame's glossary, so a looked-up word gets the same panel as a clicked one.
+   * Only the request still owned by the current card may change its contents.
    */
-  const requestLookup = useCallback(() => {
-    const wanted = lookupValue.trim();
+  const requestLookup = useCallback(async (word: string) => {
+    const wanted = word.trim();
     if (!wanted) return;
-    lookupGenerationRef.current += 1;
-    const generation = lookupGenerationRef.current;
+    cancelLookupRequest();
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      if (lookupRequestRef.current?.controller !== controller) return;
+      cancelLookupRequest();
+      setLookupState("error");
+    }, wordLookupTimeoutMs);
+    lookupRequestRef.current = { controller, timeout };
     setLookupState("loading");
-    void fetch(wordLookupEndpoint, {
-      body: JSON.stringify({ word: wanted }),
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: unknown) => {
-        if (lookupGenerationRef.current !== generation) return;
-        const data = payload && typeof payload === "object" ? (payload as { data?: WordLookupResponse }).data : null;
-        if (!data) {
-          setLookupState("error");
-          return;
-        }
-        if (!data.found) {
-          setLookupState("missing");
-          return;
-        }
-        // Reveal the word it found, and let the shelf show it too, so the panel and
-        // the list agree about what is being looked at.
-        selectedTileRef.current = null;
-        setSelected({
-          key: data.markKey ?? data.word,
-          word: data.word,
-          example: data.context ?? null,
-          source: data.sourceTitle ?? null,
-          meanings: { meanings: data.meanings ?? [], source: data.meaningSource ?? "none" },
-          usageNotes: data.usageNotes ?? [],
-          cefr: data.cefr ?? null,
-          partOfSpeech: data.partOfSpeech ?? null,
-          collocations: data.collocations ?? [],
-          examples: data.examples ?? [],
-          forms: data.forms ?? [],
-          tatoeba: data.tatoeba ?? [],
-        });
-        setLookupState("idle");
-      })
-      .catch(() => {
-        if (lookupGenerationRef.current !== generation) return;
-        setLookupState("error");
+    try {
+      const response = await fetch(wordLookupEndpoint, {
+        body: JSON.stringify({ word: wanted }),
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+        signal: controller.signal,
       });
-  }, [lookupValue]);
+      if (!response.ok) throw new Error("WORD_LOOKUP_FAILED");
+      const payload = await response.json() as { data?: WordLookupResponse } | null;
+      if (lookupRequestRef.current?.controller !== controller) return;
+      const data = payload?.data;
+      if (!data) throw new Error("WORD_LOOKUP_FAILED");
+      if (!data.found) {
+        setLookupState("missing");
+        return;
+      }
+      stopReadAloud();
+      selectedTileRef.current = null;
+      setSelected({
+        key: data.markKey ?? data.word,
+        word: data.word,
+        example: data.context ?? null,
+        source: data.sourceTitle ?? null,
+        meanings: { meanings: data.meanings ?? [], source: data.meaningSource ?? "none" },
+        usageNotes: data.usageNotes ?? [],
+        cefr: data.cefr ?? null,
+        partOfSpeech: data.partOfSpeech ?? null,
+        collocations: data.collocations ?? [],
+        examples: data.examples ?? [],
+        forms: data.forms ?? [],
+        tatoeba: data.tatoeba ?? [],
+      });
+      setLookupState("idle");
+    } catch {
+      if (lookupRequestRef.current?.controller === controller) setLookupState("error");
+    } finally {
+      if (lookupRequestRef.current?.controller === controller) {
+        window.clearTimeout(timeout);
+        lookupRequestRef.current = null;
+      }
+    }
+  }, [cancelLookupRequest, stopReadAloud]);
 
   const hideTranslation = useCallback(() => {
     cancelHide();
@@ -961,6 +985,7 @@ export function VocabularyShelf({
 
   const selectTile = useCallback((tile: HTMLElement) => {
     rememberShelfPosition(tile);
+    resetLookup();
     const key = tile.dataset.wordKey ?? "";
     // Opening, closing or moving the word's card leaves the previous word's sound
     // behind, whichever card started it.
@@ -987,7 +1012,7 @@ export function VocabularyShelf({
       example: tile.dataset.example ?? null,
       source: tile.dataset.source ?? null,
     }));
-  }, [entryFor, hideTranslation, stopReadAloud, withExamples, rememberShelfPosition]);
+  }, [entryFor, hideTranslation, stopReadAloud, withExamples, rememberShelfPosition, resetLookup]);
 
   const markStatus = useCallback((markKey: string, status: VocabularyShelfStatus) => {
     const next = { ...readStatuses(storageScope) };
@@ -1108,15 +1133,20 @@ export function VocabularyShelf({
   // a container-scoped handler never saw the key and the sound kept playing while
   // the panel stayed open. One dismissal now closes the panel, the hover layer and
   // the sound together, wherever the focus happens to be.
+  const closePanel = useCallback(() => {
+    rememberShelfPosition();
+    resetLookup();
+    stopReadAloud();
+    hideTranslation();
+    selectedTileRef.current = null;
+    setSelected(null);
+  }, [stopReadAloud, rememberShelfPosition, resetLookup, hideTranslation]);
+
   useEffect(() => {
     const onVisibilityChange = () => { if (document.hidden) stopReadAloud(); };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      rememberShelfPosition();
-      stopReadAloud();
-      hideTranslation();
-      selectedTileRef.current = null;
-      setSelected(null);
+      closePanel();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     document.addEventListener("keydown", onKeyDown);
@@ -1124,7 +1154,7 @@ export function VocabularyShelf({
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [hideTranslation, stopReadAloud, rememberShelfPosition]);
+  }, [closePanel, stopReadAloud]);
 
   // Unmounting cancels speech and releases the example recording's source.
   useEffect(() => () => {
@@ -1230,19 +1260,17 @@ export function VocabularyShelf({
         releaseScrollRestoration();
         return;
       }
+      if (!openedRef.current) return;
       // The reader pressed Back with the panel open: the entry is already gone, so the
       // state clears without asking for another `back()`.
       panelHistoryRef.current = false;
       openedRef.current = false;
-      rememberShelfPosition();
-      setSelected(null);
-      stopReadAloud();
-      selectedTileRef.current = null;
+      closePanel();
       releaseScrollRestoration();
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [stopReadAloud, rememberShelfPosition, releaseScrollRestoration]);
+  }, [closePanel, releaseScrollRestoration]);
 
   /**
    * Leaving the page with the panel open must not leave its history entry behind: the
@@ -1259,14 +1287,6 @@ export function VocabularyShelf({
     window.history.back();
   }, []);
 
-  /** Closing the panel also silences it: a recording must not outlive its source. */
-  const closePanel = useCallback(() => {
-    rememberShelfPosition();
-    stopReadAloud();
-    hideTranslation();
-    selectedTileRef.current = null;
-    setSelected(null);
-  }, [stopReadAloud, rememberShelfPosition, hideTranslation]);
   // The sound is one, so the panel only takes its read state from the word it
   // shows: a sound started for another word is not this panel's control state.
   const selectedRead = activeRead && selected && activeRead.key === selected.key ? activeRead : null;
@@ -1317,7 +1337,7 @@ export function VocabularyShelf({
       statuses={statuses}
       meaningsFor={(key) => displayMeanings({ languageReactor: dictionary[key], glossary: glossary[key]?.meanings }).meanings.map((meaning) => meaning.meaning)}
       onActiveChange={setPracticeActive}
-      onBegin={() => { rememberShelfPosition(); stopReadAloud(); hideTranslation(); selectedTileRef.current = null; setSelected(null); }}
+      onBegin={closePanel}
     />
 
     <div className="vocabulary-shelf__body">

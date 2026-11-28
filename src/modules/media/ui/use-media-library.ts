@@ -58,6 +58,7 @@ export function useMediaLibrary(result: MediaLibraryResult, query: MediaListQuer
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const stateRef = useRef(state);
+  const failedChannel = useRef<{ kind: MediaListQuery["kind"]; href: string; pushHistory: boolean } | null>(null);
   const generation = useRef(0);
   const busy = useRef(false);
   const moreBusy = useRef(false);
@@ -107,6 +108,7 @@ export function useMediaLibrary(result: MediaLibraryResult, query: MediaListQuer
   const invalidate = useCallback(() => {
     cancelScrollSave();
     const id = ++generation.current;
+    failedChannel.current = null;
     setBatchFailed(false);
     if (restoreFrame.current !== null) window.cancelAnimationFrame(restoreFrame.current);
     restorePosition.current = null;
@@ -219,7 +221,10 @@ export function useMediaLibrary(result: MediaLibraryResult, query: MediaListQuer
       publish(updated);
       saveHistory(updated, 0, true);
     } catch {
-      if (id === generation.current) setError(retrying ? "读取失败，请重试。" : "切换内容失败，请重试。");
+      if (id === generation.current) {
+        failedChannel.current = { kind, href, pushHistory };
+        setError(retrying ? "读取失败，请重试。" : "切换内容失败，请重试。");
+      }
     } finally {
       if (id === generation.current) { busy.current = false; setLoading(null); }
     }
@@ -227,6 +232,8 @@ export function useMediaLibrary(result: MediaLibraryResult, query: MediaListQuer
 
   const retry = useCallback(() => {
     if (busy.current) return;
+    const failed = failedChannel.current;
+    if (failed) return loadKind(failed.kind, failed.href, failed.pushHistory, true);
     const current = stateRef.current;
     return loadKind(current.query.kind, mediaQueryHref(current.query, Boolean(current.browse)), false, true);
   }, [loadKind]);

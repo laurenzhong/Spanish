@@ -1,17 +1,8 @@
-import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+import { luciaVersion as characterVersion } from "./fixtures/lucia-version";
 import { installReadAloud } from "./fixtures/read-aloud";
 
-// The released character revision is read from the authored source without an
-// ESM JSON import: this package is `type: module`, and the Playwright loader
-// (Node 24) rejects JSON modules that lack an import attribute. The existing
-// chat-expression-assist.spec.ts still imports the catalog module directly and
-// currently fails to load for that reason before any test runs.
-const luciaBible = JSON.parse(readFileSync(new URL("../../content/characters/lucia.json", import.meta.url), "utf8")) as {
-  version: number;
-};
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
-const characterVersion = luciaBible.version;
 
 const answer = "这两句都能拒绝邀请，同时给出替代时间。第一句更委婉，第二句更直接。";
 const suggestions = [

@@ -183,7 +183,7 @@ describe("ChatThread persistence status", () => {
     render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} />);
 
     const message = await screen.findByText("Hola desde el chat");
-    expect(screen.queryByRole("button", { name: "消息操作" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "消息操作" })).toHaveAttribute("aria-haspopup", "menu");
     fireEvent.contextMenu(message.closest("article")!);
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "朗读", "翻译", "引用回复", "撤回", "删除"]);

@@ -89,6 +89,34 @@ test("follow-up combines photography and a book while preserving delivered bubbl
   await expect(page.locator(".conversation-message--user")).toHaveCount(2);
 });
 
+test("keeps send and stop tappable together when a follow-up is drafted", async ({ page, isMobile }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await setup(page);
+  const composer = page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" });
+  const sendButton = page.getByRole("button", { name: "发送消息", exact: true });
+  const stopButton = page.getByRole("button", { name: "停止回复", exact: true });
+  await composer.fill("Me gusta la fotografía.");
+  if (isMobile) await sendButton.tap();
+  else await sendButton.click();
+  await expect.poll(async () => (await requests(page)).length).toBe(1);
+  await expect(stopButton).toBeVisible();
+  await composer.fill("También me gusta leer.");
+  await expect(sendButton).toBeEnabled();
+  await expect(stopButton).toBeVisible();
+  const sendBox = (await sendButton.boundingBox())!;
+  const stopBox = (await stopButton.boundingBox())!;
+  expect(stopBox.y + stopBox.height).toBeLessThanOrEqual(sendBox.y);
+  expect(await requests(page)).toHaveLength(1);
+  if (isMobile) await sendButton.tap();
+  else await sendButton.click();
+  await expect.poll(async () => (await requests(page)).length).toBe(2);
+  expect((await requests(page))[1]?.pendingMessages?.[0]?.text).toBe("Me gusta la fotografía.");
+  if (isMobile) await stopButton.tap();
+  else await stopButton.click();
+  await expect(page.getByTestId("conversation-thread").getByRole("alert")).toContainText("回复已停止");
+  expect(await requests(page)).toHaveLength(2);
+});
+
 test("an unrelated pending topic is retained and stopping never starts another request", async ({ page }) => {
   await setup(page); await send(page, "Me gusta la fotografía.");
   await expect.poll(async () => (await requests(page)).length).toBe(1);

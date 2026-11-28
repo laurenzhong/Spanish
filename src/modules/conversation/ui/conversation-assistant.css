@@ -267,8 +267,9 @@
   .conversation-assistant {
     position: fixed;
     z-index: 61;
-    inset: 0;
+    inset: var(--chat-viewport-top, 0px) 0 auto;
     width: auto;
+    height: var(--chat-viewport-height, 100dvh);
     max-height: none;
     border: 0;
     border-radius: 0;

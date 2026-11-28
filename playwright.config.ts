@@ -29,6 +29,10 @@ export default defineConfig({
       name: "mobile-chromium",
       use: { ...devices["Pixel 7"], channel: "chrome" },
     },
+    ...(process.env.PLAYWRIGHT_IPHONE === "1" ? [{
+      name: "mobile-webkit",
+      use: { ...devices["iPhone 13 Mini"] },
+    }] : []),
   ],
   webServer: {
     // Keep E2E isolated from the developer's long-running server on port 3000.
@@ -38,6 +42,9 @@ export default defineConfig({
       // Windows filesystem notifications can leave nested routes out of the dev manifest.
       ...(process.platform === "win32" ? { WATCHPACK_POLLING: process.env.WATCHPACK_POLLING ?? "true" } : {}),
       AUTH_E2E_ENABLED: "1",
+      // Browser auth requests are intercepted by the tests at a local origin.
+      NEXT_PUBLIC_SUPABASE_URL: e2eBaseURL,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "e2e-publishable-key",
       CONTENT_WORKFLOW_OWNER_USER_IDS: "00000000-0000-4000-8000-000000000001",
       // Keep E2E deterministic and prevent accidental writes to the local .env database.
       DATABASE_URL: "",

@@ -245,9 +245,10 @@ export function ExplorePageContent({ dashboard, library = emptyLibrary, userId, 
               aria-label={searchLabel}
               type="search"
               value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                updateUrl({ query: event.target.value });
+              onInput={(event) => {
+                const query = event.currentTarget.value;
+                setQuery(query);
+                updateUrl({ query });
               }}
               placeholder={searchLabel}
             />

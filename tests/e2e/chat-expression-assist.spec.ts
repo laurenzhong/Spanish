@@ -1,12 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { installReadAloud } from "./fixtures/read-aloud";
-import { conversationCharacterVersion } from "../../src/modules/conversation/domain/character-catalog";
+import { luciaVersion as characterVersion } from "./fixtures/lucia-version";
 
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
 const sourceText = "我不是不想去，就是今天有点 cansado，想改天再约。";
 const translatedText = "No es que no quiera ir, es que hoy estoy un poco cansado. ¿Quedamos otro día?";
-const characterVersion = conversationCharacterVersion("lucia")!;
 type AssistRequest = { text: string; characterVersion: number; attemptId: string };
 type StreamRequest = { text: string; generationId: string; assistance?: string };
 

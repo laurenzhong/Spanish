@@ -94,7 +94,12 @@ function MediaLibraryContent({ result, query, unavailable = false }: Readonly<{ 
           </form>
         </header>
         {loading && loading !== "batch" ? <p className="media-library__load-more-state" role="status">{loading === "channel" ? "正在切换内容…" : loading === "restore" ? "正在恢复内容…" : "正在重新读取资料库…"}</p> : null}
-        {error && items.length > 0 ? <p className="media-library__notice" role="alert">{error}</p> : null}
+        {error && items.length > 0 ? (
+          <div className="media-library__notice" role="alert">
+            <span>{error}</span>
+            <button type="button" onClick={() => void library.retry()}>重试</button>
+          </div>
+        ) : null}
         {library.exhausted ? <p className="media-library__load-more-state" role="status">当前条件下已浏览全部内容。<button disabled={Boolean(loading)} type="button" onClick={() => void library.changeBatch(true)}>重新浏览</button></p> : null}
         {items.length > 0 ? (
           <div className="media-grid" aria-label="视频和播客">

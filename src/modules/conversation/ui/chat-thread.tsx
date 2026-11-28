@@ -118,6 +118,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const threadScopeRef = useRef(threadScope);
   const mutationRevisionRef = useRef(0);
   const translationRequestsRef = useRef(new Map<string, AbortController>());
+  const threadRef = useRef<HTMLElement | null>(null);
+  const mobileListTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const mobileListCloseRef = useRef<HTMLButtonElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -161,6 +164,56 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       window.removeEventListener("pagehide", cancelMessagePress);
     };
   }, [cancelMessagePress]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const shell = threadRef.current?.closest<HTMLElement>(".product-shell");
+    if (!viewport || !shell) return;
+
+    let frame: number | undefined;
+    const sync = () => {
+      frame = undefined;
+      // iOS resizes its visual viewport without resizing the layout viewport.
+      // Leave native pinch zoom alone.
+      const keyboardOpen = viewport.scale === 1
+        && document.documentElement.clientHeight - viewport.height > 90;
+      shell.toggleAttribute("data-chat-keyboard", keyboardOpen);
+      if (keyboardOpen) {
+        shell.style.setProperty("--chat-viewport-height", `${viewport.height}px`);
+        shell.style.setProperty("--chat-viewport-top", `${viewport.offsetTop}px`);
+      } else {
+        shell.style.removeProperty("--chat-viewport-height");
+        shell.style.removeProperty("--chat-viewport-top");
+      }
+    };
+    const schedule = () => { frame ??= window.requestAnimationFrame(sync); };
+    sync();
+    viewport.addEventListener("resize", schedule);
+    viewport.addEventListener("scroll", schedule);
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      viewport.removeEventListener("resize", schedule);
+      viewport.removeEventListener("scroll", schedule);
+      shell.removeAttribute("data-chat-keyboard");
+      shell.style.removeProperty("--chat-viewport-height");
+      shell.style.removeProperty("--chat-viewport-top");
+    };
+  }, []);
+
+  const closeMobileConversations = useCallback(() => {
+    setShowMobileConversations(false);
+    mobileListTriggerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!showMobileConversations) return;
+    mobileListCloseRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) closeMobileConversations();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showMobileConversations, closeMobileConversations]);
 
   useEffect(() => {
     const isTyping = state.status === "streaming";
@@ -668,11 +721,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     }, 0);
   }
 
-  function openMessageMenu(row: HTMLElement, target: EventTarget | null, message: ConversationMessage) {
-    messageMenuTriggerRef.current = row;
+  function openMessageMenu(trigger: HTMLElement, target: EventTarget | null, message: ConversationMessage) {
+    messageMenuTriggerRef.current = trigger;
     const bubble = (target instanceof Element ? target.closest(".conversation-message__bubble") : null)
-      ?? row.querySelector(".conversation-message__bubble");
-    const rect = (bubble ?? row).getBoundingClientRect();
+      ?? trigger.closest(".conversation-message")?.querySelector(".conversation-message__bubble");
+    const rect = (bubble ?? trigger).getBoundingClientRect();
     setContextMenu({
       messageId: message.id,
       anchorX: message.role === "user" ? rect.right : rect.left,
@@ -958,7 +1011,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         : "这段历史记录只能查看，不能发送新消息。";
 
   return (
-    <section className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
+    <section ref={threadRef} className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
       <header className="conversation-thread__header">
         <div className="conversation-thread__identity">
           <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
@@ -973,7 +1026,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         </div>
         <div className="conversation-thread__header-actions">
-          <button className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表" onClick={() => setShowMobileConversations(true)}>
+          {state.status === "streaming" ? (
+            <button className="conversation-thread__stop" type="button" aria-label="停止回复" title="停止回复" onClick={cancel}>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" /></svg>
+            </button>
+          ) : null}
+          <button ref={mobileListTriggerRef} className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表" aria-haspopup="dialog" aria-expanded={showMobileConversations} onClick={() => setShowMobileConversations(true)}>
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
           </button>
           <button
@@ -1000,8 +1058,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       </header>
 
       {showMobileConversations ? <div className="conversation-mobile-list" role="dialog" aria-modal="true" aria-label="会话列表">
-        <div className="conversation-mobile-list__header"><strong>会话列表</strong><button type="button" aria-label="关闭会话列表" onClick={() => setShowMobileConversations(false)}>×</button></div>
-        <ConversationContactRail activeCharacterKey={characterKey} cacheScope={cacheScope} />
+        <div className="conversation-mobile-list__header">
+          <strong>会话列表</strong>
+          <button ref={mobileListCloseRef} type="button" aria-label="关闭会话列表" onClick={closeMobileConversations}>×</button>
+        </div>
+        <ConversationContactRail activeCharacterKey={characterKey} cacheScope={cacheScope} onNavigate={closeMobileConversations} />
       </div> : null}
 
       {/* tabIndex -1 keeps the scrollable transcript programmatically focusable:
@@ -1077,6 +1138,19 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
               </div> : null}
               {message.role === "character" && !message.complete && state.status !== "streaming" ? <span className="conversation-message__hint">这条回复没有完整送达</span> : null}
             </div>
+            {message.text && !message.withdrawn ? <button
+              type="button"
+              className="conversation-message__more"
+              aria-label="消息操作"
+              aria-haspopup="menu"
+              aria-expanded={contextMenuMessageId === message.id}
+              onClick={(event) => {
+                event.stopPropagation();
+                openMessageMenu(event.currentTarget, event.target, message);
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
+            </button> : null}
           </article>
           </Fragment>;
         })}
@@ -1142,7 +1216,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {historyLockMessage}
         </div>
       ) : (
-        <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft}
+        <VoiceComposer characterName={characterName} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft}
           assistance={{ contextKey: `${characterKey}:${characterVersion}:${cacheScope}:${assistEpoch}`, characterKey, characterVersion,
             onAssisted: () => { assistedRef.current = true; } }} />
       )}
@@ -1236,9 +1310,15 @@ function ConversationMessageBubble({ text }: Readonly<{ text: string }>) {
 
     fit();
     const messageViewport = bubble.closest<HTMLElement>(".conversation-thread__messages");
-    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleFit);
-    if (messageViewport) resizeObserver?.observe(messageViewport);
-    window.addEventListener("resize", scheduleFit);
+    let viewportWidth = messageViewport?.getBoundingClientRect().width;
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(([entry]) => {
+      const width = entry?.borderBoxSize?.[0]?.inlineSize ?? messageViewport?.getBoundingClientRect().width;
+      if (width === viewportWidth) return;
+      viewportWidth = width;
+      scheduleFit();
+    });
+    if (messageViewport && resizeObserver) resizeObserver.observe(messageViewport, { box: "border-box" });
+    else window.addEventListener("resize", scheduleFit);
     if (document.fonts) void document.fonts.ready.then(scheduleFit);
 
     return () => {
