@@ -34,7 +34,7 @@ const documentSchema = z.object({
 
 const responseSchema = z.object({
   status: z.literal("success"),
-  data: z.object({ docs_metadata: z.array(documentSchema).max(100) }).passthrough(),
+  data: z.object({ docs_metadata: z.array(z.unknown()).max(100) }).passthrough(),
 }).passthrough();
 
 const itunesLookupResponseSchema = z.object({
@@ -198,11 +198,18 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
       signal: requestOptions?.signal,
     });
     requestOptions?.signal?.throwIfAborted();
-    let documents: z.infer<typeof documentSchema>[];
+    let rawDocuments: unknown[];
     try {
-      documents = responseSchema.parse(JSON.parse(response.text)).data.docs_metadata;
+      rawDocuments = responseSchema.parse(JSON.parse(response.text)).data.docs_metadata;
     } catch {
-      throw new ContentSourceAdapterError("Language Reactor media API returned an invalid response.", false);
+      throw new ContentSourceAdapterError("Language Reactor media API returned an invalid response.", false, "LANGUAGE_REACTOR_DIRECTORY_INVALID");
+    }
+    const documents = rawDocuments.flatMap((rawDocument) => {
+      const parsed = documentSchema.safeParse(rawDocument);
+      return parsed.success ? [parsed.data] : [];
+    });
+    if (rawDocuments.length > 0 && documents.length === 0) {
+      throw new ContentSourceAdapterError("Language Reactor media API returned no valid directory entries.", false, "LANGUAGE_REACTOR_DIRECTORY_ITEMS_INVALID");
     }
     const fetchedAt = (this.options.now ?? (() => new Date()))();
     const items: ContentSourcePage["items"][number][] = [];
@@ -322,7 +329,7 @@ export class LanguageReactorAdapter implements ContentSourceAdapter {
     return {
       sourceStableKey: input.sourceStableKey,
       cursor: input.cursor,
-      nextCursor: documents.length >= input.limit ? JSON.stringify({ offset: offset + input.limit }) : null,
+      nextCursor: rawDocuments.length >= input.limit ? JSON.stringify({ offset: offset + input.limit }) : null,
       estimatedCostMicros: 0,
       items,
     };

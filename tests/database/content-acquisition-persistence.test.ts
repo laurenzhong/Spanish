@@ -174,6 +174,28 @@ describe("content acquisition persistence", () => {
     expect(Number(count)).toBe(1);
   });
 
+  it("omits fully deleted artifacts and treats a concurrent deletion as an idempotent no-op", async () => {
+    const acquisition = repository();
+    await registerSource();
+    await database.insert(schema.contentCandidates).values({
+      id: candidateId, sourceId, externalItemId: "episode-1", normalizedUrl: "https://example.test/episode",
+      title: "Fixture podcast", contentType: "podcast", language: "es", generationId: "generation-1", lastActivityAt: new Date(),
+    });
+    const deletedId = "00000000-0000-4000-8000-000000000511";
+    const availableId = "00000000-0000-4000-8000-000000000512";
+    const base = { candidateId, artifactType: "asr-temporary-audio", ephemeral: true };
+    await database.insert(schema.candidateArtifacts).values([
+      { ...base, id: deletedId, status: "deleted", deletedAt: new Date() },
+      { ...base, id: availableId, status: "available", storageKey: "temporary-audio" },
+    ]);
+
+    await expect(acquisition.listCandidateArtifactsForCleanup!(candidateId)).resolves.toMatchObject([{ id: availableId }]);
+    await expect(acquisition.deleteCandidateArtifact!(availableId)).resolves.toBe(true);
+    await expect(acquisition.deleteCandidateArtifact!(availableId)).resolves.toBe(false);
+    await expect(acquisition.deleteCandidateArtifact!(deletedId)).resolves.toBe(false);
+    await expect(acquisition.listCandidateArtifactsForCleanup!(candidateId)).resolves.toEqual([]);
+  });
+
   it("refreshes an unpublished conflicted candidate without replacing published content", async () => {
     const acquisition = repository();
     const source = await registerSource();

@@ -136,6 +136,43 @@ describe("runDailyMediaPipeline", () => {
     expect(result).toMatchObject({ mode: "discover-only", reviewReady: 0, prepared: 0 });
   });
 
+  it.each([undefined, {
+    version: 1, audience: "owner-private", allowedOperations: ["acquire-audio", "asr", "translate"],
+    evidenceUrl: "https://example.test/scope", thirdPartyProcessing: true, expiresAt: null,
+  }])("retains discovered drafts when shared subtitle processing is not authorized", async (mediaProcessing) => {
+    const podcast = source({
+      adapterType: "language-reactor", sourceKind: "podcast-feed",
+      stableKey: "language-reactor.podcast-mix-es", rightsPolicy: { mediaProcessing },
+    });
+    const repo = repository([podcast]);
+    const candidate: ContentCandidateRecord = {
+      id: "podcast-draft", sourceId: podcast.id, externalItemId: "episode",
+      normalizedUrl: "https://example.test/episode", title: "Un episodio",
+      contentType: "podcast", language: "es", metadata: { podcastDraft: { segments: [] } },
+      publishedAt: null, contentHash: null, rightsStatus: "verified", status: "discovered",
+      revision: 1, generationId: "generation-1", lastActivityAt: new Date("2026-09-19"),
+      rejectedAt: null, publicationStatus: "draft", publicationRef: null,
+      publishedCandidateRevision: null, publishedContentHash: null, publishedAtInternal: null, archivedAt: null,
+    };
+    repo.listCandidates.mockImplementation(async (input) => (input as { status?: string }).status === "discovered" ? [candidate] : []);
+    repo.findCandidateById.mockResolvedValue(candidate);
+    const createArtifactStore = vi.fn();
+    const result = await runDailyMediaPipeline({
+      repository: repo as never,
+      mediaRuntime: { createArtifactStore } as never,
+      resolveAdapter: async () => ({
+        key: "language-reactor",
+        discover: async () => ({ sourceStableKey: podcast.stableKey, cursor: null, nextCursor: null, estimatedCostMicros: 0, items: [] }),
+      }),
+    }, { mode: "review-only", dailyLimit: 1, defaultSourceLimit: 1, date: "2026-09-19", requireBilingualSubtitles: true });
+
+    expect(repo.completeRun).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ published: 0, skipped: 1, failures: [], skippedReasons: { MEDIA_PROCESSING_NOT_AUTHORIZED: 1 } });
+    expect(repo.compareAndSwapCandidate).not.toHaveBeenCalled();
+    expect(repo.recordProcessingAttempt).not.toHaveBeenCalled();
+    expect(createArtifactStore).not.toHaveBeenCalled();
+  });
+
   it("processes verified video sources before podcasts", async () => {
     const podcast = source({ id: "source-podcast", stableKey: "aaa.podcast", adapterType: "podcast-rss", sourceKind: "podcast-feed" });
     const video = source({ id: "source-video-priority", stableKey: "zzz.video" });

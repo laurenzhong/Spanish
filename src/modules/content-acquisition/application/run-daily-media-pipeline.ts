@@ -9,6 +9,7 @@ import { reviseMediaCandidateAfterReview } from "./revise-media-candidate";
 import { autoPublishMediaCandidate } from "./auto-publish-media";
 import { processDailyMediaCandidate } from "./process-daily-media-candidate";
 import { hasCompleteWordTimeline, type MediaWordTiming } from "@/src/modules/media/domain";
+import { mediaProcessingAuthorizationSchema } from "@/src/modules/media-processing/schemas/processing-authorization";
 import type { ContentMediaRuntime } from "./content-media-runtime";
 import type { MediaReviewProvider } from "../providers/media-review";
 import type { MediaRevisionProvider } from "../providers/media-revision";
@@ -294,6 +295,9 @@ export async function runDailyMediaPipeline(
       const resumableStatuses = ["discovered", "screened", "acquiring", "processing", "review_ready", "failed"] as const;
       const pending = await Promise.all(resumableStatuses.map((status) =>
         dependencies.repository.listCandidates({ sourceId: source.id, status, contentType, publicationStatus: "draft", limit })));
+      const grant = mediaProcessingAuthorizationSchema.safeParse(source.rightsPolicy?.mediaProcessing);
+      // The processing use case still revalidates the exact operations and current revisions.
+      const hasSharedProcessingGrant = grant.success && grant.data.audience === "shared-learning";
       const candidates = pending.flat().sort((left, right) => {
         // A hosted, fully reviewed video can publish immediately. Prioritize it
         // over older unhosted drafts so the daily run makes forward progress
@@ -301,7 +305,16 @@ export async function runDailyMediaPipeline(
         const hostedRank = Number(hasHostedVideoAsset(right)) - Number(hasHostedVideoAsset(left));
         return hostedRank || left.lastActivityAt.getTime() - right.lastActivityAt.getTime();
       })
-        .filter((candidate) => candidate.publicationStatus === "draft")
+        .filter((candidate) => {
+          if (candidate.publicationStatus !== "draft") return false;
+          if (!hasSharedProcessingGrant && input.requireBilingualSubtitles && dependencies.mediaRuntime
+            && !hasBilingualSubtitleTimeline(candidate)) {
+            result.skipped += 1;
+            skippedReasons.MEDIA_PROCESSING_NOT_AUTHORIZED = (skippedReasons.MEDIA_PROCESSING_NOT_AUTHORIZED ?? 0) + 1;
+            return false;
+          }
+          return true;
+        })
         .slice(0, limit);
       for (let offset = 0; offset < candidates.length; offset += reviewConcurrency) {
         const batch = candidates.slice(offset, offset + reviewConcurrency);

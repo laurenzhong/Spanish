@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 
 import type { Database } from "@/src/shared/db/client";
 import * as schema from "@/src/shared/db/schema";
@@ -546,7 +546,10 @@ export function createDrizzleContentAcquisitionRepository(
     async listCandidateArtifactsForCleanup(candidateId) {
       const [artifacts, attempts] = await Promise.all([
         database.select().from(schema.candidateArtifacts)
-          .where(eq(schema.candidateArtifacts.candidateId, candidateId))
+          .where(and(
+            eq(schema.candidateArtifacts.candidateId, candidateId),
+            or(ne(schema.candidateArtifacts.status, "deleted"), isNotNull(schema.candidateArtifacts.storageKey)),
+          ))
           .orderBy(schema.candidateArtifacts.createdAt),
         database.select({ status: schema.candidateProcessingAttempts.status })
           .from(schema.candidateProcessingAttempts)
@@ -573,7 +576,13 @@ export function createDrizzleContentAcquisitionRepository(
         eq(schema.candidateArtifacts.id, artifactId),
         or(eq(schema.candidateArtifacts.status, "available"), eq(schema.candidateArtifacts.status, "delete-pending"), eq(schema.candidateArtifacts.status, "failed")),
       )).returning({ id: schema.candidateArtifacts.id });
-      if (rows.length !== 1) throw new ContentAcquisitionConflictError("Candidate artifact is already deleted or unavailable.");
+        if (rows.length === 1) return true;
+        const [current] = await database.select({
+          status: schema.candidateArtifacts.status,
+          storageKey: schema.candidateArtifacts.storageKey,
+        }).from(schema.candidateArtifacts).where(eq(schema.candidateArtifacts.id, artifactId)).limit(1);
+        if (current?.status === "deleted" && current.storageKey === null) return false;
+        throw new ContentAcquisitionConflictError("Candidate artifact is unavailable for deletion.");
     },
 
     async purgeCandidate(candidateId) {
