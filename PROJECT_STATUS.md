@@ -2,6 +2,7 @@
 
 - 实现提交 `cc15065`，分支 `codex/iphone-usability-audit` 基于发布代码 `fac7367`。核查首页、登录、五项主导航与所有者工作流，修复触控入口、键盘遮挡、横屏滚动和表单输入问题。
 - WebKit 两批专项 50/50、聚焦 Vitest 106/106、影响文件 ESLint、TypeScript 和生产构建通过。全站门禁与真机验收仍开放。下一步在同版本的 Safari 和安装态 PWA 复验真实账号、键盘、音频及后台恢复。
+- 补充巡检提交 `1340dd5`，并入同一个[草稿 PR #96](https://github.com/laurenzhong/Spanish/pull/96)。修复回复期间的触控连续发送、学习频道重试、活动热力图恢复和 PWA 图标尺寸。三项目专项 30/30，聚焦 Vitest 84/84，TypeScript、改动文件 ESLint 和生产构建 78/78 通过。完整 WebKit 最终批次 185 通过、16 失败、6 跳过，其中 3 个失败用例串行复跑通过。
 - [覆盖矩阵、验证结果及复验步骤](docs/reviews/IPHONE-USABILITY-001.md)。
 
 ## 2026-11-26 `EXPLORE-UX-001`（探索页和实战窄屏优化，`review`）
