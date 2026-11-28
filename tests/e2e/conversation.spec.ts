@@ -502,7 +502,7 @@ test("searches conversation history and opens the matching message", async ({ pa
     });
   });
 
-  await page.goto("/chat");
+  await page.goto("/chat/lucia");
   await page.getByRole("button", { name: "更多对话操作" }).click();
   await page.getByRole("menuitem", { name: "搜索消息" }).click();
   await page.getByRole("searchbox", { name: "搜索对话" }).fill("café");

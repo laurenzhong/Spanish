@@ -55,7 +55,7 @@ test("preserves the requested page through the login handoff", async ({ page }) 
   ).toBeVisible();
 });
 
-test("navigates between all four product areas", async ({ page }) => {
+test("navigates between all five product areas", async ({ page }) => {
   await authenticate(page);
   await page.goto("/learn");
 
@@ -66,8 +66,9 @@ test("navigates between all four product areas", async ({ page }) => {
   );
 
   for (const destination of [
+    { name: "阅读", path: "/read", heading: "阅读" },
     { name: "探索", path: "/explore", heading: "校园办事：注册与材料" },
-    { name: "对话", path: "/chat", heading: "Lucía Martín" },
+    { name: "对话", path: "/chat", heading: "对话" },
     { name: "我的", path: "/me", heading: "我的进步" },
     { name: "学习", path: "/learn", testId: "media-library" },
   ]) {
@@ -76,7 +77,7 @@ test("navigates between all four product areas", async ({ page }) => {
     if ("testId" in destination) {
       await expect(page.getByTestId(destination.testId!)).toBeVisible();
     } else {
-      await expect(page.getByRole("heading", { name: destination.heading! })).toBeVisible();
+      await expect(page.getByRole("heading", { name: destination.heading!, exact: true })).toBeVisible();
     }
     await expect(
       navigation.getByRole("link", { name: destination.name }),
@@ -141,6 +142,7 @@ test("keeps the desktop rail beside the content without covering it", async ({ p
 
 test("keeps discovery and conversation entry points visible", async ({
   page,
+  isMobile,
 }) => {
   await authenticate(page);
   await page.goto("/explore");
@@ -151,7 +153,18 @@ test("keeps discovery and conversation entry points visible", async ({
   await learnLink.click();
   await expect(page).toHaveURL(/\/learn$/);
 
+  await page.route("**/api/v1/conversations", (route) => route.fulfill({ json: { data: { conversations: [{
+    conversationId: "conversation-lucia", characterKey: "lucia", characterName: "Lucía Martín",
+    avatarClass: "avatar--lucia", roleLabel: "主要好友", lastMessageAt: null, lastMessage: null,
+  }] } } }));
+  await page.route("**/api/v1/conversations/lucia", (route) => route.fulfill({
+    json: { data: { characterKey: "lucia", messages: [] } },
+  }));
   await page.goto("/chat");
+  const contact = page.getByRole("navigation", { name: "好友列表" }).getByRole("link", { name: /Lucía Martín/ });
+  if (isMobile) await contact.tap();
+  else await contact.click();
+  await expect(page).toHaveURL(/\/chat\/lucia$/u);
   await expect(page.getByRole("textbox", { name: "写下你想对 Lucía 说的话" })).toBeVisible();
 });
 
