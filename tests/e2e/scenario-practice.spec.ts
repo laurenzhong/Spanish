@@ -118,7 +118,8 @@ test("keeps the previous turn readable when switching practice aids on a short m
 });
 
 test.describe("transcript confirmation", () => {
-  test("replaces the ordinary composer while confirming a transcript on mobile", async ({ page }) => {
+  test("replaces the ordinary composer while confirming a transcript on mobile", async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "Uses Chromium's fake microphone and permission grant.");
     await authenticate(page);
     await page.context().grantPermissions(["microphone"]);
     await page.setViewportSize({ width: 320, height: 640 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ExpressionAssist } from "./expression-assist";
 
 import {
@@ -43,6 +43,7 @@ export function VoiceComposer({
   assistance,
 }: VoiceComposerProps) {
   const recorderRef = useRef<BrowserAudioRecorder | null>(null);
+  const startingRef = useRef(false);
   const [recording, setRecording] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
@@ -60,15 +61,29 @@ export function VoiceComposer({
   // while the character is responding.
   const blocked = unavailable;
 
+  const resetRecordingState = useCallback(() => {
+    levelUnsubscribeRef.current?.();
+    levelUnsubscribeRef.current = null;
+    setInputLevel(null);
+    setRecording(false);
+    setRecordingStartedAt(null);
+    setRecordingSeconds(0);
+  }, []);
+
   useEffect(() => {
-    recorderRef.current = createBrowserAudioRecorder();
+    const recorder = createBrowserAudioRecorder(() => {
+      resetRecordingState();
+      setNotice("录音已中断。你可以重新录音或改用文字。");
+    });
+    recorderRef.current = recorder;
     return () => {
+      recorderRef.current = null;
       levelUnsubscribeRef.current?.();
       levelUnsubscribeRef.current = null;
-      void recorderRef.current?.cancel();
+      void recorder.cancel();
       transcriptionAbortRef.current?.abort();
     };
-  }, []);
+  }, [resetRecordingState]);
 
   useEffect(() => {
     if (!recording || recordingStartedAt === null) return;
@@ -97,19 +112,6 @@ export function VoiceComposer({
     return () => observer.disconnect();
   }, [value, recording, transcribing]);
 
-  function stopLevelMeter() {
-    levelUnsubscribeRef.current?.();
-    levelUnsubscribeRef.current = null;
-    setInputLevel(null);
-  }
-
-  function resetRecordingState() {
-    stopLevelMeter();
-    setRecording(false);
-    setRecordingStartedAt(null);
-    setRecordingSeconds(0);
-  }
-
   async function cancelRecording() {
     try {
       await recorderRef.current?.cancel();
@@ -127,7 +129,8 @@ export function VoiceComposer({
     setNotice("正在整理语音……");
     try {
       const form = new FormData();
-      form.append("audio", audio.blob, "conversation.webm");
+      const extension = audio.metadata.mimeType.startsWith("audio/mp4") ? "m4a" : "webm";
+      form.append("audio", audio.blob, `conversation.${extension}`);
       form.append("languageTag", "es-ES");
       const response = await fetch("/api/v1/transcriptions", { method: "POST", body: form, signal: controller.signal });
       const payload = await response.json().catch(() => null) as { data?: { text?: string }; error?: { code?: string } } | null;
@@ -149,7 +152,7 @@ export function VoiceComposer({
 
   async function toggleRecording() {
     const recorder = recorderRef.current;
-    if (!recorder || blocked) return;
+    if (!recorder || blocked || startingRef.current) return;
     if (transcribing) {
       transcriptionAttemptRef.current += 1;
       transcriptionAbortRef.current?.abort();
@@ -168,8 +171,13 @@ export function VoiceComposer({
       if (audio) void transcribeAudio(audio);
       return;
     }
+    startingRef.current = true;
     try {
       await recorder.start();
+      if (recorderRef.current !== recorder) {
+        await recorder.cancel();
+        return;
+      }
       setNotice(null);
       setRecordingStartedAt(Date.now());
       setRecordingSeconds(0);
@@ -180,6 +188,7 @@ export function VoiceComposer({
         ? recorder.subscribeLevel((level) => setInputLevel(level))
         : null;
     } catch (error) {
+      if (recorderRef.current !== recorder) return;
       resetRecordingState();
       const code = speechCapabilityErrorCode(error, "microphone-not-supported");
       setNotice(
@@ -187,6 +196,8 @@ export function VoiceComposer({
           ? "麦克风权限未开启，请改用文字输入。"
           : "当前设备暂不支持录音，请改用文字输入。",
       );
+    } finally {
+      startingRef.current = false;
     }
   }
 
@@ -246,7 +257,7 @@ export function VoiceComposer({
             ref={textareaRef}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
               event.preventDefault();
               if (!blocked && !transcribing && value.trim()) onSubmit();
             }}

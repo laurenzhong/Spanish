@@ -51,11 +51,13 @@ test("shows dialogue audio failures and allows retry", async ({ page }) => {
   await fakeSpeech(page);
   await page.goto("/read/phrases?search=最近过得怎么样");
   await page.getByRole("button", { name: "朗读对话第1句" }).click();
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, "readAloudAudios").length)).toBe(1);
   await page.evaluate(() => Reflect.get(window, "readAloudAudios")[0].dispatchEvent(Object.assign(new Event("error"), { error: "synthesis-failed" })));
   await expect(page.locator(".phrasebook-feedback")).not.toBeEmpty();
   await expect(page.getByRole("button", { name: "朗读对话第1句" })).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "朗读对话第1句" }).click();
   await expect.poll(() => page.evaluate(() => Reflect.get(window, "readAloudTrace").length)).toBe(2);
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, "readAloudAudios").length)).toBe(2);
   await expect(page.locator(".phrasebook-feedback")).toBeEmpty();
   await page.evaluate(() => Reflect.get(window, "readAloudAudios")[1].dispatchEvent(new Event("ended")));
   await expect(page.getByRole("button", { name: "朗读对话第1句" })).toHaveAttribute("aria-pressed", "false");

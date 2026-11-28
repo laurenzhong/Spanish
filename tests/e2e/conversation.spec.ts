@@ -413,8 +413,8 @@ test("opens the mobile conversation list without a redundant back link", async (
   await expect(page.getByRole("dialog", { name: "会话列表" })).toBeVisible();
 });
 
-test("persists contact menu changes and keeps the menu inside the workspace", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-chromium", "The desktop contact context menu is not rendered in the mobile layout.");
+test("persists contact menu changes and keeps the menu inside the workspace", async ({ page, isMobile }) => {
+  test.skip(isMobile, "The desktop contact context menu is not rendered in the mobile layout.");
   await authenticate(page);
   const preferenceBodies: string[] = [];
   await page.route("**/api/v1/conversations/preferences", async (route) => {
@@ -443,8 +443,8 @@ test("persists contact menu changes and keeps the menu inside the workspace", as
   expect(preferenceBodies.some((body) => body.includes('"isPinned":false'))).toBe(true);
 });
 
-test("supports direct desktop contact reordering without navigating away", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-chromium", "Direct pointer reordering is a desktop interaction; mobile uses long press for contact actions.");
+test("supports direct desktop contact reordering without navigating away", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Direct pointer reordering is a desktop interaction; mobile uses long press for contact actions.");
   await authenticate(page);
   await page.route("**/api/v1/conversations", async (route) => {
     await route.fulfill({

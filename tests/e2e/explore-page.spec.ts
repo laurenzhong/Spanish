@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { installReadAloud } from "./fixtures/read-aloud";
 
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
@@ -179,6 +180,7 @@ test("supports keyboard tabs and provides a return path from practice history", 
 
 test("uses the shared Spanish read-aloud endpoint and recovers when it is unavailable", async ({ page }) => {
   await authenticate(page);
+  await installReadAloud(page);
   const requests: unknown[] = [];
   await page.route("**/api/v1/tts", async (route) => {
     requests.push(route.request().postDataJSON());
@@ -191,7 +193,7 @@ test("uses the shared Spanish read-aloud endpoint and recovers when it is unavai
   await readAloud.click();
   await expect(page.getByRole("status").filter({ hasText: "朗读" })).toBeVisible();
   await expect(readAloud).toBeEnabled();
-  expect(requests).toEqual([{ text, languageTag: "es-ES" }]);
+  await expect.poll(() => requests).toEqual([{ text, languageTag: "es-ES" }]);
   await expect(first.getByRole("heading")).toHaveText(text);
   const scenario = first.getByRole("link", { name: "进入关联场景" });
   await expect(scenario).toHaveAttribute("href", "/explore/scenarios/scenario.restaurant-ordering");

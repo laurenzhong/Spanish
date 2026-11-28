@@ -11,6 +11,7 @@ import type { ConversationPreview } from "../application/list-previews";
 
 type ConversationContactRailProps = Readonly<{
   activeCharacterKey?: string;
+  onNavigate?: () => void;
   initialConversations?: readonly ConversationPreview[];
   cacheScope?: string;
 }>;
@@ -172,8 +173,7 @@ function loadConversationList(force = false, scope = getConversationCacheScope()
   cachedStatus = "loading";
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations", controller)
+  const request: Promise<void> = fetchContactJson<{ data?: { conversations?: ConversationPreview[] } }>("/api/v1/conversations", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(listRequest, generation, scope, request)) return;
       cachedConversations = payload.data?.conversations ?? [];
@@ -200,8 +200,7 @@ function loadLuciaContact(scope = getConversationCacheScope()): Promise<void> {
   if (cachedLuciaContact !== null) return Promise.resolve();
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact", controller)
+  const request: Promise<void> = fetchContactJson<{ data?: LuciaContactPreview }>("/api/v1/character-network/lucia-contact", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(luciaContactRequest, generation, scope, request)) return;
       cachedLuciaContact = payload.data ?? null;
@@ -223,8 +222,7 @@ function loadIntroductionOfferCount(force = false, scope = getConversationCacheS
   if (!force && cachedIntroductionOfferCount !== null) return Promise.resolve();
   const generation = contactCacheGeneration;
   const controller = new AbortController();
-  let request: Promise<void>;
-  request = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions", controller)
+  const request: Promise<void> = fetchContactJson<{ data?: { offers?: unknown[] } }>("/api/v1/character-network/introductions", controller)
     .then((payload) => {
       if (!isCurrentContactRequest(introductionOfferRequest, generation, scope, request)) return;
       cachedIntroductionOfferCount = payload.data?.offers?.length ?? 0;
@@ -252,7 +250,7 @@ function syncCachedConversationPreferences(
   });
 }
 
-export function ConversationContactRail({ activeCharacterKey, initialConversations, cacheScope }: ConversationContactRailProps) {
+export function ConversationContactRail({ activeCharacterKey, initialConversations, cacheScope, onNavigate }: ConversationContactRailProps) {
   const resolvedCacheScope = ensureCacheScope(cacheScope ?? getConversationCacheScope());
   const [conversations, setConversations] = useState<readonly ConversationPreview[]>(initialConversations ?? cachedConversations ?? []);
   const [status, setStatus] = useState(initialConversations ? "available" : cachedStatus);
@@ -594,6 +592,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
               onPointerCancel={handlePointerUp}
               onContextMenu={(event) => openContextMenu(event, conversation.characterKey)}
               onTouchStart={(event) => {
+                suppressClickFor.current = null;
                 if (event.touches.length !== 1) return;
                 const touch = event.touches[0];
                 longPressTimer.current = window.setTimeout(() => {
@@ -610,6 +609,7 @@ export function ConversationContactRail({ activeCharacterKey, initialConversatio
                 className={`conversation-contact-row ${activeCharacterKey === conversation.characterKey ? "conversation-contact-row--active" : ""} ${isUnread ? "conversation-contact-row--unread" : ""}`}
                 href={`/chat/${conversation.characterKey}`}
                 draggable={false}
+                onNavigate={onNavigate}
                 onClick={(event) => {
                   if (suppressClickFor.current === conversation.characterKey) {
                     event.preventDefault();

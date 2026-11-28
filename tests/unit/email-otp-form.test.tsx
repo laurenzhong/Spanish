@@ -250,7 +250,7 @@ describe("EmailOtpForm", () => {
     const auth = repository();
     const view = render(<EmailOtpForm repository={auth} />);
 
-    fireEvent.change(screen.getByLabelText("邮箱"), {
+    fireEvent.input(screen.getByLabelText("邮箱"), {
       target: { value: "learner@example.test" },
     });
     await act(async () => {

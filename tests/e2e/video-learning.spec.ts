@@ -188,7 +188,7 @@ test("follows long subtitles in the center and respects the follow switch", asyn
   await position(24);
   await expect(transcript.locator(".is-active")).toHaveAttribute("id", "segment-12");
   await expect.poll(async () => (await geometry()).centerError).toBeLessThan(2);
-  if (testInfo.project.name === "desktop-chromium") expect((await geometry()).pageTop).toBe(initialPageTop);
+  if (!testInfo.project.use.isMobile) expect((await geometry()).pageTop).toBe(initialPageTop);
 
   const follow = page.getByRole("button", { name: "自动滚动到当前句" });
   await follow.click();
@@ -309,7 +309,7 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
   await expect(drawer.getByText("好的", { exact: true })).toBeVisible();
   await expect(drawer.getByRole("link", { name: "查看语料用法" })).toHaveAttribute("href", "/read/corpus?q=Buenos&match=surface");
 
-  if (testInfo.project.name === "mobile-chromium") {
+  if (testInfo.project.use.isMobile) {
     const drawerBox = await drawer.boundingBox();
     const navigationBox = await page.getByRole("navigation", { name: "主要导航" }).boundingBox();
     expect(drawerBox).not.toBeNull();
@@ -322,7 +322,7 @@ test("learns from a reviewed YouTube video with sentence controls, captions, wor
 });
 
 test("looks up subtitles, speaks only the word and automatically explains its actual context", async ({ page }, testInfo) => {
-  if (testInfo.project.name === "mobile-chromium") await page.setViewportSize({ width: 320, height: 740 });
+  if (testInfo.project.use.isMobile) await page.setViewportSize({ width: 320, height: 740 });
   const explanations: unknown[] = [];
   page.on("request", (request) => { if (request.url().endsWith("/word-explanation")) explanations.push(request.postDataJSON()); });
   await page.goto(`/learn/media/${nativeFixtureStableKey}`);

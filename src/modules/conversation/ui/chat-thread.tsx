@@ -113,6 +113,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const translationAbortRef = useRef<AbortController | null>(null);
   const translationRequestIdRef = useRef(0);
   const translationCharacterKeyRef = useRef(characterKey);
+  const threadRef = useRef<HTMLElement | null>(null);
+  const mobileListTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const mobileListCloseRef = useRef<HTMLButtonElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -133,6 +136,56 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const textToSpeech = useMemo(() => createReadAloud(), []);
   const speechGenerationRef = useRef(0);
   const contextMenuMessageId = contextMenu?.messageId;
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const shell = threadRef.current?.closest<HTMLElement>(".product-shell");
+    if (!viewport || !shell) return;
+
+    let frame: number | undefined;
+    const sync = () => {
+      frame = undefined;
+      // iOS resizes its visual viewport without resizing the layout viewport.
+      // Leave native pinch zoom alone.
+      const keyboardOpen = viewport.scale === 1
+        && document.documentElement.clientHeight - viewport.height > 90;
+      shell.toggleAttribute("data-chat-keyboard", keyboardOpen);
+      if (keyboardOpen) {
+        shell.style.setProperty("--chat-viewport-height", `${viewport.height}px`);
+        shell.style.setProperty("--chat-viewport-top", `${viewport.offsetTop}px`);
+      } else {
+        shell.style.removeProperty("--chat-viewport-height");
+        shell.style.removeProperty("--chat-viewport-top");
+      }
+    };
+    const schedule = () => { frame ??= window.requestAnimationFrame(sync); };
+    sync();
+    viewport.addEventListener("resize", schedule);
+    viewport.addEventListener("scroll", schedule);
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      viewport.removeEventListener("resize", schedule);
+      viewport.removeEventListener("scroll", schedule);
+      shell.removeAttribute("data-chat-keyboard");
+      shell.style.removeProperty("--chat-viewport-height");
+      shell.style.removeProperty("--chat-viewport-top");
+    };
+  }, []);
+
+  const closeMobileConversations = useCallback(() => {
+    setShowMobileConversations(false);
+    mobileListTriggerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!showMobileConversations) return;
+    mobileListCloseRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) closeMobileConversations();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showMobileConversations, closeMobileConversations]);
 
   useEffect(() => {
     const isTyping = state.status === "streaming";
@@ -650,7 +703,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     event.stopPropagation();
     messageMenuTriggerRef.current = event.currentTarget;
     const bubble = (event.target instanceof Element ? event.target.closest<HTMLElement>(".conversation-message__bubble") : null)
-      ?? event.currentTarget.querySelector<HTMLElement>(".conversation-message__bubble");
+      ?? event.currentTarget.closest(".conversation-message")?.querySelector<HTMLElement>(".conversation-message__bubble");
     const rect = bubble?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect();
     setContextMenu({
       messageId: message.id,
@@ -699,6 +752,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
+    if (event.target !== event.currentTarget) return;
     openMessageMenuFromKeyboard(event, message);
     if ((event.key === "Enter" || event.key === " ") && message.text && !message.withdrawn) {
       event.preventDefault();
@@ -916,7 +970,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
         : "这段历史记录只能查看，不能发送新消息。";
 
   return (
-    <section className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
+    <section ref={threadRef} className="conversation-thread" aria-labelledby="conversation-title" data-status={state.status} data-testid="conversation-thread">
       <header className="conversation-thread__header">
         <div className="conversation-thread__identity">
           <div className={`avatar ${avatarClassName}`} aria-hidden="true">{characterName.slice(0, 1)}</div>
@@ -931,7 +985,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         </div>
         <div className="conversation-thread__header-actions">
-          <button className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表" onClick={() => setShowMobileConversations(true)}>
+          <button ref={mobileListTriggerRef} className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表" aria-haspopup="dialog" aria-expanded={showMobileConversations} onClick={() => setShowMobileConversations(true)}>
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
           </button>
           <button
@@ -958,8 +1012,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       </header>
 
       {showMobileConversations ? <div className="conversation-mobile-list" role="dialog" aria-modal="true" aria-label="会话列表">
-        <div className="conversation-mobile-list__header"><strong>会话列表</strong><button type="button" aria-label="关闭会话列表" onClick={() => setShowMobileConversations(false)}>×</button></div>
-        <ConversationContactRail activeCharacterKey={characterKey} cacheScope={cacheScope} />
+        <div className="conversation-mobile-list__header">
+          <strong>会话列表</strong>
+          <button ref={mobileListCloseRef} type="button" aria-label="关闭会话列表" onClick={closeMobileConversations}>×</button>
+        </div>
+        <ConversationContactRail activeCharacterKey={characterKey} cacheScope={cacheScope} onNavigate={closeMobileConversations} />
       </div> : null}
 
       {/* tabIndex -1 keeps the scrollable transcript programmatically focusable:
@@ -1030,6 +1087,16 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
               </div> : null}
               {message.role === "character" && !message.complete && state.status !== "streaming" ? <span className="conversation-message__hint">这条回复没有完整送达</span> : null}
             </div>
+            {message.text && !message.withdrawn ? <button
+              type="button"
+              className="conversation-message__more"
+              aria-label="消息操作"
+              aria-haspopup="menu"
+              aria-expanded={contextMenuMessageId === message.id}
+              onClick={(event) => openMessageMenu(event, message)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
+            </button> : null}
           </article>
           </Fragment>;
         })}
@@ -1187,9 +1254,15 @@ function ConversationMessageBubble({ text }: Readonly<{ text: string }>) {
 
     fit();
     const messageViewport = bubble.closest<HTMLElement>(".conversation-thread__messages");
-    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleFit);
-    if (messageViewport) resizeObserver?.observe(messageViewport);
-    window.addEventListener("resize", scheduleFit);
+    let viewportWidth = messageViewport?.getBoundingClientRect().width;
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(([entry]) => {
+      const width = entry?.borderBoxSize?.[0]?.inlineSize ?? messageViewport?.getBoundingClientRect().width;
+      if (width === viewportWidth) return;
+      viewportWidth = width;
+      scheduleFit();
+    });
+    if (messageViewport && resizeObserver) resizeObserver.observe(messageViewport, { box: "border-box" });
+    else window.addEventListener("resize", scheduleFit);
     if (document.fonts) void document.fonts.ready.then(scheduleFit);
 
     return () => {

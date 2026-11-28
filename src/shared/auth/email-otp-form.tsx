@@ -215,6 +215,7 @@ export function EmailOtpForm({
     <form
       className="auth-form email-otp-form"
       aria-busy={busy}
+      method="post"
       onSubmit={showSendCodeAction ? (event) => { event.preventDefault(); void sendOtp(); } : otpSent ? verifyOtp : requestOtp}
     >
       <Field>
@@ -224,7 +225,7 @@ export function EmailOtpForm({
         disabled={busy || otpSent}
         id="email"
         inputMode="email"
-        onChange={(event) => setEmail(event.target.value)}
+        onInput={(event) => setEmail(event.currentTarget.value)}
         required
         type="email"
         placeholder="name@example.com"

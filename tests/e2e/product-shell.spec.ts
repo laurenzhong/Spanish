@@ -342,14 +342,13 @@ test("lets the user delete an owned relationship memory", async ({ page }) => {
     expect(route.request().url()).toContain("memoryId=00000000-0000-4000-8000-000000000071");
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { deleted: true } }) });
   });
-  page.on("dialog", (dialog) => void dialog.accept());
-
   await page.goto("/me#profile-relationships");
   await expect(page.getByRole("heading", { name: "我的关系记忆" })).toBeVisible();
   await expect(page.getByText("喜欢摄影")).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "删除记忆" });
   await deleteButton.scrollIntoViewIfNeeded();
-  await deleteButton.click({ force: true });
+  await deleteButton.click();
+  await page.getByRole("alertdialog", { name: "删除这条关系记忆？" }).getByRole("button", { name: "确认删除记忆" }).click();
   await expect(page.getByTestId("memory-data-controls").getByRole("status")).toContainText("已删除");
   await expect(page.getByText("喜欢摄影")).not.toBeVisible();
 });
@@ -370,20 +369,20 @@ test("lets the user delete a saved speech transcript", async ({ page }) => {
     expect(route.request().url()).toContain("id=00000000-0000-4000-8000-000000000072");
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { deleted: true, kind: "transcript", id: "00000000-0000-4000-8000-000000000072" } }) });
   });
-  page.on("dialog", (dialog) => void dialog.accept());
-
   await page.goto("/me#profile-data");
   await expect(page.getByRole("heading", { name: "已保存的录音与转写" })).toBeVisible();
   await expect(page.getByText("¿Cómo va todo?")).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "删除转写" });
   await deleteButton.scrollIntoViewIfNeeded();
-  await deleteButton.click({ force: true });
+  await deleteButton.click();
+  await page.getByRole("alertdialog", { name: "删除这条转写？" }).getByRole("button", { name: "确认删除转写" }).click();
   await expect(page.getByTestId("voice-data-controls").getByRole("status")).toContainText("已删除");
   await expect(page.getByText("¿Cómo va todo?")).not.toBeVisible();
 });
 
 test("requires explicit confirmation before deleting account data", async ({ page }) => {
   await authenticate(page);
+  let deleteRequests = 0;
   await page.route("**/api/v1/me/data", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
@@ -396,20 +395,28 @@ test("requires explicit confirmation before deleting account data", async ({ pag
     expect(route.request().method()).toBe("DELETE");
     expect(route.request().headers()["idempotency-key"]).toBeTruthy();
     expect(route.request().postDataJSON()).toEqual({ confirmation: "DELETE_MY_DATA" });
+    deleteRequests += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ data: { alreadyDeleted: false, cleanupDeferred: 0, evidenceDeleted: 2, providerCallsAnonymized: 1 } }),
     });
   });
-  page.on("dialog", (dialog) => void dialog.accept());
-
   await page.goto("/me#profile-data");
   await expect(page.getByRole("heading", { name: "删除我的账号数据" })).toBeVisible();
   const deleteAccountButton = page.getByRole("button", { name: "删除账号数据" });
   await deleteAccountButton.scrollIntoViewIfNeeded();
-  await deleteAccountButton.click({ force: true });
+  await deleteAccountButton.click();
+  const confirmation = page.getByRole("alertdialog", { name: "删除我的账号数据？" });
+  await expect(confirmation).toBeVisible();
+  expect(deleteRequests).toBe(0);
+  await confirmation.getByRole("button", { name: "取消" }).click();
+  await expect(confirmation).toHaveCount(0);
+  expect(deleteRequests).toBe(0);
+  await deleteAccountButton.click();
+  await confirmation.getByRole("button", { name: "确认删除账号数据" }).click();
   await expect(page.getByTestId("account-data-controls").getByRole("status")).toHaveText("账号数据已删除。");
+  expect(deleteRequests).toBe(1);
 });
 
 test("keeps legacy learning query state from restoring the former task card", async ({

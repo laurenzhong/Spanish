@@ -71,6 +71,7 @@ test("speaks Spanish, ignores stale audio callbacks and cancels when querying", 
   await page.getByRole("button", { name: "按原词序", exact: true }).click();
   await expect.poll(() => page.evaluate(() => Reflect.get(window, "readAloudPauses"))).toBeGreaterThan(cancels);
   await page.getByRole("button", { name: `朗读：${corpusFixtures[1].text}`, exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, "readAloudAudios").length)).toBe(3);
   await page.evaluate(() => Reflect.get(window, "readAloudAudios")[2].dispatchEvent(Object.assign(new Event("error"), { error: "synthesis-failed" })));
   await expect(page.locator(".corpus-feedback [role=alert]")).toBeVisible();
   await page.getByRole("button", { name: `朗读：${corpusFixtures[1].text}`, exact: true }).click();

@@ -18,18 +18,19 @@ export function PasswordForm({
     () => repository === undefined ? createWebAuthRepository() : repository,
     [repository],
   );
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(event: FormEvent) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!auth || busy) return;
+    const form = new FormData(event.currentTarget);
+    const email = (form.get("email")?.toString() ?? "").trim();
+    const password = form.get("password")?.toString() ?? "";
     setBusy(true);
     setError(null);
     try {
-      await auth.signInWithPassword(email.trim(), password);
+      await auth.signInWithPassword(email, password);
       router.replace(resolvePostLoginTarget(redirectTo));
       router.refresh();
     } catch {
@@ -44,25 +45,23 @@ export function PasswordForm({
   }
 
   return (
-    <form className="auth-form" onSubmit={submit}>
+    <form className="auth-form" method="post" onSubmit={submit}>
       <label htmlFor="reviewer-email">邮箱</label>
       <input
         autoComplete="email"
         id="reviewer-email"
-        onChange={(event) => setEmail(event.target.value)}
+        name="email"
         required
         type="email"
-        value={email}
       />
       <label htmlFor="reviewer-password">密码</label>
       <input
         autoComplete="current-password"
         id="reviewer-password"
         minLength={6}
-        onChange={(event) => setPassword(event.target.value)}
+        name="password"
         required
         type="password"
-        value={password}
       />
       <button disabled={busy} type="submit">
         {busy ? "正在登录…" : "登录测试账号"}
