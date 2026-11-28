@@ -32,7 +32,8 @@ export async function installReadAloud(page: Page, options: { autoStart?: boolea
     const add = HTMLMediaElement.prototype.addEventListener;
     const remove = HTMLMediaElement.prototype.removeEventListener;
     HTMLMediaElement.prototype.addEventListener = function (type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
-      if (synthetic.has(this) && listener) {
+      if (this.src.startsWith("blob:") && this instanceof HTMLAudioElement && listener) {
+        synthetic.add(this);
         const events = listeners.get(this) ?? new Map();
         const handlers = events.get(type) ?? new Set();
         handlers.add(listener);
@@ -54,7 +55,6 @@ export async function installReadAloud(page: Page, options: { autoStart?: boolea
     const load = HTMLMediaElement.prototype.load;
     HTMLMediaElement.prototype.play = function () {
       if (!(this instanceof HTMLAudioElement)) return play.call(this);
-      if (this.src.startsWith("data:audio/")) { synthetic.add(this); return Promise.resolve(); }
       if (!this.src.startsWith("blob:")) return play.call(this);
       // Retain old callback snapshots so tests can deliver stale events after a switch.
       const snapshot = new Map([...listeners.get(this) ?? []].map(([type, handlers]) => [type, [...handlers].map((handler) => (event: Event) => {

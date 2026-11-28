@@ -7,7 +7,7 @@ class FakeAudio extends EventTarget {
   playbackRate = 1;
   currentTime = 0;
   duration = 1;
-  play = vi.fn(async () => undefined);
+  play = vi.fn<() => Promise<void>>(async () => undefined);
   pause = vi.fn();
   load = vi.fn();
   removeAttribute = vi.fn();
@@ -41,7 +41,10 @@ describe("MiniMax read-aloud client", () => {
     audio.dispatchEvent(new Event("playing")); audio.dispatchEvent(new Event("ended"));
     await first;
     fetcher.mockImplementation(() => new Promise<Response>(() => undefined));
+    audio.play.mockClear();
     const second = adapter.speak("Hola", { languageTag: "es-ES", rate: 0.8 });
+    expect(audio.play).toHaveBeenCalledOnce();
+    expect(audio.src).toBe("blob:audio");
     await settle();
     expect(fetcher).toHaveBeenCalledOnce();
     expect(audio.playbackRate).toBe(0.8);
@@ -248,6 +251,31 @@ describe("MiniMax read-aloud client", () => {
     const { adapter, audio, fetcher } = setup();
     audio.play.mockRejectedValueOnce(new DOMException("blocked", "NotAllowedError"));
     await expect(adapter.speak("Hola", { languageTag: "es-ES" })).rejects.toMatchObject({ code: "tts-failed" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("continues to the word when WebKit ends the unlock clip with play() still pending", async () => {
+    const { adapter, audio, fetcher } = setup();
+    const onStart = vi.fn();
+    audio.play.mockImplementationOnce(() => new Promise<void>(() => undefined));
+    const speaking = adapter.speak("café", { languageTag: "es-ES", onStart });
+    audio.dispatchEvent(new Event("ended"));
+    await settle();
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(onStart).not.toHaveBeenCalled();
+    audio.dispatchEvent(new Event("playing"));
+    audio.dispatchEvent(new Event("ended"));
+    await speaking;
+    expect(onStart).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a late unlock event after cancelling the word", async () => {
+    const { adapter, audio, fetcher } = setup();
+    audio.play.mockImplementationOnce(() => new Promise<void>(() => undefined));
+    const speaking = adapter.speak("café", { languageTag: "es-ES" });
+    adapter.stop();
+    audio.dispatchEvent(new Event("ended"));
+    await expect(speaking).rejects.toMatchObject({ code: "tts-cancelled" });
     expect(fetcher).not.toHaveBeenCalled();
   });
 
