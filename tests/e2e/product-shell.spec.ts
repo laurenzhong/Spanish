@@ -165,16 +165,17 @@ test("keeps themes and content packs out of the default scenario surface", async
   await expect(page.getByRole("heading", { name: "咖啡馆里的新朋友" })).toHaveCount(0);
 });
 
-test("adds Lucía as a pinned contact only after explicit approval", async ({ page }) => {
+test("adds Lucía as a pinned contact only after explicit approval", async ({ page, isMobile }) => {
   await authenticate(page);
-  let accepted = false;
+  const decisions: string[] = [];
+  let status: "pending" | "declined" | "active" = "pending";
   await page.route("**/api/v1/conversations", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         data: {
-          conversations: accepted ? [{
+          conversations: status === "active" ? [{
             conversationId: "conversation-lucia",
             characterKey: "lucia",
             characterName: "Lucía Martín",
@@ -197,8 +198,10 @@ test("adds Lucía as a pinned contact only after explicit approval", async ({ pa
   });
   await page.route("**/api/v1/character-network/lucia-contact", async (route) => {
     if (route.request().method() === "POST") {
-      expect(route.request().postDataJSON()).toEqual({ decision: "accept" });
-      accepted = true;
+      const { decision } = route.request().postDataJSON();
+      expect(decision).toBe(status === "pending" ? "decline" : "accept");
+      decisions.push(decision);
+      status = decision === "accept" ? "active" : "declined";
     }
     await route.fulfill({
       status: 200,
@@ -206,9 +209,9 @@ test("adds Lucía as a pinned contact only after explicit approval", async ({ pa
       body: JSON.stringify({
         data: {
           characterKey: "lucia",
-          status: accepted ? "active" : "pending",
+          status,
           relationshipStage: "new_contact",
-          conversationId: accepted ? "conversation-lucia" : null,
+          conversationId: status === "active" ? "conversation-lucia" : null,
           source: { kind: "cultural-event", city: "Madrid", topic: "urban-photography" },
         },
       }),
@@ -219,24 +222,56 @@ test("adds Lucía as a pinned contact only after explicit approval", async ({ pa
   await expect(page.getByRole("navigation", { name: "好友列表" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Lucía Martín.*主要好友/ })).toHaveCount(0);
   await expect(page.getByText("还没有联系人。你可以先查看新的好友申请。")).toBeVisible();
-  await page.getByRole("button", { name: /待处理/ }).click();
+  const open = page.getByRole("button", { name: /待处理/ });
+  if (isMobile) await open.tap();
+  else await open.click();
   await expect(page.getByTestId("lucia-contact-request")).toBeVisible();
-  await page.getByRole("button", { name: "通过申请" }).click();
   const luciaContact = page.getByRole("link", { name: /Lucía Martín.*主要好友/ });
-  await expect(luciaContact).toHaveAttribute("aria-current", "page");
-  await page.getByRole("button", { name: "关闭好友申请与介绍" }).click();
+  const inbox = page.getByRole("dialog", { name: "好友申请与介绍" });
+  const close = inbox.getByRole("button", { name: "关闭好友申请与介绍" });
+  const decline = inbox.getByRole("button", { name: "暂不接受" });
+  if (isMobile) await decline.tap();
+  else await decline.click();
+  await expect(inbox.getByRole("status")).toContainText("已暂不接受");
+  await close.click();
+  await expect(luciaContact).toHaveCount(0);
+  await expect(open).toHaveCount(0);
+  const reconsider = page.getByRole("button", { name: "好友申请与介绍", exact: true });
+  if (isMobile) await reconsider.tap({ timeout: 5000 });
+  else await reconsider.click({ timeout: 5000 });
+  await expect(inbox.getByText("你仍可以通过这项申请。", { exact: false })).toBeVisible();
+  const approve = inbox.getByRole("button", { name: "通过申请" });
+  if (isMobile) await approve.tap();
+  else await approve.click();
+  await expect(inbox.getByRole("status")).toContainText("已通过 Lucía 的好友申请");
+  await close.click();
+  await expect(luciaContact).toHaveAttribute("href", "/chat/lucia");
+  await expect(page.getByRole("heading", { name: "对话", exact: true })).toBeFocused();
+  expect(decisions).toEqual(["decline", "accept"]);
+  if (isMobile) {
+    await luciaContact.tap();
+    await expect(page).toHaveURL(/\/chat\/lucia$/u);
+    return;
+  }
   await luciaContact.click({ button: "right" });
   await expect(page.getByRole("menuitem", { name: "取消置顶" })).toBeVisible();
 });
 
-test("shows a contextual friend introduction and requires explicit consent", async ({ page }) => {
+test("requires explicit consent and refreshes the new contact without reloading", async ({ page, isMobile }) => {
   await authenticate(page);
+  let accepted = false;
+  let responses = 0;
+  await page.route("**/api/v1/conversations", (route) => route.fulfill({ json: { data: { conversations: accepted ? [{
+    conversationId: "conversation-test", characterKey: "mateo", characterName: "Mateo Ruiz", avatarClass: "avatar--mateo",
+    roleLabel: "好友", lastMessageAt: null, lastMessage: null,
+  }] : [] } } }));
+  await page.route("**/api/v1/character-network/lucia-contact", (route) => route.fulfill({ json: { data: { status: "active" } } }));
   await page.route("**/api/v1/character-network/introductions", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: { offers: [{ offerKey: "intro-test", targetCharacterKey: "mateo", reasonCode: "shared-interest", reasonText: "你们刚好有一个共同感兴趣的话题，介绍会很自然。" }] } }),
+        body: JSON.stringify({ data: { offers: accepted ? [] : [{ offerKey: "intro-test", targetCharacterKey: "mateo", reasonCode: "shared-interest", reasonText: "你们刚好有一个共同感兴趣的话题，介绍会很自然。" }] } }),
       });
       return;
     }
@@ -245,21 +280,34 @@ test("shows a contextual friend introduction and requires explicit consent", asy
   await page.route("**/api/v1/character-network/introductions/intro-test", async (route) => {
     expect(route.request().method()).toBe("POST");
     expect(route.request().postDataJSON()).toEqual({ decision: "accept", memoryIds: [] });
+    responses += 1;
+    accepted = true;
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { status: "accepted", targetCharacterKey: "mateo", relationshipStage: "new_contact", conversationId: "conversation-test", sharedMemoryIds: [] } }) });
   });
 
   await page.goto("/chat");
-  await page.getByRole("button", { name: "查看好友申请和介绍" }).click();
+  const open = page.getByRole("button", { name: /待处理/ });
+  const mateo = page.getByRole("navigation", { name: "好友列表" }).getByRole("link", { name: /Mateo Ruiz/ });
+  await expect(mateo).toHaveCount(0);
+  if (isMobile) await open.tap();
+  else await open.click();
   await expect(page.getByRole("heading", { name: "认识一个新朋友" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Mateo Ruiz" })).toBeVisible();
-  await page.getByRole("button", { name: "同意介绍" }).click();
+  expect(responses).toBe(0);
+  const accept = page.getByRole("button", { name: "同意介绍" });
+  if (isMobile) await accept.tap();
+  else await accept.click();
   await expect(page.locator(".conversation-introductions").getByRole("status")).toContainText("已同意介绍");
+  await page.getByRole("button", { name: "关闭好友申请与介绍" }).click();
+  await expect(mateo).toHaveAttribute("href", "/chat/mateo");
+  expect(responses).toBe(1);
 });
 
-test("recovers the friend introduction inbox after a failed request", async ({ page }) => {
+test("opens and recovers the friend introduction inbox after the initial read fails", async ({ page, isMobile }) => {
   await authenticate(page);
   let attempts = 0;
   let allowSuccess = false;
+  await page.route("**/api/v1/character-network/lucia-contact", (route) => route.fulfill({ json: { data: { status: "active" } } }));
   await page.route("**/api/v1/character-network/introductions", async (route) => {
     attempts += 1;
     if (!allowSuccess) {
@@ -274,12 +322,18 @@ test("recovers the friend introduction inbox after a failed request", async ({ p
   });
 
   await page.goto("/chat");
-  await page.getByRole("button", { name: "查看好友申请和介绍" }).click();
+  await expect.poll(() => attempts).toBeGreaterThanOrEqual(1);
+  const open = page.getByRole("button", { name: "好友申请与介绍", exact: true });
+  if (isMobile) await open.tap({ timeout: 5000 });
+  else await open.click({ timeout: 5000 });
   await expect(page.locator(".conversation-introductions [role=alert]")).toContainText("暂时无法读取好友介绍");
+  await expect(page.getByText("目前没有新的介绍请求。")).toHaveCount(0);
   allowSuccess = true;
-  await page.getByRole("dialog", { name: "介绍请求" }).getByRole("button", { name: "重试" }).click();
+  const retry = page.getByRole("dialog", { name: "好友申请与介绍" }).getByRole("button", { name: "重试" });
+  if (isMobile) await retry.tap();
+  else await retry.click();
   await expect(page.getByRole("heading", { name: "Mateo Ruiz" })).toBeVisible();
-  expect(attempts).toBeGreaterThanOrEqual(2);
+  expect(attempts).toBeGreaterThanOrEqual(3);
 });
 
 test("shares only the memory explicitly selected in an introduction", async ({ page }) => {
@@ -297,7 +351,7 @@ test("shares only the memory explicitly selected in an introduction", async ({ p
   });
 
   await page.goto("/chat");
-  await page.getByRole("button", { name: "查看好友申请和介绍" }).click();
+  await page.getByRole("button", { name: /待处理/ }).click();
   const memory = page.getByRole("checkbox", { name: /喜欢摄影/ });
   await expect(memory).not.toBeChecked();
   await memory.check();

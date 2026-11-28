@@ -41,6 +41,43 @@ test("opens and uses the conversation list from a thread on touch", async ({ pag
   await expect(open).toBeFocused();
 });
 
+test("closes only the nested friend inbox and restores focus on a phone", async ({ page, baseURL }) => {
+  const hydrationErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    if (/Hydration failed|server rendered HTML/u.test(error.message)) hydrationErrors.push(error.message);
+  });
+  await authenticate(page, baseURL!);
+  await page.setViewportSize({ width: 667, height: 375 });
+  await page.route("**/api/v1/character-network/introductions", (route) => route.fulfill({
+    json: { data: { offers: [{ offerKey: "intro-test", targetCharacterKey: "mateo", reasonText: "共同兴趣" }] } },
+  }));
+  await page.goto("/chat/lucia");
+  const openList = page.getByRole("button", { name: "打开会话列表" });
+  await openList.tap();
+  const list = page.getByRole("dialog", { name: "会话列表" });
+  const openInbox = list.getByRole("button", { name: /待处理/ });
+  await openInbox.tap();
+  const inbox = list.getByRole("dialog", { name: "好友申请与介绍" });
+  const closeInbox = inbox.getByRole("button", { name: "关闭好友申请与介绍" });
+  await expect(closeInbox).toBeFocused();
+  const closeTarget = (await closeInbox.boundingBox())!;
+  expect(Math.min(closeTarget.width, closeTarget.height)).toBeGreaterThanOrEqual(44);
+
+  await page.keyboard.press("Escape");
+  await expect(inbox).toBeHidden();
+  await expect(list).toBeVisible();
+  await expect(openInbox).toBeFocused();
+  await openInbox.tap();
+  await closeInbox.tap();
+  await expect(inbox).toBeHidden();
+  await expect(openInbox).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(list).toBeHidden();
+  await expect(openList).toBeFocused();
+  expect(hydrationErrors).toEqual([]);
+});
+
 test("keeps the last conversation tappable in landscape", async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 667, height: 375 });
   await authenticate(page, baseURL!);

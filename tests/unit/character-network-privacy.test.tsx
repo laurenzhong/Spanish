@@ -13,10 +13,34 @@ afterEach(() => {
 });
 
 describe("introduction privacy controls", () => {
+  it("shows a valid Lucía request even when the introductions read fails", async () => {
+    let finishIntroductions!: (response: Response) => void;
+    const pendingIntroductions = new Promise<Response>((resolve) => { finishIntroductions = resolve; });
+    globalThis.fetch = vi.fn(async (input) => String(input).endsWith("/introductions")
+      ? pendingIntroductions
+      : Response.json({ data: { status: "pending" } }));
+    render(<IntroductionInbox />);
+
+    expect(await screen.findByTestId("lucia-contact-request")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "通过申请" })).toBeEnabled();
+    finishIntroductions(new Response(null, { status: 503 }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("暂时无法读取好友介绍");
+    expect(screen.getByTestId("lucia-contact-request")).toBeInTheDocument();
+    expect(screen.queryByText("目前没有新的介绍请求。")).not.toBeInTheDocument();
+  });
+
   it("keeps shareable memories unchecked until the user opts in", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { offers: [{ offerKey: "offer-1", targetCharacterKey: "mateo", reasonText: "共同兴趣", reasonCode: "shared-interest", shareableMemories: [{ id: "memory-1", category: "interest", content: "喜欢摄影", sensitivity: "normal", alreadyShared: false }] }] } }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { status: "accepted", sharedMemoryIds: ["memory-1"] } }) });
+    const fetchMock = vi.fn(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/lucia-contact")) return Response.json({ data: { status: "active" } });
+      if (url.endsWith("/introductions")) {
+        return Response.json({ data: { offers: [{
+          offerKey: "offer-1", targetCharacterKey: "mateo", reasonText: "共同兴趣", reasonCode: "shared-interest",
+          shareableMemories: [{ id: "memory-1", category: "interest", content: "喜欢摄影", sensitivity: "normal", alreadyShared: false }],
+        }] } });
+      }
+      return Response.json({ data: { status: "accepted", sharedMemoryIds: ["memory-1"] } });
+    });
     globalThis.fetch = fetchMock;
     render(<IntroductionInbox />);
 
@@ -48,19 +72,21 @@ describe("introduction privacy controls", () => {
   });
 
   it("recovers the introduction inbox after a failed request", async () => {
-    const fetchMock = vi.fn()
+    const readIntroductions = vi.fn()
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: { offers: [{ offerKey: "retry-offer", targetCharacterKey: "mateo", reasonText: "共同兴趣", reasonCode: "shared-interest" }] } }),
-      });
-    globalThis.fetch = fetchMock;
+      .mockResolvedValueOnce(Response.json({ data: { offers: [
+        { offerKey: "retry-offer", targetCharacterKey: "mateo", reasonText: "共同兴趣", reasonCode: "shared-interest" },
+      ] } }));
+    globalThis.fetch = vi.fn(async (input) => String(input).endsWith("/introductions")
+      ? readIntroductions()
+      : Response.json({ data: { status: "active" } }));
     render(<IntroductionInbox />);
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     await waitFor(() => expect(screen.getByText("Mateo Ruiz")).toBeInTheDocument());
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(readIntroductions).toHaveBeenCalledTimes(2);
   });
 
   it("recovers shared permissions after a failed request", async () => {
