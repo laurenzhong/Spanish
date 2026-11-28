@@ -1,5 +1,9 @@
 # 自动内容供应与词句学习重构实施计划
 
+## 2026-11-28 iPhone 可用性核查 `IPHONE-USABILITY-001`
+
+按所有者要求开启本次移动 Web/PWA 验收，依赖已发布的移动交互与探索改进。先检查每页入口、主要操作与恢复路径，再检查触控尺寸、安全区、浅深主题和键盘布局。以隔离发布基线复现并修复同一范围内的缺陷，用 iPhone WebKit 档案覆盖触屏路径，用现有 Chromium 项目验证桌面和手机回归。真实 iPhone Safari 和主屏幕 PWA 的键盘、麦克风、媒体解码、后台恢复与实际账号另行验证。[验收矩阵](../reviews/IPHONE-USABILITY-001.md)
+
 ## 2026-10-16 所有者文案调整：READ-VOICE-LABEL-001
 
 独立局部任务，所有者明确要求后 ready 并由本聊天领取，沿用共享分支 `codex/disable-legacy-readlang`。阅读器侧栏声音标题与试听无障碍名称由“MiniMax 女声”改为“Serene Woman 女声”，同步既有组件和浏览器测试预期；不改变供应商、音色、播放或评分。验证结果、未执行检查及下一步记录于 `PROJECT_STATUS.md`。

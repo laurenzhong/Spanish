@@ -1,3 +1,9 @@
+## 2026-11-28 `IPHONE-USABILITY-001`（iPhone Web/PWA 可用性核查，`review`）
+
+- 实现提交 `cc15065`，分支 `codex/iphone-usability-audit` 基于发布代码 `fac7367`。核查首页、登录、五项主导航与所有者工作流，修复触控入口、键盘遮挡、横屏滚动和表单输入问题。
+- WebKit 两批专项 50/50、聚焦 Vitest 106/106、影响文件 ESLint、TypeScript 和生产构建通过。全站门禁与真机验收仍开放。下一步在同版本的 Safari 和安装态 PWA 复验真实账号、键盘、音频及后台恢复。
+- [覆盖矩阵、验证结果及复验步骤](docs/reviews/IPHONE-USABILITY-001.md)。
+
 ## 2026-11-26 `EXPLORE-UX-001`（探索页和实战窄屏优化，`review`）
 
 - 实现提交 `8c107ba`，分支 `codex/explore-ux-001` 基于 `main@cb83d06`。探索三视图保留搜索和深链，加入键盘切换、练习历史、到期复现入口和直接私人生成。表达目录加入已发布场景原句，可试听并打开关联场景。
