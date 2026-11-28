@@ -58,8 +58,6 @@ export function splitReadAloudText(text: string, maximum: number = READ_ALOUD_PO
 }
 
 let active: { stop: () => void } | null = null;
-// One silent PCM sample, used only to unlock the same element during a user gesture.
-const silentUnlock = "data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAAAAAA==";
 
 export function createReadAloud(overrides: Partial<Dependencies> = {}): ReadAloud {
   const supported = typeof window !== "undefined" && typeof Audio !== "undefined" &&
@@ -116,12 +114,19 @@ export function createReadAloud(overrides: Partial<Dependencies> = {}): ReadAlou
       try { return await Promise.race([work, expired, cancellation]); }
       finally { clearTimeout(timer); }
     };
-    // Safari: call play synchronously, then reuse this element for fetched audio.
-    // Devices may still reject autoplay after loading; that rejection is surfaced.
-    audio.src = silentUnlock;
-    let unlock: Promise<void>;
-    try { unlock = Promise.resolve(audio.play()); }
-    catch { unlock = Promise.reject(failure("tts-failed")); }
+    // Play a same-origin silent clip within the tap. WebKit can deliver ended
+    // for short clips while the play() promise is still pending.
+    const unlock = async () => {
+      audio.src = "/read-aloud-unlock.wav";
+      let ended!: () => void;
+      const played = new Promise<void>((resolve) => { ended = resolve; });
+      audio.addEventListener("ended", ended);
+      try {
+        await bounded(Promise.race([audio.play(), played]), 5000);
+      } finally {
+        audio.removeEventListener("ended", ended);
+      }
+    };
 
     const playChunk = () => new Promise<void>((resolve, reject) => {
       let watchdog: ReturnType<typeof setTimeout>;
@@ -162,12 +167,16 @@ export function createReadAloud(overrides: Partial<Dependencies> = {}): ReadAlou
 
     return (async () => {
       try {
-        await bounded(unlock, 5000);
-        check(); audio.pause();
-        for (const chunk of splitReadAloudText(text)) {
+        const chunks = splitReadAloudText(text).filter((chunk) => chunk.trim());
+        const firstBuffer = replay.get(chunks[0]!);
+        if (!firstBuffer) {
+          await unlock();
+          check(); audio.pause();
+        }
+        for (const [index, chunk] of chunks.entries()) {
           check();
-          if (!chunk.trim()) continue;
-          const buffer = replay.get(chunk) ?? await bounded((async () => {
+          const cached = index === 0 ? firstBuffer : replay.get(chunk);
+          const buffer = cached ?? await bounded((async () => {
             const response = await deps.fetch("/api/v1/tts", {
               method: "POST", credentials: "same-origin", cache: "no-store",
               headers: { "Content-Type": "application/json" },
