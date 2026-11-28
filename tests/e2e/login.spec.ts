@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+test("keeps the reading destination when an anonymous reader is sent to login", async ({ page }) => {
+  for (const path of ["/read", "/read/vocabulary"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL((url) => url.pathname === "/login" && url.searchParams.get("next") === path);
+    await expect(page.getByRole("heading", { name: "¡Bienvenido!" })).toBeVisible();
+  }
+});
+
 test("keeps the six OTP slots aligned with the accessible input", async ({ page, browserName }) => {
   await page.goto("/login?email=otp-layout%40example.com&step=otp");
 

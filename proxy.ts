@@ -80,6 +80,7 @@ export const config = {
     "/",
     "/login/:path*",
     "/learn/:path*",
+    "/read/:path*",
     "/explore/:path*",
     "/chat/:path*",
     "/me/:path*",
