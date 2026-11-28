@@ -14,6 +14,7 @@ import {
   createConversationState,
   findRetryableUserMessage,
   transitionConversationState,
+  type ConversationMessage,
   type ConversationState,
 } from "@/src/modules/conversation";
 import { VoiceComposer } from "./voice-composer";
@@ -63,12 +64,16 @@ type MessageMenuState = Readonly<{
   y?: number;
 }>;
 
+const messageLongPressMs = 500;
+const messageLongPressSlop = 10;
+
 function createId(prefix: string): string {
   const uuid = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `${prefix}-${uuid}`;
 }
 
 export function ChatThread({ characterKey, characterName, roleLabel = "主要好友", characterVersion, initialMessageId, initialMessages, initialAccess, avatarClassName = "avatar--lucia", cacheScope = getConversationCacheScope() }: ChatThreadProps) {
+  const threadScope = `${cacheScope}:${characterKey}:${characterVersion}`;
   const targetMessageId = initialMessageId ?? (typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("message") ?? undefined
     : undefined);
@@ -89,7 +94,9 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const assistedRef = useRef(false);
   const [quotedMessage, setQuotedMessage] = useState<ConversationState["messages"][number] | null>(null);
   const [contextMenu, setContextMenu] = useState<MessageMenuState | null>(null);
-  const [translations, setTranslations] = useState<Record<string, MessageTranslation>>({});
+  const [translationState, setTranslationState] = useState<{ scope: string; entries: Record<string, MessageTranslation> } | null>(null);
+  const translations = translationState?.scope === threadScope ? translationState.entries : undefined;
+  if (translationState && translationState.scope !== threadScope) setTranslationState(null);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState<string | null>(null);
@@ -108,17 +115,18 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supersedesRef = useRef<ReturnType<typeof visibleReplyPrefix> | null>(null);
   const transportRef = useRef<{ generationId: string; controller: AbortController; reader: ReadableStreamDefaultReader<Uint8Array> | null } | null>(null);
-  const threadScopeRef = useRef(`${cacheScope}:${characterKey}:${characterVersion}`);
+  const threadScopeRef = useRef(threadScope);
   const mutationRevisionRef = useRef(0);
-  const translationAbortRef = useRef<AbortController | null>(null);
-  const translationRequestIdRef = useRef(0);
-  const translationCharacterKeyRef = useRef(characterKey);
+  const translationRequestsRef = useRef(new Map<string, AbortController>());
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const assistantPanelRef = useRef<HTMLElement | null>(null);
   const messageMenuRef = useRef<HTMLDivElement | null>(null);
   const messageMenuTriggerRef = useRef<HTMLElement | null>(null);
+  const messagePressRef = useRef<{ pointerId: number; x: number; y: number; timer: number } | null>(null);
+  const lastMessagePointerTypeRef = useRef("");
+  const suppressedMessageClickRef = useRef<string | null>(null);
   const shouldFollowRef = useRef(true);
   const isNearBottomRef = useRef(true);
   const currentMessagesRef = useRef(state.messages);
@@ -133,6 +141,26 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   const textToSpeech = useMemo(() => createReadAloud(), []);
   const speechGenerationRef = useRef(0);
   const contextMenuMessageId = contextMenu?.messageId;
+  const menuMessage = contextMenu && state.messages.find((message) => message.id === contextMenu.messageId);
+  const menuTranslation = menuMessage ? translations?.[menuMessage.clientMessageId ?? menuMessage.id] : undefined;
+
+  const cancelMessagePress = useCallback(() => {
+    if (!messagePressRef.current) return;
+    window.clearTimeout(messagePressRef.current.timer);
+    messagePressRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.hidden) cancelMessagePress();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", cancelMessagePress);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", cancelMessagePress);
+    };
+  }, [cancelMessagePress]);
 
   useEffect(() => {
     const isTyping = state.status === "streaming";
@@ -172,6 +200,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }, [state.messages]);
 
   function handleMessagesScroll() {
+    cancelMessagePress();
     const container = messagesRef.current;
     if (!container) return;
     const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 96;
@@ -220,15 +249,14 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   useEffect(() => () => {
     disposeTransport();
     pendingMessagesRef.current = [];
-    translationAbortRef.current?.abort();
     speechGenerationRef.current += 1;
     textToSpeech.stop();
   }, [textToSpeech]);
 
   useLayoutEffect(() => {
-    const scope = `${cacheScope}:${characterKey}:${characterVersion}`;
-    if (threadScopeRef.current !== scope) {
-      threadScopeRef.current = scope;
+    const translationRequests = translationRequestsRef.current;
+    if (threadScopeRef.current !== threadScope) {
+      threadScopeRef.current = threadScope;
       apply({ type: "reset" });
       if (initialMessagesRef.current) apply({ type: "hydrate", messages: initialMessagesRef.current });
     }
@@ -237,14 +265,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       disposeTransport();
       pendingMessagesRef.current = [];
       supersedesRef.current = null;
+      cancelMessagePress();
+      suppressedMessageClickRef.current = null;
+      for (const request of translationRequests.values()) request.abort();
+      translationRequests.clear();
     };
-  }, [cacheScope, characterKey, characterVersion]);
-
-  useEffect(() => {
-    translationAbortRef.current?.abort();
-    translationRequestIdRef.current += 1;
-    translationCharacterKeyRef.current = characterKey;
-  }, [characterKey]);
+  }, [cancelMessagePress, threadScope]);
 
   useLayoutEffect(() => {
     if (!contextMenu || contextMenu.x !== undefined || contextMenu.y !== undefined || !messageMenuRef.current) return;
@@ -275,7 +301,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     const focusTimer = window.setTimeout(() => {
       const menu = messageMenuRef.current;
       if (!menu || menu.contains(document.activeElement)) return;
-      menu.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+      menu.querySelector<HTMLElement>("[role='menuitem']")?.focus({ preventScroll: true });
     }, 0);
     const close = () => setContextMenu(null);
     const onKeyDown = (event: KeyboardEvent) => {
@@ -642,16 +668,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     }, 0);
   }
 
-  function openMessageMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    // A streamed reply may still be marked incomplete while its first text
-    // has already arrived. Its actions are still safe to expose immediately.
-    if (message.withdrawn || !message.text) return;
-    event.preventDefault();
-    event.stopPropagation();
-    messageMenuTriggerRef.current = event.currentTarget;
-    const bubble = (event.target instanceof Element ? event.target.closest<HTMLElement>(".conversation-message__bubble") : null)
-      ?? event.currentTarget.querySelector<HTMLElement>(".conversation-message__bubble");
-    const rect = bubble?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect();
+  function openMessageMenu(row: HTMLElement, target: EventTarget | null, message: ConversationMessage) {
+    messageMenuTriggerRef.current = row;
+    const bubble = (target instanceof Element ? target.closest(".conversation-message__bubble") : null)
+      ?? row.querySelector(".conversation-message__bubble");
+    const rect = (bubble ?? row).getBoundingClientRect();
     setContextMenu({
       messageId: message.id,
       anchorX: message.role === "user" ? rect.right : rect.left,
@@ -661,62 +682,73 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     });
   }
 
-  function openMessageMenuFromKeyboard(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if ((event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) && !message.withdrawn && message.text && message.complete) {
-      event.preventDefault();
-      messageMenuTriggerRef.current = event.currentTarget;
-      const rect = event.currentTarget.getBoundingClientRect();
-      setContextMenu({
-        messageId: message.id,
-        anchorX: message.role === "user" ? rect.right : rect.left,
-        anchorTop: rect.top,
-        anchorBottom: rect.bottom,
-        align: message.role === "user" ? "end" : "start",
-      });
-    }
-  }
-
   function toggleMessageTimestamp(messageId: string) {
     setExpandedTimestampId((current) => current === messageId ? null : messageId);
   }
 
-  function handleMessageClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
+  function handleMessageClick(event: React.MouseEvent<HTMLElement>, message: ConversationMessage) {
+    if (suppressedMessageClickRef.current === message.id) {
+      suppressedMessageClickRef.current = null;
+      event.stopPropagation();
+      return;
+    }
     if (window.getSelection()?.toString()) return;
     if (message.createdAt) setExpandedTimestampId(message.id);
   }
 
-  function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (message.text && !message.withdrawn) openMessageMenu(event, message);
-    else if (message.createdAt) {
+  function handleMessageContextMenu(event: React.MouseEvent<HTMLElement>, message: ConversationMessage) {
+    if (message.text && !message.withdrawn) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (lastMessagePointerTypeRef.current !== "touch") openMessageMenu(event.currentTarget, event.target, message);
+    } else if (message.createdAt) {
       event.preventDefault();
       toggleMessageTimestamp(message.id);
     }
   }
 
-  function handleMessageDoubleClick(event: React.MouseEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    if (!message.text || message.withdrawn) return;
-    openMessageMenu(event, message);
+  function handleMessageDoubleClick(event: React.MouseEvent<HTMLElement>, message: ConversationMessage) {
+    if (lastMessagePointerTypeRef.current === "touch" || !message.text || message.withdrawn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openMessageMenu(event.currentTarget, event.target, message);
   }
 
-  function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationState["messages"][number]) {
-    openMessageMenuFromKeyboard(event, message);
-    if ((event.key === "Enter" || event.key === " ") && message.text && !message.withdrawn) {
-      event.preventDefault();
-      messageMenuTriggerRef.current = event.currentTarget;
-      const rect = event.currentTarget.getBoundingClientRect();
-      setContextMenu({
-        messageId: message.id,
-        anchorX: message.role === "user" ? rect.right : rect.left,
-        anchorTop: rect.top,
-        anchorBottom: rect.bottom,
-        align: message.role === "user" ? "end" : "start",
-      });
-      if (message.createdAt) setExpandedTimestampId(message.id);
-    }
+  function handleMessageKeyDown(event: React.KeyboardEvent<HTMLElement>, message: ConversationMessage) {
+    if (event.target !== event.currentTarget || !message.text || message.withdrawn) return;
+    const activate = event.key === "Enter" || event.key === " ";
+    const contextKey = event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey);
+    if (!activate && !(contextKey && message.complete)) return;
+    event.preventDefault();
+    openMessageMenu(event.currentTarget, event.target, message);
+    if (activate && message.createdAt) setExpandedTimestampId(message.id);
   }
 
-  function selectedMessage() {
-    return contextMenu ? state.messages.find((message) => message.id === contextMenu.messageId) ?? null : null;
+  function handleMessagePointerDown(event: React.PointerEvent<HTMLElement>, message: ConversationMessage) {
+    cancelMessagePress();
+    lastMessagePointerTypeRef.current = event.pointerType;
+    suppressedMessageClickRef.current = null;
+    if (event.pointerType !== "touch" || !event.isPrimary || !message.text || message.withdrawn) return;
+    if (event.target instanceof Element && event.target.closest("button, a")) return;
+    const { currentTarget: row, target, pointerId, clientX: x, clientY: y } = event;
+    const timer = window.setTimeout(() => {
+      messagePressRef.current = null;
+      const current = stateRef.current.messages.find((candidate) => candidate.id === message.id);
+      if (!row.isConnected || !current?.text || current.withdrawn) return;
+      suppressedMessageClickRef.current = current.id;
+      openMessageMenu(row, target, current);
+    }, messageLongPressMs);
+    messagePressRef.current = { pointerId, x, y, timer };
+  }
+
+  function handleMessagePointerMove(event: React.PointerEvent<HTMLElement>) {
+    const press = messagePressRef.current;
+    if (press?.pointerId !== event.pointerId) return;
+    if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > messageLongPressSlop) cancelMessagePress();
+  }
+
+  function handleMessagePointerEnd(event: React.PointerEvent<HTMLElement>) {
+    if (messagePressRef.current?.pointerId === event.pointerId) cancelMessagePress();
   }
 
   async function copyMessage(message: ConversationState["messages"][number]) {
@@ -734,45 +766,54 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
     setContextMenu(null);
   }
 
-  async function translateMessage(message: ConversationState["messages"][number]) {
+  async function translateMessage(message: ConversationMessage) {
     setContextMenu(null);
-    translationAbortRef.current?.abort();
+    if (!message.text || message.withdrawn) return;
+    // Optimistic messages receive a server ID when conversation history syncs.
+    const messageKey = message.clientMessageId ?? message.id;
+    const requests = translationRequestsRef.current;
+    if (requests.has(messageKey)) return;
     const controller = new AbortController();
-    translationAbortRef.current = controller;
-    const requestId = ++translationRequestIdRef.current;
-    translationCharacterKeyRef.current = characterKey;
-    setTranslations((current) => ({ ...current, [message.id]: { status: "loading" } }));
+    requests.set(messageKey, controller);
+    const update = (translation: MessageTranslation) => setTranslationState((current) => ({
+      scope: threadScope,
+      entries: { ...(current?.scope === threadScope ? current.entries : {}), [messageKey]: translation },
+    }));
+    update({ status: "loading" });
+    const translateToSpanish = message.role === "user" && /\p{Script=Han}/u.test(message.text);
     try {
       const response = await fetch("/api/v1/conversations/translation", {
         method: "POST",
         headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({ text: message.text, sourceLocale: "es-ES", targetLocale: "zh-CN" }),
+        body: JSON.stringify({
+          text: message.text,
+          sourceLocale: translateToSpanish ? "zh-CN" : "es-ES",
+          targetLocale: translateToSpanish ? "es-ES" : "zh-CN",
+        }),
         signal: controller.signal,
       });
       if (!response.ok) throw new Error("translation-failed");
       const payload = await response.json() as { data?: { text?: string } };
       const translated = payload.data?.text ?? "";
       if (!translated.trim()) throw new Error("translation-empty");
-      if (requestId === translationRequestIdRef.current) setTranslations((current) => ({ ...current, [message.id]: { status: "success", text: translated } }));
+      if (!controller.signal.aborted) update({ status: "success", text: translated });
     } catch {
-      if (controller.signal.aborted || requestId !== translationRequestIdRef.current) return;
-      setTranslations((current) => ({ ...current, [message.id]: { status: "error", message: "翻译暂时不可用，请稍后重试。" } }));
+      if (!controller.signal.aborted) update({ status: "error", message: "翻译暂时不可用，请稍后重试。" });
     } finally {
-      if (translationAbortRef.current === controller) translationAbortRef.current = null;
+      if (requests.get(messageKey) === controller) requests.delete(messageKey);
     }
   }
 
-  function clearTranslation(messageId: string) {
-    translationRequestIdRef.current += 1;
-    translationAbortRef.current?.abort();
-    setTranslations((current) => {
-      const next = { ...current };
-      delete next[messageId];
-      return next;
+  function clearTranslation(message: ConversationMessage) {
+    const messageKey = message.clientMessageId ?? message.id;
+    translationRequestsRef.current.get(messageKey)?.abort();
+    translationRequestsRef.current.delete(messageKey);
+    setTranslationState((current) => {
+      if (current?.scope !== threadScope || !current.entries[messageKey]) return current;
+      const entries = { ...current.entries };
+      delete entries[messageKey];
+      return { scope: threadScope, entries };
     });
-    // Close after clearing the item so the menu cannot render one more frame
-    // with the stale “取消翻译” action.
-    setContextMenu(null);
   }
 
   async function speakMessage(message: ConversationState["messages"][number]) {
@@ -821,6 +862,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
   }
 
   async function syncAfterMessageMutation(message: ConversationState["messages"][number], action: "remove-message" | "withdraw-message", revision: number): Promise<boolean> {
+    clearTranslation(message);
     const key = message.clientMessageId ?? message.id;
     const batch = pendingMessagesRef.current.length ? pendingMessagesRef.current : recoverPendingReply(stateRef.current).messages;
     const affected = batch.some((pending) => pending.clientMessageId === key);
@@ -995,7 +1037,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           const showTimestamp = Boolean(message.createdAt && (dayChanged || gapExceeded));
           const timestampExpanded = expandedTimestampId === message.id;
           const timestampValue = message.createdAt;
-          const translation = message.role === "character" && translationCharacterKeyRef.current === characterKey ? translations[message.id] : undefined;
+          const translation = message.withdrawn ? undefined : translations?.[message.clientMessageId ?? message.id];
           const bubbleText = message.withdrawn ? "你撤回了一条消息" : message.text;
           return <Fragment key={message.id}>
           {(showTimestamp || timestampExpanded) && timestampValue ? <time className={`conversation-thread__timestamp${timestampExpanded ? " conversation-thread__timestamp--exact" : ""}`} dateTime={timestampValue}>
@@ -1013,6 +1055,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
             onContextMenu={(event) => handleMessageContextMenu(event, message)}
             onDoubleClick={(event) => handleMessageDoubleClick(event, message)}
             onKeyDown={(event) => handleMessageKeyDown(event, message)}
+            onPointerDown={(event) => handleMessagePointerDown(event, message)}
+            onPointerMove={handleMessagePointerMove}
+            onPointerUp={handleMessagePointerEnd}
+            onPointerCancel={handleMessagePointerEnd}
+            onLostPointerCapture={handleMessagePointerEnd}
             tabIndex={message.text && message.complete && !message.withdrawn ? 0 : undefined}
             aria-expanded={contextMenu?.messageId === message.id ? true : undefined}
           >
@@ -1037,30 +1084,32 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
       {!isNearBottom && state.messages.length > 0 ? <button className="conversation-thread__jump-bottom" type="button" onClick={scrollToBottom}>回到底部 ↓</button> : null}
       {hasNewProactiveMessage && !isNearBottom ? <button className="conversation-thread__new-proactive" type="button" onClick={scrollToBottom}>有一条新消息</button> : null}
 
-      {contextMenu && selectedMessage() && typeof document !== "undefined" ? createPortal(
-        <div ref={messageMenuRef} className="conversation-message-menu" role="menu" aria-label={selectedMessage()?.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x ?? contextMenu.anchorX, top: contextMenu.y ?? contextMenu.anchorBottom, visibility: contextMenu.x === undefined ? "hidden" : undefined }} onClick={(event) => event.stopPropagation()}>
-          <button type="button" role="menuitem" onClick={() => void copyMessage(selectedMessage()!)}>复制</button>
+      {contextMenu && menuMessage && typeof document !== "undefined" ? createPortal(
+        <div ref={messageMenuRef} className="conversation-message-menu" role="menu" aria-label={menuMessage.role === "character" ? `${characterName} 的消息操作` : "你的消息操作"} style={{ left: contextMenu.x ?? contextMenu.anchorX, top: contextMenu.y ?? contextMenu.anchorBottom, visibility: contextMenu.x === undefined ? "hidden" : undefined }} onClick={(event) => event.stopPropagation()}>
+          <button type="button" role="menuitem" onClick={() => void copyMessage(menuMessage)}>复制</button>
           {/* Either side of the conversation can be heard: users re-listen to their
               own Spanish to check pronunciation, not only to Lucía's replies. */}
-          <button type="button" role="menuitem" onClick={() => void speakMessage(selectedMessage()!)}>{speakingMessageId === selectedMessage()?.id ? "停止朗读" : "朗读"}</button>
-          {selectedMessage()?.role === "character" ? (() => {
-            const selected = selectedMessage()!;
-            const translation = translations[selected.id];
-            return <button type="button" role="menuitem" disabled={translation?.status === "loading"} onClick={(event) => { event.stopPropagation(); if (translation?.status === "success") clearTranslation(selected.id); else void translateMessage(selected); }}>{translation?.status === "success" ? "取消翻译" : translation?.status === "loading" ? "正在翻译……" : "翻译"}</button>;
-          })() : null}
-          <button type="button" role="menuitem" onClick={() => quoteMessage(selectedMessage()!)}>引用回复</button>
-          {selectedMessage()?.role === "user" ? (() => {
-            const selected = selectedMessage()!;
+          <button type="button" role="menuitem" onClick={() => void speakMessage(menuMessage)}>{speakingMessageId === menuMessage.id ? "停止朗读" : "朗读"}</button>
+          <button type="button" role="menuitem" disabled={menuTranslation?.status === "loading"} onClick={() => {
+            if (menuTranslation?.status === "success") {
+              clearTranslation(menuMessage);
+              setContextMenu(null);
+            } else {
+              void translateMessage(menuMessage);
+            }
+          }}>{menuTranslation?.status === "success" ? "取消翻译" : menuTranslation?.status === "loading" ? "正在翻译……" : "翻译"}</button>
+          <button type="button" role="menuitem" onClick={() => quoteMessage(menuMessage)}>引用回复</button>
+          {menuMessage.role === "user" ? (
             // Both destructive actions ask for confirmation through the shared
             // dialog. Its trigger stays the menu item, so the dialog lives in
             // this portal and the menu stays mounted behind the blocking
             // overlay until the request settles (see releaseMessageMenuAfterAction).
-            return <>
+            <>
               <ConfirmActionDialog
                 confirmLabel="确认撤回"
                 description="撤回后对话中只会显示撤回提示，这条消息也不会再用于记忆或学习数据。"
                 failureMessage="撤回没有完成，消息仍保留在对话中。"
-                onConfirm={() => withdrawMessage(selected)}
+                onConfirm={() => withdrawMessage(menuMessage)}
                 title="撤回这条消息？"
                 trigger={<button type="button" role="menuitem">撤回</button>}
               />
@@ -1068,12 +1117,12 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
                 confirmLabel="确认删除"
                 description="删除后这条消息将从你的聊天记录中移除，且无法恢复。"
                 failureMessage="删除没有完成，消息仍在聊天记录中。"
-                onConfirm={() => deleteMessage(selected)}
+                onConfirm={() => deleteMessage(menuMessage)}
                 title="删除这条消息？"
                 trigger={<button className="conversation-message-menu__danger" type="button" role="menuitem">删除</button>}
               />
-            </>;
-          })() : null}
+            </>
+          ) : null}
         </div>,
         document.body,
       ) : null}

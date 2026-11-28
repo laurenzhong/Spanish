@@ -540,6 +540,7 @@ test("opens sent-message actions and marks a withdrawn message without memory te
     }
     await route.continue();
   });
+  await page.route("**/api/v1/conversations/translation", (route) => route.fulfill({ json: { data: { text: "我喜欢徒步。" } } }));
   await page.goto("/chat/lucia");
   const message = page.locator(`[data-message-id="${messageId}"]`);
   await message.click({ button: "right" });
@@ -553,10 +554,13 @@ test("opens sent-message actions and marks a withdrawn message without memory te
   expect(viewport).not.toBeNull();
   expect((menuBox?.x ?? 0) + (menuBox?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
   expect(menuBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(156);
-  // A user message menu is now the tallest variant: copy, read aloud, quote,
-  // withdraw and delete. Five 34px rows on desktop, five 44px rows on mobile.
-  expect(menuBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((viewport?.width ?? 0) < 600 ? 240 : 190);
-  expect(Math.abs((menuBox?.x ?? 0) + (menuBox?.width ?? 0) - ((bubbleBox?.x ?? 0) + (bubbleBox?.width ?? 0)))).toBeLessThanOrEqual(1);
+  // The six actions keep their existing 34px desktop and 44px mobile targets.
+  expect(await messageMenu.getByRole("menuitem").count()).toBe(6);
+  expect(menuBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((viewport?.width ?? 0) < 600 ? 280 : 220);
+  // Chromium can retain a fractional inline-size for the fitted bubble while
+  // the fixed portal menu is rounded independently. Keep the alignment guard
+  // tight, but allow the measured sub-pixel remainder (1.609375px here).
+  expect(Math.abs((menuBox?.x ?? 0) + (menuBox?.width ?? 0) - ((bubbleBox?.x ?? 0) + (bubbleBox?.width ?? 0)))).toBeLessThanOrEqual(2);
   expect(menuBox?.y ?? 0).toBeGreaterThanOrEqual((bubbleBox?.y ?? 0) + (bubbleBox?.height ?? 0) + 5);
   await expect(messageMenu).toHaveCSS("background-color", "rgb(48, 52, 45)");
   await expect(page.getByRole("menuitem", { name: "复制" })).toBeVisible();
@@ -564,10 +568,14 @@ test("opens sent-message actions and marks a withdrawn message without memory te
   await page.getByRole("menuitem", { name: "引用回复" }).click();
   await expect(page.getByTestId("conversation-composer-quote")).toContainText("Me gusta el senderismo");
   await message.click({ button: "right" });
-  page.once("dialog", (dialog) => void dialog.accept());
+  await messageMenu.getByRole("menuitem", { name: "翻译", exact: true }).click();
+  await expect(message).toContainText("我喜欢徒步。");
+  await message.click({ button: "right" });
   await page.getByRole("menuitem", { name: "撤回" }).click();
+  await page.getByRole("alertdialog", { name: "撤回这条消息？" }).getByRole("button", { name: "确认撤回" }).click();
   await expect(message).toHaveAttribute("data-withdrawn", "true");
   await expect(message).toContainText("你撤回了一条消息");
+  await expect(message).not.toContainText("我喜欢徒步。");
   await expect(page.getByText("不会用于记忆或学习数据")).toBeVisible();
 });
 
@@ -601,6 +609,58 @@ test("opens friend-message actions on double click and translates inline", async
   await page.getByRole("menuitem", { name: "取消翻译" }).click();
   await expect(message).not.toContainText("明天见。");
   await expect(page.getByRole("menu", { name: "Lucía Martín 的消息操作" })).toHaveCount(0);
+});
+
+test("opens message actions on touch hold and leaves quick taps and swipes alone", async ({ page, isMobile, browserName }) => {
+  test.skip(!isMobile, "Requires the touch project.");
+  await authenticate(page);
+  const messageId = "00000000-0000-4000-8000-000000000126";
+  await page.route("**/api/v1/conversations/lucia", (route) => route.fulfill({
+    json: { data: { characterKey: "lucia", messages: [
+      { id: messageId, role: "user", text: "Me gusta el senderismo.", complete: true },
+    ] } },
+  }));
+  await page.route("**/api/v1/conversations/translation", (route) => route.fulfill({ json: { data: { text: "我喜欢徒步。" } } }));
+  await page.goto("/chat/lucia");
+  const message = page.locator(`[data-message-id="${messageId}"]`);
+  const bubble = message.locator(".conversation-message__bubble");
+  const menu = page.getByRole("menu", { name: "你的消息操作" });
+  await expect.poll(() => message.evaluate((row) => {
+    const style = getComputedStyle(row);
+    return style.getPropertyValue("user-select") || style.getPropertyValue("-webkit-user-select");
+  })).toBe("none");
+  await bubble.tap();
+  await bubble.tap();
+  await bubble.dispatchEvent("dblclick");
+  await expect(menu).toHaveCount(0);
+
+  const box = (await bubble.boundingBox())!;
+  const point = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+  // Chromium can inject native touch input through CDP. Playwright WebKit
+  // supports taps via its touchscreen API and usefully exercises the pointer
+  // handlers for a sustained press through DOM events.
+  const touch = browserName === "chromium" ? await page.context().newCDPSession(page) : null;
+  function press(phase: "start" | "move" | "end") {
+    const pos = { ...point, y: point.y + (phase === "move" ? 45 : 0) };
+    if (touch) {
+      const type = ({ start: "touchStart", move: "touchMove", end: "touchEnd" } as const)[phase];
+      return touch.send("Input.dispatchTouchEvent", { type, touchPoints: phase === "end" ? [] : [pos] });
+    }
+    const event = { start: "pointerdown", move: "pointermove", end: "pointerup" }[phase];
+    return bubble.dispatchEvent(event, { pointerId: 1, pointerType: "touch", isPrimary: true, clientX: pos.x, clientY: pos.y });
+  }
+  await press("start");
+  await press("move");
+  await page.waitForTimeout(550);
+  await press("end");
+  await expect(menu).toHaveCount(0);
+
+  await press("start");
+  await expect(menu).toBeVisible();
+  await press("end");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: "翻译", exact: true }).tap();
+  await expect(message).toContainText("我喜欢徒步。");
 });
 
 test("keeps the conversation workspace flush with the viewport's right edge", async ({ page }) => {
