@@ -58,15 +58,23 @@ for (const width of [375, 1024, 1440]) {
     await expect(page.locator(".vocabulary-study__word")).toHaveCount(7922);
     await page.evaluate(() => document.fonts.ready);
     const tile = page.locator(".vocabulary-study__word").nth(250);
-    await tile.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
+    await tile.evaluate((element) => {
+      element.scrollIntoView({ block: "center", behavior: "instant" });
+      // Measure when the browser delivers the tap. WebKit can still correct the
+      // scroll after laying out an offscreen rank band or preparing the tap.
+      element.addEventListener("click", () => {
+        (element as HTMLElement).dataset.testTopAtClick = String(element.getBoundingClientRect().top);
+      }, { once: true });
+    });
     await expect(tile).toBeInViewport();
-    const before = await tile.boundingBox();
     const gridBefore = await page.locator(".vocabulary-shelf__bands").boundingBox();
     if (isMobile) await tile.tap();
     else await tile.click();
     const panel = page.locator(".vocabulary-study__card");
     await expect(panel).toBeVisible();
-    await expect.poll(async () => Math.abs((await tile.boundingBox())!.y - before!.y)).toBeLessThanOrEqual(3);
+    const topAtClick = Number(await tile.getAttribute("data-test-top-at-click") ?? Number.NaN);
+    expect(Number.isFinite(topAtClick)).toBe(true);
+    await expect.poll(async () => Math.abs((await tile.boundingBox())!.y - topAtClick)).toBeLessThanOrEqual(3);
     if (width < 1200) {
       await expect(panel).toHaveAttribute("role", "dialog");
       await expect(panel).toHaveAttribute("aria-modal", "true");
@@ -111,25 +119,32 @@ for (const width of [375, 1024, 1440]) {
     await panel.getByRole("button", { name: "已熟悉", exact: true }).click();
     await expect(panel.getByRole("button", { name: "已熟悉", exact: true })).toHaveAttribute("aria-pressed", "true");
     for (const theme of ["light", "dark"]) {
-      await page.evaluate(async (value) => {
+      if (width >= 1200) await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await panel.evaluate(async (element, value) => {
         localStorage.setItem("spanish-theme", value);
         document.documentElement.dataset.theme = value;
         window.dispatchEvent(new Event("spanish-theme-change"));
-        // Theme colors transition independently; inspect the finished theme.
-        document.body.getBoundingClientRect();
-        await Promise.all(document.getAnimations().filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+        // Wait for the card's theme without including deferred animations in
+        // the thousands of offscreen word tiles.
+        element.getBoundingClientRect();
+        await Promise.all(element.getAnimations({ subtree: true })
+          .filter((animation) => animation.playState === "running" && animation.effect?.getComputedTiming().iterations !== Infinity)
           .map((animation) => animation.finished.catch(() => undefined)));
       }, theme);
-      if (width >= 1200) await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
       await page.screenshot({ path: testInfo.outputPath(`panel-${width}-${theme}.png`) });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow).toBeLessThanOrEqual(1);
     }
-    await panel.getByRole("searchbox", { name: "查另一个词" }).fill("parque");
+    const lookup = panel.getByRole("searchbox", { name: "查另一个词" });
+    await lookup.fill("parque");
+    await expect(lookup).toHaveValue("parque");
     await Promise.all([
-      page.waitForResponse((response) => response.url().endsWith("/api/v1/read/word-lookup") && response.ok()),
-      panel.getByRole("searchbox", { name: "查另一个词" }).press("Enter"),
+      page.waitForResponse((response) => response.url().endsWith("/api/v1/read/word-lookup")
+        && response.ok() && response.request().postDataJSON()?.word === "parque"),
+      lookup.press("Enter"),
     ]);
+    // Let the word update before asking WebKit for the accessible heading on the full shelf.
+    await expect(panel.locator("h3")).toHaveText("parque", { timeout: 10_000 });
     await expect(panel.getByRole("heading", { name: "parque", exact: true })).toBeVisible();
     await expect(panel.locator("details")).not.toHaveAttribute("open");
     await panel.getByRole("button", { name: "关闭", exact: true }).focus();
@@ -141,6 +156,7 @@ for (const width of [375, 1024, 1440]) {
     await casa.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
     await casa.click();
     await expect(panel).toBeVisible();
+    await page.waitForFunction(() => window.history.state?.vocabularyPanel === true);
     await page.goBack();
     await expect(panel).toHaveCount(0);
     await expect(page).toHaveURL(/\/read\/vocabulary$/u);
