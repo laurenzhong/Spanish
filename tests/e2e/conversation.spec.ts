@@ -513,13 +513,25 @@ test("searches conversation history and opens the matching message", async ({ pa
   await expect(page.locator(`[data-message-id="${messageId}"]`)).toHaveAttribute("data-highlighted", "true");
 });
 
-test("renders the selected character identity for Mateo and Inés", async ({ page }) => {
+test("keeps draft characters behind the direct conversation gate", async ({ page }) => {
   await authenticate(page);
+  const historyRequests: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (/^\/api\/v1\/conversations\/(mateo|ines)(\/|$)/u.test(path)) historyRequests.push(path);
+  });
   for (const character of [{ key: "mateo", name: "Mateo Ruiz" }, { key: "ines", name: "Inés García" }]) {
     await page.goto(`/chat/${character.key}`);
-    await expect(page.getByRole("heading", { name: character.name })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: `写下你想对 ${character.name} 说的话` })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "角色尚未开放" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "角色尚未开放" })).toContainText(character.name);
+    await expect(page.getByTestId("conversation-thread")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: `写下你想对 ${character.name} 说的话` })).toHaveCount(0);
+    const chat = page.getByRole("navigation", { name: "主要导航" }).getByRole("link", { name: "对话", exact: true });
+    await chat.click();
+    await expect(page).toHaveURL(/\/chat$/u);
+    await expect(page.getByRole("navigation", { name: "好友列表" })).toBeVisible();
   }
+  expect(historyRequests).toEqual([]);
 });
 
 test("opens sent-message actions and marks a withdrawn message without memory text", async ({ page }) => {

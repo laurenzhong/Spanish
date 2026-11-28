@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { buildLearningHeatmap } from "../../src/modules/profile/domain/learning-heatmap";
 
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
@@ -530,7 +531,9 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   // search box must neither sit flush against it nor be reintroduced behind a
   // section rule.
   const underlinedTab = page.locator('.read-section-navigation a[aria-current="page"]');
-  const searchFieldBox = await page.locator(".read-search__field").boundingBox();
+  const searchField = page.locator(".read-search__field").filter({ has: page.getByRole("searchbox", { name: "搜索文章" }) });
+  await expect(searchField).toBeVisible();
+  const searchFieldBox = await searchField.boundingBox();
   const underlinedTabBox = await underlinedTab.boundingBox();
   expect(searchFieldBox).not.toBeNull();
   expect(underlinedTabBox).not.toBeNull();
@@ -613,13 +616,16 @@ test("opens the published reading shelf and article reader", async ({ page }) =>
   });
   const firstArticleTop = await firstArticleRow.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
   const firstArticleSave = page.getByRole("button", { name: /收藏文章：Una conversación que empieza con un café/ });
+  const saveToast = page.getByRole("status").filter({ hasText: "已收藏。" });
+  await page.clock.install();
   await firstArticleSave.click();
   await page.evaluate(() => document.fonts?.ready);
   const firstArticleTopAfterSave = await firstArticleRow.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
   expect(Math.abs(firstArticleTopAfterSave - firstArticleTop)).toBeLessThan(5);
   await expect(page.getByRole("button", { name: /取消收藏：Una conversación que empieza con un café/ })).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("已收藏。");
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4000 });
+  await expect(saveToast.getByRole("button", { name: "撤销" })).toBeVisible();
+  await page.clock.fastForward(4_000);
+  await expect(saveToast).toHaveCount(0);
   await firstArticleLink.click();
   await expect(page).toHaveURL(/\/read\/article\/article\.sueno-first-cafe%401$/);
   await expect(page.getByRole("heading", { name: "Una conversación que empieza con un café" })).toBeVisible();
@@ -665,8 +671,12 @@ test("redirects readers to login when their save session expires", async ({ page
 
 test("keeps the profile empty state focused before evidence exists", async ({
   page,
+  isMobile,
 }) => {
   await authenticate(page);
+  await page.route("**/api/v1/profile/heatmap", (route) => route.fulfill({
+    json: { apiVersion: "v1", data: buildLearningHeatmap([], new Date("2026-11-28T12:00:00Z")) },
+  }));
   await page.goto("/me");
 
   const overview = page.getByTestId("profile-overview");
@@ -684,30 +694,39 @@ test("keeps the profile empty state focused before evidence exists", async ({
   const heatmap = page.getByTestId("learning-heatmap");
   await expect(heatmap).toBeVisible();
   await expect(heatmap.getByTestId("learning-heatmap-empty")).toBeVisible();
+  await expect(heatmap.getByTestId("learning-heatmap-unavailable")).toHaveCount(0);
   await expect(heatmap.locator("[data-date]")).toHaveCount(0);
 
-  // The section navigation shares the one sliding underline: it rests on the
-  // active section and moves with the pointer without leaving a static
-  // underline behind on the first item.
   const sectionNavigation = page.getByRole("navigation", { name: "我的页面分区" });
   const sectionIndicator = page.locator(".profile-page__section-nav-indicator");
-  await expect(sectionNavigation).toHaveAttribute("data-indicator", "ready");
-  await expect(sectionIndicator).toHaveCSS("opacity", "1");
-  const sectionIndicatorBox = await sectionIndicator.boundingBox();
-  const activeSectionBox = await sectionNavigation.getByRole("link", { name: "能力与活动" }).boundingBox();
-  expect(sectionIndicatorBox).not.toBeNull();
-  expect(activeSectionBox).not.toBeNull();
-  expect(Math.abs((sectionIndicatorBox?.x ?? 0) - (activeSectionBox?.x ?? 0))).toBeLessThan(1);
-  // The width is read while the 240ms transform/width transition settles, so a
-  // sub-pixel difference is expected; anything wider would mean a mis-measure.
-  expect(Math.abs((sectionIndicatorBox?.width ?? 0) - (activeSectionBox?.width ?? 0))).toBeLessThan(2);
+  const activeTab = sectionNavigation.getByRole("link", { name: "能力与活动" });
   const relationshipsTab = sectionNavigation.getByRole("link", { name: "关系隐私" });
-  await relationshipsTab.hover();
-  await expect.poll(async () => (await sectionIndicator.boundingBox())?.x ?? 0).toBeGreaterThan((sectionIndicatorBox?.x ?? 0) + 10);
-  await relationshipsTab.click();
+  await expect(sectionNavigation).toHaveAttribute("data-indicator", "ready");
+  const twoRows = (page.viewportSize()?.width ?? 0) <= 420;
+  if (twoRows) {
+    await expect(sectionIndicator).toBeHidden();
+    await expect(activeTab).not.toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+    expect((await relationshipsTab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  } else {
+    await expect(sectionIndicator).toHaveCSS("opacity", "1");
+    const assertIndicator = async (tab: typeof activeTab) => expect.poll(async () => {
+      const [indicator, bounds] = await Promise.all([sectionIndicator.boundingBox(), tab.boundingBox()]);
+      if (!indicator || !bounds) return Number.POSITIVE_INFINITY;
+      return Math.max(Math.abs(indicator.x - bounds.x), Math.abs(indicator.width - bounds.width));
+    }).toBeLessThan(1);
+    await assertIndicator(activeTab);
+    await relationshipsTab.hover();
+    await assertIndicator(relationshipsTab);
+  }
+  if (isMobile) await relationshipsTab.tap();
+  else await relationshipsTab.click();
   await expect(page).toHaveURL(/#profile-relationships$/);
   await expect(relationshipsTab).toHaveAttribute("aria-current", "page");
-  await expect(sectionNavigation.getByRole("link", { name: "能力与活动" })).not.toHaveAttribute("aria-current");
+  await expect(activeTab).not.toHaveAttribute("aria-current");
+  if (twoRows) {
+    await expect(relationshipsTab).not.toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+    await expect(activeTab).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+  }
 });
 
 test("shows provider settings and keeps them usable across the release viewport matrix", async ({ page }) => {
