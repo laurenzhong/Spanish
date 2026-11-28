@@ -186,7 +186,7 @@ describe("ChatThread persistence status", () => {
     expect(screen.getByRole("button", { name: "消息操作" })).toHaveAttribute("aria-haspopup", "menu");
     fireEvent.contextMenu(message.closest("article")!);
     expect(screen.getByRole("menu")).toBeInTheDocument();
-    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "朗读", "引用回复", "撤回", "删除"]);
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["复制", "朗读", "翻译", "引用回复", "撤回", "删除"]);
     expect(screen.queryByRole("menuitem", { name: "转发" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "复制" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("Hola desde el chat"));
@@ -337,6 +337,73 @@ describe("ChatThread persistence status", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "取消翻译" }));
     expect(screen.queryByText("明天见。")).not.toBeInTheDocument();
     expect(screen.queryByRole("menu", { name: "Lucía Martín 的消息操作" })).not.toBeInTheDocument();
+  });
+
+  it("translates the user's Spanish and Chinese messages independently and retries a failed translation", async () => {
+    const messages = [
+      { id: "own-es", role: "user" as const, text: "Me gusta caminar.", complete: true },
+      { id: "own-zh", role: "user" as const, text: "明天去散步吧。", complete: true },
+    ];
+    const requests: Array<{ body: unknown; finish: (response: Response) => void }> = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) !== "/api/v1/conversations/translation") return { ok: false } as Response;
+      return new Promise<Response>((finish) => requests.push({ body: JSON.parse(String(init?.body)), finish }));
+    });
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={messages} />);
+    const spanish = screen.getByText(messages[0].text).closest("article")!;
+    const chinese = screen.getByText(messages[1].text).closest("article")!;
+
+    fireEvent.contextMenu(spanish);
+    fireEvent.click(screen.getByRole("menuitem", { name: "翻译" }));
+    fireEvent.contextMenu(chinese);
+    fireEvent.click(screen.getByRole("menuitem", { name: "翻译" }));
+    expect(requests.map(({ body }) => body)).toEqual([
+      { text: messages[0].text, sourceLocale: "es-ES", targetLocale: "zh-CN" },
+      { text: messages[1].text, sourceLocale: "zh-CN", targetLocale: "es-ES" },
+    ]);
+
+    await act(async () => requests[1].finish({ ok: false } as Response));
+    fireEvent.click(within(chinese).getByRole("button", { name: "翻译暂时不可用，请稍后重试。" }));
+    const success = (text: string) => ({ ok: true, json: async () => ({ data: { text } }) }) as Response;
+    await act(async () => {
+      requests[0].finish(success("我喜欢散步。"));
+      requests[2].finish(success("Vamos a dar un paseo mañana."));
+    });
+    expect(spanish).toHaveTextContent("我喜欢散步。");
+    expect(chinese).toHaveTextContent("Vamos a dar un paseo mañana.");
+
+    fireEvent.contextMenu(spanish);
+    fireEvent.click(screen.getByRole("menuitem", { name: "取消翻译" }));
+    expect(spanish).toHaveTextContent(messages[0].text);
+    expect(spanish).not.toHaveTextContent("我喜欢散步。");
+    expect(chinese).toHaveTextContent("Vamos a dar un paseo mañana.");
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/stream"))).toBe(false);
+  });
+
+  it("keeps a pending own-message translation attached when history assigns the server ID", async () => {
+    const message = { id: "client-message", clientMessageId: "client-message", role: "user" as const, text: "Hasta mañana.", complete: true };
+    let finishTranslation!: (response: Response) => void;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input) === "/api/v1/conversations/translation") {
+        return new Promise<Response>((finish) => { finishTranslation = finish; });
+      }
+      if (String(input) === "/api/v1/conversations/lucia") {
+        return {
+          ok: true,
+          headers: new Headers([["x-conversation-persistence", "available"]]),
+          json: async () => ({ data: { messages: [{ ...message, id: "server-message" }] } }),
+        } as Response;
+      }
+      return { ok: false } as Response;
+    });
+    render(<ChatThread characterKey="lucia" characterName="Lucía Martín" characterVersion={1} initialMessages={[message]} />);
+    const row = screen.getByRole("article", { name: "你的消息" });
+    expect(row).toHaveAttribute("data-message-id", "client-message");
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: "翻译" }));
+    await waitFor(() => expect(screen.getByRole("article", { name: "你的消息" })).toHaveAttribute("data-message-id", "server-message"));
+    await act(async () => finishTranslation({ ok: true, json: async () => ({ data: { text: "明天见。" } }) } as Response));
+    expect(screen.getByRole("article", { name: "你的消息" })).toHaveTextContent("明天见。");
   });
 
   it("refreshes on focus and shows a prompt for a new proactive message when reading older messages", async () => {

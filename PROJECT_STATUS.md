@@ -5,6 +5,13 @@
 - 补充巡检提交 `1340dd5`，并入同一个[草稿 PR #96](https://github.com/laurenzhong/Spanish/pull/96)。修复回复期间的触控连续发送、学习频道重试、活动热力图恢复和 PWA 图标尺寸。三项目专项 30/30，聚焦 Vitest 84/84，TypeScript、改动文件 ESLint 和生产构建 78/78 通过。完整 WebKit 最终批次 185 通过、16 失败、6 跳过，其中 3 个失败用例串行复跑通过。
 - [覆盖矩阵、验证结果及复验步骤](docs/reviews/IPHONE-USABILITY-001.md)。
 
+## 2026-11-28 `CHAT-MESSAGE-ACTIONS-001`（聊天翻译与触屏消息菜单）
+
+- 实现提交 `e75de03`，分支 `codex/chat-message-actions-001`，基线 `6c9a60d`。自己的消息可以从操作菜单翻译，译文显示在原气泡下。西语译为简体中文，含中文的本人消息译为西语。译文可以隐藏，失败可以重试，撤回后清除。
+- 手机触屏长按约半秒打开消息菜单。轻点、双击触屏和滑动保持各自交互。桌面支持双击、右键和键盘。翻译沿用当前鉴权接口，并在聊天记录同步时用稳定消息键保留行内译文。
+- 隔离候选聚焦 Vitest 118 项和 Playwright 8 项通过，覆盖桌面与移动 Chromium、模拟 iPhone 的 WebKit，桌面跳过 1 项仅触屏测试。TypeScript、改动文件 ESLint 通过。全仓 ESLint 报告基线的 3 个错误和 4 个警告，全站 Playwright 收集受既有 Lucía JSON import attribute 错误阻断。
+- 真实供应商和 iPhone Safari／主屏 PWA 真机留待确认。真机验收时长按自己的西语气泡，点「翻译」查看译文，再滑动聊天记录，确认菜单和滚动行为。
+
 ## 2026-11-28 `CONTENT-WORKFLOW-RELIABILITY-001`（`done`，生产复跑已验证）
 
 - 分支 `codex/content-workflow-reliability-001`，基线 `fac7367`，实现 `42fb1d6`。运行 `46100047603` 的第二轮 Language Reactor 发现读取 offset 180，HTTP 200 的一条节目时长未通过正数校验，整页因共同校验中止，来源错误导致媒体步骤退出。现按单条校验，混合页按原页长度推进，整页异常保留游标。
