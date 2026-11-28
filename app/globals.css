@@ -10835,6 +10835,7 @@ body {
 .conversation-thread__typing { font-size: 12px; }
 
 .conversation-thread__header-actions { display: flex; align-items: center; gap: 6px; }
+.conversation-thread__stop,
 .conversation-thread__more,
 .conversation-thread__mobile-list {
   display: grid;
@@ -10850,6 +10851,10 @@ body {
   cursor: pointer;
 }
 .conversation-thread__mobile-list { display: none; }
+.conversation-thread__stop { color: var(--conversation-action); background: var(--conversation-action-soft); }
+.conversation-thread__stop:hover { border-color: currentColor; }
+.conversation-thread__stop:focus-visible { outline: 2px solid var(--conversation-focus); }
+.conversation-thread__stop svg { width: 20px; height: 20px; fill: currentColor; }
 .conversation-thread__more:hover,
 .conversation-thread__more:focus-visible,
 .conversation-thread__more[aria-expanded="true"],
@@ -11114,6 +11119,7 @@ body {
   .conversation-thread__identity p { font-size: 12px; }
   .conversation-thread__header-actions { grid-column: 2; grid-row: 1; }
   .conversation-thread__mobile-list { display: grid; grid-column: auto; grid-row: auto; margin: 0; }
+  .conversation-thread__stop,
   .conversation-thread__more,
   .conversation-thread__mobile-list { width: 44px; height: 44px; }
   .conversation-thread__header-menu { top: 58px; right: 12px; }
@@ -11275,6 +11281,11 @@ body {
 }
 
 .media-library__notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  justify-content: space-between;
   margin: 0;
   padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--terracotta) 34%, var(--border));
@@ -12807,6 +12818,7 @@ body {
   color: var(--learn-muted, var(--muted));
   font-size: 12px;
 }
+.media-library__notice button,
 .media-library__load-more-state button {
   min-height: 32px;
   padding: 0 10px;
@@ -12817,6 +12829,9 @@ body {
   font: inherit;
   cursor: pointer;
 }
+.media-library__notice button { min-width: 44px; min-height: 44px; }
+.media-library__notice button:hover,
+.media-library__notice button:focus-visible,
 .media-library__load-more-state button:hover,
 .media-library__load-more-state button:focus-visible { border-color: var(--learn-accent, var(--accent)); }
 .media-library__floating-actions {

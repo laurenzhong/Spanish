@@ -985,6 +985,11 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           </div>
         </div>
         <div className="conversation-thread__header-actions">
+          {state.status === "streaming" ? (
+            <button className="conversation-thread__stop" type="button" aria-label="停止回复" title="停止回复" onClick={cancel}>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" /></svg>
+            </button>
+          ) : null}
           <button ref={mobileListTriggerRef} className="conversation-thread__mobile-list" type="button" aria-label="打开会话列表" aria-haspopup="dialog" aria-expanded={showMobileConversations} onClick={() => setShowMobileConversations(true)}>
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
           </button>
@@ -1160,7 +1165,7 @@ export function ChatThread({ characterKey, characterName, roleLabel = "主要好
           {historyLockMessage}
         </div>
       ) : (
-        <VoiceComposer characterName={characterName} disabled={state.status === "streaming"} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onCancel={cancel} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft}
+        <VoiceComposer characterName={characterName} unavailable={persistenceStatus !== "available" && state.status !== "streaming"} onChange={setDraft} onSubmit={submit} quotedText={quotedMessage?.text ?? null} onClearQuote={() => setQuotedMessage(null)} value={draft}
           assistance={{ contextKey: `${characterKey}:${characterVersion}:${cacheScope}:${assistEpoch}`, characterKey, characterVersion,
             onAssisted: () => { assistedRef.current = true; } }} />
       )}

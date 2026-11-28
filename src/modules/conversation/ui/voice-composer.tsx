@@ -10,13 +10,11 @@ import {
 } from "@/src/modules/providers/speech";
 
 type VoiceComposerProps = Readonly<{
-  disabled?: boolean;
   unavailable?: boolean;
   characterName?: string;
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onCancel: () => void;
   quotedText?: string | null;
   onClearQuote?: () => void;
   assistance?: Readonly<{
@@ -31,13 +29,11 @@ type VoiceComposerProps = Readonly<{
 const composerBarWeights = [0.5, 0.85, 1, 0.68, 0.92, 0.58, 0.74] as const;
 
 export function VoiceComposer({
-  disabled = false,
   unavailable = false,
   characterName = "Lucía Martín",
   value,
   onChange,
   onSubmit,
-  onCancel,
   quotedText = null,
   onClearQuote,
   assistance,
@@ -56,9 +52,6 @@ export function VoiceComposer({
   const [inputLevel, setInputLevel] = useState<number | null>(null);
   const levelUnsubscribeRef = useRef<(() => void) | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  // Streaming only blocks submitting another turn and recording. The text
-  // field remains a normal composer so the user can prepare their next reply
-  // while the character is responding.
   const blocked = unavailable;
 
   const resetRecordingState = useCallback(() => {
@@ -280,12 +273,6 @@ export function VoiceComposer({
         ) : transcribing ? (
           <button aria-label="取消语音整理" className="conversation-composer__control conversation-composer__control--trailing conversation-composer__control--stop" onClick={() => void toggleRecording()} title="取消语音整理" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17" /></svg>
-          </button>
-        ) : disabled ? (
-          // While a reply streams the trailing slot stops it instead of sending:
-          // both controls must never be on screen at once.
-          <button aria-label="停止回复" className="conversation-composer__control conversation-composer__control--trailing conversation-composer__control--stop" onClick={onCancel} title="停止回复" type="button">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8" rx="1" /></svg>
           </button>
         ) : (
           <button aria-label="发送消息" className="conversation-composer__control conversation-composer__control--trailing" disabled={unavailable || !value.trim()} title="发送消息" type="submit">

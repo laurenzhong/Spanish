@@ -93,6 +93,37 @@ test("keeps cards on failure, retries and reports exhaustion", async ({ page }) 
   expect(button!.height).toBeGreaterThanOrEqual(44);
 });
 
+test("retries the failed channel without dropping the currently displayed cards", async ({ page, isMobile }) => {
+  const [podcast] = cards;
+  const video: MediaCard = { ...podcast, id: "video.preview@1", stableKey: "video.preview", kind: "video", title: "Vídeo de prueba", series: null };
+  const requestedKinds: (string | null)[] = [];
+  await page.route("**/api/v1/media?*", (route) => {
+    const kind = new URL(route.request().url()).searchParams.get("kind");
+    requestedKinds.push(kind);
+    if (kind === "podcast" && requestedKinds.filter((value) => value === "podcast").length === 1) return route.fulfill({ status: 503 });
+    const items = kind === "podcast" ? [podcast] : [video];
+    return route.fulfill({ json: { apiVersion: "v1", data: { items }, page: { nextCursor: null, hasMore: false } } });
+  });
+
+  await page.goto("/learn");
+  await page.getByRole("button", { name: "重试", exact: true }).click();
+  await expect(page.locator(".media-card")).toContainText("Vídeo de prueba");
+  const channel = page.getByRole("link", { name: "播客", exact: true });
+  if (isMobile) await channel.tap();
+  else await channel.click();
+  const error = page.getByTestId("media-library").getByRole("alert").filter({ hasText: "切换内容失败" });
+  await expect(error).toBeVisible();
+  await expect(page.locator(".media-card")).toContainText("Vídeo de prueba");
+  await expect(page).toHaveURL(/\/learn$/u);
+  const retry = error.getByRole("button", { name: "重试", exact: true });
+  if (isMobile) await retry.tap();
+  else await retry.click();
+  await expect(page).toHaveURL(/\/learn\?kind=podcast$/u);
+  await expect(channel).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".media-card")).toContainText(podcast.title);
+  expect(requestedKinds).toEqual([null, "podcast", "podcast"]);
+});
+
 test("recovers an initial catalogue outage without presenting it as preparing content", async ({ page }) => {
   let requests = 0;
   await page.route("**/api/v1/media?*", (route) => {

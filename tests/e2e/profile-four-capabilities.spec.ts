@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { buildLearningHeatmap } from "../../src/modules/profile/domain/learning-heatmap";
 
 const e2eUserId = "00000000-0000-4000-8000-000000000001";
 const e2eBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3101"}`;
@@ -31,4 +32,27 @@ test("shows four capability groups and keeps the profile usable on phone and des
     await expect(page.getByRole("button", { name: /跟读表现/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
+});
+
+test("clears the stale activity error when the section retries to a valid empty result", async ({ page }) => {
+  await authenticate(page);
+  await page.route("**/api/v1/profile", (route) => route.fulfill({ json: profileFixture() }));
+  let attempts = 0;
+  let recovered = false;
+  await page.route("**/api/v1/profile/heatmap", (route) => {
+    attempts += 1;
+    return recovered
+      ? route.fulfill({ json: { data: buildLearningHeatmap([], new Date("2026-11-28T12:00:00Z")) } })
+      : route.fulfill({ status: 503 });
+  });
+  await page.goto("/me");
+  await expect(page.getByTestId("learning-heatmap-unavailable")).toBeVisible();
+  const warning = page.getByRole("alert").filter({ hasText: "这个分区暂时无法读取最新资料" });
+  const expectedAttempts = attempts + 1;
+  recovered = true;
+  await warning.getByRole("button", { name: "重试" }).click();
+  await expect(page.getByTestId("learning-heatmap-empty")).toBeVisible();
+  await expect(page.getByTestId("learning-heatmap-unavailable")).toHaveCount(0);
+  await expect(warning).toHaveCount(0);
+  expect(attempts).toBe(expectedAttempts);
 });

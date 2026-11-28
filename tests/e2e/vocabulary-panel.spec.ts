@@ -34,7 +34,7 @@ for (const width of [375, 1024, 1440]) {
     await panel.getByRole("button", { name: "关闭", exact: true }).click();
   });
 
-  test(`keeps vocabulary in place and prioritizes word details at ${width}px`, async ({ page }, testInfo) => {
+  test(`keeps vocabulary in place and prioritizes word details at ${width}px`, async ({ page, isMobile }, testInfo) => {
     test.setTimeout(60_000);
     await page.setViewportSize({ width, height: 900 });
     await page.context().addCookies([{ name: "spanish-e2e-user", value: scope, url: base }]);
@@ -58,10 +58,12 @@ for (const width of [375, 1024, 1440]) {
     await expect(page.locator(".vocabulary-study__word")).toHaveCount(7922);
     await page.evaluate(() => document.fonts.ready);
     const tile = page.locator(".vocabulary-study__word").nth(250);
-    await tile.scrollIntoViewIfNeeded();
+    await tile.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
+    await expect(tile).toBeInViewport();
     const before = await tile.boundingBox();
     const gridBefore = await page.locator(".vocabulary-shelf__bands").boundingBox();
-    await tile.click();
+    if (isMobile) await tile.tap();
+    else await tile.click();
     const panel = page.locator(".vocabulary-study__card");
     await expect(panel).toBeVisible();
     await expect.poll(async () => Math.abs((await tile.boundingBox())!.y - before!.y)).toBeLessThanOrEqual(3);

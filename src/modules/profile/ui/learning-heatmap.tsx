@@ -113,6 +113,7 @@ export function LearningHeatmap({ onError, retryToken = 0, showError = true }: L
       .then((nextHeatmap) => {
         if (!active) return;
         setHeatmap(nextHeatmap);
+        setError(false);
         setLoading(false);
       })
       .catch(() => {

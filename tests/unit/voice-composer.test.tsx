@@ -47,7 +47,7 @@ describe("VoiceComposer", () => {
 
   it("keeps a Safari IME confirmation from sending the draft", () => {
     const onSubmit = vi.fn();
-    render(<VoiceComposer onCancel={vi.fn()} onChange={vi.fn()} onSubmit={onSubmit} value="Hola" />);
+    render(<VoiceComposer onChange={vi.fn()} onSubmit={onSubmit} value="Hola" />);
     const field = screen.getByRole("textbox");
     fireEvent.keyDown(field, { key: "Enter", keyCode: 229, isComposing: false });
     expect(onSubmit).not.toHaveBeenCalled();
@@ -58,7 +58,7 @@ describe("VoiceComposer", () => {
   it("recovers after a recorder interruption without transcribing", async () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
-    render(<VoiceComposer onCancel={vi.fn()} onChange={vi.fn()} onSubmit={vi.fn()} value="" />);
+    render(<VoiceComposer onChange={vi.fn()} onSubmit={vi.fn()} value="" />);
     await userEvent.click(screen.getByRole("button", { name: "使用语音输入" }));
     await screen.findByRole("button", { name: "取消录音" });
     const interrupt = speechMock.initialize.mock.lastCall?.[0];
@@ -78,7 +78,7 @@ describe("VoiceComposer", () => {
     vi.stubGlobal("fetch", fetch);
     const onChange = vi.fn();
     const onSubmit = vi.fn();
-    render(<VoiceComposer onCancel={vi.fn()} onChange={onChange} onSubmit={onSubmit} value="" />);
+    render(<VoiceComposer onChange={onChange} onSubmit={onSubmit} value="" />);
     await userEvent.click(screen.getByRole("button", { name: "使用语音输入" }));
     await userEvent.click(await screen.findByRole("button", { name: "结束录音" }));
     await waitFor(() => expect(onChange).toHaveBeenCalledWith("Hola"));
@@ -91,7 +91,7 @@ describe("VoiceComposer", () => {
   it("keeps send disabled until text is present", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<VoiceComposer onCancel={vi.fn()} onChange={onChange} onSubmit={vi.fn()} value="" />);
+    render(<VoiceComposer onChange={onChange} onSubmit={vi.fn()} value="" />);
 
     expect(screen.getByRole("textbox")).toHaveAttribute("lang", "es");
     expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
@@ -99,18 +99,18 @@ describe("VoiceComposer", () => {
     expect(onChange).toHaveBeenCalled();
   });
 
-  it("shows only the stop control while a reply streams", () => {
-    render(<VoiceComposer disabled onCancel={vi.fn()} onChange={vi.fn()} onSubmit={vi.fn()} value="" />);
-
-    // The shipped fix (main 20053f4): the trailing slot renders exactly one
-    // control, so the stop action replaces the send control instead of stacking
-    // next to it.
-    expect(screen.getByRole("button", { name: "停止回复" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "发送消息" })).not.toBeInTheDocument();
+  it("keeps a single trailing submit action when the draft has text", async () => {
+    const onSubmit = vi.fn();
+    render(<VoiceComposer onChange={vi.fn()} onSubmit={onSubmit} value="Hola" />);
+    const send = screen.getByRole("button", { name: "发送消息" });
+    expect(send).toHaveAttribute("type", "submit");
+    expect(screen.queryByRole("button", { name: "停止回复" })).not.toBeInTheDocument();
+    await userEvent.click(send);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
   it("becomes honestly unavailable without showing a false stop action", () => {
-    render(<VoiceComposer unavailable onCancel={vi.fn()} onChange={vi.fn()} onSubmit={vi.fn()} value="Hola" />);
+    render(<VoiceComposer unavailable onChange={vi.fn()} onSubmit={vi.fn()} value="Hola" />);
 
     expect(screen.getByRole("textbox")).toBeDisabled();
     expect(screen.getByRole("button", { name: "使用语音输入" })).toBeDisabled();
@@ -127,7 +127,7 @@ describe("VoiceComposer", () => {
       return () => undefined;
     });
 
-    render(<VoiceComposer onCancel={vi.fn()} onChange={vi.fn()} onSubmit={vi.fn()} value="" />);
+    render(<VoiceComposer onChange={vi.fn()} onSubmit={vi.fn()} value="" />);
     await user.click(screen.getByRole("button", { name: "使用语音输入" }));
 
     await waitFor(() => expect(speechMock.levels).toHaveLength(1));
@@ -150,7 +150,7 @@ describe("VoiceComposer", () => {
     const user = userEvent.setup();
     speechMock.recorder.isLevelMeterSupported = false;
 
-    render(<VoiceComposer onCancel={vi.fn()} onChange={vi.fn()} onSubmit={vi.fn()} value="" />);
+    render(<VoiceComposer onChange={vi.fn()} onSubmit={vi.fn()} value="" />);
     await user.click(screen.getByRole("button", { name: "使用语音输入" }));
     await waitFor(() => expect(speechMock.recorder.start).toHaveBeenCalled());
 
